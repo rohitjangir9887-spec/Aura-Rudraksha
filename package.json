@@ -23,6 +23,7 @@
     "@tiptap/starter-kit": "^3.30.5",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.3",
+    "@vercel/analytics": "^2.0.1",
     "canvas-confetti": "^1.9.4",
     "cors": "^2.8.6",
     "dompurify": "^3.4.14",
