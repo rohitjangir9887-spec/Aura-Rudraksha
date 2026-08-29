@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aura-rudraksha",
+  "compatibility_date": "2026-08-24",
+
+  // ==========================================================================
+  // STATIC FRONTEND DEPLOYMENT (Cloudflare Pages)
+  // ==========================================================================
+  // The Vite-built SPA in dist/ is served as static assets.
+  // Cloudflare Pages provides HTTPS, caching, and SPA fallback automatically.
+  //
+  // IMPORTANT: The Node/Express API (server.ts -> dist/server.cjs) requires a
+  // Node.js runtime and CANNOT run on Workers directly.  For production, host
+  // the API separately (see docs/CLOUDFLARE.md) and proxy /api/* to it via a
+  // Pages _redirects file OR deploy the bundled server to Cloudflare Containers.
+  // ==========================================================================
+  "pages_build_output_dir": "dist",
+
+  // Environment variables that must be set in Cloudflare Dashboard:
+  //   MONGODB_URI, NVIDIA_API_KEY,
+  //   FIREBASE_SERVICE_ACCOUNT_KEYFILE (or FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY + FIREBASE_PROJECT_ID),
+  //   INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PHONE,
+  //   NODE_ENV=production
+  "vars": {}
+}

@@ -1,0 +1,8 @@
+# Cloudflare Pages SPA fallback
+# In a split deployment (Pages for frontend, separate Node backend for API),
+# set VITE_API_BASE_URL at build time to the backend origin, e.g.:
+#   VITE_API_BASE_URL=https://api.aurarudraksha.com/api
+# /api/* paths are intentionally NOT rewritten so they either hit a Pages
+# Function proxy (if you add one) or correctly fail over to the configured
+# VITE_API_BASE_URL.
+/*    /index.html   200

@@ -1,0 +1,49 @@
+{
+  "name": "aura-rudraksha",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "server": "node server/server.js",
+    "lint": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^2.19.0",
+    "@tiptap/extension-color": "^3.30.5",
+    "@tiptap/extension-highlight": "^3.30.5",
+    "@tiptap/extension-link": "^3.30.5",
+    "@tiptap/extension-text-align": "^3.30.5",
+    "@tiptap/extension-text-style": "^3.30.5",
+    "@tiptap/extension-underline": "^3.30.5",
+    "@tiptap/react": "^3.30.5",
+    "@tiptap/starter-kit": "^3.30.5",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.3",
+    "canvas-confetti": "^1.9.4",
+    "cors": "^2.8.6",
+    "dompurify": "^3.4.14",
+    "dotenv": "^17.4.2",
+    "esbuild": "^0.28.2",
+    "express": "^5.2.1",
+    "firebase": "^12.18.0",
+    "firebase-admin": "^14.3.0",
+    "framer-motion": "^13.1.0",
+    "lucide-react": "^0.468.0",
+    "mongoose": "^9.9.3",
+    "openai": "^7.5.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.1",
+    "tsx": "^4.23.12",
+    "vite": "^6.0.5"
+  },
+  "devDependencies": {
+    "@rckflr/easydb-server": "^0.4.0",
+    "mongodb-memory-server": "^11.2.0",
+    "sharp": "^0.35.3"
+  }
+}

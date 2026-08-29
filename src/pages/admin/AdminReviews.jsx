@@ -1,0 +1,1876 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { AdminLayout } from "../../components/AdminLayout";
+import { db, onStoreUpdate } from "../../lib/db";
+import { compressImage } from "../../lib/imageUtils";
+import { ConfirmModal } from "../../components/ConfirmModal";
+import { emitToast } from "../../context/ToastContext";
+import { ProductReviews } from "../../components/ProductReviews";
+import { 
+  Star, 
+  CheckCircle2, 
+  Trash2, 
+  Edit3, 
+  Plus, 
+  Search, 
+  SlidersHorizontal, 
+  Eye, 
+  EyeOff, 
+  CornerDownRight, 
+  MessageSquare, 
+  ShieldCheck, 
+  Camera, 
+  Sparkles, 
+  Flame, 
+  ThumbsUp, 
+  Upload, 
+  X, 
+  Smartphone, 
+  Monitor, 
+  Tablet, 
+  Save, 
+  RefreshCw, 
+  ExternalLink,
+  Layers,
+  Settings,
+  Check
+} from "lucide-react";
+import "./admin-pages.css";
+
+export function AdminReviews() {
+  const [reviews, setReviews] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [settings, setSettings] = useState(() => db.getReviewSettings());
+  const [activeTab, setActiveTab] = useState("all"); // "all" | "product" | "store" | "pending" | "ai_drafts" | "settings"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProductFilter, setSelectedProductFilter] = useState("all");
+  const [selectedRatingFilter, setSelectedRatingFilter] = useState("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
+  const [selectedSourceFilter, setSelectedSourceFilter] = useState("all"); // "all" | "real_customers" | "ai_samples"
+
+  // AI Review Studio State
+  const [aiGenForm, setAiGenForm] = useState({
+    productId: "5",
+    ratingMix: "Natural", 
+    customRatings: { r5: 35, r4: 30, r3: 20, r2: 10, r1: 5 },
+    languageMix: "Auto Mix",
+    customLanguages: { english: 50, hindi: 30, hinglish: 20 },
+    tone: "Devotional/Spiritual",
+    useRAG: true,
+    count: 5
+  });
+  const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false);
+  const [generatedDrafts, setGeneratedDrafts] = useState([]);
+  const [genSummary, setGenSummary] = useState(null);
+  const [editingDraftIndex, setEditingDraftIndex] = useState(null);
+  const [draftEditState, setDraftEditState] = useState({ title: "", text: "", rating: 5 });
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+
+  // Modals & Actions state
+  const [editingReview, setEditingReview] = useState(null);
+  const [replyingReview, setReplyingReview] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [isNewReviewModalOpen, setIsNewReviewModalOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
+
+  // Live preview mode
+  const [showLivePreview, setShowLivePreview] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState("desktop"); // "desktop" | "tablet" | "mobile"
+  const [previewProduct, setPreviewProduct] = useState(null);
+
+  // New review state
+  const [newReview, setNewReview] = useState({
+    type: "product",
+    productId: "5",
+    productName: "5 Mukhi Rudraksha",
+    name: "",
+    email: "",
+    city: "",
+    rating: 5,
+    title: "",
+    text: "",
+    verified: true,
+    featured: false,
+    status: "Approved",
+    images: []
+  });
+
+  const loadData = () => {
+    setReviews(db.getAllReviews());
+    const prods = db.getProducts();
+    setProducts(prods);
+    if (prods.length > 0 && !previewProduct) {
+      setPreviewProduct(prods[0]);
+    }
+    setSettings(db.getReviewSettings());
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsub = onStoreUpdate(() => {
+      loadData();
+    });
+    return () => unsub();
+  }, []);
+
+  // Filtered reviews in admin
+  const filteredReviews = useMemo(() => {
+    return reviews.filter(r => {
+      // Tab filter
+      if (activeTab === "product" && r.type !== "product") return false;
+      if (activeTab === "store" && r.type !== "store") return false;
+      if (activeTab === "pending" && r.status !== "Pending") return false;
+
+      // Source filter (Real Devotee submissions vs AI sample drafts)
+      if (selectedSourceFilter === "real_customers" && (r.isAiGenerated || r.isSample)) return false;
+      if (selectedSourceFilter === "ai_samples" && !(r.isAiGenerated || r.isSample)) return false;
+
+      // Status filter
+      if (selectedStatusFilter !== "all" && r.status !== selectedStatusFilter) return false;
+
+      // Product filter
+      if (selectedProductFilter !== "all" && String(r.productId) !== String(selectedProductFilter)) return false;
+
+      // Rating filter
+      if (selectedRatingFilter !== "all" && Number(r.rating) !== Number(selectedRatingFilter)) return false;
+
+      // Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const match = 
+          (r.name && r.name.toLowerCase().includes(q)) ||
+          (r.city && r.city.toLowerCase().includes(q)) ||
+          (r.title && r.title.toLowerCase().includes(q)) ||
+          (r.text && r.text.toLowerCase().includes(q)) ||
+          (r.productName && r.productName.toLowerCase().includes(q));
+        if (!match) return false;
+      }
+
+      return true;
+    });
+  }, [reviews, activeTab, selectedStatusFilter, selectedProductFilter, selectedRatingFilter, selectedSourceFilter, searchQuery]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    const total = reviews.length;
+    const avg = total > 0 ? (reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / total).toFixed(1) : "5.0";
+    const withPhotos = reviews.filter(r => Array.isArray(r.images) && r.images.length > 0).length;
+    const verifiedCount = reviews.filter(r => r.verified && !r.isAiGenerated && !r.isSample).length;
+    const sampleCount = reviews.filter(r => r.isAiGenerated || r.isSample).length;
+    const pendingCount = reviews.filter(r => r.status === "Pending").length;
+    return { total, avg, withPhotos, verifiedCount, sampleCount, pendingCount };
+  }, [reviews]);
+
+  // Status toggle
+  const handleToggleStatus = (id, newStatus) => {
+    db.updateReview(id, { status: newStatus });
+    emitToast(`Review status updated to ${newStatus}`, "success");
+  };
+
+  // Toggle Featured
+  const handleToggleFeatured = (id, currentVal) => {
+    db.updateReview(id, { featured: !currentVal });
+    emitToast(!currentVal ? "Review marked as Featured" : "Review unfeatured", "success");
+  };
+
+  // Toggle Verified
+  const handleToggleVerified = (id, currentVal) => {
+    db.updateReview(id, { verified: !currentVal });
+    emitToast(!currentVal ? "Marked as Verified Purchase" : "Removed Verified badge", "success");
+  };
+
+  // Delete Review
+  const handleDeleteConfirm = () => {
+    if (deleteTargetId) {
+      db.deleteReview(deleteTargetId);
+      emitToast("Review deleted successfully.", "success");
+      setDeleteTargetId(null);
+    }
+  };
+
+  // Reply to Review
+  const handleSaveReply = (e) => {
+    e.preventDefault();
+    if (!replyingReview) return;
+    const replyObj = replyText.trim() ? {
+      text: replyText.trim(),
+      author: "Aura Rudraksha Spiritual Team",
+      date: "Just now"
+    } : null;
+
+    db.updateReview(replyingReview.id, { adminReply: replyObj });
+    emitToast(replyObj ? "Official store reply published!" : "Store reply removed.", "success");
+    setReplyingReview(null);
+    setReplyText("");
+  };
+
+  // Save Settings
+  const handleSaveSettings = (e) => {
+    e?.preventDefault();
+    db.saveReviewSettings(settings);
+    emitToast("Review display settings saved successfully!", "success");
+  };
+
+  // Handle image upload in Edit or Create modal
+  const handlePhotoUpload = async (e, isEdit = false) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    try {
+      const compressedList = [];
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) continue;
+        const comp = await compressImage(file, 900, 900, 0.75);
+        if (comp) compressedList.push(comp);
+      }
+
+      if (isEdit && editingReview) {
+        setEditingReview(prev => ({
+          ...prev,
+          images: [...(prev.images || []), ...compressedList]
+        }));
+      } else {
+        setNewReview(prev => ({
+          ...prev,
+          images: [...(prev.images || []), ...compressedList]
+        }));
+      }
+      emitToast(`${compressedList.length} photo(s) added!`, "success");
+    } catch (err) {
+      console.error(err);
+      emitToast("Image processing failed.", "error");
+    }
+  };
+
+  // Save Edit Review
+  const handleSaveEdit = (e) => {
+    e.preventDefault();
+    if (!editingReview) return;
+
+    db.updateReview(editingReview.id, {
+      name: editingReview.name,
+      city: editingReview.city,
+      rating: Number(editingReview.rating),
+      title: editingReview.title,
+      text: editingReview.text,
+      verified: editingReview.verified,
+      featured: editingReview.featured,
+      status: editingReview.status,
+      type: editingReview.type,
+      productId: editingReview.productId,
+      productName: editingReview.productName,
+      images: editingReview.images
+    });
+
+    emitToast("Review updated successfully!", "success");
+    setEditingReview(null);
+  };
+
+  // AI Draft Generator Handlers
+  const handleGenerateAiDrafts = async (e) => {
+    e?.preventDefault();
+    setIsGeneratingDrafts(true);
+    try {
+      const selProd = products.find(p => String(p.id) === String(aiGenForm.productId));
+      const res = await db.generateReviewDrafts({
+        ...aiGenForm,
+        productName: selProd?.name || (aiGenForm.productId === "all" ? "Rudraksha Sacred Store" : "5 Mukhi Rudraksha")
+      });
+      if (res?.success && Array.isArray(res.data)) {
+        setGeneratedDrafts(res.data);
+        setGenSummary(res.summary || null);
+        emitToast(`Generated ${res.data.length} Aura AI review draft(s) with duplicate detection!`, "success");
+      } else {
+        throw new Error(res?.message || "Failed to generate drafts.");
+      }
+    } catch (err) {
+      console.error("AI Review Generation Error:", err);
+      emitToast(err.message || "Failed to generate review drafts.", "error");
+    } finally {
+      setIsGeneratingDrafts(false);
+    }
+  };
+
+  const handleRegenerateSingleDraft = async (index) => {
+    try {
+      const selProd = products.find(p => String(p.id) === String(aiGenForm.productId));
+      const res = await db.generateReviewDrafts({
+        ...aiGenForm,
+        count: 1,
+        productName: selProd?.name || (aiGenForm.productId === "all" ? "Rudraksha Sacred Store" : "5 Mukhi Rudraksha")
+      });
+      if (res?.success && res.data?.[0]) {
+        const newDraft = res.data[0];
+        setGeneratedDrafts(prev => {
+          const next = [...prev];
+          next[index] = newDraft;
+          return next;
+        });
+        emitToast(`Regenerated draft #${index + 1} with fresh unique phrasing.`, "success");
+      }
+    } catch (err) {
+      emitToast("Could not regenerate draft.", "error");
+    }
+  };
+
+  const handleSaveSingleDraft = async (draft, index) => {
+    try {
+      const selProd = products.find(p => String(p.id) === String(draft.productId || aiGenForm.productId));
+      const payload = {
+        ...draft,
+        productName: draft.productName || selProd?.name || "Rudraksha Bead",
+        isAiGenerated: true,
+        isSample: true,
+        sampleLabel: "AI-generated sample",
+        verified: false,
+        status: draft.status || "Approved"
+      };
+
+      await db.saveReview(payload);
+      emitToast(`Saved draft #${index + 1} to store as AI Sample!`, "success");
+      
+      // Remove or mark as saved in draft list
+      setGeneratedDrafts(prev => prev.filter((_, idx) => idx !== index));
+    } catch (err) {
+      emitToast("Failed to save review draft: " + (err.message || ""), "error");
+    }
+  };
+
+  const handleBulkSaveAllDrafts = async (allowDuplicates = false) => {
+    if (!generatedDrafts.length) return;
+    setIsBulkSaving(true);
+    try {
+      const validDrafts = allowDuplicates 
+        ? generatedDrafts 
+        : generatedDrafts.filter(d => d.similarityStatus !== "Duplicate");
+
+      if (!validDrafts.length) {
+        emitToast("No non-duplicate drafts to save. Please regenerate duplicates first.", "warning");
+        return;
+      }
+
+      const res = await db.bulkSaveReviews(validDrafts, allowDuplicates);
+      if (res?.success) {
+        emitToast(`Successfully published ${res.savedCount} AI Sample drafts to store!`, "success");
+        if (res.skippedCount > 0) {
+          emitToast(`Skipped ${res.skippedCount} duplicate draft(s).`, "info");
+        }
+        setGeneratedDrafts(prev => prev.filter(d => !validDrafts.some(v => v.id === d.id)));
+      }
+    } catch (err) {
+      emitToast("Failed to bulk save drafts: " + err.message, "error");
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
+
+  const handleDiscardDraft = (index) => {
+    setGeneratedDrafts(prev => prev.filter((_, idx) => idx !== index));
+    emitToast("Draft discarded.", "info");
+  };
+
+  const handleStartEditDraft = (index) => {
+    const draft = generatedDrafts[index];
+    if (!draft) return;
+    setEditingDraftIndex(index);
+    setDraftEditState({
+      title: draft.title || "",
+      text: draft.text || "",
+      rating: draft.rating || 5
+    });
+  };
+
+  const handleSaveDraftEdit = (index) => {
+    setGeneratedDrafts(prev => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = {
+          ...next[index],
+          title: draftEditState.title,
+          text: draftEditState.text,
+          rating: Number(draftEditState.rating) || 5,
+          similarityStatus: "Unique", // Admin manually edited
+          similarityScore: 0
+        };
+      }
+      return next;
+    });
+    setEditingDraftIndex(null);
+    emitToast("Draft edits applied!", "success");
+  };
+
+  // Save New Review
+  const handleCreateNewReview = (e) => {
+    e.preventDefault();
+    if (!newReview.name.trim() || !newReview.text.trim()) {
+      emitToast("Name and Review text are required.", "warning");
+      return;
+    }
+
+    const selProd = products.find(p => String(p.id) === String(newReview.productId));
+    db.saveReview({
+      ...newReview,
+      productName: newReview.type === "product" ? (selProd?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
+      rating: Number(newReview.rating)
+    });
+
+    emitToast("New review added to store!", "success");
+    setIsNewReviewModalOpen(false);
+    setNewReview({
+      type: "product",
+      productId: "5",
+      productName: "5 Mukhi Rudraksha",
+      name: "",
+      email: "",
+      city: "",
+      rating: 5,
+      title: "",
+      text: "",
+      verified: true,
+      featured: false,
+      status: "Approved",
+      images: []
+    });
+  };
+
+  return (
+    <AdminLayout>
+      <div className="admin-page-header">
+        <div>
+          <h1>Customer Reviews Management</h1>
+          <p className="admin-page-subtitle">
+            Moderate verified devotee experiences, manage store & product reviews, and customize live review UI.
+          </p>
+        </div>
+
+        <div className="admin-header-actions" style={{ display: "flex", gap: "10px" }}>
+          <button 
+            className="admin-btn secondary"
+            onClick={() => setActiveTab('ai_drafts')}
+            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fffbeb", borderColor: "#fde68a", color: "#92400e" }}
+          >
+            <Sparkles size={16} color="#d97706" />
+            <span>AI Review Studio</span>
+          </button>
+
+          <button 
+            className={`admin-btn ${showLivePreview ? "secondary" : "secondary"}`}
+            onClick={() => setShowLivePreview(!showLivePreview)}
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <Eye size={16} />
+            <span>{showLivePreview ? "Hide Live Preview" : "Live Storefront Preview"}</span>
+          </button>
+
+          <button 
+            className="admin-btn"
+            onClick={() => setIsNewReviewModalOpen(true)}
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <Plus size={16} />
+            <span>Add Review Manually</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Overview */}
+      <div className="admin-reviews-kpi-grid">
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-icon gold">
+            <Star size={20} />
+          </div>
+          <div>
+            <span className="admin-kpi-label">Average Rating</span>
+            <strong className="admin-kpi-val">{stats.avg} ★</strong>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-icon terracotta">
+            <MessageSquare size={20} />
+          </div>
+          <div>
+            <span className="admin-kpi-label">Total Reviews</span>
+            <strong className="admin-kpi-val">{stats.total}</strong>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-icon green">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <span className="admin-kpi-label">Verified Devotees</span>
+            <strong className="admin-kpi-val">{stats.verifiedCount}</strong>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-icon gold" style={{ background: "#fef3c7", color: "#d97706" }}>
+            <Sparkles size={20} />
+          </div>
+          <div>
+            <span className="admin-kpi-label">AI Sample Drafts</span>
+            <strong className="admin-kpi-val">{stats.sampleCount}</strong>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="admin-kpi-icon purple">
+            <Camera size={20} />
+          </div>
+          <div>
+            <span className="admin-kpi-label">Photo Testimonials</span>
+            <strong className="admin-kpi-val">{stats.withPhotos}</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Tabs */}
+      <div className="admin-tabs-bar" style={{ display: "flex", gap: "8px", margin: "20px 0 16px", borderBottom: "1px solid #e8e0d8", paddingBottom: "8px", flexWrap: "wrap" }}>
+        <button 
+          className={`admin-tab-item ${activeTab === 'all' ? 'active' : ''}`}
+          onClick={() => setActiveTab('all')}
+        >
+          All Reviews ({reviews.length})
+        </button>
+        <button 
+          className={`admin-tab-item ${activeTab === 'product' ? 'active' : ''}`}
+          onClick={() => setActiveTab('product')}
+        >
+          Product Reviews ({reviews.filter(r => r.type === 'product').length})
+        </button>
+        <button 
+          className={`admin-tab-item ${activeTab === 'store' ? 'active' : ''}`}
+          onClick={() => setActiveTab('store')}
+        >
+          Store Reviews ({reviews.filter(r => r.type === 'store').length})
+        </button>
+        <button 
+          className={`admin-tab-item ${activeTab === 'pending' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pending')}
+        >
+          Pending Approval ({reviews.filter(r => r.status === 'Pending').length})
+        </button>
+        <button 
+          className={`admin-tab-item ${activeTab === 'ai_drafts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai_drafts')}
+          style={{ display: "flex", alignItems: "center", gap: "6px", color: activeTab === 'ai_drafts' ? "#7a320c" : "#b45309", fontWeight: "600" }}
+        >
+          <Sparkles size={15} color="#d97706" /> AI Review Studio {generatedDrafts.length > 0 && `(${generatedDrafts.length})`}
+        </button>
+        <button 
+          className={`admin-tab-item ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+          style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}
+        >
+          <Settings size={15} /> Review UI Settings
+        </button>
+      </div>
+
+      {/* LIVE PREVIEW DRAWER IF OPEN */}
+      {showLivePreview && (
+        <div className="admin-live-preview-drawer admin-card" style={{ marginBottom: "24px", background: "#fcfaf7", border: "2px solid #c59b27" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid #eadecd", paddingBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <strong style={{ color: "#7a320c", fontSize: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Sparkles size={18} /> Live Storefront Review Experience Preview
+              </strong>
+              <div style={{ display: "flex", background: "#f0e6dc", borderRadius: "8px", padding: "3px" }}>
+                <button 
+                  className={`admin-device-btn ${previewDevice === 'desktop' ? 'active' : ''}`}
+                  onClick={() => setPreviewDevice('desktop')}
+                  title="Desktop View (Full Width)"
+                >
+                  <Monitor size={15} /> Desktop
+                </button>
+                <button 
+                  className={`admin-device-btn ${previewDevice === 'tablet' ? 'active' : ''}`}
+                  onClick={() => setPreviewDevice('tablet')}
+                  title="Tablet View (768px)"
+                >
+                  <Tablet size={15} /> Tablet
+                </button>
+                <button 
+                  className={`admin-device-btn ${previewDevice === 'mobile' ? 'active' : ''}`}
+                  onClick={() => setPreviewDevice('mobile')}
+                  title="Mobile View (390px)"
+                >
+                  <Smartphone size={15} /> Mobile (390px)
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <select 
+                value={previewProduct?.id || "5"} 
+                onChange={(e) => {
+                  const p = products.find(prod => String(prod.id) === e.target.value);
+                  if (p) setPreviewProduct(p);
+                }}
+                className="admin-select-sm"
+              >
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <button 
+                className="admin-icon-btn" 
+                onClick={() => setShowLivePreview(false)}
+                title="Close Preview"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className={`admin-preview-frame-container ${previewDevice}`}>
+            <div className="admin-preview-canvas">
+              <ProductReviews 
+                product={previewProduct || products[0] || { id: "5", name: "5 Mukhi Rudraksha" }} 
+                isPreview={true}
+                previewSettings={settings}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW: AI DRAFT GENERATOR TAB */}
+      {activeTab === 'ai_drafts' ? (
+        <div className="admin-ai-drafts-container">
+          {/* Generator Controls Card */}
+          <div className="admin-card" style={{ background: "linear-gradient(180deg, #fffdf8 0%, #faf6ee 100%)", border: "1.5px solid #eadecd", marginBottom: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid #ebdccb", paddingBottom: "16px", marginBottom: "20px" }}>
+              <div>
+                <h2 style={{ color: "#7a320c", fontSize: "20px", display: "flex", alignItems: "center", gap: "8px", margin: "0 0 6px" }}>
+                  <Sparkles size={22} color="#d97706" /> Aura AI Review Studio
+                </h2>
+                <p style={{ color: "#806f62", fontSize: "13px", margin: 0, maxWidth: "680px" }}>
+                  Generate high-quality, product-specific review drafts and test samples in English, Hindi, and Hinglish. Built with automated duplicate detection to prevent repetitive content.
+                </p>
+              </div>
+
+              <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", color: "#92400e", display: "flex", alignItems: "center", gap: "6px" }}>
+                <ShieldCheck size={16} />
+                <span>All saved drafts are transparently tagged as <strong>AI-generated sample</strong></span>
+              </div>
+            </div>
+
+            <form onSubmit={handleGenerateAiDrafts}>
+              <div className="admin-form-row">
+                <div className="admin-form-group">
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Target Product / Store Scope</label>
+                  <select 
+                    value={aiGenForm.productId}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, productId: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="all">🏛️ General Aura Rudraksha Store Experience</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>🕉️ {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="admin-form-group">
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Draft Batch Count</label>
+                  <select 
+                    value={aiGenForm.count}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, count: Number(e.target.value) })}
+                    className="aura-input"
+                  >
+                    <option value={1}>1 Single Draft</option>
+                    <option value={5}>5 Drafts (Standard)</option>
+                    <option value={10}>10 Drafts (Batch)</option>
+                    <option value={25}>25 Drafts (Bulk Preview)</option>
+                    <option value={50}>50 Drafts (Full Catalog Testing)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="admin-form-row" style={{ marginTop: "16px" }}>
+                <div className="admin-form-group">
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>⭐ Star Rating Mix</label>
+                  <select 
+                    value={aiGenForm.ratingMix}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, ratingMix: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="Natural">Natural Mix (Mostly 5 & 4, some 3,2,1)</option>
+                    <option value="Balanced">Balanced (Equal 5 & 4)</option>
+                    <option value="Custom">Custom Percentage Mix</option>
+                  </select>
+                </div>
+                <div className="admin-form-group">
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>🌐 Language Mix</label>
+                  <select 
+                    value={aiGenForm.languageMix}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, languageMix: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="Auto">Auto Mix (English/Hindi/Hinglish)</option>
+                    <option value="English">English Only</option>
+                    <option value="Hindi">Hindi Only</option>
+                    <option value="Hinglish">Hinglish Only</option>
+                    <option value="Custom">Custom Percentage Mix</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* Custom Sliders for Ratings & Language if Custom is selected */}
+              {(aiGenForm.ratingMix === "Custom" || aiGenForm.languageMix === "Custom") && (
+                <div className="admin-form-row" style={{ marginTop: "16px", padding: "16px", background: "#fff", borderRadius: "12px", border: "1px solid #eadecd" }}>
+                  {aiGenForm.ratingMix === "Custom" && (
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontWeight: "600", color: "#3b322c", display: "block", marginBottom: "8px" }}>Custom Rating %</label>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {[5,4,3,2,1].map(r => (
+                          <div key={r} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>{r}★</span>
+                            <input type="number" min="0" max="100" style={{ width: "50px", textAlign: "center", padding: "4px", borderRadius: "6px", border: "1px solid #dcd1c6" }} value={aiGenForm.customRatings[`r${r}`]} onChange={(e) => setAiGenForm({...aiGenForm, customRatings: {...aiGenForm.customRatings, [`r${r}`]: parseInt(e.target.value) || 0}})} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {aiGenForm.languageMix === "Custom" && (
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontWeight: "600", color: "#3b322c", display: "block", marginBottom: "8px" }}>Custom Language %</label>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {['english', 'hindi', 'hinglish'].map(l => (
+                          <div key={l} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "bold", textTransform: "capitalize" }}>{l}</span>
+                            <input type="number" min="0" max="100" style={{ width: "60px", textAlign: "center", padding: "4px", borderRadius: "6px", border: "1px solid #dcd1c6" }} value={aiGenForm.customLanguages[l]} onChange={(e) => setAiGenForm({...aiGenForm, customLanguages: {...aiGenForm.customLanguages, [l]: parseInt(e.target.value) || 0}})} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="admin-form-row" style={{ marginTop: "16px" }}>
+                <div className="admin-form-group">
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Tone & Devotional Atmosphere</label>
+                  <select 
+                    value={aiGenForm.tone}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, tone: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="Devotional/Spiritual">🙏 Devotional & Spiritual (Reverence, Puja, Meditation, Peace)</option>
+                    <option value="Authentic/Practical">🔍 Authentic & Practical (Authenticity, Lab Certificate, Texture, Delivery)</option>
+                    <option value="Concise/Direct">⚡ Concise & Direct (1–2 sharp, natural sentences)</option>
+                    <option value="Joyful/Grateful">✨ Joyful & Grateful (Expressive gratitude, uplifted aura)</option>
+                  </select>
+                </div>
+                <div className="admin-form-group" style={{ display: "flex", alignItems: "center", paddingTop: "24px" }}>
+                   <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                     <input type="checkbox" checked={aiGenForm.useRAG} onChange={(e) => setAiGenForm({...aiGenForm, useRAG: e.target.checked})} style={{ width: "20px", height: "20px", accentColor: "#7a320c" }} />
+                     <span style={{ fontWeight: "600", color: "#3b322c" }}>🧠 Use RAG Reference Library</span>
+                   </label>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #ebdccb" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#806f62" }}>
+                  <CheckCircle2 size={16} color="#16a34a" />
+                  <span>Jaccard + Semantic Duplicate Detection Active</span>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="admin-btn"
+                  disabled={isGeneratingDrafts}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "220px", justifyContent: "center" }}
+                >
+                  {isGeneratingDrafts ? (
+                    <>
+                      <RefreshCw size={16} className="aura-spin" />
+                      <span>Generating AI Reviews...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      <span>Generate Drafts</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+          {/* Results Board */}
+          {generatedDrafts.length > 0 && (
+            <div className="admin-card" style={{ marginBottom: "24px" }}>
+              {/* Batch Action Toolbar */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid #ebdccb", paddingBottom: "14px", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "15px", fontWeight: "700", color: "#2b170d" }}>
+                    Generated Drafts ({generatedDrafts.length})
+                  </span>
+                  
+                  {/* Status Pills */}
+                  <span className="admin-badge success" style={{ fontSize: "11px", padding: "3px 8px" }}>
+                    <CheckCircle2 size={11} /> {generatedDrafts.filter(d => d.similarityStatus === "Unique").length} Unique
+                  </span>
+
+                  {generatedDrafts.filter(d => d.similarityStatus === "Similar").length > 0 && (
+                    <span className="admin-badge warning" style={{ fontSize: "11px", padding: "3px 8px" }}>
+                      <SlidersHorizontal size={11} /> {generatedDrafts.filter(d => d.similarityStatus === "Similar").length} Similar
+                    </span>
+                  )}
+
+                  {generatedDrafts.filter(d => d.similarityStatus === "Duplicate").length > 0 && (
+                    <span className="admin-badge danger" style={{ fontSize: "11px", padding: "3px 8px", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}>
+                      <X size={11} /> {generatedDrafts.filter(d => d.similarityStatus === "Duplicate").length} Duplicates (Auto-Blocked)
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button 
+                    className="admin-btn"
+                    onClick={() => handleBulkSaveAllDrafts(false)}
+                    disabled={isBulkSaving || generatedDrafts.filter(d => d.similarityStatus !== "Duplicate").length === 0}
+                    style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <Save size={15} />
+                    <span>Save All Unique as AI Samples ({generatedDrafts.filter(d => d.similarityStatus !== "Duplicate").length})</span>
+                  </button>
+
+                  <button 
+                    className="admin-btn secondary"
+                    onClick={handleGenerateAiDrafts}
+                    disabled={isGeneratingDrafts}
+                    style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <RefreshCw size={15} />
+                    <span>Regenerate Batch</span>
+                  </button>
+
+                  <button 
+                    className="admin-btn secondary"
+                    onClick={() => setGeneratedDrafts([])}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", color: "#991b1b" }}
+                  >
+                    <Trash2 size={15} />
+                    <span>Clear All</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Draft Cards Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "16px" }}>
+                {generatedDrafts.map((draft, idx) => {
+                  const isDup = draft.similarityStatus === "Duplicate";
+                  const isSim = draft.similarityStatus === "Similar";
+                  return (
+                    <div 
+                      key={draft.id || idx}
+                      style={{
+                        background: isDup ? "#fff5f5" : "#fffcf7",
+                        border: isDup ? "1.5px solid #f87171" : isSim ? "1.5px solid #fcd34d" : "1.5px solid #e8dac9",
+                        borderRadius: "14px",
+                        padding: "16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        position: "relative"
+                      }}
+                    >
+                      <div>
+                        {/* Card Header */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                          <div>
+                            <div style={{ display: "flex", gap: "2px", marginBottom: "4px" }}>
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star 
+                                  key={s} 
+                                  size={13} 
+                                  fill={s <= (draft.rating || 5) ? "#d97706" : "none"} 
+                                  color={s <= (draft.rating || 5) ? "#d97706" : "#d1d5db"} 
+                                />
+                              ))}
+                            </div>
+                            <span style={{ fontSize: "12px", fontWeight: "700", color: "#7a320c" }}>
+                              {draft.productName || "Rudraksha Bead"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                            {isDup ? (
+                              <span className="admin-badge danger" style={{ fontSize: "10px", padding: "2px 6px", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}>
+                                Duplicate ({Math.round((draft.similarityScore || 0) * 100)}%)
+                              </span>
+                            ) : isSim ? (
+                              <span className="admin-badge warning" style={{ fontSize: "10px", padding: "2px 6px" }}>
+                                Similar ({Math.round((draft.similarityScore || 0) * 100)}%)
+                              </span>
+                            ) : (
+                              <span className="admin-badge success" style={{ fontSize: "10px", padding: "2px 6px" }}>
+                                Unique Draft
+                              </span>
+                            )}
+
+                            <span style={{ fontSize: "10px", color: "#806f62", background: "#f0e6dc", padding: "1px 6px", borderRadius: "4px" }}>
+                              {draft.language || "English"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Matched warning */}
+                        {draft.matchedReviewExcerpt && (
+                          <div style={{ background: isDup ? "#fee2e2" : "#fef3c7", padding: "6px 8px", borderRadius: "6px", fontSize: "11px", color: isDup ? "#991b1b" : "#92400e", marginBottom: "10px", lineHeight: "1.4" }}>
+                            <strong>Overlaps with:</strong> "{draft.matchedReviewExcerpt.substring(0, 70)}..."
+                          </div>
+                        )}
+
+                        {/* Title & Body */}
+                        {draft.title && (
+                          <strong style={{ display: "block", fontSize: "14px", color: "#2b170d", marginBottom: "6px" }}>
+                            {draft.title}
+                          </strong>
+                        )}
+                        <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#4a3e36", lineHeight: "1.5" }}>
+                          {draft.text}
+                        </p>
+                      </div>
+
+                      {/* Card Footer Actions */}
+                      <div style={{ borderTop: "1px solid #ebdccb", paddingTop: "12px", marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <button 
+                            type="button"
+                            className="admin-icon-btn"
+                            onClick={() => handleStartEditDraft(idx)}
+                            title="Edit Draft Content"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button 
+                            type="button"
+                            className="admin-icon-btn"
+                            onClick={() => handleRegenerateSingleDraft(idx)}
+                            title="Regenerate this draft"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                          <button 
+                            type="button"
+                            className="admin-icon-btn danger"
+                            onClick={() => handleDiscardDraft(idx)}
+                            title="Discard draft"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        <button 
+                          type="button"
+                          className="admin-btn"
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            opacity: isDup ? 0.6 : 1
+                          }}
+                          disabled={isDup}
+                          onClick={() => handleSaveSingleDraft(draft, idx)}
+                          title={isDup ? "Auto-save blocked for duplicate content" : "Save as AI Sample Review"}
+                        >
+                          <Save size={13} style={{ marginRight: "4px" }} />
+                          <span>Save as AI Sample</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'settings' ? (
+        <form onSubmit={handleSaveSettings} className="admin-card">
+          <div className="admin-card-title">
+            <h2>Storefront Review Settings & Appearance</h2>
+            <button type="submit" className="admin-btn">
+              <Save size={16} /> Save Settings
+            </button>
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group">
+              <label className="admin-check">
+                <input 
+                  type="checkbox" 
+                  checked={settings.enabled !== false} 
+                  onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })} 
+                />
+                <strong>Enable Reviews Section on Product Pages</strong>
+              </label>
+              <span className="admin-help">Show customer ratings and review section across the website.</span>
+            </div>
+
+            <div className="admin-form-group">
+              <label className="admin-check">
+                <input 
+                  type="checkbox" 
+                  checked={settings.photoGalleryEnabled !== false} 
+                  onChange={(e) => setSettings({ ...settings, photoGalleryEnabled: e.target.checked })} 
+                />
+                <strong>Enable Devotee Photo Review Gallery</strong>
+              </label>
+              <span className="admin-help">Show horizontal customer visual gallery with lightbox popup.</span>
+            </div>
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group">
+              <label className="admin-check">
+                <input 
+                  type="checkbox" 
+                  checked={settings.writeReviewEnabled !== false} 
+                  onChange={(e) => setSettings({ ...settings, writeReviewEnabled: e.target.checked })} 
+                />
+                <strong>Show "Write a Review" Button</strong>
+              </label>
+              <span className="admin-help">Allow customers to submit public testimonials and photos.</span>
+            </div>
+
+            <div className="admin-form-group">
+              <label className="admin-check">
+                <input 
+                  type="checkbox" 
+                  checked={settings.verifiedBadgeEnabled !== false} 
+                  onChange={(e) => setSettings({ ...settings, verifiedBadgeEnabled: e.target.checked })} 
+                />
+                <strong>Display "Verified Purchase" Badge</strong>
+              </label>
+              <span className="admin-help">Show trust verification badge on genuine customer reviews.</span>
+            </div>
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group">
+              <label className="admin-check">
+                <input 
+                  type="checkbox" 
+                  checked={settings.helpfulVotingEnabled !== false} 
+                  onChange={(e) => setSettings({ ...settings, helpfulVotingEnabled: e.target.checked })} 
+                />
+                <strong>Enable Helpful Up/Down Voting</strong>
+              </label>
+              <span className="admin-help">Allow visitors to vote if a review was helpful.</span>
+            </div>
+
+            <div className="admin-form-group">
+              <label>Reviews Per Page (Pagination)</label>
+              <select 
+                value={settings.perPage || 6} 
+                onChange={(e) => setSettings({ ...settings, perPage: Number(e.target.value) })}
+              >
+                <option value={4}>4 Reviews per page</option>
+                <option value={6}>6 Reviews per page (Recommended)</option>
+                <option value={8}>8 Reviews per page</option>
+                <option value={12}>12 Reviews per page</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 className="admin-section-heading" style={{ marginTop: "24px", color: "#7a320c" }}>
+            Card Styling & Brand Customization
+          </h3>
+          <div className="admin-form-row">
+            <div className="admin-form-group">
+              <label>Review Card Border Radius</label>
+              <input 
+                type="text" 
+                value={settings.cardStyle?.borderRadius || "18px"} 
+                onChange={(e) => setSettings({
+                  ...settings,
+                  cardStyle: { ...settings.cardStyle, borderRadius: e.target.value }
+                })} 
+                placeholder="e.g. 18px"
+              />
+            </div>
+
+            <div className="admin-form-group">
+              <label>Card Background Color</label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input 
+                  type="color" 
+                  value={settings.cardStyle?.bgColor || "#fffdfa"} 
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    cardStyle: { ...settings.cardStyle, bgColor: e.target.value }
+                  })} 
+                  style={{ width: "42px", height: "38px", padding: "2px", cursor: "pointer" }}
+                />
+                <input 
+                  type="text" 
+                  value={settings.cardStyle?.bgColor || "#fffdfa"} 
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    cardStyle: { ...settings.cardStyle, bgColor: e.target.value }
+                  })} 
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group">
+              <label>Border Color</label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input 
+                  type="color" 
+                  value={settings.cardStyle?.borderColor || "#eadecd"} 
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    cardStyle: { ...settings.cardStyle, borderColor: e.target.value }
+                  })} 
+                  style={{ width: "42px", height: "38px", padding: "2px", cursor: "pointer" }}
+                />
+                <input 
+                  type="text" 
+                  value={settings.cardStyle?.borderColor || "#eadecd"} 
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    cardStyle: { ...settings.cardStyle, borderColor: e.target.value }
+                  })} 
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-group">
+              <label>Accent Star Color</label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input 
+                  type="color" 
+                  value={settings.cardStyle?.accentColor || "#d97706"} 
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    cardStyle: { ...settings.cardStyle, accentColor: e.target.value }
+                  })} 
+                  style={{ width: "42px", height: "38px", padding: "2px", cursor: "pointer" }}
+                />
+                <input 
+                  type="text" 
+                  value={settings.cardStyle?.accentColor || "#d97706"} 
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    cardStyle: { ...settings.cardStyle, accentColor: e.target.value }
+                  })} 
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-form-actions">
+            <button type="submit" className="admin-btn">
+              <Save size={16} /> Save All Settings
+            </button>
+          </div>
+        </form>
+      ) : (
+        /* VIEW: REVIEWS TABLE & FILTER TOOLBAR */
+        <div className="admin-card">
+          {/* Toolbar */}
+          <div className="admin-reviews-table-toolbar">
+            <div className="admin-search-box" style={{ flex: 1 }}>
+              <Search size={16} style={{ position: "absolute", left: "14px", top: "13px", color: "#806f62" }} />
+              <input 
+                type="text" 
+                placeholder="Search reviews by name, content, city..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <select 
+                value={selectedSourceFilter} 
+                onChange={(e) => setSelectedSourceFilter(e.target.value)}
+                className="admin-select-sm"
+              >
+                <option value="all">All Sources (Real & AI)</option>
+                <option value="real_customers">Verified Devotee Reviews</option>
+                <option value="ai_samples">AI-Generated Samples</option>
+              </select>
+
+              <select 
+                value={selectedProductFilter} 
+                onChange={(e) => setSelectedProductFilter(e.target.value)}
+                className="admin-select-sm"
+              >
+                <option value="all">All Products</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <select 
+                value={selectedRatingFilter} 
+                onChange={(e) => setSelectedRatingFilter(e.target.value)}
+                className="admin-select-sm"
+              >
+                <option value="all">All Star Ratings</option>
+                <option value="5">5 Stars ★★★★★</option>
+                <option value="4">4 Stars ★★★★</option>
+                <option value="3">3 Stars ★★★</option>
+                <option value="2">2 Stars ★★</option>
+                <option value="1">1 Star ★</option>
+              </select>
+
+              <select 
+                value={selectedStatusFilter} 
+                onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                className="admin-select-sm"
+              >
+                <option value="all">All Statuses</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+                <option value="Hidden">Hidden</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Table */}
+          {filteredReviews.length === 0 ? (
+            <div className="admin-empty">
+              <p>No reviews found matching your selected criteria.</p>
+            </div>
+          ) : (
+            <div className="admin-table-container" style={{ overflowX: "auto" }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Reviewer & Rating</th>
+                    <th>Product / Scope</th>
+                    <th>Review Content</th>
+                    <th>Photos</th>
+                    <th>Helpful</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReviews.map((r) => {
+                    const hasPhotos = Array.isArray(r.images) && r.images.length > 0;
+                    return (
+                      <tr key={r.id}>
+                        {/* Reviewer & Rating */}
+                        <td style={{ minWidth: "170px" }}>
+                          <strong style={{ display: "block", color: "#2b170d" }}>{r.name}</strong>
+                          {r.city && <small style={{ color: "#806f62", display: "block" }}>{r.city}</small>}
+                          <div style={{ display: "flex", gap: "2px", margin: "4px 0" }}>
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star 
+                                key={s} 
+                                size={12} 
+                                fill={s <= (r.rating || 5) ? "#d97706" : "none"} 
+                                color={s <= (r.rating || 5) ? "#d97706" : "#d1d5db"} 
+                              />
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                            {(r.isAiGenerated || r.isSample) ? (
+                              <span className="admin-badge warning" style={{ fontSize: "10px", padding: "2px 6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                <Sparkles size={10} color="#d97706" /> AI Sample
+                              </span>
+                            ) : r.verified && (
+                              <span className="admin-badge success" style={{ fontSize: "10px", padding: "2px 6px" }}>
+                                <Check size={10} /> Verified Devotee
+                              </span>
+                            )}
+                            {r.featured && (
+                              <span className="admin-badge warning" style={{ fontSize: "10px", padding: "2px 6px" }}>
+                                <Flame size={10} /> Featured
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Product / Scope */}
+                        <td style={{ minWidth: "140px" }}>
+                          <span style={{ fontSize: "12px", fontWeight: "600", color: "#7a320c" }}>
+                            {r.type === 'store' ? "🏛️ Store Review" : `🕉️ ${r.productName || "Product"}`}
+                          </span>
+                          <small style={{ display: "block", color: "#806f62", marginTop: "2px" }}>
+                            {r.date || "Recent"}
+                          </small>
+                        </td>
+
+                        {/* Content & Admin Reply */}
+                        <td style={{ maxWidth: "280px" }}>
+                          {r.title && (
+                            <strong style={{ fontSize: "13px", display: "block", color: "#3b322c", marginBottom: "2px" }}>
+                              {r.title}
+                            </strong>
+                          )}
+                          <p style={{ margin: "0", fontSize: "12px", color: "#52473f", lineHeight: "1.5" }}>
+                            {r.text?.length > 120 ? `${r.text.substring(0, 120)}...` : r.text}
+                          </p>
+
+                          {r.adminReply && (
+                            <div style={{ marginTop: "6px", padding: "6px 8px", background: "#fcf8f2", borderLeft: "2px solid #b45309", borderRadius: "4px", fontSize: "11px" }}>
+                              <span style={{ fontWeight: "600", color: "#7a320c" }}>Replied: </span>
+                              <span style={{ color: "#52473f" }}>{r.adminReply.text}</span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Photos */}
+                        <td style={{ minWidth: "100px" }}>
+                          {hasPhotos ? (
+                            <div style={{ display: "flex", gap: "4px" }}>
+                              {r.images.slice(0, 2).map((img, i) => (
+                                <img 
+                                  key={i} 
+                                  src={img} 
+                                  alt="Thumb" 
+                                  style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", border: "1px solid #e8dac9" }} 
+                                />
+                              ))}
+                              {r.images.length > 2 && (
+                                <span style={{ fontSize: "11px", color: "#806f62", alignSelf: "center" }}>
+                                  +{r.images.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: "#aaa", fontSize: "12px" }}>No photos</span>
+                          )}
+                        </td>
+
+                        {/* Helpful */}
+                        <td style={{ fontSize: "12px" }}>
+                          <span style={{ color: "#166534" }}>👍 {r.helpfulUp || 0}</span> / <span style={{ color: "#991b1b" }}>👎 {r.helpfulDown || 0}</span>
+                        </td>
+
+                        {/* Status */}
+                        <td>
+                          <select 
+                            value={r.status || "Approved"} 
+                            onChange={(e) => handleToggleStatus(r.id, e.target.value)}
+                            style={{ 
+                              padding: "4px 8px", 
+                              fontSize: "12px", 
+                              borderRadius: "6px",
+                              border: "1px solid #dcd1c6",
+                              fontWeight: "600",
+                              color: r.status === 'Approved' ? '#166534' : r.status === 'Pending' ? '#b45309' : '#991b1b'
+                            }}
+                          >
+                            <option value="Approved">Approved</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Hidden">Hidden</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "inline-flex", gap: "6px" }}>
+                            <button 
+                              className="admin-icon-btn" 
+                              onClick={() => {
+                                setReplyingReview(r);
+                                setReplyText(r.adminReply?.text || "");
+                              }}
+                              title="Official Store Reply"
+                            >
+                              <CornerDownRight size={15} />
+                            </button>
+
+                            <button 
+                              className={`admin-icon-btn ${r.featured ? 'warning' : ''}`}
+                              onClick={() => handleToggleFeatured(r.id, r.featured)}
+                              title={r.featured ? "Unfeature review" : "Mark as Featured"}
+                            >
+                              <Flame size={15} color={r.featured ? "#d97706" : "currentColor"} />
+                            </button>
+
+                            <button 
+                              className="admin-icon-btn" 
+                              onClick={() => setEditingReview({ ...r })}
+                              title="Edit Review Details"
+                            >
+                              <Edit3 size={15} />
+                            </button>
+
+                            <button 
+                              className="admin-icon-btn danger" 
+                              onClick={() => setDeleteTargetId(r.id)}
+                              title="Delete Review"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* EDIT REVIEW MODAL */}
+      {editingReview && (
+        <div className="aura-modal-backdrop" onClick={() => setEditingReview(null)}>
+          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
+            <div className="aura-modal-header">
+              <h3 className="aura-modal-title">Edit Devotee Review</h3>
+              <button className="aura-modal-close-btn" onClick={() => setEditingReview(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="aura-modal-form">
+              <div className="aura-form-grid-2">
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Reviewer Name</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={editingReview.name} 
+                    onChange={(e) => setEditingReview({ ...editingReview, name: e.target.value })}
+                    className="aura-input"
+                  />
+                </div>
+                <div className="aura-form-group">
+                  <label className="aura-form-label">City / Location</label>
+                  <input 
+                    type="text" 
+                    value={editingReview.city || ""} 
+                    onChange={(e) => setEditingReview({ ...editingReview, city: e.target.value })}
+                    className="aura-input"
+                  />
+                </div>
+              </div>
+
+              <div className="aura-form-grid-2">
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Star Rating (1-5)</label>
+                  <select 
+                    value={editingReview.rating} 
+                    onChange={(e) => setEditingReview({ ...editingReview, rating: Number(e.target.value) })}
+                    className="aura-input"
+                  >
+                    <option value={5}>5 Stars ★★★★★</option>
+                    <option value={4}>4 Stars ★★★★</option>
+                    <option value={3}>3 Stars ★★★</option>
+                    <option value={2}>2 Stars ★★</option>
+                    <option value={1}>1 Star ★</option>
+                  </select>
+                </div>
+
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Review Type</label>
+                  <select 
+                    value={editingReview.type || "product"} 
+                    onChange={(e) => setEditingReview({ ...editingReview, type: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="product">Product Review</option>
+                    <option value="store">Store Review</option>
+                  </select>
+                </div>
+              </div>
+
+              {editingReview.type === "product" && (
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Assigned Product</label>
+                  <select 
+                    value={editingReview.productId || "5"} 
+                    onChange={(e) => {
+                      const sel = products.find(p => String(p.id) === e.target.value);
+                      setEditingReview({
+                        ...editingReview,
+                        productId: e.target.value,
+                        productName: sel ? sel.name : editingReview.productName
+                      });
+                    }}
+                    className="aura-input"
+                  >
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Headline</label>
+                <input 
+                  type="text" 
+                  value={editingReview.title || ""} 
+                  onChange={(e) => setEditingReview({ ...editingReview, title: e.target.value })}
+                  className="aura-input"
+                />
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Content *</label>
+                <textarea 
+                  rows={4} 
+                  required 
+                  value={editingReview.text} 
+                  onChange={(e) => setEditingReview({ ...editingReview, text: e.target.value })}
+                  className="aura-textarea"
+                />
+              </div>
+
+              {/* Photos in Edit */}
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Photos ({editingReview.images?.length || 0})</label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  {(editingReview.images || []).map((img, i) => (
+                    <div key={i} style={{ position: "relative", width: "60px", height: "60px", borderRadius: "8px", overflow: "hidden", border: "1px solid #e8dac9" }}>
+                      <img src={img} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <button 
+                        type="button" 
+                        onClick={() => setEditingReview({
+                          ...editingReview,
+                          images: editingReview.images.filter((_, idx) => idx !== i)
+                        })}
+                        style={{ position: "absolute", top: "2px", right: "2px", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*" 
+                  onChange={(e) => handlePhotoUpload(e, true)}
+                />
+              </div>
+
+              <div className="aura-form-grid-2">
+                <label className="admin-check">
+                  <input 
+                    type="checkbox" 
+                    checked={editingReview.verified !== false} 
+                    onChange={(e) => setEditingReview({ ...editingReview, verified: e.target.checked })} 
+                  />
+                  <span>Verified Purchase Badge</span>
+                </label>
+
+                <label className="admin-check">
+                  <input 
+                    type="checkbox" 
+                    checked={!!editingReview.featured} 
+                    onChange={(e) => setEditingReview({ ...editingReview, featured: e.target.checked })} 
+                  />
+                  <span>Featured Review</span>
+                </label>
+              </div>
+
+              <div className="aura-modal-actions">
+                <button type="button" className="aura-btn-cancel" onClick={() => setEditingReview(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="aura-btn-submit">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* OFFICIAL REPLY MODAL */}
+      {replyingReview && (
+        <div className="aura-modal-backdrop" onClick={() => setReplyingReview(null)}>
+          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
+            <div className="aura-modal-header">
+              <div>
+                <span className="aura-modal-kicker">STORE ENGAGEMENT</span>
+                <h3 className="aura-modal-title">Reply to {replyingReview.name}'s Review</h3>
+              </div>
+              <button className="aura-modal-close-btn" onClick={() => setReplyingReview(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: "#fbf6f0", padding: "12px 14px", borderRadius: "10px", margin: "14px 0", borderLeft: "3px solid #7a320c" }}>
+              <p style={{ margin: "0", fontSize: "13px", color: "#4a3b32" }}>
+                "{replyingReview.text}"
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveReply} className="aura-modal-form">
+              <div className="aura-form-group">
+                <label className="aura-form-label">Official Aura Spiritual Team Response</label>
+                <textarea 
+                  rows={4}
+                  placeholder="e.g. Har Har Mahadev! 🙏 Thank you for your sacred feedback. We are blessed to serve your spiritual path..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  className="aura-textarea"
+                />
+              </div>
+
+              <div className="aura-modal-actions">
+                {replyingReview.adminReply && (
+                  <button 
+                    type="button" 
+                    className="aura-btn-cancel" 
+                    onClick={() => {
+                      setReplyText("");
+                      db.updateReview(replyingReview.id, { adminReply: null });
+                      emitToast("Official reply removed.", "info");
+                      setReplyingReview(null);
+                    }}
+                    style={{ color: "#991b1b" }}
+                  >
+                    Delete Reply
+                  </button>
+                )}
+                <button type="button" className="aura-btn-cancel" onClick={() => setReplyingReview(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="aura-btn-submit">
+                  Publish Store Reply
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD NEW REVIEW MODAL (MANUAL ADMIN SEEDING) */}
+      {isNewReviewModalOpen && (
+        <div className="aura-modal-backdrop" onClick={() => setIsNewReviewModalOpen(false)}>
+          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
+            <div className="aura-modal-header">
+              <div>
+                <span className="aura-modal-kicker">ADMIN CREATION</span>
+                <h3 className="aura-modal-title">Add Customer Testimonial</h3>
+              </div>
+              <button className="aura-modal-close-btn" onClick={() => setIsNewReviewModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewReview} className="aura-modal-form">
+              <div className="aura-form-grid-2">
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Customer Name *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. Acharya Shailesh" 
+                    value={newReview.name} 
+                    onChange={(e) => setNewReview({ ...newReview, name: e.target.value })}
+                    className="aura-input"
+                  />
+                </div>
+
+                <div className="aura-form-group">
+                  <label className="aura-form-label">City / Location</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Haridwar, UK" 
+                    value={newReview.city} 
+                    onChange={(e) => setNewReview({ ...newReview, city: e.target.value })}
+                    className="aura-input"
+                  />
+                </div>
+              </div>
+
+              <div className="aura-form-grid-2">
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Star Rating</label>
+                  <select 
+                    value={newReview.rating} 
+                    onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })}
+                    className="aura-input"
+                  >
+                    <option value={5}>5 Stars ★★★★★</option>
+                    <option value={4}>4 Stars ★★★★</option>
+                    <option value={3}>3 Stars ★★★</option>
+                    <option value={2}>2 Stars ★★</option>
+                    <option value={1}>1 Star ★</option>
+                  </select>
+                </div>
+
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Review Scope</label>
+                  <select 
+                    value={newReview.type} 
+                    onChange={(e) => setNewReview({ ...newReview, type: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="product">Specific Product</option>
+                    <option value="store">Store Overall Experience</option>
+                  </select>
+                </div>
+              </div>
+
+              {newReview.type === "product" && (
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Select Product</label>
+                  <select 
+                    value={newReview.productId} 
+                    onChange={(e) => setNewReview({ ...newReview, productId: e.target.value })}
+                    className="aura-input"
+                  >
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Title</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. 100% Pure Nepali Rudraksha with Divine Energy" 
+                  value={newReview.title} 
+                  onChange={(e) => setNewReview({ ...newReview, title: e.target.value })}
+                  className="aura-input"
+                />
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Text *</label>
+                <textarea 
+                  rows={4} 
+                  required 
+                  placeholder="Share authentic testimonial experience..." 
+                  value={newReview.text} 
+                  onChange={(e) => setNewReview({ ...newReview, text: e.target.value })}
+                  className="aura-textarea"
+                />
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Upload Review Photos</label>
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*" 
+                  onChange={(e) => handlePhotoUpload(e, false)}
+                />
+                {newReview.images.length > 0 && (
+                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                    {newReview.images.map((img, i) => (
+                      <img key={i} src={img} alt="Preview" style={{ width: "50px", height: "50px", borderRadius: "6px", objectFit: "cover" }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="aura-form-grid-2">
+                <label className="admin-check">
+                  <input 
+                    type="checkbox" 
+                    checked={newReview.verified} 
+                    onChange={(e) => setNewReview({ ...newReview, verified: e.target.checked })} 
+                  />
+                  <span>Mark as Verified Purchase</span>
+                </label>
+
+                <label className="admin-check">
+                  <input 
+                    type="checkbox" 
+                    checked={newReview.featured} 
+                    onChange={(e) => setNewReview({ ...newReview, featured: e.target.checked })} 
+                  />
+                  <span>Feature on Top</span>
+                </label>
+              </div>
+
+              <div className="aura-modal-actions">
+                <button type="button" className="aura-btn-cancel" onClick={() => setIsNewReviewModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="aura-btn-submit">
+                  Save Customer Review
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT AI DRAFT MODAL */}
+      {editingDraftIndex !== null && (
+        <div className="aura-modal-backdrop" onClick={() => setEditingDraftIndex(null)}>
+          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "580px" }}>
+            <div className="aura-modal-header">
+              <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Sparkles size={18} color="#d97706" /> Edit AI Review Draft #{editingDraftIndex + 1}
+              </h3>
+              <button className="aura-modal-close-btn" onClick={() => setEditingDraftIndex(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveDraftEdit(editingDraftIndex); }} className="aura-modal-form">
+              <div className="aura-form-group">
+                <label className="aura-form-label">Star Rating</label>
+                <select 
+                  value={draftEditState.rating} 
+                  onChange={(e) => setDraftEditState({ ...draftEditState, rating: Number(e.target.value) })}
+                  className="aura-input"
+                >
+                  <option value={5}>5 Stars ★★★★★</option>
+                  <option value={4}>4 Stars ★★★★</option>
+                  <option value={3}>3 Stars ★★★</option>
+                </select>
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Draft Title</label>
+                <input 
+                  type="text" 
+                  value={draftEditState.title} 
+                  onChange={(e) => setDraftEditState({ ...draftEditState, title: e.target.value })}
+                  className="aura-input"
+                  placeholder="Review title / highlight"
+                />
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Content *</label>
+                <textarea 
+                  rows={4} 
+                  required 
+                  value={draftEditState.text} 
+                  onChange={(e) => setDraftEditState({ ...draftEditState, text: e.target.value })}
+                  className="aura-textarea"
+                />
+              </div>
+
+              <div className="aura-modal-actions">
+                <button type="button" className="aura-btn-cancel" onClick={() => setEditingDraftIndex(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="aura-btn-submit">
+                  Apply Draft Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={!!deleteTargetId}
+        title="Delete Review"
+        message="Are you sure you want to permanently delete this customer review? This action cannot be undone."
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTargetId(null)}
+      />
+    </AdminLayout>
+  );
+}

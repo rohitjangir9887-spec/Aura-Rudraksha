@@ -1,0 +1,258 @@
+.tiptap-container {
+  border: 1px solid #ebdccb;
+  border-radius: 8px;
+  background-color: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tiptap-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  background-color: #faf5f0;
+  border-bottom: 1px solid #ebdccb;
+  align-items: center;
+}
+
+.tiptap-toolbar-group {
+  display: flex;
+  gap: 4px;
+}
+
+.tiptap-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #ebdccb;
+  margin: 0 4px;
+}
+
+.tiptap-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 4px;
+  color: #4a3b32;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tiptap-toolbar button:hover {
+  background-color: #f0e6d9;
+}
+
+.tiptap-toolbar button.is-active {
+  background-color: #ebdccb;
+  color: #a54d2b;
+}
+
+.tiptap-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tiptap-editor-content {
+  padding: 12px;
+  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #4a3b32;
+  outline: none;
+}
+
+/* Tiptap Typography styles inside editor */
+.tiptap-editor-content h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #1a202c;
+}
+
+.tiptap-editor-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #1a202c;
+}
+
+.tiptap-editor-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #4a5568;
+}
+
+.tiptap-editor-content p {
+  margin-bottom: 0.75rem;
+}
+
+.tiptap-editor-content ul, 
+.tiptap-editor-content ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.tiptap-editor-content ul {
+  list-style-type: disc;
+}
+
+.tiptap-editor-content ol {
+  list-style-type: decimal;
+}
+
+.tiptap-editor-content a {
+  color: #a54d2b;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tiptap-editor-content mark {
+  background-color: #fef3c7;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Display styles for rich text on the frontend */
+.rich-text-content {
+  line-height: 1.7;
+  color: #4a3b32;
+  font-size: 15px;
+  word-break: break-word;
+}
+
+.rich-text-content h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.6rem;
+  color: #2b170d;
+  line-height: 1.3;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.rich-text-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #2b170d;
+  line-height: 1.35;
+  letter-spacing: 0.3px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.rich-text-content h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+  color: #3b2214;
+  line-height: 1.4;
+}
+
+.rich-text-content p {
+  margin-bottom: 0.85rem;
+  line-height: 1.7;
+  color: #4a3b32;
+}
+
+.rich-text-content ul, 
+.rich-text-content ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+  padding-left: 0.25rem;
+}
+
+.rich-text-content ul {
+  list-style-type: disc;
+}
+
+.rich-text-content ul li {
+  margin-bottom: 0.35rem;
+  line-height: 1.6;
+}
+
+.rich-text-content ol {
+  list-style-type: decimal;
+}
+
+.rich-text-content ol li {
+  margin-bottom: 0.35rem;
+  line-height: 1.6;
+}
+
+.rich-text-content blockquote {
+  border-left: 3px solid #8c2b10;
+  background: #faf5ee;
+  padding: 8px 14px;
+  margin: 14px 0;
+  color: #5a4233;
+  font-style: italic;
+  border-radius: 0 6px 6px 0;
+}
+
+.rich-text-content a {
+  color: #8c2b10;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.rich-text-content a:hover {
+  color: #5c1b0a;
+}
+
+.rich-text-content mark {
+  background-color: #fef08a;
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: #1f2937;
+}
+
+.rich-text-content b,
+.rich-text-content strong {
+  font-weight: 750 !important;
+  color: #1a0e07 !important;
+}
+
+.rich-text-content [style*="text-align: center"],
+.tiptap-editor-content [style*="text-align: center"] {
+  text-align: center;
+}
+
+.rich-text-content [style*="text-align: right"],
+.tiptap-editor-content [style*="text-align: right"] {
+  text-align: right;
+}
+
+.rich-text-content [style*="text-align: justify"],
+.tiptap-editor-content [style*="text-align: justify"] {
+  text-align: justify;
+}
+
+.rich-text-content [style*="text-align: left"],
+.tiptap-editor-content [style*="text-align: left"] {
+  text-align: left;
+}
+
+.tiptap-editor-content blockquote {
+  border-left: 3px solid #8c2b10;
+  background: #faf5ee;
+  padding: 8px 14px;
+  margin: 12px 0;
+  color: #5a4233;
+  font-style: italic;
+  border-radius: 0 6px 6px 0;
+}
+

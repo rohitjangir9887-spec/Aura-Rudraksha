@@ -1,0 +1,40 @@
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  server: {
+    host: "0.0.0.0",
+    port: 3000,
+    allowedHosts: true,
+  },
+  preview: {
+    host: "0.0.0.0",
+    port: 3000,
+  },
+  esbuild: {
+    jsx: "automatic",
+  },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/framer-motion")) {
+            return "framer-motion";
+          }
+          if (id.includes("node_modules/firebase") || id.includes("node_modules/@firebase")) {
+            return "firebase";
+          }
+          if (id.includes("node_modules/lucide-react")) {
+            return "lucide";
+          }
+        }
+      },
+      onwarn(warning, defaultHandler) {
+        if (warning.code === "MODULE_LEVEL_DIRECTIVE" || warning.message?.includes("use client")) {
+          return;
+        }
+        defaultHandler(warning);
+      },
+    },
+  },
+});
