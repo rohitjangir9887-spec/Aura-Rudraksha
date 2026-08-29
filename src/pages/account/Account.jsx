@@ -145,8 +145,16 @@ export function Account() {
     return "Verified Firebase ID";
   };
 
-  // Only allow server-verified admin
-  const isServerAdmin = profile?.role === "admin";
+  // Only allow admin if verified user matches authorized email (Rohitjangir8740@gmail.com) or phone (+91 9672996531)
+  const isAuthorizedAdminIdentity = () => {
+    const email = (userEmail || user?.email || profile?.email || "").trim().toLowerCase();
+    const phone = (profile?.phone || user?.phoneNumber || "").replace(/[^0-9]/g, "");
+    const targetEmail = "rohitjangir8740@gmail.com";
+    const targetPhoneDigits = "9672996531";
+    return (email === targetEmail) || (phone.endsWith(targetPhoneDigits));
+  };
+
+  const isServerAdmin = profile?.role === "admin" && isAuthorizedAdminIdentity();
 
   if (loading) {
     return (

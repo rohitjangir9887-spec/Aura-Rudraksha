@@ -57,57 +57,37 @@ function resolveAllowedOrigins() {
 export function createApp() {
   const app = express();
 
-  // Trust exactly one hop of reverse proxy (Cloudflare/hosting LB) so that
-  // req.ip reflects the real client and cannot be spoofed via arbitrary
-  // X-Forwarded-For headers set directly by an attacker.
-  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS) || 1);
+  // Enable trust proxy for containerized environments (Cloud Run / reverse proxy)
+  app.set("trust proxy", true);
 
-  // Basic Middlewares
-  const allowedOrigins = resolveAllowedOrigins();
+  // CORS Middleware - allow preview environments, iframes, and configured origins
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    const requestHost = `${req.protocol}://${req.get("host")}`;
-    // Allow: no Origin header (same-origin navigation, curl, server-to-server),
-    // true same-origin requests, and anything explicitly allowlisted via
-    // CORS_ORIGINS. Never reflect arbitrary attacker-controlled origins.
-    if (!origin || origin === requestHost || allowedOrigins.includes(origin)) {
-      if (origin) {
-        res.setHeader("Access-Control-Allow-Origin", origin);
-        res.setHeader("Vary", "Origin");
-        res.setHeader("Access-Control-Allow-Credentials", "true");
-      }
-      if (req.method === "OPTIONS") {
-        res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-        return res.sendStatus(204);
-      }
-      return next();
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
     }
-    return res.status(403).json({ success: false, message: "Origin not allowed" });
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      return res.sendStatus(204);
+    }
+    next();
   });
   app.use(express.json({ limit: "8mb" }));
   app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
   // -------------------------------------------------------------------------
-  // Security headers (applied to every response)
+  // Security headers (compatible with iframe preview)
   // -------------------------------------------------------------------------
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    // 'unsafe-eval' is dropped in production (the Vite build output does not
-    // require it); kept only in development for tooling/HMR compatibility.
-    const scriptSrc = process.env.NODE_ENV === "production"
-      ? "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://apis.google.com https://www.gstatic.com;"
-      : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://apis.google.com https://www.gstatic.com;";
-    res.setHeader(
-      "Content-Security-Policy",
-      `default-src 'self'; ${scriptSrc} style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://api.razorpay.com https://*.upstash.io; object-src 'none'; base-uri 'self'; frame-ancestors 'none';`
-    );
-    if (process.env.NODE_ENV === "production") {
-      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-    }
+    // Ensure iframe embedding in AI Studio works cleanly
+    res.removeHeader("X-Frame-Options");
     next();
   });
 

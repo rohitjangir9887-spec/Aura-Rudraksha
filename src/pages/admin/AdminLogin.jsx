@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShieldCheck, ArrowLeft, LogIn, AlertCircle, Mail, Phone, Chrome, UserPlus } from "lucide-react";
+import { ShieldCheck, ArrowLeft, LogIn, AlertCircle, Mail, Phone, Chrome, UserPlus, Sparkles, Copy, Check } from "lucide-react";
 import { authClient } from "../../lib/authClient";
+import { emitToast } from "../../context/ToastContext";
 import "./admin-pages.css";
 
 export function AdminLogin() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("select");
+  const [copied, setCopied] = useState(false);
   
   // Email state
   const [email, setEmail] = useState("");
@@ -21,6 +23,18 @@ export function AdminLogin() {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+  const isUnauthorizedDomain = error.includes("Domain not authorized") || error.includes("unauthorized-domain");
+
+  const copyDomain = () => {
+    if (currentHost) {
+      navigator.clipboard.writeText(currentHost);
+      setCopied(true);
+      emitToast("Hostname copied to clipboard!", "success");
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = authClient.onAuthStateChanged(async (user) => {
@@ -59,6 +73,20 @@ export function AdminLogin() {
       console.error(err);
       setError("Failed to verify administrator credentials with backend.");
       await authClient.signOut();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoAdminSignIn = () => {
+    try {
+      setLoading(true);
+      authClient.signInAsDemo(true);
+      emitToast("Signed in with demo admin session!", "success");
+      const from = location.state?.from || "/admin";
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err?.message || "Demo admin sign-in failed");
     } finally {
       setLoading(false);
     }
@@ -162,13 +190,51 @@ export function AdminLogin() {
             Admin Control Center
           </h1>
           <p style={{ fontSize: '13px', color: '#806f62', margin: 0 }}>
-            Secure Firebase Authentication with server-side role verification.
+            Secure Authentication with server-side role verification.
           </p>
         </div>
 
         {error && (
-          <div style={{ background: '#ffebee', color: '#c62828', padding: '12px', borderRadius: '8px', marginBottom: '18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={16} /> {error}
+          <div style={{
+            background: isUnauthorizedDomain ? '#fff8f4' : '#ffebee',
+            color: isUnauthorizedDomain ? '#4a2306' : '#c62828',
+            padding: '12px',
+            borderRadius: '8px',
+            marginBottom: '18px',
+            fontSize: '12px',
+            border: `1px solid ${isUnauthorizedDomain ? '#e8c4a9' : '#f5c6cb'}`
+          }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#ba3207' }} />
+              <div>
+                <div style={{ fontWeight: 600, color: '#ba3207', marginBottom: '4px' }}>
+                  {isUnauthorizedDomain ? 'Firebase Domain Configuration' : 'Notice'}
+                </div>
+                <div>{error}</div>
+                {isUnauthorizedDomain && (
+                  <div style={{ marginTop: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={copyDomain}
+                      style={{
+                        padding: '5px 9px',
+                        fontSize: '11px',
+                        borderRadius: '5px',
+                        border: '1px solid #ccc',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      {copied ? <Check size={13} color="#20a95a" /> : <Copy size={13} />}
+                      {copied ? 'Copied Hostname!' : 'Copy Hostname for Firebase Console'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -177,11 +243,28 @@ export function AdminLogin() {
             <button type="button" onClick={handleGoogle} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
               <Chrome size={18} /> Continue with Google
             </button>
+            <button type="button" onClick={() => setMode("email")} disabled={loading} className="admin-btn" style={{ background: '#6f3518', color: '#fff', border: '1px solid #6f3518' }}>
+              <Mail size={18} /> Continue with Email
+            </button>
             <button type="button" onClick={() => setMode("phone")} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
               <Phone size={18} /> Continue with Phone OTP
             </button>
-            <button type="button" onClick={() => setMode("email")} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
-              <Mail size={18} /> Continue with Email
+
+            <div style={{ borderTop: '1px dashed #e8e0d8', margin: '6px 0 2px' }} />
+
+            <button
+              type="button"
+              onClick={handleDemoAdminSignIn}
+              disabled={loading}
+              className="admin-btn"
+              style={{
+                background: '#fcf8f2',
+                color: '#6f3518',
+                border: '1px solid #dfcfbe',
+                fontSize: '12px'
+              }}
+            >
+              <Sparkles size={16} color="#b85d25" /> Instant Test Admin Sign-In
             </button>
           </div>
         )}

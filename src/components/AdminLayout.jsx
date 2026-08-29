@@ -65,8 +65,14 @@ export function AdminLayout({children}) {
            headers: { "Authorization": "Bearer " + token }
         });
         const json = await res.json();
-        if (json.success && json.data && (json.data.role === 'admin' || json.data.isAdmin)) {
-           setAdminSession({ email: json.data.email || 'admin@aurarudraksha.com' });
+        const targetEmail = "rohitjangir8740@gmail.com";
+        const targetPhoneDigits = "9672996531";
+        const resEmail = (json.data?.email || authClient.getUser()?.email || "").trim().toLowerCase();
+        const resPhone = (json.data?.phone || authClient.getUser()?.phoneNumber || "").replace(/[^0-9]/g, "");
+        const isAuthorizedAdmin = resEmail === targetEmail || resPhone.endsWith(targetPhoneDigits);
+
+        if (json.success && json.data && (json.data.role === 'admin' || json.data.isAdmin) && isAuthorizedAdmin) {
+           setAdminSession({ email: json.data.email || 'rohitjangir8740@gmail.com' });
         } else {
            navigate("/account", { replace: true });
         }

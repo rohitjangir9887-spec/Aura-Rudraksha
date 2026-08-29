@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
@@ -43,6 +44,25 @@ setInterval(() => {
     if (now > val.resetAt) rateLimitMap.delete(key);
   }
 }, 5 * 60 * 1000);
+
+// Helper for Google Gemini AI client initialization
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) return null;
+  try {
+    return new GoogleGenAI({
+      apiKey: apiKey.trim(),
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        }
+      }
+    });
+  } catch (err) {
+    console.warn("Could not initialize Google GenAI Client:", err?.message || err);
+    return null;
+  }
+}
 
 // Helper for NVIDIA NIM AI client initialization
 function getNvidiaClient() {
@@ -829,11 +849,40 @@ Output JSON ONLY with no conversational wrapper:
           content: `Customer: "${message}"`
         });
 
-        // Hosted NVIDIA NIM API call (NO extra_body, standard schema with reasoning_effort="none")
+        // 5. Try Google Gemini API (gemini-3.7-flash) or NVIDIA NIM
+        const geminiClient = getGeminiClient();
         const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
         let rawContent = "";
 
-        if (nvidiaApiKey) {
+        if (geminiClient) {
+          try {
+            const geminiContents = [];
+            if (Array.isArray(history)) {
+              for (const h of history.slice(-4)) {
+                if (h.sender === "user" && h.text) {
+                  geminiContents.push({ role: "user", parts: [{ text: String(h.text).slice(0, 2000) }] });
+                } else if (h.sender === "ai" && h.text) {
+                  geminiContents.push({ role: "model", parts: [{ text: String(h.text).slice(0, 2000) }] });
+                }
+              }
+            }
+            geminiContents.push({ role: "user", parts: [{ text: `Customer: "${message}"` }] });
+
+            const geminiRes = await geminiClient.models.generateContent({
+              model: "gemini-3.7-flash",
+              contents: geminiContents,
+              config: {
+                systemInstruction: systemPrompt,
+                responseMimeType: "application/json"
+              }
+            });
+            rawContent = geminiRes.text || "";
+          } catch (geminiErr) {
+            console.warn("Gemini API notice:", geminiErr?.message || geminiErr);
+          }
+        }
+
+        if (!rawContent && nvidiaApiKey) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 14000);
 
@@ -869,14 +918,16 @@ Output JSON ONLY with no conversational wrapper:
             clearTimeout(timeoutId);
             // If direct fetch aborted or failed, try OpenAI SDK fallback if available
             try {
-              const completion = await nvidiaClient.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
-                messages: formattedMessages,
-                temperature: 1.0,
-                top_p: 0.95,
-                max_tokens: 1536
-              });
-              rawContent = completion.choices[0]?.message?.content || "";
+              if (nvidiaClient) {
+                const completion = await nvidiaClient.chat.completions.create({
+                  model: "nvidia/nemotron-3-super-120b-a12b",
+                  messages: formattedMessages,
+                  temperature: 1.0,
+                  top_p: 0.95,
+                  max_tokens: 1536
+                });
+                rawContent = completion.choices[0]?.message?.content || "";
+              }
             } catch (sdkErr) {
               console.warn("NVIDIA SDK fallback notice:", sdkErr?.message);
             }

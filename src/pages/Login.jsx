@@ -4,12 +4,13 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { emitToast } from "../context/ToastContext";
 import { authClient } from "../lib/authClient";
-import { Mail, Phone, Lock, UserPlus, LogIn, Chrome } from "lucide-react";
+import { Mail, Phone, Lock, UserPlus, LogIn, Chrome, Copy, Check, AlertCircle, Sparkles } from "lucide-react";
 
 export function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("select"); // select, email, phone, signup
+  const [copied, setCopied] = useState(false);
   
   // Email/Password state
   const [email, setEmail] = useState("");
@@ -22,6 +23,18 @@ export function Login() {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+  const isUnauthorizedDomain = error.includes("Domain not authorized") || error.includes("unauthorized-domain");
+
+  const copyDomain = () => {
+    if (currentHost) {
+      navigator.clipboard.writeText(currentHost);
+      setCopied(true);
+      emitToast("Hostname copied to clipboard!", "success");
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = authClient.onAuthStateChanged((user) => {
@@ -62,6 +75,19 @@ export function Login() {
     } catch (err) {
       console.error(err);
       setError(getErrorMessage(err) || "Google sign in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoSignIn = () => {
+    try {
+      setLoading(true);
+      authClient.signInAsDemo(false);
+      emitToast("Signed in with test customer account!", "success");
+      redirectUser();
+    } catch (err) {
+      setError(err?.message || "Demo sign in unavailable");
     } finally {
       setLoading(false);
     }
@@ -145,18 +171,87 @@ export function Login() {
           <h1>Welcome Back</h1>
           <p>Sign in to manage your orders and wishlist.</p>
           
-          {error && <div style={{color: '#d84518', fontSize: '12px', margin: '10px 0'}}>{error}</div>}
+          {error && (
+            <div style={{
+              background: isUnauthorizedDomain ? '#fff8f4' : '#fff0ed',
+              border: `1px solid ${isUnauthorizedDomain ? '#e8c4a9' : '#f5c6cb'}`,
+              borderRadius: '8px',
+              padding: '12px',
+              margin: '14px 0',
+              textAlign: 'left',
+              fontSize: '12px',
+              color: '#4a2306'
+            }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <AlertCircle size={16} color="#ba3207" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <div style={{ fontWeight: 600, color: '#ba3207', marginBottom: '4px' }}>
+                    {isUnauthorizedDomain ? 'Firebase Domain Configuration' : 'Sign-In Notice'}
+                  </div>
+                  <div>{error}</div>
+
+                  {isUnauthorizedDomain && (
+                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={copyDomain}
+                        className="outline-btn"
+                        style={{
+                          margin: 0,
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          background: '#fff'
+                        }}
+                      >
+                        {copied ? <Check size={14} color="#20a95a" /> : <Copy size={14} />}
+                        {copied ? 'Copied Hostname!' : 'Copy Hostname for Firebase Console'}
+                      </button>
+
+                      <div style={{ fontSize: '11px', color: '#6e4f3a', marginTop: '4px' }}>
+                        💡 <strong>Immediate options:</strong> Use Email sign-in or instant Test Account below.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {mode === "select" && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
               <button type="button" onClick={handleGoogle} disabled={loading} className="outline-btn full" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Chrome size={16} /> Continue with Google
               </button>
-              <button type="button" onClick={() => setMode("phone")} disabled={loading} className="outline-btn full" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <Phone size={16} /> Continue with Phone
-              </button>
               <button type="button" onClick={() => setMode("email")} disabled={loading} className="primary-btn full" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Mail size={16} /> Continue with Email
+              </button>
+              <button type="button" onClick={() => setMode("phone")} disabled={loading} className="outline-btn full" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <Phone size={16} /> Continue with Phone OTP
+              </button>
+
+              <div style={{ borderTop: '1px dashed var(--line)', margin: '8px 0 2px' }} />
+
+              <button
+                type="button"
+                onClick={handleDemoSignIn}
+                disabled={loading}
+                className="outline-btn full"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  background: '#fcf8f2',
+                  borderColor: '#dfcfbe',
+                  color: '#6f3518',
+                  fontSize: '11.5px'
+                }}
+              >
+                <Sparkles size={14} color="#b85d25" /> Instant Test Customer Sign-In
               </button>
             </div>
           )}

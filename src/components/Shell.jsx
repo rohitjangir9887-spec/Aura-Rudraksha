@@ -140,7 +140,6 @@ export function Shell({children}) {
                   <Link to="/#about" onClick={()=>setMenuOpen(false)}>About Us</Link>
                   <a href="#contact" onClick={()=>setMenuOpen(false)}>Contact Support</a>
                   <Link to="/account" onClick={()=>setMenuOpen(false)}>Account & Settings</Link>
-                  <Link to="/admin" onClick={()=>setMenuOpen(false)} style={{ color: 'var(--copper)', fontWeight: '600' }}>Admin Control Center</Link>
                 </nav>
               </motion.aside>
             </motion.div>
