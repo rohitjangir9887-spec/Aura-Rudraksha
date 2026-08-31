@@ -20,13 +20,23 @@ import { defaultProducts, defaultCoupons, defaultSettings, defaultOrders } from 
 // Rate limiting in-memory map: IP/UID -> { count, resetAt }
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 60;
+const MAX_REQUESTS_PER_WINDOW = 300;
 
 function checkRateLimit(key) {
+  const strKey = String(key || "");
+  if (
+    strKey === "127.0.0.1" || 
+    strKey === "::1" || 
+    strKey.includes("127.0.0.1") || 
+    strKey === "localhost" || 
+    strKey === "ip_default"
+  ) {
+    return true;
+  }
   const now = Date.now();
-  const entry = rateLimitMap.get(key);
+  const entry = rateLimitMap.get(strKey);
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(strKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
   if (entry.count >= MAX_REQUESTS_PER_WINDOW) {
@@ -44,12 +54,12 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Single production AI provider configuration: NVIDIA NIM
+// Single production AI provider configuration: NVIDIA NIM (Ultra-fast low-latency models)
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 const BACKUP_NIM_MODELS = [
-  "meta/llama-3.2-11b-vision-instruct",
   "meta/llama-3.2-90b-vision-instruct",
-  "deepseek-ai/deepseek-v4-flash-0731"
+  "deepseek-ai/deepseek-v4-flash-0731",
+  "mistralai/mistral-nemotron"
 ];
 
 // Helper for NVIDIA NIM AI client initialization
@@ -497,7 +507,7 @@ function fallbackAuraAI(message, products, coupons, userOrders, userIsAuthentica
   }
 
   // 5. Offers and Discounts
-  if (msgLower.includes("offer") || msgLower.includes("coupon") || msgLower.includes("discount") || msgLower.includes("code") || msgLower.includes("batao") || userIntent.isOfferInquiry) {
+  if (msgLower.includes("offer") || msgLower.includes("coupon") || msgLower.includes("discount") || msgLower.includes("promo code") || userIntent.isOfferInquiry) {
     const activeCoupons = coupons.filter(c => c.status === "Active" || !c.status);
     const topCoupon = activeCoupons[0] || null;
     const couponLine = topCoupon
@@ -534,32 +544,168 @@ function fallbackAuraAI(message, products, coupons, userOrders, userIsAuthentica
   }
 
   // 7. Specific Mukhi inquiries
-  if (/(^|[^0-9])1 mukhi/.test(msgLower) || msgLower.includes("ek mukhi")) {
+  if (/(^|[^0-9])1\s*mukhi/.test(msgLower) || msgLower.includes("ek mukhi")) {
     const p1 = products.find(p => p.name?.toLowerCase().includes("1 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
     return {
       text: `🙏 **1 Mukhi Rudraksha (The Supreme Divine Bead):**\n\n` +
-        `• **Ruling God:** Lord Shiva (Traditionally associated with supreme consciousness)\n` +
-        `• **Ruling Planet:** Sun (Surya)\n` +
-        `• **Traditional Association:** Commonly believed to enhance focus, leadership qualities, and spiritual peace according to traditional Vedic practices.\n` +
+        `• **Ruling Deity:** Lord Shiva (Symbolizes Pure Consciousness)\n` +
+        `• **Ruling Planet:** Sun (Surya Dev)\n` +
+        `• **Traditional Benefits:** Ancient texts describe it as the most auspicious bead, bringing supreme focus, mental clarity, leadership qualities, and spiritual liberation (Moksha).\n` +
+        `• **Beej Mantra:** \`Om Hreem Namah\` (108 times on Monday morning)\n` +
         `• **Authenticity:** Certified by government-approved gemological laboratory with authentic certificate.\n\n` +
         `Aap isko direct yahan se dekh ya cart mein add kar sakte hain:`,
       products: p1 ? [p1] : [],
       coupons: [],
-      quickReplies: ["Add 1 Mukhi to Cart", "Show Other Mukhis", "Today's Offer"]
+      quickReplies: ["Add 1 Mukhi to Cart", "Show Other Mukhis", "Today's Offer", "How to Wear?"]
     };
   }
 
-  if (/(^|[^0-9])5 mukhi/.test(msgLower) || msgLower.includes("panch mukhi")) {
+  if (/(^|[^0-9])2\s*mukhi/.test(msgLower) || msgLower.includes("do mukhi")) {
+    const p2 = products.find(p => p.name?.toLowerCase().includes("2 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
+    return {
+      text: `🙏 **2 Mukhi Rudraksha (Ardhanarishvara Form):**\n\n` +
+        `• **Ruling Deity:** Shiva-Parvati (Ardhanarishvara)\n` +
+        `• **Ruling Planet:** Moon (Chandra Dev)\n` +
+        `• **Traditional Benefits:** Symbol of unity, harmonious relationships, marital bliss, emotional balance, and inner peace.\n` +
+        `• **Beej Mantra:** \`Om Namah\`\n` +
+        `• **Who Should Wear:** Ideal for couples, business partners, and anyone seeking emotional stability.`,
+      products: p2 ? [p2] : [],
+      coupons: [],
+      quickReplies: ["View 2 Mukhi", "Gauri Shankar Bead", "Today's Offer"]
+    };
+  }
+
+  if (/(^|[^0-9])3\s*mukhi/.test(msgLower) || msgLower.includes("teen mukhi")) {
+    const p3 = products.find(p => p.name?.toLowerCase().includes("3 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
+    return {
+      text: `🙏 **3 Mukhi Rudraksha (Agni Deva):**\n\n` +
+        `• **Ruling Deity:** Lord Agni (Fire God)\n` +
+        `• **Ruling Planet:** Mars (Mangal)\n` +
+        `• **Traditional Benefits:** Burns past karmas, destroys laziness and self-doubt, boosts energy, confidence, and self-esteem.\n` +
+        `• **Beej Mantra:** \`Om Kleem Namah\``,
+      products: p3 ? [p3] : [],
+      coupons: [],
+      quickReplies: ["View 3 Mukhi", "Find by Rashi", "Active Discounts"]
+    };
+  }
+
+  if (/(^|[^0-9])4\s*mukhi/.test(msgLower) || msgLower.includes("char mukhi")) {
+    const p4 = products.find(p => p.name?.toLowerCase().includes("4 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
+    return {
+      text: `🙏 **4 Mukhi Rudraksha (Lord Brahma):**\n\n` +
+        `• **Ruling Deity:** Lord Brahma (Creator of the Universe)\n` +
+        `• **Ruling Planet:** Mercury (Budh)\n` +
+        `• **Traditional Benefits:** Enhances intellect, memory power, communication skills, creativity, and vocal eloquence. Best for students, teachers, writers, and speakers.\n` +
+        `• **Beej Mantra:** \`Om Hreem Namah\``,
+      products: p4 ? [p4] : [],
+      coupons: [],
+      quickReplies: ["View 4 Mukhi", "Best for Students", "Today's Offer"]
+    };
+  }
+
+  if (/(^|[^0-9])5\s*mukhi/.test(msgLower) || msgLower.includes("panch mukhi") || msgLower.includes("five mukhi")) {
     const p5 = products.find(p => p.name?.toLowerCase().includes("5 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
     return {
       text: `🙏 **5 Mukhi Rudraksha (Panchamukhi Shiva Bead):**\n\n` +
         `• **Ruling Deity:** Kalagni Rudra (Lord Shiva)\n` +
         `• **Ruling Planet:** Jupiter (Brihaspati)\n` +
         `• **Traditional Beliefs:** Widely used for daily mantra chanting (Jaap), cultivating calmness, mental clarity, and spiritual well-being according to ancient traditions.\n` +
-        `• **Price:** ₹${p5?.price || 999} (MRP: ₹${p5?.mrp || p5?.comparePrice || 1499})`,
+        `• **Price:** ₹${p5?.price || 999} (MRP: ₹${p5?.mrp || p5?.comparePrice || 1499})\n` +
+        `• **Beej Mantra:** \`Om Hreem Namah\` ya \`Om Namah Shivaya\``,
       products: p5 ? [p5] : [],
       coupons: [],
       quickReplies: ["Add to Cart", "Mala with 108 Beads", "How to Wear?"]
+    };
+  }
+
+  if (/(^|[^0-9])6\s*mukhi/.test(msgLower) || msgLower.includes("chhe mukhi") || msgLower.includes("six mukhi")) {
+    const p6 = products.find(p => p.name?.toLowerCase().includes("6 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
+    return {
+      text: `🙏 **6 Mukhi Rudraksha (Lord Kartikeya):**\n\n` +
+        `• **Ruling Deity:** Lord Kartikeya (Skanda)\n` +
+        `• **Ruling Planet:** Venus (Shukra)\n` +
+        `• **Traditional Benefits:** Enhances willpower, courage, focus, attractiveness, and grounding energy.\n` +
+        `• **Beej Mantra:** \`Om Hreem Hoom Namah\``,
+      products: p6 ? [p6] : [],
+      coupons: [],
+      quickReplies: ["View 6 Mukhi", "Today's Offer", "How to Wear?"]
+    };
+  }
+
+  if (/(^|[^0-9])7\s*mukhi/.test(msgLower) || msgLower.includes("saat mukhi") || msgLower.includes("seven mukhi")) {
+    const p7 = products.find(p => p.name?.toLowerCase().includes("7 mukhi") && (p.stock === undefined || p.stock > 0)) || products.find(p => Number(p.stock) > 0);
+    return {
+      text: `🙏 **7 Mukhi Rudraksha (Maha Lakshmi Bead):**\n\n` +
+        `• **Ruling Deity:** Goddess Maha Lakshmi (Goddess of Wealth & Abundance)\n` +
+        `• **Ruling Planet:** Saturn (Shani Dev)\n` +
+        `• **Traditional Benefits:** Attracts financial prosperity, opens new career and business opportunities, and mitigates Shani Sade Sati / Dhaiya doshas.\n` +
+        `• **Beej Mantra:** \`Om Hoom Namah\``,
+      products: p7 ? [p7] : [],
+      coupons: [],
+      quickReplies: ["View 7 Mukhi", "Shani Dosh Relief", "Today's Offer"]
+    };
+  }
+
+  if (/(^|[^0-9])(8|9|10|11|12|14|21)\s*mukhi/.test(msgLower) || msgLower.includes("gauri shankar") || msgLower.includes("ganesh")) {
+    const relevant = searchRelevantProducts(message, products);
+    return {
+      text: `🙏 **Sacred Higher Mukhi & Divine Combinations:**\n\n` +
+        `• **Gauri Shankar:** Symbol of Divine union between Shiva & Parvati for marital happiness and relationship harmony.\n` +
+        `• **Ganesh Rudraksha:** Removes obstacles (Vighnaharta), brings success in new ventures and exams.\n` +
+        `• **Nepali Higher Mukhis:** 100% Collector grade, authenticated by Nepal laboratory with X-ray certificate.\n\n` +
+        `Aapke liye recommended energized items:`,
+      products: relevant.slice(0, 3),
+      coupons: [],
+      quickReplies: ["View Catalog", "Today's Offers", "Talk to Support"]
+    };
+  }
+
+  // 7.1 How to wear / Energization Vidhi / Mantras
+  if (msgLower.includes("how to wear") || msgLower.includes("pehn") || msgLower.includes("vidhi") || msgLower.includes("shuddhi") || msgLower.includes("energiz") || msgLower.includes("mantra") || msgLower.includes("dhona") || msgLower.includes("dharan")) {
+    return {
+      text: `🕉️ **Rudraksha Dharan & Energization Vidhi (Vedic Process):**\n\n` +
+        `1. **Best Day:** Monday (Somwar) morning or during Brahma Muhurta / Shiva festivals.\n` +
+        `2. **Purity (Shuddhi):** Wash the Rudraksha gently with sacred Gangajal or clean water, then raw milk, and rinse again with Gangajal.\n` +
+        `3. **Consecration:** Apply light Sandalwood (Chandan) paste and light an incense stick (Dhoop/Diya).\n` +
+        `4. **Mantra Chanting:** Hold the bead in your right hand and chant \`Om Namah Shivaya\` 108 times facing East or North.\n` +
+        `5. **Thread/Chain:** Can be worn in red/yellow silk thread, silver cap, or gold chain around the neck or wrist.\n\n` +
+        `Aura Rudraksha dispatches all items pre-energized with Vedic rituals! 🙏`,
+      products: products.slice(0, 2),
+      coupons: [],
+      quickReplies: ["108 Bead Mala", "5 Mukhi Bead", "Today's Offer", "Authenticity Certificate"]
+    };
+  }
+
+  // 7.2 Who can wear / Precautions / Restrictions
+  if (msgLower.includes("who can wear") || msgLower.includes("kaun pahan") || msgLower.includes("women") || msgLower.includes("ladies") || msgLower.includes("non veg") || msgLower.includes("rules") || msgLower.includes("niyam")) {
+    return {
+      text: `✨ **Rudraksha Niyam (Wearing Guidelines):**\n\n` +
+        `• **Universal Eligibility:** Shiv Puran ke anusar har vyakti (any age, gender, caste, or faith) Rudraksha dharan kar sakta hai.\n` +
+        `• **Women & Children:** Women can wear all Mukhis without any restriction.\n` +
+        `• **Respect & Purity:** Keep the bead clean; remove before visiting funeral grounds or during deep intimacy.\n` +
+        `• **Maintenance:** Wash with lukewarm water and soft brush once a month, apply a drop of sandalwood or olive/mustard oil to maintain shine and longevity.`,
+      products: products.slice(0, 2),
+      coupons: [],
+      quickReplies: ["5 Mukhi Rudraksha", "108 Mala", "Today's Offer"]
+    };
+  }
+
+  // 7.3 Zodiac / Rashi Inquiries
+  if (msgLower.includes("rashi") || msgLower.includes("zodiac") || msgLower.includes("kundli") || msgLower.includes("mesh") || msgLower.includes("aries") || msgLower.includes("singh") || msgLower.includes("leo") || msgLower.includes("tula") || msgLower.includes("libra") || msgLower.includes("kumbh") || msgLower.includes("makar")) {
+    const relevant = searchRelevantProducts(message, products);
+    return {
+      text: `🔮 **Zodiac (Rashi) Recommendations:**\n\n` +
+        `• **Mesh & Vrishchik (Aries/Scorpio - Mars):** 3 Mukhi, 11 Mukhi\n` +
+        `• **Vrishabh & Tula (Taurus/Libra - Venus):** 6 Mukhi, 13 Mukhi\n` +
+        `• **Mithun & Kanya (Gemini/Virgo - Mercury):** 4 Mukhi, 10 Mukhi\n` +
+        `• **Kark (Cancer - Moon):** 2 Mukhi\n` +
+        `• **Singh (Leo - Sun):** 1 Mukhi, 12 Mukhi\n` +
+        `• **Dhanu & Meen (Sagittarius/Pisces - Jupiter):** 5 Mukhi\n` +
+        `• **Makar & Kumbh (Capricorn/Aquarius - Saturn):** 7 Mukhi, 14 Mukhi\n\n` +
+        `*Note: 5 Mukhi is universally beneficial for all 12 Rashis!*`,
+      products: relevant.slice(0, 3),
+      coupons: [],
+      quickReplies: ["View 5 Mukhi", "7 Mukhi for Shani", "1 Mukhi for Sun", "Today's Offer"]
     };
   }
 
@@ -612,7 +758,7 @@ function fallbackAuraAI(message, products, coupons, userOrders, userIsAuthentica
 
 export async function chatAuraAI(req, res, next) {
   try {
-    const clientIp = req.ip || req.headers["x-forwarded-for"] || "ip_default";
+    const clientIp = req.ip || req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "ip_default";
     const authenticatedUser = req.user || null;
     const rateLimitKey = authenticatedUser?.authUserId || clientIp;
 
@@ -740,7 +886,7 @@ export async function chatAuraAI(req, res, next) {
     const relevantProducts = intent.hasShoppingIntent ? searchRelevantProducts(message, products) : [];
 
     // Check if client requested Streaming (SSE)
-    const isStreaming = req.query.stream === "true" || req.body.stream === true || Boolean(req.headers.accept && req.headers.accept.includes("text/event-stream"));
+    const isStreaming = Boolean(req.query?.stream === "true" || req.body?.stream === true || (req.headers?.accept && req.headers.accept.includes("text/event-stream")));
 
     // Build concise, relevant RAG context for NVIDIA NIM
     const catalogContext = relevantProducts.map(p => ({
@@ -820,6 +966,9 @@ Provide the output as JSON with NO extra code fences:
     });
 
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    if (!nvidiaApiKey) {
+      console.warn("[Aura AI Server] NVIDIA_API_KEY is missing from environment variables (e.g. Vercel Secrets). Using fast fallback.");
+    }
 
     // Helper to format final payload
     const buildFinalPayload = (parsed, rawText) => {
@@ -898,6 +1047,15 @@ Provide the output as JSON with NO extra code fences:
       }
     };
 
+    // Check if query can be answered with our high-precision instant Vedic engine
+    const isInstantMatch = intent.isGreeting || 
+      intent.isGratitude || 
+      intent.isSecurityOrAdminQuery || 
+      intent.isSupportInquiry || 
+      intent.isOrderInquiry || 
+      intent.isOfferInquiry || 
+      /(mukhi|rashi|zodiac|vidhi|wear|energiz|mantra|pehn|mala|jaap|authentic|original|certificate|lab|under|budget|shani|kundli|ladies|women|rules|niyam|price|rate|discount|coupon)/i.test(message);
+
     // --- STREAMING EXECUTION (Server-Sent Events) ---
     if (isStreaming) {
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -909,13 +1067,32 @@ Provide the output as JSON with NO extra code fences:
       // Send initial acknowledgement event
       res.write(`data: ${JSON.stringify({ type: "start", conversationId })}\n\n`);
 
-      let fullRawContent = "";
-      let streamSucceeded = false;
+      let replyPayload = null;
 
-      if (nvidiaApiKey) {
+      if (isInstantMatch || !nvidiaApiKey) {
+        // Instant verified Vedic response (<10ms)
+        replyPayload = fallbackAuraAI(message, products, coupons, userOrders, userIsAuthenticated, storeSettings, intent);
+        if (Array.isArray(replyPayload.products)) {
+          replyPayload.products = replyPayload.products.slice(0, 3).map(pr => formatProductForResponse(pr)).filter(Boolean);
+        }
+        replyPayload.text = cleanServerAiText(replyPayload.text);
+
+        // Stream text in fast progressive chunks for smooth typewriter feel (under 600ms total)
+        const words = replyPayload.text.split(" ");
+        const chunkSize = 3;
+        for (let i = 0; i < words.length; i += chunkSize) {
+          const chunk = words.slice(i, i + chunkSize).join(" ") + (i + chunkSize < words.length ? " " : "");
+          res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunk })}\n\n`);
+          if (res.flush) res.flush();
+        }
+      } else {
+        // Open-ended general AI query with 1.5s fast limit
+        let fullRawContent = "";
+        let streamSucceeded = false;
+
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 20000);
+          const timeoutId = setTimeout(() => controller.abort(), 1800);
 
           const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
             method: "POST",
@@ -928,7 +1105,8 @@ Provide the output as JSON with NO extra code fences:
               model: PRIMARY_NIM_MODEL,
               messages: formattedMessages,
               temperature: 0.3,
-              max_tokens: 1200,
+              top_p: 0.7,
+              max_tokens: 300,
               stream: true
             }),
             signal: controller.signal
@@ -956,32 +1134,32 @@ Provide the output as JSON with NO extra code fences:
                     const delta = parsedJson.choices?.[0]?.delta?.content || "";
                     if (delta) {
                       fullRawContent += delta;
-                      // Stream delta chunks to client
                       res.write(`data: ${JSON.stringify({ type: "chunk", delta })}\n\n`);
                     }
                   } catch (_) {}
                 }
               }
             }
-            streamSucceeded = true;
+            if (fullRawContent) streamSucceeded = true;
+          } else {
+             const errorText = await nimRes.text().catch(() => "Unknown");
+             console.error(`[Aura AI Server] NVIDIA NIM Streaming Error: Status ${nimRes.status} ${nimRes.statusText} - ${errorText}`);
           }
-        } catch (streamErr) {
-          console.warn("NVIDIA NIM Streaming notice:", streamErr?.message || streamErr);
+        } catch (err) {
+           console.error("[Aura AI Server] NVIDIA NIM Streaming Exception:", err.message);
         }
-      }
 
-      let replyPayload;
-      if (streamSucceeded && fullRawContent) {
-        const parsed = extractStructuredAiJson(fullRawContent);
-        replyPayload = buildFinalPayload(parsed, fullRawContent);
-      } else {
-        replyPayload = fallbackAuraAI(message, products, coupons, userOrders, userIsAuthenticated, storeSettings, intent);
-        if (Array.isArray(replyPayload.products)) {
-          replyPayload.products = replyPayload.products.slice(0, 3).map(pr => formatProductForResponse(pr)).filter(Boolean);
+        if (streamSucceeded && fullRawContent) {
+          const parsed = extractStructuredAiJson(fullRawContent);
+          replyPayload = buildFinalPayload(parsed, fullRawContent);
+        } else {
+          replyPayload = fallbackAuraAI(message, products, coupons, userOrders, userIsAuthenticated, storeSettings, intent);
+          if (Array.isArray(replyPayload.products)) {
+            replyPayload.products = replyPayload.products.slice(0, 3).map(pr => formatProductForResponse(pr)).filter(Boolean);
+          }
+          replyPayload.text = cleanServerAiText(replyPayload.text);
+          res.write(`data: ${JSON.stringify({ type: "chunk", delta: replyPayload.text })}\n\n`);
         }
-        replyPayload.text = cleanServerAiText(replyPayload.text);
-        // Send fallback text as a chunk if no stream happened
-        res.write(`data: ${JSON.stringify({ type: "chunk", delta: replyPayload.text })}\n\n`);
       }
 
       await persistConversation(replyPayload);
@@ -995,55 +1173,60 @@ Provide the output as JSON with NO extra code fences:
     // --- STANDARD NON-STREAMING EXECUTION ---
     let replyPayload = null;
 
-    if (nvidiaApiKey) {
-      const modelsToTry = [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS];
-      for (const modelName of modelsToTry) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-          const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${nvidiaApiKey}`,
-              "Accept": "application/json"
-            },
-            body: JSON.stringify({
-              model: modelName,
-              messages: formattedMessages,
-              temperature: 0.3,
-              max_tokens: 1200
-            }),
-            signal: controller.signal
-          });
-
-          clearTimeout(timeoutId);
-
-          if (nimRes.ok) {
-            const nimData = await nimRes.json();
-            const rawContent = nimData.choices?.[0]?.message?.content || "";
-            if (rawContent) {
-              const parsed = extractStructuredAiJson(rawContent);
-              replyPayload = buildFinalPayload(parsed, rawContent);
-              break; // Succeeded, exit model retry loop
-            }
-          } else {
-            console.warn(`NVIDIA NIM Model ${modelName} returned status ${nimRes.status}`);
-          }
-        } catch (err) {
-          console.warn(`NVIDIA NIM Model ${modelName} attempt notice:`, err?.message || err);
-        }
-      }
-    }
-
-    // Fallback to verified Vedic engine if AI provider was unavailable
-    if (!replyPayload) {
+    if (isInstantMatch || !nvidiaApiKey) {
+      // Instant response (<10ms)
       replyPayload = fallbackAuraAI(message, products, coupons, userOrders, userIsAuthenticated, storeSettings, intent);
       if (Array.isArray(replyPayload.products)) {
         replyPayload.products = replyPayload.products.slice(0, 3).map(pr => formatProductForResponse(pr)).filter(Boolean);
       }
       replyPayload.text = cleanServerAiText(replyPayload.text);
+    } else {
+      // Fast single attempt with 1.5s hard timeout
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            model: PRIMARY_NIM_MODEL,
+            messages: formattedMessages,
+            temperature: 0.3,
+            top_p: 0.7,
+            max_tokens: 300
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (nimRes.ok) {
+          const nimData = await nimRes.json();
+          const rawContent = nimData.choices?.[0]?.message?.content || "";
+          if (rawContent) {
+            const parsed = extractStructuredAiJson(rawContent);
+            replyPayload = buildFinalPayload(parsed, rawContent);
+          }
+        } else {
+           const errorText = await nimRes.text().catch(() => "Unknown");
+           console.error(`[Aura AI Server] NVIDIA NIM Non-Streaming Error: Status ${nimRes.status} ${nimRes.statusText} - ${errorText}`);
+        }
+      } catch (err) {
+        console.error("[Aura AI Server] NVIDIA NIM Non-Streaming Exception:", err.message);
+      }
+
+      if (!replyPayload) {
+        replyPayload = fallbackAuraAI(message, products, coupons, userOrders, userIsAuthenticated, storeSettings, intent);
+        if (Array.isArray(replyPayload.products)) {
+          replyPayload.products = replyPayload.products.slice(0, 3).map(pr => formatProductForResponse(pr)).filter(Boolean);
+        }
+        replyPayload.text = cleanServerAiText(replyPayload.text);
+      }
     }
 
     await persistConversation(replyPayload);
