@@ -109,34 +109,6 @@ export function PanditjiSection() {
                 <ArrowRight size={18} className="aura-cta-arrow" />
               </button>
             </div>
-
-            {/* COMPACT TRUST ROW */}
-            <div className="aura-panditji-trust-row">
-              <div className="aura-trust-item">
-                <ShieldCheck size={14} className="aura-trust-icon" />
-                <span>100% AUTHENTIC</span>
-              </div>
-              <div className="aura-trust-divider" />
-              <div className="aura-trust-item">
-                <Award size={14} className="aura-trust-icon" />
-                <span>PREMIUM QUALITY</span>
-              </div>
-              <div className="aura-trust-divider" />
-              <div className="aura-trust-item">
-                <Lock size={14} className="aura-trust-icon" />
-                <span>SECURE PAYMENT</span>
-              </div>
-              <div className="aura-trust-divider" />
-              <div className="aura-trust-item">
-                <Truck size={14} className="aura-trust-icon" />
-                <span>FREE SHIPPING</span>
-              </div>
-              <div className="aura-trust-divider" />
-              <div className="aura-trust-item">
-                <Headphones size={14} className="aura-trust-icon" />
-                <span>24/7 SUPPORT</span>
-              </div>
-            </div>
           </div>
 
           {/* RIGHT SIDE: 40% HIGH-DEFINITION 3D PANDITJI CHARACTER */}
@@ -437,6 +409,34 @@ export function PanditjiSection() {
                 </svg>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* COMPACT TRUST ROW BELOW HERO GRID */}
+        <div className="aura-panditji-trust-row">
+          <div className="aura-trust-item">
+            <ShieldCheck size={14} className="aura-trust-icon" />
+            <span>100% AUTHENTIC</span>
+          </div>
+          <div className="aura-trust-divider" />
+          <div className="aura-trust-item">
+            <Award size={14} className="aura-trust-icon" />
+            <span>PREMIUM QUALITY</span>
+          </div>
+          <div className="aura-trust-divider" />
+          <div className="aura-trust-item">
+            <Lock size={14} className="aura-trust-icon" />
+            <span>SECURE PAYMENT</span>
+          </div>
+          <div className="aura-trust-divider" />
+          <div className="aura-trust-item">
+            <Truck size={14} className="aura-trust-icon" />
+            <span>FREE SHIPPING</span>
+          </div>
+          <div className="aura-trust-divider" />
+          <div className="aura-trust-item">
+            <Headphones size={14} className="aura-trust-icon" />
+            <span>24/7 SUPPORT</span>
           </div>
         </div>
       </div>
