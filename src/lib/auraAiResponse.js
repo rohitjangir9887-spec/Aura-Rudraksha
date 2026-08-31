@@ -1,5 +1,5 @@
 /**
- * Normalize Aura AI API payloads so customers never see internal JSON or raw debug data.
+ * Normalize Aura AI API payloads so customers never see internal JSON, thinking, or raw debug data.
  */
 
 const INTERNAL_KEYS = [
@@ -22,9 +22,57 @@ function looksLikeInternalJson(obj) {
   );
 }
 
-function sanitizeCustomerText(raw) {
+export function stripThinkingAndReasoning(raw) {
   if (typeof raw !== "string") return "";
-  let text = raw.trim();
+  let text = raw;
+
+  // 1. Remove closed thinking / reasoning / analysis tags
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  text = text.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "");
+  text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
+
+  // 2. Remove unclosed thinking / reasoning / analysis tags (for active streaming)
+  text = text.replace(/<think>[\s\S]*/gi, "");
+  text = text.replace(/<reasoning>[\s\S]*/gi, "");
+  text = text.replace(/<analysis>[\s\S]*/gi, "");
+
+  // 3. Remove internal chain-of-thought phrases & line narrations
+  const reasoningRegexes = [
+    /^[\s\n]*okay,?\s+the\s+user[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
+    /^[\s\n]*let\s+me\s+check[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
+    /^[\s\n]*looking\s+at\s+the\s+context[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
+    /^[\s\n]*first,?\s+they\s+started[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i
+  ];
+
+  for (const reg of reasoningRegexes) {
+    text = text.replace(reg, "");
+  }
+
+  // Filter individual lines that are internal narration
+  const lines = text.split("\n").filter((line) => {
+    const trimmed = line.trim().toLowerCase();
+    if (
+      trimmed.startsWith("okay, the user") ||
+      trimmed.startsWith("let me check") ||
+      trimmed.startsWith("looking at the context") ||
+      trimmed.startsWith("looking at the history") ||
+      trimmed.startsWith("first, they started") ||
+      trimmed.startsWith("first, the user") ||
+      trimmed.startsWith("thought process:") ||
+      trimmed.startsWith("internal reasoning:") ||
+      trimmed.startsWith("thinking:")
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  return lines.join("\n").trim();
+}
+
+export function sanitizeCustomerText(raw) {
+  if (typeof raw !== "string") return "";
+  let text = stripThinkingAndReasoning(raw);
   if (!text) return "";
 
   // 1. Remove Code fences & JSON blobs
@@ -67,7 +115,7 @@ function sanitizeCustomerText(raw) {
     }
   }
 
-  return text;
+  return text.trim();
 }
 
 function tryParseJsonObject(s) {
@@ -77,7 +125,6 @@ function tryParseJsonObject(s) {
     const v = JSON.parse(cleaned);
     return v && typeof v === "object" ? v : null;
   } catch (_) {}
-  // Greedy first {...}
   const start = cleaned.indexOf("{");
   if (start === -1) return null;
   let depth = 0;
@@ -124,7 +171,6 @@ export function parseAuraAiPayload(raw) {
     return { ...empty, text: sanitizeCustomerText(String(raw)) };
   }
 
-  // Nested data envelope
   if (raw.data && typeof raw.data === "object" && (raw.text == null || raw.success)) {
     const inner = parseAuraAiPayload(raw.data);
     if (inner.text || inner.products?.length) return inner;
@@ -174,4 +220,3 @@ export function customerSafeAiText(value) {
   }
   return sanitizeCustomerText(String(value));
 }
-

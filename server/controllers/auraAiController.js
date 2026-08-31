@@ -109,10 +109,58 @@ function formatProductForResponse(p) {
   };
 }
 
+function stripThinkingAndReasoning(raw) {
+  if (typeof raw !== "string") return "";
+  let text = raw;
+
+  // 1. Remove closed thinking / reasoning / analysis tags
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  text = text.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "");
+  text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
+
+  // 2. Remove unclosed thinking / reasoning / analysis tags
+  text = text.replace(/<think>[\s\S]*/gi, "");
+  text = text.replace(/<reasoning>[\s\S]*/gi, "");
+  text = text.replace(/<analysis>[\s\S]*/gi, "");
+
+  // 3. Remove internal chain-of-thought phrases & line narrations
+  const reasoningRegexes = [
+    /^[\s\n]*okay,?\s+the\s+user[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
+    /^[\s\n]*let\s+me\s+check[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
+    /^[\s\n]*looking\s+at\s+the\s+context[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
+    /^[\s\n]*first,?\s+they\s+started[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i
+  ];
+
+  for (const reg of reasoningRegexes) {
+    text = text.replace(reg, "");
+  }
+
+  // Filter individual lines that are internal narration
+  const lines = text.split("\n").filter((line) => {
+    const trimmed = line.trim().toLowerCase();
+    if (
+      trimmed.startsWith("okay, the user") ||
+      trimmed.startsWith("let me check") ||
+      trimmed.startsWith("looking at the context") ||
+      trimmed.startsWith("looking at the history") ||
+      trimmed.startsWith("first, they started") ||
+      trimmed.startsWith("first, the user") ||
+      trimmed.startsWith("thought process:") ||
+      trimmed.startsWith("internal reasoning:") ||
+      trimmed.startsWith("thinking:")
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  return lines.join("\n").trim();
+}
+
 // Helper to sanitize customer-facing text on the server
 function cleanServerAiText(raw) {
   if (!raw || typeof raw !== "string") return "";
-  let text = raw.trim();
+  let text = stripThinkingAndReasoning(raw);
   // Strip code fences
   text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
   // Protect admin details
@@ -122,7 +170,7 @@ function cleanServerAiText(raw) {
   text = text.replace(/NVIDIA_API_[A-Z0-9_]+/gi, "");
   // Clean raw markdown heading markers
   text = text.replace(/^#{1,6}\s+/gm, "");
-  return text;
+  return text.trim();
 }
 
 // Intent Classification Layer
@@ -407,23 +455,25 @@ export async function chatAuraAI(req, res, next) {
     }));
 
     const systemPrompt = `You are Aura AI, a premium spiritual ecommerce assistant for Aura Rudraksha.
-Your core behavior:
-1. Short, Natural & Human-like: Answer concisely. Do NOT write long paragraphs. Do NOT repeat "Namaste, Main Aura AI hoon".
+Your core behavior & STRICT rules:
+1. Short, Natural & Human-like: Answer concisely. Do NOT write long paragraphs. Do NOT repeat greeting over and over.
 2. Multilingual: Understand English, Hindi, and Hinglish perfectly. Reply in the same language/tone as the user.
-3. Order Flow Guidance: If the user wants to place an order, guide them step-by-step. Do NOT ask for credit card numbers. Tell them you will show the product card below to add to cart.
-4. Memory: Contextualize queries (e.g. if they just asked about 5 mukhi, and now say "under 1000", combine them).
-5. Accurate Website Data: Use the provided context precisely. Never invent products, prices, or orders.
+3. ABSOLUTELY NO THINKING / REASONING IN OUTPUT: Never output internal thoughts, analysis, chain of thought, or phrases like "Okay, the user is asking...", "Let me check...", "Looking at context...", "First they started...". Output ONLY the final customer-facing answer.
+4. ABSOLUTELY NO HISTORY NARRATION: Never summarize or list past user messages (e.g., do NOT say "First you asked about... then you said Hii"). Use history ONLY to understand what Rudraksha or details were previously mentioned.
+5. Order Status Tracking:
+   - If user asks to track order or order status:
+     - If Authenticated Customer with orders: State their order status clearly using Customer Orders data.
+     - If Authenticated Customer with NO orders: Say "Aapke account par abhi koi active order nahi mila."
+     - If Guest customer: Politely ask them to log in to track their order or share their Order ID / registered phone number.
+     - NEVER fabricate or invent an order ID or status.
+6. Accurate Catalog Data: Use provided catalog context precisely. Never invent fake prices or non-existent products.
+7. Pure Text Answer: Respond directly to the user in clean conversational text. NO JSON wrappers, NO code blocks.
 
 Current User Intent: ${intent}
 Authenticated Customer: ${userIsAuthenticated ? verifiedName : "Guest (Not logged in)"}
 Customer Orders (Auth-Only): ${JSON.stringify(ordersContext)}
 Relevant Catalog Products Found: ${JSON.stringify(catalogContext)}
-Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}
-
-Instructions:
-- If user asks about their order, only use the 'Customer Orders' context. If they are Guest, ask them to log in. NEVER invent an order.
-- If user asks for 13 mukhi fayde, give a concise 2-line answer about benefits, do NOT dump products unless they also want to buy.
-- Answer the user DIRECTLY in pure text. NO markdown code blocks. NO json wrappers. JUST TEXT.`;
+Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}`;
 
     const formattedMessages = [{ role: "system", content: systemPrompt }];
     for (const h of history.slice(-4)) {
@@ -436,6 +486,21 @@ Instructions:
     
     const isStreaming = Boolean(req.query?.stream === "true" || req.body?.stream === true || (req.headers?.accept && req.headers.accept.includes("text/event-stream")));
     
+    const finalProducts = contextualProducts.slice(0, 3).map(p => ({
+      id: String(p._id || p.id),
+      name: p.name,
+      price: p.price,
+      comparePrice: p.comparePrice || Math.round(p.price * 1.3),
+      images: p.images || (p.image ? [p.image] : []),
+      image: p.image || (p.images && p.images[0]) || "",
+      rating: p.rating || 4.5,
+      reviewsCount: p.reviewsCount || 10,
+      inStock: p.inStock !== false,
+      slug: p.slug
+    }));
+    
+    const finalCoupons = intent === "COUPON" || intent === "OFFER" ? coupons.slice(0, 2) : [];
+
     if (isStreaming) {
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -444,9 +509,9 @@ Instructions:
       res.write(`data: ${JSON.stringify({ type: "start", conversationId })}\n\n`);
 
       if (!nvidiaApiKey) {
-        const fallbackText = "Namaste! Main abhi thoda maintainance mein hoon, please support se contact karein.";
+        const fallbackText = "Namaste! Main abhi thoda maintenance mein hoon, please support se contact karein.";
         res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "final", data: { text: fallbackText, products: [], coupons: [], quickReplies } })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "final", data: { text: fallbackText, products: finalProducts, coupons: finalCoupons, quickReplies } })}\n\n`);
         res.end();
         return;
       }
@@ -464,8 +529,10 @@ Instructions:
             model: "nvidia/nemotron-3-super-120b-a12b",
             messages: formattedMessages,
             temperature: 0.3,
-            max_tokens: 300,
-            stream: true
+            max_tokens: 350,
+            stream: true,
+            chat_template_kwargs: { enable_thinking: false },
+            reasoning_effort: "none"
           })
         });
 
@@ -476,67 +543,120 @@ Instructions:
 
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
+            if (value) {
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() || "";
 
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                try {
-                  const parsedJson = JSON.parse(trimmed.slice(6));
-                  const delta = parsedJson.choices?.[0]?.delta?.content || "";
-                  if (delta) {
-                    fullRawContent += delta;
-                    res.write(`data: ${JSON.stringify({ type: "chunk", delta })}\n\n`);
-                    if (res.flush) res.flush();
-                  }
-                } catch (_) {}
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
+                  try {
+                    const parsedJson = JSON.parse(trimmed.slice(6));
+                    const choice = parsedJson.choices?.[0];
+                    const deltaObj = choice?.delta;
+
+                    // Skip explicit reasoning fields from model output
+                    if (deltaObj?.reasoning_content || deltaObj?.thinking || deltaObj?.reasoning) {
+                      continue;
+                    }
+
+                    const deltaText = deltaObj?.content || "";
+                    if (deltaText) {
+                      fullRawContent += deltaText;
+                      const cleanDelta = cleanServerAiText(deltaText);
+                      if (cleanDelta) {
+                        res.write(`data: ${JSON.stringify({ type: "chunk", delta: cleanDelta })}\n\n`);
+                        if (res.flush) res.flush();
+                      }
+                    }
+                  } catch (_) {}
+                }
               }
+            }
+            if (done) {
+              buffer += decoder.decode();
+              if (buffer.trim()) {
+                const trimmed = buffer.trim();
+                if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
+                  try {
+                    const parsedJson = JSON.parse(trimmed.slice(6));
+                    const deltaText = parsedJson.choices?.[0]?.delta?.content || "";
+                    if (deltaText) fullRawContent += deltaText;
+                  } catch (_) {}
+                }
+              }
+              break;
             }
           }
         } else {
-            const fallbackText = "Kshama karein, connection thoda slow hai.";
-            res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
-            fullRawContent = fallbackText;
+          const fallbackText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+          res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
+          fullRawContent = fallbackText;
         }
       } catch (err) {
         console.error("NIM Exception:", err.message);
       }
 
-      const finalProducts = contextualProducts.slice(0, 3).map(p => ({
-        id: String(p._id || p.id),
-        name: p.name,
-        price: p.price,
-        comparePrice: p.comparePrice || Math.round(p.price * 1.3),
-        images: p.images || (p.image ? [p.image] : []),
-        image: p.image || (p.images && p.images[0]) || "",
-        rating: p.rating || 4.5,
-        reviewsCount: p.reviewsCount || 10,
-        inStock: p.inStock !== false,
-        slug: p.slug
-      }));
-      
-      const finalCoupons = intent === "COUPON" || intent === "OFFER" ? coupons.slice(0, 2) : [];
+      const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent)) || "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
 
       res.write(`data: ${JSON.stringify({ 
         type: "final", 
         data: { 
-          text: fullRawContent, 
+          text: safeFinalText, 
           products: finalProducts, 
           coupons: finalCoupons, 
           quickReplies,
           requiresHuman: false
         } 
-      })}
-
-`);
+      })}\n\n`);
       res.end();
       return;
     }
 
-    return res.status(200).json({ success: true, text: "Streaming required", products: [], quickReplies: [] });
+    // Standard Non-Streaming Handling
+    let fullRawContent = "";
+    if (nvidiaApiKey) {
+      try {
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            model: "nvidia/nemotron-3-super-120b-a12b",
+            messages: formattedMessages,
+            temperature: 0.3,
+            max_tokens: 350,
+            chat_template_kwargs: { enable_thinking: false },
+            reasoning_effort: "none"
+          })
+        });
+
+        if (nimRes.ok) {
+          const nimData = await nimRes.json();
+          fullRawContent = nimData.choices?.[0]?.message?.content || "";
+        }
+      } catch (err) {
+        console.error("Non-streaming NIM Error:", err?.message || err);
+      }
+    }
+
+    const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent)) || "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        text: safeFinalText,
+        products: finalProducts,
+        coupons: finalCoupons,
+        quickReplies,
+        requiresHuman: false,
+        conversationId
+      }
+    });
   } catch (error) {
     next(error);
   }
