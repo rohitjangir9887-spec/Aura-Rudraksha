@@ -112,6 +112,8 @@ export function CartProvider({ children }) {
       const res = await db.calculateCart(currentLines, currentCoupon);
       if (res?.success && res.data) {
         setTotals(res.data);
+      } else {
+        throw new Error(res?.message || "Cart API returned unsuccessful response");
       }
     } catch (err) {
       console.warn("Cart calculation warning:", err.message);
