@@ -296,7 +296,7 @@ export function AuraAIFloating() {
               </div>
               <div className="aura-ai-floating-pulse" />
               <div className="aura-ai-floating-icon">
-                <Sparkles size={15} className="aura-ai-sparkle-spin" />
+                <Sparkles size={13} className="aura-ai-sparkle-spin" />
               </div>
               <span className="aura-ai-floating-label">Aura AI</span>
             </button>
@@ -307,7 +307,7 @@ export function AuraAIFloating() {
               title="Hide floating button from all pages / Sabhi page se hataayein"
               aria-label="Hide Aura AI floating button"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           </motion.div>
         )}
@@ -372,10 +372,10 @@ export function AuraAIFloating() {
                   style={{ touchAction: "none" }}
                 >
                   <div className="aura-ai-panel-drag-cue" title="Drag window to move anywhere on screen" style={{ touchAction: "none" }}>
-                    <GripVertical size={13} />
+                    <GripVertical size={11} />
                   </div>
                   <div className="aura-ai-avatar">
-                    <Sparkles size={15} />
+                    <Sparkles size={12} />
                   </div>
                   <div className="aura-ai-header-info">
                     <div className="aura-ai-title">
@@ -397,7 +397,7 @@ export function AuraAIFloating() {
                     aria-label="New Chat"
                     disabled={isRefreshing}
                   >
-                    <RotateCcw size={14} />
+                    <RotateCcw size={12} />
                   </button>
 
                   {/* Full Window / Spiritual Guide Page Navigation */}
@@ -410,7 +410,7 @@ export function AuraAIFloating() {
                     title="Full Spiritual Guide Window (Sari chat history ke sath open karein)"
                     aria-label="Open Full Aura AI Spiritual Guide Page"
                   >
-                    <Maximize2 size={15} />
+                    <Maximize2 size={13} />
                   </button>
 
                   <button 
@@ -421,7 +421,7 @@ export function AuraAIFloating() {
                     title="Close / Band karein"
                     aria-label="Close Chat"
                   >
-                    <X size={18} />
+                    <X size={15} />
                   </button>
                 </div>
               </div>

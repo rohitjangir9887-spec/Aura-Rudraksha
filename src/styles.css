@@ -10444,13 +10444,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   background: linear-gradient(135deg, #2b1408 0%, #150903 100%);
   color: #fffdf9;
-  border: 1.2px solid rgba(212, 175, 55, 0.6);
-  padding: 6px 12px 6px 9px;
+  border: 1.2px solid rgba(212, 175, 55, 0.55);
+  padding: 5px 10px 5px 7px;
   border-radius: 999px;
-  box-shadow: 0 6px 20px rgba(31, 14, 5, 0.4), 0 0 14px rgba(212, 175, 55, 0.2);
+  box-shadow: 0 4px 16px rgba(31, 14, 5, 0.35), 0 0 12px rgba(212, 175, 55, 0.18);
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
   font-family: inherit;
@@ -10463,14 +10463,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-floating-btn:hover {
   transform: translateY(-2px) scale(1.02);
   border-color: #d4af37;
-  box-shadow: 0 10px 24px rgba(31, 14, 5, 0.5), 0 0 18px rgba(212, 175, 55, 0.35);
+  box-shadow: 0 8px 20px rgba(31, 14, 5, 0.45), 0 0 16px rgba(212, 175, 55, 0.3);
 }
 
 .aura-ai-floating-pulse {
   position: absolute;
-  inset: -2.5px;
+  inset: -2px;
   border-radius: 999px;
-  border: 1.2px solid rgba(212, 175, 55, 0.5);
+  border: 1px solid rgba(212, 175, 55, 0.45);
   animation: auraPulseRing 2.5s infinite;
   pointer-events: none;
 }
@@ -10482,8 +10482,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-floating-icon {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: rgba(212, 175, 55, 0.15);
   border: 1px solid rgba(212, 175, 55, 0.35);
@@ -10491,10 +10491,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   align-items: center;
   justify-content: center;
   color: #d4af37;
+  flex-shrink: 0;
 }
 
 .aura-ai-floating-label {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #fffdf9;
@@ -10517,27 +10518,26 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  background: rgba(254, 252, 248, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(255, 253, 249, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.38);
   overflow: hidden;
   box-sizing: border-box;
   transform-origin: bottom right;
 }
 
 .aura-ai-panel-compact {
-  width: 250px;
-  max-width: 90vw;
-  height: 400px;
-  max-height: 65vh;
-  border-radius: 24px;
+  width: 275px;
+  max-width: 85vw;
+  height: 420px;
+  max-height: 64vh;
+  border-radius: 18px;
   box-shadow: 
-    0 4px 12px rgba(43, 20, 8, 0.08),
-    0 16px 36px rgba(43, 20, 8, 0.18),
-    0 30px 60px rgba(43, 20, 8, 0.16),
-    0 0 24px rgba(212, 175, 55, 0.16),
-    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    0 8px 24px rgba(43, 20, 8, 0.16),
+    0 2px 8px rgba(43, 20, 8, 0.08),
+    0 0 16px rgba(212, 175, 55, 0.12),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 .aura-ai-backdrop {
@@ -10566,161 +10566,179 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 767px) {
   .aura-ai-floating-container {
     position: fixed;
-    right: 16px;
-    left: 16px;
+    right: 12px;
+    left: auto;
     bottom: calc(76px + env(safe-area-inset-bottom, 0px));
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: flex-end;
     width: auto;
     pointer-events: none;
     z-index: 1048;
   }
 
+  /* Compact width reduced by 15-20% to leave ample room for product cards in background */
   .aura-ai-panel-compact {
-    width: calc(100vw - 32px);
-    max-width: 330px;
-    height: min(410px, 58svh);
-    max-height: 58svh;
-    margin: 0 auto;
-    border-radius: 24px;
-    background: rgba(255, 253, 249, 0.95);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    width: min(270px, calc(100vw - 48px));
+    max-width: 270px;
+    height: min(425px, 60svh);
+    max-height: 60svh;
+    margin: 0;
+    border-radius: 18px;
+    background: rgba(255, 253, 249, 0.97);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(212, 175, 55, 0.42);
     box-shadow: 
-      0 6px 16px rgba(43, 20, 8, 0.1),
-      0 16px 36px rgba(43, 20, 8, 0.18),
-      0 28px 60px rgba(43, 20, 8, 0.15),
-      0 0 24px rgba(212, 175, 55, 0.18),
+      0 10px 28px rgba(43, 20, 8, 0.2),
+      0 2px 8px rgba(43, 20, 8, 0.08),
+      0 0 18px rgba(212, 175, 55, 0.15),
       inset 0 1px 1px rgba(255, 255, 255, 0.95);
   }
 
   .aura-ai-header {
-    height: 58px;
-    min-height: 58px;
-    padding: 0 14px;
+    height: 48px;
+    min-height: 48px;
+    padding: 0 10px;
     box-sizing: border-box;
   }
 
   .aura-ai-avatar {
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
   }
 
   .aura-ai-title {
-    font-size: 13px;
+    font-size: 12px;
+    gap: 4px;
   }
 
   .aura-ai-badge {
-    font-size: 8.5px;
-    padding: 1px 4.5px;
+    font-size: 8px;
+    padding: 1px 4px;
   }
 
   .aura-ai-status {
-    font-size: 9.5px;
+    font-size: 9px;
   }
 
   .aura-ai-btn-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+  }
+
+  .aura-ai-nav-strip {
+    padding: 3px 6px;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .aura-ai-nav-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .aura-ai-strip-btn {
+    font-size: 9.5px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+  }
+
+  .aura-ai-body {
+    padding: 7px 8px;
+    gap: 6px;
+  }
+
+  .aura-ai-msg-text {
+    font-size: 11.5px;
+    padding: 6px 9px;
+    line-height: 1.4;
+  }
+
+  .aura-ai-prods-reel {
+    padding: 5px;
+    border-radius: 8px;
+  }
+
+  .aura-ai-prod-card-row {
+    padding: 4px 5px;
+    gap: 5px;
+  }
+
+  .aura-ai-prod-img-wrap {
+    width: 38px;
+    height: 38px;
+  }
+
+  .aura-ai-prod-name {
+    font-size: 10px;
+  }
+
+  .aura-ai-prod-price {
+    font-size: 10.5px;
+  }
+
+  .aura-ai-prod-btn-view,
+  .aura-ai-prod-btn-buy,
+  .aura-ai-prod-btn-add {
+    font-size: 8.5px;
+    padding: 2px 4px;
+  }
+
+  .aura-ai-chip-btn {
+    font-size: 10px;
+    padding: 2.5px 7px;
+  }
+
+  .aura-ai-footer {
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom, 0px)) 8px;
+  }
+
+  .aura-ai-input-box {
+    height: 38px;
+    padding: 2px 4px 2px 8px;
+    border-radius: 10px;
+  }
+
+  .aura-ai-input-field {
+    font-size: 11.5px;
+  }
+
+  .aura-ai-send-btn {
     width: 28px;
     height: 28px;
     border-radius: 7px;
   }
 
-  .aura-ai-nav-strip {
-    padding: 4px 8px;
-    gap: 4px;
-  }
-
-  .aura-ai-strip-btn {
-    font-size: 10px;
-    padding: 2.5px 7px;
-  }
-
-  .aura-ai-body {
-    padding: 8px 10px;
-    gap: 7px;
-  }
-
-  .aura-ai-msg-text {
-    font-size: 12px;
-    padding: 7px 10px;
-    line-height: 1.45;
-  }
-
-  .aura-ai-prods-reel {
-    padding: 6px;
-    border-radius: 10px;
-  }
-
-  .aura-ai-prod-card-row {
-    padding: 5px 6px;
-    gap: 6px;
-  }
-
-  .aura-ai-prod-img-wrap {
-    width: 44px;
-    height: 44px;
-  }
-
-  .aura-ai-prod-name {
-    font-size: 10.5px;
-  }
-
-  .aura-ai-prod-price {
-    font-size: 11px;
-  }
-
-  .aura-ai-chip-btn {
-    font-size: 10.5px;
-    padding: 3px 8px;
-  }
-
-  .aura-ai-footer {
-    padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px)) 10px;
-  }
-
-  .aura-ai-input-box {
-    height: 44px;
-    padding: 2px 4px 2px 10px;
-    border-radius: 12px;
-  }
-
-  .aura-ai-input-field {
-    font-size: 12px;
-  }
-
-  .aura-ai-send-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-  }
-
   .aura-ai-privacy-note {
-    font-size: 9px;
-    margin-top: 4px;
+    font-size: 8.5px;
+    margin-top: 3px;
   }
 }
 
 @media (max-width: 380px) {
   .aura-ai-floating-container {
     right: 8px;
-    left: 8px;
-    bottom: calc(62px + env(safe-area-inset-bottom, 0px) + 6px);
+    left: auto;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .aura-ai-panel-compact {
-    width: calc(100vw - 16px);
-    max-width: none;
-    height: min(460px, 64svh);
-    max-height: 64svh;
-    border-radius: 20px;
+    width: min(250px, calc(100vw - 32px));
+    max-width: 250px;
+    height: min(410px, 58svh);
+    max-height: 58svh;
+    border-radius: 16px;
   }
 
   .aura-ai-header {
-    height: 52px;
-    min-height: 52px;
-    padding: 0 10px;
+    height: 46px;
+    min-height: 46px;
+    padding: 0 8px;
   }
 }
 
@@ -10752,7 +10770,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-header {
   background: linear-gradient(135deg, #2b1408 0%, #170702 100%);
   color: #fffdf9;
-  padding: 9px 12px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -10775,7 +10793,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-panel-drag-cue {
-  color: rgba(212, 175, 55, 0.5);
+  color: rgba(212, 175, 55, 0.45);
   display: flex;
   align-items: center;
   margin-right: -4px;
@@ -10783,27 +10801,27 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-header:hover .aura-ai-panel-drag-cue {
-  color: rgba(212, 175, 55, 0.9);
+  color: rgba(212, 175, 55, 0.85);
 }
 
 .aura-ai-header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .aura-ai-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   background: linear-gradient(135deg, #b85d25 0%, #8c2b10 100%);
-  border: 1.2px solid #d4af37;
+  border: 1px solid #d4af37;
   color: #fffdf9;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
   flex-shrink: 0;
 }
 
@@ -10816,59 +10834,59 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13.5px;
+  gap: 5px;
+  font-size: 12.5px;
   font-weight: 700;
   color: #fffdf9;
   line-height: 1.2;
 }
 
 .aura-ai-badge {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  background: rgba(212, 175, 55, 0.22);
+  background: rgba(212, 175, 55, 0.2);
   color: #f3e5ab;
-  padding: 1px 5px;
+  padding: 1px 4.5px;
   border-radius: 999px;
-  border: 0.8px solid rgba(212, 175, 55, 0.45);
+  border: 0.8px solid rgba(212, 175, 55, 0.4);
   white-space: nowrap;
 }
 
 .aura-ai-status {
-  font-size: 10.5px;
+  font-size: 9.5px;
   color: #d6c4b2;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3.5px;
   margin-top: 1px;
   line-height: 1.2;
   white-space: nowrap;
 }
 
 .aura-ai-online-dot {
-  width: 5px;
-  height: 5px;
+  width: 4.5px;
+  height: 4.5px;
   border-radius: 50%;
   background: #10b981;
-  box-shadow: 0 0 6px #10b981;
+  box-shadow: 0 0 5px #10b981;
 }
 
 .aura-ai-header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   flex-shrink: 0;
 }
 
 .aura-ai-btn-icon {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #f3e5ab;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 25px;
+  height: 25px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10881,21 +10899,21 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-btn-icon:hover,
 .aura-ai-btn-icon:active {
-  background: rgba(212, 175, 55, 0.3);
+  background: rgba(212, 175, 55, 0.25);
   color: #fff;
-  border-color: rgba(212, 175, 55, 0.6);
-  transform: scale(1.06);
+  border-color: rgba(212, 175, 55, 0.55);
+  transform: scale(1.05);
 }
 
 .aura-ai-btn-active {
-  background: rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.3);
   color: #ffd700;
   border-color: #d4af37;
 }
 
 .aura-ai-btn-close {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.4);
   color: #fecaca;
 }
 
@@ -10904,36 +10922,43 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #dc2626;
   border-color: #ef4444;
   color: #ffffff;
-  transform: scale(1.1);
+  transform: scale(1.08);
 }
 
 /* Nav Strip */
 .aura-ai-nav-strip {
   background: #fdfaf5;
   border-bottom: 1px solid #ebdccb;
-  padding: 5px 8px;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-  overflow-x: hidden;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.aura-ai-nav-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .aura-ai-strip-btn {
   background: #ffffff;
   border: 1px solid #dfcfbc;
   color: #4a2810;
-  padding: 3px 8px;
+  padding: 2.5px 7px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2.5px;
   text-decoration: none;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .aura-ai-strip-btn:hover,
@@ -10952,16 +10977,27 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 /* Messages Body */
 .aura-ai-body {
   flex: 1;
-  padding: 10px;
+  padding: 8px;
   overflow-y: auto;
   overflow-x: hidden !important;
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background: #fcf9f4;
+  gap: 7px;
+  background: #fcfaf6;
   width: 100%;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
+}
+
+.aura-ai-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.aura-ai-body::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.4);
+  border-radius: 4px;
 }
 
 /* Date Dividers & Timestamps for Chat */
@@ -10969,7 +11005,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 12px 0 6px 0;
+  margin: 8px 0 4px 0;
   width: 100%;
 }
 
@@ -10977,21 +11013,21 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: rgba(235, 220, 203, 0.7);
   backdrop-filter: blur(4px);
   color: #5c3516;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 2px 10px;
+  padding: 1.5px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(184, 93, 37, 0.2);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(184, 93, 37, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .aura-ai-session-divider {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 14px 0 8px 0;
+  gap: 6px;
+  margin: 10px 0 6px 0;
   width: 100%;
 }
 
@@ -11004,19 +11040,19 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-session-divider-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
+  gap: 3.5px;
+  font-size: 9.5px;
   font-weight: 600;
   color: #8c2b10;
   background: #fdf5ed;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
-  border: 1px dashed rgba(184, 93, 37, 0.35);
+  border: 1px dashed rgba(184, 93, 37, 0.3);
   white-space: nowrap;
 }
 
 .aura-ai-msg-time {
-  font-size: 9.5px;
+  font-size: 8.5px;
   color: #9c8272;
   margin-top: 2px;
   display: flex;
@@ -11035,8 +11071,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-msg {
   display: flex;
-  gap: 8px;
-  max-width: 94%;
+  gap: 6px;
+  max-width: 95%;
 }
 
 .aura-ai-msg-ai {
@@ -11049,48 +11085,50 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-msg-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
   background: #8c2b10;
   color: #d4af37;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .aura-ai-msg-content {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .aura-ai-msg-text {
-  padding: 9px 12px;
-  border-radius: 12px;
-  font-size: 12.5px;
-  line-height: 1.5;
+  padding: 7px 10px;
+  border-radius: 11px;
+  font-size: 11.5px;
+  line-height: 1.45;
   color: #2b1408;
+  word-break: break-word;
 }
 
 .aura-ai-msg-ai .aura-ai-msg-text {
   background: #ffffff;
   border: 1px solid #ebdccb;
-  border-top-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(43, 20, 8, 0.05);
+  border-top-left-radius: 3px;
+  box-shadow: 0 1px 4px rgba(43, 20, 8, 0.04);
 }
 
 .aura-ai-msg-user .aura-ai-msg-text {
   background: linear-gradient(135deg, #8c2b10 0%, #6e1e07 100%);
   color: #fffdf9;
-  border-top-right-radius: 4px;
-  box-shadow: 0 2px 8px rgba(140, 43, 16, 0.25);
+  border-top-right-radius: 3px;
+  box-shadow: 0 2px 6px rgba(140, 43, 16, 0.2);
 }
 
 .aura-ai-msg-text p {
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
 }
 
 .aura-ai-msg-text p:last-child {
@@ -11098,32 +11136,32 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-bullet {
-  padding-left: 6px;
-  margin: 4px 0;
+  padding-left: 4px;
+  margin: 3px 0;
   font-weight: 500;
 }
 
 .aura-ai-bold-heading {
   font-weight: 700;
   color: #8c2b10;
-  margin: 6px 0 2px 0;
+  margin: 4px 0 2px 0;
 }
 
 /* Typing Bubble */
 .aura-ai-typing-bubble {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 12px 18px;
+  gap: 4px;
+  padding: 8px 12px;
   background: #fff;
   border: 1px solid #ebdccb;
-  border-radius: 14px;
-  border-top-left-radius: 4px;
+  border-radius: 11px;
+  border-top-left-radius: 3px;
 }
 
 .aura-ai-typing-bubble .dot {
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #8c2b10;
   animation: typingBlink 1.4s infinite ease-in-out;
@@ -11139,31 +11177,31 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 /* Product Recommendations in Floating Window (Vertical, Compact, No Horizontal Scroll) */
 .aura-ai-prods-reel {
-  margin-top: 4px;
+  margin-top: 3px;
   background: #fbf7ee;
   border: 1px solid #ebdccb;
-  border-radius: 12px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 6px;
   width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
 }
 
 .aura-ai-prods-title {
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   color: #8c2b10;
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 3.5px;
+  margin-bottom: 5px;
 }
 
 .aura-ai-prods-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
   width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
@@ -11174,19 +11212,19 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   box-sizing: border-box;
   background: #ffffff;
   border: 1px solid #ebdccb;
-  border-radius: 9px;
-  padding: 6px 8px;
+  border-radius: 7px;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .aura-ai-prod-img-wrap {
   position: relative;
-  width: 50px;
-  height: 50px;
-  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  border-radius: 5px;
   background: #f9f5f0;
   overflow: hidden;
   flex-shrink: 0;
@@ -11200,14 +11238,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-prod-disc {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 1px;
+  right: 1px;
   background: #8c2b10;
   color: #fff;
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 700;
-  padding: 1px 3px;
-  border-radius: 3px;
+  padding: 0.5px 2.5px;
+  border-radius: 2px;
 }
 
 .aura-ai-prod-info {
@@ -11215,11 +11253,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1.5px;
 }
 
 .aura-ai-prod-name {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #2b1408;
   margin: 0;
@@ -11231,23 +11269,23 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-prod-meta {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 .aura-ai-prod-price {
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #8c2b10;
 }
 
 .aura-ai-prod-mrp {
-  font-size: 9.5px;
+  font-size: 8.5px;
   color: #8a7566;
   text-decoration: line-through;
 }
 
 .aura-ai-prod-rating {
-  font-size: 9.5px;
+  font-size: 8.5px;
   color: #b45309;
   font-weight: 600;
   margin-left: auto;
@@ -11255,7 +11293,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-prod-actions {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   margin-top: 2px;
 }
 
@@ -11264,15 +11302,32 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #f4ede2;
   border: 1px solid #dfcfbc;
   color: #4a2810;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 600;
-  border-radius: 5px;
-  padding: 3px 6px;
+  border-radius: 4px;
+  padding: 2px 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   text-decoration: none;
+}
+
+.aura-ai-prod-btn-buy {
+  flex: 1;
+  background: #fef7ee;
+  border: 1px solid #d4af37;
+  color: #8c2b10;
+  font-size: 8.5px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .aura-ai-prod-btn-add {
@@ -11280,16 +11335,16 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #8c2b10;
   border: none;
   color: #fff;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 600;
-  border-radius: 5px;
-  padding: 3px 6px;
+  border-radius: 4px;
+  padding: 2px 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .aura-ai-prod-btn-add.added {
@@ -11300,7 +11355,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-coupons-box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .aura-ai-coupon-card {
@@ -11309,14 +11364,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   justify-content: space-between;
   background: #fbf7ee;
   border: 1px dashed #b85d25;
-  border-radius: 10px;
-  padding: 8px 12px;
+  border-radius: 8px;
+  padding: 6px 8px;
 }
 
 .aura-ai-coupon-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .aura-ai-tag-icon {
@@ -11324,14 +11379,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-coupon-code {
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #8c2b10;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .aura-ai-coupon-desc {
-  font-size: 11px;
+  font-size: 9.5px;
   color: #666;
 }
 
@@ -11339,9 +11394,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #8c2b10;
   color: #fff;
   border: none;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 9.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -11354,21 +11409,21 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-quick-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 3px;
 }
 
 .aura-ai-chip-btn {
   background: #ffffff;
   border: 1px solid #d8c7b4;
   color: #6f3518;
-  padding: 5px 12px;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
 .aura-ai-chip-btn:hover {
@@ -11380,7 +11435,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 /* Footer Input */
 .aura-ai-footer {
-  padding: 8px 12px;
+  padding: 6px 8px;
   background: #ffffff;
   border-top: 1px solid #ebdccb;
 }
@@ -11388,11 +11443,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-input-box {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: #fdfaf5;
   border: 1px solid #dfcfbc;
-  border-radius: 10px;
-  padding: 3px 5px 3px 10px;
+  border-radius: 9px;
+  padding: 2px 4px 2px 8px;
   transition: border-color 0.2s ease;
 }
 
@@ -11405,7 +11460,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 12.5px;
+  font-size: 11.5px;
   color: #2b1408;
   outline: none;
 }
@@ -11414,9 +11469,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #8c2b10;
   color: #fff;
   border: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11430,13 +11485,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-privacy-note {
-  font-size: 10px;
+  font-size: 9px;
   color: #806f62;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  margin-top: 8px;
+  gap: 3px;
+  margin-top: 4px;
 }
 
 /* ==========================================================================
