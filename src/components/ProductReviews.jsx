@@ -103,7 +103,14 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
   // Filter and sort reviews
   const filteredReviews = useMemo(() => {
-    let list = allReviews.filter(r => r.status !== "Rejected" && r.status !== "Hidden");
+    let list = allReviews.filter(r => 
+      r.status !== "Rejected" && 
+      r.status !== "Hidden" && 
+      r.status !== "draft" && 
+      r.status !== "deleted" &&
+      r.source !== "ai_draft" &&
+      !r.isAiGenerated
+    );
 
     // Filter by tab (Product vs Store)
     if (activeTab === "product") {
@@ -152,7 +159,14 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
   // Aggregate stats
   const stats = useMemo(() => {
     const relevantReviews = allReviews.filter(r => {
-      if (r.status === "Rejected" || r.status === "Hidden") return false;
+      if (
+        r.status === "Rejected" || 
+        r.status === "Hidden" || 
+        r.status === "draft" || 
+        r.status === "deleted" ||
+        r.source === "ai_draft" ||
+        r.isAiGenerated
+      ) return false;
       if (activeTab === "product") {
         return r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId);
       }

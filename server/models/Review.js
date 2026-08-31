@@ -38,6 +38,13 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
+// Virtual aliases for strict schema compatibility
+reviewSchema.virtual("reviewId").get(function() { return this.id; });
+reviewSchema.virtual("customerName").get(function() { return this.name; });
+reviewSchema.virtual("content").get(function() { return this.text; });
+reviewSchema.virtual("photos").get(function() { return this.images; });
+reviewSchema.virtual("verifiedPurchase").get(function() { return this.verified; });
+
 reviewSchema.pre("save", function() {
   if (this.images && this.images.length > 0 && !this.img) {
     this.img = this.images[0];

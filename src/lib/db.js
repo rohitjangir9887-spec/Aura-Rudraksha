@@ -1839,23 +1839,31 @@ export const db = {
   saveReview: async (rev) => {
     const id = rev.id || ("REV-" + Date.now());
     const images = Array.isArray(rev.images) ? rev.images : (rev.img ? [rev.img] : []);
+    const source = rev.source || "customer";
+    const isAi = source === "ai_draft" || !!rev.isAiGenerated;
+
     const newRev = {
       ...rev,
       id,
       type: rev.type || "product",
       productId: rev.productId || "5",
-      name: rev.name?.trim() || "Devotee",
+      name: rev.name?.trim() || "Aura Devotee",
+      city: rev.city?.trim() || "Varanasi, UP",
       rating: Number(rev.rating) || 5,
+      title: rev.title?.trim() || "",
       text: rev.text || "",
-      date: rev.date || "Just now",
+      date: rev.date || "Recently",
       createdAt: rev.createdAt || Date.now(),
-      verified: false,
-      source: "customer",
+      verified: isAi ? false : (rev.verified ?? true),
+      source,
+      isAiGenerated: isAi,
+      isSample: isAi,
+      sampleLabel: isAi ? (rev.sampleLabel || "Not a customer review") : "",
       status: rev.status || "Approved",
       images,
       img: images[0] || null,
-      helpfulUp: 0,
-      helpfulDown: 0
+      helpfulUp: Number(rev.helpfulUp) || 0,
+      helpfulDown: Number(rev.helpfulDown) || 0
     };
 
     let saved = newRev;

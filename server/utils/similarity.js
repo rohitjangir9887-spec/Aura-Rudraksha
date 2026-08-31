@@ -1,9 +1,10 @@
 /**
  * Text Normalization and Similarity Detection Utility for Review Drafts
  * Detects exact duplicates, near-duplicates, and high-similarity text
+ * All similarity scores are strictly normalized between 0% and 100%.
  */
 
-// Normalize text: lowercase, remove special characters, collapse whitespace
+// Normalize text: lowercase, remove punctuation/special characters, collapse whitespace
 export function normalizeText(str) {
   if (!str || typeof str !== "string") return "";
   return str
@@ -67,19 +68,18 @@ export function computeTextSimilarity(textA, textB) {
   return (wordSim * 0.5) + (ngramSim * 0.5);
 }
 
-// Pseudo-semantic similarity based on common semantic anchor words overlap
+// Semantic overlap calculation based on significant keyword intersection
 function computeSemanticOverlap(normA, normB) {
-  // Simple heuristic: count overlapping significant nouns/adjectives
-  // In a real prod environment, use embeddings
   const wordsA = Array.from(getWordTokens(normA));
   const wordsB = Array.from(getWordTokens(normB));
+  if (!wordsA.length || !wordsB.length) return 0;
   const common = wordsA.filter(w => wordsB.includes(w));
   return common.length / Math.max(wordsA.length, wordsB.length, 1);
 }
 
 /**
- * Check a candidate review draft against a corpus of existing reviews & current batch
- * Returns: { similarityStatus: 'Unique'|'Similar'|'Duplicate', similarityScore: number, semanticScore: number, matchedReview: string }
+ * Check a candidate review draft against a corpus of existing reviews & current batch.
+ * Returns: { similarityStatus: 'Unique'|'Similar'|'Duplicate', similarityScore: number (0-100), semanticScore: number (0-100), matchedReview: string }
  */
 export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
   if (!candidateText || typeof candidateText !== "string") {
@@ -99,7 +99,6 @@ export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
     const score = computeTextSimilarity(candidateText, exText);
     const semantic = computeSemanticOverlap(normA, normB);
     
-    // Weight them together or keep max
     if (score > maxScore || semantic > maxSemantic) {
       if (score > maxScore) maxScore = score;
       if (semantic > maxSemantic) maxSemantic = semantic;
@@ -108,13 +107,14 @@ export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
     if (maxScore >= 0.95) break; // Early exit on exact match
   }
 
-  const scorePct = Math.round(maxScore * 100);
-  const semanticPct = Math.min(100, Math.round(maxSemantic * 100 * 1.5)); // boost a bit for realism
+  // Strictly normalize percentage to integer [0, 100]
+  const scorePct = Math.min(100, Math.max(0, Math.round(maxScore * 100)));
+  const semanticPct = Math.min(100, Math.max(0, Math.round(maxSemantic * 100)));
 
   let status = "Unique";
-  if (maxScore >= 0.70 || semanticPct >= 0.85) {
+  if (scorePct >= 70 || semanticPct >= 80) {
     status = "Duplicate";
-  } else if (maxScore >= 0.40 || semanticPct >= 0.60) {
+  } else if (scorePct >= 35 || semanticPct >= 50) {
     status = "Similar";
   } else {
     status = "Unique";
@@ -122,8 +122,8 @@ export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
 
   return {
     similarityStatus: status,
-    similarityScore: scorePct,
-    semanticScore: semanticPct,
-    matchedReview: bestMatch ? (bestMatch.title ? `"${bestMatch.title}"` : bestMatch.text?.slice(0, 70) + "...") : null
+    similarityScore: scorePct, // Guaranteed to be 0 to 100
+    semanticScore: semanticPct, // Guaranteed to be 0 to 100
+    matchedReview: bestMatch ? (bestMatch.title ? `"${bestMatch.title}"` : (bestMatch.text || bestMatch.content || "").slice(0, 70) + "...") : null
   };
 }
