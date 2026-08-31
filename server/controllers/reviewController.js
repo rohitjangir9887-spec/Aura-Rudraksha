@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import { Review, ReviewSetting } from "../models/Review.js";
 import { Product } from "../models/Product.js";
 import { isDbConnected } from "../config/db.js";
@@ -489,13 +488,11 @@ export async function generateReviewDrafts(req, res, next) {
       existingCorpus = defaultReviews.map(r => ({ id: r.id, title: r.title, text: r.text, rating: r.rating, status: r.status, isAiGenerated: r.isAiGenerated }));
     }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     let rawDrafts = [];
 
-    if (geminiApiKey) {
+    if (nvidiaApiKey) {
       try {
-        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-        
         let countsPerRating = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
         if (ratingMix === "Custom" && customRatings) {
            const r5 = Math.round(requestedCount * (customRatings.r5 / 100));
@@ -554,41 +551,59 @@ Provide the output strictly as a JSON array of objects. Do not include markdown 
   { "title": "...", "text": "...", "rating": 5, "name": "AI DRAFT", "language": "English" }
 ]`;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash-lite",
-          contents: systemPrompt,
-          config: {
-            temperature: 0.7,
-            maxOutputTokens: 8000,
-          }
-        });
-        
-        let content = response.text || "";
-        const cleaned = content.replace(/^```jsons*/i, "").replace(/^```s*/i, "").replace(/s*```$/i, "").trim();
-        const parsed = JSON.parse(cleaned);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          rawDrafts = parsed.map((item, idx) => ({
-            id: `DRAFT-${Date.now()}-${idx + 1}`,
-            title: item.title || `Sample Experience #${idx + 1}`,
-            text: item.text || item.body || "",
-            rating: Number(item.rating) || 5,
-            isAiGenerated: true,
-            isSample: true,
-            sampleLabel: "AI-generated sample",
-            name: "AI DRAFT",
-            city: "Aura Sacred Studio",
-            verified: false,
-            featured: false,
-            status: "Approved",
-            productId: String(productId),
-            productName: resolvedProductName,
-            type: "product",
-            images: []
-          }));
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            model: "meta/llama-3.2-11b-vision-instruct",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Generate ${requestedCount} realistic customer reviews for ${resolvedProductName} as JSON array.` }
+            ],
+            temperature: 0.3,
+            max_tokens: 1500
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (nimRes.ok) {
+          const data = await nimRes.json();
+          let content = data.choices?.[0]?.message?.content || "";
+          const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          const parsed = JSON.parse(cleaned);
+
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            rawDrafts = parsed.map((item, idx) => ({
+              id: `DRAFT-${Date.now()}-${idx + 1}`,
+              title: item.title || `Sample Experience #${idx + 1}`,
+              text: item.text || item.body || "",
+              rating: Number(item.rating) || 5,
+              isAiGenerated: true,
+              isSample: true,
+              sampleLabel: "AI-generated sample",
+              name: "AI DRAFT",
+              city: "Aura Sacred Studio",
+              verified: false,
+              featured: false,
+              status: "Approved",
+              productId: String(productId),
+              productName: resolvedProductName,
+              type: "product",
+              images: []
+            }));
+          }
         }
       } catch (err) {
-        console.warn("[Aura AI Reviews] Gemini LLM Generation fallback:", err?.message || err);
+        console.warn("[Aura AI Reviews] NVIDIA NIM generation notice:", err?.message || err);
       }
     }
 

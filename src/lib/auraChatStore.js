@@ -103,6 +103,21 @@ export const auraChatStore = {
     return updated;
   },
 
+  // Upsert or replace message by ID
+  upsertMessage(msg) {
+    const current = this.getMessages();
+    const idx = current.findIndex((m) => m.id === msg.id);
+    let updated;
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = { ...updated[idx], ...msg };
+    } else {
+      updated = [...current, msg];
+    }
+    this.saveMessages(updated);
+    return updated;
+  },
+
   // Start a new chat session without deleting old chats
   startNewSession() {
     const newConvId = "conv_" + Date.now();

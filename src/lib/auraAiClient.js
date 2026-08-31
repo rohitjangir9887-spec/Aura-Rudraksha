@@ -4,7 +4,99 @@ import { parseAuraAiPayload } from "./auraAiResponse";
 const API_BASE = ((import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "")) + "/aura-ai";
 
 export const auraAiClient = {
-  // Send chat message to Aura AI
+  // Send chat message to Aura AI (Streaming SSE enabled)
+  async sendMessageStream({
+    message,
+    conversationId,
+    userEmail,
+    userName,
+    cartItems = [],
+    history = [],
+    onChunk,
+    onDone,
+    onError
+  }) {
+    try {
+      const token = await authClient.getToken();
+      const res = await fetch(`${API_BASE}/chat?stream=true`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          message,
+          conversationId,
+          userEmail,
+          userName,
+          cartItems,
+          history,
+          stream: true
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream") && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let accumulatedText = "";
+        let finalData = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const dataStr = trimmed.slice(6);
+              if (dataStr === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.type === "chunk" && parsed.delta) {
+                  accumulatedText += parsed.delta;
+                  if (onChunk) onChunk(parsed.delta, accumulatedText);
+                } else if (parsed.type === "final" && parsed.data) {
+                  finalData = parseAuraAiPayload(parsed.data);
+                }
+              } catch (_) {}
+            }
+          }
+        }
+
+        const result = finalData || {
+          text: accumulatedText,
+          products: [],
+          coupons: [],
+          quickReplies: [],
+          conversationId
+        };
+        if (onDone) onDone(result);
+        return result;
+      } else {
+        const data = await res.json();
+        const parsed = parseAuraAiPayload(data.data || data);
+        if (onChunk) onChunk(parsed.text, parsed.text);
+        if (onDone) onDone(parsed);
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("Aura AI streaming notice:", err?.message || err);
+      if (onError) onError(err);
+      throw err;
+    }
+  },
+
+  // Send chat message to Aura AI (Standard Promise)
   async sendMessage({ message, conversationId, userEmail, userName, cartItems = [], history = [] }) {
     try {
       const token = await authClient.getToken();

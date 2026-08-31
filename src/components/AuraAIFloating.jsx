@@ -125,46 +125,89 @@ export function AuraAIFloating() {
     if (!customText) setInput("");
     setLoading(true);
 
+    const aiMsgId = "ai_" + Date.now();
+    let streamInitialized = false;
+
     try {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
 
-      const res = await auraAiClient.sendMessage({
+      await auraAiClient.sendMessageStream({
         message: textToSend,
         conversationId,
         userEmail,
         userName,
         cartItems: cart.lines || [],
-        history: currentMsgs.slice(-8)
+        history: currentMsgs.slice(-8),
+        onChunk: (delta, accumulated) => {
+          if (!streamInitialized) {
+            streamInitialized = true;
+            setLoading(false);
+          }
+          const cleanText = customerSafeAiText(accumulated);
+          const liveMsg = {
+            id: aiMsgId,
+            sender: "ai",
+            text: cleanText,
+            products: [],
+            coupons: [],
+            orderInfo: null,
+            requiresHuman: false,
+            quickReplies: [],
+            timestamp: new Date().toISOString()
+          };
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === aiMsgId);
+            if (idx >= 0) {
+              const clone = [...prev];
+              clone[idx] = liveMsg;
+              return clone;
+            }
+            return [...prev, liveMsg];
+          });
+        },
+        onDone: (finalData) => {
+          const cleanText = customerSafeAiText(finalData.text);
+          const aiMsg = {
+            id: aiMsgId,
+            sender: "ai",
+            text: cleanText,
+            products: finalData.products || [],
+            coupons: finalData.coupons || [],
+            orderInfo: finalData.orderInfo || null,
+            requiresHuman: finalData.requiresHuman || false,
+            quickReplies: finalData.quickReplies || [],
+            timestamp: new Date().toISOString()
+          };
+          auraChatStore.upsertMessage(aiMsg);
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === aiMsgId);
+            if (idx >= 0) {
+              const clone = [...prev];
+              clone[idx] = aiMsg;
+              return clone;
+            }
+            return [...prev, aiMsg];
+          });
+          setLoading(false);
+        },
+        onError: (err) => {
+          console.warn("Stream error in floating assistant:", err);
+        }
       });
-
-      if (res) {
-        const parsed = parseAuraAiPayload(res);
-        const aiMsg = {
-          id: "ai_" + Date.now(),
+    } catch (err) {
+      if (!streamInitialized) {
+        const errMsg = {
+          id: "err_" + Date.now(),
           sender: "ai",
-          text: customerSafeAiText(parsed.text),
-          products: parsed.products || [],
-          coupons: parsed.coupons || [],
-          orderInfo: parsed.orderInfo || null,
-          requiresHuman: parsed.requiresHuman || false,
-          quickReplies: parsed.quickReplies || [],
+          text: "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
+          requiresHuman: true,
           timestamp: new Date().toISOString()
         };
-        const updatedMsgs = auraChatStore.appendMessage(aiMsg);
+        const updatedMsgs = auraChatStore.appendMessage(errMsg);
         setMessages(updatedMsgs);
       }
-    } catch (err) {
-      const errMsg = {
-        id: "err_" + Date.now(),
-        sender: "ai",
-        text: "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
-        requiresHuman: true,
-        timestamp: new Date().toISOString()
-      };
-      const updatedMsgs = auraChatStore.appendMessage(errMsg);
-      setMessages(updatedMsgs);
     } finally {
       setLoading(false);
     }
