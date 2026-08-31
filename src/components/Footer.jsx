@@ -69,7 +69,7 @@ export function Footer() {
             alt="Aura Rudraksha Logo" 
             className="nf-logo"
             referrerPolicy="no-referrer"
-            onError={(e) => { if (e.target.src !== window.location.origin + "/logo-horizontal.png") e.target.src = "/logo-horizontal.png"; }}
+            onError={(e) => { if (!e.target.src.includes("/logo-header-horizontal.png")) e.target.src = "/logo-header-horizontal.png"; }}
           />
           <h3 className="nf-tagline">Sacred. Natural. Powerful.</h3>
           <p className="nf-desc">
