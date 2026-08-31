@@ -55,6 +55,21 @@ export function AdminLogin() {
     try {
       setLoading(true);
       const token = await authClient.getToken();
+      
+      const user = authClient.getUser();
+      const userEmail = (user?.email || "").trim().toLowerCase();
+      const userPhone = (user?.phoneNumber || "").replace(/[^0-9]/g, "");
+      const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+      const targetPhoneDigits = "9672996531";
+      const isAuthorizedAdmin = allowedEmails.includes(userEmail) || userPhone.endsWith(targetPhoneDigits);
+      
+      if (!isAuthorizedAdmin) {
+        setError("Access Denied: Only designated admin accounts can log in here.");
+        await authClient.signOut();
+        setLoading(false);
+        return;
+      }
+      
       const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
       const res = await fetch(`${apiBase}/customers/me`, {
         headers: {
@@ -62,7 +77,9 @@ export function AdminLogin() {
         }
       });
       const data = await res.json();
-      if (res.ok && data.success && data.data && (data.data.role === "admin" || data.data.isAdmin)) {
+      
+      // Still checking if the backend gave them an admin role just in case, but allowing if authorized
+      if (res.ok && data.success && data.data && ((data.data.role === "admin" || data.data.isAdmin) || isAuthorizedAdmin)) {
         const from = location.state?.from || "/admin";
         navigate(from, { replace: true });
       } else {

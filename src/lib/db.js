@@ -1115,15 +1115,28 @@ export const db = {
   getCustomerMe: async () => {
     try {
       const res = await apiRequest("/customers/me");
-      if (res?.success) return res;
+      if (res?.success && res.data) {
+        try { localStorage.setItem("aura_cached_me", JSON.stringify(res.data)); } catch(_) {}
+        return res;
+      }
     } catch (_) {}
+    
     const user = authClient.getUser();
+    let cached = {};
+    try {
+      const stored = localStorage.getItem("aura_cached_me");
+      if (stored) cached = JSON.parse(stored);
+    } catch (_) {}
+
     return {
       success: true,
       data: {
-        email: user?.email || "customer@example.com",
-        name: user?.name || "Aura Devotee",
-        phone: user?.phone || "+91 9876543210"
+        email: cached.email || user?.email || "",
+        name: cached.name || user?.displayName || user?.name || "Aura Devotee",
+        phone: cached.phone || user?.phoneNumber || user?.phone || "",
+        address: cached.address || "",
+        avatar: cached.avatar || user?.photoURL || "",
+        joined: cached.joined || new Date().toISOString()
       },
       demoMode: true
     };
@@ -1136,12 +1149,23 @@ export const db = {
         body: JSON.stringify(data)
       });
       if (res?.success && res.data) {
+        try { localStorage.setItem("aura_cached_me", JSON.stringify(res.data)); } catch(_) {}
         emitStoreUpdate("customer:updated", res.data);
         return res;
       }
     } catch (_) {}
-    emitStoreUpdate("customer:updated", data);
-    return { success: true, data, demoMode: true };
+    
+    let cached = {};
+    try {
+      const stored = localStorage.getItem("aura_cached_me");
+      if (stored) cached = JSON.parse(stored);
+    } catch (_) {}
+    
+    const merged = { ...cached, ...data };
+    try { localStorage.setItem("aura_cached_me", JSON.stringify(merged)); } catch(_) {}
+    emitStoreUpdate("customer:updated", merged);
+    
+    return { success: true, data: merged, demoMode: true };
   },
 
   // LIVE STATUS

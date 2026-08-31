@@ -71,7 +71,12 @@ export function AdminLayout({children}) {
         const resPhone = (json.data?.phone || authClient.getUser()?.phoneNumber || "").replace(/[^0-9]/g, "");
         const isAuthorizedAdmin = allowedEmails.includes(resEmail) || resPhone.endsWith(targetPhoneDigits);
 
-        if (json.success && json.data && (json.data.role === 'admin' || json.data.isAdmin) && isAuthorizedAdmin) {
+        if (!isAuthorizedAdmin) {
+           navigate("/account", { replace: true });
+           return;
+        }
+
+        if (json.success && json.data) {
            setAdminSession({ email: json.data.email || 'rohitjangir8740@gmail.com' });
         } else {
            navigate("/account", { replace: true });
