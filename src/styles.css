@@ -13872,3 +13872,184 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 
+
+/* MOBILE HEADER POLISH */
+@media (max-width: 768px) {
+  .header {
+    padding: 0 8px !important;
+    gap: 5px !important;
+  }
+  .header-left {
+    flex: 0 0 auto !important;
+    gap: 5px !important;
+  }
+  .header-center {
+    flex: 1 1 auto !important;
+    justify-content: flex-start !important;
+    padding-left: 5px !important;
+  }
+  .header-right {
+    flex: 0 0 auto !important;
+    gap: 12px !important;
+  }
+  .brand {
+    min-width: auto !important;
+  }
+  .brand-aura {
+    font-size: 24px !important;
+  }
+  .brand-sub {
+    font-size: 6px !important;
+    letter-spacing: 0.25em !important;
+  }
+  .mobile-menu {
+    padding: 4px !important;
+    min-width: auto !important;
+    min-height: auto !important;
+    margin-left: 0 !important;
+  }
+  .mobile-search, .cart-icon, .user-icon {
+    padding: 2px !important;
+    min-width: auto !important;
+    min-height: auto !important;
+  }
+  .mobile-search svg, .cart-icon svg, .user-icon svg, .mobile-menu svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .aura-ai-pill-btn {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+    margin-right: 0 !important;
+    border-width: 1px !important;
+  }
+  .aura-ai-pill-btn svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  .cart-icon b {
+    width: 14px !important;
+    height: 14px !important;
+    font-size: 8px !important;
+    top: -4px !important;
+    right: -6px !important;
+  }
+}
+@media (max-width: 390px) {
+  .header-right {
+    gap: 8px !important;
+  }
+  .brand-aura {
+    font-size: 20px !important;
+  }
+  .brand-sub {
+    font-size: 5px !important;
+    margin-top: 1px !important;
+  }
+  .aura-ai-pill-btn {
+    padding: 3px 6px !important;
+    font-size: 9px !important;
+  }
+  .mobile-search svg, .cart-icon svg, .user-icon svg, .mobile-menu svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}
+
+/* ADVANCED MOBILE HEADER POLISH */
+@media (max-width: 900px) {
+  .header {
+    padding: 0 10px !important;
+    gap: 10px !important;
+  }
+  .header-left {
+    flex: 0 0 auto !important;
+  }
+  .header-center {
+    flex: 1 1 auto !important;
+    justify-content: flex-start !important; /* Push logo near hamburger */
+  }
+  .header-right {
+    flex: 0 0 auto !important;
+    gap: 12px !important;
+  }
+  
+  /* Make sure right side doesn't wrap */
+  .header-right {
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 0 8px !important;
+    gap: 4px !important;
+  }
+  .header-left {
+    gap: 4px !important;
+  }
+  .header-center {
+    padding-left: 2px !important;
+  }
+  .header-right {
+    gap: 10px !important;
+  }
+  .brand-logo-img {
+    height: 38px !important;
+    max-height: 38px !important;
+    max-width: 120px !important;
+    object-fit: contain !important;
+  }
+  .aura-ai-pill-btn {
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+    gap: 3px !important;
+  }
+  .aura-ai-pill-btn svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  .mobile-search, .cart-icon, .user-icon, .mobile-menu {
+    padding: 2px !important;
+  }
+  .mobile-search svg, .cart-icon svg, .user-icon svg, .mobile-menu svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .header {
+    padding: 0 5px !important;
+    gap: 2px !important;
+  }
+  .header-right {
+    gap: 6px !important;
+  }
+  .brand-logo-img {
+    height: 34px !important;
+    max-height: 34px !important;
+    max-width: 100px !important;
+  }
+  .aura-ai-pill-text {
+    font-size: 9px !important;
+  }
+  .aura-ai-pill-btn {
+    padding: 2px 5px !important;
+  }
+  .mobile-search svg, .cart-icon svg, .user-icon svg, .mobile-menu svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  .cart-icon b {
+    width: 13px !important;
+    height: 13px !important;
+    font-size: 8px !important;
+    line-height: 13px !important;
+    top: -5px !important;
+    right: -6px !important;
+  }
+}
+

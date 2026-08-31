@@ -65,11 +65,11 @@ export function AdminLayout({children}) {
            headers: { "Authorization": "Bearer " + token }
         });
         const json = await res.json();
-        const targetEmail = "rohitjangir8740@gmail.com";
+        const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
         const targetPhoneDigits = "9672996531";
         const resEmail = (json.data?.email || authClient.getUser()?.email || "").trim().toLowerCase();
         const resPhone = (json.data?.phone || authClient.getUser()?.phoneNumber || "").replace(/[^0-9]/g, "");
-        const isAuthorizedAdmin = resEmail === targetEmail || resPhone.endsWith(targetPhoneDigits);
+        const isAuthorizedAdmin = allowedEmails.includes(resEmail) || resPhone.endsWith(targetPhoneDigits);
 
         if (json.success && json.data && (json.data.role === 'admin' || json.data.isAdmin) && isAuthorizedAdmin) {
            setAdminSession({ email: json.data.email || 'rohitjangir8740@gmail.com' });

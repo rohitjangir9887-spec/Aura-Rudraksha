@@ -8,7 +8,8 @@ const PRODUCT_FIELDS = {
   comparePrice: "number", mrp: "number", discount: "number", discountPercent: "number",
   description: "string", category: "string", images: "url[]", img: "url",
   stock: "number", status: "string", tags: "string[]", highlight: "string",
-  badge: "string", rating: "number", reviews: "number", reviewCount: "number",
+  badge: "string", homeBadge: "string", showOnHome: "boolean", homeOrder: "number",
+  isPopular: "boolean", rating: "number", reviews: "number", reviewCount: "number",
   customOffer: "object", origin: "string"
 };
 

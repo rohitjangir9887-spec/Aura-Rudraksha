@@ -6,9 +6,7 @@ import { useWishlist } from "../hooks/useWishlist";
 import { db, onStoreUpdate } from "../lib/db";
 import { Footer } from "./Footer";
 import { TopOfferStrip } from "./TopOfferStrip";
-import { OfferPopup } from "./OfferPopup";
 import { AuraAIPill } from "./AuraAIPill";
-import { AuraAIFloating } from "./AuraAIFloating";
 import { motion, AnimatePresence } from "framer-motion";
 import { useActiveOffer } from "../hooks/useActiveOffer";
 
@@ -74,8 +72,8 @@ export function Shell({children}) {
               <Link to="/shop">Shop</Link>
               <Link to="/wishlist">Wishlist</Link>
               <Link to="/shop?offer=1">Offers</Link>
-              <Link to="/#about">About Us</Link>
-              <a href="#contact">Contact</a>
+              <Link to="/about">About Us</Link>
+              <Link to="/contact">Contact</Link>
             </nav>
           </div>
           
@@ -137,8 +135,8 @@ export function Shell({children}) {
                   <Link to="/shop" onClick={()=>setMenuOpen(false)}>Shop Catalog</Link>
                   <Link to="/wishlist" onClick={()=>setMenuOpen(false)}>My Wishlist ({wishlistCount})</Link>
                   <Link to="/shop?offer=1" onClick={()=>setMenuOpen(false)}>Special Offers</Link>
-                  <Link to="/#about" onClick={()=>setMenuOpen(false)}>About Us</Link>
-                  <a href="#contact" onClick={()=>setMenuOpen(false)}>Contact Support</a>
+                  <Link to="/about" onClick={()=>setMenuOpen(false)}>About Us</Link>
+                  <Link to="/contact" onClick={()=>setMenuOpen(false)}>Contact Support</Link>
                   <Link to="/account" onClick={()=>setMenuOpen(false)}>Account & Settings</Link>
                 </nav>
               </motion.aside>
@@ -185,12 +183,6 @@ export function Shell({children}) {
           <span className="nav-label">Account</span>
         </Link>
       </div>
-
-      {/* Global Promotional Popup */}
-      <OfferPopup />
-
-      {/* Floating Aura AI Assistant */}
-      <AuraAIFloating />
     </>
   );
 }

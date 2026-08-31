@@ -63,9 +63,13 @@ const storeCache = {
   products: defaultProducts.map(p => ({
     ...p,
     id: String(p.id),
-    status: "Active",
+    status: p.status || "Active",
     category: p.category || "Rudraksha",
-    stock: 50,
+    stock: p.stock !== undefined ? p.stock : 50,
+    showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
+    isPopular: !!p.isPopular,
+    homeOrder: p.homeOrder || 0,
+    homeBadge: p.homeBadge || p.badge || "",
     mrp: p.mrp || p.comparePrice || p.price,
     comparePrice: p.comparePrice || p.mrp || p.price,
     images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
@@ -696,6 +700,10 @@ async function hydrateFromBackend() {
       storeCache.products = productsRes.data.map(p => ({
         ...p,
         id: String(p.id),
+        showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
+        isPopular: !!p.isPopular,
+        homeOrder: Number(p.homeOrder) || 0,
+        homeBadge: p.homeBadge || p.badge || "",
         mrp: p.mrp || p.comparePrice || p.price,
         comparePrice: p.comparePrice || p.mrp || p.price,
         images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
@@ -841,7 +849,11 @@ export const db = {
       comparePrice: Number(p.comparePrice) || Number(p.mrp) || Number(p.price) || 0,
       price: Number(p.price) || 0,
       stock: Number(p.stock) >= 0 ? Number(p.stock) : 50,
-      status: p.status || "Active"
+      status: p.status || "Active",
+      showOnHome: p.showOnHome !== undefined ? !!p.showOnHome : true,
+      isPopular: !!p.isPopular,
+      homeOrder: Number(p.homeOrder) || 0,
+      homeBadge: p.homeBadge || p.badge || ""
     };
 
     // Update store cache immediately for instant UI reaction
@@ -873,6 +885,17 @@ export const db = {
     }
 
     return finalProduct;
+  },
+
+  toggleProductHomeShowcase: async (id, showOnHome) => {
+    const strId = String(id);
+    const prod = storeCache.products.find(x => String(x.id) === strId);
+    if (!prod) return null;
+    const updated = {
+      ...prod,
+      showOnHome: Boolean(showOnHome)
+    };
+    return await db.saveProduct(updated);
   },
 
   deleteProduct: async (id) => {

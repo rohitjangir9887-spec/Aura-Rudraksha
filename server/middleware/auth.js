@@ -81,7 +81,7 @@ export async function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
-      if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "preview-admin") {
+      if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123" && token !== "preview-admin") {
         try {
           // Verify Firebase ID Token
           const decodedToken = await getAuth().verifyIdToken(token);
@@ -122,7 +122,7 @@ export async function optionalAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
-      if (token && token !== "null" && token !== "undefined") {
+      if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123" && token !== "preview-admin") {
         try {
           const decodedToken = await getAuth().verifyIdToken(token);
           req.user = {
@@ -153,10 +153,14 @@ export async function optionalAuth(req, res, next) {
 // Never trust client-supplied role flags.
 // ---------------------------------------------------------------------------
 export function isAdminUser(user) {
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || "rohitjangir8740@gmail.com").trim().toLowerCase();
+  const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+  if (process.env.INITIAL_ADMIN_EMAIL) {
+    allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
+  }
   const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "+919672996531").trim();
 
-  const matchesEmail = !!(user && user.email && user.email.toLowerCase() === initialAdminEmail);
+  const userEmail = (user && user.email ? user.email.trim().toLowerCase() : "");
+  const matchesEmail = Boolean(userEmail && allowedEmails.includes(userEmail));
   const cleanUserPhone = ((user && user.phone) || "").replace(/[^0-9]/g, "");
   const cleanAdminPhone = initialAdminPhone.replace(/[^0-9]/g, "");
   const matchesPhone = Boolean(cleanUserPhone && (cleanUserPhone === cleanAdminPhone || cleanUserPhone.endsWith("9672996531")));

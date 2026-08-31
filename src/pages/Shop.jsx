@@ -302,74 +302,71 @@ export function Shop() {
           )}
         </AnimatePresence>
 
-        {/* 6. Extended Luxury Sections (Trust, Vedic Guide, Consecration & FAQs) */}
+        {/* 6. Extended Luxury Sections (Compact & Ultra-Premium) */}
         <div className="shop-extended-sections" id="shop-extended-sections">
           
-          {/* A. Sacred Trust 4-Pillars Grid */}
+          {/* A. Sacred Trust 4-Pillars Horizontal Strip */}
           <div className="shop-trust-grid" id="shop-trust-pillars">
             <div className="shop-trust-card">
               <div className="shop-trust-icon-box">
-                <ShieldCheck size={22} />
+                <ShieldCheck size={18} />
               </div>
-              <div>
+              <div className="shop-trust-info">
                 <h4>100% Nepali Origin</h4>
-                <p>Authentic, high-vibrational beads directly handpicked from high-altitude Himalayan groves.</p>
+                <p>Direct from high-altitude Himalayan groves</p>
               </div>
             </div>
 
             <div className="shop-trust-card">
               <div className="shop-trust-icon-box">
-                <Award size={22} />
+                <Award size={18} />
               </div>
-              <div>
+              <div className="shop-trust-info">
                 <h4>Lab Tested & Certified</h4>
-                <p>Each sacred bead is verified with individual X-ray test report & holographic QR card.</p>
+                <p>Individual X-ray report & QR card</p>
               </div>
             </div>
 
             <div className="shop-trust-card">
               <div className="shop-trust-icon-box">
-                <Flame size={22} />
+                <Flame size={18} />
               </div>
-              <div>
+              <div className="shop-trust-info">
                 <h4>Vedic Prana Pratishtha</h4>
-                <p>Sanctified in temple premises with Gangajal, Panchamrit, and sacred Beej Mantras.</p>
+                <p>Consecrated with Gangajal & Beej Mantras</p>
               </div>
             </div>
 
             <div className="shop-trust-card">
               <div className="shop-trust-icon-box">
-                <Truck size={22} />
+                <Truck size={18} />
               </div>
-              <div>
+              <div className="shop-trust-info">
                 <h4>Insured Free Express</h4>
-                <p>Dispatched in consecrated velvet & silk pouches with Gangajal vial & wearing manual.</p>
+                <p>Velvet pouch & sacred wearing manual</p>
               </div>
             </div>
           </div>
 
-          {/* B. Vedic Mukhi Energy & Selection Guide */}
+          {/* B. Vedic Mukhi Energy & Selection Guide (Compact Grid) */}
           <section className="shop-guide-section" id="shop-mukhi-guide">
-            <div className="shop-section-header">
+            <div className="shop-section-header compact">
               <span className="shop-section-tag">
-                <Sparkles size={13} /> SACRED ENERGIES & DEITIES
+                <Sparkles size={12} /> SACRED ENERGIES
               </span>
-              <h3>How to Choose the Right Rudraksha</h3>
-              <p>
-                Each Mukhi resonates with a specific planetary vibration, chakra center, and ruling deity. 
-                Explore key energies below or filter instantly.
-              </p>
+              <h3>Quick Mukhi Selection Guide</h3>
+              <p>Find the bead aligned with your planetary chakra and spiritual intent</p>
             </div>
 
-            <div className="shop-mukhi-cards-grid">
+            <div className="shop-mukhi-cards-grid compact">
               {MUKHI_GUIDE.map((m, idx) => (
-                <div key={idx} className="shop-mukhi-card">
-                  <div>
-                    <div className="shop-mukhi-top">
-                      <span className="shop-mukhi-badge">{m.mukhi}</span>
-                      <span className="shop-mukhi-planet">{m.planet}</span>
-                    </div>
-                    <h4>Deity: {m.deity}</h4>
+                <div key={idx} className="shop-mukhi-card compact">
+                  <div className="shop-mukhi-top">
+                    <span className="shop-mukhi-badge">{m.mukhi}</span>
+                    <span className="shop-mukhi-planet">{m.planet}</span>
+                  </div>
+                  <div className="shop-mukhi-body">
+                    <h4>Deity: <span>{m.deity}</span></h4>
                     <p>{m.benefit}</p>
                   </div>
                   <button 
@@ -377,83 +374,79 @@ export function Shop() {
                     className="shop-mukhi-btn"
                     onClick={() => {
                       setChip(m.chipTarget);
-                      window.scrollTo({ top: 300, behavior: "smooth" });
+                      window.scrollTo({ top: 220, behavior: "smooth" });
                     }}
                   >
-                    View in Catalog <ArrowRight size={13} />
+                    Filter Collection <ArrowRight size={12} />
                   </button>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* C. Temple Consecration (Prana Pratishtha) Protocol */}
-          <div className="shop-consecration-card" id="shop-consecration-protocol">
-            <div className="shop-section-header" style={{ color: "#faebd7" }}>
+          {/* C. Temple Consecration Protocol (Compact Luxury Flow) */}
+          <div className="shop-consecration-card compact" id="shop-consecration-protocol">
+            <div className="shop-section-header compact" style={{ color: "#faebd7" }}>
               <span className="shop-section-tag" style={{ color: "#f7dfa5" }}>
-                <Flame size={13} /> SACRED TRADITION
+                <Flame size={12} /> SACRED TRADITION
               </span>
               <h3 style={{ color: "#ffffff" }}>The Himalayan Consecration Protocol</h3>
-              <p style={{ color: "#e8dac9" }}>
-                Every bead undergoes authentic Shastric energization to awaken its inherent bio-electric resonance 
-                before reaching your altar.
-              </p>
+              <p style={{ color: "#e8dac9" }}>Authentic Shastric energization performed before dispatch</p>
             </div>
 
-            <div className="shop-consecration-steps">
-              <div className="shop-step-box">
+            <div className="shop-consecration-steps compact">
+              <div className="shop-step-box compact">
                 <div className="shop-step-num">1</div>
-                <h5>Gangajal & Milk Shuddhi</h5>
-                <p>Purification with holy Gangajal, raw cow milk, and natural herbs to cleanse raw grove dust.</p>
+                <h5>Gangajal Shuddhi</h5>
+                <p>Holy Gangajal & natural herb purification</p>
               </div>
 
-              <div className="shop-step-box">
+              <div className="shop-step-box compact">
                 <div className="shop-step-num">2</div>
-                <h5>Vedic Beej Mantras</h5>
-                <p>Over 1,008 Vedic mantra recitations performed by temple priests to activate the bead's spiritual energy.</p>
+                <h5>Beej Mantras</h5>
+                <p>1,008 Vedic chant recitations by priests</p>
               </div>
 
-              <div className="shop-step-box">
+              <div className="shop-step-box compact">
                 <div className="shop-step-num">3</div>
-                <h5>Sandalwood Anointing</h5>
-                <p>Treated with pure Himalayan Sandalwood paste (Chandan) and natural conditioning oils for longevity.</p>
+                <h5>Chandan Anointing</h5>
+                <p>Natural sandalwood conditioning</p>
               </div>
 
-              <div className="shop-step-box">
+              <div className="shop-step-box compact">
                 <div className="shop-step-num">4</div>
-                <h5>Sealed Sacred Delivery</h5>
-                <p>Packed with holy Gangajal droplet, certified lab card, and auspicious red thread.</p>
+                <h5>Sealed Delivery</h5>
+                <p>Lab card & sanctified sacred pouch</p>
               </div>
             </div>
           </div>
 
-          {/* D. Frequently Asked Questions (FAQ) Accordion */}
-          <section className="shop-faq-section" id="shop-faqs">
-            <div className="shop-section-header">
+          {/* D. Frequently Asked Questions (Compact Accordion) */}
+          <section className="shop-faq-section compact" id="shop-faqs">
+            <div className="shop-section-header compact">
               <span className="shop-section-tag">
-                <HelpCircle size={13} /> SPIRITUAL GUIDANCE
+                <HelpCircle size={12} /> SPIRITUAL GUIDANCE
               </span>
               <h3>Frequently Asked Questions</h3>
-              <p>Everything you need to know about choosing, wearing, and caring for your sacred Rudraksha.</p>
             </div>
 
-            <div className="shop-faq-list">
+            <div className="shop-faq-list compact">
               {SHOP_FAQS.map((faq, i) => {
                 const isOpen = openFaq === i;
                 return (
-                  <div key={i} className={`shop-faq-item ${isOpen ? "open" : ""}`}>
+                  <div key={i} className={`shop-faq-item compact ${isOpen ? "open" : ""}`}>
                     <button 
                       type="button" 
-                      className="shop-faq-question"
+                      className="shop-faq-question compact"
                       onClick={() => setOpenFaq(isOpen ? -1 : i)}
                       aria-expanded={isOpen}
                     >
                       <span>{faq.q}</span>
-                      {isOpen ? <ChevronUp size={18} color="#a54d2b" /> : <ChevronDown size={18} color="#806f62" />}
+                      {isOpen ? <ChevronUp size={16} color="#a54d2b" /> : <ChevronDown size={16} color="#806f62" />}
                     </button>
                     {isOpen && (
                       <motion.div 
-                        className="shop-faq-answer"
+                        className="shop-faq-answer compact"
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
@@ -467,26 +460,23 @@ export function Shop() {
             </div>
           </section>
 
-          {/* E. Astrological Consultation & AI Advisor Callout */}
-          <div className="shop-consult-cta" id="shop-consultation-banner">
-            <div className="shop-consult-text">
+          {/* E. Astrological Consultation CTA (Compact Luxury Bar) */}
+          <div className="shop-consult-cta compact" id="shop-consultation-banner">
+            <div className="shop-consult-text compact">
               <h4>Need Personalized Astrological Guidance?</h4>
-              <p>
-                Our Vedic astrologers and AI Spiritual Assistant analyze your date of birth, Rashi, 
-                and life goals to recommend the exact Mukhi combination for you.
-              </p>
+              <p>Our Vedic astrologers & AI Spiritual Assistant analyze your Kundali & life goals.</p>
             </div>
-            <div className="shop-consult-actions">
-              <Link to="/aura-ai" className="shop-consult-btn primary">
-                <Compass size={16} /> Consult Aura AI
+            <div className="shop-consult-actions compact">
+              <Link to="/aura-ai" className="shop-consult-btn primary compact">
+                <Compass size={14} /> Consult Aura AI
               </Link>
               <a 
                 href="https://wa.me/919672996531?text=Namaste%20I%20need%20assistance%20choosing%20the%20right%20Rudraksha" 
                 target="_blank" 
                 rel="noreferrer" 
-                className="shop-consult-btn secondary"
+                className="shop-consult-btn secondary compact"
               >
-                <MessageCircle size={16} color="#20a95a" /> WhatsApp Astrologer
+                <MessageCircle size={14} color="#20a95a" /> WhatsApp Astrologer
               </a>
             </div>
           </div>

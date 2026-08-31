@@ -2,10 +2,14 @@ export const products = [
   {
     id: "5",
     name: "5 Mukhi Rudraksha",
+    category: "Rudraksha",
     price: 999,
     mrp: 1499,
     rating: 4.9,
     reviews: 120,
+    showOnHome: true,
+    isPopular: true,
+    homeOrder: 1,
     img: "/images/product-5mukhi.jpg",
     images: [
       "/images/product-5mukhi.jpg",
@@ -21,10 +25,14 @@ export const products = [
   {
     id: "1",
     name: "1 Mukhi Rudraksha",
+    category: "Rudraksha",
     price: 3499,
     mrp: 4999,
     rating: 4.9,
     reviews: 86,
+    showOnHome: true,
+    isPopular: true,
+    homeOrder: 2,
     img: "/images/product-1mukhi.jpg",
     images: [
       "/images/product-1mukhi.jpg",
@@ -39,10 +47,14 @@ export const products = [
   {
     id: "7",
     name: "7 Mukhi Rudraksha",
+    category: "Rudraksha",
     price: 1299,
     mrp: 1899,
     rating: 4.8,
     reviews: 64,
+    showOnHome: true,
+    isPopular: false,
+    homeOrder: 3,
     img: "/images/product-7mukhi.jpg",
     images: [
       "/images/product-7mukhi.jpg",
@@ -57,10 +69,14 @@ export const products = [
   {
     id: "mala",
     name: "Rudraksha Mala (108+1 Beads)",
+    category: "Mala",
     price: 1899,
     mrp: 2999,
     rating: 4.9,
     reviews: 98,
+    showOnHome: true,
+    isPopular: true,
+    homeOrder: 4,
     img: "/images/product-mala.jpg",
     images: [
       "/images/product-mala.jpg",
@@ -75,10 +91,14 @@ export const products = [
   {
     id: "11",
     name: "11 Mukhi Rudraksha",
+    category: "Rudraksha",
     price: 1699,
     mrp: 2499,
     rating: 4.9,
     reviews: 42,
+    showOnHome: true,
+    isPopular: false,
+    homeOrder: 5,
     img: "/images/product-11mukhi.jpg",
     images: [
       "/images/product-11mukhi.jpg",

@@ -212,12 +212,16 @@ export async function getCustomerMe(req, res, next) {
       return res.status(503).json({ success: false, message: "Database unavailable." });
     }
     const authUserId = req.user.authUserId;
-    const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || "rohitjangir8740@gmail.com").trim().toLowerCase();
+    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+    if (process.env.INITIAL_ADMIN_EMAIL) {
+      allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
+    }
     const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "+919672996531").trim();
+    const userEmail = (req.user.email || "").trim().toLowerCase();
     const cleanUserPhone = (req.user.phone || "").replace(/[^0-9]/g, "");
     const cleanAdminPhone = initialAdminPhone.replace(/[^0-9]/g, "");
     const isInitialAdmin = Boolean(
-      (req.user.email && req.user.email.toLowerCase() === initialAdminEmail) ||
+      (userEmail && allowedEmails.includes(userEmail)) ||
       (cleanUserPhone && (cleanUserPhone === cleanAdminPhone || cleanUserPhone.endsWith("9672996531")))
     );
     const now = new Date().toISOString();

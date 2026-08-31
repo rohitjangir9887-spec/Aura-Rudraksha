@@ -16,6 +16,7 @@ export function AdminProducts() {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [homeFilter, setHomeFilter] = useState("All"); // "All" | "On Home" | "Hidden"
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [urlInput, setUrlInput] = useState("");
@@ -44,14 +45,34 @@ export function AdminProducts() {
     if (selectedCategory !== "All") {
       result = result.filter(p => p.category === selectedCategory);
     }
+    if (homeFilter === "On Home") {
+      result = result.filter(p => p.showOnHome !== false);
+    } else if (homeFilter === "Hidden") {
+      result = result.filter(p => p.showOnHome === false);
+    }
     setFilteredProducts(result);
-  }, [searchTerm, selectedCategory, products]);
+  }, [searchTerm, selectedCategory, homeFilter, products]);
 
   const load = () => {
     const list = db.getProducts();
     setProducts(list);
     setFilteredProducts(list);
     setLoading(false);
+  };
+
+  const handleToggleHomeShowcase = async (p, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const nextVal = p.showOnHome === false ? true : false;
+    try {
+      await db.toggleProductHomeShowcase(p.id, nextVal);
+      emitToast(nextVal ? `⭐ "${p.name}" added to Home Showcase!` : `"${p.name}" hidden from Home Showcase`, "success");
+      load();
+    } catch (err) {
+      emitToast("Failed to update Home Showcase status", "error");
+    }
   };
 
   const confirmDeleteProduct = async () => {
@@ -127,6 +148,10 @@ const handleEdit = (p) => {
       const imgs = (p.images && p.images.length > 0) ? [...p.images] : (p.img ? [p.img] : []);
       setEditing({
         ...p,
+        showOnHome: p.showOnHome !== false,
+        isPopular: !!p.isPopular,
+        homeBadge: p.homeBadge || p.badge || "",
+        homeOrder: p.homeOrder !== undefined ? p.homeOrder : 0,
         img: p.img || (imgs[0] || ""),
         images: imgs
       });
@@ -141,6 +166,10 @@ const handleEdit = (p) => {
         category: "Rudraksha",
         description: "",
         status: "Active",
+        showOnHome: true,
+        isPopular: false,
+        homeBadge: "Popular",
+        homeOrder: 0,
         rating: 4.9,
         reviews: 0
       });
@@ -279,6 +308,11 @@ const handleEdit = (p) => {
       category: editing.category || "Rudraksha",
       description: editing.description || "",
       status: editing.status || "Active",
+      showOnHome: editing.showOnHome !== false,
+      isPopular: !!editing.isPopular,
+      homeOrder: Number(editing.homeOrder) || 0,
+      homeBadge: (editing.homeBadge || editing.badge || "").trim(),
+      badge: (editing.homeBadge || editing.badge || "").trim(),
       rating: Number(editing.rating) || 4.9,
       reviews: Number(editing.reviews) || 0
     };
@@ -371,6 +405,109 @@ const handleEdit = (p) => {
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* 🏠 Home Page Display & Popular Showcase Controls */}
+          <div style={{
+            background: 'linear-gradient(135deg, #fdf8f3 0%, #faede1 100%)',
+            border: '1.5px solid #e2cbba',
+            borderRadius: '14px',
+            padding: '18px 20px',
+            marginBottom: '22px',
+            boxShadow: '0 2px 8px rgba(107, 43, 16, 0.05)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', color: '#541c09', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700' }}>
+                  🏠 Home Page Showcase &amp; Popular Section
+                </h3>
+                <span style={{ fontSize: '12.5px', color: '#7a6a5e', marginTop: '2px', display: 'block' }}>
+                  Control whether this product is showcased on the Home page and featured in the Popular collections.
+                </span>
+              </div>
+              <label style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                fontWeight: '700',
+                fontSize: '13px',
+                color: editing.showOnHome !== false ? '#82270a' : '#6b7280',
+                background: editing.showOnHome !== false ? '#fff' : '#f3f4f6',
+                padding: '7px 16px',
+                borderRadius: '30px',
+                border: editing.showOnHome !== false ? '1.5px solid #d5a285' : '1.5px solid #d1d5db',
+                boxShadow: editing.showOnHome !== false ? '0 2px 6px rgba(130, 39, 10, 0.12)' : 'none',
+                userSelect: 'none',
+                transition: 'all 0.2s ease'
+              }}>
+                <input 
+                  type="checkbox"
+                  checked={editing.showOnHome !== false}
+                  onChange={e => setEditing({ ...editing, showOnHome: e.target.checked })}
+                  style={{ width: '17px', height: '17px', accentColor: '#923a13', cursor: 'pointer' }}
+                />
+                {editing.showOnHome !== false ? '⭐ Visible on Home Page' : '⚪ Hidden from Home'}
+              </label>
+            </div>
+
+            <div className="admin-form-row" style={{ marginTop: '12px' }}>
+              <div className="admin-form-group">
+                <label style={{ fontSize: '13px' }}>Showcase Badge / Tag</label>
+                <input 
+                  value={editing.homeBadge || editing.badge || ""}
+                  onChange={e => setEditing({ ...editing, homeBadge: e.target.value, badge: e.target.value })}
+                  placeholder="e.g. Best Seller, Popular, Sacred Nepal, Trending, Auspicious"
+                  style={{ background: '#fff' }}
+                />
+                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {["Best Seller", "Popular", "100% Nepali", "Lab Certified", "Auspicious", "Limited Edition"].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setEditing({ ...editing, homeBadge: preset, badge: preset })}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        background: '#fff',
+                        border: '1px solid #dcc6b6',
+                        color: '#7a320c',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      +{preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="admin-form-group">
+                <label style={{ fontSize: '13px' }}>Home Display Order (1 = Top priority)</label>
+                <input 
+                  type="number"
+                  value={editing.homeOrder !== undefined ? editing.homeOrder : 0}
+                  onChange={e => setEditing({ ...editing, homeOrder: Number(e.target.value) || 0 })}
+                  placeholder="1, 2, 3..."
+                  style={{ background: '#fff' }}
+                />
+                <span style={{ fontSize: '11.5px', color: '#8c7d72', marginTop: '4px', display: 'block' }}>
+                  Lower numbers display first on the Home showcase grid.
+                </span>
+              </div>
+
+              <div className="admin-form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '22px' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#2b170d', fontWeight: '600' }}>
+                  <input 
+                    type="checkbox"
+                    checked={!!editing.isPopular}
+                    onChange={e => setEditing({ ...editing, isPopular: e.target.checked })}
+                    style={{ width: '16px', height: '16px', accentColor: '#923a13', cursor: 'pointer' }}
+                  />
+                  🔥 Mark as <b>Popular / Trending Pick</b>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -714,6 +851,9 @@ const handleEdit = (p) => {
     );
   }
 
+  const homeShowcaseCount = products.filter(p => p.showOnHome !== false).length;
+  const hiddenShowcaseCount = products.filter(p => p.showOnHome === false).length;
+
   return (
     <AdminLayout>
       <Link to="/admin" className="admin-back-link">
@@ -721,12 +861,78 @@ const handleEdit = (p) => {
       </Link>
       <div className="admin-page-header">
         <div>
-          <h1>Product Catalog</h1>
-          <p className="admin-page-subtitle">Manage store products, stock levels, multi-photos, and pricing</p>
+          <h1>Product Catalog &amp; Home Showcase</h1>
+          <p className="admin-page-subtitle">Manage store products, stock levels, pricing, and choose which products show on the Home UI</p>
         </div>
         <button className="admin-btn" onClick={() => handleEdit(null)}>
           <Plus size={16} /> Add Product
         </button>
+      </div>
+
+      {/* Showcase Summary & Quick Switcher */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '14px',
+        marginBottom: '18px'
+      }}>
+        <div 
+          onClick={() => setHomeFilter("All")}
+          style={{
+            background: homeFilter === "All" ? '#fff' : '#fcfaf8',
+            border: homeFilter === "All" ? '2px solid #8c2b10' : '1px solid #e7dcce',
+            borderRadius: '12px',
+            padding: '14px 16px',
+            cursor: 'pointer',
+            boxShadow: homeFilter === "All" ? '0 4px 12px rgba(140, 43, 16, 0.08)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ fontSize: '12px', color: '#7a6a5e', fontWeight: '600', textTransform: 'uppercase' }}>All Products</div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#2b170d', marginTop: '4px' }}>
+            {products.length} <span style={{ fontSize: '13px', fontWeight: '500', color: '#8c7d72' }}>Total In Catalog</span>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setHomeFilter("On Home")}
+          style={{
+            background: homeFilter === "On Home" ? '#fff9f4' : '#fcfaf8',
+            border: homeFilter === "On Home" ? '2px solid #d97706' : '1px solid #e7dcce',
+            borderRadius: '12px',
+            padding: '14px 16px',
+            cursor: 'pointer',
+            boxShadow: homeFilter === "On Home" ? '0 4px 12px rgba(217, 119, 6, 0.12)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ fontSize: '12px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            ⭐ On Home Showcase
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#92400e', marginTop: '4px' }}>
+            {homeShowcaseCount} <span style={{ fontSize: '13px', fontWeight: '500', color: '#b45309' }}>Visible on Home UI</span>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setHomeFilter("Hidden")}
+          style={{
+            background: homeFilter === "Hidden" ? '#fff' : '#fcfaf8',
+            border: homeFilter === "Hidden" ? '2px solid #6b7280' : '1px solid #e7dcce',
+            borderRadius: '12px',
+            padding: '14px 16px',
+            cursor: 'pointer',
+            boxShadow: homeFilter === "Hidden" ? '0 4px 12px rgba(107, 114, 128, 0.1)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            ⚪ Hidden from Home
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#4b5563', marginTop: '4px' }}>
+            {hiddenShowcaseCount} <span style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280' }}>Shop Catalog Only</span>
+          </div>
+        </div>
       </div>
 
       <div className="admin-filter-bar">
@@ -734,7 +940,7 @@ const handleEdit = (p) => {
           <Search size={16} />
           <input 
             type="text" 
-            placeholder="Search by product name..." 
+            placeholder="Search by product name, tags or category..." 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -755,13 +961,22 @@ const handleEdit = (p) => {
       {loading ? (
         <div className="admin-loading">Loading products...</div>
       ) : filteredProducts.length === 0 ? (
-        <div className="admin-empty">No products found matching your search.</div>
+        <div className="admin-empty">
+          <p>No products found matching your filter.</p>
+          {homeFilter !== "All" && (
+            <button className="admin-btn secondary" style={{ marginTop: '10px' }} onClick={() => setHomeFilter("All")}>
+              Show All Products
+            </button>
+          )}
+        </div>
       ) : (
         <>
           <div className="admin-mobile-cards">
             {filteredProducts.map(p => {
               const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
               const imgCount = p.images?.length || (p.img ? 1 : 0);
+              const isShownOnHome = p.showOnHome !== false;
+
               return (
                 <div key={p.id} className="admin-mobile-card">
                   <div className="mobile-card-top">
@@ -769,22 +984,61 @@ const handleEdit = (p) => {
                       <img 
                         src={displayImg} 
                         alt={p.name} 
-                        style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: '1px solid #e8e0d8' }} 
+                        style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid #e8e0d8' }} 
                         onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
                       />
                       <div>
                         <span className="mobile-card-title">{p.name}</span>
                         <div className="mobile-card-sub">{p.category || "Rudraksha"} • Stock: <b>{p.stock}</b></div>
-                        {imgCount > 1 && (
-                          <span style={{ fontSize: '10px', color: '#a54d2b', fontWeight: '600' }}>
-                            🖼️ {imgCount} Photos Attached
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {p.badge && (
+                            <span style={{ fontSize: '10.5px', background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                              {p.badge}
+                            </span>
+                          )}
+                          {imgCount > 1 && (
+                            <span style={{ fontSize: '10.5px', color: '#a54d2b', fontWeight: '600' }}>
+                              🖼️ {imgCount} Photos
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <span className={`admin-badge ${p.status === 'Active' ? 'success' : 'error'}`}>{p.status}</span>
                   </div>
                   
+                  {/* Home Showcase Switch on Mobile */}
+                  <div style={{
+                    margin: '10px 0',
+                    padding: '8px 12px',
+                    background: isShownOnHome ? '#fffbeb' : '#f3f4f6',
+                    border: isShownOnHome ? '1px solid #fde68a' : '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: isShownOnHome ? '#92400e' : '#6b7280' }}>
+                      {isShownOnHome ? '⭐ Visible on Home Page' : '⚪ Hidden on Home'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleHomeShowcase(p, e)}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        borderRadius: '20px',
+                        border: 'none',
+                        background: isShownOnHome ? '#d97706' : '#9ca3af',
+                        color: '#fff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {isShownOnHome ? 'Toggle OFF' : 'Show on Home'}
+                    </button>
+                  </div>
+
                   <div className="mobile-card-body">
                     <div className="mobile-card-prices">
                       <b>₹{p.price?.toLocaleString("en-IN")}</b>
@@ -811,8 +1065,8 @@ const handleEdit = (p) => {
                   <th>Product</th>
                   <th>Category</th>
                   <th>Price</th>
-                  <th>MRP</th>
                   <th>Stock</th>
+                  <th style={{ textAlign: 'center' }}>Home Showcase</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -820,6 +1074,8 @@ const handleEdit = (p) => {
               <tbody>
                 {filteredProducts.map(p => {
                   const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+                  const isShownOnHome = p.showOnHome !== false;
+
                   return (
                     <tr key={p.id}>
                       <td>
@@ -831,17 +1087,65 @@ const handleEdit = (p) => {
                           />
                           <div>
                             <strong>{p.name}</strong>
-                            <small>{p.reviews || 0} reviews • {p.images?.length || 1} images</small>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                              <small>{p.reviews || 0} reviews • {p.images?.length || 1} images</small>
+                              {p.badge && (
+                                <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: '4px', fontWeight: '700' }}>
+                                  {p.badge}
+                                </span>
+                              )}
+                              {p.isPopular && (
+                                <span style={{ fontSize: '10px', background: '#fee2e2', color: '#991b1b', padding: '1px 5px', borderRadius: '4px', fontWeight: '700' }}>
+                                  🔥 Popular
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td>{p.category}</td>
-                      <td><b>₹{p.price?.toLocaleString("en-IN")}</b></td>
-                      <td>{p.mrp > p.price ? <del>₹{p.mrp?.toLocaleString("en-IN")}</del> : '-'}</td>
+                      <td>
+                        <b>₹{p.price?.toLocaleString("en-IN")}</b>
+                        {p.mrp > p.price && (
+                          <div style={{ fontSize: '11px', color: '#8c7d72' }}><del>₹{p.mrp?.toLocaleString("en-IN")}</del></div>
+                        )}
+                      </td>
                       <td>
                         <span style={{ color: p.stock < 10 ? '#dc2626' : '#1d9450', fontWeight: '600' }}>
                           {p.stock} units
                         </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleHomeShowcase(p, e)}
+                          title={isShownOnHome ? "Click to hide from Home page" : "Click to show on Home page"}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '5px 12px',
+                            borderRadius: '20px',
+                            border: isShownOnHome ? '1.5px solid #d97706' : '1px solid #d1d5db',
+                            background: isShownOnHome ? '#fef3c7' : '#f3f4f6',
+                            color: isShownOnHome ? '#92400e' : '#6b7280',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {isShownOnHome ? (
+                            <>
+                              <span>⭐ On Home</span>
+                              {p.homeOrder > 0 && <span style={{ background: '#d97706', color: '#fff', fontSize: '10px', padding: '0 4px', borderRadius: '4px' }}>#{p.homeOrder}</span>}
+                            </>
+                          ) : (
+                            <>
+                              <span>⚪ Hidden</span>
+                            </>
+                          )}
+                        </button>
                       </td>
                       <td>
                         <span className={`admin-badge ${p.status === 'Active' ? 'success' : 'error'}`}>

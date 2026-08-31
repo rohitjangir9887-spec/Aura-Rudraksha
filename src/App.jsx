@@ -20,6 +20,11 @@ const Profile = lazy(() => import("./pages/account/Profile").then(m => ({ defaul
 const Orders = lazy(() => import("./pages/account/Orders").then(m => ({ default: m.Orders })));
 const OrderDetail = lazy(() => import("./pages/account/OrderDetail").then(m => ({ default: m.OrderDetail })));
 const AuraAIPage = lazy(() => import("./pages/AuraAIPage").then(m => ({ default: m.AuraAIPage })));
+const AboutUs = lazy(() => import("./pages/AboutUs").then(m => ({ default: m.AboutUs })));
+const TrackOrder = lazy(() => import("./pages/TrackOrder").then(m => ({ default: m.TrackOrder })));
+const CategoriesPage = lazy(() => import("./pages/CategoriesPage").then(m => ({ default: m.CategoriesPage })));
+const Wholesale = lazy(() => import("./pages/Wholesale").then(m => ({ default: m.Wholesale })));
+const ContactUs = lazy(() => import("./pages/ContactUs").then(m => ({ default: m.ContactUs })));
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
@@ -92,6 +97,13 @@ export function App() {
         <Route path="/return-policy" element={<Policies />} />
         <Route path="/privacy-policy" element={<Policies />} />
         <Route path="/terms" element={<Policies />} />
+        <Route path="/cancellation" element={<Policies />} />
+        <Route path="/secure-payment" element={<Policies />} />
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/track-order" element={<TrackOrder />} />
+        <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/wholesale" element={<Wholesale />} />
+        <Route path="/contact" element={<ContactUs />} />
         <Route path="/aura-ai" element={<AuraAIPage />} />
 
         <Route path="/admin/login" element={<AdminLogin />} />

@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronRight, ShieldCheck, PackageCheck, Headphones, BadgeCheck, Flower2 } from "lucide-react";
+import { ShieldCheck, PackageCheck, Headphones, BadgeCheck, Flower2 } from "lucide-react";
 import { Shell } from "../components/Shell";
-import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate } from "../lib/db";
 import { Countdown } from "../components/Countdown";
-import { HomeHeroOffer } from "../components/HomeHeroOffer";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
 import { ShopByCategory } from "../components/ShopByCategory";
-import { HomeDealsSection } from "../components/HomeDealsSection";
+import { HomeProductShowcase } from "../components/HomeProductShowcase";
 
 export function Home() {
   const [hero, setHero] = useState(0);
@@ -142,28 +140,8 @@ export function Home() {
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <ShopByCategory />
 
-    {/* CENTRAL LIVE HOME HERO OFFER BANNER (Shows when ON) */}
-    <HomeHeroOffer />
-
-    <section className="section popular-collection-section">
-      <div className="section-heading fade-in-up-d1">
-        <div><span>OUR COLLECTION</span><h2>Popular Rudraksha</h2><p>Discover the power of authentic Rudraksha</p></div>
-      </div>
-      <div className="product-grid swipeable">
-        {isLoading 
-          ? Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
-          : products.map(p=><ProductCard key={p.id} p={p} onAdd={add}/>)
-        }
-      </div>
-      <div className="explore-more-container">
-        <Link to="/shop" className="explore-btn">
-          Explore Collection <ChevronRight size={18}/>
-        </Link>
-      </div>
-    </section>
-
-    {/* SACRED OFFERS & DEALS (Shows active deals when ON) */}
-    <HomeDealsSection />
+    {/* HOME PRODUCT SHOWCASE / POPULAR SECTION (Admin Configurable) */}
+    <HomeProductShowcase products={products} isLoading={isLoading} />
 
     {/* THE AURA EDITORIAL: ASYMMETRIC SACRED DISCOVERY SECTION */}
     <WhyAuraSection />
