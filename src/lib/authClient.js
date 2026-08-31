@@ -14,12 +14,12 @@ import {
 import firebaseAppletConfig from "../../firebase-applet-config.json";
 
 const firebaseConfig = {
-  projectId: firebaseAppletConfig.projectId || "serene-catfish-flkqp",
-  appId: firebaseAppletConfig.appId || "1:995091448451:web:18afc1698dc4a1a6ce91b6",
-  apiKey: firebaseAppletConfig.apiKey || "AIzaSyBw9FBGwlUii258STbtfBGj54eAfn7-A9g",
-  authDomain: firebaseAppletConfig.authDomain || "serene-catfish-flkqp.firebaseapp.com",
-  storageBucket: firebaseAppletConfig.storageBucket || "serene-catfish-flkqp.firebasestorage.app",
-  messagingSenderId: firebaseAppletConfig.messagingSenderId || "995091448451"
+  projectId: firebaseAppletConfig.projectId || "aura-rudraksha-afde8",
+  appId: firebaseAppletConfig.appId || "1:880463555671:web:420dc50315ebd1b6334712",
+  apiKey: firebaseAppletConfig.apiKey || "AIzaSyB16eNoKyJWnq081O227FyuWC58wTo7Jqo",
+  authDomain: firebaseAppletConfig.authDomain || "aura-rudraksha-afde8.firebaseapp.com",
+  storageBucket: firebaseAppletConfig.storageBucket || "aura-rudraksha-afde8.firebasestorage.app",
+  messagingSenderId: firebaseAppletConfig.messagingSenderId || "880463555671"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
