@@ -108,12 +108,7 @@ export function Cart() {
   };
 
   const handleCheckout = () => {
-    if (!authClient.isSignedIn() || (authClient.getUser() && authClient.getUser().isAnonymous)) {
-      emitToast("Please sign in to proceed to checkout", "info");
-      navigate("/login", { state: { from: "/checkout" } });
-    } else {
-      navigate("/checkout");
-    }
+    navigate("/checkout");
   };
   
   const recommendedProducts = products
@@ -201,16 +196,18 @@ export function Cart() {
                       animate={{opacity: 1, x: 0}} 
                       transition={{delay: 0.2 + (index * 0.1)}}
                     >
-                      <div className="pcc-img-wrap">
+                      <Link to={`/product/${p.id}`} className="pcc-img-wrap">
                         <img 
                           src={p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg"} 
                           alt={p.name}
                           onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                          loading="lazy" />
-                      </div>
+                      </Link>
                       <div className="pcc-details">
                         <div className="pcc-header">
-                          <h3>{p.name}</h3>
+                          <Link to={`/product/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <h3>{p.name}</h3>
+                          </Link>
                           {p.rating && <span className="pcc-rating">★ {p.rating}</span>}
                         </div>
                         
