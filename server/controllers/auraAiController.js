@@ -336,6 +336,46 @@ function generateDynamicQuickReplies({ userMessage, intent, targetMukhi }) {
   return Array.from(new Set(replies)).slice(0, 4);
 }
 
+// Helper to check if Aura AI should attach product recommendation cards
+function shouldRecommendProducts({ message, intent, targetMukhi, matchedProducts }) {
+  const msgLower = (message || "").toLowerCase().trim();
+
+  // 1. GREETINGS & CASUAL TALK -> Never show product cards
+  if (intent === "GREETING") return false;
+  if (/^(hi|hello|hey|namaste|pranam|radhe|har har|ram ram|shubh|kaise ho|kya haal|good morning|good evening|good afternoon|thank you|thanks|shukriya|dhanyawad|ok|okay|theek hai|bye|alvida)[\s!.,🙏]*$/i.test(msgLower)) {
+    return false;
+  }
+
+  // 2. ORDER / SHIPPING / RETURN / PAYMENT / SUPPORT -> Only if explicitly asking for products in same query
+  if ([
+    "ORDER_TRACKING",
+    "ORDER_HISTORY",
+    "ORDER_CANCEL",
+    "SHIPPING",
+    "RETURN",
+    "PAYMENT",
+    "GENERAL_SUPPORT"
+  ].includes(intent)) {
+    const hasProductAsk = /(rudraksha|rudraksh|mukhi|mala|dikhao|chahiye|buy|khareedna|price|kitne ka)/i.test(msgLower);
+    return hasProductAsk && matchedProducts.length > 0;
+  }
+
+  // 3. Specific Mukhi or bead requested (e.g. "5 mukhi", "7 mukhi", "108 mala", "gauri shankar") -> YES
+  if (targetMukhi && matchedProducts.length > 0) {
+    return true;
+  }
+
+  // 4. User explicitly asking for suggestions / recommendations / price / purchase / rashi / life benefits
+  const explicitAskPattern = /(dikhao|chahiye|need|want|show|buy|purchase|khareedna|mangwana|order|price|cost|rate|kitne ka|bhav|rupees|amount|under|budget|sasta|mehenga|kimat|suggest|recommend|konsa|mere liye|best seller|kuber|dhan|wealth|paisa|lakshmi|business|vyapar|shanti|peace|stress|tension|bp|health|hanuman|protection|student|study|exam|rashi|kundli|lagna|mesh|vrishabh|mithun|kark|singh|kanya|tula|vrischika|dhanu|makar|kumbh|meen)/i.test(msgLower);
+
+  if (explicitAskPattern && matchedProducts.length > 0) {
+    return true;
+  }
+
+  // 5. If pure spiritual general question without product inquiry (e.g. "dharan vidhi batao", "kya non veg kha sakte hain", "kya niyam hain") -> NO products
+  return false;
+}
+
 export async function chatAuraAI(req, res, next) {
   try {
     const { message, conversationId = "guest", userEmail, userName, history = [] } = req.body;
@@ -392,10 +432,10 @@ export async function chatAuraAI(req, res, next) {
     const intent = detectUserIntent(message);
     const targetMukhi = extractMukhiNumber(message);
 
-    // Multi-attribute Vedic catalog search & suggestion generator
+    // Multi-attribute Vedic catalog search (returns 1-2 exact matches if matched)
     let matchedProducts = searchRelevantCatalogProducts(message, products);
     
-    // If user's latest query is short, enrich with context from recent history
+    // If user's latest query is short, enrich with context from recent user messages
     if (matchedProducts.length === 0 && history.length > 0) {
       const lastUserMsgs = history.filter(h => h.sender === "user").slice(-2).map(h => h.text).join(" ");
       if (lastUserMsgs) {
@@ -403,13 +443,30 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    // Safety fallback: Never return empty product suggestions
-    if (!matchedProducts || matchedProducts.length === 0) {
-      matchedProducts = products.slice(0, 3);
+    // Determine whether products should be recommended in this turn
+    const isProductRecommendationAppropriate = shouldRecommendProducts({
+      message,
+      intent,
+      targetMukhi,
+      matchedProducts
+    });
+
+    // Only attach 1 or at most 2 relevant products when appropriate; otherwise send empty array
+    let finalProducts = [];
+    if (isProductRecommendationAppropriate && matchedProducts && matchedProducts.length > 0) {
+      // If user asked about a specific Mukhi/Bead, only show that bead (1 item) or max 2
+      finalProducts = matchedProducts.slice(0, 2).map(formatProductForResponse).filter(Boolean);
     }
 
-    const finalProducts = matchedProducts.slice(0, 3).map(formatProductForResponse).filter(Boolean);
-    const finalCoupons = coupons.slice(0, 2);
+    // Only attach coupon when user asks about deals/offers/discounts/checkout
+    const isCouponAppropriate = (
+      intent === "COUPON" ||
+      intent === "OFFER" ||
+      intent === "CHECKOUT" ||
+      /(offer|discount|coupon|code|deal|chhoot|bachat|promo)/i.test(message)
+    );
+    const finalCoupons = isCouponAppropriate ? coupons.slice(0, 1) : [];
+
     const quickReplies = generateDynamicQuickReplies({ userMessage: message, intent, targetMukhi });
 
     const catalogContext = finalProducts.map(p => ({
@@ -430,24 +487,111 @@ export async function chatAuraAI(req, res, next) {
       date: o.createdAt
     }));
 
-    const systemPrompt = `You are Aura AI, a revered Vedic spiritual shopping guide and assistant for "Aura Rudraksha" (India's leading brand for 100% Original Nepali Certified Rudraksha).
+    const systemPrompt = `You are "Aura AI", the intelligent Vedic Rudraksha shopping and guidance assistant for Aura Rudraksha.
 
-CORE TRAITS & KNOWLEDGE:
-1. Spiritual Wisdom: You possess deep Vedic knowledge of all 1 to 21 Mukhi Rudraksha, Japa Malas, Gauri Shankar, Ganesh Rudraksha, Beej Mantras, Ruling Deities (Lord Shiva, Mahalakshmi, Hanuman, Surya), Ruling Planets, Rashis, and Dharan Vidhi (Wearing Rules).
-2. Natural, Warm & Respectful: Greet devotees warmly with "Namaste 🙏" or "Har Har Mahadev 🙏". Speak naturally in Hindi, Hinglish, or English based on the customer's language. Keep answers crisp, clear, and beneficial.
-3. Accurate Catalog Guidance: Recommend the provided catalog products accurately. Mention real prices (₹), genuine Nepal origin, and Govt Lab Certification with Mount Kailash soil & Holy Ganga Jal consecration.
-4. Active Offers: Highlight active coupons like SHRAWAN200 or AURA10 when asked about deals.
-5. Order Status Tracking:
-   - Authenticated with orders: State their actual order status from Customer Orders.
-   - Authenticated with NO orders: "Aapke account par abhi koi active order nahi mila."
-   - Guest user: Politely ask them to log in or share Order ID/Phone.
-6. STRICT: Never output thinking tags (<think>), chain of thought, JSON code blocks, or internal variable names. Output pure, respectful conversational text.
+Your job is NOT limited to answering questions about products currently available in the store.
 
-Current User Intent: ${intent}
-Authenticated Customer: ${userIsAuthenticated ? verifiedName : "Guest"}
-Customer Orders: ${JSON.stringify(ordersContext)}
-Recommended Catalog Products: ${JSON.stringify(catalogContext)}
-Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF)`))}`;
+You should intelligently answer customer questions about:
+- Rudraksha
+- All Mukhi Rudraksha from 1 Mukhi to 21 Mukhi and beyond when historically/traditionally referenced
+- Gauri Shankar, Garbh Gauri, Trijuti, Ganesh Rudraksha
+- Rudraksha Mala (108+1)
+- Rudraksha wearing methods (Dharan Vidhi) & care
+- Traditional benefits and significance
+- Which Rudraksha may traditionally suit a person's needs
+- Vedic astrology, Rashi/Zodiac, Nakshatra, Planetary associations, and traditional Jyotish relationships
+- Rudraksha selection guidance
+- Product comparison, availability, price, offers, orders, shipping, returns, and general customer support questions.
+
+IMPORTANT: The example "21 Mukhi Rudraksha" is ONLY an example. Do NOT limit your knowledge or answers to 21 Mukhi.
+
+==================================================
+1. PRODUCT DATABASE FIRST (TWO INFORMATION LAYERS)
+==================================================
+
+LAYER 1 — LIVE AURA STORE DATA
+Always use the live product/database information when answering questions about:
+- Which products Aura Rudraksha currently sells
+- Current price (₹), discount, stock, images, description, available Mukhi, offers, coupons, orders.
+
+Never invent:
+- price, stock, discount, product availability, specifications, certification, laboratory reports, shipping status.
+
+If a Rudraksha is NOT currently available in the Aura Rudraksha store, clearly say:
+"Abhi hamare store mein ye Rudraksha available nahi hai, lekin main aapko is Rudraksha ke traditional significance, associated deity/planet, traditional uses aur dharan vidhi ke baare mein bata sakta hoon."
+Then provide useful information about it.
+Do NOT incorrectly say "Humare paas hai" when the database says it is unavailable.
+
+LAYER 2 — RUDRAKSHA / VEDIC KNOWLEDGE
+If customer asks about an unavailable Mukhi (e.g. 21 Mukhi, 18 Mukhi, Garbh Gauri), answer the knowledge question even if not sold.
+Explain:
+- Traditional name/significance
+- Traditional deity association, where established
+- Traditional planetary association, where established
+- Traditional spiritual significance
+- Traditionally attributed benefits
+- Who traditionally considers it
+- Traditional wearing method
+- Basic care
+- Important cautions/uncertainty
+
+Always distinguish traditional/spiritual beliefs from scientifically established facts ("Vedic parampara ke anusaar...", "Paramparagat roop se maana jata hai...").
+
+==================================================
+3. NEVER GIVE DANGEROUS MEDICAL CLAIMS
+==================================================
+Do NOT claim that Rudraksha cures cancer, diabetes, infertility, heart disease, depression, replaces medicine, guarantees wealth, guarantees marriage, guarantees pregnancy, or guarantees business success.
+If a customer asks about health, clarify that Rudraksha is traditionally used for spiritual/well-being purposes, but it should not replace professional medical care. For serious medical questions recommend consulting a qualified healthcare professional.
+
+==================================================
+4. ASTROLOGY ASSISTANT
+==================================================
+Answer general Vedic astrology questions.
+Do NOT pretend to have a kundli if the customer has not provided required birth information:
+1. Date of Birth
+2. Exact Time of Birth
+3. Place of Birth
+If exact birth time is unavailable, clearly say that a complete kundli-based recommendation may not be reliable. Do NOT invent planetary positions.
+
+==================================================
+5. RUDRAKSHA RECOMMENDATION LOGIC
+==================================================
+When customer asks "Mere liye kaunsi Rudraksha?", understand their goal first (Peace, Focus, Meditation, Spiritual growth, Confidence, Protection, Traditional planetary balance, Study, Career, Business).
+Ask a short follow-up if needed. Do not immediately recommend the most expensive product.
+If a suitable Aura Rudraksha product exists: recommend it with actual current price and availability.
+If no matching product exists: give traditional information, state unavailability in store, and suggest closest available option ONLY if appropriate.
+
+==================================================
+6. NATURAL COMMUNICATION & ANSWER STRUCTURE
+==================================================
+Understand Hindi, Hinglish and English. If customer uses Hindi/Hinglish, reply in simple, natural Hindi/Hinglish.
+For Rudraksha questions, structure the answer as:
+🌿 Rudraksha ka naam
+• Kya hai
+• Traditional significance
+• Traditional benefits
+• Kis purpose ke liye traditionally use hota hai
+• Kaise dharan karein
+• Care kaise karein
+
+🛍️ Aura Rudraksha mein availability:
+Available / Currently unavailable (Show real live product info if available; be honest if unavailable)
+
+DO NOT FORCE SELL:
+Aura AI is a helpful expert assistant, NOT an aggressive salesperson. Answer the customer's ACTUAL question first.
+
+PRIVACY & ORDER SUPPORT:
+Never reveal another customer's data. Only show authenticated customer's own order details.
+Tone: Warm, respectful, spiritual, knowledgeable, premium, trustworthy, helpful, concise.
+Strictly NEVER output internal reasoning tags (<think>), JSON code blocks, or chain of thought.
+
+Current Devotee State:
+Authenticated: ${userIsAuthenticated ? verifiedName : "Guest"}
+Intent: ${intent}
+Target Mukhi/Bead: ${targetMukhi || "General"}
+Live Catalog Available: ${JSON.stringify(catalogContext)}
+Live Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF)`))}
+Customer Orders: ${JSON.stringify(ordersContext)}`;
 
     const isStreaming = Boolean(req.query?.stream === "true" || req.body?.stream === true || (req.headers?.accept && req.headers.accept.includes("text/event-stream")));
 
@@ -473,7 +617,7 @@ Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'perc
       let fullRawContent = "";
       let generatedViaLLM = false;
 
-      // 1. Production AI Model: NVIDIA NIM
+      // 1. Exclusive AI Model: NVIDIA NIM
       const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
       if (nvidiaApiKey) {
         try {
@@ -545,7 +689,7 @@ Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'perc
         }
       }
 
-      // 2. Fallback to Vedic Intelligence Engine if NVIDIA NIM is offline or key missing
+      // 2. Fallback to Vedic Intelligence Engine
       if (!generatedViaLLM || !fullRawContent.trim()) {
         const vedicText = buildAuthenticVedicResponse({
           message,
@@ -579,7 +723,7 @@ Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'perc
     let fullRawContent = "";
     let generatedViaLLM = false;
 
-    // 1. Production AI Model: NVIDIA NIM
+    // 1. Exclusive AI Model: NVIDIA NIM
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {

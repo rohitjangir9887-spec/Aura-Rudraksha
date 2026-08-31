@@ -28,6 +28,7 @@ export function PanditjiSection() {
 
   return (
     <section 
+      id="aura-panditji-section"
       className="aura-panditji-section" 
       aria-label="Personalised Vedic Astrologer Rudraksha Guidance"
     >
