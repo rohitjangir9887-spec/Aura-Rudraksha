@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import { isDbConnected } from "./config/db.js";
+import { connectDB, isDbConnected } from "./config/db.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 // Routes
@@ -123,6 +123,18 @@ export function createApp() {
     app.use("/api/analytics", adminApiLimit);
     app.use("/api/settings", adminApiLimit);
   }
+
+  // Database Connection Middleware for Serverless & Long-running instances
+  app.use("/api", async (req, res, next) => {
+    if (process.env.MONGODB_URI) {
+      try {
+        await connectDB();
+      } catch (err) {
+        console.warn("⚠️ [MongoDB] Request-time connection notice:", err?.message || err);
+      }
+    }
+    next();
+  });
 
   // API Routes Mount
   app.use("/api/cart", cartRoute);

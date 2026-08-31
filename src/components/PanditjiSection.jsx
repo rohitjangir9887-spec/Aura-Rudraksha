@@ -140,9 +140,6 @@ export function PanditjiSection() {
                     src="/images/panditji.gif"
                     alt="Vedic Astrologer Panditji"
                     className="aura-panditji-media aura-panditji-gif"
-                    onError={(e) => {
-                      e.currentTarget.style.opacity = '0';
-                    }}
                   />
                 </video>
               </div>

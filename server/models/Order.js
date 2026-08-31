@@ -35,6 +35,13 @@ const orderSchema = new mongoose.Schema(
     orderSource: { type: String, default: "website", index: true },
     source: { type: String, default: "website" },
     trackingNumber: { type: String, default: "" },
+    trackingId: { type: String, default: "" },
+    courierName: { type: String, default: "" },
+    carrier: { type: String, default: "" },
+    trackingUrl: { type: String, default: "" },
+    shippingLink: { type: String, default: "" },
+    estimatedDelivery: { type: String, default: "" },
+    estimatedDeliveryDate: { type: String, default: "" },
     date: { type: String, default: () => new Date().toISOString() }
   },
   {

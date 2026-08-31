@@ -946,6 +946,12 @@ export const db = {
   getMyOrders: async () => {
     const user = authClient.getUser();
     const userEmail = (user?.email || "").trim().toLowerCase();
+    
+    // Strict privacy: If user is not logged in, return empty orders list
+    if (!user || user.isAnonymous || !userEmail) {
+      return { success: true, data: [], demoMode: false };
+    }
+
     try {
       const res = await apiRequest("/orders/my");
       if (res?.success && Array.isArray(res.data)) {
@@ -953,12 +959,13 @@ export const db = {
       }
     } catch (_) {}
 
-    let userOrders = storeCache.orders;
+    let userOrders = [];
     if (userEmail) {
       userOrders = storeCache.orders.filter(o =>
         (o.customerEmail || "").toLowerCase() === userEmail ||
         (o.email || "").toLowerCase() === userEmail ||
-        (o.shippingAddress?.email || "").toLowerCase() === userEmail
+        (o.shippingAddress?.email || "").toLowerCase() === userEmail ||
+        (o.userEmail || "").toLowerCase() === userEmail
       );
     }
     return { success: true, data: userOrders, demoMode: true };

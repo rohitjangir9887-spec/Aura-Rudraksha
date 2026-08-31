@@ -84,7 +84,7 @@ export function Shell({children}) {
                 alt="Aura Rudraksha" 
                 className="brand-logo-img" 
                 referrerPolicy="no-referrer"
-                onError={(e) => { if (!e.target.src.includes("/logo-header-horizontal.png")) e.target.src = "/logo-header-horizontal.png"; }}
+                onError={(e) => { if (e.target.src !== window.location.origin + "/logo-horizontal.png") e.target.src = "/logo-horizontal.png"; }}
               />
             </Link>
           </div>

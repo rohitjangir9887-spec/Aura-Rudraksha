@@ -94,6 +94,10 @@ export function App() {
         <Route path="/account/profile" element={<Profile />} />
         <Route path="/account/orders" element={<Orders />} />
         <Route path="/account/orders/:id" element={<OrderDetail />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/order/:id" element={<OrderDetail />} />
+        <Route path="/my-orders" element={<Orders />} />
         <Route path="/shipping-policy" element={<Policies />} />
         <Route path="/return-policy" element={<Policies />} />
         <Route path="/privacy-policy" element={<Policies />} />

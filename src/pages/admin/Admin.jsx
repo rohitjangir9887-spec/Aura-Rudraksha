@@ -145,8 +145,8 @@ export function Admin() {
               <span
                 style={{
                   fontSize: '11px',
-                  background: connected ? '#e5f6ea' : '#f4ebe1',
-                  color: connected ? '#1d9450' : '#8a532b',
+                  background: connected ? '#e5f6ea' : '#fff8e1',
+                  color: connected ? '#1d9450' : '#d97706',
                   padding: '5px 10px',
                   borderRadius: '20px',
                   fontWeight: '600',
@@ -154,10 +154,10 @@ export function Admin() {
                   alignItems: 'center',
                   gap: '4px'
                 }}
-                title={connected ? "MongoDB Database Active" : "Local Storage Storage Active"}
+                title={connected ? "MongoDB connected - showing live data" : "MongoDB not connected - showing demo/fallback data"}
               >
-                {connected ? <TrendingUp size={12} /> : <Database size={12} />}
-                {connected ? "Database Connected" : "Local Store Active"}
+                {connected ? <TrendingUp size={12} /> : <WifiOff size={12} />}
+                {connected ? "Live MongoDB" : "Demo Mode (DB offline)"}
               </span>
             </div>
           </div>
@@ -319,7 +319,7 @@ export function Admin() {
 
             {recentOrders.length === 0 ? (
               <p style={{ color: '#888', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                No orders yet. New orders will appear here the moment customers place them.
+                {connected ? "No orders yet. New orders will appear here the moment customers place them." : "No orders in demo mode. Connect MongoDB for live order data."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -360,7 +360,7 @@ export function Admin() {
 
             {topProducts.length === 0 ? (
               <p style={{ color: '#888', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                No products found. Add your first product to start selling.
+                {connected ? "No products yet. Add your first product to start selling." : "No products in demo mode. Connect MongoDB for live catalog data."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

@@ -4,10 +4,12 @@ import { Shell } from "../components/Shell";
 import { 
   PackageSearch, Truck, CheckCircle2, Clock, 
   MapPin, ShieldCheck, ArrowRight, Flame, 
-  Sparkles, Phone, MessageCircle, AlertCircle
+  Sparkles, Phone, MessageCircle, AlertCircle,
+  ExternalLink, Copy, CheckCheck
 } from "lucide-react";
 import { db } from "../lib/db";
 import { motion, AnimatePresence } from "framer-motion";
+import { emitToast } from "../context/ToastContext";
 
 export function TrackOrder() {
   const [searchParams] = useSearchParams();
@@ -17,6 +19,7 @@ export function TrackOrder() {
   const [isSearching, setIsSearching] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
   const [searched, setSearched] = useState(false);
+  const [copiedAwb, setCopiedAwb] = useState(false);
 
   useEffect(() => {
     if (initialQuery) {
@@ -239,33 +242,99 @@ export function TrackOrder() {
                 </div>
 
                 {/* Carrier & Tracking Code Bar */}
-                <div style={{
-                  background: "linear-gradient(135deg, #fcf7f0 0%, #f7eee4 100%)",
-                  padding: "14px 18px",
-                  borderRadius: "10px",
-                  border: "1px solid #e8dac9",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: "12px",
-                  marginBottom: "28px"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <Truck size={20} color="#a54d2b" />
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#7d6d62", display: "block" }}>Courier Partner</span>
-                      <strong style={{ fontSize: "13.5px", color: "#2b170d" }}>{orderResult.carrier || "DTDC / Delhivery Express"}</strong>
-                    </div>
-                  </div>
+                {(() => {
+                  const courier = orderResult.courierName || orderResult.carrier || orderResult.courier || "DTDC / Delhivery Express";
+                  const trackingNum進 = orderResult.trackingNumber || orderResult.trackingId;
+                  const trackingUrl = orderResult.trackingUrl || orderResult.shippingLink;
 
-                  {orderResult.trackingNumber && (
-                    <div style={{ textAlign: "right" }}>
-                      <span style={{ fontSize: "11px", color: "#7d6d62", display: "block" }}>Airway Bill (AWB)</span>
-                      <strong style={{ fontSize: "13px", color: "#a54d2b", letterSpacing: "0.5px" }}>{orderResult.trackingNumber}</strong>
+                  return (
+                    <div style={{
+                      background: "linear-gradient(135deg, #fcf7f0 0%, #f7eee4 100%)",
+                      padding: "16px 20px",
+                      borderRadius: "12px",
+                      border: "1px solid #e8dac9",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                      marginBottom: "28px"
+                    }}>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "12px"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div style={{ background: '#fdf3ea', padding: '8px', borderRadius: '8px', border: '1px solid #ebdccb' }}>
+                            <Truck size={22} color="#a54d2b" />
+                          </div>
+                          <div>
+                            <span style={{ fontSize: "11px", color: "#7d6d62", display: "block" }}>Courier Partner</span>
+                            <strong style={{ fontSize: "14px", color: "#2b170d" }}>{courier}</strong>
+                          </div>
+                        </div>
+
+                        {trackingNum進 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ textAlign: "right" }}>
+                              <span style={{ fontSize: "11px", color: "#7d6d62", display: "block" }}>Airway Bill (AWB)</span>
+                              <strong style={{ fontSize: "13.5px", color: "#a54d2b", fontFamily: "monospace", letterSpacing: "0.5px" }}>{trackingNum進}</strong>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(trackingNum進);
+                                setCopiedAwb(true);
+                                emitToast("Tracking number copied!", "success");
+                                setTimeout(() => setCopiedAwb(false), 2000);
+                              }}
+                              title="Copy Tracking Number"
+                              style={{
+                                background: '#fff',
+                                border: '1px solid #ebdccb',
+                                padding: '6px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#a54d2b'
+                              }}
+                            >
+                              {copiedAwb ? <CheckCheck size={14} color="#1d9450" /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Direct Courier Website Tracking Link Button */}
+                      {(trackingUrl || trackingNum進) && (
+                        <div style={{ borderTop: '1px dashed #ebdccb', paddingTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+                          <a
+                            href={trackingUrl || `https://www.google.com/search?q=track+${encodeURIComponent(courier)}+${encodeURIComponent(trackingNum進)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              background: '#a54d2b',
+                              color: '#ffffff',
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              boxShadow: '0 2px 5px rgba(165, 77, 43, 0.2)'
+                            }}
+                          >
+                            <ExternalLink size={13} /> Track Package on {courier} Official Portal ↗
+                          </a>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
 
                 {/* Timeline */}
                 <h3 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "20px", color: "#2b170d", marginBottom: "16px" }}>
