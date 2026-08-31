@@ -53,27 +53,31 @@ export function AdminLayout({children}) {
   useEffect(() => {
     // Check role from backend
     async function checkAuth() {
-      if (!authClient.isSignedIn()) {
-         navigate("/admin/login", { replace: true, state: { from: location.pathname } });
-         return;
-      }
       try {
+        const currentUser = await authClient.getCurrentUserAsync();
+        if (!currentUser && !authClient.isSignedIn()) {
+          navigate("/admin/login", { replace: true, state: { from: location.pathname } });
+          return;
+        }
+
         const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-        const doFetch = window.fetch; // We can use direct fetch to /api/customers/me
+        const doFetch = window.fetch;
         const token = await authClient.getToken();
         const res = await doFetch(`${apiBase}/customers/me`, {
-           headers: { "Authorization": "Bearer " + token }
-        });
-        const json = await res.json();
+          headers: { ...(token ? { "Authorization": "Bearer " + token } : {}) }
+        }).catch(() => null);
+
+        const json = res ? await res.json().catch(() => ({})) : {};
         const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
         const targetPhoneDigits = "9672996531";
-        const resEmail = (json.data?.email || authClient.getUser()?.email || "").trim().toLowerCase();
-        const resPhone = (json.data?.phone || authClient.getUser()?.phoneNumber || "").replace(/[^0-9]/g, "");
+        const authUser = authClient.getUser();
+        const resEmail = (json.data?.email || authUser?.email || "").trim().toLowerCase();
+        const resPhone = (json.data?.phone || authUser?.phoneNumber || "").replace(/[^0-9]/g, "");
         const isAuthorizedAdmin = allowedEmails.includes(resEmail) || resPhone.endsWith(targetPhoneDigits);
 
         if (!isAuthorizedAdmin) {
-           navigate("/account", { replace: true });
-           return;
+          navigate("/account", { replace: true });
+          return;
         }
 
         setAdminSession({ email: resEmail || 'rohitjangir8740@gmail.com' });
@@ -84,9 +88,9 @@ export function AdminLayout({children}) {
         const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
         const targetPhoneDigits = "9672996531";
         if (allowedEmails.includes(userEmail) || userPhone.endsWith(targetPhoneDigits)) {
-           setAdminSession({ email: userEmail || 'rohitjangir8740@gmail.com' });
+          setAdminSession({ email: userEmail || 'rohitjangir8740@gmail.com' });
         } else {
-           navigate("/admin/login", { replace: true });
+          navigate("/admin/login", { replace: true });
         }
       } finally {
         setLoadingAuth(false);

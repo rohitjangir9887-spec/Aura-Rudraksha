@@ -13,30 +13,57 @@ import {
 } from "lucide-react";
 
 export function Admin() {
-  const [stats, setStats] = useState(null);
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
+  const getInitialStats = () => {
+    const products = db.getProducts() || [];
+    const orders = db.getOrders() || [];
+    const customers = db.getCustomers() || [];
+    const analytics = db.getAnalytics ? db.getAnalytics() : { visits: 0 };
+    const revenue = orders
+      .filter(o => o.status !== "Cancelled")
+      .reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
+    const pending = orders.filter(o => o.status === "Pending").length;
+    const completed = orders.filter(o => o.status === "Delivered").length;
+    return {
+      totalOrders: orders.length,
+      revenue,
+      totalCustomers: customers.length,
+      totalProducts: products.length,
+      pendingOrders: pending,
+      completedOrders: completed,
+      views: analytics.visits || 0,
+      aiConversations: 0,
+      hasData: orders.length > 0 || (analytics.visits || 0) > 0
+    };
+  };
+
+  const [stats, setStats] = useState(getInitialStats);
+  const [recentOrders, setRecentOrders] = useState(() => (db.getOrders() || []).slice(0, 5));
+  const [topProducts, setTopProducts] = useState(() => (db.getProducts() || []).slice(0, 5));
   const [dbStatus, setDbStatus] = useState("unknown");
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const mountedRef = useRef(true);
 
   const refreshDashboard = useCallback(async () => {
     setRefreshing(true);
+    setFetchError(null);
     try {
-      // Fresh live data from MongoDB (not the local cache)
-      const [products, orders, customers, analytics, aiMetrics] = await Promise.all([
-        db.fetchProducts(),
-        db.fetchOrders(),
-        db.fetchCustomers(),
-        db.fetchAnalytics(),
-        auraAiClient.getAnalytics()
+      // Fresh live data from MongoDB with individual resilient catch handlers
+      const [productsRes, ordersRes, customersRes, analyticsRes, aiMetricsRes] = await Promise.allSettled([
+        db.fetchProducts().catch(() => db.getProducts()),
+        db.fetchOrders().catch(() => db.getOrders()),
+        db.fetchCustomers().catch(() => db.getCustomers()),
+        db.fetchAnalytics().catch(() => ({ visits: 0 })),
+        auraAiClient.getAnalytics().catch(() => ({ totalConvos: 0 }))
       ]);
 
       if (!mountedRef.current) return;
 
-      const realOrders = orders || [];
-      const realProducts = products || [];
-      const realCustomers = customers || [];
+      const realProducts = (productsRes.status === "fulfilled" && Array.isArray(productsRes.value)) ? productsRes.value : (db.getProducts() || []);
+      const realOrders = (ordersRes.status === "fulfilled" && Array.isArray(ordersRes.value)) ? ordersRes.value : (db.getOrders() || []);
+      const realCustomers = (customersRes.status === "fulfilled" && Array.isArray(customersRes.value)) ? customersRes.value : (db.getCustomers() || []);
+      const analytics = (analyticsRes.status === "fulfilled" && analyticsRes.value) ? analyticsRes.value : { visits: 0 };
+      const aiMetrics = (aiMetricsRes.status === "fulfilled" && aiMetricsRes.value) ? aiMetricsRes.value : { totalConvos: 0 };
 
       const revenue = realOrders
         .filter(o => o.status !== "Cancelled")
@@ -58,11 +85,12 @@ export function Admin() {
       });
 
       setRecentOrders([...realOrders]
-        .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
+        .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0))
         .slice(0, 5));
       setTopProducts(realProducts.slice(0, 5));
     } catch (err) {
-      console.warn("[Admin] Dashboard refresh failed:", err?.message || err);
+      console.warn("[Admin] Dashboard refresh notice:", err?.message || err);
+      setFetchError(err?.message || "Could not synchronize some dashboard metrics.");
     } finally {
       if (mountedRef.current) setRefreshing(false);
     }
@@ -75,15 +103,13 @@ export function Admin() {
 
   useEffect(() => {
     refreshDashboard();
-    db.checkDbHealth().then(h => setDbStatus(h.connected ? "connected" : "disconnected"));
+    db.checkDbHealth().then(h => setDbStatus(h.connected ? "connected" : "disconnected")).catch(() => setDbStatus("disconnected"));
     // Keep the dashboard live when the store changes (other admin tabs / other devices)
     const unsub = onStoreUpdate(() => {
       refreshDashboard();
     });
     return () => unsub();
   }, [refreshDashboard]);
-
-  if (!stats) return <AdminLayout><div className="admin-loading">Loading store overview...</div></AdminLayout>;
 
   const connected = dbStatus === "connected";
 
