@@ -123,13 +123,6 @@ export async function getReviews(req, res, next) {
       return res.json({ success: true, data, count: data.length });
     }
 
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable. Cannot retrieve reviews."
-      });
-    }
-
     let result = [...defaultReviews];
     if (status) result = result.filter(r => r.status === status);
     if (type) result = result.filter(r => r.type === type);
@@ -278,13 +271,6 @@ export async function getReviewSettings(req, res, next) {
         settings = await ReviewSetting.create(defaultReviewSettings);
       }
       return res.json({ success: true, data: settings });
-    }
-
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable."
-      });
     }
 
     return res.json({ success: true, data: defaultReviewSettings, demoMode: true });

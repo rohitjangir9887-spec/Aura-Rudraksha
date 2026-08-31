@@ -89,12 +89,7 @@ export async function getAuthoritativeProducts(productIds = []) {
     }
   }
 
-  // In production with no DB: do NOT silently serve demo catalog
-  if (process.env.NODE_ENV === "production") {
-    return [];
-  }
-
-  // Development-only fallback to default products
+  // Development & Production fallback to default products (Demo mode)
   return defaultProducts.filter(p => ids.includes(String(p.id)));
 }
 
@@ -153,12 +148,7 @@ export async function getAuthoritativeCoupon(couponCode) {
     }
   }
 
-  // In production with no DB: do NOT silently invent coupons
-  if (process.env.NODE_ENV === "production") {
-    return null;
-  }
-
-  // Development-only fallback to default coupons
+  // Development & Production fallback to default coupons (Demo mode)
   return defaultCoupons.find(c => c.code.toUpperCase() === cleanCode) || null;
 }
 
