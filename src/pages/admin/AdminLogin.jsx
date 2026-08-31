@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShieldCheck, ArrowLeft, LogIn, AlertCircle, Mail, Phone, Chrome, UserPlus, Sparkles, Copy, Check } from "lucide-react";
+import { ShieldCheck, ArrowLeft, LogIn, AlertCircle, Mail, Phone, Chrome, UserPlus, Copy, Check } from "lucide-react";
 import { authClient } from "../../lib/authClient";
 import { emitToast } from "../../context/ToastContext";
 import "./admin-pages.css";
@@ -73,20 +73,6 @@ export function AdminLogin() {
       console.error(err);
       setError("Failed to verify administrator credentials with backend.");
       await authClient.signOut();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoAdminSignIn = () => {
-    try {
-      setLoading(true);
-      authClient.signInAsDemo(true);
-      emitToast("Signed in with demo admin session!", "success");
-      const from = location.state?.from || "/admin";
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(err?.message || "Demo admin sign-in failed");
     } finally {
       setLoading(false);
     }
@@ -248,23 +234,6 @@ export function AdminLogin() {
             </button>
             <button type="button" onClick={() => setMode("phone")} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
               <Phone size={18} /> Continue with Phone OTP
-            </button>
-
-            <div style={{ borderTop: '1px dashed #e8e0d8', margin: '6px 0 2px' }} />
-
-            <button
-              type="button"
-              onClick={handleDemoAdminSignIn}
-              disabled={loading}
-              className="admin-btn"
-              style={{
-                background: '#fcf8f2',
-                color: '#6f3518',
-                border: '1px solid #dfcfbe',
-                fontSize: '12px'
-              }}
-            >
-              <Sparkles size={16} color="#b85d25" /> Instant Test Admin Sign-In
             </button>
           </div>
         )}

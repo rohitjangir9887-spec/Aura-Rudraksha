@@ -66,7 +66,7 @@ export function StickyPurchaseBar({ product, isVisible, onAddToCart }) {
                 src={displayImg} 
                 alt={product.name} 
                 className="sticky-product-thumb"
-                onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
               />
               <div className="sticky-details">
                 <span className="sticky-name" title={product.name}>{product.name}</span>

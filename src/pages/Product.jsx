@@ -486,7 +486,7 @@ export function Product() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -slideDirection * 12 }}
                     transition={{ duration: 0.25, ease: "easeOut" }}
-                    onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                    onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                   />
                 </AnimatePresence>
               </div>
@@ -510,7 +510,7 @@ export function Product() {
                         src={imgUrl} 
                         alt={`${p.name} thumbnail ${idx + 1}`} 
                         loading="lazy"
-                        onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                        onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                       />
                     </button>
                   );

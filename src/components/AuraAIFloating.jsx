@@ -554,7 +554,7 @@ export function AuraAIFloating() {
                                           className="aura-ai-prod-img"
                                           referrerPolicy="no-referrer"
                                           loading="lazy"
-                                          onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                                          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                                         />
                                         {discountPercent > 0 && (
                                           <span className="aura-ai-prod-disc">

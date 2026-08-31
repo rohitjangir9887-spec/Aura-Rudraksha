@@ -143,7 +143,7 @@ export function HomeHeroOffer() {
                 className="hero-offer-img"
                 loading="lazy"
                 onError={(e) => { 
-                  e.currentTarget.src = "/images/product-5mukhi.jpg"; 
+                  if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { e.currentTarget.src = "/images/product-5mukhi.jpg"; } 
                 }}
               />
             </div>

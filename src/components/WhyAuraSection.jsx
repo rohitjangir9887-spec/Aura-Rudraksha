@@ -1,5 +1,6 @@
 import React from "react";
-import { Sparkles, ArrowRight, ShieldCheck, PackageCheck, Award, Flame } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Sparkles, ShieldCheck, PackageCheck } from "lucide-react";
 
 export function WhyAuraSection() {
   return (
@@ -27,7 +28,8 @@ export function WhyAuraSection() {
         <div className="aura-editorial-grid">
           
           {/* Left Hero Card (Large 1.35fr) */}
-          <div
+          <Link
+            to="/shop?category=Mala"
             id="btn-editorial-hero-malas"
             className="aura-editorial-hero-card group"
             aria-label="Explore Sacred Japa and Dhyana Malas"
@@ -39,17 +41,20 @@ export function WhyAuraSection() {
                 className="aura-editorial-img"
                 loading="lazy"
                 onError={(e) => {
-                  e.currentTarget.src = "/images/product-5mukhi.jpg";
+                  if (!e.currentTarget.src.includes('product-5mukhi.jpg')) {
+                    e.currentTarget.src = "/images/product-5mukhi.jpg";
+                  }
                 }}
               />
             </div>
-          </div>
+          </Link>
 
           {/* Right Bento Column */}
           <div className="aura-editorial-right-col">
             
             {/* Sub-Card 1: 1 to 14 Mukhi Beads */}
-            <div
+            <Link
+              to="/shop?category=Rudraksha"
               id="card-editorial-mukhis"
               className="aura-editorial-subcard group"
               aria-label="Explore 1 to 14 Mukhi Nepali Rudraksha Beads"
@@ -62,14 +67,17 @@ export function WhyAuraSection() {
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    e.currentTarget.src = "/images/product-7mukhi.jpg";
+                    if (!e.currentTarget.src.includes('product-7mukhi.jpg')) {
+                      e.currentTarget.src = "/images/product-7mukhi.jpg";
+                    }
                   }}
                 />
               </div>
-            </div>
+            </Link>
 
             {/* Sub-Card 2: Sacred Wrist Bracelets */}
-            <div
+            <Link
+              to="/shop?category=Bracelet"
               id="card-editorial-bracelets"
               className="aura-editorial-subcard group"
               aria-label="Explore Sacred Wrist Bracelets"
@@ -82,14 +90,17 @@ export function WhyAuraSection() {
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    e.currentTarget.src = "/images/product-11mukhi.jpg";
+                    if (!e.currentTarget.src.includes('product-11mukhi.jpg')) {
+                      e.currentTarget.src = "/images/product-11mukhi.jpg";
+                    }
                   }}
                 />
               </div>
-            </div>
+            </Link>
 
             {/* Sub-Card 3: Full Width Puja & Consecration */}
-            <div
+            <Link
+              to="/shop?category=Puja"
               id="card-editorial-puja"
               className="aura-editorial-subcard aura-editorial-subcard-full group"
               aria-label="Explore Puja Essentials and Brass Diyas"
@@ -102,11 +113,13 @@ export function WhyAuraSection() {
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    e.currentTarget.src = "/images/product-1mukhi.jpg";
+                    if (!e.currentTarget.src.includes('product-1mukhi.jpg')) {
+                      e.currentTarget.src = "/images/product-1mukhi.jpg";
+                    }
                   }}
                 />
               </div>
-            </div>
+            </Link>
 
           </div>
 

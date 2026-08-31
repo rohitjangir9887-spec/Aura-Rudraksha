@@ -205,7 +205,7 @@ export function Cart() {
                         <img 
                           src={p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg"} 
                           alt={p.name}
-                          onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                          loading="lazy" />
                       </div>
                       <div className="pcc-details">
@@ -290,7 +290,7 @@ export function Cart() {
                             <img 
                               src={rp.img || (rp.images && rp.images[0]) || "/images/product-5mukhi.jpg"} 
                               alt={rp.name}
-                              onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                              onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                              loading="lazy" />
                             {hasDiscount && <span className="cr-badge">{discountPercent}% OFF</span>}
                           </Link>

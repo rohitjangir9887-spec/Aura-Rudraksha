@@ -510,7 +510,7 @@ export function AuraAIPage() {
                                         className="aura-ai-full-prod-img"
                                         referrerPolicy="no-referrer"
                                         loading="lazy"
-                                        onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                                        onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                                       />
                                       {discountPercent > 0 && (
                                         <span className="aura-ai-full-prod-badge">
@@ -802,7 +802,7 @@ export function AuraAIPage() {
                       className="aura-ai-sidebar-prod-thumb"
                       referrerPolicy="no-referrer"
                       loading="lazy"
-                      onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                      onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                     />
                     <div className="aura-ai-sidebar-prod-info">
                       <div className="aura-ai-sidebar-prod-name">{p.name}</div>

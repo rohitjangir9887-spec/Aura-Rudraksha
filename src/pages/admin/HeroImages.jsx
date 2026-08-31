@@ -157,7 +157,7 @@ export function HeroImages() {
               src={editUrl} 
               alt="New Hero Preview" 
               style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8, marginBottom: 15, background: '#eee' }} 
-              onError={(e) => e.target.src = "https://via.placeholder.com/800x400?text=Invalid+Image+Source"}
+              onError={(e) => { if (!e.target.src.includes("via.placeholder.com")) e.target.src = "https://via.placeholder.com/800x400?text=Invalid+Image+Source"; }}
             />
           )}
 
@@ -221,7 +221,7 @@ export function HeroImages() {
                   src={editUrl || imgUrl} 
                   alt={`Preview ${i+1}`} 
                   style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8, marginBottom: 15, background: '#eee' }} 
-                  onError={(e) => e.target.src = "https://via.placeholder.com/800x400?text=Invalid+Image+Source"} 
+                  onError={(e) => { if (!e.target.src.includes("via.placeholder.com")) e.target.src = "https://via.placeholder.com/800x400?text=Invalid+Image+Source"; }} 
                 />
 
                 <div className="admin-form-row" style={{ gap: '15px', marginBottom: '15px' }}>
@@ -257,7 +257,7 @@ export function HeroImages() {
                   src={imgUrl} 
                   alt={`Hero ${i+1}`} 
                   style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8, marginBottom: 15, background: '#eee' }} 
-                  onError={(e) => e.target.src = "https://via.placeholder.com/800x400?text=Invalid+Image+Source"}
+                  onError={(e) => { if (!e.target.src.includes("via.placeholder.com")) e.target.src = "https://via.placeholder.com/800x400?text=Invalid+Image+Source"; }}
                 />
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button className="admin-btn secondary" onClick={() => handleEdit(i)}>

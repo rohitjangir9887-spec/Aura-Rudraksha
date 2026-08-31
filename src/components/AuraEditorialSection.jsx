@@ -38,7 +38,7 @@ export function AuraEditorialSection() {
               loading="lazy"
               onError={(e) => {
                 // Fallback to local mala image if network image fails
-                e.currentTarget.src = "/images/product-mala.jpg";
+                if (!e.currentTarget.src.includes("product-mala.jpg")) { e.currentTarget.src = "/images/product-mala.jpg"; }
               }}
             />
           </div>
@@ -60,7 +60,7 @@ export function AuraEditorialSection() {
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  e.currentTarget.src = "/images/product-5mukhi.jpg";
+                  if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { e.currentTarget.src = "/images/product-5mukhi.jpg"; }
                 }}
               />
             </div>
@@ -78,7 +78,7 @@ export function AuraEditorialSection() {
                 className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500 ease-out"
                 loading="lazy"
                 onError={(e) => {
-                  e.currentTarget.src = "/images/product-11mukhi.jpg";
+                  if (!e.currentTarget.src.includes("product-11mukhi.jpg")) { e.currentTarget.src = "/images/product-11mukhi.jpg"; }
                 }}
               />
             </div>
@@ -96,7 +96,7 @@ export function AuraEditorialSection() {
                 className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-600 ease-out"
                 loading="lazy"
                 onError={(e) => {
-                  e.currentTarget.src = "https://i.ibb.co/BVtGczcQ/file-00000000ee808211869df734ac614fe5.png";
+                  if (!e.currentTarget.src.includes("BVtGczcQ")) { e.currentTarget.src = "https://i.ibb.co/BVtGczcQ/file-00000000ee808211869df734ac614fe5.png"; }
                 }}
               />
             </div>

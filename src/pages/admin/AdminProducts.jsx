@@ -714,7 +714,7 @@ const handleEdit = (p) => {
                             src={imgUrl} 
                             alt={`Product thumbnail ${index + 1}`} 
                             style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                            onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                            onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                           />
                           {isPrimary ? (
                             <span style={{
@@ -985,7 +985,7 @@ const handleEdit = (p) => {
                         src={displayImg} 
                         alt={p.name} 
                         style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid #e8e0d8' }} 
-                        onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                        onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                       />
                       <div>
                         <span className="mobile-card-title">{p.name}</span>
@@ -1083,7 +1083,7 @@ const handleEdit = (p) => {
                           <img 
                             src={displayImg} 
                             alt={p.name} 
-                            onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                            onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                           />
                           <div>
                             <strong>{p.name}</strong>

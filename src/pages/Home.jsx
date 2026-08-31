@@ -9,6 +9,7 @@ import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
 import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
+import { AllProductsSection } from "../components/AllProductsSection";
 
 export function Home() {
   const [hero, setHero] = useState(0);
@@ -145,6 +146,9 @@ export function Home() {
 
     {/* THE AURA EDITORIAL: ASYMMETRIC SACRED DISCOVERY SECTION */}
     <WhyAuraSection />
+
+    {/* ALL PRODUCTS SECTION */}
+    <AllProductsSection products={products} isLoading={isLoading} />
 
     {/* THE AURA RASHI GUIDE: SHOP BY ZODIAC SIGN SECTION */}
     <ZodiacRudrakshaSection />

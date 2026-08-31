@@ -252,7 +252,7 @@ export function ShopByCategory() {
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    if (cat.fallback && e.currentTarget.src !== cat.fallback) {
+                    if (cat.fallback && !e.currentTarget.src.includes(cat.fallback.replace(/^\//, ''))) {
                       e.currentTarget.src = cat.fallback;
                     }
                   }}

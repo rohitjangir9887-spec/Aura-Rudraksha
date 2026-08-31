@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { emitToast } from "../context/ToastContext";
 import { authClient } from "../lib/authClient";
-import { Mail, Phone, Lock, UserPlus, LogIn, Chrome, Copy, Check, AlertCircle, Sparkles } from "lucide-react";
+import { Mail, Phone, Lock, UserPlus, LogIn, Chrome, Copy, Check, AlertCircle } from "lucide-react";
 
 export function Login() {
   const [error, setError] = useState("");
@@ -75,19 +75,6 @@ export function Login() {
     } catch (err) {
       console.error(err);
       setError(getErrorMessage(err) || "Google sign in failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoSignIn = () => {
-    try {
-      setLoading(true);
-      authClient.signInAsDemo(false);
-      emitToast("Signed in with test customer account!", "success");
-      redirectUser();
-    } catch (err) {
-      setError(err?.message || "Demo sign in unavailable");
     } finally {
       setLoading(false);
     }
@@ -212,7 +199,7 @@ export function Login() {
                       </button>
 
                       <div style={{ fontSize: '11px', color: '#6e4f3a', marginTop: '4px' }}>
-                        💡 <strong>Immediate options:</strong> Use Email sign-in or instant Test Account below.
+                        💡 <strong>Immediate options:</strong> Use Email sign-in or Phone OTP below.
                       </div>
                     </div>
                   )}
@@ -231,27 +218,6 @@ export function Login() {
               </button>
               <button type="button" onClick={() => setMode("phone")} disabled={loading} className="outline-btn full" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Phone size={16} /> Continue with Phone OTP
-              </button>
-
-              <div style={{ borderTop: '1px dashed var(--line)', margin: '8px 0 2px' }} />
-
-              <button
-                type="button"
-                onClick={handleDemoSignIn}
-                disabled={loading}
-                className="outline-btn full"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  background: '#fcf8f2',
-                  borderColor: '#dfcfbe',
-                  color: '#6f3518',
-                  fontSize: '11.5px'
-                }}
-              >
-                <Sparkles size={14} color="#b85d25" /> Instant Test Customer Sign-In
               </button>
             </div>
           )}

@@ -120,7 +120,7 @@ export function Wishlist() {
                             <img
                               src={displayImage}
                               alt={p.name}
-                              onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                              onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                               style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             />
                           </Link>

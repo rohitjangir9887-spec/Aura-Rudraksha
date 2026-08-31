@@ -82,7 +82,7 @@ export function ProductCard({ p, onAdd, isShop = false }) {
           alt={p.name}
           className="aura-card-img"
           loading="lazy"
-          onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
         />
 
         {/* Floating Offer Badge (Top Left of image) */}

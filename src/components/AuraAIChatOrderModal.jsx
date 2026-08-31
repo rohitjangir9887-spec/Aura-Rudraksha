@@ -305,7 +305,7 @@ export function AuraAIChatOrderModal({
                     <img 
                       src={product.image || product.img || product.images?.[0] || "/images/product-5mukhi.jpg"} 
                       alt={product.name} 
-                      onError={(e) => { e.target.src = "/images/product-5mukhi.jpg"; }}
+                      onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                     />
                   </div>
                   <div className="aura-ai-order-prod-meta">

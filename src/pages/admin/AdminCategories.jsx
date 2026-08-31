@@ -336,7 +336,7 @@ export function AdminCategories() {
                         {isSelected && <CheckCircle size={14} color="#fff" />}
                       </div>
                       
-                      <img src={displayImg} alt={p.name} style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} onError={e => e.target.src = "/images/product-5mukhi.jpg"} />
+                      <img src={displayImg} alt={p.name} style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }} />
                       
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '14px', fontWeight: '600', color: '#2b170d' }}>{p.name}</div>
