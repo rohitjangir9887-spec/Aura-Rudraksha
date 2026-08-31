@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, ChevronRight, ChevronLeft, Sparkles, Compass, HelpCircle } from "lucide-react";
 import { ZODIAC_SIGNS } from "../data/zodiac";
 import { db, onStoreUpdate } from "../lib/db";
+import { PanditjiSection } from "./PanditjiSection";
 
 export function ZodiacRudrakshaSection() {
   const [zodiacList, setZodiacList] = useState(() => {
@@ -32,11 +33,12 @@ export function ZodiacRudrakshaSection() {
   };
 
   return (
-    <section 
-      className="aura-zodiac-section-wrapper" 
-      id="zodiac-guide"
-      aria-label="Shop By Zodiac Sign & Rashi Rudraksha Guide"
-    >
+    <>
+      <section 
+        className="aura-zodiac-section-wrapper" 
+        id="zodiac-guide"
+        aria-label="Shop By Zodiac Sign & Rashi Rudraksha Guide"
+      >
       <div className="aura-zodiac-container">
         
         {/* 1. SECTION HEADER */}
@@ -193,5 +195,9 @@ export function ZodiacRudrakshaSection() {
 
       </div>
     </section>
+
+    {/* NEW PANDITJI SECTION DIRECTLY BELOW aura-zodiac-container */}
+    <PanditjiSection />
+    </>
   );
 }
