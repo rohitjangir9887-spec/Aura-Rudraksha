@@ -316,8 +316,6 @@ export function AuraAIFloating() {
             dragMomentum={false}
             dragElastic={0.12}
             whileDrag={{ scale: 1.06, cursor: "grabbing" }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
             onDragStart={(_, info) => {
               isDraggingBtnRef.current = false;
               dragStartPos.current = { x: info.point.x, y: info.point.y };
@@ -325,14 +323,14 @@ export function AuraAIFloating() {
             onDrag={(_, info) => {
               const dx = Math.abs(info.point.x - dragStartPos.current.x);
               const dy = Math.abs(info.point.y - dragStartPos.current.y);
-              if (dx > 4 || dy > 4) {
+              if (dx > 12 || dy > 12) {
                 isDraggingBtnRef.current = true;
               }
             }}
             onDragEnd={() => {
               setTimeout(() => {
                 isDraggingBtnRef.current = false;
-              }, 150);
+              }, 40);
             }}
           >
             <button
@@ -343,7 +341,6 @@ export function AuraAIFloating() {
                 }
               }}
               className="aura-ai-floating-btn"
-              style={{ touchAction: "none" }}
               aria-label="Open Aura AI Shopping Guide (Drag to reposition)"
               title="Chat with Aura AI (Drag to move anywhere)"
             >

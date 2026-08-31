@@ -38,7 +38,8 @@ import {
   FileText,
   UserCheck,
   Shuffle,
-  MapPin
+  MapPin,
+  Copy
 } from "lucide-react";
 import "./admin-pages.css";
 
@@ -83,12 +84,17 @@ export function AdminReviews() {
   // AI Review Studio State
   const [aiGenForm, setAiGenForm] = useState({
     productId: "5",
-    ratingMix: "Mostly Positive", // "Mostly Positive" | "Balanced" | "Natural Mix" | "Custom"
+    productName: "5 Mukhi Rudraksha",
+    productDescription: "Original 5 Mukhi Himalayan Rudraksha, laboratory certified, pure natural bead with sacred red velvet pouch and safe packaging.",
+    keyFeatures: "Clear mukhi lines, authentic lab certificate, solid natural weight, safe packaging",
+    ratingRange: "Realistic Mix (3, 4 & 5 Stars)",
+    ratingMix: "Mostly Positive", // fallback
     customRatings: { r5: 70, r4: 20, r3: 10, r2: 0, r1: 0 },
-    languageMix: "English", // "English" | "Hindi" | "Hinglish" | "Auto Mix" | "Custom"
-    customLanguages: { english: 50, hindi: 30, hinglish: 20 },
-    reviewLength: "Short", // "Short" (8-20 words) | "Medium" (20-35 words) | "Long" (35-60 words)
-    tone: "Authentic & Practical",
+    language: "Hinglish",
+    languageMix: "Hinglish",
+    customLanguages: { english: 40, hindi: 30, hinglish: 30 },
+    reviewLength: "Short", // "Short" (1-2 lines) | "Medium" (2-3 lines) | "Long" (3-4 lines)
+    tone: "Authentic & Conversational",
     useRAG: true,
     count: 5
   });
@@ -96,6 +102,8 @@ export function AdminReviews() {
   const [generationStep, setGenerationStep] = useState(1);
   const [generatedDrafts, setGeneratedDrafts] = useState([]);
   const [genSummary, setGenSummary] = useState(null);
+  const [copiedDraftIndex, setCopiedDraftIndex] = useState(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const [editingDraftIndex, setEditingDraftIndex] = useState(null);
   const [draftEditState, setDraftEditState] = useState({ 
     name: "", 
@@ -304,6 +312,38 @@ export function AdminReviews() {
     setEditingReview(null);
   };
 
+  // Helper to format review in exact requested fictional demo format
+  const formatDraftAsText = (draft) => {
+    const starCount = Number(draft.rating) || 5;
+    const stars = "⭐".repeat(Math.max(1, Math.min(5, starCount)));
+    return `Name: ${draft.name || "Aman Sharma"}\nRating: ${stars}\nReview: “${draft.text || ""}”`;
+  };
+
+  const handleCopySingleDraft = async (draft, index) => {
+    const textToCopy = formatDraftAsText(draft);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedDraftIndex(index);
+      setTimeout(() => setCopiedDraftIndex(null), 2500);
+      emitToast(`Copied review for ${draft.name || 'reviewer'} to clipboard!`, "success");
+    } catch (err) {
+      emitToast("Unable to copy to clipboard", "error");
+    }
+  };
+
+  const handleCopyAllDrafts = async () => {
+    if (!generatedDrafts || generatedDrafts.length === 0) return;
+    const allFormatted = generatedDrafts.map(d => formatDraftAsText(d)).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(allFormatted);
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2500);
+      emitToast(`Copied all ${generatedDrafts.length} reviews to clipboard!`, "success");
+    } catch (err) {
+      emitToast("Unable to copy to clipboard", "error");
+    }
+  };
+
   // AI Draft Generator Handlers
   const handleGenerateAiDrafts = async (e) => {
     e?.preventDefault();
@@ -318,13 +358,13 @@ export function AdminReviews() {
       const selProd = products.find(p => String(p.id) === String(aiGenForm.productId));
       const res = await db.generateReviewDrafts({
         ...aiGenForm,
-        productName: selProd?.name || (aiGenForm.productId === "all" ? "Rudraksha Sacred Store" : "5 Mukhi Rudraksha")
+        productName: aiGenForm.productName?.trim() || selProd?.name || (aiGenForm.productId === "all" ? "Rudraksha Sacred Store" : "5 Mukhi Rudraksha")
       });
       clearInterval(stepTimer);
       if (res?.success && Array.isArray(res.data)) {
         setGeneratedDrafts(res.data);
         setGenSummary(res.summary || null);
-        emitToast(`Generated ${res.data.length} editorial review draft(s)!`, "success");
+        emitToast(`Generated ${res.data.length} natural review(s)!`, "success");
       } else {
         throw new Error(res?.message || "Failed to generate drafts.");
       }
@@ -343,7 +383,7 @@ export function AdminReviews() {
       const res = await db.generateReviewDrafts({
         ...aiGenForm,
         count: 1,
-        productName: selProd?.name || (aiGenForm.productId === "all" ? "Rudraksha Sacred Store" : "5 Mukhi Rudraksha")
+        productName: aiGenForm.productName?.trim() || selProd?.name || (aiGenForm.productId === "all" ? "Rudraksha Sacred Store" : "5 Mukhi Rudraksha")
       });
       if (res?.success && res.data?.[0]) {
         const newDraft = res.data[0];
@@ -352,7 +392,7 @@ export function AdminReviews() {
           next[index] = newDraft;
           return next;
         });
-        emitToast(`Regenerated draft #${index + 1} with fresh unique phrasing.`, "success");
+        emitToast(`Regenerated review #${index + 1} with fresh natural phrasing.`, "success");
       }
     } catch (err) {
       emitToast("Could not regenerate draft.", "error");
@@ -785,29 +825,39 @@ export function AdminReviews() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid #ebdccb", paddingBottom: "16px", marginBottom: "20px" }}>
               <div>
                 <h2 style={{ color: "#7a320c", fontSize: "20px", display: "flex", alignItems: "center", gap: "8px", margin: "0 0 6px" }}>
-                  <Sparkles size={22} color="#d97706" /> AI Review Studio (Editorial Draft Engine)
+                  <Sparkles size={22} color="#d97706" /> AI Review Generator
                 </h2>
                 <p style={{ color: "#806f62", fontSize: "13px", margin: 0, maxWidth: "680px" }}>
-                  Generate concise, 1–3 line product-specific review drafts across English, Hindi, and Hinglish. Uses verified product details and strictly normalizes duplicate detection (0–100%).
+                  Generate short, natural-looking conversational reviews (1–4 short lines) with varied fictional names, realistic 3–5 star ratings, and custom key features.
                 </p>
               </div>
 
               <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", color: "#92400e", display: "flex", alignItems: "center", gap: "6px" }}>
                 <ShieldCheck size={16} />
-                <span>Internal Editorial Mode: Saved as <strong>AI DRAFT — INTERNAL</strong></span>
+                <span>Demo & Placeholder Mode • Natural Fictional Reviews</span>
               </div>
             </div>
 
             <form onSubmit={handleGenerateAiDrafts}>
-              <div className="admin-form-row">
+              {/* Product/Service Selection & Direct Name */}
+              <div className="admin-form-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Target Product</label>
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>1. Product / Service Catalog</label>
                   <select 
                     value={aiGenForm.productId}
-                    onChange={(e) => setAiGenForm({ ...aiGenForm, productId: e.target.value })}
+                    onChange={(e) => {
+                      const pid = e.target.value;
+                      const sel = products.find(p => String(p.id) === String(pid));
+                      setAiGenForm(prev => ({
+                        ...prev,
+                        productId: pid,
+                        productName: sel?.name || (pid === "all" ? "Aura Rudraksha Sacred Store" : prev.productName),
+                        keyFeatures: sel ? `${sel.name}, ${sel.category || 'Rudraksha'}, authentic certification, safe packaging` : prev.keyFeatures
+                      }));
+                    }}
                     className="aura-input"
                   >
-                    <option value="all">🏛️ General Aura Rudraksha Experience</option>
+                    <option value="all">🏛️ General Aura Store Experience</option>
                     {products.map(p => (
                       <option key={p.id} value={p.id}>🕉️ {p.name}</option>
                     ))}
@@ -815,128 +865,96 @@ export function AdminReviews() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Review Length (Brevity Control)</label>
-                  <select 
-                    value={aiGenForm.reviewLength}
-                    onChange={(e) => setAiGenForm({ ...aiGenForm, reviewLength: e.target.value })}
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Product / Service Name</label>
+                  <input 
+                    type="text"
+                    value={aiGenForm.productName}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, productName: e.target.value })}
+                    placeholder="e.g. 5 Mukhi Rudraksha Mala / Sacred Puja Japa"
                     className="aura-input"
-                  >
-                    <option value="Short">⚡ Short (8–20 words, 1–2 lines) [Default]</option>
-                    <option value="Medium">📝 Medium (20–35 words, 2–3 lines)</option>
-                    <option value="Long">📖 Detailed (35–55 words, 3–4 lines)</option>
-                  </select>
+                  />
                 </div>
 
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Batch Count</label>
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>3. Number of Reviews</label>
                   <select 
                     value={aiGenForm.count}
                     onChange={(e) => setAiGenForm({ ...aiGenForm, count: Number(e.target.value) })}
                     className="aura-input"
                   >
-                    <option value={1}>1 Single Draft</option>
-                    <option value={5}>5 Drafts (Standard 5 Angles)</option>
-                    <option value={10}>10 Drafts (Batch)</option>
-                    <option value={20}>20 Drafts (Bulk Preview)</option>
+                    <option value={1}>1 Review</option>
+                    <option value={3}>3 Reviews</option>
+                    <option value={5}>5 Reviews (Standard)</option>
+                    <option value={10}>10 Reviews</option>
+                    <option value={15}>15 Reviews</option>
+                    <option value={20}>20 Reviews</option>
                   </select>
                 </div>
               </div>
 
-              <div className="admin-form-row" style={{ marginTop: "16px" }}>
+              <div className="admin-form-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px", marginTop: "16px" }}>
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>⭐ Rating Distribution</label>
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>4. Language</label>
                   <select 
-                    value={aiGenForm.ratingMix}
-                    onChange={(e) => setAiGenForm({ ...aiGenForm, ratingMix: e.target.value })}
+                    value={aiGenForm.language}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, language: e.target.value, languageMix: e.target.value })}
                     className="aura-input"
                   >
-                    <option value="Mostly Positive">Mostly Positive (mostly 5★, some 4★)</option>
-                    <option value="Balanced">Balanced (equal 5★ & 4★, some 3★)</option>
-                    <option value="Natural Mix">Natural Mix (realistic mix of 5,4,3,2,1★)</option>
-                    <option value="Custom">Custom Percentage Mix</option>
+                    <option value="Hinglish">हिंग्लिश / Hinglish (Natural Conversational blend)</option>
+                    <option value="Hindi">हिंदी / Hindi (Clean Devanagari)</option>
+                    <option value="English">English (Crisp & Natural)</option>
+                    <option value="Auto Mix">Auto Mix (Hindi, Hinglish & English)</option>
                   </select>
                 </div>
 
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>🌐 Language Mix</label>
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>5. Rating Range</label>
                   <select 
-                    value={aiGenForm.languageMix}
-                    onChange={(e) => setAiGenForm({ ...aiGenForm, languageMix: e.target.value })}
+                    value={aiGenForm.ratingRange}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, ratingRange: e.target.value, ratingMix: e.target.value })}
                     className="aura-input"
                   >
-                    <option value="English">English Only</option>
-                    <option value="Hindi">Hindi Only (हिंदी)</option>
-                    <option value="Hinglish">Hinglish Only (Conversational)</option>
-                    <option value="Auto Mix">Auto Mix (English/Hindi/Hinglish)</option>
-                    <option value="Custom">Custom Percentage Mix</option>
+                    <option value="Realistic Mix (3-5 Stars)">Realistic Mix (Realistic blend of 3, 4 & 5 Stars) [Default]</option>
+                    <option value="5 Stars Only">5 Stars Only (⭐⭐⭐⭐⭐)</option>
+                    <option value="4 to 5 Stars">4 to 5 Stars (⭐⭐⭐⭐–⭐⭐⭐⭐⭐)</option>
+                    <option value="3 to 4 Stars">3 to 4 Stars (⭐⭐⭐–⭐⭐⭐⭐)</option>
                   </select>
                 </div>
 
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Editorial Tone</label>
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>Review Length</label>
                   <select 
-                    value={aiGenForm.tone}
-                    onChange={(e) => setAiGenForm({ ...aiGenForm, tone: e.target.value })}
+                    value={aiGenForm.reviewLength}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, reviewLength: e.target.value })}
                     className="aura-input"
                   >
-                    <option value="Authentic & Practical">🔍 Authentic & Practical (Mukhi lines, texture, box)</option>
-                    <option value="Devotional/Spiritual">🙏 Devotional & Spiritual (Puja, meditation, sanctity)</option>
-                    <option value="Concise/Direct">⚡ Concise & Direct (1–2 sharp sentences)</option>
-                    <option value="Joyful/Grateful">✨ Joyful & Grateful (Respectful contentment)</option>
+                    <option value="Short">⚡ 1–2 Short Lines (Concise)</option>
+                    <option value="Medium">📝 2–3 Short Lines</option>
+                    <option value="Long">📖 3–4 Short Lines</option>
                   </select>
                 </div>
               </div>
 
-              {/* Custom Sliders for Ratings & Language if Custom is selected */}
-              {(aiGenForm.ratingMix === "Custom" || aiGenForm.languageMix === "Custom") && (
-                <div className="admin-form-row" style={{ marginTop: "16px", padding: "16px", background: "#fff", borderRadius: "12px", border: "1px solid #eadecd" }}>
-                  {aiGenForm.ratingMix === "Custom" && (
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontWeight: "600", color: "#3b322c", display: "block", marginBottom: "8px" }}>Custom Rating %</label>
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        {[5,4,3,2,1].map(r => (
-                          <div key={r} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "bold" }}>{r}★</span>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              max="100" 
-                              style={{ width: "50px", textAlign: "center", padding: "4px", borderRadius: "6px", border: "1px solid #dcd1c6" }} 
-                              value={aiGenForm.customRatings[`r${r}`]} 
-                              onChange={(e) => setAiGenForm({...aiGenForm, customRatings: {...aiGenForm.customRatings, [`r${r}`]: parseInt(e.target.value) || 0}})} 
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {aiGenForm.languageMix === "Custom" && (
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontWeight: "600", color: "#3b322c", display: "block", marginBottom: "8px" }}>Custom Language %</label>
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        {['english', 'hindi', 'hinglish'].map(l => (
-                          <div key={l} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "bold", textTransform: "capitalize" }}>{l}</span>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              max="100" 
-                              style={{ width: "60px", textAlign: "center", padding: "4px", borderRadius: "6px", border: "1px solid #dcd1c6" }} 
-                              value={aiGenForm.customLanguages[l]} 
-                              onChange={(e) => setAiGenForm({...aiGenForm, customLanguages: {...aiGenForm.customLanguages, [l]: parseInt(e.target.value) || 0}})} 
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Product Description / Key Features Input Field */}
+              <div className="admin-form-group" style={{ marginTop: "16px" }}>
+                <label style={{ fontWeight: "600", color: "#3b322c", display: "flex", justifyContent: "space-between" }}>
+                  <span>2. Product Description / Key Features</span>
+                  <span style={{ fontSize: "12px", color: "#806f62", fontWeight: "normal" }}>Grounds the reviews with specific product attributes</span>
+                </label>
+                <textarea 
+                  rows={3}
+                  value={aiGenForm.keyFeatures || aiGenForm.productDescription}
+                  onChange={(e) => setAiGenForm({ ...aiGenForm, keyFeatures: e.target.value, productDescription: e.target.value })}
+                  placeholder="e.g. Quality, easy to use, safe packaging, authentic certification, lightweight daily wear, smooth bead finish..."
+                  className="aura-input"
+                  style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #ebdccb" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #ebdccb", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#806f62" }}>
                   <CheckCircle2 size={16} color="#16a34a" />
-                  <span>Jaccard + Semantic Duplicate Detection Active (0–100% normalized)</span>
+                  <span>Output Format: Name, Rating (⭐⭐⭐⭐⭐), Review (1–4 short lines)</span>
                 </div>
 
                 <button 
@@ -948,12 +966,12 @@ export function AdminReviews() {
                   {isGeneratingDrafts ? (
                     <>
                       <RefreshCw size={16} className="aura-spin" />
-                      <span>Generating Editorial Drafts...</span>
+                      <span>Generating Natural Reviews...</span>
                     </>
                   ) : (
                     <>
                       <Sparkles size={16} />
-                      <span>Generate Drafts ({aiGenForm.count})</span>
+                      <span>Generate Reviews ({aiGenForm.count})</span>
                     </>
                   )}
                 </button>
@@ -967,11 +985,11 @@ export function AdminReviews() {
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
                 <RefreshCw size={20} className="aura-spin" color="#d97706" />
                 <div>
-                  <strong style={{ fontSize: "15px", color: "#7a320c" }}>Generating Natural Editorial Review Drafts...</strong>
+                  <strong style={{ fontSize: "15px", color: "#7a320c" }}>Generating Natural Conversational Reviews...</strong>
                   <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#806f62" }}>
-                    {generationStep === 1 && "Step 1/3: Reading verified product specifications..."}
-                    {generationStep === 2 && "Step 2/3: Drafting 1–3 line natural product observations..."}
-                    {generationStep === 3 && "Step 3/3: Running normalized duplicate detection & similarity scoring..."}
+                    {generationStep === 1 && "Step 1/3: Reading product features & key attributes..."}
+                    {generationStep === 2 && "Step 2/3: Drafting 1–4 line conversational observations & fictional personas..."}
+                    {generationStep === 3 && "Step 3/3: Applying rating range and formatting outputs..."}
                   </p>
                 </div>
               </div>
@@ -987,7 +1005,7 @@ export function AdminReviews() {
               {/* Batch Action Toolbar */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", borderBottom: "1px solid #ebdccb", paddingBottom: "14px", marginBottom: "18px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "15px", fontWeight: "700", color: "#2b170d" }}>
+                  <span style={{ fontSize: "16px", fontWeight: "700", color: "#2b170d" }}>
                     Generated Reviews ({generatedDrafts.length})
                   </span>
                   
@@ -1001,36 +1019,44 @@ export function AdminReviews() {
                       <SlidersHorizontal size={11} /> {generatedDrafts.filter(d => d.similarityStatus === "Similar").length} Similar
                     </span>
                   )}
-
-                  {generatedDrafts.filter(d => d.similarityStatus === "Duplicate").length > 0 && (
-                    <span className="admin-badge danger" style={{ fontSize: "11px", padding: "3px 8px", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}>
-                      <X size={11} /> {generatedDrafts.filter(d => d.similarityStatus === "Duplicate").length} Duplicates (Auto-Blocked)
-                    </span>
-                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {/* Copy All Button */}
                   <button 
+                    type="button"
                     className="admin-btn"
+                    onClick={handleCopyAllDrafts}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", background: copiedAll ? "#15803d" : "#7a320c", color: "#fff", borderColor: copiedAll ? "#15803d" : "#7a320c" }}
+                  >
+                    {copiedAll ? <Check size={15} /> : <Copy size={15} />}
+                    <span>{copiedAll ? "Copied All Reviews!" : "Copy All Reviews"}</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    className="admin-btn secondary"
                     onClick={() => handleBulkPublishAllReviews(false)}
                     disabled={isBulkSaving || generatedDrafts.filter(d => d.similarityStatus !== "Duplicate").length === 0}
-                    style={{ display: "flex", alignItems: "center", gap: "6px", background: "#15803d", color: "#fff", borderColor: "#15803d" }}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", color: "#15803d" }}
                   >
                     <Check size={15} />
                     <span>Publish All Live ({generatedDrafts.filter(d => d.similarityStatus !== "Duplicate").length})</span>
                   </button>
 
                   <button 
+                    type="button"
                     className="admin-btn secondary"
                     onClick={() => handleBulkSaveAllDrafts(false)}
                     disabled={isBulkSaving || generatedDrafts.filter(d => d.similarityStatus !== "Duplicate").length === 0}
                     style={{ display: "flex", alignItems: "center", gap: "6px" }}
                   >
                     <Save size={15} />
-                    <span>Save All as Drafts</span>
+                    <span>Save as Drafts</span>
                   </button>
 
                   <button 
+                    type="button"
                     className="admin-btn secondary"
                     onClick={handleGenerateAiDrafts}
                     disabled={isGeneratingDrafts}
@@ -1041,6 +1067,7 @@ export function AdminReviews() {
                   </button>
 
                   <button 
+                    type="button"
                     className="admin-btn secondary"
                     onClick={() => setGeneratedDrafts([])}
                     style={{ display: "flex", alignItems: "center", gap: "6px", color: "#991b1b" }}
@@ -1056,17 +1083,16 @@ export function AdminReviews() {
                 {generatedDrafts.map((draft, idx) => {
                   const isDup = draft.similarityStatus === "Duplicate";
                   const isSim = draft.similarityStatus === "Similar";
-                  const score = formatSimilarityScore(draft.similarityScore);
-                  const wordCount = draft.text ? draft.text.trim().split(/\s+/).length : 0;
                   const devoteeName = draft.name || INDIAN_DEVOTEE_NAMES[idx % INDIAN_DEVOTEE_NAMES.length];
-                  const devoteeCity = draft.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
-                  const devoteeDate = draft.date || "2 days ago";
+                  const starCount = Number(draft.rating) || 5;
+                  const starsEmoji = "⭐".repeat(Math.max(1, Math.min(5, starCount)));
+                  const isThisCopied = copiedDraftIndex === idx;
 
                   return (
                     <div 
                       key={draft.id || idx}
                       style={{
-                        background: isDup ? "#fff5f5" : "#fffcf7",
+                        background: "#fffcf7",
                         border: isDup ? "1.5px solid #f87171" : isSim ? "1.5px solid #fcd34d" : "1.5px solid #e8dac9",
                         borderRadius: "14px",
                         padding: "16px",
@@ -1077,81 +1103,49 @@ export function AdminReviews() {
                       }}
                     >
                       <div>
-                        {/* Card Header: Real Devotee Identity */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                              <span style={{ fontSize: "13px", fontWeight: "700", color: "#2b170d" }}>
-                                {devoteeName}
-                              </span>
-                              <span style={{ fontSize: "11px", color: "#806f62", display: "flex", alignItems: "center", gap: "2px" }}>
-                                <MapPin size={11} color="#c2410c" /> {devoteeCity}
-                              </span>
-                            </div>
-                            
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              <div style={{ display: "flex", gap: "2px" }}>
-                                {[1, 2, 3, 4, 5].map((s) => (
-                                  <Star 
-                                    key={s} 
-                                    size={13} 
-                                    fill={s <= (draft.rating || 5) ? "#d97706" : "none"} 
-                                    color={s <= (draft.rating || 5) ? "#d97706" : "#d1d5db"} 
-                                  />
-                                ))}
-                              </div>
-                              <span style={{ fontSize: "10px", color: "#15803d", fontWeight: "600", display: "flex", alignItems: "center", gap: "2px", background: "#dcfce7", padding: "1px 5px", borderRadius: "4px" }}>
-                                <ShieldCheck size={11} /> Verified Devotee
-                              </span>
-                              <span style={{ fontSize: "10px", color: "#806f62" }}>• {devoteeDate}</span>
-                            </div>
+                        {/* Formatted Review Display Block (Matches exact requested format) */}
+                        <div style={{ background: "#fbf6ee", padding: "12px 14px", borderRadius: "10px", border: "1px solid #ebdccb", marginBottom: "12px" }}>
+                          <div style={{ marginBottom: "6px", fontSize: "14px", color: "#2b170d" }}>
+                            <strong>Name:</strong> {devoteeName}
                           </div>
-
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                            {isDup ? (
-                              <span className="admin-badge danger" style={{ fontSize: "10px", padding: "2px 6px", background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}>
-                                Duplicate ({score}%)
-                              </span>
-                            ) : isSim ? (
-                              <span className="admin-badge warning" style={{ fontSize: "10px", padding: "2px 6px" }}>
-                                Similar ({score}%)
-                              </span>
-                            ) : (
-                              <span className="admin-badge success" style={{ fontSize: "10px", padding: "2px 6px" }}>
-                                Authentic & Unique
-                              </span>
-                            )}
-
-                            <span style={{ fontSize: "10px", color: "#806f62", background: "#f0e6dc", padding: "1px 6px", borderRadius: "4px" }}>
-                              {wordCount} words • {draft.language || "English"}
-                            </span>
+                          <div style={{ marginBottom: "6px", fontSize: "14px", color: "#d97706", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <strong style={{ color: "#2b170d" }}>Rating:</strong> <span>{starsEmoji}</span>
+                            <span style={{ fontSize: "11px", color: "#806f62" }}>({starCount}/5)</span>
+                          </div>
+                          <div style={{ fontSize: "14px", color: "#3b322c", lineHeight: "1.5" }}>
+                            <strong style={{ color: "#2b170d" }}>Review:</strong> “{draft.text}”
                           </div>
                         </div>
 
-                        {/* Product Scope */}
-                        <div style={{ fontSize: "12px", fontWeight: "600", color: "#7a320c", marginBottom: "8px" }}>
-                          🕉️ {draft.productName || "Rudraksha Bead"}
+                        {/* Metadata pills */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", fontSize: "11px", color: "#806f62" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                            <MapPin size={11} color="#c2410c" /> {draft.city || "Jaipur, RJ"} • {draft.language || "Hinglish"}
+                          </span>
+                          <span style={{ background: "#f0e6dc", padding: "2px 6px", borderRadius: "4px" }}>
+                            {draft.productName || "Product"}
+                          </span>
                         </div>
-
-                        {/* Title & Body */}
-                        {draft.title && (
-                          <strong style={{ display: "block", fontSize: "13px", color: "#2b170d", marginBottom: "4px" }}>
-                            {draft.title}
-                          </strong>
-                        )}
-                        <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#4a3e36", lineHeight: "1.5" }}>
-                          {draft.text}
-                        </p>
                       </div>
 
                       {/* Card Footer Actions */}
                       <div style={{ borderTop: "1px solid #ebdccb", paddingTop: "12px", marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
                         <div style={{ display: "flex", gap: "4px" }}>
+                          {/* Copy Review Button */}
+                          <button 
+                            type="button"
+                            className="admin-icon-btn"
+                            onClick={() => handleCopySingleDraft(draft, idx)}
+                            title="Copy Review (Name, Rating, Review)"
+                            style={{ color: isThisCopied ? "#15803d" : "#7a320c" }}
+                          >
+                            {isThisCopied ? <Check size={14} /> : <Copy size={14} />}
+                          </button>
                           <button 
                             type="button"
                             className="admin-icon-btn"
                             onClick={() => handleShuffleDevotee(idx)}
-                            title="Shuffle Name & City"
+                            title="Shuffle Fictional Name"
                           >
                             <Shuffle size={14} />
                           </button>
@@ -1159,7 +1153,7 @@ export function AdminReviews() {
                             type="button"
                             className="admin-icon-btn"
                             onClick={() => handleStartEditDraft(idx)}
-                            title="Edit Name, Rating & Content"
+                            title="Edit Review Text or Rating"
                           >
                             <Edit3 size={14} />
                           </button>
@@ -1167,7 +1161,7 @@ export function AdminReviews() {
                             type="button"
                             className="admin-icon-btn"
                             onClick={() => handleRegenerateSingleDraft(idx)}
-                            title="Regenerate review text"
+                            title="Regenerate Review text"
                           >
                             <RefreshCw size={14} />
                           </button>
@@ -1175,7 +1169,7 @@ export function AdminReviews() {
                             type="button"
                             className="admin-icon-btn danger"
                             onClick={() => handleDiscardDraft(idx)}
-                            title="Discard review"
+                            title="Discard"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1201,15 +1195,13 @@ export function AdminReviews() {
                               fontSize: "11px",
                               background: "#15803d",
                               color: "#fff",
-                              borderColor: "#15803d",
-                              opacity: isDup ? 0.6 : 1
+                              borderColor: "#15803d"
                             }}
-                            disabled={isDup}
                             onClick={() => handlePublishSingleReview(draft, idx)}
-                            title={isDup ? "Auto-publish blocked for duplicate content" : "Publish live on store"}
+                            title="Publish live on store"
                           >
                             <Check size={12} style={{ marginRight: "3px" }} />
-                            <span>Publish Live</span>
+                            <span>Publish</span>
                           </button>
                         </div>
                       </div>

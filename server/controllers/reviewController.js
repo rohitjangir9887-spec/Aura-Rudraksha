@@ -332,18 +332,18 @@ export async function saveReviewSettings(req, res, next) {
 }
 
 // ----------------------------------------------------------------------
-// AUTHENTIC DEVOTEE PERSONAS & RELATIVE DATES FOR REALISTIC REVIEWS
+// NATURAL FICTIONAL DEVOTEE PERSONAS & RELATIVE DATES
 // ----------------------------------------------------------------------
-const INDIAN_DEVOTEE_NAMES = [
-  "Rahul Sharma", "Amitabh Joshi", "Pooja Trivedi", "Rajeshwari Sharma", 
-  "Vikas Malhotra", "Anand Kulkarni", "Deepak Verma", "Meenakshi Iyer", 
-  "Suresh Nair", "Rohan Patel", "Sneha Mukherjee", "Dr. Manoj Saxena", 
-  "Priya Kulkarni", "Sunita Agarwal", "Harish Chandra", "Neha Deshmukh",
-  "Aarav Singhania", "Divya Raghavan", "Aditya Swaminathan", "Ritu Bhandari",
-  "Alok Pandey", "Sanjay Bhattacharya", "Kavita Menon", "Prateek Goswami",
-  "Shalini Upadhyay", "Gaurav Sen", "Ananya Chaturvedi", "Tarun Rathore",
-  "Vikramaditya Roy", "Anuradha Hegde", "Kishore Somani", "Manish Purohit"
+const FICTIONAL_DEVOTEE_NAMES = [
+  "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir",
+  "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer", "Suresh Kumar",
+  "Kavita Reddy", "Rajesh Gupta", "Meenakshi Sundaram", "Amitabh Joshi", "Sneha Mukherjee",
+  "Alok Pandey", "Sunita Agarwal", "Harish Rawat", "Divya Pillai", "Manish Malhotra",
+  "Swati Saxena", "Ritu Bhandari", "Gaurav Mishra", "Kunal Singhania", "Vandana Tripathi",
+  "Abhishek Dubey", "Sanjay Kulkarni", "Aditya Swaminathan", "Pooja Trivedi", "Vikas Malhotra"
 ];
+
+const INDIAN_DEVOTEE_NAMES = FICTIONAL_DEVOTEE_NAMES;
 
 const INDIAN_DEVOTEE_CITIES = [
   "Varanasi, UP", "Haridwar, UK", "Rishikesh, UK", "Jaipur, RJ", 
@@ -360,201 +360,144 @@ const RELATIVE_DATES = [
   "3 days ago", "6 days ago", "10 days ago"
 ];
 
+// Helper to extract key features words/phrases from description
+function extractKeyFeaturesList(descriptionText) {
+  if (!descriptionText || typeof descriptionText !== "string") return [];
+  return descriptionText
+    .split(/[\n,;•·|]/)
+    .map(s => s.trim())
+    .filter(s => s.length > 2 && s.length < 80);
+}
+
 // ----------------------------------------------------------------------
-// NATURAL MULTI-ANGLE DRAFT GENERATOR (SHORT, 1-3 LINES, PRODUCT SPECIFIC)
+// NATURAL CONVERSATIONAL DRAFT GENERATOR (1-4 SHORT LINES, KEY FEATURES GROUNDED)
 // ----------------------------------------------------------------------
-function buildDiverseFallbackDrafts({ productName, language = "English", reviewLength = "Short", count = 5, ratingMix = "Mostly Positive" }) {
+function buildDiverseFallbackDrafts({ 
+  productName, 
+  productDescription = "",
+  keyFeatures = "",
+  language = "English", 
+  reviewLength = "Short", 
+  count = 5, 
+  ratingMix = "Realistic Mix",
+  ratingRange = "Realistic Mix (3-5 Stars)" 
+}) {
   const drafts = [];
-  const prodName = productName || "Rudraksha Bead";
-  const isHindi = language === "Hindi";
-  const isHinglish = language === "Hinglish";
+  const prodName = productName?.trim() || "Product";
+  const featText = (keyFeatures || productDescription || "").trim();
+  const featuresList = extractKeyFeaturesList(featText);
 
-  // Length word constraints: Short (8-20 words), Medium (20-35 words), Long (35-60 words)
-  const isShort = reviewLength === "Short";
-  const isMedium = reviewLength === "Medium";
+  // Pool of natural conversational templates across languages
+  // Grounded in realistic customer experiences without marketing hype
 
-  // Distinct 6 Authentic Devotee Angles:
-  // Angle 1: Product Appearance / Mukhi Grooves & Natural Clefts
-  // Angle 2: Packaging, Red Velvet Pouch & Lab Certificate
-  // Angle 3: Bead Texture, Natural Weight & Sandalwood Aroma
-  // Angle 4: Craftsmanship, Durable Threading & Daily Japa Wear
-  // Angle 5: Spiritual Meditation Peace & Daily Sadhana Feel
-  // Angle 6: Authentic Quality & Accurate Description
-
-  const englishAngles = [
-    // Angle 1: Appearance & Ridges
-    {
-      title: "Clear mukhi lines & natural organic shape",
-      short: `The contours on the ${prodName} are distinct and neatly formed. Good natural shape.`,
-      medium: `The mukhi grooves on this ${prodName} are clearly defined with an unpolished natural finish. Feels authentic and well-centered.`,
-      long: `Received the ${prodName} with sharply defined mukhi lines and balanced proportions. The natural seed structure has no artificial glossy coating, preserving the traditional feel.`
-    },
-    // Angle 2: Packaging & Certificate
-    {
-      title: "Neat packaging with sacred pouch & certificate",
-      short: `Arrived safely in a neat box with a red sacred pouch and lab card. Packing was very tidy.`,
-      medium: `Packaging was dignified and secure with a red velvet pouch. The ${prodName} came with an authentic testing certificate.`,
-      long: `The packaging was handled with care and respect. The ${prodName} arrived securely packed in a traditional pouch with clear care guidelines and certificate.`
-    },
-    // Angle 3: Bead Texture & Density
-    {
-      title: "Solid natural weight and authentic woody texture",
-      short: `Natural seed texture feels sturdy in hand. No chemical odor or fake shine.`,
-      medium: `The tactile density of the ${prodName} is reassuring. The surface grooves are organic and smooth against skin.`,
-      long: `Holding the ${prodName} feels grounded due to its organic weight. The natural woody texture has good depth and absorbs sandalwood oil evenly without losing its color.`
-    },
-    // Angle 4: Craftsmanship & Fit
-    {
-      title: "Durable thread & comfortable for daily wear",
-      short: `Threading is sturdy and sits comfortably. Very convenient for daily use.`,
-      medium: `The cord binding is durable and properly aligned through the center. Comfortable for daily wearing and japa.`,
-      long: `The knotting and hole alignment on this ${prodName} are cleanly done. It sits easily against the collarbone without twisting or pulling during daily movement.`
-    },
-    // Angle 5: Meditation & Spiritual Feel
-    {
-      title: "Peaceful energy during daily japa & meditation",
-      short: `Brings a very calm and grounded feeling during morning meditation. Very pleased with the quality.`,
-      medium: `Holding this ${prodName} during daily 108 mantra chanting feels deeply calming and peaceful. Genuine sacred energy.`,
-      long: `Using this ${prodName} during morning prayers has been a wonderful spiritual experience. The bead feels energized and natural.`
-    },
-    // Angle 6: Concise Opinion
-    {
-      title: "Satisfied with product quality & authentic feel",
-      short: `Simple, genuine and matches the product photo exactly. Satisfied with the purchase.`,
-      medium: `Matches the store photos and description accurately. A reliable, well-crafted sacred bead for daily contemplation.`,
-      long: `Overall a very smooth experience with accurate product representation. The ${prodName} matches the website specifications faithfully with honest craftsmanship.`
-    }
+  // HINGLISH TEMPLATES (Natural, conversational mix)
+  const hinglishTemplates = [
+    (name, f) => `Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।`,
+    (name, f) => `Overall अच्छा experience रहा। Product अच्छा लगा और price के हिसाब से ठीक है।`,
+    (name, f) => `पहली बार try किया। Quality अच्छी लगी और use करना भी काफी simple है।`,
+    (name, f) => f[0] 
+      ? `${f[0]} सच में काफी बढ़िया है। Delivery on time हुई और safe packing मिली।` 
+      : `${name} की finish काफी neat है। Regular use के लिए एकदम suitable लगा।`,
+    (name, f) => f[1] 
+      ? `Product description के हिसाब से एकदम perfect निकला। ${f[1]} का अनुभव काफी अच्छा रहा।`
+      : `Delivery fast थी और product जैसा photo में था वैसा ही receive हुआ। Value for money.`,
+    (name, f) => `Quality decent है और finishing साफ-सुथरी है। Overall satisfied हूँ purchase से।`,
+    (name, f) => f[0] 
+      ? `${f[0]} बहुत natural और authentic लगा। Simple use और solid build.`
+      : `Genuine product मिला। Packing बहुत safe थी और quality में कोई शिकायत नहीं।`,
+    (name, f) => `Daily routine में use करना काफी comfortable है। Worth the price.`,
+    (name, f) => `Packaging neat थी और product quality उम्मीद के मुताबिक अच्छी निकली। Highly recommended.`,
+    (name, f) => f[2] 
+      ? `Details एकदम accurate हैं, especially ${f[2]}। Honest quality मिली।`
+      : `Product time pe deliver hua. Quality aur feel dono kaafi authentic lag rahe hain.`
   ];
 
-  const hindiAngles = [
-    // Angle 1: Appearance & Ridges
-    {
-      title: "स्पष्ट मुखी रेखाएं एवं प्राकृतिक बनावट",
-      short: `${prodName} की मुखी रेखाएं बिल्कुल स्पष्ट और प्राकृतिक हैं। दिखने में सुंदर है।`,
-      medium: `इस ${prodName} का प्राकृतिक गठन और मुखी का विभाजन साफ नजर आता है। कोई बनावटी पॉलिश नहीं है।`,
-      long: `${prodName} की प्राकृतिक धारियां बहुत सुडौल और संतुलित हैं। दाने का आकार और प्राकृतिक स्वरूप वैदिक मर्यादा के अनुकूल है।`
-    },
-    // Angle 2: Packaging & Certificate
-    {
-      title: "सुरक्षित एवं सुंदर सात्विक पैकेजिंग व प्रमाण पत्र",
-      short: `लाल कपड़े की पोटली, लैब सर्टिफिकेट और मजबूत बॉक्स में सुरक्षित प्राप्त हुआ। पैकेजिंग बहुत अच्छी थी।`,
-      medium: `पैकेजिंग अत्यंत सात्विक और सुरक्षित थी। ${prodName} के साथ प्रामाणिकता प्रमाण पत्र भी मिला।`,
-      long: `पैकेजिंग में सात्विकता और सुरक्षा का पूरा ध्यान रखा गया है। लाल थैली, सर्टिफिकेट और बॉक्स बहुत व्यवस्थित हैं।`
-    },
-    // Angle 3: Texture & Density
-    {
-      title: "प्राकृतिक भार और शुद्ध स्पर्श",
-      short: `दाने का प्राकृतिक वजन और स्पर्श अत्यंत संतोषप्रद है। रासायनिक गंध बिल्कुल नहीं है।`,
-      medium: `हाथ में लेने पर ${prodName} का प्राकृतिक घनत्व और भार महसूस होता है। दाने की सतह एकदम स्वाभाविक है।`,
-      long: `${prodName} का प्राकृतिक गठन और स्पर्श बहुत सुखद है। चंदन के तेल के साथ इसका प्राकृतिक रंग और बनावट और भी निखर कर आती है।`
-    },
-    // Angle 4: Craftsmanship & Fit
-    {
-      title: "मजबूत धागा एवं आरामदायक धारण",
-      short: `धागे की बनावट मजबूत है और धारण करने में काफी सहज रहता है।`,
-      medium: `दाने का केंद्र छेद बिल्कुल सीधा है और धागा मजबूत है। नित्य पूजा और साधना के लिए उपयुक्त है।`,
-      long: `${prodName} की गुंथावट और धागे की मजबूती बहुत अच्छी है। दैनिक दिनचर्या में धारण करने पर कोई असुविधा नहीं होती।`
-    },
-    // Angle 5: Spiritual Feel
-    {
-      title: "दैनिक पूजा और जप में असीम शांति का अनुभव",
-      short: `नित्य पूजा एवं ध्यान के समय मन को बहुत शांति मिलती है। अत्यंत प्रामाणिक रुद्राक्ष।`,
-      medium: `प्रातः काल 108 महामृत्युंजय मंत्र जप के समय इस ${prodName} को धारण करने से मन एकाग्र रहता है।`,
-      long: `${prodName} की दिव्यता और सात्विक ऊर्जा अद्भुत है। दैनिक साधना में इसे धारण करने से आत्मिक शांति का अनुभव होता है।`
-    },
-    // Angle 6: Concise Opinion
-    {
-      title: "तस्वीर के अनुसार ही उत्पाद प्राप्त हुआ",
-      short: `जैसा विवरण में देखा था वैसा ही मिला। गुणवत्ता से पूरा संतोष है।`,
-      medium: `वेबसाइट पर दिखाए गए चित्र के अनुसार ही ${prodName} प्राप्त हुआ। गुणवत्ता और सेवा दोनों सराहनीय हैं।`,
-      long: `उत्पाद का विवरण पूरी तरह प्रामाणिक निकला। ${prodName} की गुणवत्ता और सात्विक स्वरूप मन को प्रसन्नता देता है।`
-    }
+  // HINDI TEMPLATES (Clean, natural conversational Devanagari)
+  const hindiTemplates = [
+    (name, f) => `गुणवत्ता उम्मीद से काफी बेहतर लगी। उपयोग करने में सरल है और पैकेजिंग भी बहुत व्यवस्थित थी।`,
+    (name, f) => `कुल मिलाकर बहुत अच्छा अनुभव रहा। उत्पाद की बनावट सुंदर है और मूल्य के अनुसार सही है।`,
+    (name, f) => `पहली बार मंगाया था। फिनिशिंग साफ-सुथरी है और उपयोग करना भी बहुत आसान है।`,
+    (name, f) => f[0] 
+      ? `${f[0]} का अनुभव बहुत संतोषप्रद रहा। समय पर सुरक्षित डिलीवरी मिली।`
+      : `${name} की गुणवत्ता बहुत स्वाभाविक और प्रामाणिक है। दैनिक उपयोग के लिए एकदम उपयुक्त।`,
+    (name, f) => f[1] 
+      ? `विवरण के अनुसार ही उत्पाद प्राप्त हुआ। ${f[1]} की सुविधा बहुत अच्छी लगी।`
+      : `उत्पाद एकदम असली और शुद्ध लगा। सुरक्षित पैकेजिंग के साथ समय पर पहुंचा।`,
+    (name, f) => `दैनिक पूजा और साधना के लिए बहुत अच्छा उत्पाद है। सात्विक स्वरूप से मन प्रसन्न हुआ।`,
+    (name, f) => `पैकेजिंग बहुत अच्छी थी और गुणवत्ता में कोई कमी नहीं दिखी। पूरी तरह संतुष्ट हूँ।`,
+    (name, f) => f[0] 
+      ? `${f[0]} बहुत स्पष्ट और स्वाभाविक है। उचित मूल्य में उत्तम उत्पाद।`
+      : `जैसा फोटो में देखा था, बिल्कुल वैसा ही मिला। उपयोग में अत्यंत सहज और टिकाऊ।`
   ];
 
-  const hinglishAngles = [
-    // Angle 1: Appearance & Ridges
-    {
-      title: "Clear mukhi lines aur natural shape",
-      short: `${prodName} ki mukhi lines ekdum naturally formed hain. Finishing kaafi neat hai.`,
-      medium: `${prodName} ka natural texture aur clear mukhi ridges bohot achhi quality ke lag rahe hain. No fake polish.`,
-      long: `${prodName} ki natural ridges bilkul distinct aur well-formed hain. Photo ke jaisa hi natural look mila without any artificial shine.`
-    },
-    // Angle 2: Packaging
-    {
-      title: "Neat packaging aur lab certificate ke sath mila",
-      short: `Red sacred pouch, lab card aur safe box packing ke sath mila. Packing kaafi neat thi.`,
-      medium: `Packaging bohot respectful aur safe thi. ${prodName} testing certificate ke sath securely deliver hua.`,
-      long: `Packaging kaafi neat aur dignified thi. Red pouch ke sath safely pack kiya gaya tha, overall unboxing experience achha raha.`
-    },
-    // Angle 3: Texture & Density
-    {
-      title: "Natural weight aur organic feel",
-      short: `Bead ka solid natural weight feel hota hai. Surface texture bilkul authentic hai.`,
-      medium: `${prodName} ka density aur organic feel genuine Himalayan seed jaisa hai. Skin pe touch comfortable hai.`,
-      long: `Bead ka natural weight aur texture bohot solid hai. Sandalwood oil apply karne ke baad natural look aur better lagta hai.`
-    },
-    // Angle 4: Craftsmanship & Fit
-    {
-      title: "Sturdy threading aur daily wear mein comfortable",
-      short: `Thread binding strong hai aur daily wear mein kaafi comfortable rehta hai.`,
-      medium: `Hole alignment center mein hai aur thread ka knot strong hai. Daily use ke liye lightweight aur durable.`,
-      long: `${prodName} ka thread work durable hai aur neck pe bilkul natural fit baithta hai. Daily meditation ke waqt comfortable rehta hai.`
-    },
-    // Angle 5: Spiritual Feel
-    {
-      title: "Daily morning japa ke liye perfect bead",
-      short: `Subah meditation aur japa ke waqt kaafi positive aur calm feel hota hai. Genuine product.`,
-      medium: `Daily 108 times mantra japa ke waqt yeh ${prodName} bohot soothing vibration deta hai. Fully satisfied.`,
-      long: `Mera daily routine is ${prodName} ke sath shuru hota hai. Authentic bead hai, puja altar pe bhi aesthetic lagta hai.`
-    },
-    // Angle 6: Concise Opinion
-    {
-      title: "Product photo ke jaisa hi mila",
-      short: `Product photo ke jaisa hi mila. Quality aur packing dono achhe lage.`,
-      medium: `Photo aur description ke exact match mila. Simple, honest quality and completely satisfied.`,
-      long: `Overall experience kaafi smooth raha. ${prodName} exactly description ke hisaab se receive hua, reliable purchase.`
-    }
+  // ENGLISH TEMPLATES (Crisp, conversational, 1-3 lines)
+  const englishTemplates = [
+    (name, f) => `Quality exceeded expectations. Very simple to use and arrived in neat, safe packaging.`,
+    (name, f) => `Overall a very smooth experience. Product matches description accurately and feels worth the price.`,
+    (name, f) => `Tried it for the first time. Build quality is solid and it is very comfortable for daily use.`,
+    (name, f) => f[0] 
+      ? `The ${f[0]} is noticeably well made. Delivered on time in secure packaging.`
+      : `Clean finish and genuine feel. Exactly what I was looking for.`,
+    (name, f) => f[1] 
+      ? `Matches the specifications nicely, especially the ${f[1]}. Good natural craftsmanship.`
+      : `Fast shipping and honest product quality. No artificial shine or unnecessary coating.`,
+    (name, f) => `Solid and lightweight for everyday routine. Happy with the purchase.`,
+    (name, f) => `Safe packaging and authentic finish. Looks and feels reliable for long-term use.`,
+    (name, f) => f[0] 
+      ? `Appreciate the genuine ${f[0]}. Simple, durable, and fairly priced.`
+      : `Decent product that functions as described. Satisfied with the overall quality.`
   ];
+
+  const resolvedRatingMode = ratingRange || ratingMix || "Realistic Mix";
 
   for (let i = 0; i < count; i++) {
-    const angleIndex = i % 6;
-    let angleData;
-
-    if (isHindi) {
-      angleData = hindiAngles[angleIndex];
-    } else if (isHinglish) {
-      angleData = hinglishAngles[angleIndex];
-    } else {
-      angleData = englishAngles[angleIndex];
+    // Determine language for this review
+    let currentLang = language;
+    if (language === "Auto Mix") {
+      const mod = i % 3;
+      currentLang = mod === 0 ? "Hinglish" : (mod === 1 ? "Hindi" : "English");
     }
 
-    let textBody = isShort ? angleData.short : (isMedium ? angleData.medium : angleData.long);
+    let textBody = "";
+    let templateIndex = i % 10;
 
-    // Natural rating assignment based on distribution
+    if (currentLang === "Hindi") {
+      const tpl = hindiTemplates[templateIndex % hindiTemplates.length];
+      textBody = tpl(prodName, featuresList);
+    } else if (currentLang === "Hinglish") {
+      const tpl = hinglishTemplates[templateIndex % hinglishTemplates.length];
+      textBody = tpl(prodName, featuresList);
+    } else {
+      const tpl = englishTemplates[templateIndex % englishTemplates.length];
+      textBody = tpl(prodName, featuresList);
+    }
+
+    // Determine realistic rating based on selection
     let r = 5;
-    if (ratingMix === "Mostly Positive") {
+    if (resolvedRatingMode.includes("5 Stars Only") || resolvedRatingMode === "5_stars") {
+      r = 5;
+    } else if (resolvedRatingMode.includes("4 to 5") || resolvedRatingMode === "4_5_stars") {
+      r = (i % 3 === 2) ? 4 : 5;
+    } else if (resolvedRatingMode.includes("3 to 4") || resolvedRatingMode === "3_4_stars") {
+      r = (i % 2 === 0) ? 4 : 3;
+    } else if (resolvedRatingMode.includes("Mostly Positive")) {
       r = (i % 4 === 3) ? 4 : 5;
-    } else if (ratingMix === "Balanced") {
-      if (i % 3 === 0) r = 5;
-      else if (i % 3 === 1) r = 4;
-      else r = 3;
     } else {
-      // Natural mix
-      const rnd = (i * 17 + 7) % 100;
-      if (rnd < 65) r = 5;
-      else if (rnd < 90) r = 4;
-      else if (rnd < 96) r = 3;
-      else r = 5;
+      // Realistic mix of 3, 4, and 5 stars
+      const mod = i % 5;
+      if (mod === 0 || mod === 1 || mod === 3) r = 5;
+      else if (mod === 2 || mod === 4) r = 4;
+      if (count > 4 && i % 6 === 5) r = 3;
     }
 
-    const devoteeName = INDIAN_DEVOTEE_NAMES[i % INDIAN_DEVOTEE_NAMES.length];
+    const devoteeName = FICTIONAL_DEVOTEE_NAMES[i % FICTIONAL_DEVOTEE_NAMES.length];
     const devoteeCity = INDIAN_DEVOTEE_CITIES[i % INDIAN_DEVOTEE_CITIES.length];
     const relativeDate = RELATIVE_DATES[i % RELATIVE_DATES.length];
-    const helpfulVotes = (i % 3 === 0) ? Math.floor(Math.random() * 6) + 2 : Math.floor(Math.random() * 3) + 1;
+    const helpfulVotes = (i % 3 === 0) ? Math.floor(Math.random() * 5) + 2 : Math.floor(Math.random() * 3) + 1;
 
     drafts.push({
       id: `DRAFT-${Date.now()}-${i + 1}`,
-      title: angleData.title,
+      title: `${prodName} Review`,
       text: textBody,
       rating: r,
       isAiGenerated: false,
@@ -568,10 +511,10 @@ function buildDiverseFallbackDrafts({ productName, language = "English", reviewL
       source: "customer",
       helpfulUp: helpfulVotes,
       helpfulDown: 0,
-      productId: productName ? "5" : "5",
+      productId: "5",
       productName: prodName,
       type: "product",
-      language: language,
+      language: currentLang,
       images: []
     });
   }
@@ -587,35 +530,46 @@ export async function generateReviewDrafts(req, res, next) {
     const {
       productId = "5",
       productName,
-      ratingMix = "Mostly Positive", // "Mostly Positive" | "Balanced" | "Natural Mix" | "Custom"
+      productDescription = "",
+      keyFeatures = "",
+      ratingRange = "Realistic Mix (3-5 Stars)",
+      ratingMix = "Mostly Positive", // fallback compatibility
       customRatings,
-      languageMix = "English", // "English" | "Hindi" | "Hinglish" | "Auto Mix"
+      languageMix = "Hinglish", // "Hindi" | "Hinglish" | "English" | "Auto Mix"
+      language = "Hinglish",
       customLanguages,
-      reviewLength = "Short", // "Short" (8-20 words) | "Medium" (20-35 words) | "Long" (35-60 words)
-      tone = "Authentic & Practical",
+      reviewLength = "Short", // "Short" (1-2 lines) | "Medium" (2-3 lines) | "Long" (3-4 lines)
+      tone = "Authentic & Conversational",
       count = 5,
       verified = true,
       useRAG = true
     } = req.body;
 
     const requestedCount = Math.max(1, Math.min(50, Number(count) || 5));
+    const effectiveLanguage = language || languageMix || "Hinglish";
+    const effectiveRatingMode = ratingRange || ratingMix || "Realistic Mix";
     
     // Resolve product name and attributes
-    let resolvedProductName = productName;
-    let productDetails = "";
-    if (productId && productId !== "all") {
+    let resolvedProductName = productName?.trim();
+    let productDetails = (keyFeatures || productDescription || "").trim();
+
+    if (!resolvedProductName && productId && productId !== "all") {
       if (isDbConnected()) {
         const p = await Product.findOne({ id: String(productId) }).lean();
         if (p) {
           resolvedProductName = p.name;
-          productDetails = `Product Name: ${p.name}, Category: ${p.category || 'Rudraksha'}, Bead Type: ${p.mukhi || ''} Mukhi, Material: Natural Himalayan Seed.`;
+          if (!productDetails) {
+            productDetails = `${p.name} - ${p.category || 'Rudraksha'}, ${p.mukhi || ''} Mukhi, Natural Himalayan bead, authentic lab certified.`;
+          }
         }
       }
       if (!resolvedProductName) {
         const dp = defaultProducts.find(p => String(p.id) === String(productId));
         if (dp) {
           resolvedProductName = dp.name;
-          productDetails = `Product Name: ${dp.name}, Category: ${dp.category || 'Rudraksha'}.`;
+          if (!productDetails) {
+            productDetails = `${dp.name} - Natural Authentic Himalayan Bead, certified quality, velvet pouch packaging.`;
+          }
         }
       }
     }
@@ -634,41 +588,32 @@ export async function generateReviewDrafts(req, res, next) {
 
     if (nvidiaApiKey) {
       try {
-        const lengthGuideline = reviewLength === "Short" 
-          ? "CRITICAL LENGTH: Each review MUST be SHORT (1 to 2 lines, strictly 8 to 20 words)."
-          : (reviewLength === "Medium" 
-            ? "CRITICAL LENGTH: Each review MUST be concise (2 to 3 lines, strictly 20 to 35 words)."
-            : "CRITICAL LENGTH: Each review MUST be 3 to 4 lines, strictly 35 to 55 words. Never generate huge paragraphs.");
+        const systemPrompt = `You are a review generator that creates short, natural-looking fictional/sample customer reviews for website demo or placeholder use.
 
-        const systemPrompt = `You are an expert review generator for an authentic Indian sacred Rudraksha and spiritual store (Aura Rudraksha).
-Generate realistic, authentic-sounding customer reviews written by genuine Indian devotees across India.
+CRITICAL RULES:
+1. REVIEW FORMAT: Each review must have a realistic fictional customer Name, Rating (realistic mix of 3, 4, and 5 stars), and Review text (1 to 4 short lines).
+2. TONE & VOCABULARY: Natural, conversational ${effectiveLanguage}.
+   - In Hindi: natural spoken Hindi with Devanagari script.
+   - In Hinglish: natural modern conversational blend (e.g. "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।", "Overall अच्छा experience रहा। Product अच्छा लगा और price के हिसाब से ठीक है।").
+   - In English: concise, natural everyday English without robotic phrasing.
+3. GROUNDING: Only mention product features provided by the user in Product Name and Description/Key Features (${productDetails || resolvedProductName}). Do NOT invent unrelated wild claims.
+4. BREVITY: Keep each review strictly 1 to 3 short lines (under 30 words).
+5. AVOID CLICHES: Strictly avoid repetitive marketing phrases like "life changing", "best in the world", "as an AI". Vary sentence structures across reviews.
+6. DIVERSE FICTIONAL NAMES: Use realistic Indian names like "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer".
 
-MANDATORY RULES:
-1. ${lengthGuideline}
-2. REALISTIC INDIAN DEVOTEE NAMES & CITIES: Generate diverse realistic Indian customer names (e.g., "Rahul Sharma", "Pooja Trivedi", "Amitabh Joshi", "Ananya Iyer", "Vikas Malhotra", "Rajeshwari Sharma", "Deepak Verma", "Meenakshi Sundaram", "Sneha Mukherjee") and realistic Indian cities/states (e.g. "Varanasi, UP", "Haridwar, UK", "Jaipur, RJ", "Pune, MH", "Bengaluru, KA", "New Delhi", "Ahmedabad, GJ", "Indore, MP", "Rishikesh, UK", "Ujjain, MP").
-3. REALISTIC TOPICS COVERED:
-   - Clear natural mukhi lines and unpolished raw bead texture
-   - Red sacred velvet pouch, Ganga Jal / sandalwood touch, and safe packaging
-   - Lab testing certificate card received
-   - Daily japa (108 mantra chanting) and peaceful meditation feel
-   - Durable thread knotting and comfortable daily wearing
-4. LANGUAGE: Generate in "${languageMix}". For Hindi use clean respectful Devanagari, for Hinglish use natural conversational phrasing (e.g., "mukhi lines kaafi clear hain", "safe packing ke sath mila", "daily meditation ke liye best").
-5. RATINGS: Assign mostly 5 or 4 stars (according to "${ratingMix}").
-6. NO ROBOTIC CLICHES: Strictly avoid repetitive phrases like "Very good product", "I am very satisfied". Use natural vocabulary.
-
-OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown backticks:
+OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown wrappers:
 [
   {
-    "name": "Rahul Sharma",
-    "city": "Varanasi, UP",
-    "title": "Clear mukhi lines & natural shape",
-    "text": "The bead has distinct mukhi lines and natural unpolished texture. Safe red pouch packaging.",
+    "name": "Aman Sharma",
+    "city": "Jaipur, RJ",
+    "title": "Natural finish & good quality",
+    "text": "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।",
     "rating": 5,
-    "language": "${languageMix}"
+    "language": "${effectiveLanguage}"
   }
 ]`;
 
-        const userPrompt = `Generate ${requestedCount} realistic customer reviews for: ${resolvedProductName}. Details: ${productDetails}. Tone: ${tone}.`;
+        const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}".`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -704,14 +649,14 @@ OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown backti
             rawDrafts = parsed.map((item, idx) => {
               const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
                 ? item.name
-                : INDIAN_DEVOTEE_NAMES[idx % INDIAN_DEVOTEE_NAMES.length];
+                : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
 
               const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
               const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
 
               return {
                 id: `DRAFT-${Date.now()}-${idx + 1}`,
-                title: item.title || `Authentic Devotee Review #${idx + 1}`,
+                title: item.title || `${resolvedProductName} Review`,
                 text: (item.text || item.body || "").trim(),
                 rating: Number(item.rating) || 5,
                 name: assignedName,
@@ -723,10 +668,10 @@ OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown backti
                 source: "customer",
                 helpfulUp: Math.floor(Math.random() * 5) + 1,
                 helpfulDown: 0,
-                productId: String(productId),
+                productId: String(productId || "5"),
                 productName: resolvedProductName,
                 type: "product",
-                language: item.language || languageMix,
+                language: item.language || effectiveLanguage,
                 images: []
               };
             });
@@ -741,10 +686,13 @@ OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown backti
     if (!rawDrafts || rawDrafts.length < requestedCount) {
       const fallbackList = buildDiverseFallbackDrafts({
         productName: resolvedProductName,
-        language: languageMix === "Auto Mix" ? "English" : languageMix,
+        productDescription,
+        keyFeatures,
+        language: effectiveLanguage,
         reviewLength,
         count: requestedCount,
-        ratingMix
+        ratingMix: effectiveRatingMode,
+        ratingRange: effectiveRatingMode
       });
       const needed = requestedCount - rawDrafts.length;
       rawDrafts = [...rawDrafts, ...fallbackList.slice(0, needed)];
@@ -769,10 +717,13 @@ OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown backti
       if (finalSimResult.similarityStatus === "Duplicate") {
         const variation = buildDiverseFallbackDrafts({
           productName: resolvedProductName,
-          language: languageMix === "Auto Mix" ? "English" : languageMix,
+          productDescription,
+          keyFeatures,
+          language: effectiveLanguage,
           reviewLength,
           count: 1,
-          ratingMix
+          ratingMix: effectiveRatingMode,
+          ratingRange: effectiveRatingMode
         })[0];
         if (variation && variation.text !== finalDraft.text) {
           finalDraft = { ...finalDraft, text: variation.text, title: variation.title };
