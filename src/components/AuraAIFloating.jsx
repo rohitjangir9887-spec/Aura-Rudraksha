@@ -391,7 +391,7 @@ export function AuraAIFloating() {
       {/* 3. Aura AI Window - True Floating Interactive Guide (Draggable across screen) */}
       <AnimatePresence>
         {isOpen && (
-          <div className="aura-ai-floating-container" style={{ touchAction: "none" }}>
+          <div className="aura-ai-floating-container">
             <motion.div
               id="aura-ai-floating-panel"
               className="aura-ai-panel aura-ai-panel-compact"
@@ -408,7 +408,7 @@ export function AuraAIFloating() {
               dragMomentum={false}
               dragElastic={0}
               whileDrag={{ cursor: "grabbing" }}
-              style={{ transformOrigin: "bottom center", touchAction: "none", willChange: "transform" }}
+              style={{ transformOrigin: "bottom center", willChange: "transform" }}
             >
               {/* Header - Drag Handle Area */}
               <div 

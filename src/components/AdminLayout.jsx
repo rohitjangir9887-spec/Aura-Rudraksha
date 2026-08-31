@@ -68,7 +68,7 @@ export function AdminLayout({children}) {
         }).catch(() => null);
 
         const json = res ? await res.json().catch(() => ({})) : {};
-        const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+        const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
         const targetPhoneDigits = "9672996531";
         const authUser = authClient.getUser();
         const resEmail = (json.data?.email || authUser?.email || "").trim().toLowerCase();
@@ -85,7 +85,7 @@ export function AdminLayout({children}) {
         const authUser = authClient.getUser();
         const userEmail = (authUser?.email || "").trim().toLowerCase();
         const userPhone = (authUser?.phoneNumber || "").replace(/[^0-9]/g, "");
-        const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+        const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
         const targetPhoneDigits = "9672996531";
         if (allowedEmails.includes(userEmail) || userPhone.endsWith(targetPhoneDigits)) {
           setAdminSession({ email: userEmail || 'rohitjangir8740@gmail.com' });

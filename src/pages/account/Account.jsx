@@ -149,7 +149,7 @@ export function Account() {
   const isAuthorizedAdminIdentity = () => {
     const email = (userEmail || user?.email || profile?.email || "").trim().toLowerCase();
     const phone = (profile?.phone || user?.phoneNumber || "").replace(/[^0-9]/g, "");
-    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
     const targetPhoneDigits = "9672996531";
     return allowedEmails.includes(email) || (phone.endsWith(targetPhoneDigits));
   };

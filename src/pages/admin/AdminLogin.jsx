@@ -59,7 +59,7 @@ export function AdminLogin() {
       const user = authClient.getUser();
       const userEmail = (user?.email || "").trim().toLowerCase();
       const userPhone = (user?.phoneNumber || "").replace(/[^0-9]/g, "");
-      const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+      const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
       const targetPhoneDigits = "9672996531";
       const isAuthorizedAdmin = allowedEmails.includes(userEmail) || userPhone.endsWith(targetPhoneDigits);
       

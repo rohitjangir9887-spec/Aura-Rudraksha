@@ -212,7 +212,7 @@ export async function getCustomerMe(req, res, next) {
       return res.status(503).json({ success: false, message: "Database unavailable." });
     }
     const authUserId = req.user.authUserId;
-    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
     if (process.env.INITIAL_ADMIN_EMAIL) {
       allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
     }
