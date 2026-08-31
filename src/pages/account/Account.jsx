@@ -154,7 +154,7 @@ export function Account() {
     return allowedEmails.includes(email) || (phone.endsWith(targetPhoneDigits));
   };
 
-  const isServerAdmin = profile?.role === "admin" && isAuthorizedAdminIdentity();
+  const isServerAdmin = isAuthorizedAdminIdentity();
 
   if (loading) {
     return (

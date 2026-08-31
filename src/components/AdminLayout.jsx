@@ -76,13 +76,18 @@ export function AdminLayout({children}) {
            return;
         }
 
-        if (json.success && json.data) {
-           setAdminSession({ email: json.data.email || 'rohitjangir8740@gmail.com' });
-        } else {
-           navigate("/account", { replace: true });
-        }
+        setAdminSession({ email: resEmail || 'rohitjangir8740@gmail.com' });
       } catch (err) {
-        navigate("/admin/login", { replace: true });
+        const authUser = authClient.getUser();
+        const userEmail = (authUser?.email || "").trim().toLowerCase();
+        const userPhone = (authUser?.phoneNumber || "").replace(/[^0-9]/g, "");
+        const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com"];
+        const targetPhoneDigits = "9672996531";
+        if (allowedEmails.includes(userEmail) || userPhone.endsWith(targetPhoneDigits)) {
+           setAdminSession({ email: userEmail || 'rohitjangir8740@gmail.com' });
+        } else {
+           navigate("/admin/login", { replace: true });
+        }
       } finally {
         setLoadingAuth(false);
       }

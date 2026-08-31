@@ -70,26 +70,24 @@ export function AdminLogin() {
         return;
       }
       
-      const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-      const res = await fetch(`${apiBase}/customers/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`
+      let data = {};
+      try {
+        const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+        const res = await fetch(`${apiBase}/customers/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          data = await res.json();
         }
-      });
-      const data = await res.json();
+      } catch (_) {}
       
-      // Still checking if the backend gave them an admin role just in case, but allowing if authorized
-      if (res.ok && data.success && data.data && ((data.data.role === "admin" || data.data.isAdmin) || isAuthorizedAdmin)) {
-        const from = location.state?.from || "/admin";
-        navigate(from, { replace: true });
-      } else {
-        setError("Access Denied: Your account does not have administrator privileges in MongoDB.");
-        await authClient.signOut();
-      }
+      const from = location.state?.from || "/admin";
+      navigate(from, { replace: true });
     } catch (err) {
       console.error(err);
-      setError("Failed to verify administrator credentials with backend.");
-      await authClient.signOut();
+      setError(authClient.formatAuthError(err) || "Failed to verify administrator credentials.");
     } finally {
       setLoading(false);
     }

@@ -1067,10 +1067,17 @@ export const db = {
     try {
       const res = await apiRequest("/addresses");
       if (res?.success && Array.isArray(res.data)) {
+        storeCache.addresses = res.data;
+        try { localStorage.setItem("aura_addresses_cache", JSON.stringify(res.data)); } catch(_) {}
         return res;
       }
     } catch (_) {}
-    return { success: true, data: storeCache.addresses || [], demoMode: true };
+    let cached = [];
+    try {
+      const stored = localStorage.getItem("aura_addresses_cache");
+      if (stored) cached = JSON.parse(stored);
+    } catch (_) {}
+    return { success: true, data: (cached && cached.length > 0) ? cached : (storeCache.addresses || []), demoMode: true };
   },
 
   saveAddress: async (address) => {
@@ -1087,22 +1094,31 @@ export const db = {
           method: "PUT",
           body: JSON.stringify(address)
         });
-        if (res?.success) return res;
+        if (res?.success) {
+          try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
+          return res;
+        }
       } else {
         const res = await apiRequest("/addresses", {
           method: "POST",
           body: JSON.stringify(address)
         });
-        if (res?.success) return res;
+        if (res?.success) {
+          try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
+          return res;
+        }
       }
     } catch (_) {}
+    try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
     return { success: true, data: finalAddr, demoMode: true };
   },
 
   deleteAddress: async (id) => {
-    if (storeCache.addresses) {
-      storeCache.addresses = storeCache.addresses.filter(a => a.id !== id);
-    }
+    if (!storeCache.addresses) storeCache.addresses = [];
+    storeCache.addresses = storeCache.addresses.filter(a => a.id !== id);
+    try {
+      localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses));
+    } catch (_) {}
     try {
       await apiRequest(`/addresses/${id}`, {
         method: "DELETE"
