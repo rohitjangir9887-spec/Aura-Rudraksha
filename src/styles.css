@@ -10328,7 +10328,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-floating-btn-wrap {
   position: fixed;
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-  right: 20px;
+  left: 14px;
+  right: auto;
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -10349,6 +10350,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   .aura-ai-floating-btn-wrap {
     bottom: 28px;
     right: 28px;
+    left: auto;
   }
 }
 
@@ -10397,8 +10399,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-dismissed-toast {
   position: fixed;
-  bottom: 84px;
-  right: 20px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  left: 14px;
+  right: auto;
   z-index: 10001;
   background: #1f0f06;
   color: #fffdf9;
@@ -10437,6 +10440,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   .aura-ai-dismissed-toast {
     bottom: 28px;
     right: 28px;
+    left: auto;
   }
 }
 
@@ -10504,13 +10508,25 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 /* 3. Floating Chat Window & Container */
 .aura-ai-floating-container {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: auto;
   z-index: 10002;
   pointer-events: none;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: flex-end;
+  max-width: calc(100vw - 24px);
+}
+
+@media (min-width: 1024px) {
+  .aura-ai-floating-container {
+    bottom: 24px;
+    right: 24px;
+    left: auto;
+    justify-content: flex-end;
+    max-width: none;
+  }
 }
 
 /* Base Panel Styles for Desktop & Mobile */
@@ -10524,20 +10540,35 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border: 1px solid rgba(212, 175, 55, 0.38);
   overflow: hidden;
   box-sizing: border-box;
-  transform-origin: bottom right;
+  transform-origin: bottom left;
+}
+
+@media (min-width: 1024px) {
+  .aura-ai-panel {
+    transform-origin: bottom right;
+  }
 }
 
 .aura-ai-panel-compact {
-  width: 275px;
-  max-width: 85vw;
-  height: 420px;
-  max-height: 64vh;
+  width: min(280px, calc(100vw - 24px));
+  max-width: 280px;
+  height: min(430px, 62svh);
+  max-height: 62svh;
   border-radius: 18px;
   box-shadow: 
     0 8px 24px rgba(43, 20, 8, 0.16),
     0 2px 8px rgba(43, 20, 8, 0.08),
     0 0 16px rgba(212, 175, 55, 0.12),
     inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+@media (min-width: 1024px) {
+  .aura-ai-panel-compact {
+    width: 285px;
+    max-width: 85vw;
+    height: 440px;
+    max-height: 66vh;
+  }
 }
 
 .aura-ai-backdrop {
@@ -10547,11 +10578,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   backdrop-filter: blur(1px);
   z-index: 10003;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: flex-end;
   padding: 16px 20px;
   pointer-events: auto;
   transition: background 0.2s ease;
+}
+
+@media (min-width: 1024px) {
+  .aura-ai-backdrop {
+    justify-content: flex-end;
+  }
 }
 
 .aura-ai-backdrop-full {
@@ -10566,23 +10603,23 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 767px) {
   .aura-ai-floating-container {
     position: fixed;
-    right: 12px;
-    left: auto;
+    left: 12px;
+    right: auto;
     bottom: calc(76px + env(safe-area-inset-bottom, 0px));
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     align-items: flex-end;
     width: auto;
     pointer-events: none;
-    z-index: 1048;
+    z-index: 10002;
   }
 
-  /* Compact width reduced by 15-20% to leave ample room for product cards in background */
+  /* Compact width for comfortable viewing on mobile */
   .aura-ai-panel-compact {
-    width: min(270px, calc(100vw - 48px));
-    max-width: 270px;
-    height: min(425px, 60svh);
-    max-height: 60svh;
+    width: min(280px, calc(100vw - 24px));
+    max-width: 280px;
+    height: min(430px, 62svh);
+    max-height: 62svh;
     margin: 0;
     border-radius: 18px;
     background: rgba(255, 253, 249, 0.97);
@@ -10594,6 +10631,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
       0 2px 8px rgba(43, 20, 8, 0.08),
       0 0 18px rgba(212, 175, 55, 0.15),
       inset 0 1px 1px rgba(255, 255, 255, 0.95);
+    transform-origin: bottom left !important;
   }
 
   .aura-ai-header {
@@ -10722,8 +10760,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 @media (max-width: 380px) {
   .aura-ai-floating-container {
-    right: 8px;
-    left: auto;
+    left: 8px;
+    right: auto;
     bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 

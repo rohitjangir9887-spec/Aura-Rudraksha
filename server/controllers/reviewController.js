@@ -562,7 +562,7 @@ Provide the output strictly as a JSON array of objects. Do not include markdown 
             "Accept": "application/json"
           },
           body: JSON.stringify({
-            model: "meta/llama-3.2-11b-vision-instruct",
+            model: "nvidia/nemotron-3-super-120b-a12b",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Generate ${requestedCount} realistic customer reviews for ${resolvedProductName} as JSON array.` }

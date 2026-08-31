@@ -52,12 +52,15 @@ export function AuraAIFloating() {
   const isDraggingBtnRef = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragControls = useDragControls();
+  const undoTimerRef = useRef(null);
 
   // Load server settings
   useEffect(() => {
     auraAiClient.getSettings().then(s => {
-      if (s) setSettings(s);
-    });
+      if (s && typeof s.enabled === "boolean") {
+        setSettings(s);
+      }
+    }).catch(() => {});
   }, []);
 
   // Listen to shared cross-component and cross-tab chat sync events
@@ -270,21 +273,29 @@ export function AuraAIFloating() {
     setMessages(updated);
   };
 
-  // Permanent dismissal across all pages
+  // Dismissal across pages for this session
   const handleDismiss = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     auraChatStore.setFloatingDismissed(true);
     setIsDismissed(true);
     setShowUndoToast(true);
-    setTimeout(() => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+    }
+    undoTimerRef.current = setTimeout(() => {
       setShowUndoToast(false);
+      undoTimerRef.current = null;
     }, 7000);
   };
 
   const handleRestore = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    setShowUndoToast(false);
     auraChatStore.setFloatingDismissed(false);
     setIsDismissed(false);
-    setShowUndoToast(false);
   };
 
   return (

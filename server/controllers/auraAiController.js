@@ -45,8 +45,9 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // Single production AI provider configuration: NVIDIA NIM
-const PRIMARY_NIM_MODEL = "meta/llama-3.2-11b-vision-instruct";
+const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 const BACKUP_NIM_MODELS = [
+  "meta/llama-3.2-11b-vision-instruct",
   "meta/llama-3.2-90b-vision-instruct",
   "deepseek-ai/deepseek-v4-flash-0731"
 ];
