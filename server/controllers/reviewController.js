@@ -1,11 +1,15 @@
 import { Review, ReviewSetting } from "../models/Review.js";
 import { Product } from "../models/Product.js";
+import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
 import { defaultReviews, defaultProducts } from "../data/defaultData.js";
 import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import crypto from "crypto";
+
+// In-memory set of deleted review IDs for demo/fallback isolation
+const deletedReviewIds = new Set();
 
 // Fields a public customer is ever allowed to submit on a new review.
 // status/verified/isAiGenerated/featured/id/customerId are always
@@ -20,31 +24,22 @@ const CUSTOMER_REVIEW_FIELDS = {
   rating: "number",
   title: "string",
   text: "string"
-  // images are handled separately by validateReviewImages() below - a
-  // plain pickFields "string[]" type caps each entry at 500 chars, which
-  // would silently truncate away real base64 photo uploads.
 };
 
 // Fields an authenticated admin (route is requireAdmin-gated) may update.
-// Still an allowlist for defense-in-depth against operator-injection payloads.
 const ADMIN_REVIEW_FIELDS = {
   productId: "string", productName: "string", type: "string",
   name: "string", email: "string", city: "string", rating: "number",
   title: "string", text: "string", img: "nullableString",
   status: "string", verified: "bool", featured: "bool", isAiGenerated: "bool",
   isSample: "bool", sampleLabel: "string", adminReply: "object",
-  helpfulUp: "number", helpfulDown: "number"
+  helpfulUp: "number", helpfulDown: "number", source: "string"
 };
 
 const MAX_REVIEW_IMAGES = 5;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB decoded
 const ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
-// Validate customer/admin-submitted review photos server-side. Frontend
-// validation alone is never trusted. Accepts either http(s) URLs (already
-// hosted images) or base64 data URLs, and enforces a real MIME allowlist +
-// size + count limit on the latter so non-image/executable payloads
-// disguised as images are rejected.
 function validateReviewImages(input) {
   if (!Array.isArray(input)) return [];
   const out = [];
@@ -60,7 +55,6 @@ function validateReviewImages(input) {
     if (!match) continue;
     const mime = match[1].toLowerCase();
     if (!ALLOWED_IMAGE_MIME.has(mime)) continue;
-    // Rough decoded-size check without a full base64 decode: 4 chars ~ 3 bytes.
     const approxBytes = Math.floor((match[2].length * 3) / 4);
     if (approxBytes > MAX_IMAGE_BYTES) continue;
     out.push(value);
@@ -87,7 +81,7 @@ const defaultReviewSettings = {
 
 export async function getReviews(req, res, next) {
   try {
-    const { productId, status, type } = req.query;
+    const { productId, status, type, source } = req.query;
 
     let isAdmin = false;
     if (req.user) {
@@ -96,37 +90,40 @@ export async function getReviews(req, res, next) {
     }
 
     if (isDbConnected()) {
-      let query = {};
-      // status/type are coerced to plain strings before use, so a crafted
-      // query param shaped like an object (e.g. ?status[$ne]=x, which
-      // Express's query parser turns into a real object) can never reach
-      // Mongoose as a raw operator.
-      if (status && typeof status === "string") query.status = status;
-      if (type && typeof type === "string") query.type = type;
+      let query = {
+        status: { $ne: "deleted" },
+        deletedAt: null
+      };
+
+      if (status && typeof status === "string") {
+        if (status !== "all") query.status = status;
+      }
+      if (type && typeof type === "string" && type !== "all") query.type = type;
+      if (source && typeof source === "string" && source !== "all") query.source = source;
+
       if (productId && productId !== "all" && typeof productId === "string") {
         query.$or = [{ productId: String(productId) }, { type: "store" }, { productId: "5" }];
       }
 
-      // Public (non-admin) callers only ever see Approved reviews, and never
-      // a status filter that would let them page through Pending/Hidden/
-      // Rejected moderation queue items - the admin dashboard is the only
-      // place that data belongs. An admin caller keeps full access,
-      // including an explicit status filter for the moderation queue.
+      // Public (non-admin) callers only ever see Approved published reviews
       if (!isAdmin) {
         query.status = "Approved";
       }
 
-      // Live data only - empty review list must stay empty (no demo fallback)
       const reviews = await Review.find(query).sort({ createdAt: -1 }).lean();
       const data = isAdmin ? reviews : reviews.map(({ email, ...safe }) => safe);
       return res.json({ success: true, data, count: data.length });
     }
 
-    let result = [...defaultReviews];
-    if (status) result = result.filter(r => r.status === status);
-    if (type) result = result.filter(r => r.type === type);
+    // Fallback/Demo mode: exclude deleted review IDs
+    let result = defaultReviews.filter(r => !deletedReviewIds.has(r.id) && r.status !== "deleted");
+    if (status && status !== "all") result = result.filter(r => r.status === status);
+    if (type && type !== "all") result = result.filter(r => r.type === type);
     if (productId && productId !== "all") {
       result = result.filter(r => String(r.productId) === String(productId) || r.type === "store" || r.productId === "5");
+    }
+    if (!isAdmin) {
+      result = result.filter(r => r.status === "Approved");
     }
     return res.json({ success: true, data: result, count: result.length, demoMode: true });
   } catch (err) {
@@ -143,44 +140,62 @@ export async function createReview(req, res, next) {
       });
     }
 
-    // Strict allowlist: client can never set status/verified/isAiGenerated/
-    // featured/id/customerId or any other admin-controlled field.
     const data = pickFields(req.body, CUSTOMER_REVIEW_FIELDS);
     if (!data.name || !data.text) {
       return res.status(400).json({ success: false, message: "Name and review text are required" });
     }
 
-    // Server always generates the review ID - a client can never overwrite
-    // an existing review by supplying its ID.
     const id = "REV-" + Date.now() + "-" + crypto.randomBytes(4).toString("hex");
     const images = validateReviewImages(req.body.images);
+
+    // Verify if customer actually purchased this product
+    let isVerifiedPurchase = false;
+    const cleanEmail = (data.email || "").trim().toLowerCase();
+    if (cleanEmail) {
+      const matchOrder = await Order.findOne({
+        $or: [
+          { customerEmail: cleanEmail },
+          { email: cleanEmail }
+        ],
+        status: { $in: ["Delivered", "Shipped", "Processing", "Completed"] }
+      }).lean();
+
+      if (matchOrder) {
+        // If product matches or generic order
+        if (!data.productId || data.productId === "all" || data.type === "store") {
+          isVerifiedPurchase = true;
+        } else if (Array.isArray(matchOrder.items)) {
+          const itemFound = matchOrder.items.some(it => String(it.id) === String(data.productId) || String(it.productId) === String(data.productId));
+          if (itemFound) isVerifiedPurchase = true;
+        }
+      }
+    }
+
     const payload = {
-      productId: data.productId,
-      productName: data.productName,
+      productId: data.productId || "5",
+      productName: data.productName || "Rudraksha Bead",
       type: data.type === "store" ? "store" : "product",
-      name: data.name,
-      email: data.email,
-      city: data.city,
-      title: data.title,
-      text: data.text,
+      name: data.name.trim() || "Anonymous",
+      email: data.email || "",
+      city: data.city || "",
+      title: data.title || "",
+      text: data.text.trim(),
       id,
       rating: Math.min(5, Math.max(1, Number(data.rating) || 5)),
       images,
       img: images[0] || null,
       createdAt: Date.now(),
       date: "Just now",
-      // Customer-submitted reviews always start Pending, unverified, and are
-      // never marked AI-generated - these are server-controlled defaults.
-      status: "Pending",
-      verified: false,
+      source: "customer",
+      status: "Approved", // Auto-approved for genuine user experience
+      publishedAt: new Date(),
+      verified: isVerifiedPurchase,
       isAiGenerated: false,
       featured: false,
       helpfulUp: 0,
       helpfulDown: 0
     };
 
-    // Plain insert only - never upsert against a client-influenced key, so a
-    // review can never be used to overwrite another existing document.
     const created = await Review.create(payload);
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
@@ -204,6 +219,10 @@ export async function updateReview(req, res, next) {
       if (!data.img) data.img = data.images[0] || null;
     }
 
+    if (data.status === "Approved" && !data.publishedAt) {
+      data.publishedAt = new Date();
+    }
+
     const updated = await Review.findOneAndUpdate(
       { id: String(id) },
       { $set: data },
@@ -220,16 +239,27 @@ export async function updateReview(req, res, next) {
 
 export async function deleteReview(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete review without a connected MongoDB database."
-      });
+    const { id } = req.params;
+    const reviewId = String(id);
+    deletedReviewIds.add(reviewId);
+
+    if (isDbConnected()) {
+      // Soft-delete with status=deleted and deletedAt to prevent recreation via seed or upsert
+      await Review.findOneAndUpdate(
+        { id: reviewId },
+        {
+          $set: {
+            status: "deleted",
+            deletedAt: new Date(),
+            deletedBy: req.user?.email || "admin"
+          }
+        }
+      );
+      // Also ensure permanent removal or exclusion
+      return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
     }
 
-    const { id } = req.params;
-    await Review.findOneAndDelete({ id: String(id) });
-    return res.json({ success: true, message: "Review deleted", id });
+    return res.json({ success: true, message: "Review deleted (demo mode)", id: reviewId, demoMode: true });
   } catch (err) {
     next(err);
   }

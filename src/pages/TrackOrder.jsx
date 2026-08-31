@@ -27,64 +27,70 @@ export function TrackOrder() {
     }
   }, [initialQuery]);
 
-  const handleSearch = (searchVal) => {
-    const term = (searchVal || query).trim().toLowerCase();
-    if (!term) return;
+  const handleSearch = async (searchVal) => {
+    const rawTerm = (searchVal !== undefined ? searchVal : query).trim();
+    if (!rawTerm) return;
 
     setIsSearching(true);
     setSearched(true);
+    setOrderResult(null);
 
-    setTimeout(() => {
-      const allOrders = db.getOrders() || [];
-      const cleanTerm = term.replace(/[^a-z0-9]/g, "");
+    try {
+      // 1. Fetch latest orders from store / backend
+      let allOrders = [];
+      try {
+        const fetched = await db.fetchOrders();
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          allOrders = fetched;
+        }
+      } catch (_) {}
 
-      // Match by order ID, tracking number, email, or phone
-      const found = allOrders.find(o => {
-        const idMatch = (o.id || "").toLowerCase().includes(term);
-        const trackMatch = (o.trackingNumber || o.trackingId || "").toLowerCase().includes(term);
-        const emailMatch = (o.customerEmail || o.email || o.shippingAddress?.email || "").toLowerCase().includes(term);
-        const phoneClean = (o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/[^0-9]/g, "");
-        const phoneMatch = phoneClean && cleanTerm && phoneClean.includes(cleanTerm);
-        return idMatch || trackMatch || emailMatch || phoneMatch;
-      });
+      if (!allOrders || allOrders.length === 0) {
+        allOrders = db.getOrders() || [];
+      }
 
+      // 2. Try direct getOrder API lookup first
+      let found = null;
+      try {
+        const singleRes = await db.getOrder(rawTerm);
+        if (singleRes?.success && singleRes.data) {
+          found = singleRes.data;
+        }
+      } catch (_) {}
+
+      // 3. Match against all known real orders
+      if (!found && Array.isArray(allOrders)) {
+        const termLower = rawTerm.toLowerCase();
+        const cleanDigits = rawTerm.replace(/[^0-9]/g, "");
+
+        found = allOrders.find(o => {
+          if (!o) return false;
+          const orderId = String(o.id || o.orderId || "").toLowerCase();
+          const trackingNo = String(o.trackingNumber || o.trackingId || "").toLowerCase();
+          const email = String(o.customerEmail || o.email || o.shippingAddress?.email || "").toLowerCase();
+          const phone = String(o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/[^0-9]/g, "");
+
+          const idMatch = orderId === termLower || orderId.replace(/[^a-z0-9]/g, "") === rawTerm.replace(/[^a-z0-9]/gi, "").toLowerCase();
+          const trackMatch = trackingNo && (trackingNo === termLower || trackingNo.replace(/[^a-z0-9]/g, "") === rawTerm.replace(/[^a-z0-9]/gi, "").toLowerCase());
+          const emailMatch = email && email === termLower;
+          const phoneMatch = cleanDigits.length >= 7 && phone && (phone === cleanDigits || phone.includes(cleanDigits) || cleanDigits.includes(phone));
+
+          return idMatch || trackMatch || emailMatch || phoneMatch;
+        });
+      }
+
+      // ONLY set if an actual real order exists - strictly NO fake / dummy fallback data
       if (found) {
         setOrderResult(found);
       } else {
-        // Mock fallback if user entered standard order format so preview is delightful
-        if (term.startsWith("aur-") || term.startsWith("ord-") || term.length >= 4) {
-          setOrderResult({
-            id: term.toUpperCase().startsWith("AUR-") ? term.toUpperCase() : `AUR-${term.toUpperCase()}`,
-            createdAt: Date.now() - 36 * 3600 * 1000,
-            status: "Shipped",
-            total: 2499,
-            items: [
-              { name: "5 Mukhi Authentic Nepali Rudraksha (Lab Certified)", quantity: 1, price: 2499, image: "/images/product-5mukhi.jpg" }
-            ],
-            shippingAddress: {
-              fullName: "Devotee Customer",
-              city: "Jaipur",
-              state: "Rajasthan",
-              postalCode: "302001"
-            },
-            trackingNumber: "DTDC-AURA-" + Math.floor(100000 + Math.random() * 900000),
-            carrier: "DTDC Express & Delhivery",
-            estimatedDelivery: new Date(Date.now() + 48 * 3600 * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-            timeline: [
-              { title: "Order Confirmed & Payment Received", date: "Yesterday, 10:30 AM", done: true },
-              { title: "Vedic Temple Prana Pratishtha Consecration", date: "Yesterday, 04:15 PM", done: true },
-              { title: "Lab Tested & Quality Inspected", date: "Today, 11:00 AM", done: true },
-              { title: "Dispatched via Express Courier", date: "Today, 03:30 PM", done: true, current: true },
-              { title: "Out for Delivery", date: "Expected Tomorrow", done: false },
-              { title: "Delivered to Sacred Altar", date: "Expected within 2 business days", done: false }
-            ]
-          });
-        } else {
-          setOrderResult(null);
-        }
+        setOrderResult(null);
       }
+    } catch (err) {
+      console.error("Tracking search error:", err);
+      setOrderResult(null);
+    } finally {
       setIsSearching(false);
-    }, 450);
+    }
   };
 
   const getTimelineSteps = (order) => {
@@ -244,7 +250,7 @@ export function TrackOrder() {
                 {/* Carrier & Tracking Code Bar */}
                 {(() => {
                   const courier = orderResult.courierName || orderResult.carrier || orderResult.courier || "DTDC / Delhivery Express";
-                  const trackingNum進 = orderResult.trackingNumber || orderResult.trackingId;
+                  const trackingNum = orderResult.trackingNumber || orderResult.trackingId;
                   const trackingUrl = orderResult.trackingUrl || orderResult.shippingLink;
 
                   return (
@@ -275,16 +281,16 @@ export function TrackOrder() {
                           </div>
                         </div>
 
-                        {trackingNum進 && (
+                        {trackingNum && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ textAlign: "right" }}>
                               <span style={{ fontSize: "11px", color: "#7d6d62", display: "block" }}>Airway Bill (AWB)</span>
-                              <strong style={{ fontSize: "13.5px", color: "#a54d2b", fontFamily: "monospace", letterSpacing: "0.5px" }}>{trackingNum進}</strong>
+                              <strong style={{ fontSize: "13.5px", color: "#a54d2b", fontFamily: "monospace", letterSpacing: "0.5px" }}>{trackingNum}</strong>
                             </div>
                             <button
                               type="button"
                               onClick={() => {
-                                navigator.clipboard.writeText(trackingNum進);
+                                navigator.clipboard.writeText(trackingNum);
                                 setCopiedAwb(true);
                                 emitToast("Tracking number copied!", "success");
                                 setTimeout(() => setCopiedAwb(false), 2000);
@@ -308,10 +314,10 @@ export function TrackOrder() {
                       </div>
 
                       {/* Direct Courier Website Tracking Link Button */}
-                      {(trackingUrl || trackingNum進) && (
+                      {(trackingUrl || trackingNum) && (
                         <div style={{ borderTop: '1px dashed #ebdccb', paddingTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
                           <a
-                            href={trackingUrl || `https://www.google.com/search?q=track+${encodeURIComponent(courier)}+${encodeURIComponent(trackingNum進)}`}
+                            href={trackingUrl || `https://www.google.com/search?q=track+${encodeURIComponent(courier)}+${encodeURIComponent(trackingNum)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{

@@ -366,7 +366,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
         title: newReviewForm.title.trim(),
         text: newReviewForm.text.trim(),
         images: newReviewForm.images,
-        verified: true, // Mark verified
+        verified: false,
         status: "Approved"
       });
 
@@ -681,12 +681,12 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                       </div>
 
                       <div className="aura-card-name-line">
-                        <strong className="aura-reviewer-name">{rev.name}</strong>
+                        <strong className="aura-reviewer-name">{rev.name || "Aura Devotee"}</strong>
                         {rev.city && <span className="aura-reviewer-city">• {rev.city}</span>}
                         {(rev.isAiGenerated || rev.isSample || rev.sampleLabel) ? (
                           <span 
                             className="aura-ai-sample-badge" 
-                            title="Sample draft created for catalogue preview / testing"
+                            title="AI Draft created for preview / testing"
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -701,13 +701,13 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                             }}
                           >
                             <Sparkles size={11} />
-                            {rev.sampleLabel || "AI-generated sample"}
+                            {rev.sampleLabel || "AI DRAFT"}
                           </span>
                         ) : (
-                          activeSettings?.verifiedBadgeEnabled !== false && rev.verified && (
+                          activeSettings?.verifiedBadgeEnabled !== false && rev.verified && !rev.isAiGenerated && !rev.isSample && (
                             <span className="aura-verified-badge" title="Verified Customer Purchase">
                               <Check size={11} className="aura-verified-icon" />
-                              Verified Purchase
+                              Verified Purchaser
                             </span>
                           )
                         )}

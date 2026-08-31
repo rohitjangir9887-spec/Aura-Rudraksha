@@ -150,13 +150,14 @@ export function AdminReviews() {
     });
   }, [reviews, activeTab, selectedStatusFilter, selectedProductFilter, selectedRatingFilter, selectedSourceFilter, searchQuery]);
 
-  // Statistics
+  // Statistics (calculated strictly from published, non-deleted reviews)
   const stats = useMemo(() => {
-    const total = reviews.length;
-    const avg = total > 0 ? (reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / total).toFixed(1) : "5.0";
-    const withPhotos = reviews.filter(r => Array.isArray(r.images) && r.images.length > 0).length;
-    const verifiedCount = reviews.filter(r => r.verified && !r.isAiGenerated && !r.isSample).length;
-    const sampleCount = reviews.filter(r => r.isAiGenerated || r.isSample).length;
+    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected" && r.status !== "draft");
+    const total = activeReviews.length;
+    const avg = total > 0 ? (activeReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / total).toFixed(1) : "5.0";
+    const withPhotos = activeReviews.filter(r => Array.isArray(r.images) && r.images.length > 0).length;
+    const verifiedCount = activeReviews.filter(r => r.verified && !r.isAiGenerated && !r.isSample).length;
+    const sampleCount = activeReviews.filter(r => r.isAiGenerated || r.isSample).length;
     const pendingCount = reviews.filter(r => r.status === "Pending").length;
     return { total, avg, withPhotos, verifiedCount, sampleCount, pendingCount };
   }, [reviews]);
@@ -319,15 +320,17 @@ export function AdminReviews() {
       const payload = {
         ...draft,
         productName: draft.productName || selProd?.name || "Rudraksha Bead",
+        name: draft.name || "AI DRAFT",
         isAiGenerated: true,
         isSample: true,
-        sampleLabel: "AI-generated sample",
+        sampleLabel: "AI DRAFT",
         verified: false,
+        source: "ai_draft",
         status: draft.status || "Approved"
       };
 
       await db.saveReview(payload);
-      emitToast(`Saved draft #${index + 1} to store as AI Sample!`, "success");
+      emitToast(`Approved & Published draft #${index + 1} as AI Sample!`, "success");
       
       // Remove or mark as saved in draft list
       setGeneratedDrafts(prev => prev.filter((_, idx) => idx !== index));
@@ -349,9 +352,20 @@ export function AdminReviews() {
         return;
       }
 
-      const res = await db.bulkSaveReviews(validDrafts, allowDuplicates);
+      const formattedDrafts = validDrafts.map(d => ({
+        ...d,
+        name: d.name || "AI DRAFT",
+        isAiGenerated: true,
+        isSample: true,
+        sampleLabel: "AI DRAFT",
+        verified: false,
+        source: "ai_draft",
+        status: "Approved"
+      }));
+
+      const res = await db.bulkSaveReviews(formattedDrafts, allowDuplicates);
       if (res?.success) {
-        emitToast(`Successfully published ${res.savedCount} AI Sample drafts to store!`, "success");
+        emitToast(`Successfully approved & published ${res.savedCount || formattedDrafts.length} AI Draft(s) to store!`, "success");
         if (res.skippedCount > 0) {
           emitToast(`Skipped ${res.skippedCount} duplicate draft(s).`, "info");
         }

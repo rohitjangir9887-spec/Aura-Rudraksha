@@ -70,6 +70,99 @@ async function apiRequest(endpoint, options = {}) {
   }
 }
 
+// Deleted review tracking to ensure deleted reviews are never resurrected on refresh
+function getDeletedReviewIds() {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem("aura_deleted_review_ids");
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (_) {}
+  return new Set();
+}
+
+function recordDeletedReviewId(id) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedReviewIds();
+    set.add(String(id));
+    localStorage.setItem("aura_deleted_review_ids", JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
+const defaultInitialReviews = [
+  { 
+    id: "REV-101", 
+    type: "product",
+    productId: "5",
+    productName: "5 Mukhi Rudraksha",
+    name: "Pandit Rajesh Sharma", 
+    city: "Varanasi, UP",
+    rating: 5, 
+    date: "2 days ago", 
+    createdAt: Date.now() - 2 * 86400000,
+    verified: true,
+    featured: true,
+    status: "Approved",
+    title: "100% Authentic Nepal Bead with Pure Vibrations",
+    text: "ॐ नमः शिवाय! The 5 Mukhi Rudraksha is genuinely divine and pure. As someone who performs daily Shiva puja, I can immediately feel the calming positive aura. The lab certificate was authentic and the natural mukhi lines are deep and unbroken. Highly recommend Aura Rudraksha to all devotees. 🙏✨", 
+    images: ["/images/product-5mukhi.jpg", "/images/product-mala.jpg"],
+    img: "/images/product-5mukhi.jpg",
+    helpfulUp: 18,
+    helpfulDown: 0,
+    adminReply: {
+      text: "Har Har Mahadev Pandit ji! 🙏 We are truly blessed by your kind words. May Lord Shiva always shower his divine grace and peace upon you and your family.",
+      author: "Aura Rudraksha Spiritual Team",
+      date: "1 day ago"
+    }
+  },
+  { 
+    id: "REV-102", 
+    type: "product",
+    productId: "5",
+    productName: "5 Mukhi Rudraksha",
+    name: "Dr. Ananya Iyer", 
+    city: "Bengaluru, KA",
+    rating: 5, 
+    date: "5 days ago", 
+    createdAt: Date.now() - 5 * 86400000,
+    verified: true,
+    featured: true,
+    status: "Approved",
+    title: "Helped immensely in mental focus and stress reduction",
+    text: "I was looking for an authentic certified Rudraksha for meditation and work focus. Within 2 weeks of wearing this energised bead, my mental clarity has improved significantly. Beautiful wooden box packaging and quick delivery to Bangalore.", 
+    images: ["/images/product-5mukhi.jpg"],
+    img: "/images/product-5mukhi.jpg",
+    helpfulUp: 14,
+    helpfulDown: 1,
+    adminReply: null
+  },
+  { 
+    id: "REV-103", 
+    type: "product",
+    productId: "1",
+    productName: "1 Mukhi Rudraksha",
+    name: "Vikramaditya Rathore", 
+    city: "Jaipur, RJ",
+    rating: 5, 
+    date: "1 week ago", 
+    createdAt: Date.now() - 7 * 86400000,
+    verified: true,
+    featured: true,
+    status: "Approved",
+    title: "Rare half-moon 1 Mukhi bead with X-Ray Certificate",
+    text: "Finding a genuine Ek Mukhi Rudraksha in India is very difficult due to counterfeits. Aura Rudraksha provided a genuine certified bead with full test reports. The antique gold capping is regal and handcrafted with great devotion.", 
+    images: ["/images/product-1mukhi.jpg"],
+    img: "/images/product-1mukhi.jpg",
+    helpfulUp: 23,
+    helpfulDown: 0,
+    adminReply: {
+      text: "Jai Bholenath! We strictly source our Ek Mukhi beads directly from holy forests and conduct government-approved lab tests before dispatch.",
+      author: "Aura Rudraksha Team",
+      date: "6 days ago"
+    }
+  }
+];
+
 // In-Memory Live Cache for instantaneous synchronous component renders
 const storeCache = {
   products: defaultProducts.map(p => ({
@@ -522,79 +615,7 @@ const storeCache = {
     "https://i.ibb.co/23zYS09n/file-00000000886c82118cc5dc60c8082572.png",
     "https://i.ibb.co/vvjdFqNQ/file-0000000057548208a095c1d1fc26f78c.jpg"
   ],
-  reviews: [
-    { 
-      id: "REV-101", 
-      type: "product",
-      productId: "5",
-      productName: "5 Mukhi Rudraksha",
-      name: "Pandit Rajesh Sharma", 
-      city: "Varanasi, UP",
-      rating: 5, 
-      date: "2 days ago", 
-      createdAt: Date.now() - 2 * 86400000,
-      verified: true,
-      featured: true,
-      status: "Approved",
-      title: "100% Authentic Nepal Bead with Pure Vibrations",
-      text: "ॐ नमः शिवाय! The 5 Mukhi Rudraksha is genuinely divine and pure. As someone who performs daily Shiva puja, I can immediately feel the calming positive aura. The lab certificate was authentic and the natural mukhi lines are deep and unbroken. Highly recommend Aura Rudraksha to all devotees. 🙏✨", 
-      images: ["/images/product-5mukhi.jpg", "/images/product-mala.jpg"],
-      img: "/images/product-5mukhi.jpg",
-      helpfulUp: 18,
-      helpfulDown: 0,
-      adminReply: {
-        text: "Har Har Mahadev Pandit ji! 🙏 We are truly blessed by your kind words. May Lord Shiva always shower his divine grace and peace upon you and your family.",
-        author: "Aura Rudraksha Spiritual Team",
-        date: "1 day ago"
-      }
-    },
-    { 
-      id: "REV-102", 
-      type: "product",
-      productId: "5",
-      productName: "5 Mukhi Rudraksha",
-      name: "Dr. Ananya Iyer", 
-      city: "Bengaluru, KA",
-      rating: 5, 
-      date: "5 days ago", 
-      createdAt: Date.now() - 5 * 86400000,
-      verified: true,
-      featured: true,
-      status: "Approved",
-      title: "Helped immensely in mental focus and stress reduction",
-      text: "I was looking for an authentic certified Rudraksha for meditation and work focus. Within 2 weeks of wearing this energised bead, my mental clarity has improved significantly. Beautiful wooden box packaging and quick delivery to Bangalore.", 
-      images: ["/images/product-5mukhi.jpg"],
-      img: "/images/product-5mukhi.jpg",
-      helpfulUp: 14,
-      helpfulDown: 1,
-      adminReply: null
-    },
-    { 
-      id: "REV-103", 
-      type: "product",
-      productId: "1",
-      productName: "1 Mukhi Rudraksha",
-      name: "Vikramaditya Rathore", 
-      city: "Jaipur, RJ",
-      rating: 5, 
-      date: "1 week ago", 
-      createdAt: Date.now() - 7 * 86400000,
-      verified: true,
-      featured: true,
-      status: "Approved",
-      title: "Rare half-moon 1 Mukhi bead with X-Ray Certificate",
-      text: "Finding a genuine Ek Mukhi Rudraksha in India is very difficult due to counterfeits. Aura Rudraksha provided a genuine certified bead with full test reports. The antique gold capping is regal and handcrafted with great devotion.", 
-      images: ["/images/product-1mukhi.jpg"],
-      img: "/images/product-1mukhi.jpg",
-      helpfulUp: 23,
-      helpfulDown: 0,
-      adminReply: {
-        text: "Jai Bholenath! We strictly source our Ek Mukhi beads directly from holy forests and conduct government-approved lab tests before dispatch.",
-        author: "Aura Rudraksha Team",
-        date: "6 days ago"
-      }
-    }
-  ],
+  reviews: defaultInitialReviews.filter(r => !getDeletedReviewIds().has(r.id)),
   reviewSettings: {
     enabled: true,
     photoGalleryEnabled: true,
@@ -749,7 +770,8 @@ async function hydrateFromBackend() {
     }
 
     if (reviewsRes?.success && Array.isArray(reviewsRes.data)) {
-      storeCache.reviews = reviewsRes.data;
+      const deletedIds = getDeletedReviewIds();
+      storeCache.reviews = reviewsRes.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
     }
 
     if (settingsRes?.success && settingsRes.data) {
@@ -1764,27 +1786,32 @@ export const db = {
 
   // REVIEWS SYSTEM
   getReviews: (productId, tab = "all") => {
-    let allReviews = storeCache.reviews.map(r => ({
-      id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
-      type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
-      productId: r.productId || "5",
-      productName: r.productName || "Rudraksha Bead",
-      name: r.name || "Aura Devotee",
-      city: r.city || "",
-      rating: Number(r.rating) || 5,
-      title: r.title || "",
-      text: r.text || "",
-      date: r.date || "Recently",
-      createdAt: r.createdAt || Date.now(),
-      verified: r.verified !== false,
-      featured: !!r.featured,
-      status: r.status || "Approved",
-      images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-      img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
-      helpfulUp: Number(r.helpfulUp) || 0,
-      helpfulDown: Number(r.helpfulDown) || 0,
-      adminReply: r.adminReply || null
-    }));
+    const deletedIds = getDeletedReviewIds();
+    let allReviews = storeCache.reviews
+      .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted" && r.status !== "draft" && r.status !== "Hidden" && r.status !== "Rejected")
+      .map(r => ({
+        id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
+        type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
+        productId: r.productId || "5",
+        productName: r.productName || "Rudraksha Bead",
+        name: r.name || "Aura Devotee",
+        city: r.city || "",
+        rating: Number(r.rating) || 5,
+        title: r.title || "",
+        text: r.text || "",
+        date: r.date || "Recently",
+        createdAt: r.createdAt || Date.now(),
+        verified: !!(r.verified && !r.isAiGenerated),
+        featured: !!r.featured,
+        source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
+        status: r.status || "Approved",
+        images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
+        img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
+        helpfulUp: Number(r.helpfulUp) || 0,
+        helpfulDown: Number(r.helpfulDown) || 0,
+        adminReply: r.adminReply || null,
+        isAiGenerated: !!r.isAiGenerated
+      }));
 
     if (tab === "product" && productId) {
       return allReviews.filter(r => r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId));
@@ -1797,11 +1824,16 @@ export const db = {
   },
 
   getAllReviews: () => {
-    return storeCache.reviews.map(r => ({
-      ...r,
-      images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-      status: r.status || "Approved"
-    }));
+    const deletedIds = getDeletedReviewIds();
+    return storeCache.reviews
+      .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted")
+      .map(r => ({
+        ...r,
+        images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
+        status: r.status || "Approved",
+        verified: !!(r.verified && !r.isAiGenerated),
+        source: r.source || (r.isAiGenerated ? "ai_draft" : "customer")
+      }));
   },
 
   saveReview: async (rev) => {
@@ -1812,12 +1844,13 @@ export const db = {
       id,
       type: rev.type || "product",
       productId: rev.productId || "5",
-      name: rev.name || "Devotee",
+      name: rev.name?.trim() || "Devotee",
       rating: Number(rev.rating) || 5,
       text: rev.text || "",
       date: rev.date || "Just now",
       createdAt: rev.createdAt || Date.now(),
-      verified: rev.verified !== false,
+      verified: false,
+      source: "customer",
       status: rev.status || "Approved",
       images,
       img: images[0] || null,
@@ -1878,10 +1911,12 @@ export const db = {
   },
 
   deleteReview: async (id) => {
-    storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== String(id));
-    emitStoreUpdate("review:deleted", { id });
+    const strId = String(id);
+    recordDeletedReviewId(strId);
+    storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== strId);
+    emitStoreUpdate("review:deleted", { id: strId });
     try {
-      await apiRequest(`/reviews/${id}`, { method: "DELETE" });
+      await apiRequest(`/reviews/${strId}`, { method: "DELETE" });
     } catch (_) {}
     return true;
   },
