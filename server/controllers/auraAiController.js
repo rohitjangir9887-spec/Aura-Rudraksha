@@ -9,6 +9,13 @@ import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { defaultProducts, defaultCoupons, defaultSettings, defaultOrders } from "../data/defaultData.js";
+import { 
+  searchRelevantCatalogProducts, 
+  extractMukhiNumber, 
+  buildAuthenticVedicResponse, 
+  VEDIC_BEADS_KNOWLEDGE 
+} from "../services/vedicKnowledgeService.js";
 
 const AI_SETTING_FIELDS = {
   enabled: "bool", showFloatingButton: "bool", showHeaderButton: "bool",
@@ -16,7 +23,6 @@ const AI_SETTING_FIELDS = {
   recommendProducts: "bool", recommendOffers: "bool", cartActions: "bool",
   orderSupport: "bool", humanSupport: "bool", personalization: "bool"
 };
-import { defaultProducts, defaultCoupons, defaultSettings, defaultOrders } from "../data/defaultData.js";
 
 // Rate limiting in-memory map: IP/UID -> { count, resetAt }
 const rateLimitMap = new Map();
@@ -55,7 +61,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Single production AI provider configuration: NVIDIA NIM (Ultra-fast low-latency models)
+// Production AI provider configuration: NVIDIA NIM
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 const BACKUP_NIM_MODELS = [
   "meta/llama-3.2-90b-vision-instruct",
@@ -63,7 +69,6 @@ const BACKUP_NIM_MODELS = [
   "mistralai/mistral-nemotron"
 ];
 
-// Helper for NVIDIA NIM AI client initialization
 function getNvidiaClient() {
   const apiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
   if (!apiKey) return null;
@@ -71,7 +76,7 @@ function getNvidiaClient() {
     return new OpenAI({
       baseURL: "https://integrate.api.nvidia.com/v1",
       apiKey,
-      timeout: 15000 // 15 second timeout
+      timeout: 15000
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM Client:", err?.message || err);
@@ -79,13 +84,13 @@ function getNvidiaClient() {
   }
 }
 
-// Format product object with real catalog image, price, and attributes
+// Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
   if (!p) return null;
-  const img = (p.images && p.images.length > 0 && p.images[0]) || p.img || p.image || "";
+  const img = (p.images && p.images.length > 0 && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg";
   const price = Number(p.price) || 0;
-  const comparePrice = Number(p.comparePrice || p.mrp || Math.round(price * 1.3));
-  const mrp = Number(p.mrp || comparePrice || Math.round(price * 1.3));
+  const comparePrice = Number(p.comparePrice || p.mrp || Math.round(price * 1.35));
+  const mrp = Number(p.mrp || comparePrice || Math.round(price * 1.35));
   const discount = p.discount || p.discountPercent || (comparePrice > price ? Math.round(((comparePrice - price) / comparePrice) * 100) : 0);
   
   return {
@@ -98,12 +103,14 @@ function formatProductForResponse(p) {
     discount: discount,
     discountPercent: discount,
     image: img,
-    images: p.images && p.images.length > 0 ? p.images : (img ? [img] : []),
+    images: p.images && p.images.length > 0 ? p.images : (img ? [img] : ["/images/product-5mukhi.jpg"]),
     img: img,
     category: p.category || "Rudraksha",
     rating: Number(p.rating) || 4.9,
-    reviews: Number(p.reviews || p.reviewCount) || 24,
-    stock: Number(p.stock) || 50,
+    reviews: Number(p.reviews || p.reviewsCount || p.reviewCount) || 24,
+    reviewsCount: Number(p.reviews || p.reviewsCount || p.reviewCount) || 24,
+    stock: Number(p.stock) > 0 ? Number(p.stock) : 50,
+    inStock: p.inStock !== false,
     badge: p.badge || (discount >= 30 ? "Best Seller" : "Popular"),
     highlight: p.highlight || ""
   };
@@ -173,7 +180,6 @@ function cleanServerAiText(raw) {
   return text.trim();
 }
 
-// Intent Classification Layer
 function extractStructuredAiJson(rawContent) {
   if (!rawContent || typeof rawContent !== "string") return null;
   const cleaned = rawContent
@@ -222,9 +228,7 @@ function stripInternalJsonFromCustomerText(raw) {
   if (extracted && looksInternal(extracted)) {
     const before = text.slice(0, firstBrace).trim();
     const inner = String(extracted.text || "").trim();
-    if (before && inner && before !== inner) return `${before}
-
-${inner}`.trim();
+    if (before && inner && before !== inner) return `${before}\n\n${inner}`.trim();
     return inner || before;
   }
   if (markers.some((k) => text.includes(`"${k}"`))) {
@@ -237,23 +241,23 @@ function detectUserIntent(msg) {
   msg = (msg || "").toLowerCase().trim();
   const intents = [];
   
-  if (/(fayde|fayda|benefits|what is good|why should|profit|use of|what does|meaning of|kya hota|kaise madad|labh)/i.test(msg)) {
+  if (/(fayde|fayda|benefits|what is good|why should|profit|use of|what does|meaning of|kya hota|kaise madad|labh|kaise pehne|dharan vidhi|mantra)/i.test(msg)) {
     intents.push("BENEFITS");
   }
-  if (/(dikhao|chahiye|need|want|show|buy|purchase|looking for|mere liye sahi|suggest|recommend|which rudraksha|order karna hai|order krna|mangwana)/i.test(msg)) {
+  if (/(dikhao|chahiye|need|want|show|buy|purchase|looking for|mere liye sahi|suggest|recommend|which rudraksha|order karna hai|order krna|mangwana|khareedna)/i.test(msg)) {
     if (msg.includes("order karna") || msg.includes("order krna") || msg.includes("mangwana")) {
       intents.push("CHECKOUT");
     } else {
       intents.push(msg.includes("mere liye sahi") || msg.includes("suggest") || msg.includes("recommend") ? "PRODUCT_RECOMMENDATION" : "PRODUCT_SEARCH");
     }
   }
-  if (/(price|cost|rate|kitne ka|bhav|rupees|amount|under|budget|₹|sasta|mehenga)/i.test(msg)) {
+  if (/(price|cost|rate|kitne ka|bhav|rupees|amount|under|budget|₹|sasta|mehenga|kimat)/i.test(msg)) {
     intents.push("PRICE");
   }
-  if (/(offer|discount|deal|sale)/i.test(msg)) {
+  if (/(offer|discount|deal|sale|chhoot|bachat)/i.test(msg)) {
     intents.push("OFFER");
   }
-  if (/(coupon|promo|code)/i.test(msg)) {
+  if (/(coupon|promo|code|voucher)/i.test(msg)) {
     intents.push("COUPON");
   }
   if (/(mera order|my order|track|where is my order|kaha hai|status|shipment|delivery status|order kaha)/i.test(msg)) {
@@ -265,7 +269,7 @@ function detectUserIntent(msg) {
   if (/(cancel|stop order)/i.test(msg)) {
     intents.push("ORDER_CANCEL");
   }
-  if (/(shipping|deliver|dispatch|bhej|kab aayega|how many days)/i.test(msg)) {
+  if (/(shipping|deliver|dispatch|bhej|kab aayega|how many days|kab tak)/i.test(msg)) {
     intents.push("SHIPPING");
   }
   if (/(return|refund|wapas|exchange)/i.test(msg)) {
@@ -277,17 +281,17 @@ function detectUserIntent(msg) {
   if (/(cart|basket|bag)/i.test(msg)) {
     intents.push("CART");
   }
-  if (/(hi|hello|hey|namaste|pranam|radhe|har har|prabhat|kaise ho)/i.test(msg) && msg.length < 25) {
+  if (/(hi|hello|hey|namaste|pranam|radhe|har har|prabhat|kaise ho|ram ram|jai shree krishna|shubh)/i.test(msg) && msg.length < 25) {
     intents.push("GREETING");
   }
   if (/(customer care|support|human|agent|baat karni|phone|contact|number|helpline|help|şikayat)/i.test(msg)) {
     intents.push("GENERAL_SUPPORT");
   }
-  if (/(mukhi)/i.test(msg) && !intents.includes("PRODUCT_SEARCH") && !intents.includes("BENEFITS")) {
+  if (/(mukhi|mala|rudraksha|rudraksh)/i.test(msg) && !intents.includes("PRODUCT_SEARCH") && !intents.includes("BENEFITS")) {
      intents.push("PRODUCT_INFO");
   }
   
-  if (intents.length === 0) return "UNKNOWN";
+  if (intents.length === 0) return "PRODUCT_SEARCH";
   
   if (intents.includes("ORDER_TRACKING")) return "ORDER_TRACKING";
   if (intents.includes("CHECKOUT")) return "CHECKOUT";
@@ -301,78 +305,35 @@ function detectUserIntent(msg) {
   return intents[0];
 }
 
-function generateDynamicQuickReplies({ userMessage, intent }) {
+function generateDynamicQuickReplies({ userMessage, intent, targetMukhi }) {
   const msgLower = (userMessage || "").toLowerCase();
   const replies = [];
   
-  if (msgLower.includes("13 mukhi") && (msgLower.includes("fayde") || msgLower.includes("benefit"))) {
-    replies.push("13 Mukhi Price", "13 Mukhi Dekhein", "Kaise Pehne", "Order Karein");
-  } else if (msgLower.includes("1000") && (msgLower.includes("andar") || msgLower.includes("under") || msgLower.includes("kam"))) {
-    replies.push("5 Mukhi Dekhein", "7 Mukhi Dekhein", "Best Seller", "Compare Products");
-  } else if (msgLower.includes("mera order kaha hai") || intent === "ORDER_TRACKING") {
-    replies.push("Track Order", "Order History", "Shipping Help");
-  } else if (msgLower.includes("coupon hai") || intent === "COUPON" || intent === "OFFER") {
-    replies.push("Today's Offers", "Available Coupons", "Apply Coupon");
+  if (targetMukhi) {
+    if (targetMukhi === "mala") {
+      replies.push("108 Mala Price", "Jaap Vidhi", "Buy 108 Mala", "Today's Offers");
+    } else if (targetMukhi === "gauri_shankar") {
+      replies.push("Gauri Shankar Price", "Vivah Labh", "Kaise Pehne", "Order Now");
+    } else {
+      replies.push(`${targetMukhi} Mukhi Price`, `${targetMukhi} Mukhi Benefits`, "Dharan Vidhi", `Buy ${targetMukhi} Mukhi`);
+    }
+  } else if (msgLower.includes("dhan") || msgLower.includes("wealth") || msgLower.includes("paisa") || msgLower.includes("lakshmi") || msgLower.includes("business")) {
+    replies.push("7 Mukhi Rudraksha", "7 Mukhi Price", "Kuber Benefits", "Today's Offers");
+  } else if (msgLower.includes("peace") || msgLower.includes("shanti") || msgLower.includes("stress") || msgLower.includes("bp") || msgLower.includes("health")) {
+    replies.push("5 Mukhi Rudraksha", "108 Jaap Mala", "5 Mukhi Price", "Kaise Pehne");
+  } else if (msgLower.includes("hanuman") || msgLower.includes("dar") || msgLower.includes("protection") || msgLower.includes("himmat") || msgLower.includes("courage")) {
+    replies.push("11 Mukhi Rudraksha", "11 Mukhi Price", "Hanuman Beej Mantra", "Order Now");
+  } else if (intent === "ORDER_TRACKING" || msgLower.includes("track") || msgLower.includes("order")) {
+    replies.push("Track My Order", "Order History", "Shipping Help", "Talk to Support");
+  } else if (intent === "COUPON" || intent === "OFFER" || msgLower.includes("offer") || msgLower.includes("discount")) {
+    replies.push("SHRAWAN200 Code", "AURA10 Discount", "Apply Coupon", "Best Sellers");
   } else if (intent === "BENEFITS") {
-    let m = msgLower.match(/(\d+)\s*mukhi/);
-    if (m) {
-      replies.push(`${m[1]} Mukhi Price`, `${m[1]} Mukhi Dekhein`, "Kaise Pehne", "Order Karein");
-    } else {
-      replies.push("Check Price", "View Products", "How to Wear");
-    }
-  } else if (intent === "PRODUCT_SEARCH" || intent === "PRODUCT_INFO") {
-    let m = msgLower.match(/(\d+)\s*mukhi/);
-    if (m) {
-      replies.push(`${m[1]} Mukhi Details`, `Buy ${m[1]} Mukhi`, "Compare Products");
-    } else {
-      replies.push("Best Sellers", "Shop by Rashi", "Offers");
-    }
-  } else if (intent === "CHECKOUT" || intent === "CART") {
-     replies.push("Confirm Order", "Apply Coupon", "Change Address");
-  } else if (intent === "GREETING") {
-     replies.push("5 Mukhi Rudraksha", "Find by Rashi", "Today's Offers", "Track Order");
+    replies.push("5 Mukhi Benefits", "7 Mukhi Benefits", "11 Mukhi Benefits", "Dharan Vidhi");
   } else {
-     replies.push("Talk to Support", "Explore Catalog", "Offers", "Find Rudraksha");
+    replies.push("5 Mukhi Rudraksha", "7 Mukhi (Wealth)", "108 Jaap Mala", "Today's Offers");
   }
   
   return Array.from(new Set(replies)).slice(0, 4);
-}
-
-
-function searchRelevantProducts(message, products) {
-  const msgLower = message.toLowerCase();
-  
-  let scored = products.map(p => {
-    let score = 0;
-    const nameLower = (p.name || "").toLowerCase();
-    
-    const mukhiMatch = msgLower.match(/(\d+)\s*mukhi/);
-    if (mukhiMatch) {
-      if (nameLower.includes(`${mukhiMatch[1]} mukhi`)) score += 100;
-    }
-    
-    if (msgLower.includes("1000") && (msgLower.includes("under") || msgLower.includes("andar") || msgLower.includes("kam"))) {
-      if (p.price <= 1000) score += 50;
-      else score -= 100;
-    }
-
-    if (msgLower.includes("sasta") || msgLower.includes("cheap")) {
-      if (p.price < 1500) score += 30;
-    }
-
-    if (msgLower.includes("mesh") || msgLower.includes("aries")) { if (nameLower.includes("3 mukhi")) score += 40; }
-    if (msgLower.includes("mithun") || msgLower.includes("gemini") || msgLower.includes("kanya")) { if (nameLower.includes("4 mukhi")) score += 40; }
-    if (msgLower.includes("kark") || msgLower.includes("cancer")) { if (nameLower.includes("2 mukhi")) score += 40; }
-    if (msgLower.includes("singh") || msgLower.includes("leo")) { if (nameLower.includes("1 mukhi") || nameLower.includes("12 mukhi")) score += 40; }
-    if (msgLower.includes("dhanu") || msgLower.includes("sagittarius") || msgLower.includes("meen") || msgLower.includes("pisces")) { if (nameLower.includes("5 mukhi")) score += 40; }
-    if (msgLower.includes("makar") || msgLower.includes("capricorn") || msgLower.includes("kumbh") || msgLower.includes("aquarius")) { if (nameLower.includes("7 mukhi") || nameLower.includes("14 mukhi")) score += 40; }
-
-    score += (p.rating || 4.5) * 2;
-    return { product: p, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored.filter(s => s.score > 10).map(s => s.product).slice(0, 3);
 }
 
 export async function chatAuraAI(req, res, next) {
@@ -395,6 +356,7 @@ export async function chatAuraAI(req, res, next) {
       verifiedName = req.user.name || "Devotee";
     }
 
+    // Always ensure catalog and coupons are populated from DB or defaultData fallback
     let products = [];
     let coupons = [];
     let userOrders = [];
@@ -420,185 +382,183 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    const intent = detectUserIntent(message);
-    let relevantProducts = [];
-    if (["PRODUCT_SEARCH", "PRODUCT_RECOMMENDATION", "BENEFITS", "PRICE", "CHECKOUT", "PRODUCT_INFO"].includes(intent)) {
-      relevantProducts = searchRelevantProducts(message, products);
+    if (!products || products.length === 0) {
+      products = defaultProducts;
     }
-    
-    let contextualProducts = [...relevantProducts];
-    if (contextualProducts.length === 0 && history.length > 0) {
-       const lastUserMsgs = history.filter(h => h.sender === 'user').slice(-2).map(h => h.text).join(" ");
-       if (lastUserMsgs) {
-         contextualProducts = searchRelevantProducts(lastUserMsgs + " " + message, products);
-       }
+    if (!coupons || coupons.length === 0) {
+      coupons = defaultCoupons;
     }
 
-    const quickReplies = generateDynamicQuickReplies({ userMessage: message, intent });
+    const intent = detectUserIntent(message);
+    const targetMukhi = extractMukhiNumber(message);
+
+    // Multi-attribute Vedic catalog search & suggestion generator
+    let matchedProducts = searchRelevantCatalogProducts(message, products);
     
-    const catalogContext = contextualProducts.map(p => ({
-      id: String(p.id || p._id),
+    // If user's latest query is short, enrich with context from recent history
+    if (matchedProducts.length === 0 && history.length > 0) {
+      const lastUserMsgs = history.filter(h => h.sender === "user").slice(-2).map(h => h.text).join(" ");
+      if (lastUserMsgs) {
+        matchedProducts = searchRelevantCatalogProducts(lastUserMsgs + " " + message, products);
+      }
+    }
+
+    // Safety fallback: Never return empty product suggestions
+    if (!matchedProducts || matchedProducts.length === 0) {
+      matchedProducts = products.slice(0, 3);
+    }
+
+    const finalProducts = matchedProducts.slice(0, 3).map(formatProductForResponse).filter(Boolean);
+    const finalCoupons = coupons.slice(0, 2);
+    const quickReplies = generateDynamicQuickReplies({ userMessage: message, intent, targetMukhi });
+
+    const catalogContext = finalProducts.map(p => ({
+      id: p.id,
       name: p.name,
       price: p.price,
-      mrp: p.comparePrice || Math.round(p.price * 1.3),
-      inStock: p.inStock !== false,
-      rating: p.rating || 4.5,
-      reviews: p.reviewsCount || 10,
-      description: (p.description || "").substring(0, 100)
+      mrp: p.mrp,
+      inStock: p.inStock,
+      rating: p.rating,
+      reviews: p.reviews,
+      highlight: p.highlight || ""
     }));
 
     const ordersContext = userOrders.map(o => ({
       id: o.id || o.orderId,
       status: o.status,
-      total: o.total,
+      total: o.total || o.finalAmount,
       date: o.createdAt
     }));
 
-    const systemPrompt = `You are Aura AI, a premium spiritual ecommerce assistant for Aura Rudraksha.
-Your core behavior & STRICT rules:
-1. Short, Natural & Human-like: Answer concisely. Do NOT write long paragraphs. Do NOT repeat greeting over and over.
-2. Multilingual: Understand English, Hindi, and Hinglish perfectly. Reply in the same language/tone as the user.
-3. ABSOLUTELY NO THINKING / REASONING IN OUTPUT: Never output internal thoughts, analysis, chain of thought, or phrases like "Okay, the user is asking...", "Let me check...", "Looking at context...", "First they started...". Output ONLY the final customer-facing answer.
-4. ABSOLUTELY NO HISTORY NARRATION: Never summarize or list past user messages (e.g., do NOT say "First you asked about... then you said Hii"). Use history ONLY to understand what Rudraksha or details were previously mentioned.
+    const systemPrompt = `You are Aura AI, a revered Vedic spiritual shopping guide and assistant for "Aura Rudraksha" (India's leading brand for 100% Original Nepali Certified Rudraksha).
+
+CORE TRAITS & KNOWLEDGE:
+1. Spiritual Wisdom: You possess deep Vedic knowledge of all 1 to 21 Mukhi Rudraksha, Japa Malas, Gauri Shankar, Ganesh Rudraksha, Beej Mantras, Ruling Deities (Lord Shiva, Mahalakshmi, Hanuman, Surya), Ruling Planets, Rashis, and Dharan Vidhi (Wearing Rules).
+2. Natural, Warm & Respectful: Greet devotees warmly with "Namaste 🙏" or "Har Har Mahadev 🙏". Speak naturally in Hindi, Hinglish, or English based on the customer's language. Keep answers crisp, clear, and beneficial.
+3. Accurate Catalog Guidance: Recommend the provided catalog products accurately. Mention real prices (₹), genuine Nepal origin, and Govt Lab Certification with Mount Kailash soil & Holy Ganga Jal consecration.
+4. Active Offers: Highlight active coupons like SHRAWAN200 or AURA10 when asked about deals.
 5. Order Status Tracking:
-   - If user asks to track order or order status:
-     - If Authenticated Customer with orders: State their order status clearly using Customer Orders data.
-     - If Authenticated Customer with NO orders: Say "Aapke account par abhi koi active order nahi mila."
-     - If Guest customer: Politely ask them to log in to track their order or share their Order ID / registered phone number.
-     - NEVER fabricate or invent an order ID or status.
-6. Accurate Catalog Data: Use provided catalog context precisely. Never invent fake prices or non-existent products.
-7. Pure Text Answer: Respond directly to the user in clean conversational text. NO JSON wrappers, NO code blocks.
+   - Authenticated with orders: State their actual order status from Customer Orders.
+   - Authenticated with NO orders: "Aapke account par abhi koi active order nahi mila."
+   - Guest user: Politely ask them to log in or share Order ID/Phone.
+6. STRICT: Never output thinking tags (<think>), chain of thought, JSON code blocks, or internal variable names. Output pure, respectful conversational text.
 
 Current User Intent: ${intent}
-Authenticated Customer: ${userIsAuthenticated ? verifiedName : "Guest (Not logged in)"}
-Customer Orders (Auth-Only): ${JSON.stringify(ordersContext)}
-Relevant Catalog Products Found: ${JSON.stringify(catalogContext)}
-Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}`;
+Authenticated Customer: ${userIsAuthenticated ? verifiedName : "Guest"}
+Customer Orders: ${JSON.stringify(ordersContext)}
+Recommended Catalog Products: ${JSON.stringify(catalogContext)}
+Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF)`))}`;
 
-    const formattedMessages = [{ role: "system", content: systemPrompt }];
-    for (const h of history.slice(-4)) {
-      if (h.sender === "user" && h.text) formattedMessages.push({ role: "user", content: String(h.text) });
-      else if (h.sender === "ai" && h.text) formattedMessages.push({ role: "assistant", content: String(h.text) });
-    }
-    formattedMessages.push({ role: "user", content: message });
-
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
-    
     const isStreaming = Boolean(req.query?.stream === "true" || req.body?.stream === true || (req.headers?.accept && req.headers.accept.includes("text/event-stream")));
-    
-    const finalProducts = contextualProducts.slice(0, 3).map(p => ({
-      id: String(p._id || p.id),
-      name: p.name,
-      price: p.price,
-      comparePrice: p.comparePrice || Math.round(p.price * 1.3),
-      images: p.images || (p.image ? [p.image] : []),
-      image: p.image || (p.images && p.images[0]) || "",
-      rating: p.rating || 4.5,
-      reviewsCount: p.reviewsCount || 10,
-      inStock: p.inStock !== false,
-      slug: p.slug
-    }));
-    
-    const finalCoupons = intent === "COUPON" || intent === "OFFER" ? coupons.slice(0, 2) : [];
 
     if (isStreaming) {
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       res.setHeader("Cache-Control", "no-cache, no-transform");
       res.setHeader("Connection", "keep-alive");
       if (res.flushHeaders) res.flushHeaders();
+      
       res.write(`data: ${JSON.stringify({ type: "start", conversationId })}\n\n`);
-
-      if (!nvidiaApiKey) {
-        const fallbackText = "Namaste! Main abhi thoda maintenance mein hoon, please support se contact karein.";
-        res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: "final", data: { text: fallbackText, products: finalProducts, coupons: finalCoupons, quickReplies } })}\n\n`);
-        res.end();
-        return;
-      }
+      
+      // Emit product suggestions, coupons, and quick replies immediately so UI renders them upfront
+      res.write(`data: ${JSON.stringify({ 
+        type: "meta", 
+        data: { 
+          products: finalProducts, 
+          coupons: finalCoupons, 
+          quickReplies 
+        } 
+      })}\n\n`);
+      if (res.flush) res.flush();
 
       let fullRawContent = "";
-      try {
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "text/event-stream"
-          },
-          body: JSON.stringify({
-            model: "nvidia/nemotron-3-super-120b-a12b",
-            messages: formattedMessages,
-            temperature: 0.3,
-            max_tokens: 350,
-            stream: true,
-            chat_template_kwargs: { enable_thinking: false },
-            reasoning_effort: "none"
-          })
-        });
+      let generatedViaLLM = false;
 
-        if (nimRes.ok && nimRes.body) {
-          const reader = nimRes.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
+      // 1. Production AI Model: NVIDIA NIM
+      const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+      if (nvidiaApiKey) {
+        try {
+          const formattedMessages = [{ role: "system", content: systemPrompt }];
+          for (const h of history.slice(-4)) {
+            if (h.sender === "user" && h.text) formattedMessages.push({ role: "user", content: String(h.text) });
+            else if (h.sender === "ai" && h.text) formattedMessages.push({ role: "assistant", content: String(h.text) });
+          }
+          formattedMessages.push({ role: "user", content: message });
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (value) {
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
-              buffer = lines.pop() || "";
+          const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${nvidiaApiKey}`,
+              "Accept": "text/event-stream"
+            },
+            body: JSON.stringify({
+              model: PRIMARY_NIM_MODEL,
+              messages: formattedMessages,
+              temperature: 0.3,
+              max_tokens: 450,
+              stream: true,
+              chat_template_kwargs: { enable_thinking: false },
+              reasoning_effort: "none"
+            })
+          });
 
-              for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                  try {
-                    const parsedJson = JSON.parse(trimmed.slice(6));
-                    const choice = parsedJson.choices?.[0];
-                    const deltaObj = choice?.delta;
+          if (nimRes.ok && nimRes.body) {
+            const reader = nimRes.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
 
-                    // Skip explicit reasoning fields from model output
-                    if (deltaObj?.reasoning_content || deltaObj?.thinking || deltaObj?.reasoning) {
-                      continue;
-                    }
+            while (true) {
+              const { done, value } = await reader.read();
+              if (value) {
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
 
-                    const deltaText = deltaObj?.content || "";
-                    if (deltaText) {
-                      fullRawContent += deltaText;
-                      const cleanDelta = cleanServerAiText(deltaText);
-                      if (cleanDelta) {
-                        res.write(`data: ${JSON.stringify({ type: "chunk", delta: cleanDelta })}\n\n`);
-                        if (res.flush) res.flush();
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
+                    try {
+                      const parsedJson = JSON.parse(trimmed.slice(6));
+                      const deltaObj = parsedJson.choices?.[0]?.delta;
+                      if (deltaObj?.reasoning_content || deltaObj?.thinking || deltaObj?.reasoning) continue;
+                      const deltaText = deltaObj?.content || "";
+                      if (deltaText) {
+                        fullRawContent += deltaText;
+                        const cleanDelta = cleanServerAiText(deltaText);
+                        if (cleanDelta) {
+                          res.write(`data: ${JSON.stringify({ type: "chunk", delta: cleanDelta })}\n\n`);
+                          if (res.flush) res.flush();
+                        }
                       }
-                    }
-                  } catch (_) {}
+                    } catch (_) {}
+                  }
                 }
               }
+              if (done) break;
             }
-            if (done) {
-              buffer += decoder.decode();
-              if (buffer.trim()) {
-                const trimmed = buffer.trim();
-                if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                  try {
-                    const parsedJson = JSON.parse(trimmed.slice(6));
-                    const deltaText = parsedJson.choices?.[0]?.delta?.content || "";
-                    if (deltaText) fullRawContent += deltaText;
-                  } catch (_) {}
-                }
-              }
-              break;
+            if (fullRawContent.trim()) {
+              generatedViaLLM = true;
             }
           }
-        } else {
-          const fallbackText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
-          res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
-          fullRawContent = fallbackText;
+        } catch (nimErr) {
+          console.warn("NVIDIA NIM Stream Notice:", nimErr?.message || nimErr);
         }
-      } catch (err) {
-        console.error("NIM Exception:", err.message);
       }
 
-      const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent)) || "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+      // 2. Fallback to Vedic Intelligence Engine if NVIDIA NIM is offline or key missing
+      if (!generatedViaLLM || !fullRawContent.trim()) {
+        const vedicText = buildAuthenticVedicResponse({
+          message,
+          userIntent: intent,
+          products: finalProducts,
+          coupons: finalCoupons
+        });
+        fullRawContent = vedicText;
+        res.write(`data: ${JSON.stringify({ type: "chunk", delta: vedicText })}\n\n`);
+        if (res.flush) res.flush();
+      }
+
+      const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
 
       res.write(`data: ${JSON.stringify({ 
         type: "final", 
@@ -607,7 +567,8 @@ Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}
           products: finalProducts, 
           coupons: finalCoupons, 
           quickReplies,
-          requiresHuman: false
+          requiresHuman: false,
+          conversationId
         } 
       })}\n\n`);
       res.end();
@@ -616,8 +577,19 @@ Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}
 
     // Standard Non-Streaming Handling
     let fullRawContent = "";
+    let generatedViaLLM = false;
+
+    // 1. Production AI Model: NVIDIA NIM
+    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {
+        const formattedMessages = [{ role: "system", content: systemPrompt }];
+        for (const h of history.slice(-4)) {
+          if (h.sender === "user" && h.text) formattedMessages.push({ role: "user", content: String(h.text) });
+          else if (h.sender === "ai" && h.text) formattedMessages.push({ role: "assistant", content: String(h.text) });
+        }
+        formattedMessages.push({ role: "user", content: message });
+
         const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -626,10 +598,10 @@ Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}
             "Accept": "application/json"
           },
           body: JSON.stringify({
-            model: "nvidia/nemotron-3-super-120b-a12b",
+            model: PRIMARY_NIM_MODEL,
             messages: formattedMessages,
             temperature: 0.3,
-            max_tokens: 350,
+            max_tokens: 450,
             chat_template_kwargs: { enable_thinking: false },
             reasoning_effort: "none"
           })
@@ -638,13 +610,24 @@ Active Coupons: ${JSON.stringify(coupons.map(c => c.code + " - " + c.discount))}
         if (nimRes.ok) {
           const nimData = await nimRes.json();
           fullRawContent = nimData.choices?.[0]?.message?.content || "";
+          if (fullRawContent.trim()) generatedViaLLM = true;
         }
-      } catch (err) {
-        console.error("Non-streaming NIM Error:", err?.message || err);
+      } catch (nimErr) {
+        console.warn("NVIDIA NIM Non-Streaming Notice:", nimErr?.message || nimErr);
       }
     }
 
-    const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent)) || "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+    // 2. Fallback to Vedic Intelligence Engine
+    if (!generatedViaLLM || !fullRawContent.trim()) {
+      fullRawContent = buildAuthenticVedicResponse({
+        message,
+        userIntent: intent,
+        products: finalProducts,
+        coupons: finalCoupons
+      });
+    }
+
+    const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
 
     return res.status(200).json({
       success: true,
@@ -691,7 +674,6 @@ export async function getAuraAISettings(req, res, next) {
   }
 }
 
-// PUT /api/aura-ai/settings (Admin Protected)
 export async function updateAuraAISettings(req, res, next) {
   try {
     if (!isDbConnected()) {
@@ -712,7 +694,6 @@ export async function updateAuraAISettings(req, res, next) {
   }
 }
 
-// GET /api/aura-ai/conversations (User or Admin)
 export async function getAuraAIConversations(req, res, next) {
   try {
     const authenticatedUser = req.user || null;
@@ -720,13 +701,11 @@ export async function getAuraAIConversations(req, res, next) {
     if (isDbConnected()) {
       let query = {};
       
-      // Determine if requester is an admin on the server side (normalized phone match + DB role)
       const { isInitialAdmin } = isAdminUser(authenticatedUser || {});
       const isAdmin = isInitialAdmin || (authenticatedUser ? await hasAdminRole(authenticatedUser.authUserId) : false);
 
       if (!isAdmin) {
         if (!authenticatedUser) {
-          // Unauthenticated guest can only view their specific conversation if id provided
           return res.json({ success: true, data: [], count: 0 });
         }
         const scopedEmail = (authenticatedUser.email || "").toLowerCase();
@@ -757,7 +736,6 @@ export async function getAuraAIConversations(req, res, next) {
   }
 }
 
-// GET /api/aura-ai/conversations/:id (owner or admin only)
 export async function getAuraAIConversationById(req, res, next) {
   try {
     const { id } = req.params;
@@ -772,7 +750,6 @@ export async function getAuraAIConversationById(req, res, next) {
         return res.status(404).json({ success: false, message: "Conversation not found" });
       }
 
-      // Owner or server-side admin only
       const { isInitialAdmin } = isAdminUser(authenticatedUser);
       const isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
       const isOwner =
@@ -792,7 +769,6 @@ export async function getAuraAIConversationById(req, res, next) {
   }
 }
 
-// DELETE /api/aura-ai/conversations/:id (Privacy compliance)
 export async function deleteAuraAIConversation(req, res, next) {
   try {
     const { id } = req.params;
@@ -825,7 +801,6 @@ export async function deleteAuraAIConversation(req, res, next) {
   }
 }
 
-// POST /api/aura-ai/track-action (Log clicked product, add to cart from AI)
 export async function trackAuraAIAction(req, res, next) {
   try {
     const { conversationId, action, productId, orderId } = req.body;
@@ -861,7 +836,6 @@ export async function trackAuraAIAction(req, res, next) {
   }
 }
 
-// GET /api/aura-ai/analytics (Admin Insights - real data only)
 export async function getAuraAIAnalytics(req, res, next) {
   try {
     const empty = {
@@ -899,10 +873,6 @@ export async function getAuraAIAnalytics(req, res, next) {
     const cartConversions = convos.reduce((acc, c) => acc + (c.addedToCart?.length || 0), 0);
     const escalations = convos.filter(c => c.requiresHumanSupport || c.status === "Escalated").length;
 
-    // ---- AI-attributed orders (real orders, not estimates) ----
-    // A conversation qualifies when the user added at least one AI-recommended
-    // product to cart; an order is attributed when the same customer ordered
-    // at least one of those products afterwards.
     let orderConversions = 0;
     let revenueFromAI = 0;
     const qualifyingConvos = convos.filter(c => (c.addedToCart || []).length > 0);
@@ -930,7 +900,6 @@ export async function getAuraAIAnalytics(req, res, next) {
 
     const conversionRate = totalConvos > 0 ? (((orderConversions / totalConvos) * 100)).toFixed(1) : "0.0";
 
-    // ---- Top real questions (first user message per conversation) ----
     const questionCounts = new Map();
     for (const c of convos) {
       const firstUserMsg = (c.messages || []).find(m => m.sender === "user");
@@ -944,7 +913,6 @@ export async function getAuraAIAnalytics(req, res, next) {
       .slice(0, 6)
       .map(([query, count]) => ({ query, count }));
 
-    // ---- Category breakdown from real recommended products ----
     const recIds = new Set();
     convos.forEach(c => (c.productsRecommended || []).forEach(id => recIds.add(String(id))));
     let catCounts = {};
@@ -988,10 +956,8 @@ export async function generateProductDescription(req, res, next) {
     const { name, category, price, mrp, stock, language, details } = req.body;
     if (!name) return res.status(400).json({ success: false, message: "Product name is required" });
 
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     const targetLanguage = language || "English";
 
-    // High quality Vedic / Spiritual knowledge helper for resilient fallback or enrichment
     const generateAuthenticFallbackHtml = (prodName, prodCat, lang) => {
       const cleanName = prodName.trim();
       const isHindi = lang === "Hindi";
@@ -1001,7 +967,7 @@ export async function generateProductDescription(req, res, next) {
         return `<p><strong>${cleanName}</strong> वैदिक परंपरा में एक अत्यंत पवित्र एवं आध्यात्मिक रूप से जागृत स्वरूप माना जाता है। यह मन की शांति, सकारात्मक ऊर्जा और आत्म-संयम को सुदृढ़ करने में सहायक होता है।</p>
 <h2>PRODUCT HIGHLIGHTS</h2>
 <ul>
-  <li>100% प्राकृतिक एवं दुर्लभ मूल दाना, स्पष्ट मुखी रेखाओं के साथ।</li>
+  <li>100% प्राकृतिक एवं दुर्लभ मूल नेपाली दाना, स्पष्ट मुखी रेखाओं के साथ।</li>
   <li>प्रेषण से पूर्व प्राचीन वैदिक पद्धति एवं गंगाजल से अभिमंत्रित।</li>
   <li>दैनिक ध्यान, आध्यात्मिक साधना एवं नित्य धारण के लिए उपयुक्त।</li>
   <li>प्राकृतिक शुद्धता एवं बिना किसी रासायनिक रंग के संरक्षित।</li>
@@ -1033,7 +999,6 @@ export async function generateProductDescription(req, res, next) {
 <p><em>May this sacred blessing bring harmony and grace to your life.</em></p>`;
       }
 
-      // Default English
       return `<p>The <strong>${cleanName}</strong> is revered in ancient Vedic tradition as a sacred spiritual instrument that harmonizes energy, encourages mental clarity, and shields the wearer with positive vibrations.</p>
 <h2>PRODUCT HIGHLIGHTS</h2>
 <ul>
@@ -1051,126 +1016,46 @@ export async function generateProductDescription(req, res, next) {
 <p><em>May this sacred blessing bring serenity, protection, and divine grace to your spiritual path.</em></p>`;
     };
 
-    if (!nvidiaApiKey) {
-      console.warn("NVIDIA API key not found in env, using authentic Vedic template generator.");
-      const fallbackDesc = generateAuthenticFallbackHtml(name, category, targetLanguage);
-      return res.json({ success: true, description: fallbackDesc });
-    }
-
-    const systemPrompt = `You are the lead Vedic scholar and product specialist for "Aura Rudraksha", a luxury, authentic spiritual brand.
-Your task is to generate complete, elegant, culturally respectful, and complete product descriptions formatted in clean HTML for the rich-text editor (Tiptap).
-
-CRITICAL RULES:
-1. Output ONLY clean HTML with tags: <p>, <h2>, <ul>, <li>, <strong>, <em>.
-2. DO NOT output Markdown syntax (never output **text**, ## Heading, or markdown bullets).
-3. DO NOT invent fake lab names, medical cures, or guarantee miraculous physical/financial outcomes. Use respectful traditional terminology (e.g. "traditionally associated with", "revered in classical tradition for").
-4. ALWAYS complete all sections in full (150 to 250 words total). Never output unfinished or truncated sentences.
-5. Highlight the product title "${name}" inside <strong> tags in the opening paragraph.
-6. The structure MUST contain:
-   <p>[Opening introductory paragraph highlighting <strong>${name}</strong>]</p>
-   <h2>PRODUCT HIGHLIGHTS</h2>
-   <ul>
-     <li>[Bullet 1]</li>
-     <li>[Bullet 2]</li>
-     <li>[Bullet 3]</li>
-     <li>[Bullet 4]</li>
-   </ul>
-   <h2>ABOUT THE PRODUCT</h2>
-   <p>[1-2 paragraphs detailing authentic spiritual background and natural characteristics]</p>
-   <h2>SUITABLE FOR</h2>
-   <p>[Who should wear/choose this item]</p>
-   <h2>HOW TO USE &amp; CARE</h2>
-   <p>[Care instructions, purification, and wearing guidance]</p>
-   <p><em>[Short graceful closing blessing]</em></p>`;
-
-    const userPrompt = `Product Name: ${name}
-Category: ${category || 'Rudraksha'}
-Language: ${targetLanguage}
-Additional Context: ${details || 'Sacred natural bead consecrated for spiritual practice'}
-
-Generate the complete HTML product description now:`;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 18000);
-
-    try {
-      const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + nvidiaApiKey,
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({
-          model: PRIMARY_NIM_MODEL,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.35,
-          max_tokens: 1400
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!nimRes.ok) {
-        const errText = await nimRes.text();
-        console.warn("NVIDIA NIM API responded with non-200, generating verified authentic description:", errText);
-        const fallback = generateAuthenticFallbackHtml(name, category, targetLanguage);
-        return res.json({ success: true, description: fallback });
-      }
-
-      const nimData = await nimRes.json();
-      let aiContent = nimData.choices?.[0]?.message?.content || "";
-      
-      // Clean up code fences or json wrapper if model accidentally included them
-      aiContent = aiContent
-        .replace(/^```html\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
-
-      // Convert any lingering markdown to clean HTML tags just in case
-      let cleanHtml = aiContent
-        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-      // Ensure lists are properly wrapped if bullet lines exist
-      if (cleanHtml.includes('- ') || cleanHtml.includes('• ')) {
-        cleanHtml = cleanHtml.replace(/(?:^[•\-]\s*(.+)$\n?)+/gm, (match) => {
-          const items = match
-            .split('\n')
-            .map(l => l.replace(/^[•\-]\s*/, '').trim())
-            .filter(Boolean)
-            .map(item => `  <li>${item}</li>`)
-            .join('\n');
-          return `<ul>\n${items}\n</ul>\n`;
+    // 1. Production AI Model: NVIDIA NIM
+    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    if (nvidiaApiKey) {
+      try {
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            model: PRIMARY_NIM_MODEL,
+            messages: [{
+              role: "user",
+              content: `Generate a product description in clean HTML for ${name} (${category || 'Rudraksha'}) in ${targetLanguage}. Include <p><strong>${name}</strong>...</p>, <h2>PRODUCT HIGHLIGHTS</h2>, <ul><li>...</li></ul>, <h2>ABOUT THE PRODUCT</h2>, <h2>SUITABLE FOR</h2>, <h2>HOW TO USE & CARE</h2>. Output pure HTML only without markdown code fences.`
+            }],
+            temperature: 0.35,
+            max_tokens: 1000,
+            chat_template_kwargs: { enable_thinking: false },
+            reasoning_effort: "none"
+          })
         });
-      }
 
-      // Check for minimum completeness
-      if (!cleanHtml || cleanHtml.length < 120 || !cleanHtml.includes('<h2>')) {
-        cleanHtml = generateAuthenticFallbackHtml(name, category, targetLanguage);
+        if (nimRes.ok) {
+          const nimData = await nimRes.json();
+          let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```html\s*/i, "").replace(/\s*```$/i, "").trim();
+          if (cleanHtml && cleanHtml.includes("<h2>")) {
+            return res.json({ success: true, description: cleanHtml });
+          }
+        }
+      } catch (nimErr) {
+        console.warn("NVIDIA NIM description notice:", nimErr?.message || nimErr);
       }
-
-      return res.json({ success: true, description: cleanHtml });
-    } catch (apiErr) {
-      clearTimeout(timeoutId);
-      console.warn("NVIDIA NIM call failed or timed out, generating verified authentic description:", apiErr?.message);
-      const fallback = generateAuthenticFallbackHtml(name, category, targetLanguage);
-      return res.json({ success: true, description: fallback });
     }
+
+    const fallbackDesc = generateAuthenticFallbackHtml(name, category, targetLanguage);
+    return res.json({ success: true, description: fallbackDesc });
   } catch (error) {
     console.error("Aura AI Description Generation Error:", error);
     return res.status(500).json({ success: false, message: "AI description could not be generated. Please try again." });
   }
 }
-
-
-
-

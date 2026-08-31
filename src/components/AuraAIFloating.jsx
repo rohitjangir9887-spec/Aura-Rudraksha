@@ -143,25 +143,26 @@ export function AuraAIFloating() {
         userName,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
-        onChunk: (delta, accumulated) => {
+        onChunk: (delta, accumulated, partialData) => {
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
           }
           const cleanText = customerSafeAiText(accumulated);
-          const liveMsg = {
-            id: aiMsgId,
-            sender: "ai",
-            text: cleanText,
-            products: [],
-            coupons: [],
-            orderInfo: null,
-            requiresHuman: false,
-            quickReplies: [],
-            timestamp: new Date().toISOString()
-          };
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
+            const existing = idx >= 0 ? prev[idx] : null;
+            const liveMsg = {
+              id: aiMsgId,
+              sender: "ai",
+              text: cleanText,
+              products: (partialData?.products && partialData.products.length > 0) ? partialData.products : (existing?.products || []),
+              coupons: (partialData?.coupons && partialData.coupons.length > 0) ? partialData.coupons : (existing?.coupons || []),
+              orderInfo: partialData?.orderInfo || existing?.orderInfo || null,
+              requiresHuman: Boolean(partialData?.requiresHuman || existing?.requiresHuman),
+              quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : (existing?.quickReplies || []),
+              timestamp: existing?.timestamp || new Date().toISOString()
+            };
             if (idx >= 0) {
               const clone = [...prev];
               clone[idx] = liveMsg;

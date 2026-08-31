@@ -36,9 +36,14 @@ export const auraAiClient = {
           accumulatedRaw += chunkDelta;
 
           const safeAccumulated = customerSafeAiText(accumulatedRaw);
-          if (onChunk) onChunk(chunkDelta, safeAccumulated);
+          if (onChunk) onChunk(chunkDelta, safeAccumulated, finalData);
+        } else if (parsed.type === "meta" && (parsed.data || parsed.products || parsed.coupons || parsed.quickReplies)) {
+          const payload = parsed.data || parsed;
+          const parsedMeta = parseAuraAiPayload(payload);
+          finalData = { ...(finalData || {}), ...parsedMeta };
+          if (onChunk) onChunk("", customerSafeAiText(accumulatedRaw), finalData);
         } else if (parsed.type === "final" && parsed.data) {
-          finalData = parseAuraAiPayload(parsed.data);
+          finalData = { ...(finalData || {}), ...parseAuraAiPayload(parsed.data) };
         }
       } catch (_) {}
     };
