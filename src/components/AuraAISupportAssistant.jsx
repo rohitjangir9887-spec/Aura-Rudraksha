@@ -22,8 +22,9 @@ import { db, onStoreUpdate } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { auraAiClient } from "../lib/auraAiClient";
 import { auraChatStore, formatMessageTime } from "../lib/auraChatStore";
-import { parseAuraAiPayload } from "../lib/auraAiResponse";
+import { parseAuraAiPayload, customerSafeAiText } from "../lib/auraAiResponse";
 import { emitToast } from "../context/ToastContext";
+import { AuraAIMessageContent } from "./AuraAIMessageContent";
 
 export function AuraAISupportAssistant({ defaultTopic = "orders", compact = false }) {
   const [user, setUser] = useState(() => authClient.getUser());
@@ -519,17 +520,18 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
               key={idx}
               style={{
                 alignSelf: m.sender === "user" ? "flex-end" : "flex-start",
-                background: m.sender === "user" ? "linear-gradient(135deg, #8c2b10 0%, #6e1e07 100%)" : "#fbf7ee",
+                background: m.sender === "user" ? "linear-gradient(135deg, #8c2b10 0%, #6e1e07 100%)" : "#ffffff",
                 color: m.sender === "user" ? "#fff" : "#2b1408",
                 padding: "8px 12px",
                 borderRadius: 10,
                 fontSize: 12.5,
                 maxWidth: "88%",
-                lineHeight: 1.4,
-                border: m.sender === "user" ? "none" : "1px solid #ebdccb"
+                lineHeight: 1.5,
+                border: m.sender === "user" ? "none" : "1px solid #ebdccb",
+                boxShadow: "0 1px 4px rgba(43, 20, 8, 0.04)"
               }}
             >
-              <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+              <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
             </div>
           ))}
           {loadingAi && (

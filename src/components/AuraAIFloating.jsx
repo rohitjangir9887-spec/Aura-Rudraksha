@@ -24,6 +24,7 @@ import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/au
 import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
+import { AuraAIMessageContent } from "./AuraAIMessageContent";
 
 export function AuraAIFloating() {
   const [isOpen, setIsOpen] = useState(false);
@@ -515,17 +516,7 @@ export function AuraAIFloating() {
                         )}
                         <div className="aura-ai-msg-content">
                           <div className="aura-ai-msg-text">
-                            {customerSafeAiText(m.text) && customerSafeAiText(m.text).split("\n").map((line, i) => (
-                              <React.Fragment key={i}>
-                                {line.startsWith("• ") ? (
-                                  <div className="aura-ai-bullet">{line}</div>
-                                ) : line.startsWith("**") && line.endsWith("**") ? (
-                                  <div className="aura-ai-bold-heading">{line.replace(/\*\*/g, "")}</div>
-                                ) : (
-                                  <p>{line}</p>
-                                )}
-                              </React.Fragment>
-                            ))}
+                            <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                           </div>
 
                           {/* Product Recommendations Vertical Compact List (No Horizontal Scroll) */}

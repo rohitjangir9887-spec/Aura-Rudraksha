@@ -32,6 +32,7 @@ import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
 import { db } from "../lib/db";
 import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
+import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 
 export function AuraAIPage() {
   // Shared persistent chat history
@@ -470,17 +471,7 @@ export function AuraAIPage() {
                       )}
                       <div className="aura-ai-page-msg-bubble">
                         <div className="aura-ai-page-text">
-                          {m.text && m.text.split("\n").map((line, i) => (
-                            <React.Fragment key={i}>
-                              {line.startsWith("• ") ? (
-                                <div className="aura-ai-bullet">{line}</div>
-                              ) : line.startsWith("**") && line.endsWith("**") ? (
-                                <div className="aura-ai-bold-heading">{line.replace(/\*\*/g, "")}</div>
-                              ) : (
-                                <p>{line}</p>
-                              )}
-                            </React.Fragment>
-                          ))}
+                          <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                         </div>
 
                         {/* Inline Recommended Product Cards */}

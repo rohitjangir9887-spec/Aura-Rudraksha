@@ -1,5 +1,5 @@
 /**
- * Normalize Aura AI API payloads so customers never see internal JSON.
+ * Normalize Aura AI API payloads so customers never see internal JSON or raw debug data.
  */
 
 const INTERNAL_KEYS = [
@@ -22,45 +22,49 @@ function looksLikeInternalJson(obj) {
   );
 }
 
-function stripJsonBlobFromText(raw) {
+function sanitizeCustomerText(raw) {
   if (typeof raw !== "string") return "";
   let text = raw.trim();
   if (!text) return "";
 
-  // Fence
-  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  // 1. Remove Code fences & JSON blobs
+  text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
+  // 2. Filter any accidental admin email or internal route leakages
+  text = text.replace(/rohitjangir\d*@gmail\.com/gi, "support@aurarudraksha.com");
+  text = text.replace(/MONGODB_[A-Z0-9_]+/gi, "");
+  text = text.replace(/GEMINI_API_[A-Z0-9_]+/gi, "");
+  text = text.replace(/NVIDIA_API_[A-Z0-9_]+/gi, "");
+  text = text.replace(/admin\s*portal\s*url/gi, "Aura Rudraksha Support");
+
+  // 3. Remove raw JSON object embeddings from conversation
   const firstBrace = text.indexOf("{");
-  if (firstBrace === -1) return text;
-
-  // If the whole string is JSON, extract text field
-  if (firstBrace === 0 || /^[\s\n]*\{/.test(text)) {
-    const parsed = tryParseJsonObject(text);
-    if (parsed && looksLikeInternalJson(parsed)) {
-      return String(parsed.text || parsed.message || "").trim();
-    }
-  }
-
-  // Conversational text followed by a JSON object
-  const lastBrace = text.lastIndexOf("}");
-  if (lastBrace > firstBrace) {
-    const maybeJson = text.slice(firstBrace, lastBrace + 1);
-    const parsed = tryParseJsonObject(maybeJson);
-    if (parsed && looksLikeInternalJson(parsed)) {
-      const before = text.slice(0, firstBrace).trim();
-      const inner = String(parsed.text || parsed.message || "").trim();
-      if (before && inner && !before.includes(inner.slice(0, 24))) {
-        return `${before}\n\n${inner}`.trim();
+  if (firstBrace !== -1) {
+    if (firstBrace === 0 || /^[\s\n]*\{/.test(text)) {
+      const parsed = tryParseJsonObject(text);
+      if (parsed && looksLikeInternalJson(parsed)) {
+        return sanitizeCustomerText(String(parsed.text || parsed.message || ""));
       }
-      return inner || before;
     }
-  }
-
-  // Hide leftover key dumps
-  if (INTERNAL_KEYS.some((k) => text.includes(`"${k}"`))) {
-    const parsed = tryParseJsonObject(text.slice(firstBrace));
-    if (parsed && parsed.text) return String(parsed.text).trim();
-    return text.slice(0, firstBrace).trim();
+    const lastBrace = text.lastIndexOf("}");
+    if (lastBrace > firstBrace) {
+      const maybeJson = text.slice(firstBrace, lastBrace + 1);
+      const parsed = tryParseJsonObject(maybeJson);
+      if (parsed && looksLikeInternalJson(parsed)) {
+        const before = text.slice(0, firstBrace).trim();
+        const inner = String(parsed.text || parsed.message || "").trim();
+        if (before && inner && !before.includes(inner.slice(0, 24))) {
+          text = `${before}\n\n${inner}`.trim();
+        } else {
+          text = inner || before;
+        }
+      }
+    }
+    if (INTERNAL_KEYS.some((k) => text.includes(`"${k}"`))) {
+      const parsed = tryParseJsonObject(text.slice(firstBrace));
+      if (parsed && parsed.text) return sanitizeCustomerText(String(parsed.text));
+      text = text.slice(0, firstBrace).trim();
+    }
   }
 
   return text;
@@ -113,11 +117,11 @@ export function parseAuraAiPayload(raw) {
       const parsed = tryParseJsonObject(trimmed);
       if (parsed) return parseAuraAiPayload(parsed);
     }
-    return { ...empty, text: stripJsonBlobFromText(raw) };
+    return { ...empty, text: sanitizeCustomerText(raw) };
   }
 
   if (typeof raw !== "object") {
-    return { ...empty, text: String(raw) };
+    return { ...empty, text: sanitizeCustomerText(String(raw)) };
   }
 
   // Nested data envelope
@@ -135,7 +139,7 @@ export function parseAuraAiPayload(raw) {
           ? raw.content
           : "";
 
-  const text = stripJsonBlobFromText(textSource);
+  const text = sanitizeCustomerText(textSource);
 
   const products = Array.isArray(raw.products) ? raw.products.filter((p) => p && typeof p === "object" && (p.id || p.name)) : [];
   const coupons = Array.isArray(raw.coupons)
@@ -168,5 +172,6 @@ export function customerSafeAiText(value) {
   if (typeof value === "object") {
     return parseAuraAiPayload(value).text;
   }
-  return stripJsonBlobFromText(String(value));
+  return sanitizeCustomerText(String(value));
 }
+
