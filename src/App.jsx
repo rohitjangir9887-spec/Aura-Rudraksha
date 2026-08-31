@@ -9,6 +9,7 @@ import { Cart } from "./pages/Cart";
 import { Checkout } from "./pages/Checkout";
 import { Login } from "./pages/Login";
 import { Policies } from "./pages/Policies";
+import { AuraAIFloating } from "./components/AuraAIFloating";
 
 // ---------------------------------------------------------------------------
 // Code splitting: admin + secondary pages are lazy-loaded so the Home bundle
@@ -125,6 +126,7 @@ export function App() {
         <Route path="/admin/zodiac" element={<AdminZodiac />} />
       </Routes>
     </Suspense>
+    <AuraAIFloating />
     </>
   );
 }

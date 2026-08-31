@@ -10329,7 +10329,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   position: fixed;
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   right: 20px;
-  z-index: 1040;
+  z-index: 10000;
   display: flex;
   align-items: center;
   touch-action: none;
@@ -10399,7 +10399,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   position: fixed;
   bottom: 84px;
   right: 20px;
-  z-index: 1041;
+  z-index: 10001;
   background: #1f0f06;
   color: #fffdf9;
   border: 1px solid rgba(212, 175, 55, 0.4);
@@ -10505,7 +10505,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 1048;
+  z-index: 10002;
   pointer-events: none;
   display: flex;
   justify-content: flex-end;
@@ -10545,7 +10545,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   inset: 0;
   background: rgba(18, 7, 2, 0.22);
   backdrop-filter: blur(1px);
-  z-index: 1049;
+  z-index: 10003;
   display: flex;
   justify-content: flex-end;
   align-items: flex-end;
