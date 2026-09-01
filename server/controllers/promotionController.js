@@ -1,7 +1,6 @@
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const OFFER_FIELDS = {
   title: "string", label: "string", description: "string", buttonText: "string",
@@ -34,13 +33,11 @@ const ACTIVE_OFFER_FIELDS = {
 // Central Live Offer
 export async function getActiveOffer(req, res, next) {
   try {
-    if (isDbConnected()) {
-      const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
-      return res.json({ success: true, data: offer || null });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
-
-    const offer = inMemoryStore.getActiveOffer();
-    return res.json({ success: true, data: offer, demoMode: true });
+    const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
+    return res.json({ success: true, data: offer || null });
   } catch (err) {
     next(err);
   }
@@ -48,6 +45,13 @@ export async function getActiveOffer(req, res, next) {
 
 export async function saveActiveOffer(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot save offer without a connected MongoDB database."
+      });
+    }
+
     const data = pickFields(req.body, ACTIVE_OFFER_FIELDS);
     const payload = {
       ...data,
@@ -58,18 +62,12 @@ export async function saveActiveOffer(req, res, next) {
       startAt: data.startAt || data.startDate
     };
 
-    if (isDbConnected()) {
-      const updated = await ActiveOffer.findOneAndUpdate(
-        { id: "OFFER-CENTRAL-1" },
-        { $set: payload },
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      inMemoryStore.saveActiveOffer(payload);
-      return res.json({ success: true, data: updated });
-    }
-
-    const updated = inMemoryStore.saveActiveOffer(payload);
-    return res.json({ success: true, data: updated, demoMode: true });
+    const updated = await ActiveOffer.findOneAndUpdate(
+      { id: "OFFER-CENTRAL-1" },
+      { $set: payload },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+    return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
@@ -78,13 +76,11 @@ export async function saveActiveOffer(req, res, next) {
 // Offers
 export async function getOffers(req, res, next) {
   try {
-    if (isDbConnected()) {
-      const list = await Offer.find().sort({ order: 1 }).lean();
-      return res.json({ success: true, data: list || [] });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
-
-    const list = inMemoryStore.getOffers();
-    return res.json({ success: true, data: list, demoMode: true });
+    const list = await Offer.find().sort({ order: 1 }).lean();
+    return res.json({ success: true, data: list || [] });
   } catch (err) {
     next(err);
   }
@@ -92,22 +88,23 @@ export async function getOffers(req, res, next) {
 
 export async function saveOffer(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot save offer without a connected MongoDB database."
+      });
+    }
+
     const data = pickFields(req.body, OFFER_FIELDS);
     const id = data.id || ("OFF-" + Date.now());
     const payload = { ...data, id };
 
-    if (isDbConnected()) {
-      const saved = await Offer.findOneAndUpdate(
-        { id: payload.id },
-        payload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      inMemoryStore.saveOffer(payload);
-      return res.status(201).json({ success: true, data: saved });
-    }
-
-    const saved = inMemoryStore.saveOffer(payload);
-    return res.status(201).json({ success: true, data: saved, demoMode: true });
+    const saved = await Offer.findOneAndUpdate(
+      { id: payload.id },
+      payload,
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+    return res.status(201).json({ success: true, data: saved });
   } catch (err) {
     next(err);
   }
@@ -115,15 +112,16 @@ export async function saveOffer(req, res, next) {
 
 export async function deleteOffer(req, res, next) {
   try {
-    const { id } = req.params;
-    if (isDbConnected()) {
-      await Offer.findOneAndDelete({ id: String(id) });
-      inMemoryStore.deleteOffer(id);
-      return res.json({ success: true, message: "Offer deleted", id });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot delete offer without a connected MongoDB database."
+      });
     }
 
-    inMemoryStore.deleteOffer(id);
-    return res.json({ success: true, message: "Offer deleted", id, demoMode: true });
+    const { id } = req.params;
+    await Offer.findOneAndDelete({ id: String(id) });
+    return res.json({ success: true, message: "Offer deleted", id });
   } catch (err) {
     next(err);
   }
@@ -132,13 +130,11 @@ export async function deleteOffer(req, res, next) {
 // Promotions
 export async function getPromotions(req, res, next) {
   try {
-    if (isDbConnected()) {
-      const list = await Promotion.find().sort({ createdAt: -1 }).lean();
-      return res.json({ success: true, data: list || [] });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
-
-    const list = inMemoryStore.getPromotions();
-    return res.json({ success: true, data: list, demoMode: true });
+    const list = await Promotion.find().sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, data: list || [] });
   } catch (err) {
     next(err);
   }
@@ -146,22 +142,23 @@ export async function getPromotions(req, res, next) {
 
 export async function savePromotion(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot save promotion without a connected MongoDB database."
+      });
+    }
+
     const data = pickFields(req.body, PROMO_FIELDS);
     const id = data.id || ("PROMO-" + Date.now());
     const payload = { ...data, id };
 
-    if (isDbConnected()) {
-      const saved = await Promotion.findOneAndUpdate(
-        { id: payload.id },
-        payload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      inMemoryStore.savePromotion(payload);
-      return res.status(201).json({ success: true, data: saved });
-    }
-
-    const saved = inMemoryStore.savePromotion(payload);
-    return res.status(201).json({ success: true, data: saved, demoMode: true });
+    const saved = await Promotion.findOneAndUpdate(
+      { id: payload.id },
+      payload,
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+    return res.status(201).json({ success: true, data: saved });
   } catch (err) {
     next(err);
   }
@@ -169,15 +166,16 @@ export async function savePromotion(req, res, next) {
 
 export async function deletePromotion(req, res, next) {
   try {
-    const { id } = req.params;
-    if (isDbConnected()) {
-      await Promotion.findOneAndDelete({ id: String(id) });
-      inMemoryStore.deletePromotion(id);
-      return res.json({ success: true, message: "Promotion deleted", id });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot delete promotion without a connected MongoDB database."
+      });
     }
 
-    inMemoryStore.deletePromotion(id);
-    return res.json({ success: true, message: "Promotion deleted", id, demoMode: true });
+    const { id } = req.params;
+    await Promotion.findOneAndDelete({ id: String(id) });
+    return res.json({ success: true, message: "Promotion deleted", id });
   } catch (err) {
     next(err);
   }

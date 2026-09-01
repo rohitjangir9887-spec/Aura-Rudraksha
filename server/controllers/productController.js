@@ -1,7 +1,6 @@
 import { Product } from "../models/Product.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -15,18 +14,11 @@ const PRODUCT_FIELDS = {
 
 export async function getProducts(req, res, next) {
   try {
-    if (isDbConnected()) {
-      const products = await Product.find().sort({ createdAt: -1 }).lean();
-      return res.json({ success: true, data: products, count: products.length });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
-
-    const memoryProducts = inMemoryStore.getProducts();
-    return res.json({
-      success: true,
-      data: memoryProducts,
-      count: memoryProducts.length,
-      demoMode: true
-    });
+    const products = await Product.find().sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
     next(err);
   }
@@ -35,22 +27,17 @@ export async function getProducts(req, res, next) {
 export async function getProductById(req, res, next) {
   try {
     const { id } = req.params;
-    if (isDbConnected()) {
-      let product = await Product.findOne({ id: String(id) }).lean();
-      if (!product && id.match(/^[0-9a-fA-F]{24}$/)) {
-        product = await Product.findById(id).lean();
-      }
-      if (!product) {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-      return res.json({ success: true, data: product });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
-
-    const found = inMemoryStore.getProductById(id);
-    if (!found) {
+    let product = await Product.findOne({ id: String(id) }).lean();
+    if (!product && id.match(/^[0-9a-fA-F]{24}$/)) {
+      product = await Product.findById(id).lean();
+    }
+    if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
-    return res.json({ success: true, data: found, demoMode: true });
+    return res.json({ success: true, data: product });
   } catch (err) {
     next(err);
   }
@@ -58,6 +45,13 @@ export async function getProductById(req, res, next) {
 
 export async function createProduct(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot create product without a connected MongoDB database."
+      });
+    }
+
     const data = pickFields(req.body, PRODUCT_FIELDS);
     if (!data.name || data.price === undefined) {
       return res.status(400).json({ success: false, message: "Name and Price are required" });
@@ -76,18 +70,12 @@ export async function createProduct(req, res, next) {
       reviews: Number(data.reviews || data.reviewCount) || 0
     };
 
-    if (isDbConnected()) {
-      const created = await Product.findOneAndUpdate(
-        { id: productPayload.id },
-        productPayload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      inMemoryStore.saveProduct(productPayload);
-      return res.status(201).json({ success: true, data: created });
-    }
-
-    const saved = inMemoryStore.saveProduct(productPayload);
-    return res.status(201).json({ success: true, data: saved, demoMode: true });
+    const created = await Product.findOneAndUpdate(
+      { id: productPayload.id },
+      productPayload,
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+    return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
   }
@@ -95,6 +83,13 @@ export async function createProduct(req, res, next) {
 
 export async function updateProduct(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot update product without a connected MongoDB database."
+      });
+    }
+
     const { id } = req.params;
     const data = pickFields(req.body, PRODUCT_FIELDS);
 
@@ -105,24 +100,18 @@ export async function updateProduct(req, res, next) {
       updatePayload.img = data.images[0];
     }
 
-    if (isDbConnected()) {
-      let updated = await Product.findOneAndUpdate(
-        { id: String(id) },
-        { $set: updatePayload },
-        { returnDocument: "after" }
-      );
-      if (!updated && id.match(/^[0-9a-fA-F]{24}$/)) {
-        updated = await Product.findByIdAndUpdate(id, { $set: updatePayload }, { returnDocument: "after" });
-      }
-      if (!updated) {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-      inMemoryStore.saveProduct({ ...updatePayload, id: String(id) });
-      return res.json({ success: true, data: updated });
+    let updated = await Product.findOneAndUpdate(
+      { id: String(id) },
+      { $set: updatePayload },
+      { returnDocument: "after" }
+    );
+    if (!updated && id.match(/^[0-9a-fA-F]{24}$/)) {
+      updated = await Product.findByIdAndUpdate(id, { $set: updatePayload }, { returnDocument: "after" });
     }
-
-    const updated = inMemoryStore.saveProduct({ ...updatePayload, id: String(id) });
-    return res.json({ success: true, data: updated, demoMode: true });
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
@@ -130,18 +119,19 @@ export async function updateProduct(req, res, next) {
 
 export async function deleteProduct(req, res, next) {
   try {
-    const { id } = req.params;
-    if (isDbConnected()) {
-      const deleted = await Product.findOneAndDelete({ id: String(id) });
-      if (!deleted && id.match(/^[0-9a-fA-F]{24}$/)) {
-        await Product.findByIdAndDelete(id);
-      }
-      inMemoryStore.deleteProduct(id);
-      return res.json({ success: true, message: "Product deleted", id });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot delete product without a connected MongoDB database."
+      });
     }
 
-    inMemoryStore.deleteProduct(id);
-    return res.json({ success: true, message: "Product deleted", id, demoMode: true });
+    const { id } = req.params;
+    const deleted = await Product.findOneAndDelete({ id: String(id) });
+    if (!deleted && id.match(/^[0-9a-fA-F]{24}$/)) {
+      await Product.findByIdAndDelete(id);
+    }
+    return res.json({ success: true, message: "Product deleted", id });
   } catch (err) {
     next(err);
   }

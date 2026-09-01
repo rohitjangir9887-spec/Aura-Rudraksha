@@ -1,6 +1,5 @@
 import { Coupon } from "../models/Coupon.js";
 import { isDbConnected } from "../config/db.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
@@ -161,36 +160,29 @@ export async function validateCoupon(req, res, next) {
 
 export async function getCoupons(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
+    }
+
     let isAdmin = false;
     if (req.user) {
       const { isInitialAdmin } = isAdminUser(req.user);
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
     }
 
-    if (isDbConnected()) {
-      // Live data only - an empty coupon list must stay empty (no demo fallback).
-      // Auto-mark coupons with a past expiry as Expired (never resurrect them).
-      const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
-      const now = Date.now();
-      for (const c of coupons) {
-        if (c.status === "Active" && c.expiry && new Date(c.expiry).getTime() < now) {
-          await Coupon.updateOne({ _id: c._id }, { $set: { status: "Expired" } });
-          c.status = "Expired";
-        }
+    const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
+    const now = Date.now();
+    for (const c of coupons) {
+      if (c.status === "Active" && c.expiry && new Date(c.expiry).getTime() < now) {
+        await Coupon.updateOne({ _id: c._id }, { $set: { status: "Expired" } });
+        c.status = "Expired";
       }
-      if (isAdmin) {
-        return res.json({ success: true, data: coupons, count: coupons.length });
-      }
-      const publicCoupons = coupons.filter(c => c.status === "Active").map(toPublicCoupon);
-      return res.json({ success: true, data: publicCoupons, count: publicCoupons.length });
     }
-
-    const coupons = inMemoryStore.getCoupons();
     if (isAdmin) {
-      return res.json({ success: true, data: coupons, count: coupons.length, demoMode: true });
+      return res.json({ success: true, data: coupons, count: coupons.length });
     }
     const publicCoupons = coupons.filter(c => c.status === "Active").map(toPublicCoupon);
-    return res.json({ success: true, data: publicCoupons, count: publicCoupons.length, demoMode: true });
+    return res.json({ success: true, data: publicCoupons, count: publicCoupons.length });
   } catch (err) {
     next(err);
   }
@@ -198,6 +190,13 @@ export async function getCoupons(req, res, next) {
 
 export async function createCoupon(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot create coupon without a connected MongoDB database."
+      });
+    }
+
     const data = pickFields(req.body, COUPON_FIELDS);
     if (!data.code || data.discount === undefined) {
       return res.status(400).json({ success: false, message: "Code and discount are required" });
@@ -217,18 +216,12 @@ export async function createCoupon(req, res, next) {
       status: data.status === "Disabled" ? "Inactive" : (data.status || "Active")
     };
 
-    if (isDbConnected()) {
-      const created = await Coupon.findOneAndUpdate(
-        { $or: [{ id: payload.id }, { code: payload.code }] },
-        payload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      inMemoryStore.saveCoupon(payload);
-      return res.status(201).json({ success: true, data: created });
-    }
-
-    const created = inMemoryStore.saveCoupon(payload);
-    return res.status(201).json({ success: true, data: created, demoMode: true });
+    const created = await Coupon.findOneAndUpdate(
+      { $or: [{ id: payload.id }, { code: payload.code }] },
+      payload,
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+    return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
   }
@@ -236,25 +229,26 @@ export async function createCoupon(req, res, next) {
 
 export async function updateCoupon(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot update coupon without a connected MongoDB database."
+      });
+    }
+
     const { id } = req.params;
     const data = pickFields(req.body, COUPON_FIELDS);
     if (data.code) data.code = String(data.code).trim().toUpperCase();
 
-    if (isDbConnected()) {
-      const updated = await Coupon.findOneAndUpdate(
-        { $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] },
-        { $set: data },
-        { returnDocument: "after" }
-      );
-      if (!updated) {
-        return res.status(404).json({ success: false, message: "Coupon not found" });
-      }
-      inMemoryStore.saveCoupon({ ...data, id: String(id) });
-      return res.json({ success: true, data: updated });
+    const updated = await Coupon.findOneAndUpdate(
+      { $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] },
+      { $set: data },
+      { returnDocument: "after" }
+    );
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
     }
-
-    const updated = inMemoryStore.saveCoupon({ ...data, id: String(id) });
-    return res.json({ success: true, data: updated, demoMode: true });
+    return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }
@@ -262,15 +256,16 @@ export async function updateCoupon(req, res, next) {
 
 export async function deleteCoupon(req, res, next) {
   try {
-    const { id } = req.params;
-    if (isDbConnected()) {
-      await Coupon.findOneAndDelete({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] });
-      inMemoryStore.deleteCoupon(id);
-      return res.json({ success: true, message: "Coupon deleted", id });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot delete coupon without a connected MongoDB database."
+      });
     }
 
-    inMemoryStore.deleteCoupon(id);
-    return res.json({ success: true, message: "Coupon deleted", id, demoMode: true });
+    const { id } = req.params;
+    await Coupon.findOneAndDelete({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] });
+    return res.json({ success: true, message: "Coupon deleted", id });
   } catch (err) {
     next(err);
   }

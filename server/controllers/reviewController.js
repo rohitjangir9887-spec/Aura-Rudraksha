@@ -80,6 +80,10 @@ const defaultReviewSettings = {
 
 export async function getReviews(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
+    }
+
     const { productId, status, type, source } = req.query;
 
     let isAdmin = false;
@@ -88,45 +92,30 @@ export async function getReviews(req, res, next) {
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
     }
 
-    if (isDbConnected()) {
-      let query = {
-        status: { $ne: "deleted" },
-        deletedAt: null
-      };
+    let query = {
+      status: { $ne: "deleted" },
+      deletedAt: null
+    };
 
-      if (status && typeof status === "string") {
-        if (status !== "all") query.status = status;
-      }
-      if (type && typeof type === "string" && type !== "all") query.type = type;
-      if (source && typeof source === "string" && source !== "all") query.source = source;
+    if (status && typeof status === "string") {
+      if (status !== "all") query.status = status;
+    }
+    if (type && typeof type === "string" && type !== "all") query.type = type;
+    if (source && typeof source === "string" && source !== "all") query.source = source;
 
-      if (productId && productId !== "all" && typeof productId === "string") {
-        query.$or = [{ productId: String(productId) }, { type: "store" }, { productId: "5" }];
-      }
-
-      // Public (non-admin) callers only see approved genuine customer reviews
-      if (!isAdmin) {
-        query.status = "Approved";
-        query.source = { $ne: "ai_draft" };
-      }
-
-      const reviews = await Review.find(query).sort({ createdAt: -1 }).lean();
-      const data = isAdmin ? reviews : reviews.map(({ email, ...safe }) => safe);
-      return res.json({ success: true, data, count: data.length });
+    if (productId && productId !== "all" && typeof productId === "string") {
+      query.$or = [{ productId: String(productId) }, { type: "store" }, { productId: "5" }];
     }
 
-    // Fallback mode
-    let result = defaultReviews.filter(r => !deletedReviewIds.has(String(r.id)) && r.status !== "deleted" && r.status !== "draft");
-    if (status && status !== "all") result = result.filter(r => r.status === status);
-    if (type && type !== "all") result = result.filter(r => r.type === type);
-    if (source && source !== "all") result = result.filter(r => r.source === source);
-    if (productId && productId !== "all") {
-      result = result.filter(r => String(r.productId) === String(productId) || r.type === "store" || r.productId === "5");
-    }
+    // Public (non-admin) callers only see approved genuine customer reviews
     if (!isAdmin) {
-      result = result.filter(r => r.status === "Approved" && r.source !== "ai_draft");
+      query.status = "Approved";
+      query.source = { $ne: "ai_draft" };
     }
-    return res.json({ success: true, data: result, count: result.length, demoMode: true });
+
+    const reviews = await Review.find(query).sort({ createdAt: -1 }).lean();
+    const data = isAdmin ? reviews : reviews.map(({ email, ...safe }) => safe);
+    return res.json({ success: true, data, count: data.length });
   } catch (err) {
     next(err);
   }
@@ -243,25 +232,27 @@ export async function updateReview(req, res, next) {
 
 export async function deleteReview(req, res, next) {
   try {
-    const { id } = req.params;
-    const reviewId = String(id);
-    deletedReviewIds.add(reviewId);
-
-    if (isDbConnected()) {
-      await Review.findOneAndUpdate(
-        { id: reviewId },
-        {
-          $set: {
-            status: "deleted",
-            deletedAt: new Date(),
-            deletedBy: req.user?.email || "admin"
-          }
-        }
-      );
-      return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        message: "Database unavailable. Cannot delete review without a connected MongoDB database."
+      });
     }
 
-    return res.json({ success: true, message: "Review deleted (demo mode)", id: reviewId, demoMode: true });
+    const { id } = req.params;
+    const reviewId = String(id);
+
+    await Review.findOneAndUpdate(
+      { id: reviewId },
+      {
+        $set: {
+          status: "deleted",
+          deletedAt: new Date(),
+          deletedBy: req.user?.email || "admin"
+        }
+      }
+    );
+    return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
   } catch (err) {
     next(err);
   }
@@ -296,15 +287,15 @@ export async function voteReview(req, res, next) {
 
 export async function getReviewSettings(req, res, next) {
   try {
-    if (isDbConnected()) {
-      let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
-      if (!settings) {
-        settings = await ReviewSetting.create(defaultReviewSettings);
-      }
-      return res.json({ success: true, data: settings });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
 
-    return res.json({ success: true, data: defaultReviewSettings, demoMode: true });
+    let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
+    if (!settings) {
+      settings = await ReviewSetting.create(defaultReviewSettings);
+    }
+    return res.json({ success: true, data: settings });
   } catch (err) {
     next(err);
   }
