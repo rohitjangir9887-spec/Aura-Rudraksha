@@ -682,6 +682,12 @@ const NEUTRAL_OFFER = {
 //  - When MongoDB is DISCONNECTED, the static dev fallback data is kept so the
 //    storefront can be previewed offline; the UI shows a "demo" indicator.
 let isInitialized = false;
+let isHydrated = false;
+let hydrationResolver = null;
+let hydrationPromise = new Promise((resolve) => {
+  hydrationResolver = resolve;
+});
+
 async function hydrateFromBackend() {
   try {
     const healthRes = await apiRequest("/health");
@@ -692,6 +698,8 @@ async function hydrateFromBackend() {
         storeCache.dbStatus = "disconnected";
         emitStoreUpdate("backend:disconnected", { timestamp: Date.now() });
       }
+      isHydrated = true;
+      if (hydrationResolver) hydrationResolver(true);
       return; // keep dev fallback data while DB is down
     }
 
@@ -732,7 +740,7 @@ async function hydrateFromBackend() {
     if (productsRes?.success && Array.isArray(productsRes.data)) {
       storeCache.products = productsRes.data.map(p => ({
         ...p,
-        id: String(p.id),
+        id: String(p.id || p._id),
         showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
         isPopular: !!p.isPopular,
         homeOrder: Number(p.homeOrder) || 0,
@@ -782,8 +790,13 @@ async function hydrateFromBackend() {
       storeCache.reviewSettings = { ...storeCache.reviewSettings, ...reviewSettingsRes.data };
     }
 
+    isHydrated = true;
+    if (hydrationResolver) hydrationResolver(true);
+
     emitStoreUpdate("backend:synced", { dbStatus: "connected", timestamp: Date.now() });
   } catch (err) {
+    isHydrated = true;
+    if (hydrationResolver) hydrationResolver(true);
     if (process.env.NODE_ENV === "development") {
       console.warn("[Aura DB] Background hydration note:", err.message);
     }
@@ -827,11 +840,20 @@ export const db = {
     await hydrateFromBackend();
   },
 
+  // Hydration State Checkers
+  isHydrated: () => isHydrated,
+  waitForHydration: async () => {
+    if (hydrationPromise) {
+      await hydrationPromise;
+    }
+    return isHydrated;
+  },
+
   // PRODUCTS
   getProducts: () => {
     return storeCache.products.map(p => ({
       ...p,
-      id: String(p.id),
+      id: String(p.id || p._id),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
@@ -840,12 +862,18 @@ export const db = {
     }));
   },
 
-  getProduct: (id) => {
-    const p = storeCache.products.find(x => String(x.id) === String(id));
+  getProduct: (idOrSlug) => {
+    if (!idOrSlug) return null;
+    const target = String(idOrSlug).trim().toLowerCase();
+    const p = storeCache.products.find(x => 
+      String(x.id || "").toLowerCase() === target ||
+      (x._id && String(x._id).toLowerCase() === target) ||
+      (x.slug && String(x.slug).toLowerCase() === target)
+    );
     if (!p) return null;
     return {
       ...p,
-      id: String(p.id),
+      id: String(p.id || p._id),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
@@ -854,23 +882,56 @@ export const db = {
     };
   },
 
+  getProductAsync: async (idOrSlug) => {
+    if (!idOrSlug) return null;
+    await db.waitForHydration();
+
+    // 1. Check in-memory storeCache
+    const cached = db.getProduct(idOrSlug);
+    if (cached) return cached;
+
+    // 2. If DB connected and not found locally, attempt direct API lookup
+    if (storeCache.dbStatus === "connected") {
+      const res = await apiRequest(`/products/${encodeURIComponent(idOrSlug)}`);
+      if (res?.success && res.data) {
+        const p = res.data;
+        const normalized = {
+          ...p,
+          id: String(p.id || p._id),
+          mrp: p.mrp || p.comparePrice || p.price,
+          comparePrice: p.comparePrice || p.mrp || p.price,
+          images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+        };
+        const idx = storeCache.products.findIndex(x =>
+          String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
+        );
+        if (idx >= 0) {
+          storeCache.products[idx] = normalized;
+        } else {
+          storeCache.products.push(normalized);
+        }
+        return normalized;
+      }
+    }
+    return null;
+  },
+
   fetchProducts: async () => {
     const res = await apiRequest("/products");
     if (res?.success && Array.isArray(res.data)) {
       storeCache.products = res.data.map(p => ({
         ...p,
-        id: String(p.id),
+        id: String(p.id || p._id),
         mrp: p.mrp || p.comparePrice || p.price,
         comparePrice: p.comparePrice || p.mrp || p.price,
         images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
       }));
-      // emitStoreUpdate (removed to prevent infinite fetch loop)
     }
     return db.getProducts();
   },
 
   saveProduct: async (p) => {
-    const id = p.id ? String(p.id) : Date.now().toString();
+    const id = p.id ? String(p.id) : (p._id ? String(p._id) : Date.now().toString());
     const imgs = (Array.isArray(p.images) && p.images.length > 0) ? p.images : (p.img ? [p.img] : ["/images/product-5mukhi.jpg"]);
     const primaryImg = p.img || imgs[0];
 
@@ -900,19 +961,33 @@ export const db = {
     }
 
     const savedData = res.data || finalProduct;
-    const currentIdx = storeCache.products.findIndex(x => String(x.id) === String(id));
+    const strId = String(savedData.id || id);
+    const mongoId = savedData._id ? String(savedData._id) : null;
+
+    const currentIdx = storeCache.products.findIndex(x =>
+      String(x.id) === strId || (mongoId && String(x._id) === mongoId) || (x.slug && x.slug === savedData.slug)
+    );
+
+    const normalizedSaved = {
+      ...savedData,
+      id: String(savedData.id || savedData._id || id),
+      mrp: savedData.mrp || savedData.comparePrice || savedData.price,
+      comparePrice: savedData.comparePrice || savedData.mrp || savedData.price,
+      images: (Array.isArray(savedData.images) && savedData.images.length > 0) ? savedData.images : [savedData.img || "/images/product-5mukhi.jpg"]
+    };
+
     if (currentIdx >= 0) {
-      storeCache.products[currentIdx] = { ...storeCache.products[currentIdx], ...savedData };
+      storeCache.products[currentIdx] = normalizedSaved;
     } else {
-      storeCache.products.unshift(savedData);
+      storeCache.products.unshift(normalizedSaved);
     }
-    emitStoreUpdate("product:saved", savedData);
-    return savedData;
+    emitStoreUpdate("product:saved", normalizedSaved);
+    return normalizedSaved;
   },
 
   toggleProductHomeShowcase: async (id, showOnHome) => {
     const strId = String(id);
-    const prod = storeCache.products.find(x => String(x.id) === strId);
+    const prod = db.getProduct(strId);
     if (!prod) return null;
     const updated = {
       ...prod,
@@ -927,7 +1002,9 @@ export const db = {
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete product. Database is unavailable.");
     }
-    storeCache.products = storeCache.products.filter(p => String(p.id) !== strId);
+    storeCache.products = storeCache.products.filter(p =>
+      String(p.id) !== strId && String(p._id) !== strId && p.slug !== strId
+    );
     emitStoreUpdate("product:deleted", strId);
     return true;
   },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ShieldCheck, PackageCheck, Headphones, BadgeCheck, Flower2 } from "lucide-react";
+import { ShieldCheck, PackageCheck, BadgeCheck, Flower2 } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate } from "../lib/db";
@@ -20,7 +20,8 @@ export function Home() {
   const [offers, setOffers] = useState([]);
   const location = useLocation();
 
-  const loadHomeData = () => {
+  const loadHomeData = async () => {
+    await db.waitForHydration();
     setBanners(db.getBanners());
     setProducts(db.getProducts().filter(p => p.status === 'Active'));
     
@@ -44,6 +45,7 @@ export function Home() {
     });
 
     setOffers(allOffers.sort((a,b) => (a.order || 0) - (b.order || 0)));
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -135,7 +137,6 @@ export function Home() {
       <div><div className="icon-wrapper"><Flower2 strokeWidth={1.5}/></div><b>Positive Energy</b><span>Energized Beads</span></div>
       <div><div className="icon-wrapper"><ShieldCheck strokeWidth={1.5}/></div><b>Premium Quality</b><span>Nepal Origin</span></div>
       <div><div className="icon-wrapper"><PackageCheck strokeWidth={1.5}/></div><b>Free Shipping</b><span>On Orders ₹499+</span></div>
-      <div><div className="icon-wrapper"><Headphones strokeWidth={1.5}/></div><b>24/7 Support</b><span>Dedicated Care</span></div>
     </div>
 
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}

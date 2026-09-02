@@ -238,7 +238,7 @@ export function PanditjiSection() {
               borderRadius: '50%',
               padding: 2,
               background: 'linear-gradient(135deg, #D4AF37 0%, #8A6014 50%, #E5C158 100%)',
-              boxShadow: '0 3px 10px rgba(138, 96, 20, 0.3)',
+              boxShadow: '0 3px 12px rgba(138, 96, 20, 0.35)',
               flexShrink: 0
             }}>
               <div style={{
@@ -246,49 +246,60 @@ export function PanditjiSection() {
                 height: '100%',
                 borderRadius: '50%',
                 overflow: 'hidden',
-                background: '#4A0E17',
+                background: 'radial-gradient(circle, #ffe8cc 0%, #fbd5a5 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative'
               }}>
-                {/* Spiritual Vedic Astrologer Icon / Graphic */}
+                {/* High Definition Vedic Acharya Icon */}
                 <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
                   <defs>
-                    <radialGradient id="haloGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#FFE082" stopOpacity="0.8" />
-                      <stop offset="100%" stopColor="#4A0E17" stopOpacity="1" />
+                    <radialGradient id="headerHalo" cx="50%" cy="40%" r="50%">
+                      <stop offset="0%" stopColor="#FFF9E6" />
+                      <stop offset="60%" stopColor="#FFD54F" stopOpacity="0.85" />
+                      <stop offset="100%" stopColor="#FF8F00" stopOpacity="0.2" />
                     </radialGradient>
-                    <linearGradient id="saffronRobe" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#FF9933" />
-                      <stop offset="100%" stopColor="#CC5500" />
+                    <linearGradient id="headerSkin" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#F9D7B7" />
+                      <stop offset="100%" stopColor="#E0AC7E" />
+                    </linearGradient>
+                    <linearGradient id="headerRobe" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#FF8A00" />
+                      <stop offset="50%" stopColor="#E65100" />
+                      <stop offset="100%" stopColor="#BF360C" />
+                    </linearGradient>
+                    <linearGradient id="headerTurban" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#FFA000" />
+                      <stop offset="70%" stopColor="#E65100" />
+                      <stop offset="100%" stopColor="#D84315" />
                     </linearGradient>
                   </defs>
-                  <circle cx="50" cy="50" r="48" fill="url(#haloGlow)" />
-                  {/* Halo Aura Rings */}
-                  <circle cx="50" cy="38" r="28" fill="none" stroke="#D4AF37" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.6" />
-                  {/* Saffron Angavastram / Robe */}
-                  <path d="M15 95 Q 50 65 85 95 Z" fill="url(#saffronRobe)" />
-                  {/* Rudraksha Mala */}
-                  <path d="M 32 75 Q 50 92 68 75" fill="none" stroke="#5C2607" strokeWidth="3" strokeLinecap="round" />
-                  <circle cx="50" cy="85" r="3.5" fill="#8B4513" stroke="#D4AF37" strokeWidth="1" />
-                  <circle cx="40" cy="81" r="3" fill="#8B4513" />
-                  <circle cx="60" cy="81" r="3" fill="#8B4513" />
-                  {/* Neck & Face */}
-                  <path d="M 43 65 L 57 65 L 55 52 L 45 52 Z" fill="#F3D1AC" />
-                  <ellipse cx="50" cy="40" rx="16" ry="18" fill="#F5D7B5" />
-                  {/* Beard & Hair */}
-                  <path d="M 34 38 Q 50 62 66 38 Q 62 58 50 60 Q 38 58 34 38 Z" fill="#2E241E" />
-                  <path d="M 34 34 Q 50 18 66 34 Q 50 24 34 34 Z" fill="#2E241E" />
-                  {/* Tilak */}
-                  <path d="M 48 30 L 52 30 L 51 38 L 49 38 Z" fill="#D32F2F" />
-                  <circle cx="50" cy="34" r="1.5" fill="#FFE082" />
-                  <line x1="45" y1="28" x2="55" y2="28" stroke="#FFE082" strokeWidth="1.2" />
-                  <line x1="46" y1="30" x2="54" y2="30" stroke="#FFE082" strokeWidth="1" />
-                  {/* Gentle Eyes & Smile */}
-                  <path d="M 43 38 Q 46 40 48 38" fill="none" stroke="#2E241E" strokeWidth="1.2" />
-                  <path d="M 52 38 Q 54 40 57 38" fill="none" stroke="#2E241E" strokeWidth="1.2" />
-                  <path d="M 47 48 Q 50 51 53 48" fill="none" stroke="#C2185B" strokeWidth="1" />
+                  <circle cx="50" cy="42" r="38" fill="url(#headerHalo)" />
+                  <path d="M12 92 C14 74 30 68 50 68 C70 68 86 74 88 92 Z" fill="url(#headerRobe)" />
+                  <path d="M22 92 C28 78 45 74 50 74 C55 74 72 78 78 92" stroke="#FFD54F" strokeWidth="2.2" fill="none" />
+                  <circle cx="36" cy="72" r="2.2" fill="#5D2E16" stroke="#DAA520" strokeWidth="0.6" />
+                  <circle cx="43" cy="77" r="2.4" fill="#6E371C" stroke="#DAA520" strokeWidth="0.6" />
+                  <circle cx="50" cy="79" r="2.8" fill="#8B4513" stroke="#FFD700" strokeWidth="0.8" />
+                  <circle cx="57" cy="77" r="2.4" fill="#6E371C" stroke="#DAA520" strokeWidth="0.6" />
+                  <circle cx="64" cy="72" r="2.2" fill="#5D2E16" stroke="#DAA520" strokeWidth="0.6" />
+                  <path d="M43 56 L43 68 C43 71 57 71 57 68 L57 56 Z" fill="url(#headerSkin)" />
+                  <ellipse cx="50" cy="46" rx="14" ry="16" fill="url(#headerSkin)" />
+                  <circle cx="35" cy="47" r="3.2" fill="#E0AC7E" />
+                  <circle cx="65" cy="47" r="3.2" fill="#E0AC7E" />
+                  <path d="M38 52 C38 64 45 68 50 68 C55 68 62 64 62 52 C58 58 42 58 38 52 Z" fill="#F5F5F5" />
+                  <ellipse cx="44" cy="44" rx="2.5" ry="1.4" fill="#3D2314" />
+                  <ellipse cx="56" cy="44" rx="2.5" ry="1.4" fill="#3D2314" />
+                  <path d="M41 41 Q44 39.5 47 41" stroke="#424242" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+                  <path d="M53 41 Q56 39.5 59 41" stroke="#424242" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+                  <path d="M50 42 L48.8 48.5 Q50 50 51.2 48.5" stroke="#BF8050" strokeWidth="0.9" fill="none" />
+                  <path d="M46 53 Q50 55.5 54 53" stroke="#8D4528" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+                  <path d="M44 35.5 L56 35.5" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" />
+                  <path d="M43.5 37 L56.5 37" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" />
+                  <path d="M44 38.5 L56 38.5" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" />
+                  <circle cx="50" cy="37" r="1.1" fill="#C62828" />
+                  <path d="M33 34 C33 22 40 18 50 18 C60 18 67 22 67 34 C63 31 37 31 33 34 Z" fill="url(#headerTurban)" />
+                  <circle cx="50" cy="23" r="2.2" fill="#C62828" stroke="#FFD700" strokeWidth="0.8" />
                 </svg>
               </div>
               {/* Online indicator */}
@@ -301,17 +312,17 @@ export function PanditjiSection() {
                 borderRadius: '50%',
                 background: '#16a34a',
                 border: '2px solid #FFFDF9',
-                boxShadow: '0 0 5px rgba(22, 163, 74, 0.6)'
+                boxShadow: '0 0 6px rgba(22, 163, 74, 0.7)'
               }} />
             </div>
 
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span className="aura-panditji-badge" style={{ margin: 0, padding: '2px 8px', fontSize: '9.5px' }}>
+                <span className="aura-panditji-badge" style={{ margin: 0, padding: '2px 8px', fontSize: '9.5px', background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(74, 14, 23, 0.08) 100%)', border: '1px solid rgba(200, 155, 60, 0.45)' }}>
                   <Sparkles size={11} className="aura-panditji-badge-icon" />
                   AURA VEDIC AI ASTROLOGER
                 </span>
-                <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 700, background: '#dcfce7', padding: '1px 6px', borderRadius: 10 }}>
+                <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 700, background: '#dcfce7', border: '1px solid #bbf7d0', padding: '1px 7px', borderRadius: 10 }}>
                   ● लाइव निशुल्क परामर्श
                 </span>
               </div>
@@ -340,15 +351,17 @@ export function PanditjiSection() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                background: '#fff9ed',
+                background: 'linear-gradient(135deg, #FFF8EC 0%, #FEEFD8 100%)',
                 border: '1px solid #d4af37',
                 color: '#78350f',
-                padding: '5px 10px',
+                padding: '5px 12px',
                 borderRadius: 20,
                 fontSize: '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 6px rgba(212, 175, 55, 0.2)',
+                transition: 'all 0.2s'
               }}
             >
               <MessageCircle size={13} color="#a54d2b" />
@@ -391,7 +404,9 @@ export function PanditjiSection() {
                     {/* 1. NAME FIELD */}
                     <div style={{ minWidth: 0 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '12px', fontWeight: 700, color: '#4A0E17', marginBottom: '4px', overflowWrap: 'break-word' }}>
-                        <User size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                        <span style={{ display: 'inline-flex', padding: 2, background: 'rgba(212, 175, 55, 0.15)', borderRadius: 4 }}>
+                          <User size={12} color="#8A6014" style={{ flexShrink: 0 }} />
+                        </span>
                         <span>आपका पूरा नाम (Name) *</span>
                       </label>
                       <input 
@@ -400,16 +415,19 @@ export function PanditjiSection() {
                         placeholder="उदा. राहुल शर्मा / Rahul"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
+                        className="aura-input-field"
                         style={{
                           width: '100%',
                           padding: '8px 12px',
-                          border: '1px solid #d8c3a5',
+                          border: '1.5px solid #E2D2BC',
                           borderRadius: 7,
-                          background: '#ffffff',
+                          background: '#FFFFFF',
                           fontSize: '13px',
                           color: '#2b170d',
                           outline: 'none',
-                          boxSizing: 'border-box'
+                          boxSizing: 'border-box',
+                          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)',
+                          transition: 'all 0.2s ease'
                         }}
                       />
                     </div>
@@ -417,7 +435,9 @@ export function PanditjiSection() {
                     {/* 2. DATE OF BIRTH FIELD */}
                     <div style={{ minWidth: 0 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '12px', fontWeight: 700, color: '#4A0E17', marginBottom: '4px', overflowWrap: 'break-word' }}>
-                        <Calendar size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                        <span style={{ display: 'inline-flex', padding: 2, background: 'rgba(212, 175, 55, 0.15)', borderRadius: 4 }}>
+                          <Calendar size={12} color="#8A6014" style={{ flexShrink: 0 }} />
+                        </span>
                         <span>जन्म तिथि (DOB) *</span>
                       </label>
                       <input 
@@ -425,16 +445,19 @@ export function PanditjiSection() {
                         required
                         value={dob}
                         onChange={(e) => setDob(e.target.value)}
+                        className="aura-input-field"
                         style={{
                           width: '100%',
                           padding: '7px 12px',
-                          border: '1px solid #d8c3a5',
+                          border: '1.5px solid #E2D2BC',
                           borderRadius: 7,
-                          background: '#ffffff',
+                          background: '#FFFFFF',
                           fontSize: '13px',
                           color: '#2b170d',
                           outline: 'none',
-                          boxSizing: 'border-box'
+                          boxSizing: 'border-box',
+                          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)',
+                          transition: 'all 0.2s ease'
                         }}
                       />
                     </div>
@@ -442,7 +465,9 @@ export function PanditjiSection() {
                     {/* 3. BIRTH PLACE FIELD */}
                     <div style={{ minWidth: 0 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '12px', fontWeight: 700, color: '#4A0E17', marginBottom: '4px', overflowWrap: 'break-word' }}>
-                        <MapPin size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                        <span style={{ display: 'inline-flex', padding: 2, background: 'rgba(212, 175, 55, 0.15)', borderRadius: 4 }}>
+                          <MapPin size={12} color="#8A6014" style={{ flexShrink: 0 }} />
+                        </span>
                         <span>जन्म स्थान (City / Place) *</span>
                       </label>
                       <input 
@@ -451,16 +476,19 @@ export function PanditjiSection() {
                         placeholder="उदा. जयपुर / Mumbai"
                         value={birthPlace}
                         onChange={(e) => setBirthPlace(e.target.value)}
+                        className="aura-input-field"
                         style={{
                           width: '100%',
                           padding: '8px 12px',
-                          border: '1px solid #d8c3a5',
+                          border: '1.5px solid #E2D2BC',
                           borderRadius: 7,
-                          background: '#ffffff',
+                          background: '#FFFFFF',
                           fontSize: '13px',
                           color: '#2b170d',
                           outline: 'none',
-                          boxSizing: 'border-box'
+                          boxSizing: 'border-box',
+                          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)',
+                          transition: 'all 0.2s ease'
                         }}
                       />
                     </div>
@@ -468,23 +496,28 @@ export function PanditjiSection() {
                     {/* 4. BIRTH TIME (OPTIONAL) */}
                     <div style={{ minWidth: 0 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '12px', fontWeight: 700, color: '#4A0E17', marginBottom: '4px', overflowWrap: 'break-word' }}>
-                        <Clock size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                        <span style={{ display: 'inline-flex', padding: 2, background: 'rgba(212, 175, 55, 0.15)', borderRadius: 4 }}>
+                          <Clock size={12} color="#8A6014" style={{ flexShrink: 0 }} />
+                        </span>
                         <span>जन्म समय (Time - Optional)</span>
                       </label>
                       <input 
                         type="time"
                         value={birthTime}
                         onChange={(e) => setBirthTime(e.target.value)}
+                        className="aura-input-field"
                         style={{
                           width: '100%',
                           padding: '7px 12px',
-                          border: '1px solid #d8c3a5',
+                          border: '1.5px solid #E2D2BC',
                           borderRadius: 7,
-                          background: '#ffffff',
+                          background: '#FFFFFF',
                           fontSize: '13px',
                           color: '#2b170d',
                           outline: 'none',
-                          boxSizing: 'border-box'
+                          boxSizing: 'border-box',
+                          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)',
+                          transition: 'all 0.2s ease'
                         }}
                       />
                     </div>
@@ -494,23 +527,28 @@ export function PanditjiSection() {
                   {/* 5. PRIMARY GOAL / CONCERN SELECTION */}
                   <div style={{ marginBottom: 14 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '12px', fontWeight: 700, color: '#4A0E17', marginBottom: '6px' }}>
-                      <Compass size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                      <span style={{ display: 'inline-flex', padding: 2, background: 'rgba(212, 175, 55, 0.15)', borderRadius: 4 }}>
+                        <Compass size={12} color="#8A6014" style={{ flexShrink: 0 }} />
+                      </span>
                       <span>आप किस उद्देश्य / समस्या हेतु रुद्राक्ष धारण करना चाहते हैं?</span>
                     </label>
                     <select
                       value={concern}
                       onChange={(e) => setConcern(e.target.value)}
+                      className="aura-input-field"
                       style={{
                         width: '100%',
                         padding: '8px 12px',
-                        border: '1px solid #d8c3a5',
+                        border: '1.5px solid #E2D2BC',
                         borderRadius: 7,
-                        background: '#ffffff',
+                        background: '#FFFFFF',
                         fontSize: '13px',
                         color: '#2b170d',
                         outline: 'none',
                         boxSizing: 'border-box',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)',
+                        transition: 'all 0.2s ease'
                       }}
                     >
                       {CONCERN_OPTIONS.map((opt) => (
@@ -532,7 +570,10 @@ export function PanditjiSection() {
                         maxWidth: '340px',
                         padding: '11px 20px',
                         fontSize: '13px',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        background: 'linear-gradient(135deg, #60121D 0%, #4A0E17 50%, #781827 100%)',
+                        boxShadow: '0 4px 14px rgba(74, 14, 23, 0.28)',
+                        border: '1px solid #E5C158'
                       }}
                     >
                       {isCalculating ? (
@@ -549,7 +590,7 @@ export function PanditjiSection() {
                       )}
                     </button>
 
-                    <span style={{ fontSize: '11px', color: '#7a685b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: '11px', color: '#7a685b', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(22, 163, 74, 0.07)', border: '1px solid rgba(22, 163, 74, 0.2)', padding: '3px 8px', borderRadius: 6 }}>
                       <ShieldCheck size={13} color="#16a34a" /> 100% गोपनीय व प्रामाणिक गणना
                     </span>
                   </div>
@@ -844,60 +885,284 @@ export function PanditjiSection() {
             </AnimatePresence>
           </div>
 
-          {/* RIGHT: SACRED BENEFITS & VEDIC CONSULTATION HIGHLIGHTS */}
+          {/* RIGHT: WELCOMING TRADITIONAL PANDITJI PORTRAIT & CONSULTATION CARD */}
           <div className="aura-panditji-content" style={{ padding: 0, minWidth: 0 }}>
-            <div className="aura-panditji-benefits-grid" style={{ marginBottom: 12 }}>
-              <div className="aura-panditji-benefit-card">
-                <div className="aura-panditji-check-icon">
-                  <CheckCircle2 size={15} />
+            {/* TRADITIONAL PANDITJI PORTRAIT CARD */}
+            <div style={{
+              background: 'linear-gradient(135deg, #FFFDF8 0%, #FAF2E6 100%)',
+              border: '1.5px solid #D4AF37',
+              borderRadius: 12,
+              padding: '12px 14px',
+              boxShadow: '0 4px 18px rgba(74, 14, 23, 0.06)',
+              marginBottom: 10,
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Subtle background sacred geometric watermarks */}
+              <div style={{
+                position: 'absolute',
+                top: -15,
+                right: -15,
+                width: 90,
+                height: 90,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, transparent 70%)',
+                pointerEvents: 'none'
+              }} />
+
+              {/* Auspicious Sacred Sanskrit Header Ribbon */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '9.5px',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                color: '#8A6014',
+                borderBottom: '1px solid rgba(212, 175, 55, 0.25)',
+                paddingBottom: 6,
+                marginBottom: 8
+              }}>
+                <span>॥ ॐ नमः शिवाय ॥</span>
+                <span style={{ color: '#C89B3C' }}>★ वैदिक पीठ परंपरा ★</span>
+                <span>॥ शुभम् करोति ॥</span>
+              </div>
+
+              {/* Portrait & Title Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                {/* Traditional Panditji Portrait Artwork */}
+                <div style={{
+                  position: 'relative',
+                  width: 68,
+                  height: 68,
+                  borderRadius: '50%',
+                  padding: 2.5,
+                  background: 'linear-gradient(135deg, #D4AF37 0%, #996515 50%, #F3E5AB 100%)',
+                  boxShadow: '0 4px 14px rgba(153, 101, 21, 0.35)',
+                  flexShrink: 0
+                }}>
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    background: 'radial-gradient(circle, #ffe8cc 0%, #fbd5a5 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative'
+                  }}>
+                    {/* High Quality Traditional Panditji Vector Portrait */}
+                    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: 'block' }}>
+                      <defs>
+                        {/* Divine Golden Halo Gradient */}
+                        <radialGradient id="divineHalo" cx="50%" cy="40%" r="50%">
+                          <stop offset="0%" stopColor="#FFF9E6" />
+                          <stop offset="60%" stopColor="#FFD54F" stopOpacity="0.8" />
+                          <stop offset="100%" stopColor="#FF8F00" stopOpacity="0.1" />
+                        </radialGradient>
+                        {/* Skin Tone Gradient */}
+                        <linearGradient id="skinTone" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="#F9D7B7" />
+                          <stop offset="100%" stopColor="#E0AC7E" />
+                        </linearGradient>
+                        {/* Saffron Robe Gradient */}
+                        <linearGradient id="saffronRobe" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#FF8A00" />
+                          <stop offset="50%" stopColor="#E65100" />
+                          <stop offset="100%" stopColor="#BF360C" />
+                        </linearGradient>
+                        {/* Saffron Turban Gradient */}
+                        <linearGradient id="saffronTurban" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#FFA000" />
+                          <stop offset="70%" stopColor="#E65100" />
+                          <stop offset="100%" stopColor="#D84315" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* 1. Divine Golden Halo */}
+                      <circle cx="50" cy="42" r="38" fill="url(#divineHalo)" />
+
+                      {/* 2. Temple Arch & Rays */}
+                      <path d="M25 45 Q50 20 75 45" stroke="#FFE082" strokeWidth="1" fill="none" opacity="0.6" />
+                      <circle cx="50" cy="18" r="1.5" fill="#FFA000" />
+                      
+                      {/* 3. Shoulders & Saffron Angavastram (Vedic Robes) */}
+                      <path d="M12 92 C14 74 30 68 50 68 C70 68 86 74 88 92 Z" fill="url(#saffronRobe)" />
+                      {/* Golden border on shawl */}
+                      <path d="M22 92 C28 78 45 74 50 74 C55 74 72 78 78 92" stroke="#FFD54F" strokeWidth="2.5" fill="none" />
+                      <path d="M22 92 C28 78 45 74 50 74 C55 74 72 78 78 92" stroke="#B8860B" strokeWidth="0.8" strokeDasharray="2,2" fill="none" />
+
+                      {/* 4. Sacred Nepal Rudraksha Kantha Mala (Necklace) */}
+                      <path d="M34 72 Q50 84 66 72" stroke="none" fill="none" id="malaPath" />
+                      <circle cx="36" cy="72" r="2.2" fill="#5D2E16" stroke="#DAA520" strokeWidth="0.6" />
+                      <circle cx="41" cy="76" r="2.3" fill="#6E371C" stroke="#DAA520" strokeWidth="0.6" />
+                      <circle cx="46" cy="78" r="2.4" fill="#5D2E16" stroke="#DAA520" strokeWidth="0.6" />
+                      <circle cx="50" cy="79" r="2.8" fill="#8B4513" stroke="#FFD700" strokeWidth="0.8" />
+                      <circle cx="54" cy="78" r="2.4" fill="#5D2E16" stroke="#DAA520" strokeWidth="0.6" />
+                      <circle cx="59" cy="76" r="2.3" fill="#6E371C" stroke="#DAA520" strokeWidth="0.6" />
+                      <circle cx="64" cy="72" r="2.2" fill="#5D2E16" stroke="#DAA520" strokeWidth="0.6" />
+                      {/* Mala Gold Guru Bead Tassel */}
+                      <path d="M50 81.8 L50 87" stroke="#FFD700" strokeWidth="1.2" />
+                      <circle cx="50" cy="87.5" r="1.2" fill="#E65100" />
+
+                      {/* 5. Neck */}
+                      <path d="M43 56 L43 68 C43 71 57 71 57 68 L57 56 Z" fill="url(#skinTone)" />
+
+                      {/* 6. Face Contour */}
+                      <ellipse cx="50" cy="46" rx="14" ry="16" fill="url(#skinTone)" />
+
+                      {/* 7. Ears with Golden Kundal (Earrings) */}
+                      <circle cx="35" cy="47" r="3.2" fill="#E0AC7E" />
+                      <circle cx="65" cy="47" r="3.2" fill="#E0AC7E" />
+                      <circle cx="35" cy="49" r="1.4" fill="#FFD700" stroke="#B8860B" strokeWidth="0.4" />
+                      <circle cx="65" cy="49" r="1.4" fill="#FFD700" stroke="#B8860B" strokeWidth="0.4" />
+
+                      {/* 8. White/Grey Beard & Moustache (Wise Vedic Acharya) */}
+                      <path d="M42 54 Q50 56 58 54 Q50 51 42 54 Z" fill="#E8E8E8" opacity="0.9" />
+                      <path d="M38 52 C38 64 45 68 50 68 C55 68 62 64 62 52 C58 58 42 58 38 52 Z" fill="#F5F5F5" />
+                      <path d="M40 54 Q50 65 60 54" stroke="#D6D6D6" strokeWidth="0.8" fill="none" />
+
+                      {/* 9. Peaceful Gentle Facial Features */}
+                      {/* Eyes - Serene & Compassionate */}
+                      <ellipse cx="44" cy="44" rx="2.5" ry="1.4" fill="#3D2314" />
+                      <ellipse cx="56" cy="44" rx="2.5" ry="1.4" fill="#3D2314" />
+                      <circle cx="44.6" cy="43.6" r="0.6" fill="#FFFFFF" />
+                      <circle cx="56.6" cy="43.6" r="0.6" fill="#FFFFFF" />
+                      {/* Eyebrows */}
+                      <path d="M41 41 Q44 39.5 47 41" stroke="#424242" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+                      <path d="M53 41 Q56 39.5 59 41" stroke="#424242" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+                      {/* Nose */}
+                      <path d="M50 42 L48.8 48.5 Q50 50 51.2 48.5" stroke="#BF8050" strokeWidth="0.9" fill="none" />
+                      {/* Serene Smile */}
+                      <path d="M46 53 Q50 55.5 54 53" stroke="#8D4528" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+
+                      {/* 10. Sacred Chandan-Kumkum Tripundra Tilak on Forehead */}
+                      {/* White Tripundra lines */}
+                      <path d="M44 35.5 L56 35.5" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" />
+                      <path d="M43.5 37 L56.5 37" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" />
+                      <path d="M44 38.5 L56 38.5" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" />
+                      {/* Red Kumkum / Roli Bindi in center */}
+                      <circle cx="50" cy="37" r="1.1" fill="#C62828" />
+
+                      {/* 11. Traditional Saffron Turban (साफा / Pagri) */}
+                      <path d="M33 34 C33 22 40 18 50 18 C60 18 67 22 67 34 C63 31 37 31 33 34 Z" fill="url(#saffronTurban)" />
+                      <path d="M32 33 Q50 25 68 33 Q50 29 32 33 Z" fill="#FFA000" />
+                      <path d="M35 28 Q50 21 65 28" stroke="#FFD54F" strokeWidth="1.5" fill="none" />
+                      {/* Turban Ruby/Gold Brooch (कलंगी / शिरोमणि) */}
+                      <circle cx="50" cy="23" r="2.2" fill="#C62828" stroke="#FFD700" strokeWidth="0.8" />
+                      <circle cx="50" cy="23" r="0.8" fill="#FFF" />
+                    </svg>
+
+                    {/* Auspicious Online Green Pulse */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 2,
+                      right: 2,
+                      width: 11,
+                      height: 11,
+                      borderRadius: '50%',
+                      background: '#16a34a',
+                      border: '1.5px solid #FFFFFF',
+                      boxShadow: '0 0 5px rgba(22, 163, 74, 0.7)'
+                    }} />
+                  </div>
                 </div>
-                <div className="aura-panditji-benefit-text">
-                  <h3>वैदिक जन्म कुंडली विश्लेषण</h3>
-                  <p>आपकी जन्म तिथि व समय अनुसार सटीक ग्रह दोष निवारण</p>
+
+                {/* Acharya Details */}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                    <b style={{ fontSize: '13.5px', color: '#4A0E17', fontFamily: '"Cormorant Garamond", Georgia, serif', fontWeight: 700 }}>
+                      आचार्य श्री विद्याधर शास्त्री
+                    </b>
+                    <span style={{ fontSize: '9px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: 8, fontWeight: 700 }}>
+                      ● वैदिक ज्योतिषाचार्य
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#7a6850', lineHeight: 1.3 }}>
+                    काशी-हरिद्वार वैदिक पीठ परंपरा • 30+ वर्ष ज्योतिषीय अनुभव
+                  </div>
                 </div>
               </div>
 
-              <div className="aura-panditji-benefit-card">
-                <div className="aura-panditji-check-icon">
-                  <CheckCircle2 size={15} />
+              {/* Welcoming Panditji Quote */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.8)',
+                borderLeft: '3px solid #D4AF37',
+                borderRadius: '0 6px 6px 0',
+                padding: '6px 10px',
+                marginBottom: 10,
+                fontSize: '11.5px',
+                color: '#523c2d',
+                lineHeight: 1.4,
+                fontStyle: 'italic'
+              }}>
+                "शुभम् करोति कल्याणम्! अपनी जन्म तिथि व संकल्प अनुसार सही रुद्राक्ष धारण करने से ग्रह दोष शांत होते हैं और मनोकामनाएं पूर्ण होती हैं।"
+              </div>
+
+              {/* 3 Core Vedic Promises */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 6, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '10.5px', color: '#4A0E17', fontWeight: 600 }}>
+                  <CheckCircle2 size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                  <span>वैदिक कुंडली गणना</span>
                 </div>
-                <div className="aura-panditji-benefit-text">
-                  <h3>100% प्राण-प्रतिष्ठित व सिद्ध मनके</h3>
-                  <p>विद्वान आचार्यों द्वारा विधि-विधान से सिद्ध प्रमाणित रुद्राक्ष</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '10.5px', color: '#4A0E17', fontWeight: 600 }}>
+                  <CheckCircle2 size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                  <span>100% प्राण-प्रतिष्ठित</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '10.5px', color: '#4A0E17', fontWeight: 600 }}>
+                  <CheckCircle2 size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
+                  <span>शुभ मुहूर्त व विधि</span>
                 </div>
               </div>
 
-              <div className="aura-panditji-benefit-card">
-                <div className="aura-panditji-check-icon">
-                  <CheckCircle2 size={15} />
-                </div>
-                <div className="aura-panditji-benefit-text">
-                  <h3>धारण विधि व बीज मंत्र मार्गदर्शन</h3>
-                  <p>शुभ मुहूर्त, शुद्धिकरण व नित्य जप मंत्र की पूर्ण जानकारी</p>
-                </div>
-              </div>
+              {/* Direct Interactive Panditji AI Chat Button */}
+              <button
+                type="button"
+                onClick={() => handleAskInChat("नमस्ते पंडित जी 🙏 मुझे रुद्राक्ष चयन और कुंडली विश्लेषण के बारे में पूर्ण मार्गदर्शन दीजिए।")}
+                style={{
+                  width: '100%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  background: 'linear-gradient(135deg, #a54d2b 0%, #7d3318 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 7,
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(165, 77, 43, 0.25)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <MessageCircle size={14} />
+                <span>पंडित जी से AI चैट करें (निःशुल्क)</span>
+              </button>
             </div>
 
-            {/* QUICK CONSULTATION WHATSAPP LINK */}
+            {/* QUICK 1-ON-1 WHATSAPP LINK */}
             <div style={{
               background: '#f7fee7',
               border: '1px solid #bef264',
               borderRadius: 8,
-              padding: '10px 14px',
+              padding: '8px 12px',
               width: '100%',
               boxSizing: 'border-box',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: 8
+              gap: 6
             }}>
               <div style={{ minWidth: 0 }}>
-                <b style={{ fontSize: '12px', color: '#365314', display: 'block' }}>
+                <b style={{ fontSize: '11.5px', color: '#365314', display: 'block' }}>
                   व्यक्तिगत आचार्य से बात करें?
                 </b>
-                <span style={{ fontSize: '11px', color: '#4d7c0f' }}>
-                  WhatsApp पर निःशुल्क 1-on-1 परामर्श
+                <span style={{ fontSize: '10.5px', color: '#4d7c0f' }}>
+                  WhatsApp पर 1-on-1 वैदिक परामर्श
                 </span>
               </div>
               <a
@@ -907,18 +1172,18 @@ export function PanditjiSection() {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 5,
+                  gap: 4,
                   background: '#16a34a',
                   color: '#ffffff',
-                  padding: '6px 12px',
+                  padding: '5px 10px',
                   borderRadius: 6,
-                  fontSize: '11.5px',
+                  fontSize: '11px',
                   fontWeight: 700,
                   textDecoration: 'none',
                   whiteSpace: 'nowrap'
                 }}
               >
-                <MessageCircle size={13} /> WhatsApp
+                <MessageCircle size={12} /> WhatsApp
               </a>
             </div>
           </div>

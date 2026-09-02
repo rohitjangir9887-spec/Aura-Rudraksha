@@ -18,6 +18,7 @@ export async function getProducts(req, res, next) {
       return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
     const products = await Product.find().sort({ createdAt: -1 }).lean();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
     next(err);
@@ -30,13 +31,21 @@ export async function getProductById(req, res, next) {
     if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
-    let product = await Product.findOne({ id: String(id) }).lean();
-    if (!product && id.match(/^[0-9a-fA-F]{24}$/)) {
-      product = await Product.findById(id).lean();
-    }
+    const cleanId = String(id).trim();
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+    
+    let product = await Product.findOne({
+      $or: [
+        { id: cleanId },
+        { slug: cleanId },
+        ...(isMongoId ? [{ _id: cleanId }] : [])
+      ]
+    }).lean();
+
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: product });
   } catch (err) {
     next(err);
@@ -100,14 +109,19 @@ export async function updateProduct(req, res, next) {
       updatePayload.img = data.images[0];
     }
 
+    const cleanId = String(id).trim();
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
     let updated = await Product.findOneAndUpdate(
-      { id: String(id) },
+      {
+        $or: [
+          { id: cleanId },
+          { slug: cleanId },
+          ...(isMongoId ? [{ _id: cleanId }] : [])
+        ]
+      },
       { $set: updatePayload },
       { returnDocument: "after" }
     );
-    if (!updated && id.match(/^[0-9a-fA-F]{24}$/)) {
-      updated = await Product.findByIdAndUpdate(id, { $set: updatePayload }, { returnDocument: "after" });
-    }
     if (!updated) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
@@ -127,11 +141,17 @@ export async function deleteProduct(req, res, next) {
     }
 
     const { id } = req.params;
-    const deleted = await Product.findOneAndDelete({ id: String(id) });
-    if (!deleted && id.match(/^[0-9a-fA-F]{24}$/)) {
-      await Product.findByIdAndDelete(id);
-    }
-    return res.json({ success: true, message: "Product deleted", id });
+    const cleanId = String(id).trim();
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+
+    const deleted = await Product.findOneAndDelete({
+      $or: [
+        { id: cleanId },
+        { slug: cleanId },
+        ...(isMongoId ? [{ _id: cleanId }] : [])
+      ]
+    });
+    return res.json({ success: true, message: "Product deleted", id: cleanId });
   } catch (err) {
     next(err);
   }

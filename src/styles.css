@@ -283,7 +283,7 @@ html, body {
     z-index: 10;
     border: none !important;
     display: grid !important;
-    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-columns: repeat(4, 1fr) !important;
 }
 .feature-bar > div {
     display: flex !important;
@@ -320,11 +320,12 @@ html, body {
 
 @media(max-width: 900px) {
     .feature-bar {
-        grid-template-columns: repeat(3, 1fr) !important;
+        grid-template-columns: repeat(2, 1fr) !important;
         gap: 20px 0;
         margin-top: -30px !important;
     }
-    .feature-bar > div:nth-child(3) {
+    .feature-bar > div:nth-child(2),
+    .feature-bar > div:nth-child(4) {
         border-right: none !important;
     }
     .hero-overlay {
@@ -345,6 +346,7 @@ html, body {
     .feature-bar > div:nth-child(4) {
         border-right: none !important;
     }
+    .feature-bar > div:nth-child(1),
     .feature-bar > div:nth-child(3) {
         border-right: 1px solid #eee !important;
     }
@@ -14946,6 +14948,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-cta-arrow {
   transition: transform 0.2s ease;
+}
+
+/* AURA INPUT FIELD REFINED STYLES */
+.aura-input-field:focus {
+  border-color: #D4AF37 !important;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.22), inset 0 1px 2px rgba(0,0,0,0.02) !important;
+  background: #FFFFFE !important;
+}
+
+.aura-input-field:hover:not(:focus) {
+  border-color: #C89B3C !important;
 }
 
 /* COMPACT TRUST ROW */

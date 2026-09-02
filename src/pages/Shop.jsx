@@ -100,7 +100,8 @@ export function Shop() {
   const isOfferQuery = params.get("offer") === "1";
   const isWishlistQuery = params.get("wishlist") === "1";
 
-  const loadProducts = () => {
+  const loadProducts = async () => {
+    await db.waitForHydration();
     const all = db.getProducts();
     setProducts(all.filter(p => p.status === "Active" || !p.status));
   };

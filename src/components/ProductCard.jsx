@@ -28,14 +28,15 @@ export function ProductCard({ p, onAdd, isShop = false }) {
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
 
-  const isSaved = isWishlisted(p?.id);
+  const productId = p?.id || p?._id || p?.slug;
+  const isSaved = isWishlisted(productId);
   const images = (p?.images && p.images.length > 0) ? p.images : [p?.img || "/images/product-5mukhi.jpg"];
   const displayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 
   const handleCardClick = () => {
-    if (p?.id) navigate(`/product/${p.id}`);
+    if (productId) navigate(`/product/${productId}`);
   };
 
   const handleAddToCart = (e) => {

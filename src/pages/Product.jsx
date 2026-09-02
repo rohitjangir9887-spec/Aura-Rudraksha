@@ -77,32 +77,41 @@ export function Product() {
   }, [product]);
 
   // Load and subscribe to database updates
-  const loadData = () => {
-    const prods = db.getProducts().filter(p => p.status === 'Active' || !p.status);
-    setAllProducts(prods);
-    
-    const found = db.getProduct(id) || prods.find(x => String(x.id) === String(id)) || null;
-    setProduct(found);
-    
-    if (found) {
-      const defaultImg = (found.images && found.images[0]) || found.img || "/images/product-5mukhi.jpg";
-      setActiveImg(prev => (found.images?.includes(prev) ? prev : defaultImg));
-      setReviews(db.getReviews(found.id));
-    }
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const found = await db.getProductAsync(id);
+      setProduct(found);
+      
+      if (found) {
+        const defaultImg = (found.images && found.images[0]) || found.img || "/images/product-5mukhi.jpg";
+        setActiveImg(prev => (found.images?.includes(prev) ? prev : defaultImg));
+        setReviews(db.getReviews(found.id || found._id));
+      }
 
-    setCoupons(db.getCoupons().filter(c => c.status === "Active"));
-    setLoading(false);
+      await db.waitForHydration();
+      const prods = db.getProducts().filter(p => p.status === 'Active' || !p.status);
+      setAllProducts(prods);
+      setCoupons(db.getCoupons().filter(c => c.status === "Active"));
+    } catch (err) {
+      console.error("[Product Page] Failed to load product:", err);
+      if (!silent) {
+        setProduct(null);
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
   useEffect(() => {
     window.scrollTo(0, 0);
     db.logVisit();
     db.logProductView();
-    loadData();
+    loadData(false);
 
     // Live real-time sync when Admin updates product, stock, or offers
     const unsub = onStoreUpdate(() => {
-      loadData();
+      loadData(true);
     });
 
     return () => unsub();
