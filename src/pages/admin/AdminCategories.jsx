@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
+import { uploadMedia } from "../../lib/imageUtils";
 import { Save, Plus, Trash2, ArrowLeft, Image as ImageIcon, CheckCircle, Package } from "lucide-react";
 
 const DEFAULT_CATEGORIES = [
@@ -77,24 +78,20 @@ export function AdminCategories() {
     setCategories(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleImageUpload = (index, e) => {
+  const handleImageUpload = async (index, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      emitToast("Image size must be less than 2MB", "error");
-      return;
+    try {
+      emitToast("Uploading category image to Puter Cloud...", "info");
+      const url = await uploadMedia(file);
+      if (url) {
+        handleChange(index, 'image', url);
+        emitToast("Category image uploaded successfully to Puter Cloud!", "success");
+      }
+    } catch (err) {
+      emitToast(err.message || "Failed to upload image to Puter Cloud", "error");
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      handleChange(index, 'image', event.target.result);
-      emitToast("Image uploaded locally", "success");
-    };
-    reader.onerror = () => {
-      emitToast("Failed to read file", "error");
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSave = async (e) => {

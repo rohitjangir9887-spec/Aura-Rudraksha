@@ -1,10 +1,9 @@
 /**
  * AURA RUDRAKSHA — MEDIA & PUTER STORAGE ADAPTER
  * 
- * Provides production media handling for Images, Videos, Banners & Products.
- * 1. Checks Puter Web API (window.puter) for cloud storage.
- * 2. Falls back to Server Upload API (/api/upload) returning static URLs (/uploads/...).
- * 3. Never stores large Base64 strings in MongoDB or LocalStorage.
+ * Production media handling for Images, Videos, Banners & Products via Puter Cloud.
+ * Direct uploads to Puter Cloud with permanent public delivery hosted on Puter.
+ * No fallback to local disk/Vercel ephemeral filesystem (/public/uploads).
  */
 
 // API Base URL
@@ -78,15 +77,45 @@ export async function compressImage(source, maxWidth = 1000, maxHeight = 1000, q
 }
 
 /**
- * Real Puter Media Audit & Status Check
+ * Resolves or creates a Puter hosted domain for public media access
  */
-export function getPuterMediaStatus() {
+export async function getPuterHostedDomain() {
+  if (typeof window === "undefined" || !window.puter?.hosting) return null;
+
+  let cachedSubdomain = localStorage.getItem("aura_puter_subdomain");
+  if (cachedSubdomain) {
+    return `${cachedSubdomain}.puter.site`;
+  }
+
+  try {
+    const sites = await window.puter.hosting.list();
+    let site = Array.isArray(sites) ? sites.find(s => s.dir_path === "aura_uploads" || s.root_dir?.endsWith("aura_uploads")) : null;
+    if (!site) {
+      const sub = `aura-media-${Math.random().toString(36).substring(2, 8)}`;
+      site = await window.puter.hosting.create(sub, "aura_uploads");
+    }
+    if (site && (site.subdomain || site.subdomain_name)) {
+      const subName = site.subdomain || site.subdomain_name;
+      localStorage.setItem("aura_puter_subdomain", subName);
+      return `${subName}.puter.site`;
+    }
+  } catch (err) {
+    console.warn("Puter hosting initialization note:", err);
+  }
+  return null;
+}
+
+/**
+ * Real Puter Media Status & Functional Storage Check
+ * Verifies SDK loaded + authenticated + test write operation
+ */
+export async function getPuterMediaStatus() {
   if (typeof window === "undefined") {
     return {
       connected: false,
-      status: "Not Configured",
-      provider: "Server Storage",
-      message: "Server-side environment"
+      status: "Not Connected",
+      provider: "Puter Cloud Storage",
+      message: "Server-side execution environment."
     };
   }
 
@@ -94,35 +123,48 @@ export function getPuterMediaStatus() {
   if (!puter) {
     return {
       connected: false,
-      status: "Not Configured",
-      provider: "Server Storage",
-      message: "Puter JS SDK not detected in environment. Using Server Storage pipeline (/api/upload). Local disk writes on Vercel are ephemeral; connect Puter Cloud Storage for fully persistent production hosting."
+      status: "Not Connected",
+      provider: "Puter Cloud Storage",
+      message: "Puter JS SDK not detected in browser. Please reload page or check network connection."
     };
   }
 
   try {
     const isSignedIn = typeof puter.auth?.isSignedIn === "function" ? puter.auth.isSignedIn() : false;
-    if (isSignedIn) {
-      return {
-        connected: true,
-        status: "Connected",
-        provider: "Puter Cloud Storage",
-        message: "Puter Cloud SDK active & authenticated. Media files stored in Puter Cloud."
-      };
-    } else {
+    if (!isSignedIn) {
       return {
         connected: false,
-        status: "Not Configured",
-        provider: "Server Storage (Puter Loaded)",
-        message: "Puter SDK loaded, but Puter authentication is required. Using Server Storage (/api/upload) until authenticated."
+        status: "Not Connected",
+        provider: "Puter Cloud Storage",
+        message: "Puter Cloud SDK active, but Admin authentication is required. Click 'Connect Puter Cloud Storage' to log in."
       };
     }
+
+    // Verify storage write and read capability with a test operation
+    const testFileName = `.health_test_${Date.now()}`;
+    const testPath = `aura_uploads/${testFileName}`;
+    await puter.fs.write(testPath, "health_ok");
+    const testStat = await puter.fs.stat(testPath);
+    if (!testStat) {
+      throw new Error("Storage write verification failed (file stat not found).");
+    }
+    // Cleanup test file
+    if (typeof puter.fs.delete === "function") {
+      await puter.fs.delete(testPath).catch(() => {});
+    }
+
+    return {
+      connected: true,
+      status: "Connected",
+      provider: "Puter Cloud Storage",
+      message: "Puter Cloud Storage connected, authenticated & verified. Product media stored safely in Puter Cloud."
+    };
   } catch (err) {
     return {
       connected: false,
-      status: "Error",
-      provider: "Server Storage",
-      message: `Puter check error: ${err.message || err}`
+      status: "Not Connected",
+      provider: "Puter Cloud Storage",
+      message: `Puter Cloud connection error: ${err.message || err}`
     };
   }
 }
@@ -138,16 +180,23 @@ export async function signInToPuter() {
 }
 
 /**
- * Uploads media file (image or video) and returns permanent URL
+ * Uploads media file (image or video) directly to Puter Cloud Storage
+ * Verifies file presence & registers metadata in MongoDB
  */
 export async function uploadMedia(file, onProgress = () => {}) {
   if (!file) return null;
 
-  // If already a URL string, return directly
+  // If already a valid HTTP(S) or static URL string, return directly
   if (typeof file === "string") {
-    if (file.startsWith("http://") || file.startsWith("https://") || file.startsWith("/images/") || file.startsWith("/uploads/")) {
+    if (file.startsWith("http://") || file.startsWith("https://") || file.startsWith("/images/")) {
       return file;
     }
+  }
+
+  // 1. Verify Puter connection & authentication
+  const status = await getPuterMediaStatus();
+  if (!status.connected) {
+    throw new Error("Puter Cloud not connected. Please connect Puter in Admin Panel before uploading media.");
   }
 
   const isVideo = file.type?.startsWith("video/") || file.name?.endsWith(".mp4") || file.name?.endsWith(".webm");
@@ -162,94 +211,60 @@ export async function uploadMedia(file, onProgress = () => {}) {
     "video/mp4", "video/webm", "video/ogg"
   ];
   if (file.type && !allowedTypes.includes(file.type)) {
-    throw new Error("Invalid file type. Allowed: JPEG, PNG, WebP, GIF, MP4, WebM.");
+    throw new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, MP4, WebM.");
   }
 
-  onProgress(10);
+  onProgress(15);
 
-  // 1. Try Puter SDK if active & authenticated
-  if (typeof window !== "undefined" && window.puter?.fs && window.puter?.auth?.isSignedIn?.()) {
-    try {
-      const fileName = `aura_${Date.now()}_${file.name || 'media.jpg'}`;
-      const writeResult = await window.puter.fs.write(`aura_uploads/${fileName}`, file);
-      onProgress(70);
-      let url = "";
-      if (typeof window.puter.fs.getReadURL === "function") {
-        url = await window.puter.fs.getReadURL(`aura_uploads/${fileName}`);
-      } else if (writeResult?.url) {
-        url = writeResult.url;
-      }
-      if (url) {
-        onProgress(85);
-        // Register URL + metadata in MongoDB
-        const registerRes = await fetch(`${API_BASE}/upload/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url,
-            fileId: `aura_uploads/${fileName}`,
-            type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
-            size: file.size || 0,
-            provider: "puter"
-          })
-        });
+  const cleanName = (file.name || "media.jpg").replace(/[^a-zA-Z0-9_.-]/g, "_");
+  const fileName = `aura_${Date.now()}_${cleanName}`;
+  const fileId = `aura_uploads/${fileName}`;
 
-        if (!registerRes.ok) {
-          console.warn("Puter upload succeeded but metadata registration in MongoDB failed.");
-        }
+  // 2. Upload file directly to Puter Cloud File System
+  await window.puter.fs.write(fileId, file);
+  onProgress(50);
 
-        onProgress(100);
-        return url;
-      }
-    } catch (err) {
-      console.warn("Puter upload notice, falling back to server upload:", err.message || err);
-    }
+  // 3. Verify file exists on Puter Cloud
+  const fileStat = await window.puter.fs.stat(fileId);
+  if (!fileStat) {
+    throw new Error("File upload verification failed. File not found on Puter Cloud Storage.");
+  }
+  onProgress(70);
+
+  // 4. Resolve production-safe public media reference
+  let publicUrl = "";
+  const hostedDomain = await getPuterHostedDomain();
+  if (hostedDomain) {
+    publicUrl = `https://${hostedDomain}/${fileName}`;
+  } else if (typeof window.puter.fs.getReadURL === "function") {
+    publicUrl = await window.puter.fs.getReadURL(fileId);
   }
 
-  // 2. High-performance Server Upload Fallback (/api/upload)
-  try {
-    let payloadStr = "";
-    if (file instanceof File || file instanceof Blob) {
-      // Pre-compress large images if image type
-      if (!isVideo && file.size > 500 * 1024) {
-        payloadStr = await compressImage(file, 1200, 1200, 0.82);
-      } else {
-        payloadStr = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
-    } else if (typeof file === "string") {
-      payloadStr = file;
-    }
-
-    onProgress(50);
-
-    const res = await fetch(`${API_BASE}/upload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dataUrl: payloadStr,
-        name: file.name || "media.jpg",
-        type: file.type || "image/jpeg"
-      })
-    });
-
-    onProgress(90);
-
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.success && data.url) {
-      onProgress(100);
-      return data.url;
-    } else {
-      throw new Error(data.message || "Failed to upload file to media server.");
-    }
-  } catch (err) {
-    console.error("Media upload error:", err);
-    throw new Error(err.message || "Failed to process media upload");
+  if (!publicUrl) {
+    throw new Error("Could not resolve production public URL from Puter Cloud.");
   }
+  onProgress(85);
+
+  // 5. Register media metadata in MongoDB
+  const registerRes = await fetch(`${API_BASE}/upload/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: publicUrl,
+      fileId,
+      type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+      size: file.size || fileStat.size || 0,
+      provider: "puter"
+    })
+  });
+
+  const registerData = await registerRes.json().catch(() => ({}));
+  if (!registerRes.ok || !registerData.success) {
+    throw new Error(registerData.message || "Puter upload succeeded but registering media metadata in MongoDB failed.");
+  }
+
+  onProgress(100);
+  return publicUrl;
 }
 
 export function getMediaUrl(url) {
@@ -260,3 +275,4 @@ export function getMediaUrl(url) {
 export function deleteMedia(url) {
   return true;
 }
+

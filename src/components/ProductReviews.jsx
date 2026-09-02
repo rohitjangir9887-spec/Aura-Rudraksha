@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, onStoreUpdate } from "../lib/db";
-import { compressImage } from "../lib/imageUtils";
+import { uploadMedia } from "../lib/imageUtils";
 import { emitToast } from "../context/ToastContext";
 
 export function ProductReviews({ product, isPreview = false, previewSettings = null }) {
@@ -328,22 +328,23 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
     setUploadingImage(true);
     try {
-      const compressedList = [];
+      emitToast("Uploading photos to Puter Cloud...", "info");
+      const uploadedUrls = [];
       for (const file of files) {
         if (!file.type.startsWith("image/")) continue;
-        const compressed = await compressImage(file, 900, 900, 0.75);
-        if (compressed) {
-          compressedList.push(compressed);
+        const url = await uploadMedia(file);
+        if (url) {
+          uploadedUrls.push(url);
         }
       }
       setNewReviewForm(prev => ({
         ...prev,
-        images: [...prev.images, ...compressedList]
+        images: [...prev.images, ...uploadedUrls]
       }));
-      emitToast(`${compressedList.length} photo(s) added!`, "success");
+      emitToast(`${uploadedUrls.length} photo(s) uploaded successfully!`, "success");
     } catch (err) {
       console.error(err);
-      emitToast("Failed to process image. Please try another.", "error");
+      emitToast(err.message || "Failed to upload photo. Please try again.", "error");
     } finally {
       setUploadingImage(false);
     }

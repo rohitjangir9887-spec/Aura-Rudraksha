@@ -2,6 +2,7 @@ import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import { recordCustomerOrder } from "./customerController.js";
 import Customer from "../models/Customer.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
@@ -24,10 +25,8 @@ function cleanRecentSubmissions() {
 export async function getOrders(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable. Cannot retrieve orders."
-      });
+      const orders = inMemoryStore.getOrders();
+      return res.json({ success: true, data: orders || [], count: (orders || []).length });
     }
     const orders = await Order.find().sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: orders || [], count: (orders || []).length });
@@ -38,10 +37,11 @@ export async function getOrders(req, res, next) {
 
 export async function getMyOrders(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database unavailable." });
-    }
     const authUserId = req.user.authUserId;
+    if (!isDbConnected()) {
+      const orders = inMemoryStore.getOrders().filter(o => o.authUserId === authUserId);
+      return res.json({ success: true, data: orders, count: orders.length });
+    }
     const orders = await Order.find({ authUserId }).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: orders, count: orders.length });
   } catch (err) {
@@ -52,30 +52,38 @@ export async function getMyOrders(req, res, next) {
 export async function getOrderById(req, res, next) {
   try {
     const { id } = req.params;
-    if (isDbConnected()) {
-      let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }] }).lean();
-      if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
-        order = await Order.findById(id).lean();
-      }
+    const authUserId = req.user.authUserId;
+
+    if (!isDbConnected()) {
+      const order = inMemoryStore.getOrderById(id);
       if (!order) {
         return res.status(404).json({ success: false, message: "Order not found" });
       }
-
-      // Authorization check (verified Firebase identity -> server-side admin role)
-      const authUserId = req.user.authUserId;
       const { isInitialAdmin } = isAdminUser(req.user);
       const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
-      
       if (!isAdmin && order.authUserId !== authUserId) {
         return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
       }
-
       return res.json({ success: true, data: order });
     }
-    return res.status(503).json({
-      success: false,
-      message: "Database is unavailable."
-    });
+
+    let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }] }).lean();
+    if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(id).lean();
+    }
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Authorization check (verified Firebase identity -> server-side admin role)
+    const { isInitialAdmin } = isAdminUser(req.user);
+    const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+    
+    if (!isAdmin && order.authUserId !== authUserId) {
+      return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
+    }
+
+    return res.json({ success: true, data: order });
   } catch (err) {
     next(err);
   }
@@ -83,13 +91,6 @@ export async function getOrderById(req, res, next) {
 
 export async function createOrder(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Orders cannot be accepted or processed without a connected MongoDB database."
-      });
-    }
-
     const data = req.body;
     const authUserId = req.user.authUserId;
 
@@ -133,7 +134,12 @@ export async function createOrder(req, res, next) {
 
     // Check stock for all items
     for (const item of totals.items) {
-      const product = await Product.findOne({ id: item.id });
+      let product;
+      if (isDbConnected()) {
+        product = await Product.findOne({ id: item.id });
+      } else {
+        product = inMemoryStore.getProductById(item.id);
+      }
       if (!product || product.status !== "Active") {
         recentOrderSubmissions.delete(submissionKey);
         return res.status(400).json({ 
@@ -161,11 +167,20 @@ export async function createOrder(req, res, next) {
           message: totals.couponReason || "The applied coupon is invalid or expired. Please review your order."
         });
       }
-      validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
+      if (isDbConnected()) {
+        validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
+      } else {
+        validCouponDoc = inMemoryStore.getCouponByCode(couponCodeToValidate);
+      }
     }
 
     // Server always generates the permanent sequential order ID (AURA-YYMMDD-000123)
-    const id = await generateNextOrderNumber();
+    let id;
+    if (isDbConnected()) {
+      id = await generateNextOrderNumber();
+    } else {
+      id = `AURA-${Date.now().toString().slice(-6)}`;
+    }
     const now = new Date().toISOString();
     
     // Create copy of shipping address inside snapshot
@@ -221,35 +236,64 @@ export async function createOrder(req, res, next) {
     const phone = (orderPayload.phone || orderPayload.customerPhone || "").trim();
     const name = orderPayload.customerName || (orderPayload.firstName ? `${orderPayload.firstName} ${orderPayload.lastName || ''}`.trim() : "Customer");
     
-    const created = await Order.findOneAndUpdate(
-      { id: orderPayload.id },
-      orderPayload,
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
+    let created;
+    if (isDbConnected()) {
+      created = await Order.findOneAndUpdate(
+        { id: orderPayload.id },
+        orderPayload,
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+    } else {
+      created = inMemoryStore.saveOrder(orderPayload);
+    }
 
     // Save in deduplication cache
     recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
 
     // Update Coupon Usage
     if (validCouponDoc) {
-      await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
+      if (isDbConnected()) {
+        await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
+      } else {
+        validCouponDoc.usage = (validCouponDoc.usage || 0) + 1;
+        inMemoryStore.saveCoupon(validCouponDoc);
+      }
     }
 
     // Update Product Stock
     for (const item of totals.items) {
-      await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -item.quantity } });
+      if (isDbConnected()) {
+        await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -item.quantity } });
+      } else {
+        const prod = inMemoryStore.getProductById(item.id);
+        if (prod) {
+          prod.stock = Math.max(0, (prod.stock || 0) - item.quantity);
+          inMemoryStore.saveProduct(prod);
+        }
+      }
     }
 
     // Auto update/create customer record in MongoDB
     try {
-      await recordCustomerOrder({
-        authUserId,
-        email,
-        phone,
-        name,
-        address: orderPayload.address,
-        amount: orderPayload.finalAmount
-      });
+      if (isDbConnected()) {
+        await recordCustomerOrder({
+          authUserId,
+          email,
+          phone,
+          name,
+          address: orderPayload.address,
+          amount: orderPayload.finalAmount
+        });
+      } else {
+        inMemoryStore.saveCustomer({
+          authUserId,
+          email,
+          phone,
+          name,
+          address: orderPayload.address,
+          totalSpent: orderPayload.finalAmount
+        });
+      }
     } catch (custErr) {
       console.warn("Could not sync customer on order:", custErr.message);
     }
@@ -262,15 +306,45 @@ export async function createOrder(req, res, next) {
 
 export async function updateOrder(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot update order without a connected MongoDB database."
-      });
-    }
     const { id } = req.params;
     const data = req.body;
     const authUserId = req.user.authUserId;
+
+    if (!isDbConnected()) {
+      const existing = inMemoryStore.getOrderById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Order not found" });
+      }
+
+      const { isInitialAdmin } = isAdminUser(req.user);
+      const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+
+      let updateFields = {};
+      if (isAdmin) {
+        updateFields = { ...data };
+      } else if (existing.authUserId === authUserId) {
+        const cancellableStatuses = ["Pending", "Confirmed", "Processing"];
+        if (data.status === "Cancelled" && cancellableStatuses.includes(existing.status)) {
+          updateFields.status = "Cancelled";
+          updateFields.orderStatus = "Cancelled";
+          updateFields.cancelledAt = new Date().toISOString();
+          updateFields.cancelReason = data.cancelReason || "Cancelled by customer";
+          updateFields.cancelledBy = "Customer";
+        }
+        if (data.address && cancellableStatuses.includes(existing.status)) {
+          updateFields.address = data.address;
+          if (data.shippingAddress) updateFields.shippingAddress = data.shippingAddress;
+        }
+        if (Object.keys(updateFields).length === 0) {
+          return res.status(400).json({ success: false, message: "Cannot modify this order in its current state" });
+        }
+      } else {
+        return res.status(403).json({ success: false, message: "Access Denied: You do not own this order" });
+      }
+
+      const updated = inMemoryStore.saveOrder({ ...existing, ...updateFields });
+      return res.json({ success: true, data: updated });
+    }
 
     let existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }] });
     if (!existing && id.match(/^[0-9a-fA-F]{24}$/)) {

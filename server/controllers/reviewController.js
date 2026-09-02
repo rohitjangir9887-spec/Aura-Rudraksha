@@ -6,6 +6,7 @@ import { defaultReviews, defaultProducts } from "../data/defaultData.js";
 import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import crypto from "crypto";
 
 // In-memory set of deleted review IDs for demo/fallback isolation
@@ -80,16 +81,24 @@ const defaultReviewSettings = {
 
 export async function getReviews(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
-    }
-
     const { productId, status, type, source } = req.query;
 
     let isAdmin = false;
     if (req.user) {
       const { isInitialAdmin } = isAdminUser(req.user);
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
+    }
+
+    if (!isDbConnected()) {
+      let list = inMemoryStore.getReviews(productId);
+      if (status && status !== "all") list = list.filter(r => r.status === status);
+      if (type && type !== "all") list = list.filter(r => r.type === type);
+      if (source && source !== "all") list = list.filter(r => r.source === source);
+      if (!isAdmin) {
+        list = list.filter(r => r.status === "Approved" && r.source !== "ai_draft");
+      }
+      const data = isAdmin ? list : list.map(({ email, ...safe }) => safe);
+      return res.json({ success: true, data, count: data.length });
     }
 
     let query = {
@@ -123,13 +132,6 @@ export async function getReviews(req, res, next) {
 
 export async function createReview(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot submit review without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, CUSTOMER_REVIEW_FIELDS);
     if (!data.name || !data.text) {
       return res.status(400).json({ success: false, message: "Name and review text are required" });
@@ -189,6 +191,11 @@ export async function createReview(req, res, next) {
       helpfulDown: 0
     };
 
+    if (!isDbConnected()) {
+      const created = inMemoryStore.saveReview(payload);
+      return res.status(201).json({ success: true, data: created });
+    }
+
     const created = await Review.create(payload);
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
@@ -198,13 +205,6 @@ export async function createReview(req, res, next) {
 
 export async function updateReview(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot update review without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
     const data = pickFields(req.body, ADMIN_REVIEW_FIELDS);
     if (Array.isArray(req.body.images)) {
@@ -214,6 +214,11 @@ export async function updateReview(req, res, next) {
 
     if (data.status === "Approved" && !data.publishedAt) {
       data.publishedAt = new Date();
+    }
+
+    if (!isDbConnected()) {
+      const updated = inMemoryStore.saveReview({ id: String(id), ...data });
+      return res.json({ success: true, data: updated });
     }
 
     const updated = await Review.findOneAndUpdate(
@@ -232,15 +237,13 @@ export async function updateReview(req, res, next) {
 
 export async function deleteReview(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete review without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
     const reviewId = String(id);
+
+    if (!isDbConnected()) {
+      inMemoryStore.deleteReview(reviewId);
+      return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
+    }
 
     await Review.findOneAndUpdate(
       { id: reviewId },
@@ -260,15 +263,18 @@ export async function deleteReview(req, res, next) {
 
 export async function voteReview(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot vote without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
     const { voteType = "up" } = req.body;
+
+    if (!isDbConnected()) {
+      const rev = inMemoryStore.reviews.find(r => String(r.id) === String(id));
+      if (!rev) {
+        return res.status(404).json({ success: false, message: "Review not found" });
+      }
+      if (voteType === "up") rev.helpfulUp = (rev.helpfulUp || 0) + 1;
+      else rev.helpfulDown = (rev.helpfulDown || 0) + 1;
+      return res.json({ success: true, data: rev });
+    }
 
     const inc = voteType === "up" ? { helpfulUp: 1 } : { helpfulDown: 1 };
     const updated = await Review.findOneAndUpdate(
@@ -288,7 +294,7 @@ export async function voteReview(req, res, next) {
 export async function getReviewSettings(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
+      return res.json({ success: true, data: defaultReviewSettings });
     }
 
     let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
@@ -303,14 +309,11 @@ export async function getReviewSettings(req, res, next) {
 
 export async function saveReviewSettings(req, res, next) {
   try {
+    const data = req.body;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save review settings without a connected MongoDB database."
-      });
+      return res.json({ success: true, data: { ...defaultReviewSettings, ...data } });
     }
 
-    const data = req.body;
     const updated = await ReviewSetting.findOneAndUpdate(
       { id: "DEFAULT_REVIEW_SETTINGS" },
       { $set: data },

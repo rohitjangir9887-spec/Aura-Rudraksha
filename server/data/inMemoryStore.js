@@ -255,6 +255,69 @@ class InMemoryStore {
     this.reviews = this.reviews.filter(r => String(r.id) !== String(id));
     return true;
   }
+
+  // ORDERS
+  getOrders() {
+    return this.orders;
+  }
+  getOrderById(id) {
+    return this.orders.find(o => String(o.id) === String(id) || String(o.orderId) === String(id) || String(o.orderNumber) === String(id)) || null;
+  }
+  saveOrder(data) {
+    const id = data.id || data.orderId || `AURA-${Date.now().toString().slice(-6)}`;
+    const payload = {
+      ...data,
+      id,
+      orderId: id,
+      orderNumber: id,
+      createdAt: data.createdAt || data.date || new Date().toISOString()
+    };
+    const idx = this.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
+    if (idx >= 0) {
+      this.orders[idx] = { ...this.orders[idx], ...payload };
+      return this.orders[idx];
+    } else {
+      this.orders.unshift(payload);
+      return payload;
+    }
+  }
+
+  // CUSTOMERS
+  getCustomers() {
+    return this.customers;
+  }
+  getCustomerById(id) {
+    return this.customers.find(c => String(c.id) === String(id) || c.authUserId === id || (c.email && c.email.toLowerCase() === String(id).toLowerCase())) || null;
+  }
+  saveCustomer(data) {
+    const id = data.id || data.authUserId || `CUST-${Date.now()}`;
+    const payload = { ...data, id, updatedAt: new Date().toISOString() };
+    const idx = this.customers.findIndex(c => String(c.id) === String(id) || (data.authUserId && c.authUserId === data.authUserId));
+    if (idx >= 0) {
+      this.customers[idx] = { ...this.customers[idx], ...payload };
+      return this.customers[idx];
+    } else {
+      this.customers.push(payload);
+      return payload;
+    }
+  }
+
+  // TICKETS
+  getTickets() {
+    return this.tickets;
+  }
+  saveTicket(data) {
+    const id = data.id || `TICK-${Date.now()}`;
+    const payload = { ...data, id, createdAt: data.createdAt || new Date().toISOString(), status: data.status || "Open" };
+    const idx = this.tickets.findIndex(t => String(t.id) === String(id));
+    if (idx >= 0) {
+      this.tickets[idx] = { ...this.tickets[idx], ...payload };
+      return this.tickets[idx];
+    } else {
+      this.tickets.unshift(payload);
+      return payload;
+    }
+  }
 }
 
 export const inMemoryStore = new InMemoryStore();

@@ -8,6 +8,7 @@ import { Order } from "../models/Order.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
@@ -45,14 +46,7 @@ export async function getSettings(req, res, next) {
       return res.json({ success: true, data: settings });
     }
 
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable."
-      });
-    }
-
-    return res.json({ success: true, data: defaultSettings, demoMode: true });
+    return res.json({ success: true, data: inMemoryStore.getSettings() || defaultSettings });
   } catch (err) {
     next(err);
   }
@@ -60,14 +54,13 @@ export async function getSettings(req, res, next) {
 
 export async function saveSettings(req, res, next) {
   try {
+    const data = pickFields(req.body, SETTING_FIELDS);
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save settings without a connected MongoDB database."
-      });
+      const updated = inMemoryStore.saveSettings(data);
+      return res.json({ success: true, data: updated });
     }
 
-    const data = pickFields(req.body, SETTING_FIELDS);
     const updated = await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
       { $set: data },
@@ -98,23 +91,16 @@ export async function getPolicies(req, res, next) {
       });
     }
 
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable."
-      });
-    }
-
+    const s = inMemoryStore.getSettings() || defaultSettings;
     return res.json({
       success: true,
       data: {
-        shippingPolicy: defaultSettings.shippingPolicy,
-        returnPolicy: defaultSettings.returnPolicy,
-        privacyPolicy: defaultSettings.privacyPolicy,
-        termsPolicy: defaultSettings.termsPolicy,
-        contactSupport: defaultSettings.contactSupport
-      },
-      demoMode: true
+        shippingPolicy: s.shippingPolicy || defaultSettings.shippingPolicy,
+        returnPolicy: s.returnPolicy || defaultSettings.returnPolicy,
+        privacyPolicy: s.privacyPolicy || defaultSettings.privacyPolicy,
+        termsPolicy: s.termsPolicy || defaultSettings.termsPolicy,
+        contactSupport: s.contactSupport || defaultSettings.contactSupport
+      }
     });
   } catch (err) {
     next(err);
@@ -123,14 +109,13 @@ export async function getPolicies(req, res, next) {
 
 export async function savePolicies(req, res, next) {
   try {
+    const data = pickFields(req.body, POLICY_FIELDS);
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save policies without a connected MongoDB database."
-      });
+      const updated = inMemoryStore.saveSettings(data);
+      return res.json({ success: true, data: updated });
     }
 
-    const data = pickFields(req.body, POLICY_FIELDS);
     const updated = await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
       { $set: data },
@@ -150,14 +135,7 @@ export async function getTickets(req, res, next) {
       return res.json({ success: true, data: tickets || [] });
     }
 
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable."
-      });
-    }
-
-    return res.json({ success: true, data: [], demoMode: true });
+    return res.json({ success: true, data: inMemoryStore.getTickets() || [] });
   } catch (err) {
     next(err);
   }
@@ -165,28 +143,12 @@ export async function getTickets(req, res, next) {
 
 export async function createTicket(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot submit ticket without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, CUSTOMER_TICKET_FIELDS);
     if (!data.name || !data.message) {
       return res.status(400).json({ success: false, message: "Name and message are required" });
     }
 
-    // Server-generated ID + server-controlled defaults. Customers can never set
-    // status/priority/adminResponse on creation.
-    let id;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const candidate = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
-      const exists = await Ticket.findOne({ id: candidate }).lean();
-      if (!exists) { id = candidate; break; }
-    }
-    if (!id) id = "TIC-" + Date.now() + "-" + Math.floor(Math.random() * 100000);
-
+    const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
     const payload = {
       ...data,
       id,
@@ -195,6 +157,11 @@ export async function createTicket(req, res, next) {
       adminResponse: "",
       date: new Date().toISOString()
     };
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveTicket(payload);
+      return res.status(201).json({ success: true, data: saved });
+    }
 
     const saved = await Ticket.create(payload);
     return res.status(201).json({ success: true, data: saved });
@@ -205,18 +172,15 @@ export async function createTicket(req, res, next) {
 
 export async function updateTicket(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot update ticket without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
-    // This route is admin-gated (requireAdmin) - admin may update status/priority/adminResponse only.
     const data = pickFields(req.body, ADMIN_TICKET_FIELDS);
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ success: false, message: "No valid fields to update" });
+    }
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveTicket({ id, ...data });
+      return res.json({ success: true, data: saved });
     }
 
     const updated = await Ticket.findOneAndUpdate(
@@ -239,7 +203,6 @@ export async function getAnalytics(req, res, next) {
     if (isDbConnected()) {
       let doc = await Analytics.findOne({ id: "GLOBAL_ANALYTICS" }).lean();
       if (!doc) {
-        // Real counter starts at zero - 0 means "no events yet", never a fake number
         doc = await Analytics.create({
           id: "GLOBAL_ANALYTICS",
           visits: 0,
@@ -250,17 +213,9 @@ export async function getAnalytics(req, res, next) {
       return res.json({ success: true, data: { ...doc, hasData: (doc.visits || 0) > 0 || (doc.productViews || 0) > 0 } });
     }
 
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable."
-      });
-    }
-
     return res.json({
       success: true,
-      data: { visits: 1, productViews: 1, lastUpdated: new Date().toISOString() },
-      demoMode: true
+      data: { visits: 1, productViews: 1, lastUpdated: new Date().toISOString(), hasData: true }
     });
   } catch (err) {
     next(err);

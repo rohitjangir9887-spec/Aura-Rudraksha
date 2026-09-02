@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
-import { compressImage } from "../../lib/imageUtils";
+import { uploadMedia } from "../../lib/imageUtils";
 import { emitToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { Upload, CheckCircle2, ArrowLeft, Plus, Trash2, Link as LinkIcon, Check, Edit3 } from "lucide-react";
@@ -36,22 +36,23 @@ export function HeroImages() {
     if (!file) return;
 
     try {
-      const compressed = await compressImage(file, 1000, 600, 0.75);
-      if (compressed) {
+      emitToast("Uploading hero banner to Puter Cloud...", "info");
+      const url = await uploadMedia(file);
+      if (url) {
         if (index >= 0 && index < images.length) {
-          setEditUrl(compressed);
+          setEditUrl(url);
         } else {
           // Adding new hero image
-          const updated = [...images, compressed];
+          const updated = [...images, url];
           setImages(updated);
           await db.saveBanners(updated);
           setSaveSuccess(updated.length - 1);
-          emitToast("Hero image uploaded & saved!", "success");
+          emitToast("Hero image uploaded & saved to Puter Cloud!", "success");
           setTimeout(() => setSaveSuccess(-1), 3000);
         }
       }
     } catch (err) {
-      emitToast(err.message || "Failed to upload image", "error");
+      emitToast(err.message || "Failed to upload image to Puter Cloud", "error");
     }
     e.target.value = "";
   };

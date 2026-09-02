@@ -138,9 +138,6 @@ export function createApp() {
     next();
   });
 
-  // Static uploads directory for media storage
-  app.use("/uploads", express.static("public/uploads"));
-
   // API Routes Mount
   app.use("/api/upload", uploadRoute);
   app.use("/api/cart", cartRoute);

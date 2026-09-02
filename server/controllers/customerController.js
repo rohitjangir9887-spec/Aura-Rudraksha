@@ -1,6 +1,7 @@
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Fields an admin may create/update on a customer record via the admin
 // dashboard. `role`, `id`, and `authUserId` are deliberately excluded so an
@@ -15,10 +16,8 @@ const ADMIN_CUSTOMER_FIELDS = {
 export async function getCustomers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable. Cannot retrieve customers."
-      });
+      const customers = inMemoryStore.getCustomers();
+      return res.json({ success: true, data: customers, count: customers.length });
     }
     const customers = await Customer.find().sort({ updatedAt: -1 }).lean();
     return res.json({ success: true, data: customers, count: customers.length });
@@ -43,10 +42,11 @@ export async function getCustomerById(req, res, next) {
       return res.json({ success: true, data: customer });
     }
 
-    return res.status(503).json({
-      success: false,
-      message: "Database is unavailable."
-    });
+    const customer = inMemoryStore.getCustomerById(id);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: "Customer not found" });
+    }
+    return res.json({ success: true, data: customer });
   } catch (err) {
     next(err);
   }
@@ -54,13 +54,6 @@ export async function getCustomerById(req, res, next) {
 
 export async function saveCustomer(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save customer without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, ADMIN_CUSTOMER_FIELDS);
     const email = (data.email || "").trim().toLowerCase();
     const phone = (data.phone || "").trim();
@@ -75,6 +68,11 @@ export async function saveCustomer(req, res, next) {
       lastSeen: now,
       joined: now
     };
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveCustomer(customerPayload);
+      return res.json({ success: true, data: saved });
+    }
 
     let query = { id };
     if (email) query = { $or: [{ id }, { email }] };

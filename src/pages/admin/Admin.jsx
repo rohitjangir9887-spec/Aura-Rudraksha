@@ -3,7 +3,8 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { getPuterMediaStatus, signInToPuter } from "../../lib/imageUtils";
+import { getPuterMediaStatus, signInToPuter, uploadMedia } from "../../lib/imageUtils";
+
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
@@ -40,11 +41,31 @@ export function Admin() {
   const [stats, setStats] = useState(getInitialStats);
   const [recentOrders, setRecentOrders] = useState(() => (db.getOrders() || []).slice(0, 5));
   const [mediaStats, setMediaStats] = useState({
-    serverStorage: "Checking",
+    serverStorage: "Puter Cloud Storage",
     imagesCount: 0,
     videosCount: 0,
     lastUpload: null
   });
+  const [mediaInfo, setMediaInfo] = useState({
+    connected: false,
+    status: "Checking...",
+    message: "Checking Puter Cloud status..."
+  });
+
+  const checkPuter = useCallback(async () => {
+    try {
+      const info = await getPuterMediaStatus();
+      if (mountedRef.current) setMediaInfo(info);
+    } catch (_) {
+      if (mountedRef.current) {
+        setMediaInfo({
+          connected: false,
+          status: "Not Connected",
+          message: "Puter Cloud connection check failed."
+        });
+      }
+    }
+  }, []);
   const [genericUploading, setGenericUploading] = useState(false);
   const [genericProgress, setGenericProgress] = useState(0);
   const [genericUrl, setGenericUrl] = useState("");
@@ -145,7 +166,8 @@ export function Admin() {
         .slice(0, 5));
       setTopProducts(realProducts.slice(0, 5));
 
-      // Fetch real media statistics from MongoDB
+      // Fetch real media statistics from MongoDB & Check Puter Storage Status
+      checkPuter();
       const mediaStatsRes = await fetch("/api/upload/stats")
         .then(res => res.json())
         .catch(() => ({ success: false }));
@@ -304,11 +326,11 @@ export function Admin() {
 
             {/* Media Asset Storage Box */}
             {(() => {
-              const mediaInfo = getPuterMediaStatus();
               const handlePuterSignIn = async () => {
                 try {
                   await signInToPuter();
                   emitToast("Successfully connected Puter Cloud Storage!", "success");
+                  await checkPuter();
                   refreshDashboard();
                 } catch (err) {
                   emitToast("Puter login cancelled or failed: " + err.message, "error");
@@ -319,10 +341,10 @@ export function Admin() {
                 <div style={{ background: '#fff', padding: '14px 16px', borderRadius: '10px', border: '1px solid #e8dac9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <HardDrive size={14} color="#2563eb" /> Media Storage (Puter / Server)
+                      <HardDrive size={14} color="#2563eb" /> Media Storage (Puter Cloud)
                     </span>
                     <span style={{ fontSize: '10px', color: mediaInfo.connected ? '#15803d' : '#d97706', fontWeight: 600 }}>
-                      {mediaInfo.connected ? '🟢 Puter Connected' : '🟠 Puter Not Configured'}
+                      {mediaInfo.connected ? '🟢 Puter Connected' : '🟠 Puter Not Connected'}
                     </span>
                   </div>
                   <p style={{ fontSize: '11px', color: '#6b584c', margin: 0, lineHeight: '1.4' }}>
@@ -331,8 +353,8 @@ export function Admin() {
                   
                   <div style={{ borderTop: '1px dashed #e8dac9', margin: '4px 0', padding: '6px 0 0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Server Storage:</span>
-                      <b style={{ color: mediaStats.serverStorage === 'Available' ? '#15803d' : '#dc2626' }}>{mediaStats.serverStorage || 'Available'}</b>
+                      <span>Production Pipeline:</span>
+                      <b style={{ color: '#15803d' }}>Puter Cloud Direct</b>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
                       <span>Images Stored:</span>

@@ -1,11 +1,13 @@
 import { Banner } from "../models/Banner.js";
 import { isDbConnected } from "../config/db.js";
 import { isSafeImageValue } from "../utils/imageValidation.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 export async function getBanners(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
+      const bannerUrls = inMemoryStore.getBanners();
+      return res.json({ success: true, data: bannerUrls, full: inMemoryStore.banners });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
@@ -18,13 +20,6 @@ export async function getBanners(req, res, next) {
 
 export async function saveBanners(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save banners without a connected MongoDB database."
-      });
-    }
-
     const data = req.body;
     let bannerArray = Array.isArray(data) ? data : (data.banners || []);
 
@@ -37,6 +32,11 @@ export async function saveBanners(req, res, next) {
       const img = typeof item === "string" ? item : (item?.image || item?.url || "");
       return isSafeImageValue(img);
     });
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveBanners(bannerArray);
+      return res.json({ success: true, data: saved });
+    }
 
     // Clear and re-populate in MongoDB
     await Banner.deleteMany({});
@@ -59,13 +59,6 @@ export async function saveBanners(req, res, next) {
 
 export async function createBanner(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot create banner without a connected MongoDB database."
-      });
-    }
-
     const data = req.body;
     const img = data.image || data.url || "";
     if (!isSafeImageValue(img)) {
@@ -77,6 +70,11 @@ export async function createBanner(req, res, next) {
     const id = data.id || `BANNER-${Date.now()}`;
     const payload = { ...data, id };
 
+    if (!isDbConnected()) {
+      inMemoryStore.banners.push(payload);
+      return res.status(201).json({ success: true, data: payload });
+    }
+
     const created = await Banner.create(payload);
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
@@ -86,14 +84,12 @@ export async function createBanner(req, res, next) {
 
 export async function deleteBanner(req, res, next) {
   try {
+    const { id } = req.params;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete banner without a connected MongoDB database."
-      });
+      inMemoryStore.deleteBanner(id);
+      return res.json({ success: true, message: "Banner deleted", id });
     }
 
-    const { id } = req.params;
     await Banner.findOneAndDelete({ $or: [{ id: String(id) }, { image: String(id) }] });
     return res.json({ success: true, message: "Banner deleted", id });
   } catch (err) {

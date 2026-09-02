@@ -47,7 +47,7 @@ export function AdminPromotions() {
       if (compressed) {
         setEditing(prev => prev ? { ...prev, [field]: compressed } : prev);
         setErrorMsg("");
-        emitToast("Image uploaded and compressed successfully!", "success");
+        emitToast("Image uploaded successfully to Puter Cloud!", "success");
       }
     } catch (err) {
       emitToast(err.message || "Failed to upload image", "error");

@@ -176,7 +176,7 @@ const handleEdit = (p) => {
     }
   };
 
-  // Image Upload Handler using Puter / Server Media Storage
+  // Image Upload Handler using Puter Media Storage
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -189,6 +189,7 @@ const handleEdit = (p) => {
     }
 
     let loadedCount = currentCount;
+    let successCount = 0;
     for (const file of files) {
       if (loadedCount >= 10) {
         emitToast("Maximum limit of 10 images reached.", "warning");
@@ -209,6 +210,7 @@ const handleEdit = (p) => {
             };
           });
           loadedCount++;
+          successCount++;
         }
       } catch (err) {
         emitToast(`Failed to upload ${file.name}: ${err.message}`, "error");
@@ -216,7 +218,9 @@ const handleEdit = (p) => {
     }
     setFormError("");
     e.target.value = "";
-    emitToast("Images stored safely via Media Storage Pipeline", "success");
+    if (successCount > 0) {
+      emitToast(`${successCount} image(s) uploaded successfully to Puter Cloud!`, "success");
+    }
   };
 
   // Image URL Handler

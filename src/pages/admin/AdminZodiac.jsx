@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
+import { uploadMedia } from "../../lib/imageUtils";
 import { Sparkles, Save, Edit, Check, Upload, Link as LinkIcon, Image as ImageIcon } from "lucide-react";
 import { ZODIAC_SIGNS as initialZodiacs } from "../../data/zodiac";
 
@@ -50,24 +51,20 @@ export function AdminZodiac() {
     emitToast("Auto-filled from catalog!", "success");
   };
 
-  const handleImageUpload = (id, e) => {
+  const handleImageUpload = async (id, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      emitToast("Image size must be less than 2MB", "error");
-      return;
+    try {
+      emitToast("Uploading zodiac image to Puter Cloud...", "info");
+      const url = await uploadMedia(file);
+      if (url) {
+        handleChange(id, 'image', url);
+        emitToast("Zodiac image uploaded successfully to Puter Cloud!", "success");
+      }
+    } catch (err) {
+      emitToast(err.message || "Failed to upload image to Puter Cloud", "error");
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      handleChange(id, 'image', event.target.result);
-      emitToast("Image uploaded locally", "success");
-    };
-    reader.onerror = () => {
-      emitToast("Failed to read file", "error");
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSave = async (e) => {

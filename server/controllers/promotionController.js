@@ -1,6 +1,7 @@
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const OFFER_FIELDS = {
   title: "string", label: "string", description: "string", buttonText: "string",
@@ -34,7 +35,7 @@ const ACTIVE_OFFER_FIELDS = {
 export async function getActiveOffer(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
+      return res.json({ success: true, data: inMemoryStore.getActiveOffer() || null });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
@@ -46,13 +47,6 @@ export async function getActiveOffer(req, res, next) {
 
 export async function saveActiveOffer(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save offer without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, ACTIVE_OFFER_FIELDS);
     const payload = {
       ...data,
@@ -62,6 +56,11 @@ export async function saveActiveOffer(req, res, next) {
       startDate: data.startAt || data.startDate,
       startAt: data.startAt || data.startDate
     };
+
+    if (!isDbConnected()) {
+      const updated = inMemoryStore.saveActiveOffer(payload);
+      return res.json({ success: true, data: updated });
+    }
 
     const updated = await ActiveOffer.findOneAndUpdate(
       { id: "OFFER-CENTRAL-1" },
@@ -78,7 +77,7 @@ export async function saveActiveOffer(req, res, next) {
 export async function getOffers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
+      return res.json({ success: true, data: inMemoryStore.getOffers() || [] });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const list = await Offer.find().sort({ order: 1 }).lean();
@@ -90,16 +89,14 @@ export async function getOffers(req, res, next) {
 
 export async function saveOffer(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save offer without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, OFFER_FIELDS);
     const id = data.id || ("OFF-" + Date.now());
     const payload = { ...data, id };
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveOffer(payload);
+      return res.status(201).json({ success: true, data: saved });
+    }
 
     const saved = await Offer.findOneAndUpdate(
       { id: payload.id },
@@ -114,14 +111,12 @@ export async function saveOffer(req, res, next) {
 
 export async function deleteOffer(req, res, next) {
   try {
+    const { id } = req.params;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete offer without a connected MongoDB database."
-      });
+      inMemoryStore.deleteOffer(id);
+      return res.json({ success: true, message: "Offer deleted", id });
     }
 
-    const { id } = req.params;
     await Offer.findOneAndDelete({ id: String(id) });
     return res.json({ success: true, message: "Offer deleted", id });
   } catch (err) {
@@ -133,7 +128,7 @@ export async function deleteOffer(req, res, next) {
 export async function getPromotions(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
+      return res.json({ success: true, data: inMemoryStore.getPromotions() || [] });
     }
     const list = await Promotion.find().sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: list || [] });
@@ -144,16 +139,14 @@ export async function getPromotions(req, res, next) {
 
 export async function savePromotion(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save promotion without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, PROMO_FIELDS);
     const id = data.id || ("PROMO-" + Date.now());
     const payload = { ...data, id };
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.savePromotion(payload);
+      return res.status(201).json({ success: true, data: saved });
+    }
 
     const saved = await Promotion.findOneAndUpdate(
       { id: payload.id },
@@ -168,14 +161,12 @@ export async function savePromotion(req, res, next) {
 
 export async function deletePromotion(req, res, next) {
   try {
+    const { id } = req.params;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete promotion without a connected MongoDB database."
-      });
+      inMemoryStore.deletePromotion(id);
+      return res.json({ success: true, message: "Promotion deleted", id });
     }
 
-    const { id } = req.params;
     await Promotion.findOneAndDelete({ id: String(id) });
     return res.json({ success: true, message: "Promotion deleted", id });
   } catch (err) {

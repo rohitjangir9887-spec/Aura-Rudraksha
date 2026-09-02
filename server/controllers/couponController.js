@@ -3,6 +3,7 @@ import { isDbConnected } from "../config/db.js";
 import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Fields an admin may set on a coupon. Allowlisted for defense-in-depth
 // consistency with the rest of the admin write paths in this codebase, even
@@ -160,14 +161,19 @@ export async function validateCoupon(req, res, next) {
 
 export async function getCoupons(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
-    }
-
     let isAdmin = false;
     if (req.user) {
       const { isInitialAdmin } = isAdminUser(req.user);
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
+    }
+
+    if (!isDbConnected()) {
+      const allCoupons = inMemoryStore.getCoupons();
+      if (isAdmin) {
+        return res.json({ success: true, data: allCoupons, count: allCoupons.length });
+      }
+      const publicCoupons = allCoupons.filter(c => c.status === "Active").map(toPublicCoupon);
+      return res.json({ success: true, data: publicCoupons, count: publicCoupons.length });
     }
 
     const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
@@ -190,13 +196,6 @@ export async function getCoupons(req, res, next) {
 
 export async function createCoupon(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot create coupon without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, COUPON_FIELDS);
     if (!data.code || data.discount === undefined) {
       return res.status(400).json({ success: false, message: "Code and discount are required" });
@@ -216,6 +215,11 @@ export async function createCoupon(req, res, next) {
       status: data.status === "Disabled" ? "Inactive" : (data.status || "Active")
     };
 
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveCoupon(payload);
+      return res.status(201).json({ success: true, data: saved });
+    }
+
     const created = await Coupon.findOneAndUpdate(
       { $or: [{ id: payload.id }, { code: payload.code }] },
       payload,
@@ -229,16 +233,14 @@ export async function createCoupon(req, res, next) {
 
 export async function updateCoupon(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot update coupon without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
     const data = pickFields(req.body, COUPON_FIELDS);
     if (data.code) data.code = String(data.code).trim().toUpperCase();
+
+    if (!isDbConnected()) {
+      const saved = inMemoryStore.saveCoupon({ ...data, id });
+      return res.json({ success: true, data: saved });
+    }
 
     const updated = await Coupon.findOneAndUpdate(
       { $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] },
@@ -256,14 +258,13 @@ export async function updateCoupon(req, res, next) {
 
 export async function deleteCoupon(req, res, next) {
   try {
+    const { id } = req.params;
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete coupon without a connected MongoDB database."
-      });
+      inMemoryStore.deleteCoupon(id);
+      return res.json({ success: true, message: "Coupon deleted", id });
     }
 
-    const { id } = req.params;
     await Coupon.findOneAndDelete({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] });
     return res.json({ success: true, message: "Coupon deleted", id });
   } catch (err) {

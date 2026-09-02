@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
-import { compressImage } from "../../lib/imageUtils";
+import { uploadMedia } from "../../lib/imageUtils";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { ProductReviews } from "../../components/ProductReviews";
@@ -283,28 +283,29 @@ export function AdminReviews() {
     if (!files.length) return;
 
     try {
-      const compressedList = [];
+      emitToast("Uploading review photos to Puter Cloud...", "info");
+      const uploadedUrls = [];
       for (const file of files) {
         if (!file.type.startsWith("image/")) continue;
-        const comp = await compressImage(file, 900, 900, 0.75);
-        if (comp) compressedList.push(comp);
+        const url = await uploadMedia(file);
+        if (url) uploadedUrls.push(url);
       }
 
       if (isEdit && editingReview) {
         setEditingReview(prev => ({
           ...prev,
-          images: [...(prev.images || []), ...compressedList]
+          images: [...(prev.images || []), ...uploadedUrls]
         }));
       } else {
         setNewReview(prev => ({
           ...prev,
-          images: [...(prev.images || []), ...compressedList]
+          images: [...(prev.images || []), ...uploadedUrls]
         }));
       }
-      emitToast(`${compressedList.length} photo(s) added!`, "success");
+      emitToast(`${uploadedUrls.length} photo(s) uploaded successfully to Puter Cloud!`, "success");
     } catch (err) {
       console.error(err);
-      emitToast("Image processing failed.", "error");
+      emitToast(err.message || "Failed to upload review photos to Puter Cloud.", "error");
     }
   };
 

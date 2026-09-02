@@ -1,6 +1,7 @@
 import { Product } from "../models/Product.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -15,7 +16,8 @@ const PRODUCT_FIELDS = {
 export async function getProducts(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
+      const data = inMemoryStore.getProducts();
+      return res.json({ success: true, data, count: data.length });
     }
     const products = await Product.find().sort({ createdAt: -1 }).lean();
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -28,10 +30,14 @@ export async function getProducts(req, res, next) {
 export async function getProductById(req, res, next) {
   try {
     const { id } = req.params;
-    if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Database is unavailable." });
-    }
     const cleanId = String(id).trim();
+    if (!isDbConnected()) {
+      const product = inMemoryStore.getProductById(cleanId) || inMemoryStore.getProducts().find(p => p.slug === cleanId);
+      if (!product) {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
+      return res.json({ success: true, data: product });
+    }
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
     
     let product = await Product.findOne({
@@ -54,13 +60,6 @@ export async function getProductById(req, res, next) {
 
 export async function createProduct(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot create product without a connected MongoDB database."
-      });
-    }
-
     const data = pickFields(req.body, PRODUCT_FIELDS);
     if (!data.name || data.price === undefined) {
       return res.status(400).json({ success: false, message: "Name and Price are required" });
@@ -79,6 +78,11 @@ export async function createProduct(req, res, next) {
       reviews: Number(data.reviews || data.reviewCount) || 0
     };
 
+    if (!isDbConnected()) {
+      const created = inMemoryStore.saveProduct(productPayload);
+      return res.status(201).json({ success: true, data: created });
+    }
+
     const created = await Product.findOneAndUpdate(
       { id: productPayload.id },
       productPayload,
@@ -92,13 +96,6 @@ export async function createProduct(req, res, next) {
 
 export async function updateProduct(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot update product without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
     const data = pickFields(req.body, PRODUCT_FIELDS);
 
@@ -107,6 +104,11 @@ export async function updateProduct(req, res, next) {
     if (data.comparePrice) updatePayload.mrp = data.comparePrice;
     if (Array.isArray(data.images) && data.images.length > 0) {
       updatePayload.img = data.images[0];
+    }
+
+    if (!isDbConnected()) {
+      const updated = inMemoryStore.saveProduct(updatePayload);
+      return res.json({ success: true, data: updated });
     }
 
     const cleanId = String(id).trim();
@@ -133,15 +135,14 @@ export async function updateProduct(req, res, next) {
 
 export async function deleteProduct(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot delete product without a connected MongoDB database."
-      });
-    }
-
     const { id } = req.params;
     const cleanId = String(id).trim();
+
+    if (!isDbConnected()) {
+      inMemoryStore.deleteProduct(cleanId);
+      return res.json({ success: true, message: "Product deleted", id: cleanId });
+    }
+
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
 
     const deleted = await Product.findOneAndDelete({
