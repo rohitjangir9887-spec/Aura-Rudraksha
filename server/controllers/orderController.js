@@ -5,6 +5,7 @@ import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import Customer from "../models/Customer.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
+import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import crypto from "crypto";
 
@@ -163,9 +164,8 @@ export async function createOrder(req, res, next) {
       validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
     }
 
-    // Server always generates the order ID - a client-supplied ID could be
-    // used to upsert (overwrite) an existing order belonging to someone else.
-    const id = "ORD-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+    // Server always generates the permanent sequential order ID (AURA-YYMMDD-000123)
+    const id = await generateNextOrderNumber();
     const now = new Date().toISOString();
     
     // Create copy of shipping address inside snapshot
@@ -188,6 +188,7 @@ export async function createOrder(req, res, next) {
       authUserId,
       id,
       orderId: id,
+      orderNumber: id,
       date: data.date || now,
       items: totals.items,
       snapshotItems: totals.items,

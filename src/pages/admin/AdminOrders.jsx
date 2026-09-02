@@ -52,7 +52,10 @@ export function AdminOrders() {
   const [isRefunding, setIsRefunding] = useState(false);
 
   const handleOpenRefund = (order) => {
-    setRefundAmount(String(order.finalAmount || order.amount || 0));
+    const total = Number(order.finalAmount || order.amount || 0);
+    const already = Number(order.amountRefunded || 0);
+    const remaining = Math.max(0, total - already);
+    setRefundAmount(String(remaining));
     setRefundReason("Customer Cancellation / Return");
     setRefundModal(true);
   };
@@ -61,9 +64,17 @@ export function AdminOrders() {
     if (!viewing) return;
     const amt = parseFloat(refundAmount);
     if (isNaN(amt) || amt <= 0) {
-      emitToast("Please enter a valid refund amount", "error");
+      emitToast("Please enter a valid refund amount greater than 0", "error");
       return;
     }
+    const total = Number(viewing.finalAmount || viewing.amount || 0);
+    const already = Number(viewing.amountRefunded || 0);
+    const remaining = total - already;
+    if (amt > remaining + 0.01) {
+      emitToast(`Cannot refund more than remaining balance of ₹${remaining.toLocaleString()}`, "error");
+      return;
+    }
+
     setIsRefunding(true);
     try {
       const res = await db.processRefund(viewing.id, {
@@ -74,12 +85,19 @@ export function AdminOrders() {
         emitToast(`PayU Refund of ₹${amt.toLocaleString()} processed successfully!`, "success");
         setRefundModal(false);
         await load();
-        setViewing(prev => prev ? {
-          ...prev,
-          paymentStatus: "Refunded",
-          status: "Cancelled",
-          refundDetails: res.data?.refund || res.data
-        } : null);
+        if (res.data) {
+          setViewing(db.normalizeOrder(res.data));
+        } else {
+          const updatedTotalRefunded = already + amt;
+          const isFull = updatedTotalRefunded >= (total - 0.01);
+          setViewing(prev => prev ? {
+            ...prev,
+            amountRefunded: updatedTotalRefunded,
+            paymentStatus: isFull ? "Refunded" : "Partially Refunded",
+            status: isFull ? "Cancelled" : prev.status,
+            refundDetails: res.refund || { amount: amt, status: "Success", reason: refundReason }
+          } : null);
+        }
       } else {
         throw new Error(res?.message || "Failed to process PayU refund");
       }
@@ -344,12 +362,35 @@ export function AdminOrders() {
                   <b>{viewing.paymentMode}</b>
                 </div>
               )}
-              {viewing.refundDetails && (
+              {viewing.amountRefunded > 0 && (
+                <div style={{display: 'flex', justifyContent: 'space-between', color: '#991b1b', fontWeight: 600}}>
+                  <span>Amount Refunded</span>
+                  <span>-₹{Number(viewing.amountRefunded).toLocaleString()}</span>
+                </div>
+              )}
+              {Array.isArray(viewing.refundHistory) && viewing.refundHistory.length > 0 ? (
+                <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 8, padding: '10px', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', marginBottom: 6 }}>
+                    PayU Refund History ({viewing.refundHistory.length}):
+                  </div>
+                  {viewing.refundHistory.map((ref, idx) => (
+                    <div key={idx} style={{ fontSize: 11, color: '#7f1d1d', borderTop: idx > 0 ? '1px dashed #fecaca' : 'none', paddingTop: idx > 0 ? 4 : 0, marginTop: idx > 0 ? 4 : 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <b>₹{Number(ref.amount).toLocaleString()}</b>
+                        <span>{ref.date ? new Date(ref.date).toLocaleDateString() : 'Recent'}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: '#991b1b' }}>
+                        ID: <code style={{ fontFamily: 'monospace' }}>{ref.refundId || ref.refundToken}</code> {ref.reason ? `• ${ref.reason}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (viewing.refundDetails && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, padding: '6px 10px', marginTop: 6, fontSize: 11, color: '#991b1b' }}>
                   <b>PayU Refund Processed:</b> ₹{viewing.refundDetails.refundAmount || viewing.refundDetails.amount || (viewing.finalAmount || viewing.amount)}
                   {viewing.refundDetails.payuRefundId && <div>Refund ID: <code>{viewing.refundDetails.payuRefundId}</code></div>}
                 </div>
-              )}
+              ))}
               <hr style={{border: 0, borderTop: '1px solid #f0ebe4', margin: '10px 0'}} />
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 <span>Subtotal</span>
@@ -661,7 +702,17 @@ export function AdminOrders() {
               <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span>Order Total:</span>
-                  <b>₹{(viewing.finalAmount || viewing.amount).toLocaleString()}</b>
+                  <b>₹{Number(viewing.finalAmount || viewing.amount || 0).toLocaleString()}</b>
+                </div>
+                {viewing.amountRefunded > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#991b1b' }}>
+                    <span>Already Refunded:</span>
+                    <b>-₹{Number(viewing.amountRefunded).toLocaleString()}</b>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#166534', fontWeight: 700 }}>
+                  <span>Remaining Refundable:</span>
+                  <span>₹{Math.max(0, Number(viewing.finalAmount || viewing.amount || 0) - Number(viewing.amountRefunded || 0)).toLocaleString()}</span>
                 </div>
                 {viewing.txnid && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -678,9 +729,21 @@ export function AdminOrders() {
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 6 }}>
-                  Refund Amount (₹)
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#2b170d' }}>
+                    Refund Amount (₹)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rem = Math.max(0, Number(viewing.finalAmount || viewing.amount || 0) - Number(viewing.amountRefunded || 0));
+                      setRefundAmount(String(rem));
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#a54d2b', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  >
+                    Max (Full Remaining)
+                  </button>
+                </div>
                 <input 
                   type="number"
                   step="any"

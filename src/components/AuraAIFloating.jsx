@@ -88,10 +88,23 @@ export function AuraAIFloating() {
     window.addEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
     window.addEventListener("storage", handleStorageChange);
 
+    const handleTriggerChat = (e) => {
+      const prompt = e.detail?.prompt;
+      setIsDismissed(false);
+      setIsOpen(true);
+      if (prompt && prompt.trim()) {
+        setTimeout(() => {
+          handleSend(prompt.trim());
+        }, 150);
+      }
+    };
+    window.addEventListener("aura_ai_trigger_chat", handleTriggerChat);
+
     return () => {
       window.removeEventListener("aura_ai_chat_sync", handleChatSync);
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("aura_ai_trigger_chat", handleTriggerChat);
     };
   }, []);
 

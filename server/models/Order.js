@@ -4,6 +4,7 @@ const orderSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
     orderId: { type: String, index: true },
+    orderNumber: { type: String, index: true },
     authUserId: { type: String, index: true },
     customerId: { type: String, index: true },
     customerName: { type: String, default: "Customer" },
@@ -22,8 +23,9 @@ const orderSchema = new mongoose.Schema(
     total: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
     finalAmount: { type: Number, default: 0 },
+    amountRefunded: { type: Number, default: 0 },
     paymentMethod: { type: String, default: "PayU Hosted Checkout (UPI / Cards / NetBanking)" },
-    paymentStatus: { type: String, default: "Pending" }, // "Pending", "Paid", "Failed", "Refunded"
+    paymentStatus: { type: String, default: "Pending" }, // "Pending", "Paid", "Failed", "Refunded", "Partially Refunded"
     txnid: { type: String, default: "", index: true },
     mihpayid: { type: String, default: "", index: true },
     bankRefNum: { type: String, default: "" },
@@ -31,6 +33,7 @@ const orderSchema = new mongoose.Schema(
     paymentDetails: { type: mongoose.Schema.Types.Mixed, default: {} },
     paymentAttempts: { type: Array, default: [] },
     refundDetails: { type: mongoose.Schema.Types.Mixed, default: null },
+    refundHistory: { type: Array, default: [] },
     orderStatus: { type: String, default: "Pending" }, // "Pending" until paid, then "Confirmed"
     status: { type: String, default: "Pending" },
     address: { type: String, default: "" },
@@ -64,6 +67,9 @@ orderSchema.pre("save", function () {
   }
   if (!this.id && this.orderId) {
     this.id = this.orderId;
+  }
+  if (!this.orderNumber) {
+    this.orderNumber = this.orderId || this.id;
   }
   if (!this.amount && this.total) {
     this.amount = this.total;

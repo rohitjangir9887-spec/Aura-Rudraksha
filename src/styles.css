@@ -14684,7 +14684,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: linear-gradient(135deg, #FAF6F0 0%, #FFFDF9 45%, #F4ECE1 100%);
   border-top: 1px solid #E6D8C3;
   border-bottom: 1px solid #E6D8C3;
-  padding: 56px 24px 44px;
+  padding: 34px 20px 28px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -14702,10 +14702,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-panditji-container {
-  max-width: 1280px;
+  max-width: 1240px;
   margin: 0 auto;
   position: relative;
   z-index: 2;
+  box-sizing: border-box;
 }
 
 /* ==================================================
@@ -15153,37 +15154,33 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 /* ==================================================
-   RESPONSIVE LAYOUT BREAKPOINTS (SIDE-BY-SIDE MOBILE HERO)
+   RESPONSIVE LAYOUT BREAKPOINTS (CLEAN VEDIC HERO)
    ================================================== */
 @media (max-width: 1024px) {
   .aura-panditji-section {
-    padding: 44px 18px 32px;
+    padding: 28px 16px 22px;
   }
 
   .aura-panditji-heading {
-    font-size: 30px;
+    font-size: 24px;
   }
 
   .aura-panditji-grid {
-    grid-template-columns: 1.15fr 0.85fr;
-    gap: 24px;
-  }
-
-  .aura-panditji-stage {
-    max-width: 360px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 20px;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 860px) {
   .aura-panditji-section {
-    padding: 24px 12px 20px;
+    padding: 22px 14px 18px;
   }
 
   .aura-panditji-grid {
-    display: grid;
-    grid-template-columns: 58% 42%;
-    gap: 10px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: stretch;
     min-height: auto;
   }
 
@@ -15195,9 +15192,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
   .aura-panditji-badge {
     font-size: 9.5px;
-    padding: 4px 10px;
-    margin-bottom: 8px;
-    letter-spacing: 0.05em;
+    padding: 3px 9px;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
     gap: 4px;
   }
 
@@ -15208,23 +15205,25 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
   .aura-panditji-heading {
     font-size: 20px;
-    line-height: 1.2;
+    line-height: 1.25;
     margin-bottom: 6px;
   }
 
   .aura-panditji-subtext {
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.35;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
 
   .aura-panditji-benefits-grid {
-    gap: 7px;
-    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
   }
 
   .aura-panditji-benefit-card {
-    padding: 7px 9px;
+    padding: 8px 10px;
     gap: 8px;
     border-radius: 8px;
   }
@@ -15233,21 +15232,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     width: 18px;
     height: 18px;
     margin-top: 1px;
-  }
-
-  .aura-panditji-check-icon svg {
-    width: 12px;
-    height: 12px;
+    flex-shrink: 0;
   }
 
   .aura-panditji-benefit-text h3 {
-    font-size: 10.5px;
-    margin-bottom: 1px;
-    letter-spacing: 0.02em;
+    font-size: 11px;
+    margin-bottom: 2px;
+    letter-spacing: 0.01em;
   }
 
   .aura-panditji-benefit-text p {
-    font-size: 11.5px;
+    font-size: 11px;
     line-height: 1.3;
   }
 
@@ -15259,50 +15254,22 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   .aura-panditji-cta-btn {
     width: 100%;
     justify-content: center;
-    padding: 11px 12px;
-    font-size: 11px;
-    letter-spacing: 0.03em;
+    padding: 10px 14px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
     gap: 6px;
-    white-space: nowrap;
-  }
-
-  .aura-cta-arrow {
-    width: 14px;
-    height: 14px;
-  }
-
-  .aura-panditji-visual {
-    width: 100%;
-    justify-content: flex-end;
-    align-items: flex-end;
-    padding-right: 0;
-  }
-
-  .aura-panditji-stage {
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .aura-panditji-character-wrapper {
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .aura-panditji-mandap-backdrop {
-    width: 200px;
-    height: 200px;
-    top: -10px;
   }
 
   .aura-panditji-trust-row {
     margin-top: 16px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     justify-content: space-around;
     gap: 8px 12px;
+    flex-wrap: wrap;
   }
 
   .aura-trust-item {
-    font-size: 10px;
+    font-size: 9.5px;
     gap: 4px;
   }
 
@@ -15315,39 +15282,41 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 @media (max-width: 480px) {
   .aura-panditji-section {
-    padding: 18px 10px 16px;
+    padding: 16px 10px 14px;
   }
 
   .aura-panditji-grid {
-    grid-template-columns: 57% 43%;
-    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
 
   .aura-panditji-badge {
     font-size: 8.5px;
-    padding: 3px 8px;
-    margin-bottom: 6px;
+    padding: 2.5px 7px;
+    margin-bottom: 4px;
   }
 
   .aura-panditji-heading {
     font-size: 17px;
-    line-height: 1.2;
-    margin-bottom: 6px;
+    line-height: 1.22;
+    margin-bottom: 4px;
   }
 
   .aura-panditji-subtext {
-    font-size: 11.5px;
+    font-size: 11px;
     line-height: 1.3;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .aura-panditji-benefits-grid {
-    gap: 5px;
-    margin-bottom: 10px;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
   }
 
   .aura-panditji-benefit-card {
-    padding: 5px 6px;
+    padding: 6px 8px;
     gap: 6px;
     border-radius: 6px;
   }
@@ -15358,74 +15327,55 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   }
 
   .aura-panditji-check-icon svg {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
   }
 
   .aura-panditji-benefit-text h3 {
-    font-size: 9.5px;
+    font-size: 10px;
     margin-bottom: 1px;
   }
 
   .aura-panditji-benefit-text p {
-    font-size: 10.5px;
+    font-size: 10px;
     line-height: 1.25;
   }
 
   .aura-panditji-cta-btn {
-    font-size: 10px;
-    padding: 9.5px 8px;
-    gap: 4px;
+    font-size: 11px;
+    padding: 9px 10px;
+    gap: 5px;
   }
 
   .aura-panditji-trust-row {
-    margin-top: 14px;
-    padding: 8px 6px;
-    gap: 6px 8px;
+    margin-top: 12px;
+    padding: 6px 4px;
+    gap: 4px 8px;
+    justify-content: center;
   }
 
   .aura-trust-item {
-    font-size: 9px;
+    font-size: 8.5px;
+    white-space: nowrap;
   }
 }
 
 @media (max-width: 350px) {
-  .aura-panditji-grid {
-    grid-template-columns: 56% 44%;
-    gap: 4px;
-  }
-
-  .aura-panditji-badge {
-    font-size: 7.5px;
-    padding: 2px 6px;
+  .aura-panditji-section {
+    padding: 14px 8px 12px;
   }
 
   .aura-panditji-heading {
-    font-size: 14.5px;
-    line-height: 1.18;
+    font-size: 15px;
+    line-height: 1.2;
   }
 
   .aura-panditji-subtext {
     font-size: 10px;
-    line-height: 1.25;
-    margin-bottom: 8px;
-  }
-
-  .aura-panditji-benefit-text h3 {
-    font-size: 8.5px;
-  }
-
-  .aura-panditji-benefit-text p {
-    font-size: 9.5px;
-  }
-
-  .aura-panditji-cta-btn {
-    font-size: 9px;
-    padding: 8px 5px;
   }
 
   .aura-trust-item {
-    font-size: 8.5px;
+    font-size: 8px;
   }
 }
 

@@ -307,6 +307,7 @@ export function OrderDetail() {
             </div>
 
             <div style={{ fontSize: "12px", color: "#665a51", display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "4px" }}>
+              <span>Method: <b>PayU Hosted Checkout</b></span>
               {order.txnid && (
                 <span>PayU Txn ID: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.txnid}</code></span>
               )}
@@ -316,7 +317,27 @@ export function OrderDetail() {
               {order.paymentMode && (
                 <span>Mode: <b>{order.paymentMode}</b></span>
               )}
+              {(order.paymentDetails?.verifiedAt || (order.paymentStatus === "Paid" && order.date)) && (
+                <span>Paid Date: <b>{new Date(order.paymentDetails?.verifiedAt || order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
+              )}
             </div>
+
+            {/* Refund history / status banner */}
+            {order.amountRefunded > 0 && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 8, fontSize: 12, color: '#1e40af' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                  <span>PayU Refund Processed:</span>
+                  <span>-₹{Number(order.amountRefunded).toLocaleString('en-IN')} ({order.paymentStatus})</span>
+                </div>
+                {Array.isArray(order.refundHistory) && order.refundHistory.length > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#3b82f6' }}>
+                    {order.refundHistory.map((r, idx) => (
+                      <div key={idx}>• Ref ID: <code>{r.refundId || r.refundToken}</code> — ₹{Number(r.amount).toLocaleString('en-IN')} on {new Date(r.date).toLocaleDateString('en-IN')}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* If Pending or Failed, provide live Retry PayU button */}

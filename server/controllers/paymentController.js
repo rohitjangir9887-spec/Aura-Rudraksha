@@ -5,6 +5,7 @@ import { Coupon } from "../models/Coupon.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
+import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import {
   getPayuConfig,
   generatePayuPaymentHash,
@@ -15,12 +16,35 @@ import {
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 
 /**
+ * Helper to resolve authoritative base URL for PayU redirects & webhooks
+ */
+function resolveAppBaseUrl(req) {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL.replace(/\/+$/, "");
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  const host = req ? req.get("host") : "";
+  const protocol = req && req.protocol ? req.protocol : "https";
+  if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+    return `${protocol}://${host}`;
+  }
+  return "https://aura-rudraksha.vercel.app";
+}
+
+/**
  * 1. Initiate PayU Payment Attempt
  * POST /api/payment/initiate
  * 
  * - Calculates authoritative totals from line items & coupon
+ * - Generates permanent sequential customer-facing Order ID: AURA-YYMMDD-000123
+ * - Generates unique PayU transaction ID (txnid)
  * - Creates/Updates pending Order in MongoDB
- * - Generates PayU Live SHA-512 request hash
+ * - Generates PayU Live SHA-512 request hash strictly on backend
  * - Returns form action parameters for PayU Hosted Checkout redirect
  */
 export async function initiatePayuPayment(req, res, next) {
@@ -33,7 +57,7 @@ export async function initiatePayuPayment(req, res, next) {
     }
 
     const { key, salt, paymentUrl, isConfigured } = getPayuConfig();
-    const data = req.body;
+    const data = req.body || {};
     const authUserId = req.user.authUserId;
     const rawLines = data.lines || data.items || [];
 
@@ -73,12 +97,16 @@ export async function initiatePayuPayment(req, res, next) {
       }
     }
 
-    // Determine or generate unique Order ID
-    const orderId = data.orderId || data.id || ("ORD-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomBytes(4).toString("hex").toUpperCase());
+    // Generate permanent customer-facing sequential Order ID (AURA-YYMMDD-000123)
+    let orderNumber = data.orderId || data.id;
+    if (!orderNumber || typeof orderNumber !== "string" || !orderNumber.startsWith("AURA-")) {
+      orderNumber = await generateNextOrderNumber();
+    }
+    const orderId = orderNumber;
     const now = new Date().toISOString();
 
     // Unique PayU transaction ID for this specific payment attempt
-    const txnid = `TXN_${orderId.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now().toString(36).toUpperCase()}`;
+    const txnid = `TXN_${orderId.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}`;
 
     // Shipping address snapshot
     const shippingAddress = data.shippingAddress || {
@@ -94,19 +122,20 @@ export async function initiatePayuPayment(req, res, next) {
     const email = (data.customerEmail || data.email || req.user.email || "devotee@aurarudraksha.com").trim().toLowerCase();
     const firstname = (data.firstName || data.customerName || req.user.displayName || "Devotee").trim();
     const phone = (data.phone || data.customerPhone || "").trim();
-    const productinfo = `Aura Rudraksha - ${totals.items.map(i => i.name).slice(0, 2).join(", ")} (${orderId})`;
+    const productinfo = `Aura Rudraksha Order ${orderId}`;
 
-    // New payment attempt object
+    // Payment attempt tracking object
     const attempt = {
       txnid,
       amount: totals.finalTotal,
       status: "initiated",
-      createdAt: new Date().toISOString()
+      createdAt: now
     };
 
     const orderPayload = {
       id: orderId,
       orderId: orderId,
+      orderNumber: orderId,
       authUserId,
       date: data.date || now,
       items: totals.items,
@@ -125,6 +154,7 @@ export async function initiatePayuPayment(req, res, next) {
       amount: totals.finalTotal,
       total: totals.finalTotal,
       finalAmount: totals.finalTotal,
+      amountRefunded: 0,
       savings: totals.totalSavings,
       totalSavings: totals.totalSavings,
       status: "Pending",
@@ -140,16 +170,17 @@ export async function initiatePayuPayment(req, res, next) {
       phone,
       customerEmail: email,
       customerName: firstname,
-      notes: data.notes || ""
+      notes: data.notes || "",
+      inventoryDeducted: false
     };
 
     // Save or update order in MongoDB with pending attempt
-    const existingOrder = await Order.findOne({ id: orderId });
+    const existingOrder = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (existingOrder) {
       const attempts = existingOrder.paymentAttempts || [];
       attempts.push(attempt);
       await Order.findOneAndUpdate(
-        { id: orderId },
+        { _id: existingOrder._id },
         { ...orderPayload, paymentAttempts: attempts },
         { returnDocument: "after" }
       );
@@ -158,12 +189,12 @@ export async function initiatePayuPayment(req, res, next) {
       await Order.create(orderPayload);
     }
 
-    // Determine Callback URL
-    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-    const surl = `${appUrl}/api/payment/payu-callback`;
-    const furl = `${appUrl}/api/payment/payu-callback`;
+    // Determine absolute Callback URLs for PayU
+    const appBaseUrl = resolveAppBaseUrl(req);
+    const surl = `${appBaseUrl}/api/payment/payu-callback`;
+    const furl = `${appBaseUrl}/api/payment/payu-callback`;
 
-    // Generate SHA-512 Hash
+    // Generate SHA-512 Hash strictly on backend
     let hash = "";
     if (isConfigured) {
       hash = generatePayuPaymentHash({
@@ -186,6 +217,7 @@ export async function initiatePayuPayment(req, res, next) {
       success: true,
       data: {
         orderId,
+        orderNumber: orderId,
         txnid,
         amount: totals.finalTotal,
         payuConfigured: isConfigured,
@@ -221,32 +253,36 @@ export async function initiatePayuPayment(req, res, next) {
  * 
  * PayU redirects customer back via POST with transaction parameters and SHA-512 response hash.
  * This endpoint verifies the hash with salt, confirms via verify_payment API,
- * updates MongoDB order, and redirects user to frontend success or failure page.
+ * updates MongoDB order idempotently, and redirects user to frontend success or failure page.
  */
 export async function handlePayuCallback(req, res) {
   try {
     const params = req.body || {};
-    const { salt, isConfigured } = getPayuConfig();
+    const { key: expectedKey, salt, isConfigured } = getPayuConfig();
     const orderId = params.udf1 || params.orderId || "";
     const txnid = params.txnid || "";
     const status = (params.status || "").toLowerCase();
 
-    const host = req.get("host");
-    const protocol = req.protocol;
-    const clientBaseUrl = process.env.APP_URL || `${protocol}://${host}`;
+    const clientBaseUrl = resolveAppBaseUrl(req);
 
     if (!orderId) {
-      console.error("PayU Callback Error: Missing orderId (udf1)");
+      console.error("PayU Callback Error: Missing orderId in udf1");
       return res.redirect(`${clientBaseUrl}/checkout?failed=unknown&reason=missing_order_id`);
     }
 
-    let order = await Order.findOne({ $or: [{ id: orderId }, { orderId }] });
+    let order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       console.error(`PayU Callback Error: Order '${orderId}' not found in MongoDB`);
       return res.redirect(`${clientBaseUrl}/checkout?failed=${orderId}&reason=order_not_found`);
     }
 
-    // 1. Verify Hash Integrity
+    // 1. Verify Merchant Key
+    if (isConfigured && params.key && expectedKey && params.key !== expectedKey) {
+      console.error(`⚠️ PayU Callback Merchant Key Mismatch: received '${params.key}', expected '${expectedKey}'`);
+      return res.redirect(`${clientBaseUrl}/checkout?failed=${orderId}&reason=merchant_key_mismatch`);
+    }
+
+    // 2. Verify Hash Integrity
     let hashValid = false;
     if (isConfigured) {
       const hashCheck = verifyPayuResponseHash(params, salt);
@@ -255,11 +291,18 @@ export async function handlePayuCallback(req, res) {
         console.warn(`⚠️ PayU Callback Hash Mismatch for Order ${orderId}:`, hashCheck);
       }
     } else {
-      // In dev without salt set yet, flag for attention
       hashValid = true;
     }
 
-    // 2. Perform Server-to-Server Verification with PayU API
+    // 3. Verify Amount Consistency
+    const callbackAmount = parseFloat(params.amount);
+    const expectedAmount = parseFloat(order.finalAmount || order.total || order.amount || 0);
+    const amountMatches = isNaN(callbackAmount) || Math.abs(callbackAmount - expectedAmount) < 0.01;
+    if (!amountMatches) {
+      console.warn(`⚠️ PayU Callback Amount Mismatch: expected ${expectedAmount}, received ${callbackAmount}`);
+    }
+
+    // 4. Perform Server-to-Server Verification with PayU API
     let isServerVerified = false;
     if (isConfigured && txnid) {
       const verifyRes = await verifyPayuPaymentServerSide(txnid);
@@ -268,10 +311,10 @@ export async function handlePayuCallback(req, res) {
       isServerVerified = status === "success";
     }
 
-    const isSuccess = status === "success" && hashValid && isServerVerified;
+    const isSuccess = status === "success" && hashValid && amountMatches && isServerVerified;
 
     if (isSuccess) {
-      // Idempotent Order Update: Only process once
+      // Idempotent Order Update: Only execute state transition and stock deduction once
       if (order.paymentStatus !== "Paid") {
         order.paymentStatus = "Paid";
         order.orderStatus = "Confirmed";
@@ -304,16 +347,20 @@ export async function handlePayuCallback(req, res) {
         }
         order.paymentAttempts = attempts;
 
-        // Deduct inventory stock
-        if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
+        // Deduct inventory stock (strictly once)
+        if (!order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
           for (const item of order.snapshotItems) {
             if (item.id) {
-              await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -Math.max(1, item.qty || 1) } });
+              await Product.findOneAndUpdate(
+                { id: item.id },
+                { $inc: { stock: -Math.max(1, item.qty || item.quantity || 1) } }
+              );
             }
           }
+          order.inventoryDeducted = true;
         }
 
-        // Increment coupon usage
+        // Increment coupon usage (strictly once)
         if (order.couponCode) {
           await Coupon.findOneAndUpdate({ code: order.couponCode.toUpperCase() }, { $inc: { usage: 1 } });
         }
@@ -356,7 +403,7 @@ export async function handlePayuCallback(req, res) {
     }
   } catch (err) {
     console.error("Critical error in handlePayuCallback:", err);
-    const clientBaseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    const clientBaseUrl = resolveAppBaseUrl(req);
     return res.redirect(`${clientBaseUrl}/checkout?failed=error&reason=${encodeURIComponent(err.message)}`);
   }
 }
@@ -366,11 +413,12 @@ export async function handlePayuCallback(req, res) {
  * POST /api/payment/payu-webhook
  * 
  * Handles background server notifications from PayU asynchronously.
+ * Fully idempotent: prevents duplicate stock deductions or duplicate transitions.
  */
 export async function handlePayuWebhook(req, res) {
   try {
     const params = req.body || {};
-    const { salt, isConfigured } = getPayuConfig();
+    const { key: expectedKey, salt, isConfigured } = getPayuConfig();
     const orderId = params.udf1 || params.orderId;
     const txnid = params.txnid;
     const status = (params.status || "").toLowerCase();
@@ -380,6 +428,12 @@ export async function handlePayuWebhook(req, res) {
     }
 
     if (isConfigured) {
+      // Check merchant key
+      if (params.key && expectedKey && params.key !== expectedKey) {
+        return res.status(400).json({ success: false, message: "Invalid merchant key" });
+      }
+
+      // Check reverse hash
       const hashCheck = verifyPayuResponseHash(params, salt);
       if (!hashCheck.valid) {
         console.warn("⚠️ PayU Webhook hash verification failed:", hashCheck);
@@ -387,7 +441,7 @@ export async function handlePayuWebhook(req, res) {
       }
     }
 
-    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }] });
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
@@ -415,13 +469,17 @@ export async function handlePayuWebhook(req, res) {
         verifiedBy: "payu_webhook_verified"
       };
 
-      // Deduct product stock
-      if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
+      // Deduct product stock strictly once
+      if (!order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
         for (const item of order.snapshotItems) {
           if (item.id) {
-            await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -Math.max(1, item.qty || 1) } });
+            await Product.findOneAndUpdate(
+              { id: item.id },
+              { $inc: { stock: -Math.max(1, item.qty || item.quantity || 1) } }
+            );
           }
         }
+        order.inventoryDeducted = true;
       }
 
       await order.save();
@@ -441,7 +499,7 @@ export async function handlePayuWebhook(req, res) {
 export async function verifyPaymentStatus(req, res, next) {
   try {
     const { orderId } = req.params;
-    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }] });
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
@@ -464,6 +522,20 @@ export async function verifyPaymentStatus(req, res, next) {
             verifiedAt: new Date().toISOString(),
             verifiedBy: "on_demand_server_verify"
           };
+
+          // Deduct stock if not already deducted
+          if (!order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+            for (const item of order.snapshotItems) {
+              if (item.id) {
+                await Product.findOneAndUpdate(
+                  { id: item.id },
+                  { $inc: { stock: -Math.max(1, item.qty || item.quantity || 1) } }
+                );
+              }
+            }
+            order.inventoryDeducted = true;
+          }
+
           await order.save();
         }
       }
@@ -472,13 +544,17 @@ export async function verifyPaymentStatus(req, res, next) {
     return res.json({
       success: true,
       data: {
-        orderId: order.id,
+        orderId: order.orderNumber || order.id,
+        orderNumber: order.orderNumber || order.id,
         paymentStatus: order.paymentStatus,
         status: order.status,
+        orderStatus: order.orderStatus,
         txnid: order.txnid,
         mihpayid: order.mihpayid,
-        amount: order.finalAmount,
-        paymentMethod: order.paymentMethod
+        amount: order.finalAmount || order.total,
+        amountRefunded: order.amountRefunded || 0,
+        paymentMethod: order.paymentMethod,
+        refundHistory: order.refundHistory || []
       }
     });
   } catch (err) {
@@ -490,14 +566,14 @@ export async function verifyPaymentStatus(req, res, next) {
  * 5. Retry Payment for an Existing Pending/Failed Order
  * POST /api/payment/retry/:orderId
  * 
- * Generates a NEW PayU txnid and fresh hash so customer can safely retry payment.
+ * Generates a NEW PayU txnid and fresh hash while keeping the exact same permanent orderNumber.
  */
 export async function retryPayuPayment(req, res, next) {
   try {
     const { orderId } = req.params;
     const authUserId = req.user.authUserId;
 
-    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }] });
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
@@ -515,18 +591,18 @@ export async function retryPayuPayment(req, res, next) {
 
     const { key, salt, paymentUrl, isConfigured } = getPayuConfig();
 
-    // Create a NEW transaction attempt ID
-    const newTxnid = `TXN_${order.id.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now().toString(36).toUpperCase()}`;
+    // Create a NEW transaction attempt ID for this retry while keeping order.id unchanged
+    const newTxnid = `TXN_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}`;
     const amount = Number(order.finalAmount || order.total || order.amount || 0);
 
     const email = (order.customerEmail || req.user.email || "devotee@aurarudraksha.com").trim().toLowerCase();
     const firstname = (order.customerName || order.firstName || req.user.displayName || "Devotee").trim();
     const phone = (order.phone || order.customerPhone || "").trim();
-    const productinfo = `Aura Rudraksha Order Retry (${order.id})`;
+    const productinfo = `Aura Rudraksha Order Retry (${order.orderNumber || order.id})`;
 
-    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-    const surl = `${appUrl}/api/payment/payu-callback`;
-    const furl = `${appUrl}/api/payment/payu-callback`;
+    const appBaseUrl = resolveAppBaseUrl(req);
+    const surl = `${appBaseUrl}/api/payment/payu-callback`;
+    const furl = `${appBaseUrl}/api/payment/payu-callback`;
 
     // Append to payment attempts
     const attempts = order.paymentAttempts || [];
@@ -550,7 +626,7 @@ export async function retryPayuPayment(req, res, next) {
         productinfo,
         firstname,
         email,
-        udf1: order.id,
+        udf1: order.orderNumber || order.id,
         udf2: authUserId,
         udf3: "AURA_RUDRAKSHA",
         salt
@@ -560,7 +636,8 @@ export async function retryPayuPayment(req, res, next) {
     return res.json({
       success: true,
       data: {
-        orderId: order.id,
+        orderId: order.orderNumber || order.id,
+        orderNumber: order.orderNumber || order.id,
         txnid: newTxnid,
         amount,
         payuConfigured: isConfigured,
@@ -576,7 +653,7 @@ export async function retryPayuPayment(req, res, next) {
           surl,
           furl,
           hash,
-          udf1: order.id,
+          udf1: order.orderNumber || order.id,
           udf2: authUserId,
           udf3: "AURA_RUDRAKSHA",
           udf4: "",
@@ -591,7 +668,7 @@ export async function retryPayuPayment(req, res, next) {
 }
 
 /**
- * 6. Admin Process PayU Live Refund
+ * 6. Admin Process PayU Live Refund (Full or Partial)
  * POST /api/payment/refund/:orderId
  * (Admin Protected)
  */
@@ -600,15 +677,15 @@ export async function processPayuRefund(req, res, next) {
     const { orderId } = req.params;
     const { refundAmount, reason } = req.body;
 
-    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }] });
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    if (order.paymentStatus !== "Paid") {
+    if (order.paymentStatus !== "Paid" && order.paymentStatus !== "Partially Refunded") {
       return res.status(400).json({
         success: false,
-        message: `Cannot refund order with payment status '${order.paymentStatus}'. Only 'Paid' orders can be refunded.`
+        message: `Cannot refund order with payment status '${order.paymentStatus}'. Only 'Paid' or 'Partially Refunded' orders can be refunded.`
       });
     }
 
@@ -620,47 +697,79 @@ export async function processPayuRefund(req, res, next) {
       });
     }
 
-    const amountToRefund = Number(refundAmount || order.finalAmount || order.total);
-    if (isNaN(amountToRefund) || amountToRefund <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid refund amount" });
+    const currentRefundAmount = Number(refundAmount);
+    if (isNaN(currentRefundAmount) || currentRefundAmount <= 0) {
+      return res.status(400).json({ success: false, message: "Please specify a valid refund amount greater than zero." });
     }
+
+    const orderTotal = Number(order.finalAmount || order.total || 0);
+    const alreadyRefunded = Number(order.amountRefunded || 0);
+    const maxRefundable = orderTotal - alreadyRefunded;
+
+    if (currentRefundAmount > maxRefundable + 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: `Requested refund of ₹${currentRefundAmount.toLocaleString('en-IN')} exceeds remaining refundable balance of ₹${maxRefundable.toLocaleString('en-IN')}.`
+      });
+    }
+
+    // Generate unique refund token for PayU
+    const refundToken = `REF_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 
     // Call PayU Live Refund API
     const refundResult = await refundPayuTransaction({
       mihpayid: order.mihpayid,
       txnid: order.txnid,
-      amount: amountToRefund
+      amount: currentRefundAmount,
+      token: refundToken
     });
 
+    const newAmountRefunded = alreadyRefunded + currentRefundAmount;
+    const isFullRefund = newAmountRefunded >= (orderTotal - 0.01);
+
     // Record Refund details in Order
-    order.paymentStatus = "Refunded";
-    order.status = "Cancelled";
-    order.orderStatus = "Cancelled";
-    order.refundDetails = {
+    order.amountRefunded = newAmountRefunded;
+    order.paymentStatus = isFullRefund ? "Refunded" : "Partially Refunded";
+    
+    if (isFullRefund) {
+      order.status = "Cancelled";
+      order.orderStatus = "Cancelled";
+    }
+
+    const refundEntry = {
       refundId: refundResult.refundId,
       refundToken: refundResult.refundToken,
-      refundAmount: amountToRefund,
-      refundStatus: "Success",
-      refundDate: new Date().toISOString(),
-      refundReason: reason || "Admin Processed Refund via PayU",
+      amount: currentRefundAmount,
+      status: "Success",
+      reason: reason || "Admin Processed Refund via PayU",
+      date: new Date().toISOString(),
       rawResponse: refundResult.rawResponse,
       initiatedBy: req.user.email || "Admin"
     };
 
-    // Restock inventory
-    if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
+    const history = order.refundHistory || [];
+    history.push(refundEntry);
+    order.refundHistory = history;
+    order.refundDetails = refundEntry;
+
+    // Restock inventory if full refund
+    if (isFullRefund && order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
       for (const item of order.snapshotItems) {
         if (item.id) {
-          await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: Math.max(1, item.qty || 1) } });
+          await Product.findOneAndUpdate(
+            { id: item.id },
+            { $inc: { stock: Math.max(1, item.qty || item.quantity || 1) } }
+          );
         }
       }
+      order.inventoryDeducted = false;
     }
 
     await order.save();
 
     return res.json({
       success: true,
-      message: `Successfully processed PayU refund of ₹${amountToRefund.toLocaleString('en-IN')}`,
+      message: `Successfully processed PayU refund of ₹${currentRefundAmount.toLocaleString('en-IN')}`,
       data: order,
       refund: refundResult
     });

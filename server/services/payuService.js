@@ -23,7 +23,7 @@ export function getPayuConfig() {
 
   const commandUrl = isTest
     ? "https://test.payu.in/merchant/postservice?form=2"
-    : "https://info.payu.in/merchant/postservice?form=2";
+    : "https://info.payu.in/merchant/postservice.php?form=2";
 
   return {
     key,
@@ -156,13 +156,18 @@ export async function verifyPayuPaymentServerSide(txnid) {
     postData.append("var1", var1);
     postData.append("hash", hash);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch(commandUrl, {
       method: "POST",
       body: postData,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
-      }
+      },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -227,13 +232,18 @@ export async function refundPayuTransaction({ mihpayid, txnid, amount, token }) 
   postData.append("var3", refundAmount);
   postData.append("hash", hash);
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   const response = await fetch(commandUrl, {
     method: "POST",
     body: postData,
     headers: {
       "Content-Type": "application/x-www-form-urlencoded"
-    }
+    },
+    signal: controller.signal
   });
+  clearTimeout(timeoutId);
 
   const data = await response.json();
 

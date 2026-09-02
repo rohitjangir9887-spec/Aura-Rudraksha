@@ -6,10 +6,12 @@ import { authClient } from "../../lib/authClient";
 import { 
   ChevronLeft, Package, CreditCard, ChevronRight, 
   Sparkles, Search, Truck, LogIn, Clock, ShieldCheck, 
-  ExternalLink, ArrowRight, HelpCircle
+  ExternalLink, ArrowRight, HelpCircle, RefreshCw, Loader2,
+  CheckCircle2, AlertTriangle, XCircle, RotateCcw
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
+import { emitToast } from "../../context/ToastContext";
 
 export function getOrderProducts(o) {
   return db.normalizeOrderItems(o);
@@ -22,6 +24,7 @@ export function Orders() {
   const [currentUser, setCurrentUser] = useState(() => authClient.getUser());
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [retryingOrderId, setRetryingOrderId] = useState(null);
   
   // Quick track input for guests
   const [trackInput, setTrackInput] = useState("");
@@ -76,9 +79,39 @@ export function Orders() {
     navigate(`/track-order?id=${encodeURIComponent(val)}`);
   };
 
+  const handlePayuRetry = async (e, orderId) => {
+    e.stopPropagation();
+    if (!orderId) return;
+    setRetryingOrderId(orderId);
+    try {
+      const res = await db.retryPayment(orderId);
+      if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        emitToast("Connecting to PayU Secure Gateway...", "info");
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = res.data.paymentUrl;
+        form.style.display = "none";
+        Object.entries(res.data.params).forEach(([key, val]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = val !== undefined && val !== null ? String(val) : "";
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      } else {
+        throw new Error(res?.message || "Could not generate PayU payment session");
+      }
+    } catch (err) {
+      setRetryingOrderId(null);
+      emitToast(err.message || "Failed to retry PayU payment", "error");
+    }
+  };
+
   const filteredOrders = orders.filter(o => {
     const q = searchQuery.toLowerCase().trim();
-    const idMatch = String(o.id || "").toLowerCase().includes(q);
+    const idMatch = String(o.id || o.orderNumber || "").toLowerCase().includes(q);
     const itemMatch = (o.items || []).some(item => (item.name || "").toLowerCase().includes(q));
     const statusMatch = statusFilter === "all" || (o.status || "").toLowerCase() === statusFilter.toLowerCase();
     
@@ -354,22 +387,30 @@ export function Orders() {
                   const isCancelled = o.status === 'Cancelled';
                   const isDelivered = o.status === 'Delivered';
                   
+                  const isPaid = o.paymentStatus === "Paid";
+                  const isFailed = o.paymentStatus === "Failed";
+                  const isPending = !isPaid && !isFailed && (o.paymentStatus === "Pending" || !o.paymentStatus);
+                  const isRefunded = o.paymentStatus === "Refunded" || o.paymentStatus === "Partially Refunded" || (o.amountRefunded > 0);
+                  const paymentDate = o.paymentDetails?.verifiedAt || (isPaid ? o.date : null);
+                  const isRetrying = retryingOrderId === (o.orderNumber || o.id);
+
                   return (
                     <motion.div 
-                      onClick={() => navigate(`/account/orders/${o.id}`)} 
-                      key={o.id} 
+                      onClick={() => navigate(`/account/orders/${o.orderNumber || o.id}`)} 
+                      key={o.orderNumber || o.id} 
                       initial={{ opacity: 0, y: 10 }} 
                       animate={{ opacity: 1, y: 0 }} 
                       style={{ 
                         cursor: 'pointer',
                         background: '#fff', 
                         border: '1px solid #eee1cf', 
-                        borderRadius: 12,
+                        borderRadius: 14,
                         overflow: 'hidden',
                         boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
                         transition: 'all 0.2s'
                       }}
                     >
+                      {/* Card Header: Order ID, Date & Total */}
                       <div style={{
                         padding: '14px 20px', 
                         background: '#fdfbf7', 
@@ -381,31 +422,116 @@ export function Orders() {
                         gap: 12
                       }}>
                         <div>
-                          <b style={{ fontSize: 14, color: '#2b170d', display: 'block' }}>{o.id}</b>
-                          <span style={{ fontSize: 12, color: '#806f62' }}>
-                            {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <b style={{ fontSize: 14, color: '#2b170d', fontFamily: 'monospace', letterSpacing: '0.3px' }}>
+                              {o.orderNumber || o.id}
+                            </b>
+                            <span style={{ fontSize: 12, color: '#806f62' }}>
+                              • Placed on {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                          
+                          {/* Payment Meta: Method, TxnID & Payment Date */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4, fontSize: 11.5, color: '#6b5c51' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <CreditCard size={12} color="#a54d2b" /> PayU Hosted Checkout
+                            </span>
+                            {o.txnid && (
+                              <span>Txn: <code style={{ fontFamily: 'monospace', background: '#f5eee6', padding: '1px 4px', borderRadius: 3 }}>{o.txnid}</code></span>
+                            )}
+                            {o.mihpayid && (
+                              <span>PayU Ref: <code style={{ fontFamily: 'monospace', background: '#f5eee6', padding: '1px 4px', borderRadius: 3 }}>{o.mihpayid}</code></span>
+                            )}
+                            {paymentDate && (
+                              <span>Paid on: {new Date(paymentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                            )}
+                          </div>
                         </div>
+
                         <div style={{ textAlign: 'right' }}>
-                          <strong style={{ display: 'block', fontSize: 15, color: '#a54d2b' }}>
+                          <strong style={{ display: 'block', fontSize: 16, color: '#a54d2b' }}>
                             ₹{(o.finalAmount || o.amount || o.total || 0).toLocaleString('en-IN')}
                           </strong>
-                          <span className={`status ${isCancelled ? 'error' : isDelivered ? 'success' : 'pending'}`} style={{
-                            background: isCancelled ? '#ffebee' : isDelivered ? '#e5f6ea' : '#fff3e0',
-                            color: isCancelled ? '#c62828' : isDelivered ? '#1d9450' : '#b85d25',
-                            padding: '3px 8px',
-                            borderRadius: 4,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            display: 'inline-block',
-                            marginTop: 2
-                          }}>
-                            {o.status || "Confirmed"}
-                          </span>
+                          
+                          {/* Payment Status Badge */}
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 4 }}>
+                            {isPaid && (
+                              <span style={{
+                                background: '#e5f6ea',
+                                color: '#166534',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3
+                              }}>
+                                <CheckCircle2 size={11} /> Payment Successful
+                              </span>
+                            )}
+                            {isPending && !isCancelled && (
+                              <span style={{
+                                background: '#fef3c7',
+                                color: '#b45309',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3
+                              }}>
+                                <Clock size={11} /> Payment Verification Pending
+                              </span>
+                            )}
+                            {isFailed && !isCancelled && (
+                              <span style={{
+                                background: '#fee2e2',
+                                color: '#991b1b',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3
+                              }}>
+                                <XCircle size={11} /> Payment Incomplete
+                              </span>
+                            )}
+                            {isRefunded && (
+                              <span style={{
+                                background: '#f0f4ff',
+                                color: '#3730a3',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3
+                              }}>
+                                <RotateCcw size={11} /> {o.paymentStatus === 'Refunded' ? 'Refunded' : `Partially Refunded (₹${Number(o.amountRefunded || 0).toLocaleString()})`}
+                              </span>
+                            )}
+                            <span className={`status ${isCancelled ? 'error' : isDelivered ? 'success' : 'pending'}`} style={{
+                              background: isCancelled ? '#ffebee' : isDelivered ? '#e5f6ea' : '#fff3e0',
+                              color: isCancelled ? '#c62828' : isDelivered ? '#1d9450' : '#b85d25',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              display: 'inline-block'
+                            }}>
+                              {o.status || "Confirmed"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
-                      <div style={{ padding: '18px 20px' }}>
+                      {/* Card Body: Items & Actions */}
+                      <div style={{ padding: '16px 20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 15 }}>
                           
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -454,22 +580,59 @@ export function Orders() {
                             </div>
                             
                             <div>
-                              <b style={{ fontSize: 13, color: '#2b170d', display: 'block' }}>
+                              <b style={{ fontSize: 13.5, color: '#2b170d', display: 'block' }}>
                                 {parsedItems[0]?.name ? (
                                   parsedItems.length > 1 ? `${parsedItems[0].name} (+${parsedItems.length - 1} more)` : parsedItems[0].name
                                 ) : (
                                   `${uniqueProducts} Product${uniqueProducts > 1 ? 's' : ''} • ${totalItems} Item${totalItems > 1 ? 's' : ''}`
                                 )}
                               </b>
-                              <div style={{ fontSize: 11, color: '#806f62', display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                                <CreditCard size={12} /> {o.paymentMethod || 'Online Payment'} • {totalItems} Item{totalItems > 1 ? 's' : ''}
+                              <div style={{ fontSize: 11.5, color: '#806f62', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                <span>Total: {totalItems} Item{totalItems > 1 ? 's' : ''}</span>
+                                {o.address && <span>• Ship to: {o.address.slice(0, 24)}...</span>}
                               </div>
                             </div>
                           </div>
                           
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {/* Actions: Retry Payment / Track / Details */}
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            {/* PayU Retry Button for Pending/Failed Orders */}
+                            {(isPending || isFailed) && !isCancelled && (
+                              <button
+                                type="button"
+                                disabled={isRetrying}
+                                onClick={(e) => handlePayuRetry(e, o.orderNumber || o.id)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  padding: '8px 14px',
+                                  background: isRetrying ? '#8a3c1c' : 'linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: isRetrying ? 'wait' : 'pointer',
+                                  boxShadow: '0 2px 6px rgba(165, 77, 43, 0.25)'
+                                }}
+                              >
+                                {isRetrying ? (
+                                  <>
+                                    <Loader2 size={13} className="animate-spin" />
+                                    <span>Connecting...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw size={13} />
+                                    <span>Retry Payment</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+
                             <Link 
-                              to={`/track-order?id=${o.id}`} 
+                              to={`/track-order?id=${o.orderNumber || o.id}`} 
                               onClick={(e) => e.stopPropagation()}
                               style={{
                                 display: 'inline-flex',
@@ -489,7 +652,7 @@ export function Orders() {
                             </Link>
 
                             <Link 
-                              to={`/account/orders/${o.id}`} 
+                              to={`/account/orders/${o.orderNumber || o.id}`} 
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
