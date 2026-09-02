@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { db, onStoreUpdate } from "../lib/db";
-import { ProductCard } from "../components/ProductCard";
+import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
 import { 
@@ -90,6 +90,7 @@ const MUKHI_GUIDE = [
 
 export function Shop() {
   const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState("featured");
   const [chip, setChip] = useState("all");
   const [openFaq, setOpenFaq] = useState(0);
@@ -104,6 +105,7 @@ export function Shop() {
     await db.waitForHydration();
     const all = db.getProducts();
     setProducts(all.filter(p => p.status === "Active" || !p.status));
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -254,7 +256,19 @@ export function Shop() {
 
         {/* 5. Responsive Product Grid */}
         <AnimatePresence mode="wait">
-          {list.length === 0 ? (
+          {isLoading ? (
+            <motion.div 
+              key="loading"
+              className="shop-products-grid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {Array.from({ length: 6 }).map((_, i) => (
+                <ProductCardSkeleton key={i} />
+              ))}
+            </motion.div>
+          ) : list.length === 0 ? (
             <motion.div 
               key="empty"
               className="shop-empty-state"

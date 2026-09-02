@@ -64,11 +64,6 @@ export function Home() {
   }, [location.hash]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
     if (banners.length <= 1) return;
     const interval = setInterval(() => {
       setHero((current) => (current + 1) % banners.length);

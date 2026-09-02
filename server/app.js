@@ -178,14 +178,20 @@ export function createApp() {
     });
   });
 
-  // Mongoose offline fallback
+  // Mongoose / Database error handler
   app.use((err, req, res, next) => {
-    if (err.name === 'MongooseError' || err.name === 'MongoNetworkError' || (err.message && err.message.includes('buffering timed out'))) {
-      console.warn('[AI Studio] Database offline — returning mock empty response');
-      if (req.method === 'GET') {
-        return res.json(req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {});
-      }
-      return res.status(503).json({ error: 'Service temporarily unavailable (database offline)' });
+    if (
+      err.name === 'MongooseError' ||
+      err.name === 'MongoNetworkError' ||
+      err.name === 'MongoServerSelectionError' ||
+      (err.message && (err.message.includes('buffering timed out') || err.message.includes('timed out')))
+    ) {
+      console.error('[Database Error]', err.message);
+      return res.status(503).json({
+        success: false,
+        error: 'Database unavailable',
+        message: 'Database is temporarily unavailable. Please try again shortly.'
+      });
     }
     next(err);
   });
