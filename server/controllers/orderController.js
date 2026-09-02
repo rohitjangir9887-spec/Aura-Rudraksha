@@ -211,8 +211,8 @@ export async function createOrder(req, res, next) {
       orderStatus: "Confirmed",
       orderSource: data.orderSource || data.source || "website",
       source: data.orderSource || data.source || "website",
-      paymentStatus: data.paymentMethod?.includes("COD") || data.paymentMethod?.includes("Cash on Delivery") ? "Pending" : "Pending",
-      paymentMethod: data.paymentMethod || "Cash on Delivery (COD)",
+      paymentStatus: data.paymentStatus || "Pending",
+      paymentMethod: data.paymentMethod || "PayU Hosted Checkout (UPI / Cards / NetBanking)",
       shippingAddress
     };
 

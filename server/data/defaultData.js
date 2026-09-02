@@ -416,7 +416,7 @@ export const defaultOrders = [
     status: "Pending",
     orderStatus: "Pending",
     paymentStatus: "Pending",
-    paymentMethod: "Cash on Delivery",
+    paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
     date: new Date(Date.now() - 45 * 60000).toISOString(),
     createdAt: new Date(Date.now() - 45 * 60000).toISOString()
   },

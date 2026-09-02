@@ -217,14 +217,14 @@ export function Policies() {
                 <div style={{ lineHeight: "1.8", color: "#4a3b32", whiteSpace: "pre-wrap", fontSize: "13.5px" }}>
 {`At Aura Rudraksha, your financial security is guarded with highest banking-grade standards:
 
-• 100% PCI-DSS Level 1 Compliant: Payment processing is handled by RBI-approved premier payment gateways (Razorpay, Cashfree, UPI Gateway).
+• 100% PCI-DSS Level 1 Compliant: Payment processing is handled by RBI-approved premier payment gateway (PayU Hosted Checkout).
 • Supported Payment Modes:
-   - All UPI Apps (Google Pay, PhonePe, Paytm, BHIM, Cred)
+   - All UPI Apps (Google Pay, PhonePe, Paytm, BHIM, CRED)
    - Credit & Debit Cards (Visa, MasterCard, RuPay, American Express)
    - Net Banking across 50+ Indian banks
-   - Cash on Delivery (COD) available with verification
+   - Instant Online Verification & Priority 24h Nepal Dispatch
 • Zero Card Data Storage: Aura Rudraksha never sees or stores your CVV or Card numbers on our servers.
-• Bank-Grade 256-Bit SSL: Every session is encrypted from start to finish.`}
+• Bank-Grade 256-Bit SSL: Every session is encrypted from start to finish via PayU's secure hosted platform.`}
                 </div>
               </div>
             )}

@@ -32,7 +32,7 @@ export function AuraAIChatOrderModal({
   const [couponCode, setCouponCode] = useState(prefilledCoupon || "");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("COD"); // "COD" | "UPI" | "Online"
+  const [paymentMethod, setPaymentMethod] = useState("PAYU"); // "PAYU" (UPI, Cards, NetBanking)
   
   // Delivery details
   const [name, setName] = useState("");
@@ -200,8 +200,8 @@ export function AuraAIChatOrderModal({
         discount: discountAmount,
         finalAmount: finalAmount,
         coupon: appliedCoupon ? appliedCoupon.code : null,
-        paymentMethod: paymentMethod === "COD" ? "Cash on Delivery (COD)" : paymentMethod === "UPI" ? "Direct UPI Payment" : "Prepaid Online",
-        paymentStatus: paymentMethod === "COD" ? "Pending (Pay on Delivery)" : "Processing",
+        paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
+        paymentStatus: "Pending",
         status: "Confirmed",
         source: "aura_ai",
         orderSource: "aura_ai",
@@ -275,7 +275,7 @@ export function AuraAIChatOrderModal({
                   </div>
                   <div className="aura-ai-order-success-item">
                     <span>Payment:</span>
-                    <span>{paymentMethod === "COD" ? "Cash on Delivery (COD)" : paymentMethod}</span>
+                    <span>PayU Hosted (UPI / Cards / NetBanking)</span>
                   </div>
                   <div className="aura-ai-order-success-item">
                     <span>Delivery to:</span>
@@ -450,36 +450,22 @@ export function AuraAIChatOrderModal({
                 {/* Payment Method */}
                 <div className="aura-ai-order-section">
                   <div className="aura-ai-order-section-title">
-                    <CreditCard size={13} /> Payment Choice
+                    <CreditCard size={13} /> Secure Payment Gateway
                   </div>
-                  <div className="aura-ai-order-payment-grid">
-                    <label className={`aura-ai-pay-opt ${paymentMethod === "COD" ? "selected" : ""}`}>
-                      <input 
-                        type="radio" 
-                        name="payMethod" 
-                        value="COD" 
-                        checked={paymentMethod === "COD"} 
-                        onChange={() => setPaymentMethod("COD")} 
-                      />
-                      <div>
-                        <strong>Cash on Delivery</strong>
-                        <small>Pay cash / QR upon doorstep arrival</small>
-                      </div>
-                    </label>
-
-                    <label className={`aura-ai-pay-opt ${paymentMethod === "UPI" ? "selected" : ""}`}>
-                      <input 
-                        type="radio" 
-                        name="payMethod" 
-                        value="UPI" 
-                        checked={paymentMethod === "UPI"} 
-                        onChange={() => setPaymentMethod("UPI")} 
-                      />
-                      <div>
-                        <strong>Instant UPI / GPay</strong>
-                        <small>Direct instant UPI confirmation</small>
-                      </div>
-                    </label>
+                  <div style={{
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1.5px solid #d4a373",
+                    background: "#fff9f2",
+                    fontSize: "12px",
+                    color: "#4a3528"
+                  }}>
+                    <div style={{ fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <ShieldCheck size={14} color="#166534" /> PayU Hosted Checkout (UPI / Cards / NetBanking)
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#7c3114" }}>
+                      Instant confirmation via GPay, PhonePe, Paytm, RuPay, Visa, Net Banking.
+                    </div>
                   </div>
                 </div>
 
