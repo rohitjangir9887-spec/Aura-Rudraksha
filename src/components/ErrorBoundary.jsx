@@ -15,6 +15,10 @@ export class ErrorBoundary extends React.Component {
     console.error("Aura Rudraksha caught UI exception:", error, errorInfo);
   }
 
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   handleReload = () => {
     try {
       localStorage.removeItem("aura_ai_floating_dismissed");
@@ -88,7 +92,7 @@ export class ErrorBoundary extends React.Component {
 
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
             <button
-              onClick={this.handleReload}
+              onClick={this.handleRetry}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -105,15 +109,31 @@ export class ErrorBoundary extends React.Component {
               }}
             >
               <RotateCcw size={15} />
-              <span>Refresh Page</span>
+              <span>Try Again</span>
+            </button>
+
+            <button
+              onClick={this.handleReload}
+              style={{
+                padding: "10px 20px",
+                background: "#f4eee6",
+                color: "#2b170d",
+                border: "1px solid #ebd8c5",
+                borderRadius: "99px",
+                fontSize: "13.5px",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              Refresh Page
             </button>
 
             <button
               onClick={this.handleResetAndGoHome}
               style={{
                 padding: "10px 20px",
-                background: "#f4eee6",
-                color: "#2b170d",
+                background: "transparent",
+                color: "#7a6b61",
                 border: "1px solid #ebd8c5",
                 borderRadius: "99px",
                 fontSize: "13.5px",

@@ -35,8 +35,9 @@ import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 
 export function AuraAIPage() {
-  // Shared persistent chat history
-  const [messages, setMessages] = useState(() => auraChatStore.getMessages());
+  const [mode, setMode] = useState("standard"); // "standard" | "panditji"
+  // Shared persistent chat history per mode
+  const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
@@ -55,12 +56,31 @@ export function AuraAIPage() {
   const cart = useCart();
   const messagesEndRef = useRef(null);
   const chatScrollContainerRef = useRef(null);
+  const textareaRef = useRef(null);
   const isInitialMount = useRef(true);
+
+  // Update messages when switching mode (e.g. standard vs panditji)
+  useEffect(() => {
+    setMessages(auraChatStore.getMessages(mode));
+  }, [mode]);
+
+  // Auto-grow textarea height on input change
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "38px";
+      const scrollH = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollH, 38), 100)}px`;
+    }
+  }, [input]);
 
   // Sync with global store changes across tabs and components
   useEffect(() => {
     const handleChatSync = (e) => {
-      if (e.detail && Array.isArray(e.detail)) {
+      if (e.detail && Array.isArray(e.detail.messages)) {
+        if (!e.detail.mode || e.detail.mode === mode) {
+          setMessages(e.detail.messages);
+        }
+      } else if (e.detail && Array.isArray(e.detail)) {
         setMessages(e.detail);
       }
     };
@@ -70,8 +90,8 @@ export function AuraAIPage() {
     };
 
     const handleStorageChange = (e) => {
-      if (e.key === "aura_ai_unified_chat_history") {
-        setMessages(auraChatStore.getMessages());
+      if (e.key === auraChatStore.getStorageKey(mode)) {
+        setMessages(auraChatStore.getMessages(mode));
       }
       if (e.key === "aura_ai_floating_dismissed") {
         setIsFloatingDismissed(auraChatStore.isFloatingDismissed());
@@ -87,7 +107,7 @@ export function AuraAIPage() {
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [mode]);
 
   // Load products & offers for side panel
   useEffect(() => {
@@ -129,7 +149,7 @@ export function AuraAIPage() {
       timestamp: new Date().toISOString()
     };
 
-    const currentMsgs = auraChatStore.appendMessage(userMsg);
+    const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
     setLoading(true);
@@ -148,6 +168,7 @@ export function AuraAIPage() {
         conversationId,
         userEmail,
         userName,
+        mode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
         onChunk: (delta, accumulated, partialData) => {
@@ -191,7 +212,7 @@ export function AuraAIPage() {
             quickReplies: finalData.quickReplies || [],
             timestamp: new Date().toISOString()
           };
-          auraChatStore.upsertMessage(aiMsg);
+          auraChatStore.upsertMessage(aiMsg, mode);
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             if (idx >= 0) {
@@ -216,7 +237,7 @@ export function AuraAIPage() {
           requiresHuman: true,
           timestamp: new Date().toISOString()
         };
-        const updatedMsgs = auraChatStore.appendMessage(errMsg);
+        const updatedMsgs = auraChatStore.appendMessage(errMsg, mode);
         setMessages(updatedMsgs);
       }
     } finally {
@@ -232,7 +253,7 @@ export function AuraAIPage() {
     setShowRefreshToast(true);
 
     setTimeout(() => {
-      const { newConvId, messages: updatedMsgs } = auraChatStore.startNewSession();
+      const { newConvId, messages: updatedMsgs } = auraChatStore.startNewSession(mode);
       setConversationId(newConvId);
       setMessages(updatedMsgs);
       setRefreshPhase("fading-in");
@@ -435,12 +456,33 @@ export function AuraAIPage() {
             {/* Chat Top Banner */}
             <div className="aura-ai-chat-topbar">
               <div className="aura-ai-chat-status">
-                <span className="aura-ai-online-pulse" />
+                <span className="aura-ai-online-pulse" style={mode === "panditji" ? { background: "#ff9900" } : undefined} />
                 <div>
-                  <strong>Aura AI Spiritual Guide</strong>
-                  <span className="aura-ai-topbar-sub">Active Consultation • Permanent History Preserved</span>
+                  <strong>{mode === "panditji" ? "🕉️ AI Panditji — Vedic Astrologer" : "Aura AI Spiritual Guide"}</strong>
+                  <span className="aura-ai-topbar-sub">
+                    {mode === "panditji" ? "Authentic Shastra Guidance • Permanent History Preserved" : "Active Consultation • Permanent History Preserved"}
+                  </span>
                 </div>
               </div>
+
+              {/* Mode Switcher Pills */}
+              <div className="aura-ai-mode-bar-page">
+                <button
+                  type="button"
+                  onClick={() => setMode("standard")}
+                  className={`aura-ai-mode-btn-page ${mode === "standard" ? "active" : ""}`}
+                >
+                  <Sparkles size={12} /> ⚡ Quick AI
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("panditji")}
+                  className={`aura-ai-mode-btn-page ${mode === "panditji" ? "active" : ""}`}
+                >
+                  <span>🕉️</span> AI Panditji
+                </button>
+              </div>
+
               <div className="aura-ai-chat-topbar-actions">
                 <button 
                   onClick={handleNewChat} 
@@ -748,13 +790,20 @@ export function AuraAIPage() {
                 >
                   {isListening ? <MicOff size={16} /> : <Mic size={16} />}
                 </button>
-                <input
-                  type="text"
+                <textarea
+                  ref={textareaRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  placeholder="Apna sawaal likhein — jaise '5 Mukhi Rudraksha ke benefits' ya 'Budget under 1000'..."
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder={mode === "panditji" ? "Poochiye Panditji se — Rashi, Rudraksha, Dharan Vidhi..." : "Apna sawaal likhein — jaise '5 Mukhi Rudraksha ke benefits' ya 'Budget under 1000'..."}
                   disabled={loading}
-                  className="aura-ai-page-input"
+                  rows={1}
+                  className="aura-ai-page-input aura-ai-textarea"
                 />
                 <button
                   type="submit"

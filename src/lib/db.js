@@ -765,8 +765,17 @@ async function hydrateFromBackend() {
       storeCache.coupons = couponsRes.data;
     }
 
-    if (offerRes?.success) {
-      storeCache.activeOffer = offerRes.data ? { ...storeCache.activeOffer, ...offerRes.data } : { ...NEUTRAL_OFFER };
+    if (offerRes?.success && offerRes.data) {
+      const expiresAt = offerRes.data.expiresAt || offerRes.data.expiry || storeCache.activeOffer?.expiresAt;
+      const startDate = offerRes.data.startDate || offerRes.data.startAt || storeCache.activeOffer?.startDate;
+      storeCache.activeOffer = { 
+        ...storeCache.activeOffer, 
+        ...offerRes.data,
+        expiresAt,
+        expiry: expiresAt,
+        startDate,
+        startAt: startDate
+      };
     }
 
     if (offersRes?.success && Array.isArray(offersRes.data)) {
@@ -1551,7 +1560,16 @@ export const db = {
   fetchActiveOffer: async () => {
     const res = await apiRequest("/active-offer");
     if (res?.success && res.data) {
-      storeCache.activeOffer = { ...storeCache.activeOffer, ...res.data };
+      const expiresAt = res.data.expiresAt || res.data.expiry || storeCache.activeOffer?.expiresAt;
+      const startDate = res.data.startDate || res.data.startAt || storeCache.activeOffer?.startDate;
+      storeCache.activeOffer = { 
+        ...storeCache.activeOffer, 
+        ...res.data,
+        expiresAt,
+        expiry: expiresAt,
+        startDate,
+        startAt: startDate
+      };
       emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
     }
     return storeCache.activeOffer;

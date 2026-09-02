@@ -12,9 +12,8 @@ import { Policies } from "./pages/Policies";
 import { AuraAIFloating } from "./components/AuraAIFloating";
 
 // ---------------------------------------------------------------------------
-// Code splitting: admin + secondary pages are lazy-loaded so the Home bundle
-// stays lean. Each admin module ships in its own chunk and is fetched only
-// when that route is visited. Routing behaviour is unchanged.
+// Code splitting: admin + secondary pages are lazy-loaded so
+// the Home bundle stays lean and first-paint stays fast.
 // ---------------------------------------------------------------------------
 const Account = lazy(() => import("./pages/account/Account").then(m => ({ default: m.Account })));
 const Profile = lazy(() => import("./pages/account/Profile").then(m => ({ default: m.Profile })));

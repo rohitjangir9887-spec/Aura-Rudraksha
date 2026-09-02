@@ -8,7 +8,7 @@ import { useActiveOffer } from "../hooks/useActiveOffer";
 export function OfferBadge({ product = null, variant = "card" }) {
   const { offer, isActive } = useActiveOffer(product);
 
-  if (!isActive) return null;
+  if (!isActive || !offer) return null;
 
   // Check feature toggles from offer config
   if (variant === "card" && offer.productCardEnabled === false) return null;

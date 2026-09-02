@@ -1,23 +1,41 @@
 // Aura AI Unified Chat Store & Persistence Manager
 // Manages shared chat history between floating window, full window modal, and full page Aura AI.
 
-const STORAGE_KEY_MSGS = "aura_ai_unified_chat_history";
+const STORAGE_KEY_MSGS_STANDARD = "aura_ai_unified_chat_history_standard";
+const STORAGE_KEY_MSGS_PANDITJI = "aura_ai_unified_chat_history_panditji";
 const STORAGE_KEY_CONV_ID = "aura_ai_active_conv_id";
 
-// In-memory dismissal state so closing the floating icon hides it during SPA navigation,
-// but refreshing the page (F5/reload) automatically restores the floating icon as requested!
+// Migrate legacy chat key to standard key if present
+try {
+  const oldRaw = localStorage.getItem("aura_ai_unified_chat_history");
+  if (oldRaw && !localStorage.getItem(STORAGE_KEY_MSGS_STANDARD)) {
+    localStorage.setItem(STORAGE_KEY_MSGS_STANDARD, oldRaw);
+    localStorage.removeItem("aura_ai_unified_chat_history");
+  }
+} catch (_) {}
+
+// In-memory dismissal & open states so floating window state persists smoothly across client navigation
 let isFloatingDismissedSession = false;
+let isFloatingOpenState = false;
 
 // Clear any old permanent localStorage flag on load
 try {
   localStorage.removeItem("aura_ai_floating_dismissed");
 } catch (_) {}
 
-const DEFAULT_INITIAL_MESSAGE = {
-  id: "init_welcome_1",
+const DEFAULT_INITIAL_MESSAGE_STANDARD = {
+  id: "init_welcome_standard",
   sender: "ai",
   text: "Namaste 🙏 Main Aura AI hoon — Aura Rudraksha ka personal shopping aur Vedic spiritual guide.\n\nAaj main aapki kis cheez mein madad karun?",
   quickReplies: ["Find a Rudraksha", "Today's Offers", "Track Order", "Help Me Choose"],
+  timestamp: new Date().toISOString()
+};
+
+const DEFAULT_INITIAL_MESSAGE_PANDITJI = {
+  id: "init_welcome_panditji",
+  sender: "ai",
+  text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon — 35+ varshon ke anubhav ke sath aapka Vedic Jyotish, Rashi, Nakshatra aur Rudraksha Guide.\n\nAaj main aapki Rashi, Kundali ya Rudraksha dharan vidhi mein kis prakar sahayata karun?",
+  quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
   timestamp: new Date().toISOString()
 };
 
@@ -54,9 +72,9 @@ export function getDateDividerLabel(isoString) {
     } else if (diffDays === 1) {
       return "Yesterday";
     } else if (diffDays > 1 && diffDays < 7) {
-      return target.toLocaleDateString("en-US", { weekday: "long" }); // "Monday", "Tuesday", etc.
+      return target.toLocaleDateString("en-US", { weekday: "long" });
     } else {
-      return target.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); // e.g. "24 Aug 2026"
+      return target.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
     }
   } catch (_) {
     return "Today";
@@ -64,10 +82,19 @@ export function getDateDividerLabel(isoString) {
 }
 
 export const auraChatStore = {
-  // Get all unified messages
-  getMessages() {
+  getStorageKey(mode = "standard") {
+    return mode === "panditji" ? STORAGE_KEY_MSGS_PANDITJI : STORAGE_KEY_MSGS_STANDARD;
+  },
+
+  getDefaultInitialMessage(mode = "standard") {
+    return mode === "panditji" ? DEFAULT_INITIAL_MESSAGE_PANDITJI : DEFAULT_INITIAL_MESSAGE_STANDARD;
+  },
+
+  // Get messages for active mode
+  getMessages(mode = "standard") {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_MSGS);
+      const key = this.getStorageKey(mode);
+      const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -77,35 +104,36 @@ export const auraChatStore = {
     } catch (e) {
       console.warn("Error reading Aura AI chats from localStorage:", e);
     }
-    return [DEFAULT_INITIAL_MESSAGE];
+    return [this.getDefaultInitialMessage(mode)];
   },
 
-  // Save unified messages and broadcast to all components/tabs
-  saveMessages(messages) {
+  // Save messages for active mode and broadcast to all components/tabs
+  saveMessages(messages, mode = "standard") {
     try {
-      localStorage.setItem(STORAGE_KEY_MSGS, JSON.stringify(messages));
-      window.dispatchEvent(new CustomEvent("aura_ai_chat_sync", { detail: messages }));
+      const key = this.getStorageKey(mode);
+      localStorage.setItem(key, JSON.stringify(messages));
+      window.dispatchEvent(new CustomEvent("aura_ai_chat_sync", { detail: { messages, mode } }));
     } catch (e) {
       console.warn("Error saving Aura AI chats:", e);
     }
   },
 
-  // Append new messages without overwriting old ones
-  appendMessage(msg) {
-    const current = this.getMessages();
+  // Append new messages to active mode
+  appendMessage(msg, mode = "standard") {
+    const current = this.getMessages(mode);
     const withTimestamp = {
       ...msg,
       id: msg.id || "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
       timestamp: msg.timestamp || new Date().toISOString()
     };
     const updated = [...current, withTimestamp];
-    this.saveMessages(updated);
+    this.saveMessages(updated, mode);
     return updated;
   },
 
   // Upsert or replace message by ID
-  upsertMessage(msg) {
-    const current = this.getMessages();
+  upsertMessage(msg, mode = "standard") {
+    const current = this.getMessages(mode);
     const idx = current.findIndex((m) => m.id === msg.id);
     let updated;
     if (idx >= 0) {
@@ -114,12 +142,12 @@ export const auraChatStore = {
     } else {
       updated = [...current, msg];
     }
-    this.saveMessages(updated);
+    this.saveMessages(updated, mode);
     return updated;
   },
 
-  // Start a new chat session without deleting old chats
-  startNewSession() {
+  // Start a new chat session for active mode
+  startNewSession(mode = "standard") {
     const newConvId = "conv_" + Date.now();
     try {
       localStorage.setItem(STORAGE_KEY_CONV_ID, newConvId);
@@ -132,17 +160,23 @@ export const auraChatStore = {
       timestamp: new Date().toISOString()
     };
 
-    const welcomeMessage = {
-      id: "init_" + Date.now(),
+    const welcomeMessage = mode === "panditji" ? {
+      id: "init_panditji_" + Date.now(),
+      sender: "ai",
+      text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi Vedic consultation shuru ho gayi hai.\n\nAaj aap kis Rashi ya Rudraksha ke baare mein janna chahte hain?",
+      quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
+      timestamp: new Date().toISOString()
+    } : {
+      id: "init_standard_" + Date.now(),
       sender: "ai",
       text: "Namaste 🙏 Main Aura AI hoon. Nayi consultation shuru ho gayi hai.\n\nAaj aap kis Rudraksha ya Mala ke baare mein janna chahte hain?",
       quickReplies: ["Find a Rudraksha", "Today's Offers", "Track Order", "Help Me Choose"],
       timestamp: new Date().toISOString()
     };
 
-    const current = this.getMessages();
+    const current = this.getMessages(mode);
     const updated = [...current, dividerMessage, welcomeMessage];
-    this.saveMessages(updated);
+    this.saveMessages(updated, mode);
     return { newConvId, messages: updated };
   },
 
@@ -155,7 +189,19 @@ export const auraChatStore = {
     }
   },
 
-  // Floating Button Dismissed State (Resets on page refresh, stays dismissed during in-app navigation)
+  // Floating Window Open / Visibility State (persists across page transitions)
+  isFloatingOpen() {
+    return isFloatingOpenState;
+  },
+
+  setFloatingOpen(open) {
+    isFloatingOpenState = !!open;
+    try {
+      window.dispatchEvent(new CustomEvent("aura_ai_open_change", { detail: isFloatingOpenState }));
+    } catch (_) {}
+  },
+
+  // Floating Button Dismissed State
   isFloatingDismissed() {
     return isFloatingDismissedSession;
   },

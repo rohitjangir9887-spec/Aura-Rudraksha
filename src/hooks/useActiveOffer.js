@@ -28,7 +28,7 @@ function calculateTimeRemaining(expiry) {
       minutes: "00",
       seconds: "00",
       totalSeconds: 0,
-      isExpired: true
+      isExpired: false
     };
   }
 

@@ -10865,6 +10865,107 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   flex-shrink: 0;
 }
 
+/* AI Panditji Mode Styles */
+.aura-ai-header-panditji {
+  background: linear-gradient(135deg, #421805 0%, #1f0800 100%) !important;
+  border-bottom: 1px solid rgba(255, 153, 0, 0.5) !important;
+}
+
+.aura-ai-avatar-panditji {
+  background: linear-gradient(135deg, #e65100 0%, #ff8f00 100%) !important;
+  border: 1px solid #ffe082 !important;
+  box-shadow: 0 0 8px rgba(255, 143, 0, 0.4) !important;
+}
+
+.aura-ai-badge-panditji {
+  background: linear-gradient(135deg, #e65100 0%, #bf360c 100%) !important;
+  color: #fff8e1 !important;
+  border: 1px solid rgba(255, 224, 130, 0.5) !important;
+}
+
+.aura-ai-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(253, 248, 238, 0.95);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+}
+
+.aura-ai-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #735c49;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.aura-ai-mode-btn:hover {
+  background: rgba(212, 175, 55, 0.12);
+  color: #4a2810;
+}
+
+.aura-ai-mode-btn.active {
+  background: linear-gradient(135deg, #3b1b08 0%, #240c03 100%);
+  color: #fff9ed;
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 1px 4px rgba(40, 16, 4, 0.18);
+}
+
+.aura-ai-mode-bar-page {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.aura-ai-mode-btn-page {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 253, 249, 0.8);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.aura-ai-mode-btn-page.active {
+  background: rgba(255, 255, 255, 0.95);
+  color: #3b1b08;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.aura-ai-textarea {
+  resize: none;
+  min-height: 36px;
+  max-height: 96px;
+  padding: 8px 8px 6px 10px !important;
+  line-height: 1.4 !important;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  box-sizing: border-box;
+}
+
+.aura-ai-textarea::-webkit-scrollbar {
+  display: none;
+}
+
 .aura-ai-header-info {
   display: flex;
   flex-direction: column;

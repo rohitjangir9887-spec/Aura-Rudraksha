@@ -46,7 +46,7 @@ export function FloatingOffer({ product = null, hasStickyBar = false }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isActive, dismissed, scrollThreshold, offer?.floatingEnabled]);
 
-  if (!isActive || dismissed || offer.floatingEnabled === false) return null;
+  if (!isActive || !offer || dismissed || offer.floatingEnabled === false) return null;
 
   const handleDismiss = (e) => {
     e.stopPropagation();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Sparkles, 
@@ -27,14 +27,26 @@ import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 
 export function AuraAIFloating() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpenState, setIsOpenState] = useState(() => auraChatStore.isFloatingOpen());
   const [isFullWindow, setIsFullWindow] = useState(false);
   const [isDismissed, setIsDismissed] = useState(() => auraChatStore.isFloatingDismissed());
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [settings, setSettings] = useState({ enabled: true, showFloatingButton: true });
+  const [mode, setMode] = useState("standard"); // "standard" | "panditji"
+
+  // Unified persistent setIsOpen that updates global store
+  const setIsOpen = useCallback((val) => {
+    setIsOpenState((prev) => {
+      const next = typeof val === "function" ? val(prev) : val;
+      auraChatStore.setFloatingOpen(next);
+      return next;
+    });
+  }, []);
+
+  const isOpen = isOpenState;
   
   // Shared persistent chat history
-  const [messages, setMessages] = useState(() => auraChatStore.getMessages());
+  const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
@@ -49,10 +61,26 @@ export function AuraAIFloating() {
   const navigate = useNavigate();
   const location = useLocation();
   const messagesEndRef = useRef(null);
+  const bodyScrollRef = useRef(null);
+  const textareaRef = useRef(null);
   const isDraggingBtnRef = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragControls = useDragControls();
   const undoTimerRef = useRef(null);
+
+  // Lock body scroll on mobile when chat window is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      const originalDocOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.documentElement.style.overflow = originalDocOverflow;
+      };
+    }
+  }, [isOpen]);
 
   // Load server settings
   useEffect(() => {
@@ -63,10 +91,28 @@ export function AuraAIFloating() {
     }).catch(() => {});
   }, []);
 
+  // Update messages when switching mode (e.g. standard vs panditji)
+  useEffect(() => {
+    setMessages(auraChatStore.getMessages(mode));
+  }, [mode]);
+
+  // Auto-grow textarea height on input change
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "36px";
+      const scrollH = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollH, 36), 96)}px`;
+    }
+  }, [input]);
+
   // Listen to shared cross-component and cross-tab chat sync events
   useEffect(() => {
     const handleChatSync = (e) => {
-      if (e.detail && Array.isArray(e.detail)) {
+      if (e.detail && Array.isArray(e.detail.messages)) {
+        if (!e.detail.mode || e.detail.mode === mode) {
+          setMessages(e.detail.messages);
+        }
+      } else if (e.detail && Array.isArray(e.detail)) {
         setMessages(e.detail);
       }
     };
@@ -75,9 +121,15 @@ export function AuraAIFloating() {
       setIsDismissed(!!e.detail);
     };
 
+    const handleOpenChange = (e) => {
+      if (typeof e.detail === "boolean") {
+        setIsOpenState(e.detail);
+      }
+    };
+
     const handleStorageChange = (e) => {
-      if (e.key === "aura_ai_unified_chat_history") {
-        setMessages(auraChatStore.getMessages());
+      if (e.key === auraChatStore.getStorageKey(mode)) {
+        setMessages(auraChatStore.getMessages(mode));
       }
       if (e.key === "aura_ai_floating_dismissed") {
         setIsDismissed(auraChatStore.isFloatingDismissed());
@@ -86,10 +138,14 @@ export function AuraAIFloating() {
 
     window.addEventListener("aura_ai_chat_sync", handleChatSync);
     window.addEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
+    window.addEventListener("aura_ai_open_change", handleOpenChange);
     window.addEventListener("storage", handleStorageChange);
 
     const handleTriggerChat = (e) => {
       const prompt = e.detail?.prompt;
+      if (e.detail?.mode) {
+        setMode(e.detail.mode);
+      }
       setIsDismissed(false);
       setIsOpen(true);
       if (prompt && prompt.trim()) {
@@ -103,22 +159,22 @@ export function AuraAIFloating() {
     return () => {
       window.removeEventListener("aura_ai_chat_sync", handleChatSync);
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
+      window.removeEventListener("aura_ai_open_change", handleOpenChange);
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("aura_ai_trigger_chat", handleTriggerChat);
     };
-  }, []);
+  }, [mode]);
 
-  // Scroll to bottom on updates
+  // Scroll message area only (does not scroll page)
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isOpen && bodyScrollRef.current) {
+      bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
     }
   }, [messages, isOpen, loading, isFullWindow]);
 
   const path = location.pathname || "";
   const hideOnRoute =
     path.startsWith("/admin") ||
-    path.startsWith("/checkout") ||
     path === "/aura-ai";
 
   if (settings.enabled === false || settings.showFloatingButton === false || hideOnRoute) {
@@ -136,7 +192,7 @@ export function AuraAIFloating() {
       timestamp: new Date().toISOString()
     };
 
-    const currentMsgs = auraChatStore.appendMessage(userMsg);
+    const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
     setLoading(true);
@@ -154,6 +210,7 @@ export function AuraAIFloating() {
         conversationId,
         userEmail,
         userName,
+        mode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
         onChunk: (delta, accumulated, partialData) => {
@@ -183,6 +240,9 @@ export function AuraAIFloating() {
             }
             return [...prev, liveMsg];
           });
+          if (bodyScrollRef.current) {
+            bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
+          }
         },
         onDone: (finalData) => {
           const cleanText = customerSafeAiText(finalData.text);
@@ -197,7 +257,7 @@ export function AuraAIFloating() {
             quickReplies: finalData.quickReplies || [],
             timestamp: new Date().toISOString()
           };
-          auraChatStore.upsertMessage(aiMsg);
+          auraChatStore.upsertMessage(aiMsg, mode);
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             if (idx >= 0) {
@@ -208,6 +268,9 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
+          if (bodyScrollRef.current) {
+            bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
+          }
         },
         onError: (err) => {
           console.warn("Stream error in floating assistant:", err);
@@ -218,11 +281,13 @@ export function AuraAIFloating() {
         const errMsg = {
           id: "err_" + Date.now(),
           sender: "ai",
-          text: "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
+          text: mode === "panditji"
+            ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
+            : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
           requiresHuman: true,
           timestamp: new Date().toISOString()
         };
-        const updatedMsgs = auraChatStore.appendMessage(errMsg);
+        const updatedMsgs = auraChatStore.appendMessage(errMsg, mode);
         setMessages(updatedMsgs);
       }
     } finally {
@@ -238,7 +303,7 @@ export function AuraAIFloating() {
     setShowRefreshToast(true);
 
     setTimeout(() => {
-      const { newConvId, messages: updatedMsgs } = auraChatStore.startNewSession();
+      const { newConvId, messages: updatedMsgs } = auraChatStore.startNewSession(mode);
       setConversationId(newConvId);
       setMessages(updatedMsgs);
       setRefreshPhase("fading-in");
@@ -283,7 +348,7 @@ export function AuraAIFloating() {
       },
       timestamp: new Date().toISOString()
     };
-    const updated = auraChatStore.appendMessage(confirmationMsg);
+    const updated = auraChatStore.appendMessage(confirmationMsg, mode);
     setMessages(updated);
   };
 
@@ -327,23 +392,27 @@ export function AuraAIFloating() {
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
             drag
             dragMomentum={false}
-            dragElastic={0.12}
-            whileDrag={{ scale: 1.06, cursor: "grabbing" }}
+            dragElastic={0.08}
+            dragConstraints={{
+              left: -Math.max(100, window.innerWidth - 120),
+              right: 15,
+              top: -Math.max(100, window.innerHeight - 120),
+              bottom: 15
+            }}
+            whileDrag={{ scale: 1.05, cursor: "grabbing" }}
             onDragStart={(_, info) => {
-              isDraggingBtnRef.current = false;
+              isDraggingBtnRef.current = true;
               dragStartPos.current = { x: info.point.x, y: info.point.y };
             }}
-            onDrag={(_, info) => {
+            onDragEnd={(_, info) => {
               const dx = Math.abs(info.point.x - dragStartPos.current.x);
               const dy = Math.abs(info.point.y - dragStartPos.current.y);
-              if (dx > 12 || dy > 12) {
-                isDraggingBtnRef.current = true;
+              if (dx < 6 && dy < 6) {
+                setIsOpen(true);
               }
-            }}
-            onDragEnd={() => {
               setTimeout(() => {
                 isDraggingBtnRef.current = false;
-              }, 40);
+              }, 50);
             }}
           >
             <button
@@ -419,17 +488,23 @@ export function AuraAIFloating() {
               dragControls={dragControls}
               dragListener={false}
               dragMomentum={false}
-              dragElastic={0}
+              dragElastic={0.05}
+              dragConstraints={{
+                left: -Math.max(100, window.innerWidth - 300),
+                right: Math.max(100, window.innerWidth - 300),
+                top: -Math.max(100, window.innerHeight - 400),
+                bottom: Math.max(100, window.innerHeight - 200)
+              }}
               whileDrag={{ cursor: "grabbing" }}
               style={{ transformOrigin: "bottom center", willChange: "transform" }}
             >
               {/* Header - Drag Handle Area */}
               <div 
-                className="aura-ai-header aura-ai-header-draggable"
+                className={`aura-ai-header aura-ai-header-draggable ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}
                 style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
                 onPointerDown={(e) => {
-                  if (!e.target.closest("button") && !e.target.closest("a") && !e.target.closest("input")) {
-                    dragControls.start(e);
+                  if (!e.target.closest("button") && !e.target.closest("a") && !e.target.closest("textarea") && !e.target.closest("input")) {
+                    dragControls.start(e, { snapToCursor: false });
                   }
                 }}
               >
@@ -440,17 +515,23 @@ export function AuraAIFloating() {
                   <div className="aura-ai-panel-drag-cue" title="Drag window to move anywhere on screen" style={{ touchAction: "none" }}>
                     <GripVertical size={11} />
                   </div>
-                  <div className="aura-ai-avatar">
-                    <Sparkles size={12} />
+                  <div className={`aura-ai-avatar ${mode === "panditji" ? "aura-ai-avatar-panditji" : ""}`}>
+                    {mode === "panditji" ? (
+                      <span style={{ fontSize: "14px", lineHeight: 1 }}>🕉️</span>
+                    ) : (
+                      <Sparkles size={12} />
+                    )}
                   </div>
                   <div className="aura-ai-header-info">
                     <div className="aura-ai-title">
-                      <span>Aura AI</span>
-                      <span className="aura-ai-badge">Vedic Guide</span>
+                      <span>{mode === "panditji" ? "AI Panditji" : "Aura AI"}</span>
+                      <span className={`aura-ai-badge ${mode === "panditji" ? "aura-ai-badge-panditji" : ""}`}>
+                        {mode === "panditji" ? "Vedic Astrologer" : "Vedic Guide"}
+                      </span>
                     </div>
                     <div className="aura-ai-status">
-                      <span className="aura-ai-online-dot" />
-                      <span>Online • Hindi & English</span>
+                      <span className="aura-ai-online-dot" style={mode === "panditji" ? { background: "#ff9900" } : undefined} />
+                      <span>{mode === "panditji" ? "Online • 35+ Yrs Vedic Wisdom" : "Online • Hindi & English"}</span>
                     </div>
                   </div>
                 </div>
@@ -502,32 +583,81 @@ export function AuraAIFloating() {
                 )}
               </AnimatePresence>
 
+              {/* Mode Selector Pill Bar */}
+              <div className="aura-ai-mode-bar">
+                <button
+                  onClick={() => setMode("standard")}
+                  className={`aura-ai-mode-btn ${mode === "standard" ? "active" : ""}`}
+                  type="button"
+                >
+                  <Sparkles size={11} /> ⚡ Quick AI
+                </button>
+                <button
+                  onClick={() => setMode("panditji")}
+                  className={`aura-ai-mode-btn ${mode === "panditji" ? "active" : ""}`}
+                  type="button"
+                >
+                  <span>🕉️</span> AI Panditji
+                </button>
+              </div>
+
               {/* Quick Suggestion Strip */}
               <div className="aura-ai-nav-strip">
-                <button 
-                  onClick={() => handleSend("✨ Mujhe apne liye best Rudraksha suggest karein")} 
-                  className="aura-ai-strip-btn"
-                >
-                  ✨ Find Rudraksha
-                </button>
-                <button 
-                  onClick={() => handleSend("🎁 Aaj ke active discount coupon codes batao")} 
-                  className="aura-ai-strip-btn"
-                >
-                  🎁 Today's Offers
-                </button>
-                <button 
-                  onClick={() => handleSend("📦 Track my recent order status")} 
-                  className="aura-ai-strip-btn"
-                >
-                  📦 Track Order
-                </button>
-                <button 
-                  onClick={() => handleSend("🕉 Original 108 bead Jaap Mala dikhao")} 
-                  className="aura-ai-strip-btn"
-                >
-                  🕉 Jaap Mala
-                </button>
+                {mode === "panditji" ? (
+                  <>
+                    <button 
+                      onClick={() => handleSend("🌸 Mere Rashi ke liye kaunsa Rudraksha sabse uttam hai?")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      🌸 Rashi Rudraksha
+                    </button>
+                    <button 
+                      onClick={() => handleSend("🕉️ Rudraksha dharan karne ki sahi Vedic Vidhi bataiye")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      🕉️ Dharan Vidhi
+                    </button>
+                    <button 
+                      onClick={() => handleSend("📿 1 to 14 Mukhi Rudraksha ke traditional benefits")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      📿 Mukhi Guide
+                    </button>
+                    <button 
+                      onClick={() => handleSend("🙏 Gauri Shankar Rudraksha ka kya mahatva hai?")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      🙏 Gauri Shankar
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => handleSend("✨ Mujhe apne liye best Rudraksha suggest karein")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      ✨ Find Rudraksha
+                    </button>
+                    <button 
+                      onClick={() => handleSend("🎁 Aaj ke active discount coupon codes batao")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      🎁 Today's Offers
+                    </button>
+                    <button 
+                      onClick={() => handleSend("📦 Track my recent order status")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      📦 Track Order
+                    </button>
+                    <button 
+                      onClick={() => handleSend("🕉 Original 108 bead Jaap Mala dikhao")} 
+                      className="aura-ai-strip-btn"
+                    >
+                      🕉 Jaap Mala
+                    </button>
+                  </>
+                )}
                 <Link to="/aura-ai" onClick={() => setIsOpen(false)} className="aura-ai-strip-btn aura-ai-strip-btn-link">
                   Full Page <ChevronRight size={11} />
                 </Link>
@@ -535,6 +665,7 @@ export function AuraAIFloating() {
 
               {/* Messages Body with Date & Time dividers & Smooth Refresh Transitions */}
               <div 
+                ref={bodyScrollRef}
                 className={`aura-ai-body ${
                   refreshPhase === "fading-out" 
                     ? "aura-ai-refresh-fading-out" 
@@ -794,13 +925,20 @@ export function AuraAIFloating() {
                   }}
                   className="aura-ai-input-box"
                 >
-                  <input
-                    type="text"
+                  <textarea
+                    ref={textareaRef}
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    placeholder="Pooshiye — jaise '₹1000 ke andar Rudraksha'..."
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    placeholder={mode === "panditji" ? "Poochiye Panditji se — Rashi, Rudraksha, Dharan Vidhi..." : "Poochiye — jaise '₹1000 ke andar Rudraksha'..."}
                     disabled={loading}
-                    className="aura-ai-input-field"
+                    rows={1}
+                    className="aura-ai-input-field aura-ai-textarea"
                   />
                   <button
                     type="submit"
@@ -812,7 +950,7 @@ export function AuraAIFloating() {
                   </button>
                 </form>
                 <div className="aura-ai-privacy-note">
-                  <ShieldCheck size={11} /> Secure shopping assistance • Authentic Vedic guidance
+                  <ShieldCheck size={11} /> {mode === "panditji" ? "Authentic Vedic & Astrological Guidance" : "Secure shopping assistance • Authentic Vedic guidance"}
                 </div>
               </div>
             </motion.div>

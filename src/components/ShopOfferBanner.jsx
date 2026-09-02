@@ -8,7 +8,7 @@ export function ShopOfferBanner() {
   const [copied, setCopied] = React.useState(false);
 
   // If disabled in admin, don't show
-  if (!isActive) {
+  if (!isActive || !offer) {
     return null;
   }
 

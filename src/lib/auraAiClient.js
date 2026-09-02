@@ -10,6 +10,7 @@ export const auraAiClient = {
     conversationId,
     userEmail,
     userName,
+    mode = "standard",
     cartItems = [],
     history = [],
     onChunk,
@@ -62,6 +63,7 @@ export const auraAiClient = {
           conversationId,
           userEmail,
           userName,
+          mode,
           cartItems,
           history,
           stream: true
