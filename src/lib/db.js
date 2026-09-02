@@ -890,35 +890,24 @@ export const db = {
       homeBadge: p.homeBadge || p.badge || ""
     };
 
-    // Update store cache immediately for instant UI reaction
-    const idx = storeCache.products.findIndex(x => String(x.id) === String(id));
-    if (idx >= 0) {
-      storeCache.products[idx] = { ...storeCache.products[idx], ...finalProduct };
+    const res = await apiRequest("/products", {
+      method: "POST",
+      body: JSON.stringify(finalProduct)
+    });
+
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save product. Database is unavailable.");
+    }
+
+    const savedData = res.data || finalProduct;
+    const currentIdx = storeCache.products.findIndex(x => String(x.id) === String(id));
+    if (currentIdx >= 0) {
+      storeCache.products[currentIdx] = { ...storeCache.products[currentIdx], ...savedData };
     } else {
-      storeCache.products.unshift(finalProduct);
+      storeCache.products.unshift(savedData);
     }
-    emitStoreUpdate("product:saved", finalProduct);
-
-    // Persist to MongoDB API in background / await
-    try {
-      const res = await apiRequest("/products", {
-        method: "POST",
-        body: JSON.stringify(finalProduct)
-      });
-      if (res?.success && res.data) {
-        const savedData = res.data;
-        const currentIdx = storeCache.products.findIndex(x => String(x.id) === String(id));
-        if (currentIdx >= 0) {
-          storeCache.products[currentIdx] = { ...storeCache.products[currentIdx], ...savedData };
-        }
-        emitStoreUpdate("product:saved", savedData);
-        return savedData;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Background product sync:", err?.message || err);
-    }
-
-    return finalProduct;
+    emitStoreUpdate("product:saved", savedData);
+    return savedData;
   },
 
   toggleProductHomeShowcase: async (id, showOnHome) => {
@@ -934,15 +923,12 @@ export const db = {
 
   deleteProduct: async (id) => {
     const strId = String(id);
-    // Remove from cache immediately
+    const res = await apiRequest(`/products/${strId}`, { method: "DELETE" });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to delete product. Database is unavailable.");
+    }
     storeCache.products = storeCache.products.filter(p => String(p.id) !== strId);
     emitStoreUpdate("product:deleted", strId);
-
-    try {
-      await apiRequest(`/products/${strId}`, { method: "DELETE" });
-    } catch (err) {
-      console.warn("[Aura DB] Background product delete sync:", err?.message || err);
-    }
     return true;
   },
 
@@ -1013,17 +999,14 @@ export const db = {
   },
 
   updateOrder: async (id, data) => {
-    let serverUpdated = null;
-    try {
-      const res = await apiRequest(`/orders/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data)
-      });
-      if (res?.success && res.data) {
-        serverUpdated = res.data;
-      }
-    } catch (_) {}
-
+    const res = await apiRequest(`/orders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to update order. Database is unavailable.");
+    }
+    const serverUpdated = res.data;
     const strId = String(id).trim().toUpperCase();
     const idx = storeCache.orders.findIndex(o =>
       String(o.id).toUpperCase() === strId ||
@@ -1038,7 +1021,7 @@ export const db = {
       emitStoreUpdate("order:updated", storeCache.orders[idx]);
       return { success: true, data: storeCache.orders[idx] };
     }
-    return serverUpdated ? { success: true, data: serverUpdated } : { success: true, data };
+    return { success: true, data: serverUpdated || data };
   },
 
   fetchOrders: async () => {
@@ -1065,19 +1048,15 @@ export const db = {
       status: o.status || o.orderStatus || "Confirmed"
     };
 
-    let savedData = finalOrder;
-    try {
-      const res = await apiRequest("/orders", {
-        method: "POST",
-        body: JSON.stringify(finalOrder)
-      });
-      if (res?.success && res.data) {
-        savedData = res.data;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Order sync fallback:", err?.message || err);
+    const res = await apiRequest("/orders", {
+      method: "POST",
+      body: JSON.stringify(finalOrder)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save order. Database is unavailable.");
     }
 
+    const savedData = res.data || finalOrder;
     const idx = storeCache.orders.findIndex(x => String(x.id) === String(id));
     if (idx >= 0) {
       storeCache.orders[idx] = { ...storeCache.orders[idx], ...savedData };
@@ -1352,21 +1331,21 @@ export const db = {
       body: JSON.stringify(finalCustomer)
     });
 
-    if (res?.success) {
-      const saved = res.data || finalCustomer;
-      const idx = storeCache.customers.findIndex(x => 
-        String(x.id) === String(id) || (email && x.email === email) || (phone && x.phone === phone)
-      );
-      if (idx >= 0) {
-        storeCache.customers[idx] = { ...storeCache.customers[idx], ...saved, visits: (storeCache.customers[idx].visits || 1) + 1 };
-      } else {
-        storeCache.customers.unshift(saved);
-      }
-      emitStoreUpdate("customer:saved", saved);
-      return saved;
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save customer. Database is unavailable.");
     }
 
-    return finalCustomer;
+    const saved = res.data || finalCustomer;
+    const idx = storeCache.customers.findIndex(x => 
+      String(x.id) === String(id) || (email && x.email === email) || (phone && x.phone === phone)
+    );
+    if (idx >= 0) {
+      storeCache.customers[idx] = { ...storeCache.customers[idx], ...saved, visits: (storeCache.customers[idx].visits || 1) + 1 };
+    } else {
+      storeCache.customers.unshift(saved);
+    }
+    emitStoreUpdate("customer:saved", saved);
+    return saved;
   },
 
   // BANNERS
@@ -1410,36 +1389,28 @@ export const db = {
     const id = p.id || ("PROMO-" + Date.now());
     const finalPromo = { ...p, id };
 
-    const idx = storeCache.promotions.findIndex(x => x.id === id);
-    if (idx >= 0) storeCache.promotions[idx] = finalPromo;
-    else storeCache.promotions.unshift(finalPromo);
-    emitStoreUpdate("promotion:saved", finalPromo);
-
-    try {
-      const res = await apiRequest("/promotions", {
-        method: "POST",
-        body: JSON.stringify(finalPromo)
-      });
-      if (res?.success && res.data) {
-        const saved = res.data;
-        const curIdx = storeCache.promotions.findIndex(x => x.id === id);
-        if (curIdx >= 0) storeCache.promotions[curIdx] = saved;
-        emitStoreUpdate("promotion:saved", saved);
-        return saved;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Background promotion sync:", err?.message || err);
+    const res = await apiRequest("/promotions", {
+      method: "POST",
+      body: JSON.stringify(finalPromo)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save promotion. Database is unavailable.");
     }
-    return finalPromo;
+
+    const saved = res.data || finalPromo;
+    const curIdx = storeCache.promotions.findIndex(x => x.id === id);
+    if (curIdx >= 0) storeCache.promotions[curIdx] = saved;
+    else storeCache.promotions.unshift(saved);
+    emitStoreUpdate("promotion:saved", saved);
+    return saved;
   },
   deletePromotion: async (id) => {
+    const res = await apiRequest(`/promotions/${id}`, { method: "DELETE" });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to delete promotion. Database is unavailable.");
+    }
     storeCache.promotions = storeCache.promotions.filter(x => x.id !== id);
     emitStoreUpdate("promotion:deleted", id);
-    try {
-      await apiRequest(`/promotions/${id}`, { method: "DELETE" });
-    } catch (err) {
-      console.warn("[Aura DB] Background promotion delete sync:", err?.message || err);
-    }
     return true;
   },
 
@@ -1468,23 +1439,17 @@ export const db = {
       startAt: offer.startDate || offer.startAt || storeCache.activeOffer.startAt
     };
 
-    storeCache.activeOffer = updated;
-    emitStoreUpdate("active-offer:saved", updated);
-
-    try {
-      const res = await apiRequest("/active-offer", {
-        method: "POST",
-        body: JSON.stringify(updated)
-      });
-      if (res?.success && res.data) {
-        storeCache.activeOffer = res.data;
-        emitStoreUpdate("active-offer:saved", res.data);
-        return res.data;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Background active offer sync:", err?.message || err);
+    const res = await apiRequest("/active-offer", {
+      method: "POST",
+      body: JSON.stringify(updated)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save active offer. Database is unavailable.");
     }
-    return updated;
+
+    storeCache.activeOffer = res.data || updated;
+    emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
+    return storeCache.activeOffer;
   },
 
   // STORE OFFERS / HOME DEALS
@@ -1493,36 +1458,28 @@ export const db = {
     const id = o.id || ("OFF-" + Date.now());
     const finalOffer = { ...o, id };
 
-    const idx = storeCache.offers.findIndex(x => x.id === id);
-    if (idx >= 0) storeCache.offers[idx] = finalOffer;
-    else storeCache.offers.push(finalOffer);
-    emitStoreUpdate("offer:saved", finalOffer);
-
-    try {
-      const res = await apiRequest("/offers", {
-        method: "POST",
-        body: JSON.stringify(finalOffer)
-      });
-      if (res?.success && res.data) {
-        const saved = res.data;
-        const curIdx = storeCache.offers.findIndex(x => x.id === id);
-        if (curIdx >= 0) storeCache.offers[curIdx] = saved;
-        emitStoreUpdate("offer:saved", saved);
-        return saved;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Background offer sync:", err?.message || err);
+    const res = await apiRequest("/offers", {
+      method: "POST",
+      body: JSON.stringify(finalOffer)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save offer. Database is unavailable.");
     }
-    return finalOffer;
+
+    const saved = res.data || finalOffer;
+    const curIdx = storeCache.offers.findIndex(x => x.id === id);
+    if (curIdx >= 0) storeCache.offers[curIdx] = saved;
+    else storeCache.offers.push(saved);
+    emitStoreUpdate("offer:saved", saved);
+    return saved;
   },
   deleteOffer: async (id) => {
+    const res = await apiRequest(`/offers/${id}`, { method: "DELETE" });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to delete offer. Database is unavailable.");
+    }
     storeCache.offers = storeCache.offers.filter(x => x.id !== id);
     emitStoreUpdate("offer:deleted", id);
-    try {
-      await apiRequest(`/offers/${id}`, { method: "DELETE" });
-    } catch (err) {
-      console.warn("[Aura DB] Background offer delete sync:", err?.message || err);
-    }
     return true;
   },
 
@@ -1750,37 +1707,29 @@ export const db = {
       status: c.status || "Active"
     };
 
-    const idx = storeCache.coupons.findIndex(x => x.id === id || x.code === finalCoupon.code);
-    if (idx >= 0) storeCache.coupons[idx] = finalCoupon;
-    else storeCache.coupons.push(finalCoupon);
-    emitStoreUpdate("coupon:saved", finalCoupon);
-
-    try {
-      const res = await apiRequest("/coupons", {
-        method: "POST",
-        body: JSON.stringify(finalCoupon)
-      });
-      if (res?.success && res.data) {
-        const saved = res.data;
-        const curIdx = storeCache.coupons.findIndex(x => x.id === id || x.code === finalCoupon.code);
-        if (curIdx >= 0) storeCache.coupons[curIdx] = saved;
-        emitStoreUpdate("coupon:saved", saved);
-        return saved;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Background coupon sync:", err?.message || err);
+    const res = await apiRequest("/coupons", {
+      method: "POST",
+      body: JSON.stringify(finalCoupon)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save coupon. Database is unavailable.");
     }
-    return finalCoupon;
+
+    const saved = res.data || finalCoupon;
+    const curIdx = storeCache.coupons.findIndex(x => x.id === id || x.code === finalCoupon.code);
+    if (curIdx >= 0) storeCache.coupons[curIdx] = saved;
+    else storeCache.coupons.push(saved);
+    emitStoreUpdate("coupon:saved", saved);
+    return saved;
   },
 
   deleteCoupon: async (id) => {
+    const res = await apiRequest(`/coupons/${id}`, { method: "DELETE" });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to delete coupon. Database is unavailable.");
+    }
     storeCache.coupons = storeCache.coupons.filter(x => x.id !== id && x.code !== String(id).toUpperCase());
     emitStoreUpdate("coupon:deleted", id);
-    try {
-      await apiRequest(`/coupons/${id}`, { method: "DELETE" });
-    } catch (err) {
-      console.warn("[Aura DB] Background coupon delete sync:", err?.message || err);
-    }
     return true;
   },
 
@@ -1866,36 +1815,30 @@ export const db = {
       helpfulDown: Number(rev.helpfulDown) || 0
     };
 
-    let saved = newRev;
-    try {
-      const res = await apiRequest("/reviews", {
-        method: "POST",
-        body: JSON.stringify(newRev)
-      });
-      if (res?.success && res.data) {
-        saved = res.data;
-      }
-    } catch (err) {
-      console.warn("[Aura DB] Review sync fallback:", err?.message || err);
+    const res = await apiRequest("/reviews", {
+      method: "POST",
+      body: JSON.stringify(newRev)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save review. Database is unavailable.");
     }
 
+    const saved = res.data || newRev;
     storeCache.reviews.unshift(saved);
     emitStoreUpdate("review:saved", saved);
     return saved;
   },
 
   updateReview: async (id, updatedFields) => {
-    let serverUpdated = null;
-    try {
-      const res = await apiRequest(`/reviews/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(updatedFields)
-      });
-      if (res?.success && res.data) {
-        serverUpdated = res.data;
-      }
-    } catch (_) {}
+    const res = await apiRequest(`/reviews/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(updatedFields)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to update review. Database is unavailable.");
+    }
 
+    const serverUpdated = res.data;
     const idx = storeCache.reviews.findIndex(r => String(r.id) === String(id));
     if (idx !== -1) {
       const current = storeCache.reviews[idx];
@@ -1920,12 +1863,13 @@ export const db = {
 
   deleteReview: async (id) => {
     const strId = String(id);
+    const res = await apiRequest(`/reviews/${strId}`, { method: "DELETE" });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to delete review. Database is unavailable.");
+    }
     recordDeletedReviewId(strId);
     storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== strId);
     emitStoreUpdate("review:deleted", { id: strId });
-    try {
-      await apiRequest(`/reviews/${strId}`, { method: "DELETE" });
-    } catch (_) {}
     return true;
   },
 
@@ -1960,16 +1904,14 @@ export const db = {
 
   getReviewSettings: () => storeCache.reviewSettings,
   saveReviewSettings: async (settings) => {
-    let saved = settings;
-    try {
-      const res = await apiRequest("/reviews/settings", {
-        method: "PUT",
-        body: JSON.stringify(settings)
-      });
-      if (res?.success && res.data) {
-        saved = res.data;
-      }
-    } catch (_) {}
+    const res = await apiRequest("/reviews/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save review settings. Database is unavailable.");
+    }
+    const saved = res.data || settings;
     storeCache.reviewSettings = { ...storeCache.reviewSettings, ...saved };
     emitStoreUpdate("review:settings-updated", storeCache.reviewSettings);
     return storeCache.reviewSettings;
@@ -1987,17 +1929,15 @@ export const db = {
   },
 
   bulkSaveReviews: async (reviews, allowDuplicates = false) => {
-    let savedList = reviews;
-    try {
-      const res = await apiRequest("/reviews/bulk-save", {
-        method: "POST",
-        body: JSON.stringify({ reviews, allowDuplicates })
-      });
-      if (res?.success && res.data && Array.isArray(res.data)) {
-        savedList = res.data;
-      }
-    } catch (_) {}
+    const res = await apiRequest("/reviews/bulk-save", {
+      method: "POST",
+      body: JSON.stringify({ reviews, allowDuplicates })
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to bulk save reviews. Database is unavailable.");
+    }
 
+    const savedList = res.data || reviews;
     if (savedList && Array.isArray(savedList)) {
       savedList.forEach(saved => {
         const idx = storeCache.reviews.findIndex(r => String(r.id) === String(saved.id));
@@ -2015,16 +1955,14 @@ export const db = {
   // STORE SETTINGS & POLICIES
   getSettings: () => storeCache.settings,
   saveSettings: async (settings) => {
-    let saved = settings;
-    try {
-      const res = await apiRequest("/settings", {
-        method: "PUT",
-        body: JSON.stringify(settings)
-      });
-      if (res?.success && res.data) {
-        saved = res.data;
-      }
-    } catch (_) {}
+    const res = await apiRequest("/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save settings. Database is unavailable.");
+    }
+    const saved = res.data || settings;
     storeCache.settings = { ...storeCache.settings, ...saved };
     emitStoreUpdate("settings:saved", storeCache.settings);
     return storeCache.settings;
@@ -2041,16 +1979,14 @@ export const db = {
     };
   },
   savePolicies: async (policies) => {
-    let saved = policies;
-    try {
-      const res = await apiRequest("/settings/policies", {
-        method: "PUT",
-        body: JSON.stringify(policies)
-      });
-      if (res?.success && res.data) {
-        saved = res.data;
-      }
-    } catch (_) {}
+    const res = await apiRequest("/settings/policies", {
+      method: "PUT",
+      body: JSON.stringify(policies)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save policies. Database is unavailable.");
+    }
+    const saved = res.data || policies;
     storeCache.settings = { ...storeCache.settings, ...saved };
     emitStoreUpdate("policies:saved", saved);
     return saved;

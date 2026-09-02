@@ -205,11 +205,11 @@ export function Admin() {
               </div>
               <div>
                 <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#2b170d', margin: 0 }}>Cloud & Media Storage Sync Status</h3>
-                <span style={{ fontSize: '11px', color: '#806f62' }}>MongoDB Database & Puter Cloud Media Upload Health</span>
+                <span style={{ fontSize: '11px', color: '#806f62' }}>MongoDB Database & Media Asset Pipeline Health</span>
               </div>
             </div>
-            <span style={{ fontSize: '11px', background: '#e5f6ea', color: '#15803d', padding: '4px 10px', borderRadius: '20px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CheckCircle2 size={12} /> All Systems Operational
+            <span style={{ fontSize: '11px', background: connected ? '#e5f6ea' : '#fff3e0', color: connected ? '#15803d' : '#b45309', padding: '4px 10px', borderRadius: '20px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <CheckCircle2 size={12} /> {connected ? "Database Connected" : "Connecting..."}
             </span>
           </div>
 
@@ -221,34 +221,34 @@ export function Admin() {
                   <Database size={14} color="#7a320c" /> MongoDB Database
                 </span>
                 <span style={{ fontSize: '10px', color: connected ? '#15803d' : '#d97706', fontWeight: 600 }}>
-                  {connected ? '🟢 Syncing Live' : '🟠 Offline Mode'}
+                  {connected ? '🟢 Live Connected' : '🟠 Offline / Retrying'}
                 </span>
               </div>
               <p style={{ fontSize: '11px', color: '#6b584c', margin: '0 0 6px 0' }}>
                 Products, orders & customers database sync active.
               </p>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62' }}>
-                <span>Data Transferred: <b>~4.8 MB</b></span>
+                <span>Database: <b>MongoDB Atlas</b></span>
                 <span>Records: <b>{stats.totalProducts + stats.totalOrders + stats.totalCustomers} items</b></span>
               </div>
             </div>
 
-            {/* Puter Media Storage Box */}
+            {/* Media Asset Storage Box */}
             <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e8dac9' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <HardDrive size={14} color="#2563eb" /> Puter Media Storage
+                  <HardDrive size={14} color="#2563eb" /> Media Asset Pipeline
                 </span>
                 <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 600 }}>
-                  🟢 Active (100% Success)
+                  🟢 Active (Client Optimized)
                 </span>
               </div>
               <p style={{ fontSize: '11px', color: '#6b584c', margin: '0 0 6px 0' }}>
-                Photos and optional video uploads verified & operational.
+                High-res canvas compression with multi-angle gallery storage.
               </p>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62' }}>
-                <span>Media Transferred: <b>~21.4 MB</b></span>
-                <span>Success Rate: <b>100%</b></span>
+                <span>Banners: <b>{stats.totalBanners || 0} active</b></span>
+                <span>Products: <b>{stats.totalProducts || 0} items</b></span>
               </div>
             </div>
 

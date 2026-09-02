@@ -20,8 +20,6 @@
     "@tiptap/extension-underline": "^3.30.5",
     "@tiptap/react": "^3.30.5",
     "@tiptap/starter-kit": "^3.30.5",
-    "@upstash/ratelimit": "^2.0.8",
-    "@upstash/redis": "^1.38.3",
     "canvas-confetti": "^1.9.4",
     "cors": "^2.8.6",
     "dompurify": "^3.4.14",

@@ -214,28 +214,40 @@ export function AdminReviews() {
   }, [reviews]);
 
   // Status toggle
-  const handleToggleStatus = (id, newStatus) => {
-    db.updateReview(id, { status: newStatus });
-    emitToast(`Review status updated to ${newStatus}`, "success");
+  const handleToggleStatus = async (id, newStatus) => {
+    try {
+      await db.updateReview(id, { status: newStatus });
+      emitToast(`Review status updated to ${newStatus}`, "success");
+    } catch (err) {
+      emitToast(err.message || "Failed to update review status", "error");
+    }
   };
 
   // Toggle Featured
-  const handleToggleFeatured = (id, currentVal) => {
-    db.updateReview(id, { featured: !currentVal });
-    emitToast(!currentVal ? "Review marked as Featured" : "Review unfeatured", "success");
+  const handleToggleFeatured = async (id, currentVal) => {
+    try {
+      await db.updateReview(id, { featured: !currentVal });
+      emitToast(!currentVal ? "Review marked as Featured" : "Review unfeatured", "success");
+    } catch (err) {
+      emitToast(err.message || "Failed to update featured status", "error");
+    }
   };
 
   // Delete Review
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (deleteTargetId) {
-      db.deleteReview(deleteTargetId);
-      emitToast("Review deleted successfully.", "success");
-      setDeleteTargetId(null);
+      try {
+        await db.deleteReview(deleteTargetId);
+        emitToast("Review deleted successfully.", "success");
+        setDeleteTargetId(null);
+      } catch (err) {
+        emitToast(err.message || "Failed to delete review", "error");
+      }
     }
   };
 
   // Reply to Review
-  const handleSaveReply = (e) => {
+  const handleSaveReply = async (e) => {
     e.preventDefault();
     if (!replyingReview) return;
     const replyObj = replyText.trim() ? {
@@ -244,17 +256,25 @@ export function AdminReviews() {
       date: "Just now"
     } : null;
 
-    db.updateReview(replyingReview.id, { adminReply: replyObj });
-    emitToast(replyObj ? "Official store reply published!" : "Store reply removed.", "success");
-    setReplyingReview(null);
-    setReplyText("");
+    try {
+      await db.updateReview(replyingReview.id, { adminReply: replyObj });
+      emitToast(replyObj ? "Official store reply published!" : "Store reply removed.", "success");
+      setReplyingReview(null);
+      setReplyText("");
+    } catch (err) {
+      emitToast(err.message || "Failed to save reply", "error");
+    }
   };
 
   // Save Settings
-  const handleSaveSettings = (e) => {
+  const handleSaveSettings = async (e) => {
     e?.preventDefault();
-    db.saveReviewSettings(settings);
-    emitToast("Review display settings saved successfully!", "success");
+    try {
+      await db.saveReviewSettings(settings);
+      emitToast("Review display settings saved successfully!", "success");
+    } catch (err) {
+      emitToast(err.message || "Failed to save review settings", "error");
+    }
   };
 
   // Handle image upload in Edit or Create modal
@@ -289,27 +309,31 @@ export function AdminReviews() {
   };
 
   // Save Edit Review
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!editingReview) return;
 
-    db.updateReview(editingReview.id, {
-      name: editingReview.name,
-      city: editingReview.city,
-      rating: Number(editingReview.rating),
-      title: editingReview.title,
-      text: editingReview.text,
-      verified: editingReview.verified,
-      featured: editingReview.featured,
-      status: editingReview.status,
-      type: editingReview.type,
-      productId: editingReview.productId,
-      productName: editingReview.productName,
-      images: editingReview.images
-    });
+    try {
+      await db.updateReview(editingReview.id, {
+        name: editingReview.name,
+        city: editingReview.city,
+        rating: Number(editingReview.rating),
+        title: editingReview.title,
+        text: editingReview.text,
+        verified: editingReview.verified,
+        featured: editingReview.featured,
+        status: editingReview.status,
+        type: editingReview.type,
+        productId: editingReview.productId,
+        productName: editingReview.productName,
+        images: editingReview.images
+      });
 
-    emitToast("Review updated successfully!", "success");
-    setEditingReview(null);
+      emitToast("Review updated successfully!", "success");
+      setEditingReview(null);
+    } catch (err) {
+      emitToast(err.message || "Failed to update review", "error");
+    }
   };
 
   // Helper to format review in exact requested fictional demo format
@@ -589,7 +613,7 @@ export function AdminReviews() {
   };
 
   // Save New Customer Review
-  const handleCreateNewReview = (e) => {
+  const handleCreateNewReview = async (e) => {
     e.preventDefault();
     if (!newReview.name.trim() || !newReview.text.trim()) {
       emitToast("Customer name and review text are required.", "warning");
@@ -597,30 +621,34 @@ export function AdminReviews() {
     }
 
     const selProd = products.find(p => String(p.id) === String(newReview.productId));
-    db.saveReview({
-      ...newReview,
-      productName: newReview.type === "product" ? (selProd?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
-      rating: Number(newReview.rating),
-      source: "customer"
-    });
+    try {
+      await db.saveReview({
+        ...newReview,
+        productName: newReview.type === "product" ? (selProd?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
+        rating: Number(newReview.rating),
+        source: "customer"
+      });
 
-    emitToast("Customer review added!", "success");
-    setIsNewReviewModalOpen(false);
-    setNewReview({
-      type: "product",
-      productId: "5",
-      productName: "5 Mukhi Rudraksha",
-      name: "",
-      email: "",
-      city: "",
-      rating: 5,
-      title: "",
-      text: "",
-      verified: false,
-      featured: false,
-      status: "Approved",
-      images: []
-    });
+      emitToast("Customer review added!", "success");
+      setIsNewReviewModalOpen(false);
+      setNewReview({
+        type: "product",
+        productId: "5",
+        productName: "5 Mukhi Rudraksha",
+        name: "",
+        email: "",
+        city: "",
+        rating: 5,
+        title: "",
+        text: "",
+        verified: false,
+        featured: false,
+        status: "Approved",
+        images: []
+      });
+    } catch (err) {
+      emitToast(err.message || "Failed to save review to database", "error");
+    }
   };
 
   return (
