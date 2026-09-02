@@ -116,7 +116,7 @@ export function Wishlist() {
                         }}
                       >
                         <div style={{ height: "180px", background: "#f5eee6", overflow: "hidden" }}>
-                          <Link to={`/product/${p.id}`}>
+                          <Link to={`/product/${p.id || p._id || p.productId}`}>
                             <img
                               src={displayImage}
                               alt={p.name}
@@ -127,7 +127,7 @@ export function Wishlist() {
                         </div>
                         <div style={{ padding: "14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                           <div>
-                            <Link to={`/product/${p.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                            <Link to={`/product/${p.id || p._id || p.productId}`} style={{ textDecoration: "none", color: "inherit" }}>
                               <h4 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "17px", color: "#2b170d", margin: "0 0 6px" }}>
                                 {p.name}
                               </h4>
@@ -195,7 +195,7 @@ export function Wishlist() {
                   }}
                 >
                   <div style={{ position: "relative", height: "220px", background: "#f5eee6", overflow: "hidden" }}>
-                    <Link to={`/product/${p.id}`}>
+                    <Link to={`/product/${p.id || p._id || p.productId}`}>
                       <img
                         src={displayImage}
                         alt={p.name}
@@ -256,7 +256,7 @@ export function Wishlist() {
                       <span style={{ color: "#806f62" }}>({p.reviews || 0})</span>
                     </div>
 
-                    <Link to={`/product/${p.id}`} style={{ textDecoration: "none" }}>
+                    <Link to={`/product/${p.id || p._id || p.productId}`} style={{ textDecoration: "none" }}>
                       <h3
                         style={{
                           fontFamily: "Cormorant Garamond, serif",
@@ -307,7 +307,7 @@ export function Wishlist() {
                         {isAdded ? "✓ Added" : "Add to Cart"}
                       </button>
                       <Link
-                        to={`/product/${p.id}`}
+                        to={`/product/${p.id || p._id || p.productId}`}
                         className="outline-btn"
                         style={{ padding: "10px 12px", fontSize: "12px", display: "grid", placeItems: "center" }}
                         title="View Product Details"

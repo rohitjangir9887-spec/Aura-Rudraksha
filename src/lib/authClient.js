@@ -106,15 +106,30 @@ export const authClient = {
 
   setupRecaptcha: (containerId) => {
     try {
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-          size: 'invisible',
-        });
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (_) {}
+        window.recaptchaVerifier = null;
       }
+      const el = typeof document !== "undefined" ? document.getElementById(containerId) : null;
+      if (!el) return null;
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+        size: 'invisible',
+      });
       return window.recaptchaVerifier;
     } catch (e) {
       console.warn("Recaptcha setup warning:", e);
       return null;
+    }
+  },
+
+  clearRecaptcha: () => {
+    if (typeof window !== "undefined" && window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (_) {}
+      window.recaptchaVerifier = null;
     }
   },
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   ClipboardList, 
   Heart, 
@@ -33,6 +33,7 @@ import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant"
 
 export function Account() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { count: wishlistCount } = useWishlist();
   const [user, setUser] = useState(() => authClient.getUser());
   const [userEmail, setUserEmail] = useState("");
@@ -224,7 +225,7 @@ export function Account() {
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginBottom: "28px" }}>
               <Link 
                 to="/login" 
-                state={{ from: "/account" }}
+                state={{ from: location.pathname + location.search + location.hash }}
                 id="btn-account-login"
                 style={{
                   background: "linear-gradient(135deg, #a54d2b 0%, #7a351a 100%)",

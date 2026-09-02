@@ -56,7 +56,7 @@ export function AdminLayout({children}) {
       try {
         const currentUser = await authClient.getCurrentUserAsync();
         if (!currentUser && !authClient.isSignedIn()) {
-          navigate("/admin/login", { replace: true, state: { from: location.pathname } });
+          navigate("/admin/login", { replace: true, state: { from: location.pathname + location.search + location.hash } });
           return;
         }
 

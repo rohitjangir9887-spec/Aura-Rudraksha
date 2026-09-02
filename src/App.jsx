@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { Home } from "./pages/Home";
 import { Shop } from "./pages/Shop";
@@ -9,6 +9,7 @@ import { Cart } from "./pages/Cart";
 import { Checkout } from "./pages/Checkout";
 import { Login } from "./pages/Login";
 import { Policies } from "./pages/Policies";
+import { NotFound } from "./pages/NotFound";
 import { AuraAIFloating } from "./components/AuraAIFloating";
 
 // ---------------------------------------------------------------------------
@@ -76,60 +77,74 @@ function PageLoader() {
   );
 }
 
+function OrderParamRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/account/orders/${id}` : "/account/orders"} replace />;
+}
+
 export function App() {
   return (
     <>
       <ScrollToTop />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/shop" element={<Shop />} />
-        <Route path="/wishlist" element={<Wishlist />} />
-        <Route path="/product/:id" element={<Product />} />
-        <Route path="/cart" element={<Cart />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/account" element={<Account />} />
-        <Route path="/account/profile" element={<Profile />} />
-        <Route path="/account/orders" element={<Orders />} />
-        <Route path="/account/orders/:id" element={<OrderDetail />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/orders/:id" element={<OrderDetail />} />
-        <Route path="/order/:id" element={<OrderDetail />} />
-        <Route path="/my-orders" element={<Orders />} />
-        <Route path="/shipping-policy" element={<Policies />} />
-        <Route path="/return-policy" element={<Policies />} />
-        <Route path="/privacy-policy" element={<Policies />} />
-        <Route path="/terms" element={<Policies />} />
-        <Route path="/cancellation" element={<Policies />} />
-        <Route path="/secure-payment" element={<Policies />} />
-        <Route path="/about" element={<AboutUs />} />
-        <Route path="/track-order" element={<TrackOrder />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/wholesale" element={<Wholesale />} />
-        <Route path="/contact" element={<ContactUs />} />
-        <Route path="/aura-ai" element={<AuraAIPage />} />
+          {/* Canonical Customer Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/product/:id" element={<Product />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/account/profile" element={<Profile />} />
+          <Route path="/account/orders" element={<Orders />} />
+          <Route path="/account/orders/:id" element={<OrderDetail />} />
 
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/admin/ai" element={<AdminAI />} />
-        <Route path="/admin/products" element={<AdminProducts />} />
-        <Route path="/admin/orders" element={<AdminOrders />} />
-        <Route path="/admin/customers" element={<AdminCustomers />} />
-        <Route path="/admin/reviews" element={<AdminReviews />} />
-        <Route path="/admin/banners" element={<AdminBanners />} />
-        <Route path="/admin/banners/hero" element={<HeroImages />} />
-        <Route path="/admin/banners/promotions" element={<AdminPromotions />} />
-        <Route path="/admin/categories" element={<AdminCategories />} />
-        <Route path="/admin/offers" element={<AdminOffers />} />
-        <Route path="/admin/coupons" element={<AdminCoupons />} />
-        <Route path="/admin/analytics" element={<AdminAnalytics />} />
-        <Route path="/admin/support" element={<AdminSupport />} />
-        <Route path="/admin/settings" element={<AdminSettings />} />
-        <Route path="/admin/zodiac" element={<AdminZodiac />} />
-      </Routes>
-    </Suspense>
-    <AuraAIFloating />
+          {/* Compatibility Redirects for Legacy Routes */}
+          <Route path="/orders" element={<Navigate to="/account/orders" replace />} />
+          <Route path="/my-orders" element={<Navigate to="/account/orders" replace />} />
+          <Route path="/orders/:id" element={<OrderParamRedirect />} />
+          <Route path="/order/:id" element={<OrderParamRedirect />} />
+
+          {/* Customer Content & Policy Routes */}
+          <Route path="/shipping-policy" element={<Policies />} />
+          <Route path="/return-policy" element={<Policies />} />
+          <Route path="/privacy-policy" element={<Policies />} />
+          <Route path="/terms" element={<Policies />} />
+          <Route path="/cancellation" element={<Policies />} />
+          <Route path="/secure-payment" element={<Policies />} />
+          <Route path="/about" element={<AboutUs />} />
+          <Route path="/track-order" element={<TrackOrder />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/wholesale" element={<Wholesale />} />
+          <Route path="/contact" element={<ContactUs />} />
+          <Route path="/aura-ai" element={<AuraAIPage />} />
+
+          {/* Isolated Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/ai" element={<AdminAI />} />
+          <Route path="/admin/products" element={<AdminProducts />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/customers" element={<AdminCustomers />} />
+          <Route path="/admin/reviews" element={<AdminReviews />} />
+          <Route path="/admin/banners" element={<AdminBanners />} />
+          <Route path="/admin/banners/hero" element={<HeroImages />} />
+          <Route path="/admin/banners/promotions" element={<AdminPromotions />} />
+          <Route path="/admin/categories" element={<AdminCategories />} />
+          <Route path="/admin/offers" element={<AdminOffers />} />
+          <Route path="/admin/coupons" element={<AdminCoupons />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/support" element={<AdminSupport />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/zodiac" element={<AdminZodiac />} />
+
+          {/* Catch-all 404 Route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+      <AuraAIFloating />
     </>
   );
 }

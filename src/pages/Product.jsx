@@ -389,6 +389,26 @@ export function Product() {
     }
   };
 
+  if (!loading && !p) {
+    return (
+      <Shell>
+        <div className="product-page-root" style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: "60px 16px" }}>
+          <div style={{ maxWidth: 480, textAlign: "center", background: "#ffffff", border: "1px solid #f2e6d9", borderRadius: "16px", padding: "40px 24px", boxShadow: "0 10px 30px rgba(100,60,30,0.05)" }}>
+            <h2 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "28px", color: "#2b170d", margin: "0 0 12px", fontWeight: 700 }}>
+              Product Not Found
+            </h2>
+            <p style={{ fontSize: "14px", color: "#806f62", margin: "0 0 24px", lineHeight: 1.6 }}>
+              The Rudraksha item or product ID requested could not be found in our current catalog.
+            </p>
+            <Link to="/shop" className="primary-btn" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 99, fontSize: 13, textDecoration: "none", fontWeight: 600 }}>
+              Explore Shop Catalog
+            </Link>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <div className="product-page-root">

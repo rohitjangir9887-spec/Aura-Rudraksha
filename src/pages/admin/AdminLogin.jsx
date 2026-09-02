@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ShieldCheck, ArrowLeft, LogIn, AlertCircle, Mail, Phone, Chrome, UserPlus, Copy, Check } from "lucide-react";
 import { authClient } from "../../lib/authClient";
 import { emitToast } from "../../context/ToastContext";
+import { getSafeReturnPath } from "../../lib/routes";
 import "./admin-pages.css";
 
 export function AdminLogin() {
@@ -83,7 +84,7 @@ export function AdminLogin() {
         }
       } catch (_) {}
       
-      const from = location.state?.from || "/admin";
+      const from = getSafeReturnPath(location.state?.from, "/admin");
       navigate(from, { replace: true });
     } catch (err) {
       console.error(err);

@@ -161,7 +161,7 @@ export function ProductCard({ p, onAdd, isShop = false }) {
           {/* Title */}
           <h3 className="aura-card-title">
             <Link 
-              to={`/product/${p.id}`} 
+              to={`/product/${productId}`} 
               onClick={(e) => e.stopPropagation()}
               style={{ color: "inherit", textDecoration: "none" }}
             >

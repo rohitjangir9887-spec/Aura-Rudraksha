@@ -196,7 +196,7 @@ export function Cart() {
                       animate={{opacity: 1, x: 0}} 
                       transition={{delay: 0.2 + (index * 0.1)}}
                     >
-                      <Link to={`/product/${p.id}`} className="pcc-img-wrap">
+                      <Link to={`/product/${p.id || p._id || p.productId}`} className="pcc-img-wrap">
                         <img 
                           src={p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg"} 
                           alt={p.name}
@@ -205,7 +205,7 @@ export function Cart() {
                       </Link>
                       <div className="pcc-details">
                         <div className="pcc-header">
-                          <Link to={`/product/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                          <Link to={`/product/${p.id || p._id || p.productId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                             <h3>{p.name}</h3>
                           </Link>
                           {p.rating && <span className="pcc-rating">★ {p.rating}</span>}
@@ -282,8 +282,8 @@ export function Cart() {
                       const hasDiscount = rp.mrp > rp.price;
                       const discountPercent = hasDiscount ? Math.round(((rp.mrp - rp.price) / rp.mrp) * 100) : 0;
                       return (
-                        <div className="cr-card" key={rp.id}>
-                          <Link to={`/product/${rp.id}`} className="cr-img">
+                        <div className="cr-card" key={rp.id || rp._id}>
+                          <Link to={`/product/${rp.id || rp._id || rp.productId}`} className="cr-img">
                             <img 
                               src={rp.img || (rp.images && rp.images[0]) || "/images/product-5mukhi.jpg"} 
                               alt={rp.name}

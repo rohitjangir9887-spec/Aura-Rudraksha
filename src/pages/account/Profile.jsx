@@ -82,7 +82,7 @@ export function Profile() {
   useEffect(() => {
     const unsubscribe = authClient.onAuthStateChanged((user) => {
       if (!user || user.isAnonymous) {
-        navigate("/login", { state: { from: location.pathname } });
+        navigate("/login", { state: { from: location.pathname + location.search + location.hash } });
       } else {
         loadProfileData();
       }

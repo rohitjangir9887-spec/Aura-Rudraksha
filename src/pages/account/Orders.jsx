@@ -209,7 +209,7 @@ export function Orders() {
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
               <Link
                 to="/login"
-                state={{ from: "/account/orders" }}
+                state={{ from: location.pathname + location.search + location.hash }}
                 className="primary-btn"
                 style={{
                   display: 'inline-flex',

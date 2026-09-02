@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { emitToast } from "../context/ToastContext";
 import { authClient } from "../lib/authClient";
+import { getSafeReturnPath } from "../lib/routes";
 import { Mail, Phone, Lock, UserPlus, LogIn, Chrome, Copy, Check, AlertCircle } from "lucide-react";
 
 export function Login() {
@@ -36,30 +37,41 @@ export function Login() {
     }
   };
 
+  const redirectUser = () => {
+    const intended = location.state?.from;
+    const safePath = getSafeReturnPath(intended, "/account");
+    navigate(safePath, { replace: true });
+  };
+
   useEffect(() => {
+    // Check if user is already authenticated
+    const currentUser = authClient.getUser();
+    if (currentUser && !currentUser.isAnonymous) {
+      redirectUser();
+      return;
+    }
+
     const unsubscribe = authClient.onAuthStateChanged((user) => {
       if (user && !user.isAnonymous) {
         redirectUser();
       }
     });
     return () => unsubscribe();
-  }, [navigate, location]);
+  }, []);
 
   useEffect(() => {
-    // Setup reCAPTCHA when needed
     if (mode === "phone") {
-      authClient.setupRecaptcha('recaptcha-container');
+      const timer = setTimeout(() => {
+        authClient.setupRecaptcha('recaptcha-container');
+      }, 50);
+      return () => {
+        clearTimeout(timer);
+        authClient.clearRecaptcha();
+      };
+    } else {
+      authClient.clearRecaptcha();
     }
   }, [mode]);
-
-  const redirectUser = async () => {
-    const intendedPage = location.state?.from;
-    if (intendedPage && !intendedPage.startsWith('/admin')) {
-      navigate(intendedPage, { replace: true });
-    } else {
-      navigate("/account", { replace: true });
-    }
-  };
 
   const getErrorMessage = (err) => {
     return authClient.formatAuthError(err);
