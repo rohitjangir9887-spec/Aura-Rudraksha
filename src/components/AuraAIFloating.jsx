@@ -15,7 +15,11 @@ import {
   ChevronRight, 
   Package, 
   ShieldCheck, 
-  GripVertical
+  GripVertical,
+  Calendar,
+  Clock,
+  MapPin,
+  User
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -56,6 +60,16 @@ export function AuraAIFloating() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshPhase, setRefreshPhase] = useState("idle"); // "idle" | "fading-out" | "fading-in"
   const [showRefreshToast, setShowRefreshToast] = useState(false);
+  
+  // Interactive Birth Details Kundli Form state for AI Panditji mode
+  const [showBirthForm, setShowBirthForm] = useState(false);
+  const [birthForm, setBirthForm] = useState({
+    name: "",
+    dob: "",
+    time: "",
+    place: "",
+    concern: "career"
+  });
 
   const cart = useCart();
   const navigate = useNavigate();
@@ -67,6 +81,7 @@ export function AuraAIFloating() {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragControls = useDragControls();
   const undoTimerRef = useRef(null);
+  const dragAreaRef = useRef(null);
 
   // Lock body scroll on mobile when chat window is open
   useEffect(() => {
@@ -202,6 +217,8 @@ export function AuraAIFloating() {
       const prompt = e.detail?.prompt;
       if (e.detail?.mode) {
         setMode(e.detail.mode);
+      } else if (prompt && (prompt.includes("पंडित") || prompt.includes("Pandit") || prompt.includes("kundli") || prompt.includes("कुंडली"))) {
+        setMode("panditji");
       }
       setIsDismissed(false);
       setIsOpen(true);
@@ -352,6 +369,37 @@ export function AuraAIFloating() {
     }
   };
 
+  const handleBirthFormSubmit = (e) => {
+    e.preventDefault();
+    if (!birthForm.name.trim()) {
+      alert("कृपया अपना नाम दर्ज करें (Please enter your name)");
+      return;
+    }
+    if (!birthForm.dob) {
+      alert("कृपया जन्म तिथि (Date of Birth) चुनें");
+      return;
+    }
+    if (!birthForm.place.trim()) {
+      alert("कृपया जन्म स्थान (Birth Place) दर्ज करें");
+      return;
+    }
+
+    const concernLabels = {
+      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
+      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
+      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
+      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
+      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
+      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
+    };
+
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि (DOB): ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim() || "अज्ञात / Default"}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का वैदिक विश्लेषण करके मुझे सर्वोत्तम रुद्राक्ष, बीज मंत्र, शुभ धारण मुहूर्त और पूजन विधि बताइए।`;
+
+    setShowBirthForm(false);
+    setMode("panditji");
+    handleSend(promptText);
+  };
+
   // Start a new chat session with smooth fade-out and fade-in transition
   const handleNewChat = () => {
     if (isRefreshing) return;
@@ -436,7 +484,21 @@ export function AuraAIFloating() {
 
   return (
     <>
-      {/* 1. Floating Action Button - Draggable (Hidden when window is open or dismissed) */}
+      {/* Invisible full-viewport overlay for unconstrained 360-degree floating bounds */}
+      <div 
+        ref={dragAreaRef} 
+        style={{ 
+          position: "fixed", 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          pointerEvents: "none", 
+          zIndex: 99990 
+        }} 
+      />
+
+      {/* 1. Floating Action Button - Draggable across entire screen */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
@@ -449,23 +511,49 @@ export function AuraAIFloating() {
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
             drag
             dragMomentum={false}
-            dragElastic={0.08}
-            dragConstraints={{
-              left: -Math.max(100, window.innerWidth - 120),
-              right: 15,
-              top: -Math.max(100, window.innerHeight - 120),
-              bottom: 15
-            }}
+            dragElastic={0.05}
+            dragConstraints={dragAreaRef}
             whileDrag={{ scale: 1.05, cursor: "grabbing" }}
+            onDragStart={(_, info) => {
+              isDraggingBtnRef.current = true;
+              dragStartPos.current = { x: info.point.x, y: info.point.y };
+            }}
+            onDragEnd={(_, info) => {
+              const dx = Math.abs(info.point.x - dragStartPos.current.x);
+              const dy = Math.abs(info.point.y - dragStartPos.current.y);
+              if (dx < 6 && dy < 6) {
+                setIsOpen(true);
+              }
+              setTimeout(() => {
+                isDraggingBtnRef.current = false;
+              }, 120);
+            }}
+            onTap={(_, info) => {
+              const dx = Math.abs(info.point.x - dragStartPos.current.x);
+              const dy = Math.abs(info.point.y - dragStartPos.current.y);
+              if (!isDraggingBtnRef.current || (dx < 6 && dy < 6)) {
+                setIsOpen(true);
+              }
+            }}
           >
-            <button
+            <motion.button
               type="button"
+              onTap={(e) => {
+                e.stopPropagation();
+                setIsOpen(true);
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 setIsOpen(true);
               }}
+              onPointerUp={(e) => {
+                e.stopPropagation();
+                if (!isDraggingBtnRef.current) {
+                  setIsOpen(true);
+                }
+              }}
               className="aura-ai-floating-btn"
-              aria-label="Open Aura AI Shopping Guide (Drag to reposition)"
+              aria-label="Open Aura AI Shopping Guide"
               title="Chat with Aura AI"
             >
               <div className="aura-ai-drag-handle" title="Drag to move">
@@ -476,12 +564,13 @@ export function AuraAIFloating() {
                 <Sparkles size={13} className="aura-ai-sparkle-spin" />
               </div>
               <span className="aura-ai-floating-label">Aura AI</span>
-            </button>
+            </motion.button>
             <button
               id="aura-ai-floating-dismiss"
               type="button"
               className="aura-ai-floating-dismiss"
               onClick={handleDismiss}
+              onPointerDown={(e) => e.stopPropagation()}
               title="Hide floating button from all pages"
               aria-label="Hide Aura AI floating button"
             >
@@ -649,6 +738,13 @@ export function AuraAIFloating() {
                 {mode === "panditji" ? (
                   <>
                     <button 
+                      onClick={() => setShowBirthForm((prev) => !prev)} 
+                      className={`aura-ai-strip-btn ${showBirthForm ? "active" : ""}`}
+                      style={{ background: "#fef3c7", color: "#78350f", border: "1.5px solid #f59e0b", fontWeight: 700 }}
+                    >
+                      📋 {showBirthForm ? "✕ बंद करें" : "📋 जन्म विवरण भरें (Kundli Form)"}
+                    </button>
+                    <button 
                       onClick={() => handleSend("🌸 Mere Rashi ke liye kaunsa Rudraksha sabse uttam hai?")} 
                       className="aura-ai-strip-btn"
                     >
@@ -705,6 +801,132 @@ export function AuraAIFloating() {
                   Full Page <ChevronRight size={11} />
                 </Link>
               </div>
+
+              {/* Interactive Kundli Birth Details Form Card for AI Panditji */}
+              <AnimatePresence>
+                {showBirthForm && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, y: -6 }}
+                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -6 }}
+                    style={{
+                      background: "linear-gradient(135deg, #FFFDF8 0%, #FAF3E6 100%)",
+                      borderBottom: "2px solid #D4AF37",
+                      padding: "12px 14px",
+                      boxShadow: "0 4px 12px rgba(74, 14, 23, 0.12)",
+                      position: "relative",
+                      zIndex: 15
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", borderBottom: "1px dashed #e8d0b5", paddingBottom: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "#4A0E17" }}>
+                        <span>🕉️</span>
+                        <span>पंडित जी हेतु जन्म विवरण (Vedic Birth Details)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowBirthForm(false)}
+                        style={{ background: "none", border: "none", fontSize: "11px", color: "#8a6014", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        ✕ बंद करें
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleBirthFormSubmit}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                            आपका नाम (Name) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="उदा. राहुल शर्मा"
+                            value={birthForm.name}
+                            onChange={(e) => setBirthForm({ ...birthForm, name: e.target.value })}
+                            style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                            जन्म तिथि (DOB) *
+                          </label>
+                          <input
+                            type="date"
+                            required
+                            value={birthForm.dob}
+                            onChange={(e) => setBirthForm({ ...birthForm, dob: e.target.value })}
+                            style={{ width: "100%", padding: "4px 6px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                            जन्म स्थान (City) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="उदा. जयपुर, राजस्थान"
+                            value={birthForm.place}
+                            onChange={(e) => setBirthForm({ ...birthForm, place: e.target.value })}
+                            style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                            जन्म समय (Time)
+                          </label>
+                          <input
+                            type="time"
+                            value={birthForm.time}
+                            onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
+                            style={{ width: "100%", padding: "4px 6px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: "10px" }}>
+                        <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                          मुख्य संकल्प / समस्या (Primary Concern)
+                        </label>
+                        <select
+                          value={birthForm.concern}
+                          onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
+                          style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11px", background: "#fff", color: "#333", outline: "none" }}
+                        >
+                          <option value="career">⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)</option>
+                          <option value="peace">🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)</option>
+                          <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)</option>
+                          <option value="marriage">❤️ विवाह, प्रेम व परिवार (Relationships)</option>
+                          <option value="health">🩺 स्वास्थ्य व आरोग्य (Health & Vitality)</option>
+                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)</option>
+                        </select>
+                      </div>
+
+                      <button
+                        type="submit"
+                        style={{
+                          width: "100%",
+                          padding: "7px 10px",
+                          background: "linear-gradient(135deg, #a54d2b 0%, #7d3318 100%)",
+                          color: "#ffffff",
+                          border: "1px solid #ffd700",
+                          borderRadius: "6px",
+                          fontSize: "11.5px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          boxShadow: "0 2px 6px rgba(165, 77, 43, 0.25)"
+                        }}
+                      >
+                        🙏 पंडित जी को कुंडली भेजें (Analyze Kundli)
+                      </button>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Messages Body with Date & Time dividers & Smooth Refresh Transitions */}
               <div 

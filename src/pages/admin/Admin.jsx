@@ -3,6 +3,7 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
+import { getPuterMediaStatus } from "../../lib/imageUtils";
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
@@ -234,23 +235,28 @@ export function Admin() {
             </div>
 
             {/* Media Asset Storage Box */}
-            <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e8dac9' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <HardDrive size={14} color="#2563eb" /> Media Asset Pipeline
-                </span>
-                <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 600 }}>
-                  🟢 Active (Client Optimized)
-                </span>
-              </div>
-              <p style={{ fontSize: '11px', color: '#6b584c', margin: '0 0 6px 0' }}>
-                High-res canvas compression with multi-angle gallery storage.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62' }}>
-                <span>Banners: <b>{stats.totalBanners || 0} active</b></span>
-                <span>Products: <b>{stats.totalProducts || 0} items</b></span>
-              </div>
-            </div>
+            {(() => {
+              const mediaInfo = getPuterMediaStatus();
+              return (
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e8dac9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <HardDrive size={14} color="#2563eb" /> Media Storage (Puter / Server)
+                    </span>
+                    <span style={{ fontSize: '10px', color: mediaInfo.connected ? '#15803d' : '#d97706', fontWeight: 600 }}>
+                      {mediaInfo.connected ? '🟢 Puter Cloud Active' : '🟠 Server Local Fallback'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#6b584c', margin: '0 0 6px 0', lineHeight: '1.4' }}>
+                    {mediaInfo.message}
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62' }}>
+                    <span>Pipeline: <b>{mediaInfo.provider}</b></span>
+                    <span>Stored Items: <b>{stats.totalProducts + (stats.totalBanners || 0)} items</b></span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Home UI Connection Box */}
             <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e8dac9' }}>

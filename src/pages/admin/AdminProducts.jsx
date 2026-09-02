@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
-import { compressImage } from "../../lib/imageUtils";
+import { compressImage, uploadMedia } from "../../lib/imageUtils";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
@@ -176,7 +176,7 @@ const handleEdit = (p) => {
     }
   };
 
-  // Image Upload Handler
+  // Image Upload Handler using Puter / Server Media Storage
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -194,25 +194,29 @@ const handleEdit = (p) => {
         emitToast("Maximum limit of 10 images reached.", "warning");
         break;
       }
-      const compressed = await compressImage(file, 800, 800, 0.72);
-      if (compressed) {
-        setEditing(prev => {
-          if (!prev) return prev;
-          const newImages = [...(prev.images || [])];
-          if (newImages.length >= 10) return prev;
-          newImages.push(compressed);
-          return {
-            ...prev,
-            images: newImages,
-            img: prev.img || compressed
-          };
-        });
-        loadedCount++;
+      try {
+        const mediaUrl = await uploadMedia(file);
+        if (mediaUrl) {
+          setEditing(prev => {
+            if (!prev) return prev;
+            const newImages = [...(prev.images || [])];
+            if (newImages.length >= 10) return prev;
+            newImages.push(mediaUrl);
+            return {
+              ...prev,
+              images: newImages,
+              img: prev.img || mediaUrl
+            };
+          });
+          loadedCount++;
+        }
+      } catch (err) {
+        emitToast(`Failed to upload ${file.name}: ${err.message}`, "error");
       }
     }
     setFormError("");
     e.target.value = "";
-    emitToast("Images uploaded & compressed for storage", "info");
+    emitToast("Images stored safely via Media Storage Pipeline", "success");
   };
 
   // Image URL Handler

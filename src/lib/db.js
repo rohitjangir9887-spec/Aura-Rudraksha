@@ -29,45 +29,86 @@ export const onStoreUpdate = (callback) => {
 // set VITE_API_BASE_URL="https://api.yourdomain.com/api" at build time.
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 
-// Helper for safe API calls
+// Request Deduplication Map for in-flight GET requests
+const pendingGetRequests = new Map();
+
+// Helper for safe API calls with deduplication, timeouts, and error classification
 async function apiRequest(endpoint, options = {}) {
-  try {
-    const token = await authClient.getToken();
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        ...(options.headers || {})
-      },
-      ...options
-    });
+  const method = (options.method || "GET").toUpperCase();
+  const isGet = method === "GET";
 
-    const contentType = res.headers?.get("content-type") || "";
-    let data = {};
-    if (contentType.includes("application/json")) {
-      data = await res.json().catch(() => ({}));
-    } else {
-      return {
-        success: false,
-        status: res.status,
-        message: `Endpoint unavailable (${res.status})`
-      };
+  // Deduplicate GET requests
+  if (isGet && !options.noCache) {
+    if (pendingGetRequests.has(endpoint)) {
+      return pendingGetRequests.get(endpoint);
     }
-
-    if (!res.ok) {
-      return {
-        success: false,
-        status: res.status,
-        message: data.message || `Server error (${res.status}): ${res.statusText || "Request failed"}`
-      };
-    }
-    return data;
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message || "Network or connection error. Database unavailable."
-    };
   }
+
+  const execute = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 8000);
+
+    try {
+      const token = await authClient.getToken().catch(() => "");
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          ...(options.headers || {})
+        },
+        ...options
+      });
+
+      clearTimeout(timeoutId);
+
+      const contentType = res.headers?.get("content-type") || "";
+      let data = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        return {
+          success: false,
+          status: res.status,
+          message: `Endpoint unavailable (${res.status})`
+        };
+      }
+
+      if (!res.ok) {
+        return {
+          success: false,
+          status: res.status,
+          message: data.message || `Server error (${res.status}): ${res.statusText || "Request failed"}`
+        };
+      }
+      return data;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === "AbortError") {
+        return {
+          success: false,
+          status: 408,
+          message: "Request timed out. Please try again."
+        };
+      }
+      return {
+        success: false,
+        status: 503,
+        message: error.message || "Network error. Database unavailable."
+      };
+    }
+  };
+
+  if (isGet && !options.noCache) {
+    const promise = execute().finally(() => {
+      pendingGetRequests.delete(endpoint);
+    });
+    pendingGetRequests.set(endpoint, promise);
+    return promise;
+  }
+
+  return execute();
 }
 
 // Deleted review tracking to ensure deleted reviews are never resurrected on refresh
@@ -674,13 +715,9 @@ const NEUTRAL_OFFER = {
   timerEnabled: false
 };
 
-// Initial MongoDB Sync & Hydration
-//
-// Live-data policy (Phase 2):
-//  - When MongoDB is CONNECTED, the store cache is replaced with REAL data
-//    (including EMPTY collections) - no fake/demo fallback may leak into the UI.
-//  - When MongoDB is DISCONNECTED, the static dev fallback data is kept so the
-//    storefront can be previewed offline; the UI shows a "demo" indicator.
+// Domain-Separated Hydration Engine
+// Home page fetches ONLY public customer data (products, banners, offers, settings)
+// Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 let isInitialized = false;
 let isHydrated = false;
 let hydrationResolver = null;
@@ -688,36 +725,10 @@ let hydrationPromise = new Promise((resolve) => {
   hydrationResolver = resolve;
 });
 
-async function hydrateFromBackend() {
+export async function fetchHomeData() {
   try {
-    const healthRes = await apiRequest("/health");
-    const connected = healthRes?.database === "connected";
-
-    if (!connected) {
-      if (storeCache.dbStatus !== "disconnected") {
-        storeCache.dbStatus = "disconnected";
-        emitStoreUpdate("backend:disconnected", { timestamp: Date.now() });
-      }
-      isHydrated = true;
-      if (hydrationResolver) hydrationResolver(true);
-      return; // keep dev fallback data while DB is down
-    }
-
-    // DB connected: wipe fake fallbacks immediately so real (even empty)
-    // data is what the UI can ever render from now on.
-    if (storeCache.dbStatus !== "connected") {
-      storeCache.dbStatus = "connected";
-      storeCache.orders = [];
-      storeCache.customers = [];
-      storeCache.tickets = [];
-      storeCache.analytics = { visits: 0, productViews: 0, hasData: false };
-    }
-
     const [
       productsRes,
-      ordersRes,
-      customersRes,
-      couponsRes,
       offerRes,
       offersRes,
       bannersRes,
@@ -726,9 +737,6 @@ async function hydrateFromBackend() {
       reviewSettingsRes
     ] = await Promise.all([
       apiRequest("/products"),
-      apiRequest("/orders"),
-      apiRequest("/customers"),
-      apiRequest("/coupons"),
       apiRequest("/active-offer"),
       apiRequest("/offers"),
       apiRequest("/banners"),
@@ -738,6 +746,7 @@ async function hydrateFromBackend() {
     ]);
 
     if (productsRes?.success && Array.isArray(productsRes.data)) {
+      storeCache.dbStatus = "connected";
       storeCache.products = productsRes.data.map(p => ({
         ...p,
         id: String(p.id || p._id),
@@ -749,20 +758,8 @@ async function hydrateFromBackend() {
         comparePrice: p.comparePrice || p.mrp || p.price,
         images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
       }));
-    }
-
-    // orders & customers are admin-only endpoints - a 403 simply means the
-    // caller is not an admin; the cache keeps whatever live data it already had.
-    if (ordersRes?.success && Array.isArray(ordersRes.data)) {
-      storeCache.orders = ordersRes.data;
-    }
-
-    if (customersRes?.success && Array.isArray(customersRes.data)) {
-      storeCache.customers = customersRes.data;
-    }
-
-    if (couponsRes?.success && Array.isArray(couponsRes.data)) {
-      storeCache.coupons = couponsRes.data;
+    } else if (productsRes?.status === 503) {
+      storeCache.dbStatus = "disconnected";
     }
 
     if (offerRes?.success && offerRes.data) {
@@ -802,31 +799,57 @@ async function hydrateFromBackend() {
     isHydrated = true;
     if (hydrationResolver) hydrationResolver(true);
 
-    emitStoreUpdate("backend:synced", { dbStatus: "connected", timestamp: Date.now() });
+    emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
   } catch (err) {
     isHydrated = true;
     if (hydrationResolver) hydrationResolver(true);
     if (process.env.NODE_ENV === "development") {
-      console.warn("[Aura DB] Background hydration note:", err.message);
+      console.warn("[Aura DB] Home hydration note:", err.message);
     }
   }
 }
 
-// Auto-trigger initial hydration on load
+export async function fetchAdminData() {
+  try {
+    const [ordersRes, customersRes, couponsRes] = await Promise.all([
+      apiRequest("/orders"),
+      apiRequest("/customers"),
+      apiRequest("/coupons")
+    ]);
+
+    if (ordersRes?.success && Array.isArray(ordersRes.data)) {
+      storeCache.orders = ordersRes.data;
+    }
+    if (customersRes?.success && Array.isArray(customersRes.data)) {
+      storeCache.customers = customersRes.data;
+    }
+    if (couponsRes?.success && Array.isArray(couponsRes.data)) {
+      storeCache.coupons = couponsRes.data;
+    }
+
+    emitStoreUpdate("admin:synced", { timestamp: Date.now() });
+  } catch (err) {
+    console.warn("[Aura DB] Admin data fetch notice:", err.message);
+  }
+}
+
+async function hydrateFromBackend() {
+  await fetchHomeData();
+}
+
+// Auto-trigger initial home data fetch on load
 if (typeof window !== "undefined" && !isInitialized) {
   isInitialized = true;
-  hydrateFromBackend();
+  fetchHomeData();
 
-  // Periodic lightweight polling to ensure cross-device / admin updates sync to customer UI
-  setInterval(() => {
-    if (document.visibilityState === "visible") {
-      hydrateFromBackend();
-    }
-  }, 20000);
-
-  // Sync on tab focus
+  // Sync on tab focus / visibility change without global polling loop
   window.addEventListener("focus", () => {
-    hydrateFromBackend();
+    fetchHomeData();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      fetchHomeData();
+    }
   });
 }
 
@@ -893,36 +916,36 @@ export const db = {
 
   getProductAsync: async (idOrSlug) => {
     if (!idOrSlug) return null;
-    await db.waitForHydration();
 
-    // 1. Check in-memory storeCache
+    // 1. Check in-memory storeCache immediately
     const cached = db.getProduct(idOrSlug);
     if (cached) return cached;
 
-    // 2. If DB connected and not found locally, attempt direct API lookup
-    if (storeCache.dbStatus === "connected") {
-      const res = await apiRequest(`/products/${encodeURIComponent(idOrSlug)}`);
-      if (res?.success && res.data) {
-        const p = res.data;
-        const normalized = {
-          ...p,
-          id: String(p.id || p._id),
-          mrp: p.mrp || p.comparePrice || p.price,
-          comparePrice: p.comparePrice || p.mrp || p.price,
-          images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
-        };
-        const idx = storeCache.products.findIndex(x =>
-          String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
-        );
-        if (idx >= 0) {
-          storeCache.products[idx] = normalized;
-        } else {
-          storeCache.products.push(normalized);
-        }
-        return normalized;
+    // 2. Direct API lookup for fast single-item load
+    const res = await apiRequest(`/products/${encodeURIComponent(idOrSlug)}`);
+    if (res?.success && res.data) {
+      const p = res.data;
+      const normalized = {
+        ...p,
+        id: String(p.id || p._id),
+        mrp: p.mrp || p.comparePrice || p.price,
+        comparePrice: p.comparePrice || p.mrp || p.price,
+        images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+      };
+      const idx = storeCache.products.findIndex(x =>
+        String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
+      );
+      if (idx >= 0) {
+        storeCache.products[idx] = normalized;
+      } else {
+        storeCache.products.push(normalized);
       }
+      return normalized;
     }
-    return null;
+
+    // 3. Fallback: wait for initial home sync if API call didn't return
+    await db.waitForHydration();
+    return db.getProduct(idOrSlug);
   },
 
   fetchProducts: async () => {

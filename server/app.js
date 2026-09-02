@@ -23,6 +23,7 @@ import authRoute from "./routes/auth.js";
 import auraAiRoute from "./routes/auraAi.js";
 import cartRoute from "./routes/cart.js";
 import paymentRoute from "./routes/payment.js";
+import uploadRoute from "./routes/upload.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -137,7 +138,11 @@ export function createApp() {
     next();
   });
 
+  // Static uploads directory for media storage
+  app.use("/uploads", express.static("public/uploads"));
+
   // API Routes Mount
+  app.use("/api/upload", uploadRoute);
   app.use("/api/cart", cartRoute);
   app.use("/api/products", productsRoute);
   app.use("/api/orders", ordersRoute);

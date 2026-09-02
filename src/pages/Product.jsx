@@ -89,7 +89,10 @@ export function Product() {
         setReviews(db.getReviews(found.id || found._id));
       }
 
-      await db.waitForHydration();
+      // Unblock main product UI immediately
+      if (!silent) setLoading(false);
+
+      // Load related products and coupons in background
       const prods = db.getProducts().filter(p => p.status === 'Active' || !p.status);
       setAllProducts(prods);
       setCoupons(db.getCoupons().filter(c => c.status === "Active"));
@@ -97,9 +100,8 @@ export function Product() {
       console.error("[Product Page] Failed to load product:", err);
       if (!silent) {
         setProduct(null);
+        setLoading(false);
       }
-    } finally {
-      if (!silent) setLoading(false);
     }
   };
 

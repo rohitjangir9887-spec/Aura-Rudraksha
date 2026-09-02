@@ -149,8 +149,5 @@ export function Home() {
 
     {/* THE AURA RASHI GUIDE: SHOP BY ZODIAC SIGN SECTION */}
     <ZodiacRudrakshaSection />
-
-    {/* VEDIC ASTROLOGER & PANDITJI TRUST BIO SECTION */}
-    <PanditjiBioSection />
   </Shell>
 }
