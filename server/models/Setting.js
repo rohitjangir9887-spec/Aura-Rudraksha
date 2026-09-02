@@ -4,7 +4,7 @@ const settingSchema = new mongoose.Schema(
   {
     id: { type: String, default: "STORE_SETTINGS", unique: true },
     storeName: { type: String, default: "Aura Rudraksha" },
-    supportEmail: { type: String, default: "support@aurarudraksha.com" },
+    supportEmail: { type: String, default: "aurarudrakshaofficial@gmail.com" },
     supportPhone: { type: String, default: "+91 9672996531" },
     currency: { type: String, default: "INR" },
     instagramUrl: { type: String, default: "https://instagram.com/aurarudraksha" },

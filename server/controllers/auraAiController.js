@@ -172,7 +172,7 @@ function cleanServerAiText(raw) {
   // Strip code fences
   text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
   // Protect admin details
-  text = text.replace(/rohitjangir\d*@gmail\.com/gi, "support@aurarudraksha.com");
+  text = text.replace(/rohitjangir\d*@gmail\.com/gi, "aurarudrakshaofficial@gmail.com");
   text = text.replace(/MONGODB_[A-Z0-9_]+/gi, "");
   text = text.replace(/GEMINI_API_[A-Z0-9_]+/gi, "");
   text = text.replace(/NVIDIA_API_[A-Z0-9_]+/gi, "");

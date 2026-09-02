@@ -9,23 +9,54 @@ import "./admin-pages.css";
 export function AdminSettings() {
   const [settings, setSettings] = useState(() => db.getSettings());
   const [policies, setPolicies] = useState(() => db.getPolicies());
+  const [tickets, setTickets] = useState([]);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    // Load live settings from MongoDB on mount
+    // Load live settings & tickets from MongoDB on mount
     db.fetchSettings().then(() => {
       setSettings(db.getSettings());
       setPolicies(db.getPolicies());
     });
+    db.fetchTickets().then(() => {
+      setTickets(db.getTickets());
+    });
+
     const unsub = onStoreUpdate(() => {
       setSettings(db.getSettings());
       setPolicies(db.getPolicies());
+      setTickets(db.getTickets());
     });
     return () => unsub();
   }, []);
 
   const updateSettings = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
   const updatePolicy = (key, value) => setPolicies((current) => ({ ...current, [key]: value }));
+
+  const handleTicketStatusChange = async (id, status) => {
+    const t = tickets.find(x => x.id === id);
+    if (t) {
+      try {
+        await db.saveTicket({ ...t, status });
+        emitToast(`Ticket #${id} status updated to ${status}`, "success");
+        setTickets(db.getTickets());
+      } catch (err) {
+        emitToast(err.message || "Failed to update ticket status", "error");
+      }
+    }
+  };
+
+  const getBadgeClass = (status) => {
+    switch (status) {
+      case "Resolved": return "success";
+      case "Closed": return "muted";
+      case "Cancelled": return "error";
+      case "Pending / In Progress":
+      case "In Progress":
+      case "Pending": return "info";
+      default: return "warning";
+    }
+  };
 
   const handleSave = async (event) => {
     event.preventDefault();
@@ -45,24 +76,34 @@ export function AdminSettings() {
       <div className="admin-page-header">
         <div>
           <h1>Store Settings & Customer Care</h1>
-          <p className="admin-page-subtitle">Update store contact info, social links, and centralized store policies.</p>
+          <p className="admin-page-subtitle">Update store contact info, support email, social links, policies, and track support tickets.</p>
         </div>
       </div>
       <form onSubmit={handleSave} className="admin-card">
-        <h2 className="admin-section-heading">Store Information</h2>
+        <h2 className="admin-section-heading">Store Information & Customer Support Email</h2>
         <div className="admin-form-row">
           <div className="admin-form-group">
             <label htmlFor="storeName">Store Name</label>
             <input id="storeName" value={settings.storeName || ""} onChange={(e) => updateSettings("storeName", e.target.value)} />
           </div>
           <div className="admin-form-group">
-            <label htmlFor="supportEmail">Support Email</label>
-            <input id="supportEmail" type="email" value={settings.supportEmail || ""} onChange={(e) => updateSettings("supportEmail", e.target.value)} />
+            <label htmlFor="supportEmail">Customer Support Gmail ID (Official Email)</label>
+            <input 
+              id="supportEmail" 
+              type="email" 
+              required
+              placeholder="aurarudrakshaofficial@gmail.com"
+              value={settings.supportEmail || "aurarudrakshaofficial@gmail.com"} 
+              onChange={(e) => updateSettings("supportEmail", e.target.value)} 
+            />
+            <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
+              This Gmail ID receives all customer inquiries and is displayed across store policies & contact pages.
+            </small>
           </div>
         </div>
         <div className="admin-form-row">
           <div className="admin-form-group">
-            <label htmlFor="supportPhone">Support Phone</label>
+            <label htmlFor="supportPhone">Support Phone / WhatsApp</label>
             <input id="supportPhone" value={settings.supportPhone || ""} onChange={(e) => updateSettings("supportPhone", e.target.value)} />
           </div>
           <div className="admin-form-group">
@@ -72,6 +113,85 @@ export function AdminSettings() {
               <option value="USD">USD ($)</option>
             </select>
           </div>
+        </div>
+
+        {/* TICKET TRACKING SECTION IN SETTINGS */}
+        <div style={{ marginTop: "32px", borderTop: "1px solid var(--line)", paddingTop: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h2 className="admin-section-heading" style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0 }}>
+                <Headphones size={18} color="#a54d2b" /> Ticket Tracking & Support Inquiries
+              </h2>
+              <p style={{ fontSize: "12px", color: "var(--muted)", margin: "4px 0 0" }}>
+                Live overview of all customer tickets and their current status.
+              </p>
+            </div>
+            <Link to="/admin/support" className="admin-btn secondary" style={{ textDecoration: "none", fontSize: "12px", padding: "6px 12px" }}>
+              Go to Full Support Portal <ArrowRight size={13} />
+            </Link>
+          </div>
+
+          {tickets.length === 0 ? (
+            <div style={{ background: "#faf8f5", padding: "16px", borderRadius: "8px", border: "1px solid #ebdccb", fontSize: "13px", color: "#6b584c", textAlign: "center" }}>
+              No support tickets found yet.
+            </div>
+          ) : (
+            <div style={{ border: "1px solid var(--line)", borderRadius: "10px", overflowX: "auto", marginBottom: "24px" }}>
+              <table className="admin-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Customer Name & Email</th>
+                    <th>Subject</th>
+                    <th>Date</th>
+                    <th>Current Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((t) => {
+                    const st = t.status || "Open";
+                    return (
+                      <tr key={t.id}>
+                        <td><b>{t.id}</b></td>
+                        <td>
+                          <div style={{ fontWeight: 600, color: "#2b170d" }}>{t.name || "Devotee"}</div>
+                          <div style={{ fontSize: "11px", color: "#806f62" }}>{t.email}</div>
+                        </td>
+                        <td><span style={{ fontSize: "12.5px" }}>{t.subject}</span></td>
+                        <td><small>{new Date(t.date || t.createdAt || Date.now()).toLocaleDateString()}</small></td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span className={`admin-badge ${getBadgeClass(st)}`}>
+                              {st}
+                            </span>
+                            <select
+                              value={st}
+                              onChange={(e) => handleTicketStatusChange(t.id, e.target.value)}
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                padding: "3px 6px",
+                                borderRadius: "6px",
+                                border: "1px solid #dcd1c6",
+                                background: "#ffffff",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <option value="Open">Open</option>
+                              <option value="Pending / In Progress">Pending / In Progress</option>
+                              <option value="Resolved">Resolved</option>
+                              <option value="Closed">Closed</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <h2 className="admin-section-heading" style={{ marginTop: "28px", display: "flex", alignItems: "center", gap: "8px" }}>

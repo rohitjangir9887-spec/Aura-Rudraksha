@@ -457,31 +457,16 @@ export function AuraAIFloating() {
               bottom: 15
             }}
             whileDrag={{ scale: 1.05, cursor: "grabbing" }}
-            onDragStart={(_, info) => {
-              isDraggingBtnRef.current = true;
-              dragStartPos.current = { x: info.point.x, y: info.point.y };
-            }}
-            onDragEnd={(_, info) => {
-              const dx = Math.abs(info.point.x - dragStartPos.current.x);
-              const dy = Math.abs(info.point.y - dragStartPos.current.y);
-              if (dx < 6 && dy < 6) {
-                setIsOpen(true);
-              }
-              setTimeout(() => {
-                isDraggingBtnRef.current = false;
-              }, 50);
-            }}
           >
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (!isDraggingBtnRef.current) {
-                  setIsOpen(true);
-                }
+                setIsOpen(true);
               }}
               className="aura-ai-floating-btn"
               aria-label="Open Aura AI Shopping Guide (Drag to reposition)"
-              title="Chat with Aura AI (Drag to move anywhere)"
+              title="Chat with Aura AI"
             >
               <div className="aura-ai-drag-handle" title="Drag to move">
                 <GripVertical size={12} />
@@ -494,9 +479,10 @@ export function AuraAIFloating() {
             </button>
             <button
               id="aura-ai-floating-dismiss"
+              type="button"
               className="aura-ai-floating-dismiss"
               onClick={handleDismiss}
-              title="Hide floating button from all pages / Sabhi page se hataayein"
+              title="Hide floating button from all pages"
               aria-label="Hide Aura AI floating button"
             >
               <X size={12} />

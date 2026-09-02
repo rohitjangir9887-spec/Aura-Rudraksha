@@ -223,7 +223,7 @@ export const auraAiClient = {
     } catch (err) {
       console.warn("Aura AI API notice:", err?.message || err);
       return {
-        text: `Aura AI abhi temporarily unavailable hai. 🙏\nAap hamari customer support team se directly contact kar sakte hain:\n\n📞 **Phone / WhatsApp:** +91 9672996531\n✉️ **Email:** support@aurarudraksha.com`,
+        text: `Aura AI abhi temporarily unavailable hai. 🙏\nAap hamari customer support team se directly contact kar sakte hain:\n\n📞 **Phone / WhatsApp:** +91 9672996531\n✉️ **Email:** aurarudrakshaofficial@gmail.com`,
         products: [],
         coupons: [],
         requiresHuman: true,

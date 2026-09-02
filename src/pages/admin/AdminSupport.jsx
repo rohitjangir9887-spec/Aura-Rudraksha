@@ -78,7 +78,19 @@ export function AdminSupport() {
     }
   };
 
-  const statuses = ["All", "Open", "In Progress", "Resolved", "Closed"];
+  const statuses = ["All", "Open", "Pending / In Progress", "Resolved", "Closed", "Cancelled"];
+
+  const getBadgeClass = (status) => {
+    switch (status) {
+      case "Resolved": return "success";
+      case "Closed": return "muted";
+      case "Cancelled": return "error";
+      case "Pending / In Progress":
+      case "In Progress":
+      case "Pending": return "info";
+      default: return "warning";
+    }
+  };
 
   if (viewing) {
     return (
@@ -95,12 +107,13 @@ export function AdminSupport() {
             <select 
               value={viewing.status || "Open"} 
               onChange={(e) => handleUpdateStatus(viewing.id, e.target.value)}
-              style={{padding: '8px 15px', borderRadius: 8, border: '1px solid #dcd1c6', fontWeight: 600, background: '#fff', fontSize: 13}}
+              style={{padding: '8px 15px', borderRadius: 8, border: '1px solid #dcd1c6', fontWeight: 600, background: '#fff', fontSize: 13, cursor: 'pointer'}}
             >
               <option value="Open">Open (Active)</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved (समाधान हो गया)</option>
+              <option value="Pending / In Progress">Pending / In Progress</option>
+              <option value="Resolved">Resolved (Resolved / Done)</option>
               <option value="Closed">Closed</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
           </div>
         </div>
@@ -140,7 +153,7 @@ export function AdminSupport() {
 
           <form onSubmit={handleSendReply} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#6b584c', display: 'block', marginBottom: 4 }}>Reply to Customer (जवाब दें):</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#6b584c', display: 'block', marginBottom: 4 }}>Reply to Customer (Response):</label>
               <textarea
                 rows={4}
                 required
@@ -156,11 +169,13 @@ export function AdminSupport() {
                 <select
                   value={replyStatus}
                   onChange={e => setReplyStatus(e.target.value)}
-                  style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #dcd1c6', fontSize: 12, fontWeight: 600 }}
+                  style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #dcd1c6', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                 >
-                  <option value="In Progress">In Progress</option>
-                  <option value="Resolved">Resolved (समाधान हो गया)</option>
+                  <option value="Open">Open</option>
+                  <option value="Pending / In Progress">Pending / In Progress</option>
+                  <option value="Resolved">Resolved</option>
                   <option value="Closed">Closed</option>
+                  <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
               <button type="submit" className="admin-btn primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -181,7 +196,7 @@ export function AdminSupport() {
       <div className="admin-page-header">
         <div>
           <h1>Customer Support Tickets</h1>
-          <p className="admin-page-subtitle">{tickets.length} total customer inquiries recorded (Active until resolved)</p>
+          <p className="admin-page-subtitle">{tickets.length} total customer inquiries recorded</p>
         </div>
       </div>
 
@@ -215,27 +230,51 @@ export function AdminSupport() {
               <tr><th>ID</th><th>Customer</th><th>Date</th><th>Subject</th><th>Status</th><th>Action</th></tr>
             </thead>
             <tbody>
-              {filteredTickets.map(t => (
-                <tr key={t.id}>
-                  <td><b>{t.id}</b></td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#2b170d' }}>{t.name || "Devotee"}</div>
-                    <div style={{ fontSize: 11, color: '#806f62' }}>{t.email}</div>
-                  </td>
-                  <td><small>{new Date(t.date || t.createdAt || Date.now()).toLocaleDateString()}</small></td>
-                  <td>{t.subject}</td>
-                  <td>
-                    <span className={`admin-badge ${t.status==='Resolved'||t.status==='Closed'?'success':t.status==='In Progress'?'info':'warning'}`}>
-                      {t.status || 'Open'}
-                    </span>
-                  </td>
-                  <td>
-                    <button onClick={() => { setViewing(t); setReplyText(t.adminResponse || ""); setReplyStatus(t.status || "In Progress"); }} className="admin-btn secondary" style={{ padding: '4px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Edit size={14}/> Manage & Reply
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredTickets.map(t => {
+                const currentStatus = t.status || 'Open';
+                return (
+                  <tr key={t.id}>
+                    <td><b>{t.id}</b></td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#2b170d' }}>{t.name || "Devotee"}</div>
+                      <div style={{ fontSize: 11, color: '#806f62' }}>{t.email}</div>
+                    </td>
+                    <td><small>{new Date(t.date || t.createdAt || Date.now()).toLocaleDateString()}</small></td>
+                    <td>{t.subject}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className={`admin-badge ${getBadgeClass(currentStatus)}`}>
+                          {currentStatus}
+                        </span>
+                        <select
+                          value={currentStatus}
+                          onChange={(e) => handleUpdateStatus(t.id, e.target.value)}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '3px 6px',
+                            borderRadius: '6px',
+                            border: '1px solid #dcd1c6',
+                            background: '#ffffff',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="Open">Open</option>
+                          <option value="Pending / In Progress">Pending / In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                          <option value="Closed">Closed</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td>
+                      <button onClick={() => { setViewing(t); setReplyText(t.adminResponse || ""); setReplyStatus(t.status || "Pending / In Progress"); }} className="admin-btn secondary" style={{ padding: '4px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Edit size={14}/> Manage & Reply
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

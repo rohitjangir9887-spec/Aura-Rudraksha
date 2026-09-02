@@ -19,6 +19,8 @@ export function ContactUs() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [openFaq, setOpenFaq] = useState(-1);
+  const settings = db.getSettings();
+  const supportEmail = settings?.supportEmail || "aurarudrakshaofficial@gmail.com";
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -111,8 +113,8 @@ export function ContactUs() {
               </div>
               <h4 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "17px", color: "#2b170d", margin: "0 0 2px" }}>Official Email</h4>
               <p style={{ fontSize: "12px", color: "#7d6d62", margin: "0 0 8px" }}>Response within 24 hours</p>
-              <a href="mailto:support@aurarudraksha.com" style={{ color: "#a54d2b", fontWeight: 700, fontSize: "13px", textDecoration: "none" }}>
-                support@aurarudraksha.com
+              <a href={`mailto:${supportEmail}`} style={{ color: "#a54d2b", fontWeight: 700, fontSize: "13px", textDecoration: "none" }}>
+                {supportEmail}
               </a>
             </div>
 

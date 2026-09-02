@@ -634,7 +634,7 @@ const storeCache = {
   },
   settings: {
     storeName: "Aura Rudraksha",
-    supportEmail: "support@aurarudraksha.com",
+    supportEmail: "aurarudrakshaofficial@gmail.com",
     supportPhone: "+91 9672996531",
     currency: "INR",
     instagramUrl: "https://instagram.com/aurarudraksha",
@@ -644,7 +644,7 @@ const storeCache = {
     returnPolicy: "Your satisfaction and trust in our authentic lab-certified Rudraksha are paramount. We offer a hassle-free 7-day return window for damaged or mismatched orders.\n- 7-Day Returns: You may request a return within 7 days of receiving your shipment.\n- Condition: Items must be returned unused in original aura velvet packaging with lab certificates intact.\n- Refund Process: Approved refunds are credited directly to your original payment method or UPI within 5–7 business days.",
     privacyPolicy: "Aura Rudraksha respects your privacy and is committed to protecting your personal information.\n- Data Safety: We never sell, rent, or trade customer contact details or purchase histories.\n- Secure Checkout: Encrypted payment processing handles all UPI, card, and netbanking transactions safely.\n- Account Privacy: You maintain full ownership over your profile details and saved shipping addresses.",
     termsPolicy: "Welcome to Aura Rudraksha. By using our website and purchasing our sacred items, you agree to the following terms and conditions:\n- Authenticity Guarantee: All beads are lab-tested and certified genuine.\n- Usage: Sacred items are intended for spiritual meditation, devotion, and well-being.\n- Jurisdiction: All disputes are subject to local jurisdiction.",
-    contactSupport: "Dedicated Spiritual Support & Customer Care:\n- Email: support@aurarudraksha.com\n- Phone: +91 9672996531\n- Timings: Monday to Saturday, 9:00 AM – 7:00 PM IST"
+    contactSupport: "Dedicated Spiritual Support & Customer Care:\n- Email: aurarudrakshaofficial@gmail.com\n- Phone: +91 9672996531\n- Timings: Monday to Saturday, 9:00 AM – 7:00 PM IST"
   },
   policies: null,
   tickets: [],
@@ -2148,13 +2148,16 @@ export const db = {
   // SUPPORT TICKETS
   getTickets: () => storeCache.tickets,
   saveTicket: async (t) => {
+    const isExisting = Boolean(t.id && storeCache.tickets.some(x => x.id === t.id));
     const id = t.id || ("TIC-" + Math.floor(1000 + Math.random() * 9000));
     const finalTicket = { ...t, id, date: t.date || new Date().toISOString(), status: t.status || "Open" };
 
     let saved = finalTicket;
     try {
-      const res = await apiRequest("/tickets", {
-        method: "POST",
+      const endpoint = isExisting ? `/tickets/${encodeURIComponent(id)}` : "/tickets";
+      const method = isExisting ? "PUT" : "POST";
+      const res = await apiRequest(endpoint, {
+        method,
         body: JSON.stringify(finalTicket)
       });
       if (res?.success && res.data) {

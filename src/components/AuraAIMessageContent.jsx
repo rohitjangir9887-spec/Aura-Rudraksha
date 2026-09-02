@@ -18,7 +18,7 @@ function sanitizeText(raw) {
   text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
   // Protect against sensitive emails or internal system keys
-  text = text.replace(/rohitjangir\d*@gmail\.com/gi, "support@aurarudraksha.com");
+  text = text.replace(/rohitjangir\d*@gmail\.com/gi, "aurarudrakshaofficial@gmail.com");
   text = text.replace(/MONGODB_[A-Z_]+/gi, "");
   text = text.replace(/GEMINI_API_[A-Z_]+/gi, "");
   text = text.replace(/NVIDIA_API_[A-Z_]+/gi, "");

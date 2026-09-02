@@ -202,7 +202,7 @@ export function Policies() {
 {`We understand plans change. We offer clear and generous cancellation options:
 
 • Prior to Temple Consecration & Dispatch: You can cancel your order anytime before the bead is consecrated and handed over to the courier (usually within 12 to 24 hours of placing the order) for a 100% instant full refund.
-• How to Cancel: Send an instant WhatsApp message to +91 9672996531 with your Order ID or email support@aurarudraksha.com.
+• How to Cancel: Send an instant WhatsApp message to +91 9672996531 with your Order ID or email {settings?.supportEmail || "aurarudrakshaofficial@gmail.com"}.
 • Post-Dispatch Cancellation: If the package has already been handed over to the express courier, you can simply refuse delivery when the courier partner arrives at your doorstep, and a full refund will be processed upon return confirmation.
 • Custom Gold / Silver Capped Orders: Items custom-crafted in hallmarked silver or gold with personalized measurements can be cancelled before metalwork fabrication begins.`}
                 </div>
@@ -236,7 +236,7 @@ export function Policies() {
                 </h2>
                 <div style={{ lineHeight: "1.8", color: "#4a3b32", whiteSpace: "pre-wrap", fontSize: "13.5px", marginBottom: "20px" }}>
                   {policies?.contactSupport || `Dedicated Spiritual Support & Customer Care:
-• Email: support@aurarudraksha.com
+• Email: {settings?.supportEmail || "aurarudrakshaofficial@gmail.com"}
 • Direct Helpline: +91 9672996531
 • WhatsApp Astrologer: +91 9672996531
 • Timings: Monday to Saturday, 9:00 AM – 7:30 PM IST

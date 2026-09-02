@@ -49,7 +49,7 @@ export function Footer() {
   }, [location.pathname]);
 
   const supportPhone = settings.supportPhone || "+91 9672996531";
-  const supportEmail = settings.supportEmail || "support@aurarudraksha.com";
+  const supportEmail = settings.supportEmail || "aurarudrakshaofficial@gmail.com";
   const cleanPhone = supportPhone.replace(/[^0-9]/g, "");
 
   const instagramUrl = settings.instagramUrl || "https://instagram.com/aurarudraksha";
