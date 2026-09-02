@@ -17,7 +17,7 @@ const router = express.Router();
 // User & Public endpoints
 router.post("/chat", optionalAuth, chatAuraAI);
 router.post("/generate-description", requireAdmin, generateProductDescription);
-router.post("/track", trackAuraAIAction);
+router.post("/track", optionalAuth, trackAuraAIAction);
 router.get("/settings", getAuraAISettings);
 router.get("/conversations", optionalAuth, getAuraAIConversations);
 router.get("/conversations/:id", optionalAuth, getAuraAIConversationById);

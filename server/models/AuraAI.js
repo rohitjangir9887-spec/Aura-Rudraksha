@@ -41,9 +41,12 @@ const auraAIConversationSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
     userId: { type: String, default: "guest", index: true },
+    guestSessionId: { type: String, default: "", index: true },
+    ipHash: { type: String, default: "" },
     userEmail: { type: String, default: "" },
     userName: { type: String, default: "Devotee" },
     title: { type: String, default: "Rudraksha Consultation" },
+    mode: { type: String, default: "standard" }, // 'standard' | 'panditji'
     messages: [auraAIMessageSchema],
     productsDiscussed: { type: [String], default: [] },
     productsRecommended: { type: [String], default: [] },

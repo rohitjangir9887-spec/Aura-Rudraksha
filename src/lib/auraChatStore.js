@@ -82,6 +82,38 @@ export function getDateDividerLabel(isoString) {
 }
 
 export const auraChatStore = {
+  getGuestSessionId() {
+    try {
+      let gid = localStorage.getItem("aura_ai_guest_session_id");
+      if (!gid || typeof gid !== "string" || !gid.startsWith("guest_")) {
+        gid = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem("aura_ai_guest_session_id", gid);
+      }
+      return gid;
+    } catch (_) {
+      return "guest_fallback_" + Date.now();
+    }
+  },
+
+  resetGuestSession() {
+    try {
+      const newGid = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem("aura_ai_guest_session_id", newGid);
+      return newGid;
+    } catch (_) {
+      return "guest_fallback_" + Date.now();
+    }
+  },
+
+  clearLocalChats() {
+    try {
+      localStorage.removeItem(STORAGE_KEY_MSGS_STANDARD);
+      localStorage.removeItem(STORAGE_KEY_MSGS_PANDITJI);
+      localStorage.removeItem(STORAGE_KEY_CONV_ID);
+      localStorage.removeItem("aura_ai_unified_chat_history");
+    } catch (_) {}
+  },
+
   getStorageKey(mode = "standard") {
     return mode === "panditji" ? STORAGE_KEY_MSGS_PANDITJI : STORAGE_KEY_MSGS_STANDARD;
   },
@@ -148,7 +180,7 @@ export const auraChatStore = {
 
   // Start a new chat session for active mode
   startNewSession(mode = "standard") {
-    const newConvId = "conv_" + Date.now();
+    const newConvId = "conv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
     try {
       localStorage.setItem(STORAGE_KEY_CONV_ID, newConvId);
     } catch (_) {}
@@ -180,10 +212,23 @@ export const auraChatStore = {
     return { newConvId, messages: updated };
   },
 
+  setConversationId(id) {
+    try {
+      if (id) {
+        localStorage.setItem(STORAGE_KEY_CONV_ID, id);
+      }
+    } catch (_) {}
+  },
+
   // Get active conversation ID
   getConversationId() {
     try {
-      return localStorage.getItem(STORAGE_KEY_CONV_ID) || "conv_" + Date.now();
+      let cid = localStorage.getItem(STORAGE_KEY_CONV_ID);
+      if (!cid) {
+        cid = "conv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        localStorage.setItem(STORAGE_KEY_CONV_ID, cid);
+      }
+      return cid;
     } catch (_) {
       return "conv_" + Date.now();
     }

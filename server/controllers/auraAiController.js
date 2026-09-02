@@ -1,3 +1,4 @@
+import crypto from "crypto";
 const requestCounts = new Map();
 import OpenAI from "openai";
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
@@ -376,6 +377,78 @@ function shouldRecommendProducts({ message, intent, targetMukhi, matchedProducts
   return false;
 }
 
+const IP_HASH_SALT = process.env.IP_HASH_SALT || "aura_ai_ip_salt_998877";
+
+export function getHashedIp(req) {
+  try {
+    const rawIp = 
+      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      req.headers["x-real-ip"] ||
+      req.socket?.remoteAddress ||
+      req.ip ||
+      "127.0.0.1";
+    return crypto.createHash("sha256").update(rawIp + IP_HASH_SALT).digest("hex");
+  } catch (_) {
+    return "unknown_ip_hash";
+  }
+}
+
+export async function verifyConversationOwnership(conv, req) {
+  if (!conv) return { allowed: false, status: 404, message: "Conversation not found" };
+
+  const authenticatedUser = req.user || null;
+  const clientGuestSessionId = (
+    req.headers["x-guest-session-id"] ||
+    req.body?.guestSessionId ||
+    req.query?.guestSessionId ||
+    ""
+  ).trim();
+
+  // Admin bypass
+  if (authenticatedUser) {
+    const { isInitialAdmin } = isAdminUser(authenticatedUser);
+    const isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
+    if (isAdmin) {
+      return { allowed: true };
+    }
+  }
+
+  // If conversation belongs to a logged-in user
+  if (conv.userId && conv.userId !== "guest") {
+    if (!authenticatedUser) {
+      return { allowed: false, status: 401, message: "Authentication required to access this private conversation" };
+    }
+    const isOwner =
+      conv.userId === authenticatedUser.authUserId ||
+      (conv.authUserId && conv.authUserId === authenticatedUser.authUserId) ||
+      (conv.userEmail && authenticatedUser.email && conv.userEmail.toLowerCase() === authenticatedUser.email.toLowerCase());
+
+    if (!isOwner) {
+      return { allowed: false, status: 403, message: "Access Denied: You do not own this conversation" };
+    }
+    return { allowed: true };
+  }
+
+  // If conversation belongs to a guest
+  if (conv.userId === "guest" || !conv.userId) {
+    if (authenticatedUser) {
+      // Logged in user accessing guest conversation - allow if matching guestSessionId
+      if (conv.guestSessionId && clientGuestSessionId && conv.guestSessionId === clientGuestSessionId) {
+        return { allowed: true };
+      }
+      return { allowed: false, status: 403, message: "Access Denied: Conversation belongs to a guest session" };
+    }
+
+    if (!clientGuestSessionId || !conv.guestSessionId || conv.guestSessionId !== clientGuestSessionId) {
+      return { allowed: false, status: 403, message: "Access Denied: Guest session token does not match" };
+    }
+
+    return { allowed: true };
+  }
+
+  return { allowed: false, status: 403, message: "Access Denied" };
+}
+
 export async function chatAuraAI(req, res, next) {
   try {
     const { message, conversationId = "guest", userEmail, userName, mode = "standard", history = [] } = req.body;
@@ -394,6 +467,47 @@ export async function chatAuraAI(req, res, next) {
       verifiedUserId = req.user.authUserId;
       verifiedEmail = (req.user.email || "").toLowerCase().trim();
       verifiedName = req.user.name || "Devotee";
+    }
+
+    const clientGuestSessionId = (
+      req.headers["x-guest-session-id"] ||
+      req.body?.guestSessionId ||
+      ""
+    ).trim();
+
+    let targetConversationId = conversationId;
+    if (!targetConversationId || targetConversationId === "guest") {
+      targetConversationId = "conv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+    }
+
+    let effectiveUserId = "guest";
+    let effectiveEmail = "";
+    let effectiveName = "Devotee";
+    let effectiveGuestSessionId = clientGuestSessionId || ("guest_" + crypto.randomBytes(16).toString("hex"));
+
+    if (userIsAuthenticated) {
+      effectiveUserId = verifiedUserId;
+      effectiveEmail = verifiedEmail;
+      effectiveName = verifiedName;
+      effectiveGuestSessionId = "";
+    }
+
+    let existingConv = null;
+    if (isDbConnected()) {
+      try {
+        existingConv = await AuraAIConversation.findOne({ id: targetConversationId });
+        if (existingConv) {
+          const check = await verifyConversationOwnership(existingConv, req);
+          if (!check.allowed) {
+            return res.status(check.status || 403).json({
+              success: false,
+              message: check.message
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("DB conversation lookup notice:", e?.message);
+      }
     }
 
     // Always ensure catalog and coupons are populated from DB or defaultData fallback
@@ -432,10 +546,9 @@ export async function chatAuraAI(req, res, next) {
     const intent = detectUserIntent(message);
     const targetMukhi = extractMukhiNumber(message);
 
-    // Multi-attribute Vedic catalog search (returns 1-2 exact matches if matched)
+    // Multi-attribute Vedic catalog search
     let matchedProducts = searchRelevantCatalogProducts(message, products);
     
-    // If user's latest query is short, enrich with context from recent user messages
     if (matchedProducts.length === 0 && history.length > 0) {
       const lastUserMsgs = history.filter(h => h.sender === "user").slice(-2).map(h => h.text).join(" ");
       if (lastUserMsgs) {
@@ -443,7 +556,6 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    // Determine whether products should be recommended in this turn
     const isProductRecommendationAppropriate = shouldRecommendProducts({
       message,
       intent,
@@ -451,14 +563,11 @@ export async function chatAuraAI(req, res, next) {
       matchedProducts
     });
 
-    // Only attach 1 or at most 2 relevant products when appropriate; otherwise send empty array
     let finalProducts = [];
     if (isProductRecommendationAppropriate && matchedProducts && matchedProducts.length > 0) {
-      // If user asked about a specific Mukhi/Bead, only show that bead (1 item) or max 2
       finalProducts = matchedProducts.slice(0, 2).map(formatProductForResponse).filter(Boolean);
     }
 
-    // Only attach coupon when user asks about deals/offers/discounts/checkout
     const isCouponAppropriate = (
       intent === "COUPON" ||
       intent === "OFFER" ||
@@ -497,100 +606,9 @@ export async function chatAuraAI(req, res, next) {
 ${isPanditji ? `TONE & PERSONA (AI PANDITJI MODE):
 - Speak with deep respect, spiritual warmth, Vedic authority, and humility.
 - Address the user as "Devotee" or "Bhaktjan". Start greetings with "Namaste 🙏", "Har Har Mahadev 🕉️", "Jai Shree Krishna 🕉️", or "Radhe Radhe 🚩".
-- Provide authentic traditional Jyotish (astrology), Rashi, Nakshatra, and Rudraksha Mukhi (1 Mukhi to 21 Mukhi, Gauri Shankar, 108 Jaap Mala) guidance based on ancient scriptures (Shiv Puran, Shrimad Devi Bhagwat, Padma Puran).
-- Always include traditional Dharan Vidhi (wearing procedures with Monday morning energization, Gangajal, raw milk, and Beej Mantras such as Om Namah Shivaya).` : `TONE & PERSONA (STANDARD MODE):
+- Provide authentic traditional Jyotish (astrology), Rashi, Nakshatra, and Rudraksha Mukhi guidance based on ancient scriptures.
+- Always include traditional Dharan Vidhi.` : `TONE & PERSONA (STANDARD MODE):
 - Warm, polite, knowledgeable, concise, and helpful. Answer customer queries directly.`}
-
-Your job is NOT limited to answering questions about products currently available in the store.
-
-You should intelligently answer customer questions about:
-- Rudraksha
-- All Mukhi Rudraksha from 1 Mukhi to 21 Mukhi and beyond when historically/traditionally referenced
-- Gauri Shankar, Garbh Gauri, Trijuti, Ganesh Rudraksha
-- Rudraksha Mala (108+1)
-- Rudraksha wearing methods (Dharan Vidhi) & care
-- Traditional benefits and significance
-- Which Rudraksha may traditionally suit a person's needs
-- Vedic astrology, Rashi/Zodiac, Nakshatra, Planetary associations, and traditional Jyotish relationships
-- Rudraksha selection guidance
-- Product comparison, availability, price, offers, orders, shipping, returns, and general customer support questions.
-
-IMPORTANT: The example "21 Mukhi Rudraksha" is ONLY an example. Do NOT limit your knowledge or answers to 21 Mukhi.
-
-==================================================
-1. PRODUCT DATABASE FIRST (TWO INFORMATION LAYERS)
-==================================================
-
-LAYER 1 — LIVE AURA STORE DATA
-Always use the live product/database information when answering questions about:
-- Which products Aura Rudraksha currently sells
-- Current price (₹), discount, stock, images, description, available Mukhi, offers, coupons, orders.
-
-Never invent:
-- price, stock, discount, product availability, specifications, certification, laboratory reports, shipping status.
-
-If a Rudraksha is NOT currently available in the Aura Rudraksha store, clearly say:
-"Abhi hamare store mein ye Rudraksha available nahi hai, lekin main aapko is Rudraksha ke traditional significance, associated deity/planet, traditional uses aur dharan vidhi ke baare mein bata sakta hoon."
-Then provide useful information about it.
-Do NOT incorrectly say "Humare paas hai" when the database says it is unavailable.
-
-LAYER 2 — RUDRAKSHA / VEDIC KNOWLEDGE
-If customer asks about an unavailable Mukhi (e.g. 21 Mukhi, 18 Mukhi, Garbh Gauri), answer the knowledge question even if not sold.
-Explain:
-- Traditional name/significance
-- Traditional deity association, where established
-- Traditional planetary association, where established
-- Traditional spiritual significance
-- Traditionally attributed benefits
-- Who traditionally considers it
-- Traditional wearing method
-- Basic care
-- Important cautions/uncertainty
-
-Always distinguish traditional/spiritual beliefs from scientifically established facts ("Vedic parampara ke anusaar...", "Paramparagat roop se maana jata hai...").
-
-==================================================
-3. NEVER GIVE DANGEROUS MEDICAL CLAIMS
-==================================================
-Do NOT claim that Rudraksha cures cancer, diabetes, infertility, heart disease, depression, replaces medicine, guarantees wealth, guarantees marriage, guarantees pregnancy, or guarantees business success.
-If a customer asks about health, clarify that Rudraksha is traditionally used for spiritual/well-being purposes, but it should not replace professional medical care. For serious medical questions recommend consulting a qualified healthcare professional.
-
-==================================================
-4. ASTROLOGY ASSISTANT
-==================================================
-Answer general Vedic astrology questions.
-Do NOT pretend to have a kundli if the customer has not provided required birth information:
-1. Date of Birth
-2. Exact Time of Birth
-3. Place of Birth
-If exact birth time is unavailable, clearly say that a complete kundli-based recommendation may not be reliable. Do NOT invent planetary positions.
-
-==================================================
-5. RUDRAKSHA RECOMMENDATION LOGIC
-==================================================
-When customer asks "Mere liye kaunsi Rudraksha?", understand their goal first (Peace, Focus, Meditation, Spiritual growth, Confidence, Protection, Traditional planetary balance, Study, Career, Business).
-Ask a short follow-up if needed. Do not immediately recommend the most expensive product.
-If a suitable Aura Rudraksha product exists: recommend it with actual current price and availability.
-If no matching product exists: give traditional information, state unavailability in store, and suggest closest available option ONLY if appropriate.
-
-==================================================
-6. NATURAL COMMUNICATION & ANSWER STRUCTURE
-==================================================
-Understand Hindi, Hinglish and English. If customer uses Hindi/Hinglish, reply in simple, natural Hindi/Hinglish.
-For Rudraksha questions, structure the answer as:
-🌿 Rudraksha ka naam
-• Kya hai
-• Traditional significance
-• Traditional benefits
-• Kis purpose ke liye traditionally use hota hai
-• Kaise dharan karein
-• Care kaise karein
-
-🛍️ Aura Rudraksha mein availability:
-Available / Currently unavailable (Show real live product info if available; be honest if unavailable)
-
-DO NOT FORCE SELL:
-${isPanditji ? "AI Panditji is a revered spiritual counselor, NOT an aggressive salesperson." : "Aura AI is a helpful expert assistant, NOT an aggressive salesperson."} Answer the customer's ACTUAL question first.
 
 PRIVACY & ORDER SUPPORT:
 Never reveal another customer's data. Only show authenticated customer's own order details.
@@ -614,9 +632,8 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       res.setHeader("Connection", "keep-alive");
       if (res.flushHeaders) res.flushHeaders();
       
-      res.write(`data: ${JSON.stringify({ type: "start", conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "start", conversationId: targetConversationId, guestSessionId: effectiveGuestSessionId })}\n\n`);
       
-      // Emit product suggestions, coupons, and quick replies immediately so UI renders them upfront
       res.write(`data: ${JSON.stringify({ 
         type: "meta", 
         data: { 
@@ -630,7 +647,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       let fullRawContent = "";
       let generatedViaLLM = false;
 
-      // 1. Exclusive AI Model: NVIDIA NIM
       const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
       if (nvidiaApiKey) {
         try {
@@ -702,7 +718,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         }
       }
 
-      // 2. Fallback to Vedic Intelligence Engine
       if (!generatedViaLLM || !fullRawContent.trim()) {
         const vedicText = buildAuthenticVedicResponse({
           message,
@@ -717,6 +732,60 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
 
       const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
 
+      // Save turn to MongoDB
+      if (isDbConnected()) {
+        try {
+          const userMsg = {
+            id: "msg_u_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+            sender: "user",
+            text: message,
+            timestamp: new Date().toISOString()
+          };
+          const aiMsg = {
+            id: "msg_a_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+            sender: "ai",
+            text: safeFinalText,
+            products: finalProducts,
+            coupons: finalCoupons,
+            quickReplies,
+            requiresHuman: false,
+            timestamp: new Date().toISOString()
+          };
+
+          if (existingConv) {
+            await AuraAIConversation.findOneAndUpdate(
+              { id: targetConversationId },
+              {
+                $push: { messages: { $each: [userMsg, aiMsg] } },
+                $set: {
+                  lastMessageAt: new Date().toISOString(),
+                  mode: mode || existingConv.mode || "standard"
+                },
+                $addToSet: {
+                  productsRecommended: { $each: finalProducts.map(p => String(p.id)) }
+                }
+              }
+            );
+          } else {
+            await AuraAIConversation.create({
+              id: targetConversationId,
+              userId: effectiveUserId,
+              guestSessionId: effectiveGuestSessionId,
+              ipHash: getHashedIp(req),
+              userEmail: effectiveEmail,
+              userName: effectiveName,
+              mode: mode || "standard",
+              title: message.slice(0, 50) + (message.length > 50 ? "..." : ""),
+              messages: [userMsg, aiMsg],
+              productsRecommended: finalProducts.map(p => String(p.id)),
+              lastMessageAt: new Date().toISOString()
+            });
+          }
+        } catch (dbSaveErr) {
+          console.warn("DB save error in chatAuraAI stream:", dbSaveErr?.message);
+        }
+      }
+
       res.write(`data: ${JSON.stringify({ 
         type: "final", 
         data: { 
@@ -725,7 +794,8 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
           coupons: finalCoupons, 
           quickReplies,
           requiresHuman: false,
-          conversationId
+          conversationId: targetConversationId,
+          guestSessionId: effectiveGuestSessionId
         } 
       })}\n\n`);
       res.end();
@@ -736,7 +806,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
     let fullRawContent = "";
     let generatedViaLLM = false;
 
-    // 1. Exclusive AI Model: NVIDIA NIM
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {
@@ -774,7 +843,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       }
     }
 
-    // 2. Fallback to Vedic Intelligence Engine
     if (!generatedViaLLM || !fullRawContent.trim()) {
       fullRawContent = buildAuthenticVedicResponse({
         message,
@@ -786,6 +854,59 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
 
     const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
 
+    if (isDbConnected()) {
+      try {
+        const userMsg = {
+          id: "msg_u_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+          sender: "user",
+          text: message,
+          timestamp: new Date().toISOString()
+        };
+        const aiMsg = {
+          id: "msg_a_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+          sender: "ai",
+          text: safeFinalText,
+          products: finalProducts,
+          coupons: finalCoupons,
+          quickReplies,
+          requiresHuman: false,
+          timestamp: new Date().toISOString()
+        };
+
+        if (existingConv) {
+          await AuraAIConversation.findOneAndUpdate(
+            { id: targetConversationId },
+            {
+              $push: { messages: { $each: [userMsg, aiMsg] } },
+              $set: {
+                lastMessageAt: new Date().toISOString(),
+                mode: mode || existingConv.mode || "standard"
+              },
+              $addToSet: {
+                productsRecommended: { $each: finalProducts.map(p => String(p.id)) }
+              }
+            }
+          );
+        } else {
+          await AuraAIConversation.create({
+            id: targetConversationId,
+            userId: effectiveUserId,
+            guestSessionId: effectiveGuestSessionId,
+            ipHash: getHashedIp(req),
+            userEmail: effectiveEmail,
+            userName: effectiveName,
+            mode: mode || "standard",
+            title: message.slice(0, 50) + (message.length > 50 ? "..." : ""),
+            messages: [userMsg, aiMsg],
+            productsRecommended: finalProducts.map(p => String(p.id)),
+            lastMessageAt: new Date().toISOString()
+          });
+        }
+      } catch (dbSaveErr) {
+        console.warn("DB save error in chatAuraAI non-stream:", dbSaveErr?.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -794,7 +915,8 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         coupons: finalCoupons,
         quickReplies,
         requiresHuman: false,
-        conversationId
+        conversationId: targetConversationId,
+        guestSessionId: effectiveGuestSessionId
       }
     });
   } catch (error) {
@@ -854,6 +976,11 @@ export async function updateAuraAISettings(req, res, next) {
 export async function getAuraAIConversations(req, res, next) {
   try {
     const authenticatedUser = req.user || null;
+    const clientGuestSessionId = (
+      req.headers["x-guest-session-id"] ||
+      req.query?.guestSessionId ||
+      ""
+    ).trim();
 
     if (isDbConnected()) {
       let query = {};
@@ -862,21 +989,30 @@ export async function getAuraAIConversations(req, res, next) {
       const isAdmin = isInitialAdmin || (authenticatedUser ? await hasAdminRole(authenticatedUser.authUserId) : false);
 
       if (!isAdmin) {
-        if (!authenticatedUser) {
-          return res.json({ success: true, data: [], count: 0 });
+        if (authenticatedUser) {
+          const scopedEmail = (authenticatedUser.email || "").toLowerCase().trim();
+          const scopedId = authenticatedUser.authUserId || "";
+          const queryOr = [];
+          if (scopedEmail) queryOr.push({ userEmail: scopedEmail });
+          if (scopedId) {
+            queryOr.push({ userId: scopedId });
+            queryOr.push({ authUserId: scopedId });
+          }
+          query = queryOr.length > 0 ? { $or: queryOr } : { userId: "__none__" };
+        } else {
+          if (!clientGuestSessionId) {
+            return res.json({ success: true, data: [], count: 0 });
+          }
+          query = { userId: "guest", guestSessionId: clientGuestSessionId };
         }
-        const scopedEmail = (authenticatedUser.email || "").toLowerCase();
-        const scopedId = authenticatedUser.authUserId || "";
-        const queryOr = [];
-        if (scopedEmail) queryOr.push({ userEmail: scopedEmail });
-        if (scopedId) {
-          queryOr.push({ userId: scopedId });
-          queryOr.push({ authUserId: scopedId });
-        }
-        query = queryOr.length > 0 ? { $or: queryOr } : { userId: "__none__" };
       }
 
-      const convos = await AuraAIConversation.find(query).sort({ updatedAt: -1 }).limit(50).lean();
+      const convos = await AuraAIConversation.find(query)
+        .select("-ipHash")
+        .sort({ updatedAt: -1 })
+        .limit(50)
+        .lean();
+
       return res.json({ success: true, data: convos || [], count: (convos || []).length });
     }
 
@@ -896,25 +1032,15 @@ export async function getAuraAIConversations(req, res, next) {
 export async function getAuraAIConversationById(req, res, next) {
   try {
     const { id } = req.params;
-    const authenticatedUser = req.user || null;
-
-    if (!authenticatedUser) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
     if (isDbConnected()) {
-      const conv = await AuraAIConversation.findOne({ id }).lean();
+      const conv = await AuraAIConversation.findOne({ id }).select("-ipHash").lean();
       if (!conv) {
         return res.status(404).json({ success: false, message: "Conversation not found" });
       }
 
-      const { isInitialAdmin } = isAdminUser(authenticatedUser);
-      const isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
-      const isOwner =
-        (conv.userId && conv.userId === authenticatedUser.authUserId) ||
-        (conv.authUserId && conv.authUserId === authenticatedUser.authUserId) ||
-        (authenticatedUser.email && conv.userEmail && conv.userEmail.toLowerCase() === authenticatedUser.email.toLowerCase());
-      if (!isAdmin && !isOwner) {
-        return res.status(403).json({ success: false, message: "Access Denied: You do not own this conversation" });
+      const check = await verifyConversationOwnership(conv, req);
+      if (!check.allowed) {
+        return res.status(check.status || 403).json({ success: false, message: check.message });
       }
 
       return res.json({ success: true, data: conv });
@@ -929,25 +1055,15 @@ export async function getAuraAIConversationById(req, res, next) {
 export async function deleteAuraAIConversation(req, res, next) {
   try {
     const { id } = req.params;
-    const authenticatedUser = req.user || null;
-
-    if (!authenticatedUser) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
     if (isDbConnected()) {
       const conv = await AuraAIConversation.findOne({ id });
       if (!conv) {
         return res.json({ success: true, message: "Conversation already removed." });
       }
 
-      const { isInitialAdmin } = isAdminUser(authenticatedUser);
-      const isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
-      const isOwner =
-        (conv.userId && conv.userId === authenticatedUser.authUserId) ||
-        (conv.authUserId && conv.authUserId === authenticatedUser.authUserId) ||
-        (authenticatedUser.email && conv.userEmail && conv.userEmail.toLowerCase() === authenticatedUser.email.toLowerCase());
-      if (!isAdmin && !isOwner) {
-        return res.status(403).json({ success: false, message: "Access Denied: You cannot delete this conversation" });
+      const check = await verifyConversationOwnership(conv, req);
+      if (!check.allowed) {
+        return res.status(check.status || 403).json({ success: false, message: check.message });
       }
 
       await AuraAIConversation.deleteOne({ id });
@@ -968,6 +1084,14 @@ export async function trackAuraAIAction(req, res, next) {
     const cleanOrder = typeof orderId === "string" ? orderId.slice(0, 120) : "";
 
     if (isDbConnected()) {
+      const conv = await AuraAIConversation.findOne({ id: conversationId });
+      if (conv) {
+        const check = await verifyConversationOwnership(conv, req);
+        if (!check.allowed) {
+          return res.status(check.status || 403).json({ success: false, message: check.message });
+        }
+      }
+
       if (action === "cart" && cleanProduct) {
         await AuraAIConversation.findOneAndUpdate(
           { id: conversationId },

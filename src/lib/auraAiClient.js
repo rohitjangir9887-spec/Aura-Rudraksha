@@ -1,9 +1,21 @@
 import { authClient } from "./authClient";
 import { parseAuraAiPayload, customerSafeAiText } from "./auraAiResponse";
+import { auraChatStore } from "./auraChatStore";
 
 const API_BASE = ((import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "")) + "/aura-ai";
 
+let activeStreamAbortController = null;
+
 export const auraAiClient = {
+  abortActiveStream() {
+    if (activeStreamAbortController) {
+      try {
+        activeStreamAbortController.abort();
+      } catch (_) {}
+      activeStreamAbortController = null;
+    }
+  },
+
   // Send chat message to Aura AI (Streaming SSE enabled)
   async sendMessageStream({
     message,
@@ -50,17 +62,25 @@ export const auraAiClient = {
     };
 
     try {
+      this.abortActiveStream();
+      activeStreamAbortController = new AbortController();
+
       const token = await authClient.getToken();
+      const guestSessionId = auraChatStore.getGuestSessionId();
+
       const res = await fetch(`${API_BASE}/chat?stream=true`, {
         method: "POST",
+        signal: activeStreamAbortController.signal,
         headers: {
           "Content-Type": "application/json",
           "Accept": "text/event-stream",
+          "X-Guest-Session-ID": guestSessionId,
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           message,
           conversationId,
+          guestSessionId,
           userEmail,
           userName,
           mode,
@@ -103,7 +123,6 @@ export const auraAiClient = {
           }
         }
 
-        // Fallback strategy per Technical Requirement C:
         let safeFinalText = finalData?.text ? customerSafeAiText(finalData.text) : "";
         let safeAccumulated = customerSafeAiText(accumulatedRaw);
 
@@ -152,6 +171,9 @@ export const auraAiClient = {
         return result;
       }
     } catch (err) {
+      if (err.name === "AbortError") {
+        return { aborted: true };
+      }
       console.warn("Aura AI streaming notice:", err?.message || err);
       if (onError) onError(err);
       
@@ -165,6 +187,8 @@ export const auraAiClient = {
       };
       if (onDone) onDone(fallbackResult);
       return fallbackResult;
+    } finally {
+      activeStreamAbortController = null;
     }
   },
 
@@ -172,15 +196,18 @@ export const auraAiClient = {
   async sendMessage({ message, conversationId, userEmail, userName, cartItems = [], history = [] }) {
     try {
       const token = await authClient.getToken();
+      const guestSessionId = auraChatStore.getGuestSessionId();
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Guest-Session-ID": guestSessionId,
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           message,
           conversationId,
+          guestSessionId,
           userEmail,
           userName,
           cartItems,
@@ -250,8 +277,10 @@ export const auraAiClient = {
   async getConversations() {
     try {
       const token = await authClient.getToken();
-      const res = await fetch(`${API_BASE}/conversations`, {
+      const guestSessionId = auraChatStore.getGuestSessionId();
+      const res = await fetch(`${API_BASE}/conversations?guestSessionId=${encodeURIComponent(guestSessionId)}`, {
         headers: {
+          "X-Guest-Session-ID": guestSessionId,
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
       });
@@ -261,13 +290,32 @@ export const auraAiClient = {
     return [];
   },
 
+  // Get Single Conversation
+  async getConversationById(id) {
+    try {
+      const token = await authClient.getToken();
+      const guestSessionId = auraChatStore.getGuestSessionId();
+      const res = await fetch(`${API_BASE}/conversations/${id}?guestSessionId=${encodeURIComponent(guestSessionId)}`, {
+        headers: {
+          "X-Guest-Session-ID": guestSessionId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (data.success) return data.data;
+    } catch (_) {}
+    return null;
+  },
+
   // Delete Conversation
   async deleteConversation(id) {
     try {
       const token = await authClient.getToken();
+      const guestSessionId = auraChatStore.getGuestSessionId();
       const res = await fetch(`${API_BASE}/conversations/${id}`, {
         method: "DELETE",
         headers: {
+          "X-Guest-Session-ID": guestSessionId,
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
       });
@@ -280,10 +328,16 @@ export const auraAiClient = {
   // Track product click or cart add from AI
   async trackAction({ conversationId, action, productId }) {
     try {
+      const token = await authClient.getToken();
+      const guestSessionId = auraChatStore.getGuestSessionId();
       await fetch(`${API_BASE}/track`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, action, productId })
+        headers: {
+          "Content-Type": "application/json",
+          "X-Guest-Session-ID": guestSessionId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ conversationId, action, productId, guestSessionId })
       });
     } catch (_) {}
   },

@@ -96,6 +96,63 @@ export function AuraAIFloating() {
     setMessages(auraChatStore.getMessages(mode));
   }, [mode]);
 
+  // Handle Auth changes (Login / Logout isolation)
+  useEffect(() => {
+    let isMounted = true;
+    const unsub = authClient.onAuthStateChanged(async (currentUser) => {
+      auraAiClient.abortActiveStream();
+      auraChatStore.clearLocalChats();
+
+      if (!currentUser) {
+        auraChatStore.resetGuestSession();
+        const newConvId = "conv_guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        auraChatStore.setConversationId(newConvId);
+        setConversationId(newConvId);
+        const initMsgs = [auraChatStore.getDefaultInitialMessage(mode)];
+        auraChatStore.saveMessages(initMsgs, mode);
+        if (isMounted) setMessages(initMsgs);
+      } else {
+        try {
+          const convos = await auraAiClient.getConversations();
+          if (isMounted) {
+            if (convos && convos.length > 0) {
+              const latest = convos[0];
+              const cid = latest.id || latest.conversationId || ("conv_" + Date.now());
+              auraChatStore.setConversationId(cid);
+              setConversationId(cid);
+              const msgs = Array.isArray(latest.messages) && latest.messages.length > 0
+                ? latest.messages
+                : [auraChatStore.getDefaultInitialMessage(mode)];
+              auraChatStore.saveMessages(msgs, mode);
+              setMessages(msgs);
+            } else {
+              const newConvId = "conv_u_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+              auraChatStore.setConversationId(newConvId);
+              setConversationId(newConvId);
+              const initMsgs = [auraChatStore.getDefaultInitialMessage(mode)];
+              auraChatStore.saveMessages(initMsgs, mode);
+              setMessages(initMsgs);
+            }
+          }
+        } catch (_) {
+          if (isMounted) {
+            const newConvId = "conv_u_" + Date.now();
+            auraChatStore.setConversationId(newConvId);
+            setConversationId(newConvId);
+            const initMsgs = [auraChatStore.getDefaultInitialMessage(mode)];
+            auraChatStore.saveMessages(initMsgs, mode);
+            setMessages(initMsgs);
+          }
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (typeof unsub === "function") unsub();
+    };
+  }, [mode]);
+
   // Auto-grow textarea height on input change
   useEffect(() => {
     if (textareaRef.current) {
