@@ -1070,6 +1070,58 @@ export const db = {
     return savedData;
   },
 
+  // PAYU LIVE PAYMENT GATEWAY INTEGRATION
+  initiatePayment: async (payload) => {
+    const res = await apiRequest("/payment/initiate", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to initiate PayU payment.");
+    }
+    return res;
+  },
+
+  verifyPayment: async (orderId) => {
+    const res = await apiRequest(`/payment/verify/${orderId}`);
+    if (res?.success && res.data) {
+      const idx = storeCache.orders.findIndex(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
+      if (idx >= 0) {
+        storeCache.orders[idx] = { ...storeCache.orders[idx], ...res.data };
+        emitStoreUpdate("order:updated", storeCache.orders[idx]);
+      }
+    }
+    return res;
+  },
+
+  retryPayment: async (orderId) => {
+    const res = await apiRequest(`/payment/retry/${orderId}`, {
+      method: "POST"
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to generate PayU payment retry.");
+    }
+    return res;
+  },
+
+  processRefund: async (orderId, { refundAmount, reason }) => {
+    const res = await apiRequest(`/payment/refund/${orderId}`, {
+      method: "POST",
+      body: JSON.stringify({ refundAmount, reason })
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to process PayU refund.");
+    }
+    if (res.data) {
+      const idx = storeCache.orders.findIndex(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
+      if (idx >= 0) {
+        storeCache.orders[idx] = { ...storeCache.orders[idx], ...res.data };
+        emitStoreUpdate("order:updated", storeCache.orders[idx]);
+      }
+    }
+    return res;
+  },
+
   // ADDRESSES
   getAddresses: async () => {
     try {

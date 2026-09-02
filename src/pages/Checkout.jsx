@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
@@ -14,7 +14,10 @@ import {
   ArrowRight, 
   Loader2, 
   ShoppingBag,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle,
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -31,6 +34,14 @@ import { CheckoutStickyFooter } from "../components/checkout/CheckoutStickyFoote
 import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
 
 export function Checkout() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const successParam = searchParams.get("success");
+  const failedParam = searchParams.get("failed");
+  const txnidParam = searchParams.get("txnid");
+  const reasonParam = searchParams.get("reason");
+
   const [products, setProducts] = useState(() => db.getProducts());
   const [activeOffer, setActiveOffer] = useState(() => db.getActiveOffer());
   const [availableCoupons, setAvailableCoupons] = useState(() => 
@@ -58,10 +69,10 @@ export function Checkout() {
     applyCoupon,
     removeCoupon
   } = useCart();
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   // Form State
@@ -88,15 +99,34 @@ export function Checkout() {
   const [couponSuccessMsg, setCouponSuccessMsg] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
-  // Payment Method State
-  const [paymentMethod, setPaymentMethod] = useState("cod");
-
-  // Redirect if cart is empty
+  // Redirect if cart is empty and not viewing success/failed
   useEffect(() => {
-    if (lines.length === 0 && !success) {
+    if (lines.length === 0 && !successParam && !failedParam && !confirmedOrder) {
       navigate("/cart");
     }
-  }, [lines.length, success, navigate]);
+  }, [lines.length, successParam, failedParam, confirmedOrder, navigate]);
+
+  // Handle Return from PayU Success
+  useEffect(() => {
+    if (successParam) {
+      async function fetchSuccessOrder() {
+        try {
+          const res = await db.getOrder(successParam);
+          if (res?.success && res.data) {
+            setConfirmedOrder(res.data);
+            clear(); // Clear cart on confirmed payment
+          } else {
+            setConfirmedOrder({ id: successParam, txnid: txnidParam });
+            clear();
+          }
+        } catch (_) {
+          setConfirmedOrder({ id: successParam, txnid: txnidParam });
+          clear();
+        }
+      }
+      fetchSuccessOrder();
+    }
+  }, [successParam, txnidParam, clear]);
 
   // Sync store data & customer profile
   useEffect(() => {
@@ -280,7 +310,26 @@ export function Checkout() {
     return Object.keys(errors).length === 0;
   };
 
-  // Submission Flow
+  // Helper to submit standard POST form to PayU Hosted Checkout URL
+  const postToPayuGateway = (paymentUrl, params) => {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = paymentUrl;
+    form.style.display = "none";
+
+    Object.entries(params).forEach(([key, val]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = val !== undefined && val !== null ? String(val) : "";
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  // Live PayU Hosted Checkout Submission Flow
   const executeOrderSubmission = async () => {
     setLoading(true);
 
@@ -323,7 +372,7 @@ export function Checkout() {
       };
     });
 
-    const orderObj = {
+    const paymentPayload = {
       customerEmail: cleanEmail,
       customerName: fullName,
       firstName: addressObj.firstName,
@@ -332,22 +381,23 @@ export function Checkout() {
       address: fullAddressString,
       shippingAddress: addressObj,
       couponCode: appliedCoupon?.code || couponCode || "",
-      paymentMethod: paymentMethod === "cod" ? "Cash on Delivery (COD)" : "Online Payment",
       items: cart,
       lines: lines,
-      snapshotItems: snapshotItems,
-      status: "Confirmed"
+      snapshotItems: snapshotItems
     };
 
     try {
-      const savedOrder = await db.saveOrder(orderObj);
-      setSuccess(savedOrder.id || savedOrder.orderId);
-      setLoading(false);
-      emitToast(`Order #${savedOrder.id || savedOrder.orderId} placed successfully!`, "success");
-      clear();
+      const res = await db.initiatePayment(paymentPayload);
+      if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        emitToast("Redirecting to PayU Secure Gateway...", "info");
+        // Automatically submit hidden form to PayU Hosted Checkout
+        postToPayuGateway(res.data.paymentUrl, res.data.params);
+      } else {
+        throw new Error(res?.message || "Could not initialize PayU payment gateway");
+      }
     } catch (err) {
       setLoading(false);
-      emitToast(err.message || "Could not place order. Please check your details and retry.", "error");
+      emitToast(err.message || "Payment initiation failed. Please verify your details and retry.", "error");
     }
   };
 
@@ -382,8 +432,29 @@ export function Checkout() {
     await executeOrderSubmission();
   };
 
-  // SUCCESS SCREEN
-  if (success) {
+  // Retry Payment on failed order
+  const handleRetryPayment = async (orderId) => {
+    setRetrying(true);
+    try {
+      const res = await db.retryPayment(orderId);
+      if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        emitToast("Connecting to PayU for payment retry...", "info");
+        postToPayuGateway(res.data.paymentUrl, res.data.params);
+      } else {
+        throw new Error(res?.message || "Could not generate retry payment attempt");
+      }
+    } catch (err) {
+      setRetrying(false);
+      emitToast(err.message || "Failed to retry payment. Please try again or create a fresh order.", "error");
+    }
+  };
+
+  // SUCCESS SCREEN (Returned from PayU with verified payment)
+  if (confirmedOrder || successParam) {
+    const orderData = confirmedOrder || { id: successParam, txnid: txnidParam };
+    const orderNum = orderData.id || orderData.orderId || successParam;
+    const finalTxnid = orderData.txnid || txnidParam || "Verified";
+
     return (
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto" }}>
@@ -412,14 +483,31 @@ export function Checkout() {
               <CheckCircle2 size={48} color="#20a95a" />
             </motion.div>
 
+            <div 
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#eef6f0",
+                color: "#166534",
+                padding: "4px 12px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: "700",
+                marginBottom: "12px"
+              }}
+            >
+              <ShieldCheck size={14} /> PayU Payment Verified & Paid
+            </div>
+
             <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "36px", fontWeight: "700", color: "#2b170d", margin: "0 0 8px" }}>
-              Order Confirmed & Placed!
+              Sacred Order Confirmed!
             </h1>
             <p style={{ fontSize: "15px", color: "#2b170d", margin: "0 0 6px" }}>
-              Thank you! Your sacred order <b>#{success}</b> has been received.
+              Thank you! Your sacred order <b>#{orderNum}</b> has been received and verified.
             </p>
-            <p style={{ fontSize: "12.5px", color: "#806f62", margin: "0 0 24px" }}>
-              You will receive real-time dispatch and tracking updates on WhatsApp.
+            <p style={{ fontSize: "12.5px", color: "#806f62", margin: "0 0 20px" }}>
+              PayU Txn ID: <code style={{ background: "#f5ece2", padding: "2px 6px", borderRadius: "4px", color: "#2b170d" }}>{finalTxnid}</code>
             </p>
 
             {/* Delivery Destination Box */}
@@ -438,22 +526,22 @@ export function Checkout() {
                 <Truck size={16} color="#b85d25" /> Delivery Destination:
               </div>
               <div style={{ color: "#4a3528", lineHeight: "1.6" }}>
-                <b>{formData.firstName} {formData.lastName}</b><br />
-                {formData.address}, {formData.city}, {formData.state} - <b>{formData.pincode}</b><br />
-                📞 Phone: {formData.phone}
-                {formData.email && <><br />✉️ Email: {formData.email}</>}
+                <b>{orderData.customerName || (orderData.firstName ? `${orderData.firstName} ${orderData.lastName || ''}` : "Sacred Devotee")}</b><br />
+                {orderData.address || `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`}<br />
+                📞 Phone: {orderData.phone || orderData.customerPhone || formData.phone}
+                {(orderData.customerEmail || formData.email) && <><br />✉️ Email: {orderData.customerEmail || formData.email}</>}
               </div>
             </div>
 
             {/* Actions */}
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link 
-                to={`/account/orders/${success}`} 
+                to={`/account/orders/${orderNum}`} 
                 id="btn-view-order-details"
                 className="primary-btn" 
                 style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}
               >
-                View Order Details
+                View Order Details & Status
               </Link>
               <Link 
                 to="/shop" 
@@ -463,6 +551,118 @@ export function Checkout() {
               >
                 Continue Exploring
               </Link>
+            </div>
+          </motion.div>
+        </main>
+      </Shell>
+    );
+  }
+
+  // PAYMENT FAILED VIEW (Returned from PayU with failure or cancel)
+  if (failedParam) {
+    return (
+      <Shell>
+        <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
+          <motion.div 
+            id="order-failed-view"
+            className="card"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ 
+              background: "#fffdf9", 
+              border: "1.5px solid #fecaca", 
+              borderRadius: "16px", 
+              padding: "36px 20px", 
+              textAlign: "center" 
+            }}
+          >
+            <div 
+              style={{
+                width: "64px",
+                height: "64px",
+                borderRadius: "50%",
+                background: "#fef2f2",
+                color: "#dc2626",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px"
+              }}
+            >
+              <AlertCircle size={36} />
+            </div>
+
+            <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "32px", fontWeight: "700", color: "#991b1b", margin: "0 0 8px" }}>
+              Payment Incomplete
+            </h1>
+
+            <p style={{ fontSize: "14px", color: "#4a3528", margin: "0 0 10px", lineHeight: "1.5" }}>
+              The payment session with PayU could not be completed or was cancelled.
+            </p>
+
+            {reasonParam && (
+              <div 
+                style={{
+                  background: "#fef2f2",
+                  border: "1px solid #fee2e2",
+                  borderRadius: "8px",
+                  padding: "10px 14px",
+                  fontSize: "12px",
+                  color: "#b91c1c",
+                  margin: "12px auto 24px",
+                  maxWidth: "480px"
+                }}
+              >
+                <b>Reason:</b> {decodeURIComponent(reasonParam)}
+              </div>
+            )}
+
+            <p style={{ fontSize: "12.5px", color: "#806f62", marginBottom: "24px" }}>
+              Your order is safely preserved under <b>#{failedParam}</b>. You can retry payment immediately via UPI, Cards, or Net Banking without re-entering your cart details.
+            </p>
+
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                id="btn-retry-payu-payment"
+                disabled={retrying}
+                onClick={() => handleRetryPayment(failedParam)}
+                style={{
+                  background: retrying ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "13px 26px",
+                  fontSize: "14.5px",
+                  fontWeight: "700",
+                  cursor: retrying ? "wait" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 4px 14px rgba(165, 77, 43, 0.3)"
+                }}
+              >
+                {retrying ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Connecting to PayU...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={16} />
+                    <span>Retry Payment with PayU</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/cart")}
+                className="outline-btn"
+                style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
+              >
+                Back to Cart
+              </button>
             </div>
           </motion.div>
         </main>
@@ -527,7 +727,7 @@ export function Checkout() {
           </button>
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#166534", fontWeight: "700" }}>
-            <Lock size={12} /> 256-Bit SSL Checkout
+            <Lock size={12} /> PayU Live 256-Bit SSL Checkout
           </div>
         </div>
 
@@ -599,16 +799,13 @@ export function Checkout() {
           couponError={couponError}
           couponSuccessMsg={couponSuccessMsg}
           onCheckout={handlePlaceOrder}
-          ctaText={`Place Order • ${money(finalTotal)}`}
+          ctaText={`Pay with PayU • ${money(finalTotal)}`}
           isCheckoutPage={true}
           loading={loading}
         />
 
-        {/* 7. Payment Method (Card 3) */}
-        <CheckoutPaymentMethod 
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
-        />
+        {/* 7. Payment Method (Card 3 - PayU Hosted Checkout) */}
+        <CheckoutPaymentMethod />
 
         {/* 8. Final Reassurance */}
         <CheckoutReassurance />
@@ -641,11 +838,12 @@ export function Checkout() {
             {loading ? (
               <>
                 <Loader2 size={20} className="animate-spin" />
-                <span>Processing Order...</span>
+                <span>Redirecting to PayU Gateway...</span>
               </>
             ) : (
               <>
-                <span>Place Order • {money(finalTotal)}</span>
+                <Zap size={18} />
+                <span>Pay with PayU • {money(finalTotal)}</span>
                 <ArrowRight size={20} />
               </>
             )}
@@ -653,7 +851,7 @@ export function Checkout() {
           
           <div style={{ textAlign: "center", marginTop: "10px", fontSize: "12px", color: "#6e5d50", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
             <Lock size={13} color="#166534" />
-            <span>Clicking "Place Order" securely registers your order & dispatches from Nepal</span>
+            <span>Clicking "Pay with PayU" safely redirects to RBI-authorized 256-Bit SSL payment gateway</span>
           </div>
         </div>
 

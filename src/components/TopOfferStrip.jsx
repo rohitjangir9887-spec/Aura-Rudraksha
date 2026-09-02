@@ -1,139 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import { db, onStoreUpdate } from '../lib/db';
+import React, { useState } from 'react';
 import { emitToast } from '../context/ToastContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useActiveOffer } from '../hooks/useActiveOffer';
 
 export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
-  const [activePromos, setActivePromos] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0, expired: false });
+  const { offer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer();
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
-  const loadPromos = () => {
-    const now = Date.now();
-    const promos = db.getTopPromos().filter(p => {
-      if (!p.enablePromo || p.status === 'Disabled' || p.status === 'Inactive' || p.status === 'Expired') return false;
-      if (p.startDate && new Date(p.startDate).getTime() > now) return false;
-      if (p.expiry && new Date(p.expiry).getTime() <= now) return false;
-      return true;
-    }).sort((a, b) => (a.priority || 1) - (b.priority || 1));
-
-    setActivePromos(promos);
-  };
-
-  useEffect(() => {
-    loadPromos();
-    const unsub = onStoreUpdate(() => loadPromos());
-    return () => unsub();
-  }, []);
-
-  const currentPromo = activePromos[currentIndex] || activePromos[0];
-
-  // Rotation effect if multiple promos and rotation is enabled
-  useEffect(() => {
-    if (activePromos.length <= 1 || !currentPromo?.rotationEnabled) return;
-    const intervalSec = Number(currentPromo.rotationInterval) || 10;
-    const timer = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % activePromos.length);
-    }, intervalSec * 1000);
-    return () => clearInterval(timer);
-  }, [activePromos.length, currentPromo?.rotationEnabled, currentPromo?.rotationInterval]);
-
-  // Real-time countdown timer
-  useEffect(() => {
-    if (!currentPromo || !currentPromo.expiry || !currentPromo.enableCountdown) return;
-
-    const target = new Date(currentPromo.expiry).getTime();
-    if (isNaN(target)) return;
-
-    const calcTime = () => {
-      const now = Date.now();
-      const diff = target - now;
-
-      if (diff <= 0) {
-        setTimeLeft({ d: 0, h: 0, m: 0, s: 0, expired: true });
-        loadPromos(); // Reload to remove expired promo
-        return true; // Expired
-      }
-
-      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setTimeLeft({ d, h, m, s, expired: false });
-      return false;
-    };
-
-    const isExp = calcTime();
-    if (isExp) return;
-
-    const timer = setInterval(() => {
-      const expired = calcTime();
-      if (expired) {
-        clearInterval(timer);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [currentPromo?.expiry, currentPromo?.enableCountdown, currentPromo?.id]);
-
-  if (!currentPromo || !currentPromo.enablePromo || activePromos.length === 0) return null;
+  if (!isActive || offer?.topStripEnabled === false || isExpired) {
+    return null;
+  }
 
   const handleCopyCoupon = (e) => {
     e.stopPropagation();
-    if (currentPromo.couponCode) {
-      navigator.clipboard.writeText(currentPromo.couponCode);
-      emitToast("Coupon code copied", "success");
+    if (offer.couponCode) {
+      copyCoupon(e);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
     }
   };
 
   const handleBannerClick = () => {
-    if (currentPromo.clickablePromo && currentPromo.ctaLink) {
-      navigate(currentPromo.ctaLink);
+    if (offer.ctaLink) {
+      navigate(offer.ctaLink);
+    } else {
+      navigate('/shop');
     }
   };
 
   // Theme defaults matching Aura Rudraksha premium palette
-  const bgColor = currentPromo.bgColor || '#2b170d';
-  const textColor = currentPromo.textColor || '#fbf5ef';
-  const offerTextColor = currentPromo.offerTextColor || '#f5c382';
-  const couponBg = currentPromo.couponBg || 'rgba(255, 255, 255, 0.12)';
-  const couponBorder = currentPromo.couponBorderColor || '#c88a3d';
-  const countdownBg = currentPromo.countdownBg || 'rgba(0, 0, 0, 0.25)';
-  const countdownNumColor = currentPromo.countdownNumColor || '#fbf5ef';
-  const countdownLabelColor = currentPromo.countdownLabelColor || '#c88a3d';
+  const bgColor = offer.backgroundColor || '#2b170d';
+  const textColor = offer.textColor || '#fbf5ef';
+  const offerTextColor = '#f5c382';
+  const couponBg = 'rgba(255, 255, 255, 0.12)';
+  const couponBorder = offer.accentColor || '#c88a3d';
+  const countdownBg = 'rgba(0, 0, 0, 0.3)';
+  const countdownNumColor = offer.textColor || '#fbf5ef';
+  const countdownLabelColor = offer.accentColor || '#c88a3d';
 
   let backgroundStyle = { background: bgColor, color: textColor };
-  if (currentPromo.backgroundType === 'linear-gradient') {
+  if (offer.backgroundType === 'linear-gradient') {
     backgroundStyle = {
-      background: `linear-gradient(135deg, ${currentPromo.gradientColor1 || '#2b170d'}, ${currentPromo.gradientColor2 || '#4b2614'})`,
+      background: `linear-gradient(135deg, ${offer.gradientColor1 || '#2b170d'}, ${offer.gradientColor2 || '#4b2614'})`,
       color: textColor
     };
-  } else if (currentPromo.backgroundType === 'radial-gradient') {
+  } else {
     backgroundStyle = {
-      background: `radial-gradient(circle, ${currentPromo.gradientColor1 || '#2b170d'}, ${currentPromo.gradientColor2 || '#211109'})`,
+      background: `linear-gradient(90deg, #2b170d 0%, #431f0f 50%, #2b170d 100%)`,
       color: textColor
     };
   }
 
-  // Animation variants
-  const animProps = currentPromo.animationEnabled ? {
-    initial: { opacity: 0, y: -10 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -10 },
-    transition: { duration: 0.35, ease: "easeOut" }
-  } : {};
+  const hasTimer = offer.timerEnabled !== false && (offer.expiresAt || offer.expiry) && !timeLeft.isExpired;
+  const showDays = Number(timeLeft.days) > 0;
 
   return (
     <motion.div 
-      {...animProps}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
       className="top-promo-strip" 
       style={{
         ...backgroundStyle,
-        borderBottom: `1px solid ${currentPromo.borderColor || '#4b2614'}`,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)'
+        borderBottom: `1px solid ${offer.borderColor || '#4b2614'}`,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+        cursor: 'pointer'
       }}
       onClick={handleBannerClick}
     >
@@ -144,26 +77,28 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '3px 4%',
+        padding: '4px 4%',
         gap: '12px'
       }}>
         {/* Left Section: Icon + Offer Text + Coupon */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '15px', display: 'flex', alignItems: 'center', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))' }}>{currentPromo.icon || '🎁'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '15px', display: 'flex', alignItems: 'center', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))' }}>
+            🎁
+          </span>
           <span style={{ fontWeight: '700', color: offerTextColor, letterSpacing: '0.2px', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', fontSize: '13.5px' }}>
-            {currentPromo.offerText}
+            {offer.title || "Special Offer"}
           </span>
 
-          {currentPromo.couponCode && (
+          {offer.couponCode && (
             <button 
               className="top-promo-coupon-chip" 
               onClick={handleCopyCoupon}
               title="Click to copy coupon code"
               style={{
-                background: couponBg,
-                color: textColor,
-                border: `1px solid ${couponBorder}`,
-                padding: '4px 12px',
+                background: copied ? 'rgba(32, 169, 90, 0.25)' : couponBg,
+                color: copied ? '#86efac' : textColor,
+                border: `1px solid ${copied ? '#20a95a' : couponBorder}`,
+                padding: '3px 10px',
                 borderRadius: '99px',
                 fontSize: '11px',
                 fontWeight: '700',
@@ -177,26 +112,27 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
               onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
-              <span style={{ opacity: 0.8, fontSize: '9px', letterSpacing: '1px' }}>CODE:</span> {currentPromo.couponCode}
+              <span style={{ opacity: 0.8, fontSize: '9px', letterSpacing: '1px' }}>CODE:</span> {offer.couponCode}
+              {copied && <span style={{ fontSize: '10px' }}>✓</span>}
             </button>
           )}
         </div>
 
-        {/* Center Section: Optional Message (Desktop only) */}
-        {currentPromo.optionalMessage && (
+        {/* Center Section: Subtitle Message (Desktop only) */}
+        {offer.subtitle && (
           <div className="top-promo-center-msg" style={{ fontSize: '12px', fontWeight: '500', opacity: 0.92, display: 'flex', alignItems: 'center', letterSpacing: '0.3px', fontStyle: 'italic' }}>
-            ✨ {currentPromo.optionalMessage}
+            ✨ {offer.subtitle}
           </div>
         )}
 
-        {/* Right Section: Countdown Timer */}
-        {currentPromo.enableCountdown && currentPromo.expiry && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-             {currentPromo.countdownUnits !== 'MIN_SEC' && (
+        {/* Right Section: Synchronized Countdown Timer */}
+        {hasTimer && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+            {showDays && (
               <>
-                <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '32px', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                    {String(timeLeft.d).padStart(2, '0')}
+                    {timeLeft.days}
                   </b>
                   <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>DAY</span>
                 </div>
@@ -204,32 +140,28 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
               </>
             )}
 
-            <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '32px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                {String(timeLeft.h).padStart(2, '0')}
+                {timeLeft.hours}
               </b>
               <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>HRS</span>
             </div>
             <span style={{ color: countdownLabelColor, fontWeight: '700', fontSize: '11px', opacity: 0.8 }}>:</span>
 
-            <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '32px', border: '1px solid rgba(255,255,255,0.08)' }}>
               <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                {String(timeLeft.m).padStart(2, '0')}
+                {timeLeft.minutes}
               </b>
               <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>MIN</span>
             </div>
+            <span style={{ color: countdownLabelColor, fontWeight: '700', fontSize: '11px', opacity: 0.8 }}>:</span>
 
-            {currentPromo.countdownUnits !== 'DAYS_HRS_MIN' && (
-              <>
-                <span style={{ color: countdownLabelColor, fontWeight: '700', fontSize: '11px', opacity: 0.8 }}>:</span>
-                <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                    {String(timeLeft.s).padStart(2, '0')}
-                  </b>
-                  <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>SEC</span>
-                </div>
-              </>
-            )}
+            <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '32px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
+                {timeLeft.seconds}
+              </b>
+              <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>SEC</span>
+            </div>
           </div>
         )}
       </div>

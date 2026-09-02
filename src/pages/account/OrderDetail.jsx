@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { 
   ChevronLeft, Check, Package, MapPin, CreditCard, RotateCcw, 
   X, Edit3, MessageCircle, AlertCircle, Truck, ExternalLink, 
-  Copy, CheckCheck, Link2, Calendar
+  Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2
 } from "lucide-react";
 import { Shell } from "../../components/Shell";
 import { db } from "../../lib/db";
@@ -28,6 +28,36 @@ export function OrderDetail() {
   const [editAddressModal, setEditAddressModal] = useState(false);
   const [editAddressForm, setEditAddressForm] = useState("");
   const [copiedAwb, setCopiedAwb] = useState(false);
+  const [retryingPayment, setRetryingPayment] = useState(false);
+
+  const handlePayuRetry = async () => {
+    if (!order?.id) return;
+    setRetryingPayment(true);
+    try {
+      const res = await db.retryPayment(order.id);
+      if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        emitToast("Redirecting to PayU Secure Gateway...", "info");
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = res.data.paymentUrl;
+        form.style.display = "none";
+        Object.entries(res.data.params).forEach(([key, val]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = val !== undefined && val !== null ? String(val) : "";
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      } else {
+        throw new Error(res?.message || "Could not generate PayU payment retry session");
+      }
+    } catch (err) {
+      setRetryingPayment(false);
+      emitToast(err.message || "Failed to retry PayU payment", "error");
+    }
+  };
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -232,6 +262,100 @@ export function OrderDetail() {
           </div>
         )}
         
+        {/* PayU Payment Details & Retry Banner */}
+        <motion.div 
+          initial={{opacity: 0, y: 10}} 
+          animate={{opacity: 1, y: 0}} 
+          transition={{delay: 0.12}}
+          style={{
+            background: order.paymentStatus === "Paid" ? "#f2f8f3" : (order.paymentStatus === "Failed" ? "#fef2f2" : "#fdf8f4"),
+            border: `1.5px solid ${order.paymentStatus === "Paid" ? "#cbe6d2" : (order.paymentStatus === "Failed" ? "#fecaca" : "#ebdccb")}`,
+            borderRadius: "14px",
+            padding: "16px 18px",
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "14px"
+          }}
+        >
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+              <ShieldCheck size={18} color={order.paymentStatus === "Paid" ? "#166534" : "#b85d25"} />
+              <span style={{ 
+                fontSize: "14px", 
+                fontWeight: "700", 
+                color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" ? "#991b1b" : "#2b170d") 
+              }}>
+                {order.paymentStatus === "Paid" 
+                  ? "PayU Live Payment Confirmed" 
+                  : (order.paymentStatus === "Failed" ? "PayU Payment Incomplete" : "PayU Payment Pending")}
+              </span>
+              <span 
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  background: order.paymentStatus === "Paid" ? "#dcfce7" : (order.paymentStatus === "Failed" ? "#fee2e2" : "#fef3c7"),
+                  color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" ? "#991b1b" : "#b45309")
+                }}
+              >
+                {order.paymentStatus || "Pending"}
+              </span>
+            </div>
+
+            <div style={{ fontSize: "12px", color: "#665a51", display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "4px" }}>
+              {order.txnid && (
+                <span>PayU Txn ID: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.txnid}</code></span>
+              )}
+              {order.mihpayid && (
+                <span>PayU Ref: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.mihpayid}</code></span>
+              )}
+              {order.paymentMode && (
+                <span>Mode: <b>{order.paymentMode}</b></span>
+              )}
+            </div>
+          </div>
+
+          {/* If Pending or Failed, provide live Retry PayU button */}
+          {(order.paymentStatus === "Pending" || order.paymentStatus === "Failed" || !order.paymentStatus) && !isCancelled && (
+            <button
+              type="button"
+              id="btn-order-retry-payu"
+              disabled={retryingPayment}
+              onClick={handlePayuRetry}
+              style={{
+                background: retryingPayment ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 18px",
+                fontSize: "13.5px",
+                fontWeight: "700",
+                cursor: retryingPayment ? "wait" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 3px 10px rgba(165, 77, 43, 0.25)"
+              }}
+            >
+              {retryingPayment ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  <span>Connecting to PayU...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={15} />
+                  <span>Complete Payment with PayU</span>
+                </>
+              )}
+            </button>
+          )}
+        </motion.div>
+
         {!isCancelled && (
           <motion.div className="timeline-container" initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{delay: 0.1}} style={{
             background: '#fffdf9',

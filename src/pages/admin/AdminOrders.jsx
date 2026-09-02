@@ -6,7 +6,8 @@ import { emitToast } from "../../context/ToastContext";
 import { 
   Eye, Truck, Search, ArrowLeft, CheckCircle2, Clock, 
   Package, ShoppingBag, X, Save, ExternalLink, Link2, 
-  Sparkles, Copy, Check, Calendar, AlertCircle
+  Sparkles, Copy, Check, Calendar, AlertCircle, RefreshCcw,
+  ShieldCheck, Loader2
 } from "lucide-react";
 import "./admin-pages.css";
 import { getOrderProducts } from "../account/Orders";
@@ -43,6 +44,51 @@ export function AdminOrders() {
   const [autoMarkShipped, setAutoMarkShipped] = useState(true);
   const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Refund Management State
+  const [refundModal, setRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [isRefunding, setIsRefunding] = useState(false);
+
+  const handleOpenRefund = (order) => {
+    setRefundAmount(String(order.finalAmount || order.amount || 0));
+    setRefundReason("Customer Cancellation / Return");
+    setRefundModal(true);
+  };
+
+  const handleProcessRefund = async () => {
+    if (!viewing) return;
+    const amt = parseFloat(refundAmount);
+    if (isNaN(amt) || amt <= 0) {
+      emitToast("Please enter a valid refund amount", "error");
+      return;
+    }
+    setIsRefunding(true);
+    try {
+      const res = await db.processRefund(viewing.id, {
+        refundAmount: amt,
+        reason: refundReason || "Admin Initiated Refund"
+      });
+      if (res?.success) {
+        emitToast(`PayU Refund of ₹${amt.toLocaleString()} processed successfully!`, "success");
+        setRefundModal(false);
+        await load();
+        setViewing(prev => prev ? {
+          ...prev,
+          paymentStatus: "Refunded",
+          status: "Cancelled",
+          refundDetails: res.data?.refund || res.data
+        } : null);
+      } else {
+        throw new Error(res?.message || "Failed to process PayU refund");
+      }
+    } catch (err) {
+      emitToast(err.message || "PayU Refund execution failed", "error");
+    } finally {
+      setIsRefunding(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -245,16 +291,65 @@ export function AdminOrders() {
           </div>
 
           <div className="admin-card" style={{margin: 0}}>
-            <h2 style={{ fontSize: 16, margin: '0 0 15px', color: '#2b170d', borderBottom: '1px solid #f0ebe4', paddingBottom: 10 }}>Payment & Summary</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f0ebe4', paddingBottom: 10, marginBottom: 15 }}>
+              <h2 style={{ fontSize: 16, margin: 0, color: '#2b170d' }}>Payment & Summary</h2>
+              {viewing.paymentStatus === 'Paid' && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenRefund(viewing)}
+                  style={{
+                    background: '#fdf2f2',
+                    border: '1px solid #fecaca',
+                    color: '#991b1b',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <RefreshCcw size={12} /> Issue PayU Refund
+                </button>
+              )}
+            </div>
             <div style={{ fontSize: '13px', color: '#665a51', lineHeight: '1.8' }}>
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                <span>Payment Method</span>
-                <b>{viewing.paymentMethod || 'Online Payment'}</b>
+                <span>Payment Gateway</span>
+                <b>{viewing.paymentMethod || 'PayU Hosted Gateway'}</b>
               </div>
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 <span>Payment Status</span>
-                <b style={{color: isCancelled ? '#c62828' : '#1d9450'}}>{viewing.paymentStatus || (isCancelled ? 'Refunded / Void' : 'Paid')}</b>
+                <b style={{color: viewing.paymentStatus === 'Paid' ? '#1d9450' : (viewing.paymentStatus === 'Refunded' ? '#991b1b' : (isCancelled ? '#c62828' : '#d97706'))}}>
+                  {viewing.paymentStatus || (isCancelled ? 'Refunded / Void' : 'Pending')}
+                </b>
               </div>
+              {viewing.txnid && (
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>PayU Txn ID</span>
+                  <code style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4 }}>{viewing.txnid}</code>
+                </div>
+              )}
+              {viewing.mihpayid && (
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>PayU Reference</span>
+                  <code style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4 }}>{viewing.mihpayid}</code>
+                </div>
+              )}
+              {viewing.paymentMode && (
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>Payment Mode</span>
+                  <b>{viewing.paymentMode}</b>
+                </div>
+              )}
+              {viewing.refundDetails && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, padding: '6px 10px', marginTop: 6, fontSize: 11, color: '#991b1b' }}>
+                  <b>PayU Refund Processed:</b> ₹{viewing.refundDetails.refundAmount || viewing.refundDetails.amount || (viewing.finalAmount || viewing.amount)}
+                  {viewing.refundDetails.payuRefundId && <div>Refund ID: <code>{viewing.refundDetails.payuRefundId}</code></div>}
+                </div>
+              )}
               <hr style={{border: 0, borderTop: '1px solid #f0ebe4', margin: '10px 0'}} />
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 <span>Subtotal</span>
@@ -523,6 +618,149 @@ export function AdminOrders() {
             ))}
           </div>
         </div>
+
+        {/* PayU Refund Modal */}
+        {refundModal && viewing && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}>
+            <div style={{
+              background: '#fff',
+              borderRadius: 14,
+              maxWidth: 480,
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+              border: '1px solid #ebdccb'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 18, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ShieldCheck size={20} color="#a54d2b" /> Process PayU Live Refund
+                </h3>
+                <button 
+                  type="button" 
+                  onClick={() => setRefundModal(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#806f62' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: 13, color: '#665a51', margin: '0 0 16px', lineHeight: 1.5 }}>
+                Initiate a live server-to-server refund request to PayU for Order <b>#{viewing.id}</b>.
+                The amount will be credited back to the customer's source account (UPI / Card / Netbanking).
+              </p>
+
+              <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span>Order Total:</span>
+                  <b>₹{(viewing.finalAmount || viewing.amount).toLocaleString()}</b>
+                </div>
+                {viewing.txnid && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span>PayU Txn ID:</span>
+                    <code style={{ fontFamily: 'monospace' }}>{viewing.txnid}</code>
+                  </div>
+                )}
+                {viewing.mihpayid && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>PayU Reference:</span>
+                    <code style={{ fontFamily: 'monospace' }}>{viewing.mihpayid}</code>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 6 }}>
+                  Refund Amount (₹)
+                </label>
+                <input 
+                  type="number"
+                  step="any"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #dcd1c6',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 6 }}>
+                  Reason for Refund
+                </label>
+                <input 
+                  type="text"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="e.g. Customer requested cancellation / damaged goods"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #dcd1c6',
+                    fontSize: 13,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={isRefunding}
+                  onClick={() => setRefundModal(false)}
+                  style={{
+                    background: '#f4ece5',
+                    border: '1px solid #dcd1c6',
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    color: '#665a51'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isRefunding}
+                  onClick={handleProcessRefund}
+                  style={{
+                    background: '#991b1b',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: isRefunding ? 'wait' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  {isRefunding ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+                  {isRefunding ? "Communicating with PayU..." : "Execute PayU Live Refund"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </AdminLayout>
     );

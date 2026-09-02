@@ -1,5 +1,5 @@
 import React from "react";
-import { Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Lock, ArrowRight, Loader2 } from "lucide-react";
 import { money } from "../../data";
 
 export function CheckoutStickyFooter({
@@ -38,7 +38,7 @@ export function CheckoutStickyFooter({
         {/* Left Side: Price & Savings */}
         <div>
           <div style={{ fontSize: "11px", color: "#806f62", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Total to Pay
+            Payable via PayU
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
             <span style={{ fontSize: "20px", fontWeight: "800", color: "#2b170d" }}>
@@ -87,11 +87,11 @@ export function CheckoutStickyFooter({
           {loading ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              <span>Processing...</span>
+              <span>Redirecting to PayU...</span>
             </>
           ) : (
             <>
-              <span>Place Order</span>
+              <span>Pay with PayU</span>
               <ArrowRight size={16} />
             </>
           )}
@@ -110,10 +110,10 @@ export function CheckoutStickyFooter({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-          <Lock size={10} color="#166534" /> 256-Bit SSL Encrypted
+          <Lock size={10} color="#166534" /> 256-Bit SSL PayU Live Encrypted
         </span>
         <span>•</span>
-        <span>🚚 Fast Dispatch</span>
+        <span>🚚 Priority Nepal Dispatch</span>
         <span>•</span>
         <span>↩ 7-Day Returns</span>
       </div>

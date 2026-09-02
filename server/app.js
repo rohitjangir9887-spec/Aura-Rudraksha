@@ -22,6 +22,7 @@ import wishlistRoute from "./routes/wishlist.js";
 import authRoute from "./routes/auth.js";
 import auraAiRoute from "./routes/auraAi.js";
 import cartRoute from "./routes/cart.js";
+import paymentRoute from "./routes/payment.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -155,6 +156,7 @@ export function createApp() {
   app.use("/api/wishlist", wishlistRoute);
   app.use("/api/auth", authRoute);
   app.use("/api/aura-ai", auraAiRoute);
+  app.use("/api/payment", paymentRoute);
 
   // Health check endpoint (accurate - never fakes "connected")
   app.get("/api/health", (req, res) => {

@@ -1,68 +1,53 @@
-import React, { useState, useEffect } from "react";
-import { Tag, Clock, Copy, Check } from "lucide-react";
+import React, { useState } from "react";
+import { Tag, Clock, Copy, Check, Sparkles } from "lucide-react";
 import { emitToast } from "../../context/ToastContext";
+import { useActiveOffer } from "../../hooks/useActiveOffer";
 
-export function CheckoutTopOffer({ activeOffer, onApplyCoupon }) {
+export function CheckoutTopOffer({ activeOffer: propOffer, onApplyCoupon }) {
+  const { offer: hookOffer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer();
   const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(null);
 
-  const couponCode = activeOffer?.couponCode || "";
-  const title = activeOffer?.title || "🎁 Special Festival Discount";
-  const subtitle = activeOffer?.subtitle || "Save extra on your sacred spiritual order";
-  const hasTimer = activeOffer?.timerEnabled && (activeOffer?.expiresAt || activeOffer?.expiry);
+  // Use hook's live offer or fallback to prop
+  const offer = hookOffer || propOffer;
 
-  if (!activeOffer?.enabled || activeOffer?.status === "Inactive" || activeOffer?.status === "Disabled") {
+  if (!isActive || !offer || offer.enabled === false || offer.status !== "Active" || isExpired) {
     return null;
   }
 
-  useEffect(() => {
-    if (!hasTimer) return;
-    const expiry = new Date(activeOffer.expiresAt || activeOffer.expiry).getTime();
-    if (isNaN(expiry)) return;
+  const couponCode = offer?.couponCode || "";
+  const title = offer?.title || "🎁 Special Festival Discount";
+  const subtitle = offer?.subtitle || "Save extra on your sacred spiritual order";
+  const hasTimer = offer?.timerEnabled !== false && (offer?.expiresAt || offer?.expiry) && !timeLeft.isExpired;
+  const showDays = Number(timeLeft.days) > 0;
 
-    const updateTimer = () => {
-      const now = Date.now();
-      const diff = expiry - now;
-      if (diff <= 0) {
-        setTimeLeft(null);
-        return true;
-      }
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const secs = Math.floor((diff % (1000 * 60)) / 1000);
-      setTimeLeft({ hours, mins, secs });
-      return false;
-    };
+  const accentColor = offer?.accentColor || "#c88a3d";
+  const textColor = offer?.textColor || "#fff4e6";
+  const bgColor = offer?.backgroundColor || "#2b170d";
 
-    const isExp = updateTimer();
-    if (isExp) return;
+  const handleApply = (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (!couponCode) return;
 
-    const interval = setInterval(() => {
-      const isExpired = updateTimer();
-      if (isExpired) clearInterval(interval);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [hasTimer, activeOffer?.expiresAt, activeOffer?.expiry]);
-
-  const handleCopy = (e) => {
-    e.stopPropagation();
-    navigator.clipboard?.writeText(couponCode);
+    copyCoupon(e);
     setCopied(true);
-    emitToast(`Coupon code '${couponCode}' copied!`, "success");
+
     if (onApplyCoupon) {
       onApplyCoupon(couponCode);
+    } else {
+      emitToast(`Coupon '${couponCode}' applied!`, "success");
     }
-    setTimeout(() => setCopied(false), 2500);
+
+    setTimeout(() => setCopied(false), 2400);
   };
 
   return (
     <div 
       id="checkout-top-promo"
-      onClick={handleCopy}
+      onClick={handleApply}
       style={{
-        background: "linear-gradient(90deg, #3d1b0d 0%, #5d2813 50%, #3d1b0d 100%)",
-        color: "#fff4e6",
-        padding: "10px 16px",
+        background: `linear-gradient(90deg, #2b170d 0%, #4a2211 50%, #2b170d 100%)`,
+        color: textColor,
+        padding: "10px 14px",
         borderRadius: "12px",
         marginBottom: "16px",
         display: "flex",
@@ -70,10 +55,13 @@ export function CheckoutTopOffer({ activeOffer, onApplyCoupon }) {
         justifyContent: "space-between",
         gap: "10px",
         cursor: "pointer",
-        border: "1px solid rgba(200, 138, 61, 0.3)",
-        boxShadow: "0 2px 10px rgba(61, 27, 13, 0.08)"
+        border: `1px solid ${offer.borderColor || "rgba(200, 138, 61, 0.35)"}`,
+        boxShadow: "0 2px 10px rgba(43, 23, 13, 0.12)",
+        transition: "transform 0.15s ease"
       }}
+      title="Click to apply coupon code"
     >
+      {/* Left side: Tag icon + Title + Subtitle + Code */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
         <div 
           style={{
@@ -93,9 +81,11 @@ export function CheckoutTopOffer({ activeOffer, onApplyCoupon }) {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "13px", fontWeight: "700", color: "#fff4e6", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
             <span>{title}</span>
-            <span style={{ fontSize: "11px", background: "rgba(255,255,255,0.15)", padding: "1px 6px", borderRadius: "4px", color: "#fcd34d", fontWeight: "800", letterSpacing: "0.5px" }}>
-              CODE: {couponCode}
-            </span>
+            {couponCode && (
+              <span style={{ fontSize: "11px", background: "rgba(255,255,255,0.15)", padding: "1px 6px", borderRadius: "4px", color: "#fcd34d", fontWeight: "800", letterSpacing: "0.5px" }}>
+                CODE: {couponCode}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: "11px", color: "#d9c6b3", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
             {subtitle} • Tap to apply
@@ -103,33 +93,57 @@ export function CheckoutTopOffer({ activeOffer, onApplyCoupon }) {
         </div>
       </div>
 
+      {/* Right side: Synchronized Timer + Apply Button */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-        {timeLeft && (
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(0,0,0,0.3)", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", color: "#fcd34d" }}>
-            <Clock size={12} />
-            <span>{String(timeLeft.hours).padStart(2, "0")}:{String(timeLeft.mins).padStart(2, "0")}:{String(timeLeft.secs).padStart(2, "0")}</span>
+        {hasTimer && (
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            {showDays && (
+              <>
+                <div style={{ background: "rgba(0,0,0,0.35)", padding: "2px 5px", borderRadius: "5px", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", minWidth: "26px" }}>
+                  <b style={{ fontSize: "11px", color: "#fcd34d", display: "block", lineHeight: 1.1, fontWeight: 700 }}>{timeLeft.days}</b>
+                  <span style={{ fontSize: "6px", color: accentColor, letterSpacing: "0.5px", display: "block", fontWeight: 600 }}>DAY</span>
+                </div>
+                <span style={{ color: accentColor, fontWeight: "700", fontSize: "10px" }}>:</span>
+              </>
+            )}
+            <div style={{ background: "rgba(0,0,0,0.35)", padding: "2px 5px", borderRadius: "5px", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", minWidth: "26px" }}>
+              <b style={{ fontSize: "11px", color: "#fcd34d", display: "block", lineHeight: 1.1, fontWeight: 700 }}>{timeLeft.hours}</b>
+              <span style={{ fontSize: "6px", color: accentColor, letterSpacing: "0.5px", display: "block", fontWeight: 600 }}>HRS</span>
+            </div>
+            <span style={{ color: accentColor, fontWeight: "700", fontSize: "10px" }}>:</span>
+            <div style={{ background: "rgba(0,0,0,0.35)", padding: "2px 5px", borderRadius: "5px", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", minWidth: "26px" }}>
+              <b style={{ fontSize: "11px", color: "#fcd34d", display: "block", lineHeight: 1.1, fontWeight: 700 }}>{timeLeft.minutes}</b>
+              <span style={{ fontSize: "6px", color: accentColor, letterSpacing: "0.5px", display: "block", fontWeight: 600 }}>MIN</span>
+            </div>
+            <span style={{ color: accentColor, fontWeight: "700", fontSize: "10px" }}>:</span>
+            <div style={{ background: "rgba(0,0,0,0.35)", padding: "2px 5px", borderRadius: "5px", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", minWidth: "26px" }}>
+              <b style={{ fontSize: "11px", color: "#fcd34d", display: "block", lineHeight: 1.1, fontWeight: 700 }}>{timeLeft.seconds}</b>
+              <span style={{ fontSize: "6px", color: accentColor, letterSpacing: "0.5px", display: "block", fontWeight: 600 }}>SEC</span>
+            </div>
           </div>
         )}
+
         <button
           type="button"
-          onClick={handleCopy}
+          onClick={handleApply}
           style={{
-            background: copied ? "#20a95a" : "#c88a3d",
+            background: copied ? "#20a95a" : (offer.buttonColor || "#c88a3d"),
             color: "#ffffff",
             border: "none",
             borderRadius: "6px",
-            padding: "5px 10px",
-            fontSize: "11px",
+            padding: "6px 12px",
+            fontSize: "11.5px",
             fontWeight: "700",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "4px",
-            transition: "all 0.2s"
+            transition: "all 0.2s",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
           }}
         >
-          {copied ? <Check size={12} /> : <Copy size={12} />}
-          <span>{copied ? "Copied" : "Apply"}</span>
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          <span>{copied ? "Applied!" : "Apply"}</span>
         </button>
       </div>
     </div>
