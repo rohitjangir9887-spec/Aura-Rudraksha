@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { emitToast } from "../context/ToastContext";
+import { createCashfreeCheckoutSession, openCashfreeCheckout } from "../lib/cashfreeClient";
 
 export function AuraAIChatOrderModal({ 
   product, 
@@ -173,52 +174,38 @@ export function AuraAIChatOrderModal({
     try {
       const u = authClient.getUser();
       const customerEmail = u?.email || localStorage.getItem("user_email") || `${phone.replace(/\D/g, "")}@auracustomer.in`;
+      const nameParts = name.trim().split(/\s+/);
+      const firstName = nameParts[0] || name.trim();
+      const lastName = nameParts.slice(1).join(" ") || "Customer";
 
-      const orderPayload = {
-        customer: {
-          name: name.trim(),
-          email: customerEmail,
-          phone: phone.trim()
-        },
+      const sessionData = await createCashfreeCheckoutSession({
+        lines: [{ id: product.id, qty }],
         shippingAddress: {
           name: name.trim(),
+          firstName,
+          lastName,
           phone: phone.trim(),
-          street: address.trim(),
+          email: customerEmail,
+          address: address.trim(),
           city: city.trim() || "India",
-          pincode: pincode.trim()
+          pincode: pincode.trim(),
+          state: "India"
         },
-        items: [
-          {
-            id: product.id,
-            name: product.name,
-            price: unitPrice,
-            qty: qty,
-            img: product.image || product.img || product.images?.[0] || ""
-          }
-        ],
-        amount: subtotal,
-        discount: discountAmount,
-        finalAmount: finalAmount,
-        coupon: appliedCoupon ? appliedCoupon.code : null,
-        paymentMethod: paymentMethod === "COD" ? "Cash on Delivery (COD)" : paymentMethod === "UPI" ? "Direct UPI Payment" : "Prepaid Online",
-        paymentStatus: paymentMethod === "COD" ? "Pending (Pay on Delivery)" : "Processing",
-        status: "Confirmed",
-        source: "aura_ai",
-        orderSource: "aura_ai",
-        notes: "Placed via Aura AI Chat Assistant"
-      };
+        couponCode: appliedCoupon?.code || couponCode || "",
+        notes: "Placed via Aura AI Chat Assistant",
+        source: "aura_ai"
+      });
 
-      const res = await db.createOrder(orderPayload);
-      if (res?.success && res.data) {
-        const createdOrder = res.data;
-        setOrderComplete(createdOrder);
-        emitToast("Order placed successfully via Aura AI! 🎉", "success");
-        if (onOrderSuccess) {
-          onOrderSuccess(createdOrder, product, { qty, finalAmount, appliedCoupon });
-        }
-      } else {
-        throw new Error(res?.error || "Order creation failed. Please try again.");
+      if (!sessionData?.paymentSessionId) {
+        throw new Error(sessionData?.message || "Could not create Cashfree payment session.");
       }
+
+      emitToast("Launching Cashfree Secure Gateway...", "info");
+      await openCashfreeCheckout({
+        paymentSessionId: sessionData.paymentSessionId,
+        mode: sessionData.environment || "production",
+        redirectTarget: "_self"
+      });
     } catch (err) {
       console.error("Aura AI Chat Order Error:", err);
       setErrorMsg(err.message || "Could not complete order. Please check your connection and try again.");
@@ -450,36 +437,16 @@ export function AuraAIChatOrderModal({
                 {/* Payment Method */}
                 <div className="aura-ai-order-section">
                   <div className="aura-ai-order-section-title">
-                    <CreditCard size={13} /> Payment Choice
+                    <CreditCard size={13} /> Secure Payment Gateway
                   </div>
-                  <div className="aura-ai-order-payment-grid">
-                    <label className={`aura-ai-pay-opt ${paymentMethod === "COD" ? "selected" : ""}`}>
-                      <input 
-                        type="radio" 
-                        name="payMethod" 
-                        value="COD" 
-                        checked={paymentMethod === "COD"} 
-                        onChange={() => setPaymentMethod("COD")} 
-                      />
-                      <div>
-                        <strong>Cash on Delivery</strong>
-                        <small>Pay cash / QR upon doorstep arrival</small>
-                      </div>
-                    </label>
-
-                    <label className={`aura-ai-pay-opt ${paymentMethod === "UPI" ? "selected" : ""}`}>
-                      <input 
-                        type="radio" 
-                        name="payMethod" 
-                        value="UPI" 
-                        checked={paymentMethod === "UPI"} 
-                        onChange={() => setPaymentMethod("UPI")} 
-                      />
-                      <div>
-                        <strong>Instant UPI / GPay</strong>
-                        <small>Direct instant UPI confirmation</small>
-                      </div>
-                    </label>
+                  <div style={{ padding: "12px", background: "#fdf8f4", border: "1.5px solid #b85d25", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <strong style={{ fontSize: "13px", color: "#2b170d" }}>Cashfree PG (Instant Checkout)</strong>
+                      <span style={{ fontSize: "10px", color: "#166534", background: "#eef6f0", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>✓ 100% Encrypted</span>
+                    </div>
+                    <small style={{ fontSize: "11px", color: "#806f62" }}>
+                      Pay via UPI (GPay/PhonePe/Paytm), Cards, Net Banking & Wallets
+                    </small>
                   </div>
                 </div>
 
@@ -523,7 +490,7 @@ export function AuraAIChatOrderModal({
                   disabled={submitting}
                   className="aura-ai-order-btn-primary"
                 >
-                  {submitting ? "Placing Sacred Order..." : `Confirm & Place Order • ₹${finalAmount.toLocaleString('en-IN')}`}
+                  {submitting ? "Launching Gateway..." : `Pay via Cashfree • ₹${finalAmount.toLocaleString('en-IN')}`}
                 </button>
 
                 <div className="aura-ai-order-guarantee">

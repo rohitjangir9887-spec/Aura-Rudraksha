@@ -253,8 +253,24 @@ export function AdminOrders() {
               </div>
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 <span>Payment Status</span>
-                <b style={{color: isCancelled ? '#c62828' : '#1d9450'}}>{viewing.paymentStatus || (isCancelled ? 'Refunded / Void' : 'Paid')}</b>
+                <b style={{color: isCancelled ? '#c62828' : viewing.paymentStatus === 'Paid' ? '#1d9450' : viewing.paymentStatus === 'Failed' ? '#dc2626' : '#d97706'}}>
+                  {viewing.paymentStatus || (isCancelled ? 'Refunded / Void' : 'Paid')}
+                </b>
               </div>
+              {viewing.cashfreeOrderId && (
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>Cashfree Order ID</span>
+                  <b style={{fontFamily: 'monospace', fontSize: '11px', color: '#a54d2b'}}>{viewing.cashfreeOrderId}</b>
+                </div>
+              )}
+              {viewing.cashfreePaymentStatus && (
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>Cashfree PG Status</span>
+                  <span style={{fontSize: '11px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', background: viewing.cashfreePaymentStatus === 'PAID' || viewing.cashfreePaymentStatus === 'SUCCESS' ? '#eef6f0' : '#fee2e2', color: viewing.cashfreePaymentStatus === 'PAID' || viewing.cashfreePaymentStatus === 'SUCCESS' ? '#166534' : '#991b1b'}}>
+                    {viewing.cashfreePaymentStatus}
+                  </span>
+                </div>
+              )}
               <hr style={{border: 0, borderTop: '1px solid #f0ebe4', margin: '10px 0'}} />
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 <span>Subtotal</span>

@@ -22,6 +22,8 @@ import wishlistRoute from "./routes/wishlist.js";
 import authRoute from "./routes/auth.js";
 import auraAiRoute from "./routes/auraAi.js";
 import cartRoute from "./routes/cart.js";
+import paymentsRoute from "./routes/payments.js";
+import { handleCashfreeWebhook } from "./controllers/paymentController.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -72,12 +74,17 @@ export function createApp() {
     }
     if (req.method === "OPTIONS") {
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,x-webhook-signature,x-webhook-timestamp,x-signature,x-timestamp");
       return res.sendStatus(204);
     }
     next();
   });
-  app.use(express.json({ limit: "8mb" }));
+  app.use(express.json({
+    limit: "8mb",
+    verify: (req, res, buf) => {
+      req.rawBody = buf.toString();
+    }
+  }));
   app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
   // -------------------------------------------------------------------------
@@ -155,6 +162,8 @@ export function createApp() {
   app.use("/api/wishlist", wishlistRoute);
   app.use("/api/auth", authRoute);
   app.use("/api/aura-ai", auraAiRoute);
+  app.use("/api/payments", paymentsRoute);
+  app.post("/api/webhooks/cashfree", handleCashfreeWebhook);
 
   // Health check endpoint (accurate - never fakes "connected")
   app.get("/api/health", (req, res) => {

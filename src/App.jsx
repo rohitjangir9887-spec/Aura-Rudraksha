@@ -9,6 +9,7 @@ import { Cart } from "./pages/Cart";
 import { Checkout } from "./pages/Checkout";
 import { Login } from "./pages/Login";
 import { Policies } from "./pages/Policies";
+import { OrderConfirmation } from "./pages/OrderConfirmation";
 import { AuraAIFloating } from "./components/AuraAIFloating";
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,7 @@ export function App() {
         <Route path="/product/:id" element={<Product />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
+        <Route path="/order-confirmation" element={<OrderConfirmation />} />
         <Route path="/login" element={<Login />} />
         <Route path="/account" element={<Account />} />
         <Route path="/account/profile" element={<Profile />} />
