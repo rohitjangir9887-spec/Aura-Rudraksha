@@ -340,10 +340,20 @@ export async function seedDatabase(req, res, next) {
     });
     seeded.reviews = await diffCount(Review, async () => {
       for (const r of defaultReviews) {
-        const exists = await Review.findOne({ id: String(r.id) });
-        if (!exists) {
-          await Review.create({ ...r, source: "customer", status: "Approved" });
-        }
+        await Review.findOneAndUpdate(
+          { id: String(r.id) },
+          {
+            $set: {
+              ...r,
+              source: "customer",
+              status: "Approved",
+              isSample: true,
+              isAiGenerated: true,
+              sampleLabel: "Sample Review"
+            }
+          },
+          { upsert: true }
+        );
       }
     });
     seeded.coupons = await diffCount(Coupon, async () => {

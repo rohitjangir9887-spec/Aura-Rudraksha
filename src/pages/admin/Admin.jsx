@@ -3,7 +3,7 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { getPuterMediaStatus } from "../../lib/imageUtils";
+import { getPuterMediaStatus, signInToPuter } from "../../lib/imageUtils";
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
@@ -39,6 +39,61 @@ export function Admin() {
 
   const [stats, setStats] = useState(getInitialStats);
   const [recentOrders, setRecentOrders] = useState(() => (db.getOrders() || []).slice(0, 5));
+  const [mediaStats, setMediaStats] = useState({
+    serverStorage: "Checking",
+    imagesCount: 0,
+    videosCount: 0,
+    lastUpload: null
+  });
+  const [genericUploading, setGenericUploading] = useState(false);
+  const [genericProgress, setGenericProgress] = useState(0);
+  const [genericUrl, setGenericUrl] = useState("");
+  const [genericError, setGenericError] = useState("");
+  const [genericPreview, setGenericPreview] = useState("");
+  const [genericType, setGenericType] = useState(""); // "image" | "video"
+
+  const handleGenericUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    setGenericUploading(true);
+    setGenericProgress(10);
+    setGenericUrl("");
+    setGenericError("");
+
+    // Preview setup
+    const objUrl = URL.createObjectURL(file);
+    setGenericPreview(objUrl);
+    setGenericType(file.type.startsWith("video/") ? "video" : "image");
+
+    try {
+      const url = await uploadMedia(file, (progress) => {
+        setGenericProgress(progress);
+      });
+      if (url) {
+        setGenericUrl(url);
+        emitToast("Media uploaded and registered successfully in MongoDB!", "success");
+        // Force refresh stats
+        const statsRes = await fetch("/api/upload/stats").then(res => res.json()).catch(() => ({}));
+        if (statsRes.success) {
+          setMediaStats({
+            serverStorage: statsRes.serverStorage,
+            imagesCount: statsRes.imagesCount,
+            videosCount: statsRes.videosCount,
+            lastUpload: statsRes.lastUpload
+          });
+        }
+      } else {
+        throw new Error("Uploader did not return a valid URL");
+      }
+    } catch (err) {
+      setGenericError(err.message || "Failed to process media upload");
+      emitToast(err.message || "Failed to process media upload", "error");
+    } finally {
+      setGenericUploading(false);
+    }
+  };
+
   const [topProducts, setTopProducts] = useState(() => (db.getProducts() || []).slice(0, 5));
   const [dbStatus, setDbStatus] = useState("unknown");
   const [refreshing, setRefreshing] = useState(false);
@@ -89,6 +144,19 @@ export function Admin() {
         .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0))
         .slice(0, 5));
       setTopProducts(realProducts.slice(0, 5));
+
+      // Fetch real media statistics from MongoDB
+      const mediaStatsRes = await fetch("/api/upload/stats")
+        .then(res => res.json())
+        .catch(() => ({ success: false }));
+      if (mediaStatsRes.success) {
+        setMediaStats({
+          serverStorage: mediaStatsRes.serverStorage,
+          imagesCount: mediaStatsRes.imagesCount,
+          videosCount: mediaStatsRes.videosCount,
+          lastUpload: mediaStatsRes.lastUpload
+        });
+      }
     } catch (err) {
       console.warn("[Admin] Dashboard refresh notice:", err?.message || err);
       setFetchError(err?.message || "Could not synchronize some dashboard metrics.");
@@ -237,23 +305,77 @@ export function Admin() {
             {/* Media Asset Storage Box */}
             {(() => {
               const mediaInfo = getPuterMediaStatus();
+              const handlePuterSignIn = async () => {
+                try {
+                  await signInToPuter();
+                  emitToast("Successfully connected Puter Cloud Storage!", "success");
+                  refreshDashboard();
+                } catch (err) {
+                  emitToast("Puter login cancelled or failed: " + err.message, "error");
+                }
+              };
+
               return (
-                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e8dac9' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ background: '#fff', padding: '14px 16px', borderRadius: '10px', border: '1px solid #e8dac9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <HardDrive size={14} color="#2563eb" /> Media Storage (Puter / Server)
                     </span>
                     <span style={{ fontSize: '10px', color: mediaInfo.connected ? '#15803d' : '#d97706', fontWeight: 600 }}>
-                      {mediaInfo.connected ? '🟢 Puter Cloud Active' : '🟠 Server Local Fallback'}
+                      {mediaInfo.connected ? '🟢 Puter Connected' : '🟠 Puter Not Configured'}
                     </span>
                   </div>
-                  <p style={{ fontSize: '11px', color: '#6b584c', margin: '0 0 6px 0', lineHeight: '1.4' }}>
+                  <p style={{ fontSize: '11px', color: '#6b584c', margin: 0, lineHeight: '1.4' }}>
                     {mediaInfo.message}
                   </p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62' }}>
-                    <span>Pipeline: <b>{mediaInfo.provider}</b></span>
-                    <span>Stored Items: <b>{stats.totalProducts + (stats.totalBanners || 0)} items</b></span>
+                  
+                  <div style={{ borderTop: '1px dashed #e8dac9', margin: '4px 0', padding: '6px 0 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Server Storage:</span>
+                      <b style={{ color: mediaStats.serverStorage === 'Available' ? '#15803d' : '#dc2626' }}>{mediaStats.serverStorage || 'Available'}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Images Stored:</span>
+                      <b>{mediaStats.imagesCount} files</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Videos Stored:</span>
+                      <b>{mediaStats.videosCount} files</b>
+                    </div>
+                    {mediaStats.lastUpload && (
+                      <div style={{ fontSize: '9px', color: '#9e8a7c', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Last Successful: <a href={mediaStats.lastUpload.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: '#7a320c' }}>{mediaStats.lastUpload.url.split('/').pop()}</a> ({new Date(mediaStats.lastUpload.createdAt).toLocaleTimeString()})
+                      </div>
+                    )}
                   </div>
+
+                  {!mediaInfo.connected && typeof window !== 'undefined' && window.puter && (
+                    <button
+                      onClick={handlePuterSignIn}
+                      style={{
+                        marginTop: '4px',
+                        background: '#2563eb',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.background = '#1d4ed8'}
+                      onMouseOut={(e) => e.currentTarget.style.background = '#2563eb'}
+                    >
+                      <Cloud size={12} />
+                      <span>🔑 Connect Puter Cloud Storage</span>
+                    </button>
+                  )}
                 </div>
               );
             })()}
@@ -275,6 +397,151 @@ export function Admin() {
                 <span>Broadcast Channel: <b>Active</b></span>
                 <span>Latency: <b>&lt; 50ms</b></span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* INTERACTIVE MEDIA ASSET UPLOADER TOOL */}
+        <div style={{
+          background: '#fffdfa',
+          border: '1px solid #ebd8c5',
+          borderRadius: '14px',
+          padding: '20px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 16px rgba(43, 23, 13, 0.02)'
+        }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#2b170d', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Video size={16} color="#7a320c" /> ⚡ Interactive Media Asset Uploader Tool
+          </h3>
+          <p style={{ fontSize: '12px', color: '#806f62', margin: '0 0 16px 0' }}>
+            Drag and drop or select any Image or Video file to upload. This uploads directly using the active Puter Cloud or Server Storage, saves metadata to MongoDB, and provides a permanent file URL.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+            {/* Left side: Upload Input and Status */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{
+                border: '2px dashed #ebd8c5',
+                borderRadius: '10px',
+                padding: '24px',
+                textAlign: 'center',
+                background: '#faf6f0',
+                cursor: 'pointer',
+                position: 'relative'
+              }}>
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleGenericUpload}
+                  disabled={genericUploading}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: genericUploading ? 'not-allowed' : 'pointer'
+                  }}
+                />
+                <Cloud size={32} color="#a54d2b" style={{ margin: '0 auto 8px', display: 'block' }} />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#3b322c', display: 'block', marginBottom: '4px' }}>
+                  {genericUploading ? "Uploading to Storage..." : "Click to select or Drag Image/Video here"}
+                </span>
+                <span style={{ fontSize: '11px', color: '#806f62' }}>
+                  Supports PNG, JPEG, WEBP, GIF, MP4, WEBM up to 50MB
+                </span>
+              </div>
+
+              {genericUploading && (
+                <div style={{ background: '#f5ebe0', borderRadius: '8px', padding: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: '#7a320c', marginBottom: '6px' }}>
+                    <span>Uploading...</span>
+                    <span>{genericProgress}%</span>
+                  </div>
+                  <div style={{ height: '6px', background: '#e3d2bf', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${genericProgress}%`, height: '100%', background: '#7a320c', transition: 'width 0.2s' }}></div>
+                  </div>
+                </div>
+              )}
+
+              {genericError && (
+                <div style={{ background: '#fdf2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#dc2626' }}>
+                  <b>Upload Error:</b> {genericError}
+                </div>
+              )}
+
+              {genericUrl && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px 14px' }}>
+                  <b style={{ fontSize: '12px', color: '#16a34a', display: 'block', marginBottom: '6px' }}>✓ Upload Successful! Registered in MongoDB</b>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={genericUrl}
+                      style={{ flex: 1, fontSize: '11px', padding: '6px 8px', border: '1px solid #bbf7d0', borderRadius: '4px', background: '#fff', color: '#14532d' }}
+                      onClick={(e) => e.currentTarget.select()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(genericUrl);
+                        emitToast("File URL copied to clipboard!", "success");
+                      }}
+                      style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right side: Live Preview and Media Info */}
+            <div style={{
+              background: '#fff',
+              border: '1px solid #f0e4d7',
+              borderRadius: '10px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '200px'
+            }}>
+              {genericPreview ? (
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#806f62', alignSelf: 'flex-start' }}>
+                    PREVIEW ({genericType.toUpperCase()}):
+                  </span>
+                  {genericType === "video" ? (
+                    <video
+                      src={genericPreview}
+                      controls
+                      referrerPolicy="no-referrer"
+                      style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '8px', border: '1px solid #ebd8c5' }}
+                    />
+                  ) : (
+                    <img
+                      src={genericPreview}
+                      alt="Upload Preview"
+                      referrerPolicy="no-referrer"
+                      style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '8px', objectFit: 'contain', border: '1px solid #ebd8c5' }}
+                    />
+                  )}
+                  {genericUploading && (
+                    <span style={{ fontSize: '11px', color: '#7a320c', fontWeight: 600 }}>
+                      ⏳ Processing and writing to storage...
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#9e8a7c' }}>
+                  <ImageIcon size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+                  <span style={{ fontSize: '12px', display: 'block' }}>No file selected yet</span>
+                  <span style={{ fontSize: '10px', opacity: 0.7 }}>Select a file to see its preview</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -133,6 +133,12 @@ export function Product() {
 
   const p = product;
 
+  // Live rating and review count from real approved devotee reviews in MongoDB
+  const realReviewsForRating = reviews.filter(r => !r.isAiGenerated && !r.isSample);
+  const reviewsCount = realReviewsForRating.length;
+  const totalRatingSum = realReviewsForRating.reduce((sum, r) => sum + (Number(r.rating) || 5), 0);
+  const averageRating = reviewsCount > 0 ? (totalRatingSum / reviewsCount).toFixed(1) : "5.0";
+
   // Normalized product images list
   const productImages = p
     ? ((Array.isArray(p.images) && p.images.length > 0)
@@ -591,14 +597,14 @@ export function Product() {
                     <Star 
                       key={i} 
                       size={15} 
-                      fill={i < Math.floor(p.rating || 4.9) ? "#d97706" : "none"} 
-                      color={i < Math.floor(p.rating || 4.9) ? "#d97706" : "#d1d5db"} 
+                      fill={i < Math.floor(Number(averageRating)) ? "#d97706" : "none"} 
+                      color={i < Math.floor(Number(averageRating)) ? "#d97706" : "#d1d5db"} 
                     />
                   ))}
-                  <span className="rating-score">{p.rating || 4.9}</span>
+                  <span className="rating-score">{averageRating}</span>
                 </div>
                 <span className="reviews-count">
-                  ({reviews.length || p.reviews || 120} Verified Devotee Reviews)
+                  ({reviewsCount} Verified Devotee Reviews)
                 </span>
               </div>
 

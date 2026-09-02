@@ -656,7 +656,7 @@ const handleEdit = (p) => {
                 </b>
                 <input 
                   type="file" 
-                  accept="image/*" 
+                  accept="image/*,video/*" 
                   multiple 
                   onChange={handleFileUpload} 
                   style={{ fontSize: '12px', width: '100%' }} 

@@ -103,20 +103,36 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
   // Filter and sort reviews
   const filteredReviews = useMemo(() => {
-    let list = allReviews.filter(r => 
+    // Filter out deleted/hidden reviews first
+    const baseList = allReviews.filter(r => 
       r.status !== "Rejected" && 
       r.status !== "Hidden" && 
       r.status !== "draft" && 
       r.status !== "deleted" &&
-      r.source !== "ai_draft" &&
-      !r.isAiGenerated
+      r.source !== "ai_draft"
     );
 
-    // Filter by tab (Product vs Store)
-    if (activeTab === "product") {
-      list = list.filter(r => r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId));
+    // Group into real vs sample reviews
+    const realReviews = baseList.filter(r => !r.isAiGenerated && !r.isSample);
+
+    // Filter by tab helper
+    const filterByTab = (listToFilter) => {
+      if (activeTab === "product") {
+        return listToFilter.filter(r => r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId));
+      } else {
+        return listToFilter.filter(r => r.type === "store" || r.productId === "all");
+      }
+    };
+
+    const realTabReviews = filterByTab(realReviews);
+    let list = [];
+
+    if (realTabReviews.length > 0) {
+      // If we have real customer reviews, only show real customer reviews!
+      list = realTabReviews;
     } else {
-      list = list.filter(r => r.type === "store" || r.productId === "all");
+      // Fallback: Show labeled sample reviews if there are no real devotee reviews yet
+      list = filterByTab(baseList);
     }
 
     // Filter by Search Query
@@ -134,7 +150,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     if (filterRating === "photos") {
       list = list.filter(r => Array.isArray(r.images) && r.images.length > 0);
     } else if (filterRating === "verified") {
-      list = list.filter(r => r.verified === true);
+      list = list.filter(r => r.verified === true && !r.isAiGenerated && !r.isSample);
     } else if (filterRating !== "all") {
       const targetStar = Number(filterRating);
       list = list.filter(r => Number(r.rating) === targetStar);
@@ -156,52 +172,29 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     return sorted;
   }, [allReviews, activeTab, productId, searchQuery, filterRating, sortBy]);
 
-  // Aggregate stats
+  // Aggregate stats based on what is displayed in filteredReviews
   const stats = useMemo(() => {
-    const relevantReviews = allReviews.filter(r => {
-      if (
-        r.status === "Rejected" || 
-        r.status === "Hidden" || 
-        r.status === "draft" || 
-        r.status === "deleted" ||
-        r.source === "ai_draft" ||
-        r.isAiGenerated
-      ) return false;
-      if (activeTab === "product") {
-        return r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId);
-      }
-      return r.type === "store" || r.productId === "all";
-    });
-
-    const total = relevantReviews.length;
+    const total = filteredReviews.length;
     if (total === 0) {
       return { avgRating: "5.0", total: 0, starsCount: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
     }
 
-    const sum = relevantReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
+    const sum = filteredReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
     const avg = (sum / total).toFixed(1);
 
     const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    relevantReviews.forEach(r => {
+    filteredReviews.forEach(r => {
       const star = Math.min(5, Math.max(1, Math.round(Number(r.rating) || 5)));
       counts[star] = (counts[star] || 0) + 1;
     });
 
     return { avgRating: avg, total, starsCount: counts };
-  }, [allReviews, activeTab, productId]);
+  }, [filteredReviews]);
 
-  // Extract all photos for the photo gallery
+  // Extract all photos for the photo gallery based on filteredReviews
   const photoGalleryItems = useMemo(() => {
     const photos = [];
-    const relevantReviews = allReviews.filter(r => {
-      if (r.status === "Rejected" || r.status === "Hidden") return false;
-      if (activeTab === "product") {
-        return r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId);
-      }
-      return r.type === "store" || r.productId === "all";
-    });
-
-    relevantReviews.forEach(rev => {
+    filteredReviews.forEach(rev => {
       if (Array.isArray(rev.images) && rev.images.length > 0) {
         rev.images.forEach((imgUrl, imgIdx) => {
           if (imgUrl) {
@@ -215,24 +208,32 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       }
     });
     return photos;
-  }, [allReviews, activeTab, productId]);
+  }, [filteredReviews]);
 
-  // Tab counts
+  // Tab counts based on real vs sample fallback
   const productReviewsCount = useMemo(() => {
-    return allReviews.filter(r => 
+    const list = allReviews.filter(r => 
       r.status !== "Rejected" && 
       r.status !== "Hidden" && 
+      r.status !== "draft" && 
+      r.status !== "deleted" &&
       r.type === "product" && 
       (String(r.productId) === String(productId) || r.productId === "5" || !r.productId)
-    ).length;
+    );
+    const realList = list.filter(r => !r.isAiGenerated && !r.isSample);
+    return realList.length > 0 ? realList.length : list.length;
   }, [allReviews, productId]);
 
   const storeReviewsCount = useMemo(() => {
-    return allReviews.filter(r => 
+    const list = allReviews.filter(r => 
       r.status !== "Rejected" && 
       r.status !== "Hidden" && 
+      r.status !== "draft" && 
+      r.status !== "deleted" &&
       (r.type === "store" || r.productId === "all")
-    ).length;
+    );
+    const realList = list.filter(r => !r.isAiGenerated && !r.isSample);
+    return realList.length > 0 ? realList.length : list.length;
   }, [allReviews]);
 
   // Handlers
@@ -419,15 +420,19 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
               <span className="aura-score-big">{stats.avgRating}</span>
               <div className="aura-score-details">
                 <div className="aura-stars-row">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star 
-                      key={star} 
-                      size={18} 
-                      className="aura-gold-star"
-                      fill="#d97706" 
-                      color="#d97706"
-                    />
-                  ))}
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const avg = Number(stats.avgRating) || 5.0;
+                    const filled = star <= Math.round(avg);
+                    return (
+                      <Star 
+                        key={star} 
+                        size={18} 
+                        className="aura-gold-star"
+                        fill={filled ? "#d97706" : "none"} 
+                        color={filled ? "#d97706" : "#d1d5db"}
+                      />
+                    );
+                  })}
                 </div>
                 <span className="aura-based-count">
                   Based on {stats.total || (activeTab === "product" ? productReviewsCount : storeReviewsCount)} reviews
@@ -457,6 +462,31 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
             )}
           </div>
         </div>
+
+        {/* Informational banner when displaying sample fallback reviews */}
+        {filteredReviews.length > 0 && (filteredReviews[0].isSample || filteredReviews[0].isAiGenerated) && (
+          <div 
+            className="aura-fallback-notice-banner"
+            style={{
+              background: "#fffbeb",
+              border: "1px dashed #f59e0b",
+              borderRadius: "12px",
+              padding: "14px 18px",
+              marginBottom: "20px",
+              display: "flex",
+              gap: "12px",
+              alignItems: "flex-start",
+              fontSize: "13.5px",
+              color: "#92400e",
+              lineHeight: "1.5"
+            }}
+          >
+            <Sparkles size={18} style={{ flexShrink: 0, marginTop: "2px", color: "#d97706" }} />
+            <div>
+              <strong>Demonstration Placeholders Active</strong>: No devotee reviews have been submitted for this item yet. To help you visualize the layout, we are showing representative sample reviews above. Feel free to bless this product with your own experience by clicking the <strong>Write a Review</strong> button!
+            </div>
+          </div>
+        )}
 
         {/* 2. CUSTOMER PHOTO REVIEW GALLERY */}
         {activeSettings?.photoGalleryEnabled !== false && photoGalleryItems.length > 0 && (
@@ -675,8 +705,10 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                   transition={{ duration: 0.2 }}
                   style={{
                     borderRadius: cardStyleCustom.borderRadius || "18px",
-                    backgroundColor: cardStyleCustom.bgColor || "#fffdfa",
-                    borderColor: cardStyleCustom.borderColor || "#eadecd",
+                    backgroundColor: rev.isSample ? "#fffdf5" : (cardStyleCustom.bgColor || "#fffdfa"),
+                    borderColor: rev.isSample ? "#fde68a" : (cardStyleCustom.borderColor || "#eadecd"),
+                    borderStyle: rev.isSample ? "dashed" : "solid",
+                    borderWidth: "1px",
                     color: cardStyleCustom.textColor || "#2b1810"
                   }}
                 >
@@ -697,10 +729,10 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                       <div className="aura-card-name-line">
                         <strong className="aura-reviewer-name">{rev.name || "Aura Devotee"}</strong>
                         {rev.city && <span className="aura-reviewer-city">• {rev.city}</span>}
-                        {(rev.isAiGenerated || rev.isSample || rev.sampleLabel) ? (
+                        {(rev.isAiGenerated || rev.isSample) ? (
                           <span 
                             className="aura-ai-sample-badge" 
-                            title="AI Draft created for preview / testing"
+                            title="Sample review for demonstration"
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -711,14 +743,14 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                               fontWeight: "600",
                               background: "#fef3c7",
                               color: "#92400e",
-                              border: "1px solid #fde68a"
+                              border: "1px dashed #d97706"
                             }}
                           >
                             <Sparkles size={11} />
-                            {rev.sampleLabel || "AI DRAFT"}
+                            {rev.sampleLabel || "SAMPLE REVIEW"}
                           </span>
                         ) : (
-                          activeSettings?.verifiedBadgeEnabled !== false && rev.verified && !rev.isAiGenerated && !rev.isSample && (
+                          activeSettings?.verifiedBadgeEnabled !== false && rev.verified && (
                             <span className="aura-verified-badge" title="Verified Customer Purchase">
                               <Check size={11} className="aura-verified-icon" />
                               Verified Purchaser
@@ -733,7 +765,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                       </div>
                     </div>
 
-                    <span className="aura-card-date">{(rev.isAiGenerated || rev.isSample) ? "AI-generated sample" : (rev.date || "Verified Purchase")}</span>
+                    <span className="aura-card-date">{(rev.isAiGenerated || rev.isSample) ? "Demonstration Placeholder" : (rev.date || "Verified Purchase")}</span>
                   </div>
 
                   {/* Review Title */}

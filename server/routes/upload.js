@@ -1,6 +1,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { Media } from "../models/Media.js";
 
 const router = express.Router();
 
@@ -15,8 +16,91 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 /**
- * Handle Base64 or raw file upload
- * Returns clean static media URL: `/uploads/filename.ext`
+ * GET /api/upload/stats
+ * Returns real counts of media stored in MongoDB
+ */
+router.get("/stats", async (req, res) => {
+  try {
+    const totalMedia = await Media.find({}).sort({ createdAt: -1 });
+
+    const images = totalMedia.filter(m => m.type && m.type.startsWith("image/"));
+    const videos = totalMedia.filter(m => m.type && m.type.startsWith("video/"));
+
+    const lastUpload = totalMedia.length > 0 ? totalMedia[0] : null;
+
+    // Check server storage write capability
+    let serverStatus = "Available";
+    try {
+      const testFile = path.join(UPLOAD_DIR, ".write_test");
+      fs.writeFileSync(testFile, "test");
+      fs.unlinkSync(testFile);
+    } catch (e) {
+      serverStatus = "Error";
+    }
+
+    return res.json({
+      success: true,
+      serverStorage: serverStatus,
+      imagesCount: images.length,
+      videosCount: videos.length,
+      lastUpload: lastUpload ? {
+        url: lastUpload.url,
+        provider: lastUpload.provider,
+        createdAt: lastUpload.createdAt,
+        type: lastUpload.type
+      } : null
+    });
+  } catch (err) {
+    console.error("Failed to fetch media stats:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch media statistics"
+    });
+  }
+});
+
+/**
+ * POST /api/upload/register
+ * Registers metadata for a file uploaded via Puter Cloud client-side
+ */
+router.post("/register", async (req, res) => {
+  try {
+    const { url, fileId, type, size, provider } = req.body || {};
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: "No media URL provided for registration"
+      });
+    }
+
+    const mediaRecord = new Media({
+      url,
+      fileId: fileId || "",
+      type: type || "image/jpeg",
+      size: Number(size) || 0,
+      provider: provider || "puter"
+    });
+
+    await mediaRecord.save();
+
+    return res.json({
+      success: true,
+      message: "Media metadata registered in MongoDB",
+      media: mediaRecord
+    });
+  } catch (err) {
+    console.error("Media registration error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to register media"
+    });
+  }
+});
+
+/**
+ * Handle Base64 or raw file upload fallback
+ * Returns clean static media URL: `/uploads/filename.ext` and registers it in MongoDB
  */
 router.post("/", async (req, res) => {
   try {
@@ -61,6 +145,7 @@ router.post("/", async (req, res) => {
     let ext = "jpg";
     if (mimeType.includes("png")) ext = "png";
     else if (mimeType.includes("webp")) ext = "webp";
+    else if (mimeType.includes("gif")) ext = "gif";
     else if (mimeType.includes("mp4")) ext = "mp4";
     else if (mimeType.includes("webm")) ext = "webm";
 
@@ -70,13 +155,25 @@ router.post("/", async (req, res) => {
     fs.writeFileSync(filePath, buffer);
 
     const publicUrl = `/uploads/${fileName}`;
+
+    // Store in MongoDB
+    const mediaRecord = new Media({
+      url: publicUrl,
+      fileId: fileName,
+      type: mimeType,
+      size: buffer.length,
+      provider: "server"
+    });
+    await mediaRecord.save();
+
     return res.json({
       success: true,
       url: publicUrl,
       fileName,
       mimeType,
       size: buffer.length,
-      provider: "server"
+      provider: "server",
+      media: mediaRecord
     });
   } catch (err) {
     console.error("Upload handler error:", err);

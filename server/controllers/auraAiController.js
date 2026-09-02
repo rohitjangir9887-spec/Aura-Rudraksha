@@ -1247,56 +1247,68 @@ export async function generateProductDescription(req, res, next) {
       const isHinglish = lang === "Hinglish";
 
       if (isHindi) {
-        return `<p><strong>${cleanName}</strong> वैदिक परंपरा में एक अत्यंत पवित्र एवं आध्यात्मिक रूप से जागृत स्वरूप माना जाता है। यह मन की शांति, सकारात्मक ऊर्जा और आत्म-संयम को सुदृढ़ करने में सहायक होता है।</p>
-<h2>PRODUCT HIGHLIGHTS</h2>
+        return `<h2>✨ About the Product</h2>
+<p>पवित्र <strong>${cleanName}</strong> हिमालय के पावन क्षेत्रों से प्राप्त एक दिव्य आध्यात्मिक साधन है। यह नकारात्मक ऊर्जाओं को नष्ट करने, मन को शांत करने और सकारात्मकता का संचार करने में सहायक होता है।</p>
+
+<h2>📿 Product Highlights</h2>
 <ul>
-  <li>100% प्राकृतिक एवं दुर्लभ मूल नेपाली दाना, स्पष्ट मुखी रेखाओं के साथ।</li>
-  <li>प्रेषण से पूर्व प्राचीन वैदिक पद्धति एवं गंगाजल से अभिमंत्रित।</li>
-  <li>दैनिक ध्यान, आध्यात्मिक साधना एवं नित्य धारण के लिए उपयुक्त।</li>
-  <li>प्राकृतिक शुद्धता एवं बिना किसी रासायनिक रंग के संरक्षित।</li>
+  <li><strong>100% प्राकृतिक:</strong> प्राकृतिक रूप से निर्मित गहरी एवं स्पष्ट मुखी रेखाएं।</li>
+  <li><strong>गंगाजल अभिषेक:</strong> प्रेषण से पूर्व गंगाजल से शुद्ध एवं सिद्ध किया गया।</li>
+  <li><strong>आध्यात्मिक ऊर्जा:</strong> पूजा, ध्यान और नित्य धारण के लिए अत्यंत शुभ।</li>
+  <li><strong>पूर्ण शुद्धता:</strong> किसी भी कृत्रिम रंग, रसायन या पॉलिश से रहित।</li>
 </ul>
-<h2>ABOUT THE PRODUCT</h2>
-<p>यह पवित्र <strong>${cleanName}</strong> हिमालयी क्षेत्र से प्राप्त की जाती है। इसकी प्राकृतिक बनावट और ऊर्जा ध्यान केंद्रित करने, नकारात्मक प्रभावों को दूर करने और आत्मिक संतुलन बनाए रखने में पारंपरिक रूप से सहायक मानी जाती है।</p>
-<h2>SUITABLE FOR</h2>
-<p>आध्यात्मिक साधकों, विद्यार्थियों, व्यवसायियों एवं गृहस्थों के लिए अत्यंत फलदायी जो जीवन में मानसिक शांति, एकाग्रता और सकारात्मकता की कामना करते हैं।</p>
-<h2>HOW TO USE &amp; CARE</h2>
-<p>शुभ मुहूर्त अथवा सोमवार को स्नान के उपरांत "ॐ नमः शिवाय" मंत्र के साथ धारण करें। समय-समय पर शुद्ध चंदन अथवा तिल के तेल से हल्का अभ्यंजन करें।</p>
-<p><em>यह दिव्य रुद्राक्ष आपके जीवन में सकारात्मकता और शांति का संचार करे।</em></p>`;
+
+<h2>🌿 Spiritual Significance</h2>
+<p>शास्त्रों के अनुसार, रुद्राक्ष भगवान शिव के अश्रु बिंदुओं से प्रकट हुआ है। यह हमारे ऊर्जा केंद्रों (चक्रों) को संतुलित करता है और धारण करने वाले के चारों ओर सकारात्मकता का सुरक्षा कवच (Aura) प्रदान करता है।</p>
+
+<h2>🙏 Suitable For</h2>
+<p>यह विद्यार्थियों, गृहस्थों, आध्यात्मिक साधकों और पेशेवरों के लिए अत्यंत लाभदायक है, जो जीवन में मानसिक शांति, ध्यान, एकाग्रता और दिव्य सुरक्षा चाहते हैं।</p>
+
+<h2>🕉️ How to Wear & Care</h2>
+<p>शुभ सोमवार को प्रातः स्नान के पश्चात पूर्व या उत्तर दिशा की ओर मुख करके <strong>"ॐ नमः शिवाय"</strong> मंत्र का 108 बार जाप करते हुए धारण करें। महीने में एक बार शुद्ध जल से धोएं और हल्का चंदन का तेल लगाएं।</p>`;
       }
 
       if (isHinglish) {
-        return `<p><strong>${cleanName}</strong> ek authentic aur spiritually energized sacred bead hai, jo Vedic shastron mein positivity, inner peace aur spiritual focus ke liye revere kiya jata hai.</p>
-<h2>PRODUCT HIGHLIGHTS</h2>
+        return `<h2>✨ About the Product</h2>
+<p>Pavitra <strong>${cleanName}</strong> ek authentic aur spiritually energized sacred bead hai. Yeh Himalayan high-altitude forests se ethically collect kiya jata hai aur iska primary purpose mind ko calm karna aur energy level ko elevate karna hai.</p>
+
+<h2>📿 Product Highlights</h2>
 <ul>
-  <li>100% Original aur natural seed with authentic natural mukhi lines.</li>
-  <li>Disptach se pehle traditional Vedic mantras aur Ganga Jal se consecrated.</li>
-  <li>Daily wear, meditation aur positive aura ke liye suitable.</li>
-  <li>Pure natural form, without any artificial polish or chemicals.</li>
+  <li><strong>100% Original:</strong> Deeply formed natural grooves aur clear mukhi lines.</li>
+  <li><strong>Vedic Consecration:</strong> Dispatch se pehle Ganga Jal aur sacred mantras se energize kiya jata hai.</li>
+  <li><strong>Daily Sadhana:</strong> Pooja, meditation aur daily wear ke liye highly recommended.</li>
+  <li><strong>Pure Form:</strong> No artificial colors, polish, or synthetic chemicals used.</li>
 </ul>
-<h2>ABOUT THE PRODUCT</h2>
-<p>High-altitude Himalayan regions se ethically collect kiya gaya har ek <strong>${cleanName}</strong> natural density aur symmetry ke sath aata hai. Yeh traditional spiritual practices mein stress release aur emotional balance ke liye beneficial mana jata hai.</p>
-<h2>SUITABLE FOR</h2>
-<p>Seekers, professionals, students aur devotees jo daily routine mein peace of mind aur focus chahte hain.</p>
-<h2>HOW TO USE &amp; CARE</h2>
-<p>Shubh din ya Monday morning bath ke baad "Om Namah Shivaya" chant karte hue pehnein. Natural luster maintain karne ke liye occasionally sandalwood ya mustard oil se gently wipe karein.</p>
-<p><em>May this sacred blessing bring harmony and grace to your life.</em></p>`;
+
+<h2>🌿 Spiritual Significance</h2>
+<p>Vedic tradition ke mutabik, Rudraksha directly Lord Shiva ke tears se originate hua hai. Yeh wearer ke chakra energy ko balance karta hai aur aspas ke negative vibrations ko dur rakh kar ek positive Aura create karta hai.</p>
+
+<h2>🙏 Suitable For</h2>
+<p>Yeh students, professionals, spiritual seekers aur devotees sabhi ke liye suitable hai jo stressful life mein focus, emotional balance aur dynamic protection chahte hain.</p>
+
+<h2>🕉️ How to Wear & Care</h2>
+<p>Kisi bhi Monday morning ko naha kar East ya North direction face karke <strong>"Om Namah Shivaya"</strong> beej mantra ka 108 baar chant karke pehnein. Month mein ek baar gentle water se wash karein aur pure Sandalwood oil se condition karein.</p>`;
       }
 
-      return `<p>The <strong>${cleanName}</strong> is revered in ancient Vedic tradition as a sacred spiritual instrument that harmonizes energy, encourages mental clarity, and shields the wearer with positive vibrations.</p>
-<h2>PRODUCT HIGHLIGHTS</h2>
+      return `<h2>✨ About the Product</h2>
+<p>The sacred <strong>${cleanName}</strong> is a genuine, high-vibration spiritual instrument ethically gathered from pristine Himalayan heights. Worn worldwide to invite divine peace, shield against negative energies, and align the wearer's subtle energy centers.</p>
+
+<h2>📿 Product Highlights</h2>
 <ul>
-  <li>100% authentic natural bead with distinct, organically formed contours.</li>
-  <li>Consecrated through traditional Vedic rituals and holy water prior to dispatch.</li>
-  <li>Ideal for daily spiritual sadhana, mindful living, and sustained focus.</li>
-  <li>Preserved in its pure, un-dyed, and chemical-free natural essence.</li>
+  <li><strong>100% Genuine Nepal Origin:</strong> Features naturally formed deep grooves and clear mukhi lines.</li>
+  <li><strong>Vedic Consecration:</strong> Consecrated with holy Ganga Jal and Vedic mantras before shipping.</li>
+  <li><strong>Spiritual Sadhana:</strong> Ideal for meditation, mindfulness, and promoting peace.</li>
+  <li><strong>Ethical Preservation:</strong> Unaltered, pure, and free of synthetic polishes or chemical treatments.</li>
 </ul>
-<h2>ABOUT THE PRODUCT</h2>
-<p>Ethically gathered from sacred high-altitude Himalayan groves, every <strong>${cleanName}</strong> is chosen for its structural integrity, authentic density, and natural beauty. In classical spiritual heritage, this sacred seed is traditionally associated with calming the restless mind, dissipating stress, and awakening inner discernment.</p>
-<h2>SUITABLE FOR</h2>
-<p>Spiritual seekers, meditators, students, and professionals seeking emotional grounding, mental resilience, and peaceful mindfulness in their daily journey.</p>
-<h2>HOW TO USE &amp; CARE</h2>
-<p>Wear as a pendant on silk/cotton thread or keep in your sacred altar space. Cleanse periodically with pure water and gently condition with a drop of natural sandalwood or olive oil to maintain natural vitality.</p>
-<p><em>May this sacred blessing bring serenity, protection, and divine grace to your spiritual path.</em></p>`;
+
+<h2>🌿 Spiritual Significance</h2>
+<p>In Vedic heritage, Rudraksha is believed to have manifested from Lord Shiva's tears of deep compassion. It serves as an emotional grounding shield, helping harmonize personal bio-frequencies and expanding the inner spiritual consciousness.</p>
+
+<h2>🙏 Suitable For</h2>
+<p>Highly beneficial for spiritual seekers, meditators, students, and professionals seeking clarity of thought, stress reduction, and positive aura protection.</p>
+
+<h2>🕉️ How to Wear & Care</h2>
+<p>Wear on any auspicious Monday morning facing East or North. Chant the sacred mantra <strong>"Om Namah Shivaya"</strong> 108 times before putting it on. Cleanse monthly with water and lightly condition with sandalwood oil.</p>`;
     };
 
     // 1. Production AI Model: NVIDIA NIM
@@ -1314,7 +1326,22 @@ export async function generateProductDescription(req, res, next) {
             model: PRIMARY_NIM_MODEL,
             messages: [{
               role: "user",
-              content: `Generate a product description in clean HTML for ${name} (${category || 'Rudraksha'}) in ${targetLanguage}. Include <p><strong>${name}</strong>...</p>, <h2>PRODUCT HIGHLIGHTS</h2>, <ul><li>...</li></ul>, <h2>ABOUT THE PRODUCT</h2>, <h2>SUITABLE FOR</h2>, <h2>HOW TO USE & CARE</h2>. Output pure HTML only without markdown code fences.`
+              content: `Generate a professional, highly readable product description in clean HTML for ${name} (${category || 'Rudraksha'}) in ${targetLanguage}.
+Use the following structured headings exactly (enclosed in h2):
+<h2>✨ About the Product</h2>
+<h2>📿 Product Highlights</h2>
+<h2>🌿 Spiritual Significance</h2>
+<h2>🙏 Suitable For</h2>
+<h2>🕉️ How to Wear & Care</h2>
+
+Requirements:
+- Structure logically with short, spacious paragraphs.
+- Bold important words to highlight meaning.
+- Use a bulleted list for Highlights.
+- Use a natural blend of Hindi + English (Hinglish) where appropriate for cultural resonance.
+- Avoid broken text or HTML entities like "&amp;". Replace them with safe characters.
+- Ensure proper spacing and prevent huge text blocks.
+- Output ONLY the pure HTML body itself, no markdown code fences, no head, no style, and no wrapping HTML/body elements.`
             }],
             temperature: 0.35,
             max_tokens: 1000,

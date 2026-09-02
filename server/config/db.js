@@ -40,6 +40,17 @@ export async function connectDB() {
 
     cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {
       console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
+      
+      // Post-connect migration to ensure all seeded/default reviews are marked as sample/placeholder reviews
+      mongooseInstance.connection.db.collection("reviews").updateMany(
+        { id: { $in: ["REV-101", "REV-102", "REV-103"] } },
+        { $set: { isSample: true, isAiGenerated: true, sampleLabel: "Sample Review" } }
+      ).then(() => {
+        console.log("✅ [MongoDB] Standard default reviews marked as samples successfully.");
+      }).catch(err => {
+        console.warn("⚠️ [MongoDB] Standard default reviews migration failed:", err.message);
+      });
+
       cached.conn = mongooseInstance;
       return mongooseInstance;
     }).catch((error) => {
