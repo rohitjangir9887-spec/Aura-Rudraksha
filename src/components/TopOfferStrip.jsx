@@ -9,7 +9,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
-  if (!isActive || offer?.topStripEnabled === false || isExpired) {
+  if (!isActive || !offer?.topStripEnabled || isExpired) {
     return null;
   }
 

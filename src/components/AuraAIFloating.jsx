@@ -246,6 +246,21 @@ export function AuraAIFloating() {
     }
   }, [messages, isOpen, loading, isFullWindow]);
 
+  // Keyboard Escape listener to close floating window or modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        if (orderModalProduct) {
+          setOrderModalProduct(null);
+        } else if (isOpen) {
+          setIsOpen(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, orderModalProduct, setIsOpen]);
+
   const path = location.pathname || "";
   const hideOnRoute =
     path.startsWith("/admin") ||
@@ -459,7 +474,11 @@ export function AuraAIFloating() {
 
   // Dismissal across pages for this session
   const handleDismiss = (e) => {
-    if (e) e.stopPropagation();
+    if (e) {
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+    }
+    setIsOpen(false);
     auraChatStore.setFloatingDismissed(true);
     setIsDismissed(true);
     setShowUndoToast(true);
@@ -519,34 +538,14 @@ export function AuraAIFloating() {
               dragStartPos.current = { x: info.point.x, y: info.point.y };
             }}
             onDragEnd={(_, info) => {
-              const dx = Math.abs(info.point.x - dragStartPos.current.x);
-              const dy = Math.abs(info.point.y - dragStartPos.current.y);
-              if (dx < 6 && dy < 6) {
-                setIsOpen(true);
-              }
               setTimeout(() => {
                 isDraggingBtnRef.current = false;
               }, 120);
             }}
-            onTap={(_, info) => {
-              const dx = Math.abs(info.point.x - dragStartPos.current.x);
-              const dy = Math.abs(info.point.y - dragStartPos.current.y);
-              if (!isDraggingBtnRef.current || (dx < 6 && dy < 6)) {
-                setIsOpen(true);
-              }
-            }}
           >
-            <motion.button
+            <button
               type="button"
-              onTap={(e) => {
-                e.stopPropagation();
-                setIsOpen(true);
-              }}
               onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(true);
-              }}
-              onPointerUp={(e) => {
                 e.stopPropagation();
                 if (!isDraggingBtnRef.current) {
                   setIsOpen(true);
@@ -564,13 +563,24 @@ export function AuraAIFloating() {
                 <Sparkles size={13} className="aura-ai-sparkle-spin" />
               </div>
               <span className="aura-ai-floating-label">Aura AI</span>
-            </motion.button>
+            </button>
             <button
               id="aura-ai-floating-dismiss"
               type="button"
               className="aura-ai-floating-dismiss"
               onClick={handleDismiss}
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDismiss(e);
+              }}
               title="Hide floating button from all pages"
               aria-label="Hide Aura AI floating button"
             >
@@ -605,7 +615,30 @@ export function AuraAIFloating() {
       {/* 3. Aura AI Window - True Floating Interactive Guide (Draggable across screen) */}
       <AnimatePresence>
         {isOpen && (
-          <div className="aura-ai-floating-container">
+          <>
+            {/* Backdrop overlay to close when clicking outside */}
+            <motion.div
+              className="aura-ai-floating-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setIsOpen(false)}
+              onPointerDown={() => setIsOpen(false)}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0, 0, 0, 0.32)",
+                backdropFilter: "blur(2px)",
+                WebkitBackdropFilter: "blur(2px)",
+                zIndex: 10001,
+                pointerEvents: "auto"
+              }}
+            />
+            <div className="aura-ai-floating-container">
             <motion.div
               id="aura-ai-floating-panel"
               className="aura-ai-panel aura-ai-panel-compact"
@@ -693,9 +726,22 @@ export function AuraAIFloating() {
                   </button>
 
                   <button 
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
                       setIsOpen(false);
                     }} 
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => {
+                      if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                      setIsOpen(false);
+                    }}
                     className="aura-ai-btn-icon aura-ai-btn-close" 
                     title="Close / Band karein"
                     aria-label="Close Chat"
@@ -1220,6 +1266,7 @@ export function AuraAIFloating() {
               </div>
             </motion.div>
           </div>
+          </>
         )}
       </AnimatePresence>
 

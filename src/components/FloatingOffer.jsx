@@ -49,7 +49,10 @@ export function FloatingOffer({ product = null, hasStickyBar = false }) {
   if (!isActive || !offer || dismissed || offer.floatingEnabled === false) return null;
 
   const handleDismiss = (e) => {
-    e.stopPropagation();
+    if (e) {
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+    }
     setDismissed(true);
     setVisible(false);
     try {
@@ -92,6 +95,15 @@ export function FloatingOffer({ product = null, hasStickyBar = false }) {
             type="button" 
             className="floating-offer-close"
             onClick={handleDismiss}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDismiss(e);
+            }}
             aria-label="Dismiss Offer"
           >
             <X size={14} />

@@ -26,7 +26,7 @@ export async function generateNextOrderNumber() {
     let counter = await Counter.findByIdAndUpdate(
       counterKey,
       { $inc: { seq: 1 } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
     );
 
     let seqNumber = counter ? counter.seq : 1;
@@ -42,7 +42,7 @@ export async function generateNextOrderNumber() {
       const retryCounter = await Counter.findByIdAndUpdate(
         counterKey,
         { $inc: { seq: 1 } },
-        { new: true, upsert: true }
+        { returnDocument: "after", upsert: true }
       );
       const retrySeq = String(retryCounter.seq).padStart(6, "0");
       return `AURA-${datePrefix}-${retrySeq}`;
