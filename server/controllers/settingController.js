@@ -8,7 +8,6 @@ import { Order } from "../models/Order.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
@@ -38,15 +37,19 @@ import {
 
 export async function getSettings(req, res, next) {
   try {
-    if (isDbConnected()) {
-      let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
-      if (!settings) {
-        settings = await Setting.create(defaultSettings);
-      }
-      return res.json({ success: true, data: settings });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
-    return res.json({ success: true, data: inMemoryStore.getSettings() || defaultSettings });
+    let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+    if (!settings) {
+      settings = await Setting.create(defaultSettings);
+    }
+    return res.json({ success: true, data: settings });
   } catch (err) {
     next(err);
   }
@@ -57,8 +60,11 @@ export async function saveSettings(req, res, next) {
     const data = pickFields(req.body, SETTING_FIELDS);
 
     if (!isDbConnected()) {
-      const updated = inMemoryStore.saveSettings(data);
-      return res.json({ success: true, data: updated });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const updated = await Setting.findOneAndUpdate(
@@ -74,32 +80,26 @@ export async function saveSettings(req, res, next) {
 
 export async function getPolicies(req, res, next) {
   try {
-    if (isDbConnected()) {
-      let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
-      if (!settings) {
-        settings = await Setting.create(defaultSettings);
-      }
-      return res.json({
-        success: true,
-        data: {
-          shippingPolicy: settings.shippingPolicy || defaultSettings.shippingPolicy,
-          returnPolicy: settings.returnPolicy || defaultSettings.returnPolicy,
-          privacyPolicy: settings.privacyPolicy || defaultSettings.privacyPolicy,
-          termsPolicy: settings.termsPolicy || defaultSettings.termsPolicy,
-          contactSupport: settings.contactSupport || defaultSettings.contactSupport
-        }
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
       });
     }
 
-    const s = inMemoryStore.getSettings() || defaultSettings;
+    let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+    if (!settings) {
+      settings = await Setting.create(defaultSettings);
+    }
     return res.json({
       success: true,
       data: {
-        shippingPolicy: s.shippingPolicy || defaultSettings.shippingPolicy,
-        returnPolicy: s.returnPolicy || defaultSettings.returnPolicy,
-        privacyPolicy: s.privacyPolicy || defaultSettings.privacyPolicy,
-        termsPolicy: s.termsPolicy || defaultSettings.termsPolicy,
-        contactSupport: s.contactSupport || defaultSettings.contactSupport
+        shippingPolicy: settings.shippingPolicy || defaultSettings.shippingPolicy,
+        returnPolicy: settings.returnPolicy || defaultSettings.returnPolicy,
+        privacyPolicy: settings.privacyPolicy || defaultSettings.privacyPolicy,
+        termsPolicy: settings.termsPolicy || defaultSettings.termsPolicy,
+        contactSupport: settings.contactSupport || defaultSettings.contactSupport
       }
     });
   } catch (err) {
@@ -112,8 +112,11 @@ export async function savePolicies(req, res, next) {
     const data = pickFields(req.body, POLICY_FIELDS);
 
     if (!isDbConnected()) {
-      const updated = inMemoryStore.saveSettings(data);
-      return res.json({ success: true, data: updated });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const updated = await Setting.findOneAndUpdate(
@@ -130,12 +133,16 @@ export async function savePolicies(req, res, next) {
 // Tickets
 export async function getTickets(req, res, next) {
   try {
-    if (isDbConnected()) {
-      const tickets = await Ticket.find().sort({ createdAt: -1 }).lean();
-      return res.json({ success: true, data: tickets || [] });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
-    return res.json({ success: true, data: inMemoryStore.getTickets() || [] });
+    const tickets = await Ticket.find().sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, data: tickets || [] });
   } catch (err) {
     next(err);
   }
@@ -159,8 +166,11 @@ export async function createTicket(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const saved = inMemoryStore.saveTicket(payload);
-      return res.status(201).json({ success: true, data: saved });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const saved = await Ticket.create(payload);
@@ -179,8 +189,11 @@ export async function updateTicket(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const saved = inMemoryStore.saveTicket({ id, ...data });
-      return res.json({ success: true, data: saved });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const updated = await Ticket.findOneAndUpdate(

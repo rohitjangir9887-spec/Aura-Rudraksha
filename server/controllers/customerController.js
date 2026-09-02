@@ -1,7 +1,6 @@
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Fields an admin may create/update on a customer record via the admin
 // dashboard. `role`, `id`, and `authUserId` are deliberately excluded so an
@@ -16,8 +15,11 @@ const ADMIN_CUSTOMER_FIELDS = {
 export async function getCustomers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      const customers = inMemoryStore.getCustomers();
-      return res.json({ success: true, data: customers, count: customers.length });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     const customers = await Customer.find().sort({ updatedAt: -1 }).lean();
     return res.json({ success: true, data: customers, count: customers.length });
@@ -29,20 +31,20 @@ export async function getCustomers(req, res, next) {
 export async function getCustomerById(req, res, next) {
   try {
     const { id } = req.params;
-    if (isDbConnected()) {
-      let customer = await Customer.findOne({
-        $or: [{ id: String(id) }, { email: String(id).toLowerCase() }, { phone: String(id) }]
-      }).lean();
-      if (!customer && id.match(/^[0-9a-fA-F]{24}$/)) {
-        customer = await Customer.findById(id).lean();
-      }
-      if (!customer) {
-        return res.status(404).json({ success: false, message: "Customer not found" });
-      }
-      return res.json({ success: true, data: customer });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
-    const customer = inMemoryStore.getCustomerById(id);
+    let customer = await Customer.findOne({
+      $or: [{ id: String(id) }, { email: String(id).toLowerCase() }, { phone: String(id) }]
+    }).lean();
+    if (!customer && id.match(/^[0-9a-fA-F]{24}$/)) {
+      customer = await Customer.findById(id).lean();
+    }
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
@@ -70,8 +72,11 @@ export async function saveCustomer(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const saved = inMemoryStore.saveCustomer(customerPayload);
-      return res.json({ success: true, data: saved });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     let query = { id };

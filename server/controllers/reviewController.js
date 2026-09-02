@@ -6,7 +6,6 @@ import { defaultReviews, defaultProducts } from "../data/defaultData.js";
 import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import crypto from "crypto";
 
 // In-memory set of deleted review IDs for demo/fallback isolation
@@ -90,15 +89,11 @@ export async function getReviews(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      let list = inMemoryStore.getReviews(productId);
-      if (status && status !== "all") list = list.filter(r => r.status === status);
-      if (type && type !== "all") list = list.filter(r => r.type === type);
-      if (source && source !== "all") list = list.filter(r => r.source === source);
-      if (!isAdmin) {
-        list = list.filter(r => r.status === "Approved" && r.source !== "ai_draft");
-      }
-      const data = isAdmin ? list : list.map(({ email, ...safe }) => safe);
-      return res.json({ success: true, data, count: data.length });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     let query = {
@@ -192,8 +187,11 @@ export async function createReview(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const created = inMemoryStore.saveReview(payload);
-      return res.status(201).json({ success: true, data: created });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const created = await Review.create(payload);
@@ -217,8 +215,11 @@ export async function updateReview(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const updated = inMemoryStore.saveReview({ id: String(id), ...data });
-      return res.json({ success: true, data: updated });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const updated = await Review.findOneAndUpdate(
@@ -241,8 +242,11 @@ export async function deleteReview(req, res, next) {
     const reviewId = String(id);
 
     if (!isDbConnected()) {
-      inMemoryStore.deleteReview(reviewId);
-      return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     await Review.findOneAndUpdate(
@@ -267,13 +271,11 @@ export async function voteReview(req, res, next) {
     const { voteType = "up" } = req.body;
 
     if (!isDbConnected()) {
-      const rev = inMemoryStore.reviews.find(r => String(r.id) === String(id));
-      if (!rev) {
-        return res.status(404).json({ success: false, message: "Review not found" });
-      }
-      if (voteType === "up") rev.helpfulUp = (rev.helpfulUp || 0) + 1;
-      else rev.helpfulDown = (rev.helpfulDown || 0) + 1;
-      return res.json({ success: true, data: rev });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const inc = voteType === "up" ? { helpfulUp: 1 } : { helpfulDown: 1 };

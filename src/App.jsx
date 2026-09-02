@@ -2,20 +2,20 @@ import React, { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { Home } from "./pages/Home";
-import { Shop } from "./pages/Shop";
-import { Wishlist } from "./pages/Wishlist";
-import { Product } from "./pages/Product";
-import { Cart } from "./pages/Cart";
-import { Checkout } from "./pages/Checkout";
-import { Login } from "./pages/Login";
-import { Policies } from "./pages/Policies";
-import { NotFound } from "./pages/NotFound";
 import { AuraAIFloating } from "./components/AuraAIFloating";
 
 // ---------------------------------------------------------------------------
-// Code splitting: admin + secondary pages are lazy-loaded so
+// Code splitting: Customer secondary pages & Admin pages are lazy-loaded so
 // the Home bundle stays lean and first-paint stays fast.
 // ---------------------------------------------------------------------------
+const Shop = lazy(() => import("./pages/Shop").then(m => ({ default: m.Shop })));
+const Wishlist = lazy(() => import("./pages/Wishlist").then(m => ({ default: m.Wishlist })));
+const Product = lazy(() => import("./pages/Product").then(m => ({ default: m.Product })));
+const Cart = lazy(() => import("./pages/Cart").then(m => ({ default: m.Cart })));
+const Checkout = lazy(() => import("./pages/Checkout").then(m => ({ default: m.Checkout })));
+const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
+const Policies = lazy(() => import("./pages/Policies").then(m => ({ default: m.Policies })));
+const NotFound = lazy(() => import("./pages/NotFound").then(m => ({ default: m.NotFound })));
 const Account = lazy(() => import("./pages/account/Account").then(m => ({ default: m.Account })));
 const Profile = lazy(() => import("./pages/account/Profile").then(m => ({ default: m.Profile })));
 const Orders = lazy(() => import("./pages/account/Orders").then(m => ({ default: m.Orders })));

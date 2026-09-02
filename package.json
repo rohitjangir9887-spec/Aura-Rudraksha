@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build --mode production && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "server": "node server/server.js",
-    "lint": "vite build",
+    "lint": "vite build --mode production",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -29,7 +29,6 @@
     "firebase": "^12.18.0",
     "firebase-admin": "^13.10.0",
     "framer-motion": "^13.1.0",
-    "jsdom": "^30.0.1",
     "lucide-react": "^0.468.0",
     "mongoose": "^9.9.3",
     "openai": "^7.5.0",
@@ -39,9 +38,5 @@
     "tsx": "^4.23.12",
     "vite": "^6.0.5"
   },
-  "devDependencies": {
-    "@rckflr/easydb-server": "^0.4.0",
-    "mongodb-memory-server": "^11.2.0",
-    "sharp": "^0.35.3"
-  }
+  "devDependencies": {}
 }

@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import { connectDB, isDbConnected } from "./config/db.js";
+import { connectDB, isDbConnected, getLastDbSync } from "./config/db.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 // Routes
@@ -138,36 +138,16 @@ export function createApp() {
     next();
   });
 
-  // API Routes Mount
-  app.use("/api/upload", uploadRoute);
-  app.use("/api/cart", cartRoute);
-  app.use("/api/products", productsRoute);
-  app.use("/api/orders", ordersRoute);
-  app.use("/api/customers", customersRoute);
-  app.use("/api/coupons", couponsRoute);
-  app.use("/api/promotions", promotionsRoute);
-  app.use("/api/offers", offersRoute);
-  app.use("/api/active-offer", activeOfferRoute);
-  app.use("/api/banners", bannersRoute);
-  app.use("/api/reviews", reviewsRoute);
-  app.use("/api/settings", settingsRoute);
-  app.use("/api/tickets", ticketsRoute);
-  app.use("/api/analytics", analyticsRoute);
-  app.use("/api/seed", seedRoute);
-  app.use("/api/addresses", addressesRoute);
-  app.use("/api/wishlist", wishlistRoute);
-  app.use("/api/auth", authRoute);
-  app.use("/api/aura-ai", auraAiRoute);
-  app.use("/api/payment", paymentRoute);
-
   // Health check endpoint (accurate - never fakes "connected")
   app.get("/api/health", (req, res) => {
     const dbConnected = isDbConnected();
+    const lastSync = getLastDbSync();
     if (dbConnected) {
       return res.json({
         status: "ok",
         database: "connected",
         store: "Aura Rudraksha API",
+        lastSync: lastSync || new Date().toISOString(),
         timestamp: new Date().toISOString()
       });
     }
@@ -176,8 +156,59 @@ export function createApp() {
       database: "disconnected",
       message: "Database is unavailable. MongoDB connection required for persistent operations.",
       store: "Aura Rudraksha API",
+      lastSync: lastSync,
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Middleware ensuring DB connection before database-dependent queries
+  const requireDb = async (req, res, next) => {
+    if (!isDbConnected()) {
+      if (process.env.MONGODB_URI) {
+        try {
+          await connectDB();
+        } catch (err) {
+          console.warn("⚠️ [DB Middleware] Pre-route connection attempt failed:", err?.message || err);
+        }
+      }
+    }
+
+    if (!isDbConnected()) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
+    }
+    next();
+  };
+
+  // API Routes Mount
+  app.use("/api/upload", uploadRoute);
+  app.use("/api/cart", requireDb, cartRoute);
+  app.use("/api/products", requireDb, productsRoute);
+  app.use("/api/orders", requireDb, ordersRoute);
+  app.use("/api/customers", requireDb, customersRoute);
+  app.use("/api/coupons", requireDb, couponsRoute);
+  app.use("/api/promotions", requireDb, promotionsRoute);
+  app.use("/api/offers", requireDb, offersRoute);
+  app.use("/api/active-offer", requireDb, activeOfferRoute);
+  app.use("/api/banners", requireDb, bannersRoute);
+  app.use("/api/reviews", requireDb, reviewsRoute);
+  app.use("/api/settings", requireDb, settingsRoute);
+  app.use("/api/tickets", requireDb, ticketsRoute);
+  app.use("/api/analytics", requireDb, analyticsRoute);
+  app.use("/api/seed", requireDb, seedRoute);
+  app.use("/api/addresses", requireDb, addressesRoute);
+  app.use("/api/wishlist", requireDb, wishlistRoute);
+  app.use("/api/auth", authRoute);
+  app.use("/api/aura-ai", auraAiRoute);
+  app.use("/api/payment", paymentRoute);
+
+  // Fallback for unhandled API routes: return JSON 404 (prevents returning SPA HTML for failed API calls)
+  app.use("/api", (req, res) => {
+    res.status(404).json({ success: false, message: "API endpoint not found" });
   });
 
   // Mongoose / Database error handler

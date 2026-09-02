@@ -1,13 +1,15 @@
 import { Banner } from "../models/Banner.js";
 import { isDbConnected } from "../config/db.js";
 import { isSafeImageValue } from "../utils/imageValidation.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 export async function getBanners(req, res, next) {
   try {
     if (!isDbConnected()) {
-      const bannerUrls = inMemoryStore.getBanners();
-      return res.json({ success: true, data: bannerUrls, full: inMemoryStore.banners });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
@@ -34,8 +36,11 @@ export async function saveBanners(req, res, next) {
     });
 
     if (!isDbConnected()) {
-      const saved = inMemoryStore.saveBanners(bannerArray);
-      return res.json({ success: true, data: saved });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     // Clear and re-populate in MongoDB
@@ -71,8 +76,11 @@ export async function createBanner(req, res, next) {
     const payload = { ...data, id };
 
     if (!isDbConnected()) {
-      inMemoryStore.banners.push(payload);
-      return res.status(201).json({ success: true, data: payload });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const created = await Banner.create(payload);
@@ -86,8 +94,11 @@ export async function deleteBanner(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      inMemoryStore.deleteBanner(id);
-      return res.json({ success: true, message: "Banner deleted", id });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     await Banner.findOneAndDelete({ $or: [{ id: String(id) }, { image: String(id) }] });

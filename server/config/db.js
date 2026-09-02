@@ -12,7 +12,33 @@ process.on("warning", (warning) => {
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = global.mongoose = { conn: null, promise: null, lastConnected: null };
+}
+
+// Ensure state listeners are attached once
+if (!global.__mongoose_listeners_attached) {
+  global.__mongoose_listeners_attached = true;
+  mongoose.connection.on("disconnected", () => {
+    console.warn("⚠️ [MongoDB] Disconnected from database.");
+    if (cached) {
+      cached.conn = null;
+      cached.promise = null;
+    }
+  });
+  mongoose.connection.on("error", (err) => {
+    console.error("⚠️ [MongoDB] Connection error:", err.message);
+    if (cached) {
+      cached.conn = null;
+      cached.promise = null;
+    }
+  });
+  mongoose.connection.on("reconnectFailed", () => {
+    console.error("⚠️ [MongoDB] Reconnect failed.");
+    if (cached) {
+      cached.conn = null;
+      cached.promise = null;
+    }
+  });
 }
 
 export async function connectDB() {
@@ -22,36 +48,33 @@ export async function connectDB() {
     return false;
   }
   
+  // 1. If already active and ready, return true immediately
   if (cached.conn && mongoose.connection.readyState === 1) {
     return true;
   }
 
+  // 2. If disconnected or disconnecting, clear any stale promise
+  if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
+    cached.conn = null;
+    cached.promise = null;
+  }
+
+  // 3. If in-flight connection promise exists, await it (prevents connection storms)
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 3000,
-      connectTimeoutMS: 4000,
-      socketTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
       maxPoolSize: 10,
-      minPoolSize: 1,
-      family: 4,
+      minPoolSize: 0, // Serverless execution must not keep minPoolSize > 0
       autoIndex: process.env.NODE_ENV !== "production"
     };
 
     cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {
       console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
-      
-      // Post-connect migration to ensure all seeded/default reviews are marked as sample/placeholder reviews
-      mongooseInstance.connection.db.collection("reviews").updateMany(
-        { id: { $in: ["REV-101", "REV-102", "REV-103"] } },
-        { $set: { isSample: true, isAiGenerated: true, sampleLabel: "Sample Review" } }
-      ).then(() => {
-        console.log("✅ [MongoDB] Standard default reviews marked as samples successfully.");
-      }).catch(err => {
-        console.warn("⚠️ [MongoDB] Standard default reviews migration failed:", err.message);
-      });
-
       cached.conn = mongooseInstance;
+      cached.lastConnected = new Date().toISOString();
       return mongooseInstance;
     }).catch((error) => {
       cached.promise = null;
@@ -74,6 +97,10 @@ export async function connectDB() {
 
 export function isDbConnected() {
   return mongoose.connection.readyState === 1;
+}
+
+export function getLastDbSync() {
+  return cached?.lastConnected || null;
 }
 
 

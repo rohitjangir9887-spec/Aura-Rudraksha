@@ -2,8 +2,6 @@ import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { ActiveOffer, Promotion } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
-import { defaultProducts, defaultCoupons } from "../data/defaultData.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 /**
  * Single Authoritative Pricing & Coupon Service for Aura Rudraksha
@@ -90,9 +88,7 @@ export async function getAuthoritativeProducts(productIds = []) {
     }
   }
 
-  // Development & Production fallback to inMemoryStore products
-  const memProducts = inMemoryStore.getProducts();
-  return (memProducts.length > 0 ? memProducts : defaultProducts).filter(p => ids.includes(String(p.id)));
+  return [];
 }
 
 /**
@@ -148,42 +144,9 @@ export async function getAuthoritativeCoupon(couponCode) {
     } catch (err) {
       console.warn("PricingService DB coupon lookup warning:", err.message);
     }
-  } else {
-    // Check inMemoryStore coupons/activeOffer/promotions
-    const coupon = inMemoryStore.getCouponByCode(cleanCode);
-    if (coupon) return coupon;
-
-    const activeOffer = inMemoryStore.getActiveOffer();
-    if (activeOffer && activeOffer.couponCode === cleanCode && activeOffer.enabled !== false && activeOffer.status === "Active") {
-      return {
-        id: activeOffer.id || "OFFER-CENTRAL-1",
-        code: cleanCode,
-        discount: Number(activeOffer.discountValue) || 200,
-        type: activeOffer.discountType === "percentage" ? "percentage" : "fixed",
-        status: "Active",
-        expiry: activeOffer.expiresAt || activeOffer.expiry,
-        minAmount: 0,
-        description: activeOffer.subtitle || activeOffer.title
-      };
-    }
-
-    const promo = inMemoryStore.getPromotions().find(p => (p.code === cleanCode || p.couponCode === cleanCode) && p.status === "Active");
-    if (promo) {
-      return {
-        id: promo.id,
-        code: cleanCode,
-        discount: Number(promo.discountValue || 0),
-        type: promo.discountType === "percentage" ? "percentage" : "fixed",
-        status: "Active",
-        expiry: promo.expiresAt || promo.expiry,
-        minAmount: 0,
-        description: promo.description || promo.title
-      };
-    }
   }
 
-  // Development & Production fallback to default coupons (Demo mode)
-  return defaultCoupons.find(c => c.code.toUpperCase() === cleanCode) || null;
+  return null;
 }
 
 /**

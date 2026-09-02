@@ -1,7 +1,6 @@
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const OFFER_FIELDS = {
   title: "string", label: "string", description: "string", buttonText: "string",
@@ -35,7 +34,11 @@ const ACTIVE_OFFER_FIELDS = {
 export async function getActiveOffer(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, data: inMemoryStore.getActiveOffer() || null });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
@@ -58,8 +61,11 @@ export async function saveActiveOffer(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const updated = inMemoryStore.saveActiveOffer(payload);
-      return res.json({ success: true, data: updated });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const updated = await ActiveOffer.findOneAndUpdate(
@@ -77,7 +83,11 @@ export async function saveActiveOffer(req, res, next) {
 export async function getOffers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, data: inMemoryStore.getOffers() || [] });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const list = await Offer.find().sort({ order: 1 }).lean();
@@ -94,8 +104,11 @@ export async function saveOffer(req, res, next) {
     const payload = { ...data, id };
 
     if (!isDbConnected()) {
-      const saved = inMemoryStore.saveOffer(payload);
-      return res.status(201).json({ success: true, data: saved });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const saved = await Offer.findOneAndUpdate(
@@ -113,8 +126,11 @@ export async function deleteOffer(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      inMemoryStore.deleteOffer(id);
-      return res.json({ success: true, message: "Offer deleted", id });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     await Offer.findOneAndDelete({ id: String(id) });
@@ -128,7 +144,11 @@ export async function deleteOffer(req, res, next) {
 export async function getPromotions(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, data: inMemoryStore.getPromotions() || [] });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     const list = await Promotion.find().sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: list || [] });
@@ -144,8 +164,11 @@ export async function savePromotion(req, res, next) {
     const payload = { ...data, id };
 
     if (!isDbConnected()) {
-      const saved = inMemoryStore.savePromotion(payload);
-      return res.status(201).json({ success: true, data: saved });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const saved = await Promotion.findOneAndUpdate(
@@ -163,8 +186,11 @@ export async function deletePromotion(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      inMemoryStore.deletePromotion(id);
-      return res.json({ success: true, message: "Promotion deleted", id });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     await Promotion.findOneAndDelete({ id: String(id) });

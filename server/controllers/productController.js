@@ -1,7 +1,6 @@
 import { Product } from "../models/Product.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -16,8 +15,11 @@ const PRODUCT_FIELDS = {
 export async function getProducts(req, res, next) {
   try {
     if (!isDbConnected()) {
-      const data = inMemoryStore.getProducts();
-      return res.json({ success: true, data, count: data.length });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     const products = await Product.find().sort({ createdAt: -1 }).lean();
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -32,11 +34,11 @@ export async function getProductById(req, res, next) {
     const { id } = req.params;
     const cleanId = String(id).trim();
     if (!isDbConnected()) {
-      const product = inMemoryStore.getProductById(cleanId) || inMemoryStore.getProducts().find(p => p.slug === cleanId);
-      if (!product) {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-      return res.json({ success: true, data: product });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
     
@@ -79,8 +81,11 @@ export async function createProduct(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const created = inMemoryStore.saveProduct(productPayload);
-      return res.status(201).json({ success: true, data: created });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const created = await Product.findOneAndUpdate(
@@ -107,8 +112,11 @@ export async function updateProduct(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const updated = inMemoryStore.saveProduct(updatePayload);
-      return res.json({ success: true, data: updated });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const cleanId = String(id).trim();
@@ -139,8 +147,11 @@ export async function deleteProduct(req, res, next) {
     const cleanId = String(id).trim();
 
     if (!isDbConnected()) {
-      inMemoryStore.deleteProduct(cleanId);
-      return res.json({ success: true, message: "Product deleted", id: cleanId });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
