@@ -18,22 +18,29 @@ export function CheckoutTopOffer({ activeOffer, onApplyCoupon }) {
   useEffect(() => {
     if (!hasTimer) return;
     const expiry = new Date(activeOffer.expiresAt || activeOffer.expiry).getTime();
+    if (isNaN(expiry)) return;
 
     const updateTimer = () => {
       const now = Date.now();
       const diff = expiry - now;
       if (diff <= 0) {
         setTimeLeft(null);
-        return;
+        return true;
       }
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const secs = Math.floor((diff % (1000 * 60)) / 1000);
       setTimeLeft({ hours, mins, secs });
+      return false;
     };
 
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
+    const isExp = updateTimer();
+    if (isExp) return;
+
+    const interval = setInterval(() => {
+      const isExpired = updateTimer();
+      if (isExpired) clearInterval(interval);
+    }, 1000);
     return () => clearInterval(interval);
   }, [hasTimer, activeOffer?.expiresAt, activeOffer?.expiry]);
 

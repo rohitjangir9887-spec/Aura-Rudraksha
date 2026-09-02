@@ -1486,6 +1486,12 @@ export const db = {
   // TOP PROMO STRIP (Derived from Active Offer or Top Promos)
   getTopPromos: () => {
     const offer = storeCache.activeOffer;
+    if (!offer) return [];
+
+    const exp = offer.expiresAt || offer.expiry;
+    const isOfferExpired = exp ? new Date(exp).getTime() <= Date.now() : false;
+    const isPromoActive = offer.enabled !== false && offer.status === "Active" && offer.topStripEnabled !== false && !isOfferExpired;
+
     return [
       {
         id: offer.id || "TOP-PROMO-1",
@@ -1496,12 +1502,12 @@ export const db = {
         ctaText: "Shop Now",
         ctaLink: "/shop",
         icon: "🎁",
-        enableCountdown: offer.timerEnabled !== false,
+        enableCountdown: offer.timerEnabled !== false && !isOfferExpired,
         startDate: offer.startDate || offer.startAt,
-        expiry: offer.expiresAt || offer.expiry,
+        expiry: exp,
         countdownUnits: "DAYS_HRS_MIN",
         autoHideOnExpiry: true,
-        enablePromo: offer.enabled !== false && offer.status === "Active" && offer.topStripEnabled !== false,
+        enablePromo: isPromoActive,
         clickablePromo: true,
         copyCouponOnClick: true,
         backgroundType: "solid",
@@ -1520,7 +1526,7 @@ export const db = {
         animationEnabled: true,
         animationStyle: offer.animationStyle || "fade",
         priority: 1,
-        status: offer.status || "Active"
+        status: isOfferExpired ? "Expired" : (offer.status || "Active")
       }
     ];
   },

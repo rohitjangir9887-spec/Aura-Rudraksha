@@ -36,6 +36,7 @@ export async function getActiveOffer(req, res, next) {
     if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
     return res.json({ success: true, data: offer || null });
   } catch (err) {
@@ -79,6 +80,7 @@ export async function getOffers(req, res, next) {
     if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const list = await Offer.find().sort({ order: 1 }).lean();
     return res.json({ success: true, data: list || [] });
   } catch (err) {

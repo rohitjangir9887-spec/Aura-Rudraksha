@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { db, onStoreUpdate } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
 
 /**
  * Calculates remaining time broken down into padded strings and numerical values
+ * Guarantees no negative values, safe NaN guards, and explicit isExpired flag.
  */
 function calculateTimeRemaining(expiry) {
   if (!expiry) {
@@ -19,9 +20,21 @@ function calculateTimeRemaining(expiry) {
 
   const now = Date.now();
   const target = new Date(expiry).getTime();
-  const diff = target - now;
 
-  if (diff <= 0 || isNaN(diff)) {
+  if (isNaN(target)) {
+    return {
+      days: "00",
+      hours: "00",
+      minutes: "00",
+      seconds: "00",
+      totalSeconds: 0,
+      isExpired: true
+    };
+  }
+
+  const diff = Math.max(0, target - now);
+
+  if (diff <= 0) {
     return {
       days: "00",
       hours: "00",
@@ -130,25 +143,35 @@ export function useActiveOffer(product = null) {
     return () => unsub();
   }, [refreshOffer]);
 
-  // Live 1000ms countdown timer
+  // Live 1000ms countdown timer that automatically halts when expired
   useEffect(() => {
     if (!offer) return;
     const expiry = getExpiryDate(offer);
-    if (!expiry) return;
+    if (!expiry) {
+      setTimeLeft({ days: "00", hours: "00", minutes: "00", seconds: "00", totalSeconds: 0, isExpired: false });
+      return;
+    }
 
     // Immediately calculate
-    setTimeLeft(calculateTimeRemaining(expiry));
+    const initial = calculateTimeRemaining(expiry);
+    setTimeLeft(initial);
+    if (initial.isExpired) {
+      return; // Already expired, no interval needed
+    }
 
     const interval = setInterval(() => {
       const remaining = calculateTimeRemaining(expiry);
       setTimeLeft(remaining);
+      if (remaining.isExpired) {
+        clearInterval(interval);
+      }
     }, 1000);
 
     return () => clearInterval(interval);
   }, [offer?.expiryDate, offer?.expiresAt, offer?.expiry]);
 
   // Determine active status:
-  // Must be enabled, status === 'Active' (or not Disabled/Inactive), start time reached.
+  // Must be enabled, status === 'Active', started, NOT expired, and applicable to product
   const now = Date.now();
   const startTime = offer?.startDate ? new Date(offer.startDate).getTime() : 0;
   const isStarted = !startTime || now >= startTime;
@@ -159,7 +182,6 @@ export function useActiveOffer(product = null) {
     offer.status === "Active"
   );
 
-  // If explicitly Active and enabled, keep active
   const hasExpiry = Boolean(offer?.expiryDate || offer?.expiresAt || offer?.expiry);
   const isExpired = hasExpiry ? timeLeft.isExpired : false;
 
@@ -182,8 +204,8 @@ export function useActiveOffer(product = null) {
     }
   }
 
-  // If admin has set status to Active, it should be active on the storefront
-  const isActive = Boolean(isEnabled && isStarted && appliesToProduct);
+  // Active ONLY if enabled, started, NOT expired, and applicable
+  const isActive = Boolean(isEnabled && isStarted && !isExpired && appliesToProduct);
 
   const copyCoupon = useCallback((e) => {
     if (e && e.stopPropagation) e.stopPropagation();

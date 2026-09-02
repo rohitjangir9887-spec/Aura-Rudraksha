@@ -22,7 +22,7 @@ export function Countdown({ targetDate, onExpire = null, showDays = true, compac
       if (diff <= 0 || isNaN(diff)) {
         setTimeLeft({ d: 0, h: 0, m: 0, s: 0, expired: true });
         if (onExpire) onExpire();
-        return;
+        return true;
       }
 
       setTimeLeft({
@@ -32,10 +32,19 @@ export function Countdown({ targetDate, onExpire = null, showDays = true, compac
         s: Math.floor((diff % (1000 * 60)) / 1000),
         expired: false
       });
+      return false;
     };
 
-    tick();
-    const interval = setInterval(tick, 1000);
+    const isExp = tick();
+    if (isExp) return;
+
+    const interval = setInterval(() => {
+      const expired = tick();
+      if (expired) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
     return () => clearInterval(interval);
   }, [targetDate, onExpire]);
 

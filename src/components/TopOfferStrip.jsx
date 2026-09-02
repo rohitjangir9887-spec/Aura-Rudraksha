@@ -11,10 +11,11 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
   const navigate = useNavigate();
 
   const loadPromos = () => {
-    const now = new Date().getTime();
+    const now = Date.now();
     const promos = db.getTopPromos().filter(p => {
-      if (!p.enablePromo || p.status === 'Disabled' || p.status === 'Inactive') return false;
+      if (!p.enablePromo || p.status === 'Disabled' || p.status === 'Inactive' || p.status === 'Expired') return false;
       if (p.startDate && new Date(p.startDate).getTime() > now) return false;
+      if (p.expiry && new Date(p.expiry).getTime() <= now) return false;
       return true;
     }).sort((a, b) => (a.priority || 1) - (b.priority || 1));
 
@@ -37,21 +38,23 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
       setCurrentIndex(prev => (prev + 1) % activePromos.length);
     }, intervalSec * 1000);
     return () => clearInterval(timer);
-  }, [activePromos, currentPromo]);
+  }, [activePromos.length, currentPromo?.rotationEnabled, currentPromo?.rotationInterval]);
 
   // Real-time countdown timer
   useEffect(() => {
     if (!currentPromo || !currentPromo.expiry || !currentPromo.enableCountdown) return;
 
+    const target = new Date(currentPromo.expiry).getTime();
+    if (isNaN(target)) return;
+
     const calcTime = () => {
-      const now = new Date().getTime();
-      const target = new Date(currentPromo.expiry).getTime();
+      const now = Date.now();
       const diff = target - now;
 
       if (diff <= 0) {
         setTimeLeft({ d: 0, h: 0, m: 0, s: 0, expired: true });
         loadPromos(); // Reload to remove expired promo
-        return;
+        return true; // Expired
       }
 
       const d = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -60,14 +63,23 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
       const s = Math.floor((diff % (1000 * 60)) / 1000);
 
       setTimeLeft({ d, h, m, s, expired: false });
+      return false;
     };
 
-    calcTime();
-    const timer = setInterval(calcTime, 1000);
-    return () => clearInterval(timer);
-  }, [currentPromo]);
+    const isExp = calcTime();
+    if (isExp) return;
 
-  if (!currentPromo) return null;
+    const timer = setInterval(() => {
+      const expired = calcTime();
+      if (expired) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentPromo?.expiry, currentPromo?.enableCountdown, currentPromo?.id]);
+
+  if (!currentPromo || !currentPromo.enablePromo || activePromos.length === 0) return null;
 
   const handleCopyCoupon = (e) => {
     e.stopPropagation();

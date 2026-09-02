@@ -7,6 +7,7 @@ export async function getBanners(req, res, next) {
     if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database is unavailable." });
     }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
     const bannerUrls = banners.map(b => b.image || b);
     return res.json({ success: true, data: bannerUrls, full: banners });
