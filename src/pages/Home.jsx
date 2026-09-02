@@ -7,6 +7,7 @@ import { db, onStoreUpdate } from "../lib/db";
 import { Countdown } from "../components/Countdown";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
+import { PanditjiBioSection } from "../components/PanditjiBioSection";
 import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
@@ -148,5 +149,8 @@ export function Home() {
 
     {/* THE AURA RASHI GUIDE: SHOP BY ZODIAC SIGN SECTION */}
     <ZodiacRudrakshaSection />
+
+    {/* VEDIC ASTROLOGER & PANDITJI TRUST BIO SECTION */}
+    <PanditjiBioSection />
   </Shell>
 }

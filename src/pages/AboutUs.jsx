@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
+import { PanditjiBioSection } from "../components/PanditjiBioSection";
 import { 
   ShieldCheck, Award, Flame, HeartHandshake, 
   Sparkles, CheckCircle2, ArrowRight, Compass,
@@ -244,6 +245,9 @@ export function AboutUs() {
             </div>
           </div>
         </section>
+
+        {/* Dedicated Panditji Bio & Authority Section */}
+        <PanditjiBioSection />
 
         {/* 4. Astrological Call to Action */}
         <section style={{ maxWidth: "1000px", margin: "0 auto", padding: "0 20px" }}>
