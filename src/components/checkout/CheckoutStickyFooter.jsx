@@ -87,11 +87,11 @@ export function CheckoutStickyFooter({
           {loading ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              <span>Launching Gateway...</span>
+              <span>Processing...</span>
             </>
           ) : (
             <>
-              <span>Pay Now</span>
+              <span>Place Order</span>
               <ArrowRight size={16} />
             </>
           )}

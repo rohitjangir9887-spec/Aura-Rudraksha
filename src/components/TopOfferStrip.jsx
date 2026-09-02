@@ -3,13 +3,11 @@ import { db, onStoreUpdate } from '../lib/db';
 import { emitToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useActiveOffer } from '../hooks/useActiveOffer';
 
 export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
-  const { offer: activeOfferHook, timeLeft: synchronizedTimeLeft, copyCoupon: handleCopySharedCoupon } = useActiveOffer();
   const [activePromos, setActivePromos] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [fallbackTimeLeft, setFallbackTimeLeft] = useState({ d: "00", h: "00", m: "00", s: "00", expired: false });
+  const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0, expired: false });
   const navigate = useNavigate();
 
   const loadPromos = () => {
@@ -42,7 +40,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
     return () => clearInterval(timer);
   }, [activePromos.length, currentPromo?.rotationEnabled, currentPromo?.rotationInterval]);
 
-  // Real-time countdown fallback timer if custom non-central promo
+  // Real-time countdown timer
   useEffect(() => {
     if (!currentPromo || !currentPromo.expiry || !currentPromo.enableCountdown) return;
 
@@ -54,9 +52,9 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
       const diff = target - now;
 
       if (diff <= 0) {
-        setFallbackTimeLeft({ d: "00", h: "00", m: "00", s: "00", expired: true });
-        loadPromos();
-        return true;
+        setTimeLeft({ d: 0, h: 0, m: 0, s: 0, expired: true });
+        loadPromos(); // Reload to remove expired promo
+        return true; // Expired
       }
 
       const d = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -64,13 +62,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
       const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-      setFallbackTimeLeft({
-        d: String(d).padStart(2, '0'),
-        h: String(h).padStart(2, '0'),
-        m: String(m).padStart(2, '0'),
-        s: String(s).padStart(2, '0'),
-        expired: false
-      });
+      setTimeLeft({ d, h, m, s, expired: false });
       return false;
     };
 
@@ -89,24 +81,11 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
 
   if (!currentPromo || !currentPromo.enablePromo || activePromos.length === 0) return null;
 
-  // Use synchronized timer from central hook if active, else fallback
-  const isCentralPromo = !currentPromo.id || currentPromo.id === "TOP-PROMO-1" || currentPromo.id === "OFFER-CENTRAL-1";
-  const displayTime = isCentralPromo && synchronizedTimeLeft ? {
-    d: synchronizedTimeLeft.days,
-    h: synchronizedTimeLeft.hours,
-    m: synchronizedTimeLeft.minutes,
-    s: synchronizedTimeLeft.seconds
-  } : fallbackTimeLeft;
-
   const handleCopyCoupon = (e) => {
     e.stopPropagation();
     if (currentPromo.couponCode) {
-      if (isCentralPromo) {
-        handleCopySharedCoupon(e);
-      } else {
-        navigator.clipboard.writeText(currentPromo.couponCode);
-        emitToast("Coupon code copied", "success");
-      }
+      navigator.clipboard.writeText(currentPromo.couponCode);
+      emitToast("Coupon code copied", "success");
     }
   };
 
@@ -213,11 +192,11 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
         {/* Right Section: Countdown Timer */}
         {currentPromo.enableCountdown && currentPromo.expiry && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-             {currentPromo.countdownUnits !== 'MIN_SEC' && Number(displayTime.d) > 0 && (
+             {currentPromo.countdownUnits !== 'MIN_SEC' && (
               <>
                 <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
                   <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                    {displayTime.d}
+                    {String(timeLeft.d).padStart(2, '0')}
                   </b>
                   <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>DAY</span>
                 </div>
@@ -227,7 +206,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
 
             <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
               <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                {displayTime.h}
+                {String(timeLeft.h).padStart(2, '0')}
               </b>
               <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>HRS</span>
             </div>
@@ -235,7 +214,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
 
             <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
               <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                {displayTime.m}
+                {String(timeLeft.m).padStart(2, '0')}
               </b>
               <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>MIN</span>
             </div>
@@ -245,7 +224,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
                 <span style={{ color: countdownLabelColor, fontWeight: '700', fontSize: '11px', opacity: 0.8 }}>:</span>
                 <div style={{ background: countdownBg, padding: '3px 7px', borderRadius: '6px', textAlign: 'center', minWidth: '34px', border: '1px solid rgba(255,255,255,0.06)' }}>
                   <b style={{ fontSize: '12px', color: countdownNumColor, display: 'block', lineHeight: 1.1, fontWeight: 700 }}>
-                    {displayTime.s}
+                    {String(timeLeft.s).padStart(2, '0')}
                   </b>
                   <span style={{ fontSize: '6.5px', color: countdownLabelColor, letterSpacing: '0.8px', display: 'block', marginTop: '2px', fontWeight: 600 }}>SEC</span>
                 </div>

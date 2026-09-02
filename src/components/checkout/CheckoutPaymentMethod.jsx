@@ -1,7 +1,7 @@
 import React from "react";
-import { CreditCard, ShieldCheck, Lock, Smartphone, CheckCircle2 } from "lucide-react";
+import { CreditCard, Banknote, ShieldCheck } from "lucide-react";
 
-export function CheckoutPaymentMethod({ paymentMethod = "cashfree", setPaymentMethod }) {
+export function CheckoutPaymentMethod({ paymentMethod, setPaymentMethod }) {
   return (
     <div 
       id="checkout-payment-section"
@@ -46,130 +46,139 @@ export function CheckoutPaymentMethod({ paymentMethod = "cashfree", setPaymentMe
             Payment Method
           </h2>
           <div style={{ fontSize: "11px", color: "#806f62" }}>
-            100% Secure Checkout via Cashfree Payment Gateway
+            Choose your preferred mode of payment
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {/* Cashfree PG Option */}
+        {/* Option 1: COD */}
         <label 
-          id="payment-option-cashfree"
+          id="payment-option-cod"
           style={{
             display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-            padding: "14px 16px",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 14px",
             borderRadius: "10px",
-            border: "1.5px solid #b85d25",
-            background: "#fdf8f4",
+            border: paymentMethod === "cod" ? "1.5px solid #b85d25" : "1px solid #e8dac9",
+            background: paymentMethod === "cod" ? "#fdf8f4" : "#ffffff",
             cursor: "pointer",
-            transition: "all 0.2s",
-            boxShadow: "0 2px 8px rgba(184, 93, 37, 0.08)"
+            transition: "all 0.2s"
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <input 
-                type="radio" 
-                name="paymentMethod" 
-                value="cashfree" 
-                checked={true}
-                readOnly
-                style={{ accentColor: "#b85d25", width: "18px", height: "18px", cursor: "pointer" }}
-              />
-              <div 
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "8px",
-                  background: "#b85d25",
-                  color: "#ffffff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}
-              >
-                <CreditCard size={20} />
-              </div>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>Online Payment</span>
-                  <span style={{ fontSize: "10px", color: "#b85d25", background: "#fbf0e6", padding: "1px 6px", borderRadius: "4px", border: "1px solid #ebdccb" }}>
-                    Cashfree PG
-                  </span>
-                </div>
-                <div style={{ fontSize: "11.5px", color: "#806f62" }}>
-                  UPI (GPay, PhonePe, Paytm, QR), Cards & Netbanking
-                </div>
-              </div>
-            </div>
-
-            <span 
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <input 
+              type="radio" 
+              name="paymentMethod" 
+              value="cod" 
+              checked={paymentMethod === "cod"}
+              onChange={() => setPaymentMethod("cod")}
+              style={{ accentColor: "#b85d25", width: "16px", height: "16px", cursor: "pointer" }}
+            />
+            <div 
               style={{
-                fontSize: "11px",
-                fontWeight: "700",
-                color: "#166534",
-                background: "#eef6f0",
-                padding: "3px 8px",
-                borderRadius: "4px",
-                display: "inline-flex",
+                width: "32px",
+                height: "32px",
+                borderRadius: "8px",
+                background: "#f7eee3",
+                color: "#b85d25",
+                display: "flex",
                 alignItems: "center",
-                gap: "4px"
+                justifyContent: "center"
               }}
             >
-              <CheckCircle2 size={12} /> Instant Consecration
-            </span>
+              <Banknote size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: "#2b170d" }}>
+                Cash on Delivery (COD)
+              </div>
+              <div style={{ fontSize: "11px", color: "#806f62" }}>
+                Pay cash at your doorstep upon receiving order
+              </div>
+            </div>
           </div>
 
-          {/* Supported Methods Badges */}
-          <div 
+          <span 
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "6px",
-              paddingLeft: "30px",
-              paddingTop: "4px",
-              borderTop: "1px dashed #ecdac7"
+              fontSize: "10.5px",
+              fontWeight: "700",
+              color: "#166534",
+              background: "#eef6f0",
+              padding: "3px 8px",
+              borderRadius: "4px"
             }}
           >
-            {["UPI (GPay / PhonePe / Paytm / QR)", "Credit / Debit Cards", "RuPay / Visa / MC", "Net Banking (All Banks)", "Wallets"].map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  fontSize: "10.5px",
-                  fontWeight: "600",
-                  color: "#5c483b",
-                  background: "#ffffff",
-                  border: "1px solid #e8dac9",
-                  padding: "3px 8px",
-                  borderRadius: "4px"
-                }}
-              >
-                {tag}
-              </span>
-            ))}
+            ✓ Available
+          </span>
+        </label>
+
+        {/* Option 2: Online Payment (Coming Soon) */}
+        <label 
+          id="payment-option-online"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            border: "1px solid #e8dac9",
+            background: "#faf6f0",
+            opacity: 0.7,
+            cursor: "not-allowed"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <input 
+              type="radio" 
+              name="paymentMethod" 
+              value="online" 
+              disabled
+              style={{ width: "16px", height: "16px" }}
+            />
+            <div 
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "8px",
+                background: "#eee4d8",
+                color: "#806f62",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <CreditCard size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: "#5a4032" }}>
+                Online Payment (UPI / Cards / Netbanking)
+              </div>
+              <div style={{ fontSize: "11px", color: "#806f62" }}>
+                Direct digital payments integration
+              </div>
+            </div>
           </div>
+
+          <span 
+            style={{
+              fontSize: "10.5px",
+              fontWeight: "700",
+              color: "#b45309",
+              background: "#fef3c7",
+              padding: "3px 8px",
+              borderRadius: "4px"
+            }}
+          >
+            Coming Soon
+          </span>
         </label>
       </div>
 
-      {/* Security & RBI Compliance Guarantee */}
-      <div 
-        style={{ 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "center", 
-          gap: "8px", 
-          marginTop: "14px", 
-          padding: "8px 12px", 
-          background: "#f7f2eb", 
-          borderRadius: "8px", 
-          fontSize: "11px", 
-          color: "#5c483b" 
-        }}
-      >
-        <Lock size={13} color="#166534" />
-        <span>256-Bit SSL Encryption • RBI Approved Payment Gateway • Certified Vedic Authenticity</span>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "12px", fontSize: "11px", color: "#806f62", justifyContent: "center" }}>
+        <ShieldCheck size={14} color="#166534" />
+        <span>Cash upon inspection & safe delivery guaranteed</span>
       </div>
     </div>
   );

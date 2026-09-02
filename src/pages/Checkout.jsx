@@ -29,7 +29,6 @@ import { CheckoutPaymentMethod } from "../components/checkout/CheckoutPaymentMet
 import { CheckoutReassurance } from "../components/checkout/CheckoutReassurance";
 import { CheckoutStickyFooter } from "../components/checkout/CheckoutStickyFooter";
 import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
-import { createCashfreeCheckoutSession, openCashfreeCheckout } from "../lib/cashfreeClient";
 
 export function Checkout() {
   const [products, setProducts] = useState(() => db.getProducts());
@@ -90,7 +89,7 @@ export function Checkout() {
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   // Payment Method State
-  const [paymentMethod, setPaymentMethod] = useState("cashfree");
+  const [paymentMethod, setPaymentMethod] = useState("cod");
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -308,34 +307,47 @@ export function Checkout() {
     }
 
     const fullName = `${addressObj.firstName} ${addressObj.lastName}`.trim();
-    addressObj.name = fullName;
+    const fullAddressString = `${addressObj.address}, ${addressObj.city}, ${addressObj.state} - ${addressObj.pincode}`;
+
+    const snapshotItems = lines.map(line => {
+      const p = products.find(x => String(x.id) === String(line.id));
+      return {
+        id: line.id,
+        productId: line.id,
+        name: p ? p.name : "Sacred Rudraksha Item",
+        price: p ? p.price : 0,
+        mrp: p ? (p.mrp || p.comparePrice || p.price) : 0,
+        quantity: line.qty,
+        qty: line.qty,
+        img: p ? (p.img || (p.images && p.images[0])) : null
+      };
+    });
+
+    const orderObj = {
+      customerEmail: cleanEmail,
+      customerName: fullName,
+      firstName: addressObj.firstName,
+      lastName: addressObj.lastName,
+      phone: addressObj.phone,
+      address: fullAddressString,
+      shippingAddress: addressObj,
+      couponCode: appliedCoupon?.code || couponCode || "",
+      paymentMethod: paymentMethod === "cod" ? "Cash on Delivery (COD)" : "Online Payment",
+      items: cart,
+      lines: lines,
+      snapshotItems: snapshotItems,
+      status: "Confirmed"
+    };
 
     try {
-      emitToast("Initializing Cashfree secure payment session...", "info");
-      const sessionData = await createCashfreeCheckoutSession({
-        lines,
-        shippingAddress: addressObj,
-        couponCode: appliedCoupon?.code || couponCode || "",
-        notes: "Aura Rudraksha Sacred Order",
-        source: "website"
-      });
-
-      if (!sessionData?.paymentSessionId) {
-        throw new Error(sessionData?.message || "Cashfree payment session could not be created.");
-      }
-
-      emitToast("Opening Cashfree Payment Gateway...", "success");
-
-      // Open Cashfree official Checkout interface
-      await openCashfreeCheckout({
-        paymentSessionId: sessionData.paymentSessionId,
-        mode: sessionData.environment || "production",
-        redirectTarget: "_self"
-      });
-    } catch (err) {
-      console.error("Cashfree checkout initiation failed:", err);
+      const savedOrder = await db.saveOrder(orderObj);
+      setSuccess(savedOrder.id || savedOrder.orderId);
       setLoading(false);
-      emitToast(err.message || "Failed to initiate payment with Cashfree. Please try again.", "error");
+      emitToast(`Order #${savedOrder.id || savedOrder.orderId} placed successfully!`, "success");
+      clear();
+    } catch (err) {
+      setLoading(false);
+      emitToast(err.message || "Could not place order. Please check your details and retry.", "error");
     }
   };
 
@@ -587,7 +599,7 @@ export function Checkout() {
           couponError={couponError}
           couponSuccessMsg={couponSuccessMsg}
           onCheckout={handlePlaceOrder}
-          ctaText={`Pay Now • ${money(finalTotal)}`}
+          ctaText={`Place Order • ${money(finalTotal)}`}
           isCheckoutPage={true}
           loading={loading}
         />
@@ -629,11 +641,11 @@ export function Checkout() {
             {loading ? (
               <>
                 <Loader2 size={20} className="animate-spin" />
-                <span>Launching Cashfree Secure Gateway...</span>
+                <span>Processing Order...</span>
               </>
             ) : (
               <>
-                <span>Pay Now • {money(finalTotal)}</span>
+                <span>Place Order • {money(finalTotal)}</span>
                 <ArrowRight size={20} />
               </>
             )}
@@ -641,7 +653,7 @@ export function Checkout() {
           
           <div style={{ textAlign: "center", marginTop: "10px", fontSize: "12px", color: "#6e5d50", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
             <Lock size={13} color="#166534" />
-            <span>Clicking "Pay Now" opens RBI-authorized 256-Bit SSL Cashfree Payment Gateway</span>
+            <span>Clicking "Place Order" securely registers your order & dispatches from Nepal</span>
           </div>
         </div>
 
