@@ -217,34 +217,41 @@ export function AdminProducts() {
     const allSelectedFiles = Array.from(e.target.files || []);
     if (!allSelectedFiles.length) return;
 
-    const currentImages = editing?.images || [];
-    const availableSlots = Math.max(0, 10 - currentImages.length);
-
-    if (availableSlots <= 0) {
-      emitToast("Maximum limit of 10 images reached.", "warning");
-      if (e.target) e.target.value = "";
-      return;
-    }
-
-    let filesToProcess = allSelectedFiles;
-    if (filesToProcess.length > availableSlots) {
-      emitToast(`Only the first ${availableSlots} image(s) will be uploaded to maintain the 10-image limit.`, "info");
-      filesToProcess = filesToProcess.slice(0, availableSlots);
-    }
-
     setIsUploading(true);
-    setUploadProgressMsg("Uploading to Puter Cloud...");
+    setUploadProgressMsg("Preparing files for Puter Cloud upload...");
 
     try {
-      const results = await uploadMediaBatch(filesToProcess, (pct, statusMsg) => {
+      const handleChunkSuccess = (chunkResults) => {
+        if (!chunkResults || !chunkResults.length) return;
+        const newUrls = chunkResults.filter(r => r.success && r.url).map(r => r.url);
+        if (newUrls.length > 0) {
+          setEditing(prev => {
+            if (!prev) return prev;
+            const existingImages = prev.images || [];
+            const merged = [...existingImages];
+            newUrls.forEach(url => {
+              if (!merged.includes(url)) {
+                merged.push(url);
+              }
+            });
+            return {
+              ...prev,
+              images: merged,
+              img: prev.img || merged[0] || ""
+            };
+          });
+        }
+      };
+
+      const results = await uploadMediaBatch(allSelectedFiles, (pct, statusMsg) => {
         setUploadProgressMsg(statusMsg || `Uploading to Puter Cloud — ${pct}%`);
-      });
+      }, handleChunkSuccess);
 
       const successfulUrls = [];
       const errors = [];
 
       results.forEach((res, idx) => {
-        const fileName = filesToProcess[idx]?.name || res.originalName || "File";
+        const fileName = allSelectedFiles[idx]?.name || res.originalName || "File";
         if (res.success && res.url) {
           successfulUrls.push(res.url);
         } else {
@@ -261,7 +268,7 @@ export function AdminProducts() {
           const existingImages = prev.images || [];
           const newImages = [...existingImages];
           successfulUrls.forEach(url => {
-            if (newImages.length < 10 && !newImages.includes(url)) {
+            if (!newImages.includes(url)) {
               newImages.push(url);
             }
           });
@@ -276,7 +283,7 @@ export function AdminProducts() {
       if (successfulUrls.length > 0 && errors.length === 0) {
         emitToast(`${successfulUrls.length} image(s) uploaded successfully to Puter Cloud!`, "success");
       } else if (successfulUrls.length > 0 && errors.length > 0) {
-        emitToast(`${successfulUrls.length} of ${filesToProcess.length} image(s) uploaded. ${errors.length} failed.`, "warning");
+        emitToast(`${successfulUrls.length} of ${allSelectedFiles.length} image(s) uploaded. ${errors.length} failed.`, "warning");
         errors.forEach(errStr => emitToast(errStr, "error"));
       } else if (errors.length > 0) {
         emitToast(`Upload failed: ${errors[0]}`, "error");
@@ -298,15 +305,10 @@ export function AdminProducts() {
     const trimmed = urlInput.trim();
     if (!trimmed) return;
 
-    if (editing?.images?.length >= 10) {
-      emitToast("Maximum of 10 images allowed.", "warning");
-      return;
-    }
-
     setEditing(prev => {
       if (!prev) return prev;
       const newImages = [...(prev.images || [])];
-      if (newImages.length >= 10) return prev;
+      if (newImages.includes(trimmed)) return prev;
       newImages.push(trimmed);
       return {
         ...prev,
@@ -835,7 +837,7 @@ export function AdminProducts() {
             {editing.images && editing.images.length > 0 && (
               <div style={{ marginTop: '16px' }}>
                 <b style={{ fontSize: '13px', color: '#2b170d', display: 'block', marginBottom: '8px' }}>
-                  Uploaded Product Photos ({editing.images.length}/10) — Set Primary & Reorder
+                  Uploaded Product Photos ({editing.images.length}) — Set Primary & Reorder
                 </b>
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                   {editing.images.map((imgUrl, index) => {
