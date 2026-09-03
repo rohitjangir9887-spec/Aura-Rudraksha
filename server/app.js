@@ -213,13 +213,24 @@ export function createApp() {
 
   // Mongoose / Database error handler
   app.use((err, req, res, next) => {
-    if (
+    const isDbErr =
       err.name === 'MongooseError' ||
       err.name === 'MongoNetworkError' ||
       err.name === 'MongoServerSelectionError' ||
-      (err.message && (err.message.includes('buffering timed out') || err.message.includes('timed out')))
-    ) {
+      err.name === 'MongoTopologyClosedError' ||
+      err.name === 'MongoTimeoutError' ||
+      (err.message && (
+        err.message.includes('buffering timed out') ||
+        err.message.includes('timed out') ||
+        err.message.includes('ReplicaSetNoPrimary') ||
+        err.message.includes('PoolClearedOnNetworkError') ||
+        err.message.includes('Topology is closed') ||
+        err.message.includes('Client must be connected')
+      ));
+
+    if (isDbErr) {
       console.error('[Database Error]', err.message);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.status(503).json({
         success: false,
         error: 'Database unavailable',

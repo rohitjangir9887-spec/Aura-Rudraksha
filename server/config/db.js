@@ -43,11 +43,12 @@ export async function connectDB() {
   }
   
   // 1. If already active and ready, return true immediately
-  if (cached.conn && mongoose.connection.readyState === 1) {
+  if (mongoose.connection.readyState === 1) {
+    cached.conn = mongoose;
     return true;
   }
 
-  // 2. If disconnected or disconnecting, clear any stale promise
+  // 2. If disconnected or disconnecting, clear any stale promise and cached connection
   if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     cached.conn = null;
     cached.promise = null;
@@ -60,6 +61,7 @@ export async function connectDB() {
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 10000,
       socketTimeoutMS: 45000,
+      maxIdleTimeMS: 10000,
       maxPoolSize: 10,
       minPoolSize: 0, // Serverless execution must not keep minPoolSize > 0
       autoIndex: process.env.NODE_ENV !== "production"
@@ -80,7 +82,7 @@ export async function connectDB() {
 
   try {
     cached.conn = await cached.promise;
-    return !!cached.conn && mongoose.connection.readyState === 1;
+    return mongoose.connection.readyState === 1;
   } catch (error) {
     cached.promise = null;
     cached.conn = null;
