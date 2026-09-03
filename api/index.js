@@ -1,5 +1,5 @@
 import { createApp } from "../server/app.js";
-import { connectDB } from "../server/config/db.js";
+import { connectDB, getMongoUri } from "../server/config/db.js";
 
 const app = createApp();
 
@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   // Ensure database is connected for this serverless invocation
-  if (process.env.MONGODB_URI) {
+  if (getMongoUri()) {
     try {
       await connectDB();
     } catch (err) {

@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import { connectDB, isDbConnected, getLastDbSync } from "./config/db.js";
+import { connectDB, isDbConnected, getLastDbSync, getMongoUri } from "./config/db.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 // Routes
@@ -46,13 +46,13 @@ const adminApiLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Admin API
 // Allowed cross-origin frontends, per CORS_ORIGINS (comma-separated) in .env.
 // Empty = same-origin only, which matches the default single-server deploy
 // (Node serves dist/). Set CORS_ORIGINS for a split Pages+API deployment.
-function resolveAllowedOrigins() {
+export function resolveAllowedOrigins() {
   const fromEnv = (process.env.CORS_ORIGINS || "")
     .split(",")
     .map(o => o.trim())
     .filter(Boolean);
   const isDev = process.env.NODE_ENV !== "production";
-  const devOrigins = isDev ? ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"] : [];
+  const devOrigins = isDev ? ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"] : [];
   return [...new Set([...fromEnv, ...devOrigins])];
 }
 
@@ -62,21 +62,38 @@ export function createApp() {
   // Enable trust proxy for containerized environments (Cloud Run / reverse proxy)
   app.set("trust proxy", true);
 
-  // CORS Middleware - allow preview environments, iframes, and configured origins
+  // CORS Middleware - strictly enforce allowed origins allowlist & handle preflights
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
+    const allowedOrigins = resolveAllowedOrigins();
+
+    // Check same-origin via host header for same-domain API requests
+    const reqHost = req.headers["x-forwarded-host"] || req.headers.host;
+    const isSameOrigin = Boolean(
+      origin && reqHost && (
+        origin === `https://${reqHost}` ||
+        origin === `http://${reqHost}`
+      )
+    );
+
+    const isAllowed = Boolean(origin && (allowedOrigins.includes(origin) || isSameOrigin));
+
+    if (origin && isAllowed) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Credentials", "true");
-    } else {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-    }
-    if (req.method === "OPTIONS") {
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,Accept");
+      res.setHeader("Access-Control-Max-Age", "86400");
+    }
+
+    if (req.method === "OPTIONS") {
+      if (origin && !isAllowed) {
+        return res.status(403).json({ success: false, message: "CORS origin not allowed" });
+      }
       return res.sendStatus(204);
     }
+
     next();
   });
   app.use(express.json({ limit: "8mb" }));
@@ -128,7 +145,7 @@ export function createApp() {
 
   // Database Connection Middleware for Serverless & Long-running instances
   app.use("/api", async (req, res, next) => {
-    if (process.env.MONGODB_URI) {
+    if (getMongoUri()) {
       try {
         await connectDB();
       } catch (err) {
@@ -164,7 +181,7 @@ export function createApp() {
   // Middleware ensuring DB connection before database-dependent queries
   const requireDb = async (req, res, next) => {
     if (!isDbConnected()) {
-      if (process.env.MONGODB_URI) {
+      if (getMongoUri()) {
         try {
           await connectDB();
         } catch (err) {

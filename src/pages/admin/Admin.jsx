@@ -3,7 +3,7 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { getPuterMediaStatus, signInToPuter, signOutPuter, uploadMedia } from "../../lib/imageUtils";
+import { getPuterMediaStatus, signInToPuter, signOutPuter, uploadMedia, subscribePuterStatus } from "../../lib/imageUtils";
 
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
@@ -56,20 +56,38 @@ export function Admin() {
     message: "Checking Puter Cloud status..."
   });
 
-  const checkPuter = useCallback(async () => {
+  const checkPuter = useCallback(async (isManual = false) => {
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Puter status timeout")), 5000)
-      );
-      const info = await Promise.race([getPuterMediaStatus(), timeoutPromise]);
-      if (mountedRef.current) setMediaInfo(info);
+      const info = await getPuterMediaStatus({ force: isManual });
+      if (mountedRef.current && info) {
+        setMediaInfo(info);
+        if (info.connected) {
+          fetch("/api/upload/stats")
+            .then(res => res.json())
+            .then(mediaStatsRes => {
+              if (mountedRef.current && mediaStatsRes.success) {
+                setMediaStats({
+                  serverStorage: mediaStatsRes.serverStorage || "Puter Cloud Storage",
+                  imagesCount: mediaStatsRes.imagesCount ?? 0,
+                  videosCount: mediaStatsRes.videosCount ?? 0,
+                  totalCount: mediaStatsRes.totalCount ?? 0,
+                  totalSizeBytes: mediaStatsRes.totalSizeBytes ?? 0,
+                  lastUpload: mediaStatsRes.lastUpload || null,
+                  lastSyncTime: new Date().toLocaleTimeString()
+                });
+              }
+            })
+            .catch(() => {});
+        }
+      }
     } catch (_) {
       if (mountedRef.current) {
-        setMediaInfo({
+        setMediaInfo(prev => ({
+          ...prev,
           connected: false,
           status: "Not Connected",
-          message: "Puter Cloud connection check failed or timed out. Click Reconnect to retry."
-        });
+          message: "Puter Cloud connection check failed. Click Reconnect to retry."
+        }));
       }
     }
   }, []);
@@ -222,6 +240,35 @@ export function Admin() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    // Auto-restore and subscribe to Puter Cloud connection status
+    checkPuter();
+    const unsubPuter = subscribePuterStatus((info) => {
+      if (mountedRef.current && info) {
+        setMediaInfo(info);
+        if (info.connected) {
+          fetch("/api/upload/stats")
+            .then(res => res.json())
+            .then(mediaStatsRes => {
+              if (mountedRef.current && mediaStatsRes.success) {
+                setMediaStats({
+                  serverStorage: mediaStatsRes.serverStorage || "Puter Cloud Storage",
+                  imagesCount: mediaStatsRes.imagesCount ?? 0,
+                  videosCount: mediaStatsRes.videosCount ?? 0,
+                  totalCount: mediaStatsRes.totalCount ?? 0,
+                  totalSizeBytes: mediaStatsRes.totalSizeBytes ?? 0,
+                  lastUpload: mediaStatsRes.lastUpload || null,
+                  lastSyncTime: new Date().toLocaleTimeString()
+                });
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    });
+    return () => unsubPuter();
+  }, [checkPuter]);
 
   useEffect(() => {
     refreshDashboard();
@@ -488,7 +535,7 @@ export function Admin() {
                         <span>{isSigningInPuter ? "Connecting..." : "🔑 Connect Puter Cloud"}</span>
                       </button>
                       <button
-                        onClick={checkPuter}
+                        onClick={() => checkPuter(true)}
                         style={{
                           background: '#f3f4f6',
                           color: '#374151',
@@ -511,7 +558,7 @@ export function Admin() {
                   ) : (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
                       <button
-                        onClick={checkPuter}
+                        onClick={() => checkPuter(true)}
                         style={{
                           flex: 1,
                           background: '#f3f4f6',

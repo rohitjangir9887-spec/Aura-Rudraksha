@@ -78,7 +78,7 @@ export async function compressImage(source, maxWidth = 1000, maxHeight = 1000, q
 /**
  * Asynchronously waits for the Puter.js SDK to become ready on the window object
  */
-export async function waitForPuter(timeoutMs = 3000) {
+export async function waitForPuter(timeoutMs = 5000) {
   if (typeof window === "undefined") return null;
   if (window.puter) return window.puter;
 
@@ -90,11 +90,94 @@ export async function waitForPuter(timeoutMs = 3000) {
   return window.puter || null;
 }
 
+// In-memory Puter connection cache & subscription state
+let _cachedPuterUser = null;
+let _lastKnownStatus = null;
+let _inFlightStatusPromise = null;
+const _statusSubscribers = new Set();
+let _retryTimer = null;
+let _retryCount = 0;
+let _listenersInitialized = false;
+let _lastCheckTimestamp = 0;
+
+function notifyStatusSubscribers(status) {
+  _statusSubscribers.forEach((callback) => {
+    try {
+      callback(status);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("[Puter Diagnostics] Subscriber notification note:", err);
+      }
+    }
+  });
+}
+
+function scheduleAutoRetry() {
+  if (_retryTimer) return;
+  if (_retryCount >= 5) return; // Cap retries to prevent infinite spam
+
+  const delayMs = Math.min(1000 * Math.pow(2, _retryCount), 15000);
+  _retryCount++;
+
+  _retryTimer = setTimeout(() => {
+    _retryTimer = null;
+    getPuterMediaStatus().catch(() => {});
+  }, delayMs);
+}
+
+function initPuterAutoConnectionListeners() {
+  if (typeof window === "undefined" || _listenersInitialized) return;
+  _listenersInitialized = true;
+
+  // Auto-restore / refresh when user switches tabs or foregrounds the dashboard
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        const now = Date.now();
+        // Debounce to at most once every 10 seconds on tab visibility changes
+        if (now - _lastCheckTimestamp > 10000) {
+          getPuterMediaStatus().catch(() => {});
+        }
+      }
+    });
+  }
+
+  // Auto-restore when network reconnects
+  window.addEventListener("online", () => {
+    _retryCount = 0;
+    getPuterMediaStatus({ force: true }).catch(() => {});
+  });
+
+  // Re-check when window gains focus
+  window.addEventListener("focus", () => {
+    const now = Date.now();
+    if (now - _lastCheckTimestamp > 15000) {
+      getPuterMediaStatus().catch(() => {});
+    }
+  });
+}
+
+/**
+ * Subscribes to real-time Puter status changes
+ */
+export function subscribePuterStatus(callback) {
+  if (typeof callback !== "function") return () => {};
+  _statusSubscribers.add(callback);
+  if (_lastKnownStatus) {
+    try {
+      callback(_lastKnownStatus);
+    } catch (_) {}
+  }
+  return () => {
+    _statusSubscribers.delete(callback);
+  };
+}
+
 /**
  * Resolves or creates a Puter hosted domain for permanent public media access
  */
 export async function getPuterHostedDomain() {
-  const puter = await waitForPuter(2500);
+  const puter = await waitForPuter(3000);
   if (!puter || !puter.hosting) return null;
 
   let cachedSubdomain = localStorage.getItem("aura_puter_subdomain");
@@ -131,8 +214,11 @@ export async function getPuterHostedDomain() {
 
 /**
  * Real Puter Media Status & Authentication Check
+ * Automatically restores and maintains valid Puter sessions without requiring manual reconnects
  */
-export async function getPuterMediaStatus() {
+export async function getPuterMediaStatus(options = {}) {
+  const { force = false } = options;
+
   if (typeof window === "undefined") {
     return {
       connected: false,
@@ -143,85 +229,136 @@ export async function getPuterMediaStatus() {
     };
   }
 
-  const puter = await waitForPuter(2500);
-  if (!puter) {
-    if (import.meta.env.DEV) {
-      console.warn("[Puter Diagnostics] Puter JS SDK not found on window object.");
-    }
-    return {
-      connected: false,
-      status: "Not Configured",
-      provider: "Puter Cloud Storage",
-      user: null,
-      message: "Puter JS SDK not detected in browser. Please verify script loading or network connection."
-    };
+  initPuterAutoConnectionListeners();
+
+  // Return existing in-flight check if one is already running and not forced
+  if (!force && _inFlightStatusPromise) {
+    return _inFlightStatusPromise;
   }
 
-  try {
-    const isSignedIn = typeof puter.auth?.isSignedIn === "function" ? puter.auth.isSignedIn() : false;
-    if (!isSignedIn) {
+  _inFlightStatusPromise = (async () => {
+    _lastCheckTimestamp = Date.now();
+
+    const puter = await waitForPuter(force ? 4000 : 3000);
+    if (!puter) {
       if (import.meta.env.DEV) {
-        console.log("[Puter Diagnostics] Puter SDK loaded, user is not signed in.");
+        console.warn("[Puter Diagnostics] Puter JS SDK not found on window object.");
       }
-      return {
+      // If we previously had a connected status, retain state and schedule a background retry
+      if (_lastKnownStatus?.connected) {
+        scheduleAutoRetry();
+        return _lastKnownStatus;
+      }
+      scheduleAutoRetry();
+      const statusObj = {
+        connected: false,
+        status: "Checking...",
+        provider: "Puter Cloud Storage",
+        user: null,
+        message: "Puter Cloud SDK is initializing. Verifying connection..."
+      };
+      _lastKnownStatus = statusObj;
+      notifyStatusSubscribers(statusObj);
+      return statusObj;
+    }
+
+    try {
+      const isSignedIn = typeof puter.auth?.isSignedIn === "function" ? puter.auth.isSignedIn() : false;
+
+      if (!isSignedIn) {
+        _cachedPuterUser = null;
+        _retryCount = 0;
+        const statusObj = {
+          connected: false,
+          status: "Not Connected",
+          provider: "Puter Cloud Storage",
+          user: null,
+          message: "Puter Cloud SDK active, but Admin authentication is required. Click 'Connect Puter Cloud Storage' to log in."
+        };
+        _lastKnownStatus = statusObj;
+        notifyStatusSubscribers(statusObj);
+        return statusObj;
+      }
+
+      // User is signed in — reset retry count and load user information
+      _retryCount = 0;
+      let user = _cachedPuterUser;
+
+      try {
+        if (typeof puter.auth?.getUser === "function") {
+          const fetchedUser = await Promise.race([
+            puter.auth.getUser(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Puter getUser timeout")), 4000))
+          ]).catch((err) => {
+            if (import.meta.env.DEV) {
+              console.warn("[Puter Diagnostics] getUser fetch notice:", err?.message || err);
+            }
+            return null;
+          });
+
+          if (fetchedUser) {
+            user = fetchedUser;
+            _cachedPuterUser = fetchedUser;
+          }
+        }
+      } catch (uErr) {
+        if (import.meta.env.DEV) {
+          console.warn("[Puter Diagnostics] getUser warning:", uErr);
+        }
+      }
+
+      const username = user?.username || user?.name || user?.email?.split('@')[0] || "Admin";
+      const email = user?.email || (user?.username ? `${user.username}@puter.com` : null);
+      const lastSync = new Date().toLocaleTimeString();
+
+      // Pre-create upload directory in background
+      try {
+        if (typeof puter.fs?.mkdir === "function") {
+          puter.fs.mkdir("aura_uploads", { createMissingParents: true }).catch(() => {});
+        }
+      } catch (_) {}
+
+      const statusObj = {
+        connected: true,
+        status: "Connected",
+        user: user || { username, email },
+        username,
+        email,
+        lastSync,
+        provider: "Puter Cloud Storage",
+        message: `Puter Cloud Storage connected as ${username} (${email || "Session active"}).`
+      };
+
+      _lastKnownStatus = statusObj;
+      notifyStatusSubscribers(statusObj);
+      return statusObj;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error("[Puter Diagnostics] Status check exception:", err);
+      }
+      // If error is transient (network timeout) but user was signed in, preserve connected state
+      if (_lastKnownStatus?.connected) {
+        scheduleAutoRetry();
+        return _lastKnownStatus;
+      }
+
+      const statusObj = {
         connected: false,
         status: "Not Connected",
         provider: "Puter Cloud Storage",
         user: null,
-        message: "Puter Cloud SDK active, but Admin authentication is required. Click 'Connect Puter Cloud Storage' to log in."
+        message: `Puter Cloud connection check error: ${err.message || err}`
       };
+      _lastKnownStatus = statusObj;
+      notifyStatusSubscribers(statusObj);
+      return statusObj;
     }
+  })();
 
-    let user = null;
-    try {
-      if (typeof puter.auth?.getUser === "function") {
-        user = await Promise.race([
-          puter.auth.getUser(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Puter getUser timeout")), 3000))
-        ]).catch(() => null);
-      }
-    } catch (uErr) {
-      if (import.meta.env.DEV) {
-        console.warn("[Puter Diagnostics] getUser warning:", uErr);
-      }
-    }
-
-    const username = user?.username || user?.name || user?.email?.split('@')[0] || "Admin";
-    const email = user?.email || (user?.username ? `${user.username}@puter.com` : null);
-    const lastSync = new Date().toLocaleTimeString();
-
-    if (import.meta.env.DEV) {
-      console.log("[Puter Diagnostics] Puter Connected for user:", username, email);
-    }
-
-    // Ensure upload root folder exists
-    try {
-      if (typeof puter.fs?.mkdir === "function") {
-        await puter.fs.mkdir("aura_uploads", { createMissingParents: true }).catch(() => {});
-      }
-    } catch (_) {}
-
-    return {
-      connected: true,
-      status: "Connected",
-      user,
-      username,
-      email,
-      lastSync,
-      provider: "Puter Cloud Storage",
-      message: `Puter Cloud Storage connected as ${username} (${email || "Session active"}).`
-    };
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      console.error("[Puter Diagnostics] Status check exception:", err);
-    }
-    return {
-      connected: false,
-      status: "Not Connected",
-      provider: "Puter Cloud Storage",
-      user: null,
-      message: `Puter Cloud connection check error: ${err.message || err}`
-    };
+  try {
+    return await _inFlightStatusPromise;
+  } finally {
+    _inFlightStatusPromise = null;
   }
 }
 
@@ -229,7 +366,7 @@ export async function getPuterMediaStatus() {
  * Sign in to Puter Cloud via user popup
  */
 export async function signInToPuter() {
-  const puter = await waitForPuter(3000);
+  const puter = await waitForPuter(4000);
   if (!puter || !puter.auth?.signIn) {
     throw new Error("Puter JS SDK is not loaded or available.");
   }
@@ -241,37 +378,36 @@ export async function signInToPuter() {
   await puter.auth.signIn();
 
   // Small delay to allow session state propagation
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 200));
 
-  const signedIn = typeof puter.auth.isSignedIn === "function" ? puter.auth.isSignedIn() : true;
-  let user = null;
-  if (typeof puter.auth.getUser === "function") {
-    user = await puter.auth.getUser().catch(() => null);
-  }
+  _cachedPuterUser = null;
+  const status = await getPuterMediaStatus({ force: true });
 
-  if (import.meta.env.DEV) {
-    console.log("[Puter Diagnostics] SignIn completed. signedIn =", signedIn, "user =", user?.username);
-  }
-
-  // Pre-create upload directory
-  try {
-    if (typeof puter.fs?.mkdir === "function") {
-      await puter.fs.mkdir("aura_uploads", { createMissingParents: true }).catch(() => {});
-    }
-  } catch (_) {}
-
-  return { signedIn, user };
+  return { signedIn: status.connected, user: status.user };
 }
 
 /**
- * Sign out of Puter Cloud
+ * Explicit sign out of Puter Cloud (only called on explicit user action)
  */
 export async function signOutPuter() {
   const puter = await waitForPuter(2000);
   if (puter && typeof puter.auth?.signOut === "function") {
     await puter.auth.signOut();
   }
+  _cachedPuterUser = null;
   localStorage.removeItem("aura_puter_subdomain");
+
+  const statusObj = {
+    connected: false,
+    status: "Not Connected",
+    provider: "Puter Cloud Storage",
+    user: null,
+    message: "Puter Cloud Storage disconnected by user."
+  };
+
+  _lastKnownStatus = statusObj;
+  notifyStatusSubscribers(statusObj);
+  return statusObj;
 }
 
 /**

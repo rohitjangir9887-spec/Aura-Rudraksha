@@ -122,6 +122,16 @@ export const auraChatStore = {
     return mode === "panditji" ? DEFAULT_INITIAL_MESSAGE_PANDITJI : DEFAULT_INITIAL_MESSAGE_STANDARD;
   },
 
+  // Check if there are user messages beyond the default welcome message
+  hasUserMessages(mode = "standard") {
+    try {
+      const msgs = this.getMessages(mode);
+      return msgs.some((m) => m.sender === "user" || (m.sender === "ai" && !m.id?.startsWith("init_welcome")));
+    } catch (_) {
+      return false;
+    }
+  },
+
   // Get messages for active mode
   getMessages(mode = "standard") {
     try {
@@ -142,12 +152,62 @@ export const auraChatStore = {
   // Save messages for active mode and broadcast to all components/tabs
   saveMessages(messages, mode = "standard") {
     try {
+      if (!Array.isArray(messages) || messages.length === 0) return;
       const key = this.getStorageKey(mode);
       localStorage.setItem(key, JSON.stringify(messages));
       window.dispatchEvent(new CustomEvent("aura_ai_chat_sync", { detail: { messages, mode } }));
     } catch (e) {
       console.warn("Error saving Aura AI chats:", e);
     }
+  },
+
+  // Safe Auth Sync that preserves chat history on refresh
+  syncAuthSession(currentUser, mode = "standard") {
+    const currentUid = currentUser?.uid || (currentUser?.email ? `email_${currentUser.email}` : "guest");
+    let lastUid = null;
+    try {
+      lastUid = localStorage.getItem("aura_ai_last_auth_uid");
+    } catch (_) {}
+
+    // First time or same user session (page refresh / reload) -> Keep all local messages!
+    if (!lastUid || lastUid === currentUid) {
+      try {
+        localStorage.setItem("aura_ai_last_auth_uid", currentUid);
+      } catch (_) {}
+      return {
+        messages: this.getMessages(mode),
+        conversationId: this.getConversationId(),
+        accountSwitched: false
+      };
+    }
+
+    // If user switched between two distinct authenticated accounts (e.g. user1 -> user2)
+    const isDistinctAccountSwitch = lastUid !== "guest" && currentUid !== "guest" && lastUid !== currentUid;
+    if (isDistinctAccountSwitch) {
+      this.clearLocalChats();
+      const newConvId = "conv_u_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+      this.setConversationId(newConvId);
+      const initMsgs = [this.getDefaultInitialMessage(mode)];
+      this.saveMessages(initMsgs, mode);
+      try {
+        localStorage.setItem("aura_ai_last_auth_uid", currentUid);
+      } catch (_) {}
+      return {
+        messages: initMsgs,
+        conversationId: newConvId,
+        accountSwitched: true
+      };
+    }
+
+    // Transition between guest <-> user keeps ongoing session
+    try {
+      localStorage.setItem("aura_ai_last_auth_uid", currentUid);
+    } catch (_) {}
+    return {
+      messages: this.getMessages(mode),
+      conversationId: this.getConversationId(),
+      accountSwitched: false
+    };
   },
 
   // Append new messages to active mode

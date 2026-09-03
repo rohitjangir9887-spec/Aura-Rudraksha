@@ -35,10 +35,35 @@ if (!global.__mongoose_listeners_attached) {
   });
 }
 
+export function isValidMongoUri(rawUri) {
+  if (!rawUri || typeof rawUri !== "string") return false;
+  const trimmed = rawUri.trim();
+  return (
+    trimmed.startsWith("mongodb://") ||
+    trimmed.startsWith("mongodb+srv://")
+  );
+}
+
+export function getMongoUri() {
+  const uri = (process.env.MONGODB_URI || "").trim();
+  if (isValidMongoUri(uri)) {
+    return uri;
+  }
+  return null;
+}
+
 export async function connectDB() {
-  const uri = process.env.MONGODB_URI;
+  const uri = getMongoUri();
   if (!uri) {
-    console.warn("⚠️ [MongoDB] MONGODB_URI environment variable is not defined.");
+    if (!global.__mongo_warned_unconfigured) {
+      global.__mongo_warned_unconfigured = true;
+      const raw = (process.env.MONGODB_URI || "").trim();
+      if (raw && raw !== ".") {
+        console.warn("⚠️ [MongoDB] MONGODB_URI is provided but invalid (must start with 'mongodb://' or 'mongodb+srv://'). Database is disconnected.");
+      } else {
+        console.warn("⚠️ [MongoDB] MONGODB_URI environment variable is not defined or unconfigured. Database is disconnected.");
+      }
+    }
     return false;
   }
   

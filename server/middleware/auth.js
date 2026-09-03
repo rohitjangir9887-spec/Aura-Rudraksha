@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { cert } from 'firebase-admin/app';
+import mongoose from "mongoose";
 import { Customer } from "../models/Customer.js";
 import fs from "fs";
 import path from "path";
@@ -61,9 +62,26 @@ if (!getApps().length) {
 // Dev-only demo auth fallback. This must NEVER be reachable in production.
 // It requires BOTH NODE_ENV !== "production" AND an explicit opt-in env var,
 // so a misconfigured/missing NODE_ENV can never silently enable it.
+// In Production/Vercel environments, it is strictly forbidden and permanently disabled.
 // ---------------------------------------------------------------------------
-function devFallbackAllowed() {
-  return process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH_FALLBACK === "true";
+export function devFallbackAllowed() {
+  const nodeEnv = (process.env.NODE_ENV || "").trim().toLowerCase();
+  const vercelEnv = (process.env.VERCEL_ENV || "").trim().toLowerCase();
+  const isVercel = Boolean(process.env.VERCEL && process.env.VERCEL !== "0");
+
+  // Production or cloud deployment environments must NEVER allow fallback under any circumstances
+  if (
+    nodeEnv === "production" ||
+    vercelEnv === "production" ||
+    vercelEnv === "preview" ||
+    (isVercel && nodeEnv !== "development")
+  ) {
+    return false;
+  }
+
+  // Development auth fallback can ONLY activate when:
+  // NODE_ENV !== "production" AND ALLOW_DEV_AUTH_FALLBACK === "true"
+  return nodeEnv !== "production" && process.env.ALLOW_DEV_AUTH_FALLBACK === "true";
 }
 
 function applyDevFallbackUser(req) {
@@ -203,37 +221,41 @@ async function checkAdmin(req, res, next) {
     // STRICT ENFORCEMENT: Admin dashboard & APIs are ONLY accessible if email is rohitjangir8740@gmail.com or phone is +919672996531.
     if (!isInitialAdmin) {
       // Ensure any rogue customer record with admin role is demoted
-      await Customer.updateOne({ authUserId, role: "admin" }, { $set: { role: "customer" } }).catch(() => {});
+      if (mongoose.connection.readyState === 1) {
+        await Customer.updateOne({ authUserId, role: "admin" }, { $set: { role: "customer" } }).catch(() => {});
+      }
       return res.status(403).json({ 
         success: false, 
         message: "Access Denied: Admin dashboard is exclusively reserved for rohitjangir8740@gmail.com or +91 9672996531." 
       });
     }
 
-    try {
-      let customer = await Customer.findOne({ authUserId }).catch(() => null);
-      if (customer) {
-        if (customer.role !== "admin") {
-          customer.role = "admin";
-          await customer.save().catch(() => {});
+    if (mongoose.connection.readyState === 1) {
+      try {
+        let customer = await Customer.findOne({ authUserId }).catch(() => null);
+        if (customer) {
+          if (customer.role !== "admin") {
+            customer.role = "admin";
+            await customer.save().catch(() => {});
+          }
+        } else {
+          await Customer.create({
+            authUserId,
+            email: req.user.email || "rohitjangir8740@gmail.com",
+            phone: req.user.phone || "+919672996531",
+            name: req.user.name || "Rohit Jangir",
+            role: "admin"
+          }).catch(() => {});
         }
-      } else {
-        await Customer.create({
-          authUserId,
-          email: req.user.email || "rohitjangir8740@gmail.com",
-          phone: req.user.phone || "+919672996531",
-          name: req.user.name || "Rohit Jangir",
-          role: "admin"
-        }).catch(() => {});
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     return next();
   } catch (error) {
     console.error("Admin Check Error:", error?.message || error);
-    if (devFallbackAllowed()) {
+    if (devFallbackAllowed() && req.user && isAdminUser(req.user).isInitialAdmin) {
       return next();
     }
-    res.status(500).json({ success: false, message: "Authorization service error" });
+    return res.status(500).json({ success: false, message: "Authorization service error" });
   }
 }
