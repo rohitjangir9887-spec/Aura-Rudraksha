@@ -622,13 +622,13 @@ export function Product() {
               <div className="product-size-badge-prominent" style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "18px",
+                gap: "12px",
                 background: "linear-gradient(135deg, #fffcf5 0%, #fff6e5 100%)",
-                border: "2px solid #e5c158",
-                borderRadius: "16px",
-                padding: "15px 4px 15px 4px",
-                margin: "-29px 16.5655px 20px 16.5595px",
-                boxShadow: "0 10px 28px rgba(229, 193, 88, 0.18), inset 0 1px 0 rgba(255,255,255,0.9)",
+                border: "1.5px solid #e5c158",
+                borderRadius: "12px",
+                padding: "10px 14px",
+                margin: "12px 0",
+                boxShadow: "0 6px 18px rgba(229, 193, 88, 0.12), inset 0 1px 0 rgba(255,255,255,0.9)",
                 position: "relative",
                 overflow: "hidden"
               }}>
@@ -639,7 +639,7 @@ export function Product() {
                   left: "-50%",
                   width: "200%",
                   height: "100%",
-                  background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%)",
                   transform: "skewX(-25deg)",
                   animation: "shine 4s infinite linear",
                   pointerEvents: "none"
@@ -647,22 +647,22 @@ export function Product() {
                 <div style={{
                   background: "linear-gradient(135deg, #e5c158 0%, #c49619 100%)",
                   color: "#fff",
-                  width: "52px",
-                  height: "52px",
-                  borderRadius: "14px",
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "10px",
                   display: "grid",
                   placeItems: "center",
-                  boxShadow: "0 6px 18px rgba(196, 150, 25, 0.4)",
+                  boxShadow: "0 4px 12px rgba(196, 150, 25, 0.3)",
                   flexShrink: 0
                 }}>
-                  <Award size={28} className="premium-icon-shimmer" style={{ strokeWidth: 2.2 }} />
+                  <Award size={20} className="premium-icon-shimmer" style={{ strokeWidth: 2.0 }} />
                 </div>
                 <div>
-                  <span style={{ fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#b28514", fontWeight: 800, display: "block", marginBottom: "3px" }}>
+                  <span style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1.2px", color: "#b28514", fontWeight: 800, display: "block", marginBottom: "1px" }}>
                     Natural Bead Size &amp; Dimensions
                   </span>
-                  <span style={{ fontSize: "24px", fontWeight: "800", color: "#1a0f08", letterSpacing: "0.5px", fontFamily: "Cormorant Garamond, serif" }}>
-                    1 - 2 cm <span style={{ fontSize: "14px", fontWeight: "600", color: "#c49619", fontFamily: "sans-serif" }}>(Authentic Nepali Seed)</span>
+                  <span style={{ fontSize: "18px", fontWeight: "800", color: "#1a0f08", letterSpacing: "0.3px", fontFamily: "Cormorant Garamond, serif" }}>
+                    1 - 2 cm <span style={{ fontSize: "12px", fontWeight: "600", color: "#c49619", fontFamily: "sans-serif" }}>(Authentic Nepali Seed)</span>
                   </span>
                 </div>
               </div>
