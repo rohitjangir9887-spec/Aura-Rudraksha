@@ -118,6 +118,10 @@ class UploadQueue {
     this.queue = [];
   }
 
+  add(fn) {
+    return this.enqueue(fn);
+  }
+
   enqueue(fn) {
     return new Promise((resolve, reject) => {
       this.queue.push({ fn, resolve, reject });
