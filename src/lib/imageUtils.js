@@ -125,6 +125,10 @@ class UploadQueue {
     });
   }
 
+  add(fn) {
+    return this.enqueue(fn);
+  }
+
   async processNext() {
     if (this.running >= this.concurrency || this.queue.length === 0) {
       return;
@@ -843,7 +847,7 @@ function findMatchingDescriptor(descriptors, pItem, currentPendingList) {
  * Captures raw Puter error object details and handles 429 rate limit backoff.
  */
 export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
-  return _uploadQueue.add(async () => {
+  return _uploadQueue.enqueue(async () => {
     if (import.meta.env.DEV) {
       console.log("[Puter Diagnostics] UPLOAD_ENGINE_VERSION=5.0.0-RESUMABLE-SINGLE-FILE-QUEUE");
     }
