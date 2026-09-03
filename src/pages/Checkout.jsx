@@ -20,6 +20,7 @@ import {
   Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import confetti from "canvas-confetti";
 
 // Modular Checkout Components
 import { CheckoutTopOffer } from "../components/checkout/CheckoutTopOffer";
@@ -207,6 +208,20 @@ export function Checkout() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Fire celebratory confetti animation on successful order confirmation
+  useEffect(() => {
+    if (confirmedOrder || successParam) {
+      try {
+        confetti({
+          particleCount: 90,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ["#b85d25", "#d97706", "#22c55e", "#166534", "#f59e0b"]
+        });
+      } catch (_) {}
+    }
+  }, [confirmedOrder, successParam]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));

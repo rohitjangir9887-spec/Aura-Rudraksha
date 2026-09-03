@@ -175,7 +175,10 @@ export async function getPuterMediaStatus() {
     let user = null;
     try {
       if (typeof puter.auth?.getUser === "function") {
-        user = await puter.auth.getUser();
+        user = await Promise.race([
+          puter.auth.getUser(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Puter getUser timeout")), 3000))
+        ]).catch(() => null);
       }
     } catch (uErr) {
       if (import.meta.env.DEV) {
@@ -183,10 +186,12 @@ export async function getPuterMediaStatus() {
       }
     }
 
-    const username = user?.username || user?.name || "Admin";
+    const username = user?.username || user?.name || user?.email?.split('@')[0] || "Admin";
+    const email = user?.email || (user?.username ? `${user.username}@puter.com` : null);
+    const lastSync = new Date().toLocaleTimeString();
 
     if (import.meta.env.DEV) {
-      console.log("[Puter Diagnostics] Puter Connected for user:", username);
+      console.log("[Puter Diagnostics] Puter Connected for user:", username, email);
     }
 
     // Ensure upload root folder exists
@@ -201,8 +206,10 @@ export async function getPuterMediaStatus() {
       status: "Connected",
       user,
       username,
+      email,
+      lastSync,
       provider: "Puter Cloud Storage",
-      message: `Puter Cloud Storage connected & authenticated as ${username}. Ready for media uploads.`
+      message: `Puter Cloud Storage connected as ${username} (${email || "Session active"}).`
     };
   } catch (err) {
     if (import.meta.env.DEV) {

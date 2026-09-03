@@ -359,9 +359,11 @@ export function Orders() {
                 {orders.length > 2 && (
                   <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                     {["all", "Processing", "Shipped", "Delivered", "Cancelled"].map(st => (
-                      <button
+                      <motion.button
                         key={st}
                         onClick={() => setStatusFilter(st)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         style={{
                           padding: '6px 14px',
                           borderRadius: 20,
@@ -371,16 +373,17 @@ export function Orders() {
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          boxShadow: statusFilter === st ? '0 3px 10px rgba(165,77,43,0.25)' : 'none'
                         }}
                       >
                         {st === "all" ? "All Orders" : st}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 )}
 
-                {filteredOrders.map(o => {
+                {filteredOrders.map((o, idx) => {
                   const parsedItems = getOrderProducts(o);
                   const totalItems = parsedItems.reduce((acc, curr) => acc + (curr.qty || curr.quantity || 1), 0);
                   const uniqueProducts = parsedItems.length;
@@ -398,16 +401,18 @@ export function Orders() {
                     <motion.div 
                       onClick={() => navigate(`/account/orders/${o.orderNumber || o.id}`)} 
                       key={o.orderNumber || o.id} 
-                      initial={{ opacity: 0, y: 10 }} 
-                      animate={{ opacity: 1, y: 0 }} 
+                      initial={{ opacity: 0, y: 16 }} 
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, delay: idx * 0.05 }}
+                      whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(184, 93, 37, 0.12)', borderColor: '#a54d2b' }}
+                      whileTap={{ scale: 0.992 }}
                       style={{ 
                         cursor: 'pointer',
                         background: '#fff', 
                         border: '1px solid #eee1cf', 
                         borderRadius: 14,
                         overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-                        transition: 'all 0.2s'
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
                       }}
                     >
                       {/* Card Header: Order ID, Date & Total */}

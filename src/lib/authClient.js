@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
   getAuth, 
+  setPersistence,
+  browserLocalPersistence,
   signInWithPopup, 
   GoogleAuthProvider, 
   signOut, 
@@ -24,6 +26,15 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
+
+// Enforce browserLocalPersistence for permanent auth persistence across page refreshes
+try {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn("[Auth] Local persistence setting warning:", err?.message || err);
+  });
+} catch (e) {
+  console.warn("[Auth] Local persistence call error:", e?.message || e);
+}
 
 // The demo/guest session is a development-only convenience so the UI is
 // usable without live Firebase credentials while building. Vite statically

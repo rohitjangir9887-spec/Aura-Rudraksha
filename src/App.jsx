@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
 import { AuraAIFloating } from "./components/AuraAIFloating";
 
@@ -87,8 +88,9 @@ export function App() {
     <>
       <ScrollToTop />
       <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* Canonical Customer Routes */}
+        <PageTransition>
+          <Routes>
+            {/* Canonical Customer Routes */}
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/wishlist" element={<Wishlist />} />
@@ -143,6 +145,7 @@ export function App() {
           {/* Catch-all 404 Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </PageTransition>
       </Suspense>
       <AuraAIFloating />
     </>

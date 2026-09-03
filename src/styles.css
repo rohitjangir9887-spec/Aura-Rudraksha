@@ -15518,3 +15518,74 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     opacity: 0 !important;
   }
 }
+
+/* ==========================================================================
+   GLOBAL ANIMATIONS, PAGE TRANSITIONS & OPTION INTERACTION STYLES
+   ========================================================================== */
+
+@keyframes aura-top-progress {
+  0% { width: 0%; opacity: 1; }
+  50% { width: 70%; opacity: 1; }
+  90% { width: 95%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+
+@keyframes aura-pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.85; }
+}
+
+@keyframes aura-shimmer-sweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes aura-float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes aura-scale-in {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Smooth micro-interactions on buttons, cards and navigation elements */
+a, button, select, input[type="radio"], input[type="checkbox"] {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              background-color 0.2s ease, 
+              border-color 0.2s ease, 
+              color 0.2s ease;
+}
+
+button:active, .primary-btn:active, .outline-btn:active {
+  transform: scale(0.97) !important;
+}
+
+.primary-btn:hover, .outline-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(184, 93, 37, 0.22);
+}
+
+/* Option cards / radio selections hover & active states */
+.option-card, .address-card, .payment-card, .filter-chip {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.option-card:hover, .address-card:hover, .payment-card:hover {
+  transform: translateY(-2px);
+  border-color: #b85d25 !important;
+  box-shadow: 0 6px 20px rgba(184, 93, 37, 0.12);
+}
+
+/* Mobile nav bottom icon pulse on active selection */
+.mobile-nav a.active .nav-icon-box {
+  animation: aura-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Order page pulse badge for active tracking */
+.order-status-badge-active {
+  animation: aura-pulse-soft 2s infinite ease-in-out;
+}
+

@@ -378,27 +378,41 @@ export function OrderDetail() {
         </motion.div>
 
         {!isCancelled && (
-          <motion.div className="timeline-container" initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{delay: 0.1}} style={{
+          <motion.div className="timeline-container" initial={{opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{delay: 0.1}} style={{
             background: '#fffdf9',
             border: '1px solid #eee1cf',
             borderRadius: 15,
             padding: '25px 20px',
             marginBottom: 30,
-            overflowX: 'auto'
+            overflowX: 'auto',
+            position: 'relative'
           }}>
-            <div className="timeline" style={{ minWidth: 500, margin: 0 }}>
+            <div className="timeline" style={{ minWidth: 500, margin: 0, position: 'relative' }}>
               {statuses.map((x, i) => {
                 const passed = currentStatusIdx >= i;
                 const active = currentStatusIdx === i;
                 return (
-                  <div className={passed ? "active" : ""} key={x} style={{opacity: (currentStatusIdx === -1 && i > 0) ? 0.4 : 1}}>
-                    <span style={{
-                      background: passed ? '#a54d2b' : '#f4ece5',
-                      color: passed ? '#fff' : '#a29286',
-                      boxShadow: active ? '0 0 0 4px #fdf5ef' : 'none'
-                    }}>{passed ? "✓" : i+1}</span>
-                    <b style={{color: active ? '#2b170d' : '#a29286', fontSize: 11}}>{x}</b>
-                  </div>
+                  <motion.div 
+                    className={passed ? "active" : ""} 
+                    key={x} 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: (currentStatusIdx === -1 && i > 0) ? 0.4 : 1 }}
+                    transition={{ delay: 0.15 + i * 0.08 }}
+                  >
+                    <motion.span 
+                      whileHover={{ scale: 1.15 }}
+                      animate={active ? { scale: [1, 1.1, 1], boxShadow: ["0 0 0 0px rgba(165,77,43,0.3)", "0 0 0 8px rgba(165,77,43,0)", "0 0 0 0px rgba(165,77,43,0)"] } : {}}
+                      transition={active ? { repeat: Infinity, duration: 2 } : {}}
+                      style={{
+                        background: passed ? '#a54d2b' : '#f4ece5',
+                        color: passed ? '#fff' : '#a29286',
+                        boxShadow: active ? '0 0 0 4px #fdf5ef' : 'none'
+                      }}
+                    >
+                      {passed ? "✓" : i+1}
+                    </motion.span>
+                    <b style={{color: active ? '#2b170d' : '#a29286', fontSize: 11, fontWeight: active ? '700' : '600'}}>{x}</b>
+                  </motion.div>
                 );
               })}
             </div>

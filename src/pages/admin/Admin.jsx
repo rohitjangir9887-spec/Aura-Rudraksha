@@ -43,9 +43,12 @@ export function Admin() {
   const [recentOrders, setRecentOrders] = useState(() => (db.getOrders() || []).slice(0, 5));
   const [mediaStats, setMediaStats] = useState({
     serverStorage: "Puter Cloud Storage",
-    imagesCount: 0,
-    videosCount: 0,
-    lastUpload: null
+    imagesCount: null,
+    videosCount: null,
+    totalCount: null,
+    totalSizeBytes: null,
+    lastUpload: null,
+    lastSyncTime: null
   });
   const [mediaInfo, setMediaInfo] = useState({
     connected: false,
@@ -185,11 +188,24 @@ export function Admin() {
         .catch(() => ({ success: false }));
       if (mediaStatsRes.success) {
         setMediaStats({
-          serverStorage: mediaStatsRes.serverStorage,
-          imagesCount: mediaStatsRes.imagesCount,
-          videosCount: mediaStatsRes.videosCount,
-          lastUpload: mediaStatsRes.lastUpload
+          serverStorage: mediaStatsRes.serverStorage || "Puter Cloud Storage",
+          imagesCount: mediaStatsRes.imagesCount ?? 0,
+          videosCount: mediaStatsRes.videosCount ?? 0,
+          totalCount: mediaStatsRes.totalCount ?? 0,
+          totalSizeBytes: mediaStatsRes.totalSizeBytes ?? 0,
+          lastUpload: mediaStatsRes.lastUpload || null,
+          lastSyncTime: new Date().toLocaleTimeString()
         });
+      } else {
+        setMediaStats(prev => ({
+          ...prev,
+          imagesCount: null,
+          videosCount: null,
+          totalCount: null,
+          totalSizeBytes: null,
+          lastUpload: null,
+          lastSyncTime: null
+        }));
       }
     } catch (err) {
       console.warn("[Admin] Dashboard refresh notice:", err?.message || err);
@@ -364,6 +380,14 @@ export function Admin() {
                 }
               };
 
+              const formatStorage = (bytes) => {
+                if (bytes === null || bytes === undefined) return "Unavailable";
+                if (bytes === 0) return "0 MB";
+                const mb = bytes / (1024 * 1024);
+                if (mb >= 1024) return (mb / 1024).toFixed(2) + " GB";
+                return mb.toFixed(2) + " MB";
+              };
+
               return (
                 <div style={{ background: '#fff', padding: '14px 16px', borderRadius: '10px', border: '1px solid #e8dac9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -372,7 +396,7 @@ export function Admin() {
                     </span>
                     <span style={{
                       fontSize: '10px',
-                      color: mediaInfo.connected ? '#15803d' : (mediaInfo.status === "Not Configured" ? '#6b7280' : '#d97706'),
+                      color: mediaInfo.connected ? '#15803d' : (mediaInfo.status === "Checking..." ? '#d97706' : '#dc2626'),
                       fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
@@ -381,12 +405,12 @@ export function Admin() {
                       {mediaInfo.connected ? (
                         <>
                           <CheckCircle2 size={11} color="#15803d" />
-                          <span>Connected{mediaInfo.username ? ` (${mediaInfo.username})` : ''}</span>
+                          <span>Connected ({mediaInfo.username || 'Admin'})</span>
                         </>
                       ) : mediaInfo.status === "Checking..." ? (
                         <span>⏳ Checking...</span>
                       ) : (
-                        <span>🟠 Not Connected</span>
+                        <span>🔴 Not Connected</span>
                       )}
                     </span>
                   </div>
@@ -396,52 +420,91 @@ export function Admin() {
                   
                   <div style={{ borderTop: '1px dashed #e8dac9', margin: '4px 0', padding: '6px 0 0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Production Pipeline:</span>
-                      <b style={{ color: '#15803d' }}>Puter Cloud Direct</b>
+                      <span>Account Name:</span>
+                      <b>{mediaInfo.username || (mediaInfo.connected ? "Admin" : "Unavailable")}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Account Email:</span>
+                      <b>{mediaInfo.email || (mediaInfo.connected ? `${mediaInfo.username || 'admin'}@puter.com` : "Unavailable")}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Total Media Files:</span>
+                      <b>{mediaStats.totalCount !== null ? `${mediaStats.totalCount} files` : "Unavailable"}</b>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
                       <span>Images Stored:</span>
-                      <b>{mediaStats.imagesCount} files</b>
+                      <b>{mediaStats.imagesCount !== null ? `${mediaStats.imagesCount} files` : "Unavailable"}</b>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
                       <span>Videos Stored:</span>
-                      <b>{mediaStats.videosCount} files</b>
+                      <b>{mediaStats.videosCount !== null ? `${mediaStats.videosCount} files` : "Unavailable"}</b>
                     </div>
-                    {mediaStats.lastUpload && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Total Storage Used:</span>
+                      <b style={{ color: '#2563eb' }}>{formatStorage(mediaStats.totalSizeBytes)}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
+                      <span>Last Successful Sync:</span>
+                      <b>{mediaStats.lastSyncTime || mediaInfo.lastSync || (mediaInfo.connected ? "Active" : "Unavailable")}</b>
+                    </div>
+                    {mediaStats.lastUpload ? (
                       <div style={{ fontSize: '9px', color: '#9e8a7c', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Last Successful: <a href={mediaStats.lastUpload.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: '#7a320c' }}>{mediaStats.lastUpload.url.split('/').pop()}</a> ({new Date(mediaStats.lastUpload.createdAt).toLocaleTimeString()})
+                        Last Upload: <a href={mediaStats.lastUpload.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: '#7a320c' }}>{mediaStats.lastUpload.url.split('/').pop()}</a> ({new Date(mediaStats.lastUpload.createdAt).toLocaleTimeString()})
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '9px', color: '#9e8a7c', marginTop: '6px' }}>
+                        Last Upload: <i>Unavailable</i>
                       </div>
                     )}
                   </div>
 
                   {!mediaInfo.connected ? (
-                    <button
-                      onClick={handlePuterSignIn}
-                      disabled={isSigningInPuter}
-                      style={{
-                        marginTop: '4px',
-                        background: '#2563eb',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: isSigningInPuter ? 'not-allowed' : 'pointer',
-                        textAlign: 'center',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        transition: 'background 0.2s',
-                        opacity: isSigningInPuter ? 0.7 : 1
-                      }}
-                      onMouseOver={(e) => { if (!isSigningInPuter) e.currentTarget.style.background = '#1d4ed8'; }}
-                      onMouseOut={(e) => { if (!isSigningInPuter) e.currentTarget.style.background = '#2563eb'; }}
-                    >
-                      <Cloud size={12} />
-                      <span>{isSigningInPuter ? "Connecting to Puter..." : "🔑 Connect Puter Cloud Storage"}</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                      <button
+                        onClick={handlePuterSignIn}
+                        disabled={isSigningInPuter}
+                        style={{
+                          flex: 1,
+                          background: '#2563eb',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: isSigningInPuter ? 'not-allowed' : 'pointer',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          opacity: isSigningInPuter ? 0.7 : 1
+                        }}
+                      >
+                        <Cloud size={12} />
+                        <span>{isSigningInPuter ? "Connecting..." : "🔑 Connect Puter Cloud"}</span>
+                      </button>
+                      <button
+                        onClick={checkPuter}
+                        style={{
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        title="Reconnect / Retry Status Check"
+                      >
+                        <RefreshCw size={11} />
+                        <span>Reconnect</span>
+                      </button>
+                    </div>
                   ) : (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
                       <button

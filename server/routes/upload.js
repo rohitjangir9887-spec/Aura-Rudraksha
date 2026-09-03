@@ -22,6 +22,7 @@ router.get("/stats", async (req, res) => {
 
     const images = totalMedia.filter(m => m.type && m.type.startsWith("image/"));
     const videos = totalMedia.filter(m => m.type && m.type.startsWith("video/"));
+    const totalSizeBytes = totalMedia.reduce((sum, m) => sum + (Number(m.size) || 0), 0);
 
     const lastUpload = totalMedia.length > 0 ? totalMedia[0] : null;
 
@@ -31,6 +32,7 @@ router.get("/stats", async (req, res) => {
       imagesCount: images.length,
       videosCount: videos.length,
       totalCount: totalMedia.length,
+      totalSizeBytes,
       lastUpload: lastUpload ? {
         url: lastUpload.url,
         provider: lastUpload.provider || "puter",
