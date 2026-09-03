@@ -16,14 +16,25 @@ export function Home() {
   const [hero, setHero] = useState(0);
   const [isLoading, setIsLoading] = useState(true); 
   const { add } = useCart();
-  const [banners, setBanners] = useState([]);
+  const [banners, setBanners] = useState(() => db.getBanners() || []);
   const [products, setProducts] = useState([]);
   const [offers, setOffers] = useState([]);
   const location = useLocation();
 
   const loadHomeData = async () => {
+    // Instantly set banners from cache so hero slider never disappears during hydration wait
+    const cachedBanners = db.getBanners();
+    if (cachedBanners && cachedBanners.length > 0) {
+      setBanners(cachedBanners);
+    }
+
     await db.waitForHydration();
-    setBanners(db.getBanners());
+
+    const hydratedBanners = db.getBanners();
+    if (hydratedBanners && hydratedBanners.length > 0) {
+      setBanners(hydratedBanners);
+    }
+
     setProducts(db.getProducts().filter(p => p.status === 'Active'));
     
     // Banner offers that are Active
@@ -64,13 +75,15 @@ export function Home() {
     }
   }, [location.hash]);
 
+  const activeBanners = (banners && banners.length > 0) ? banners : db.getBanners();
+
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (activeBanners.length <= 1) return;
     const interval = setInterval(() => {
-      setHero((current) => (current + 1) % banners.length);
+      setHero((current) => (current + 1) % activeBanners.length);
     }, 4500); 
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [activeBanners.length]);
 
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
@@ -91,15 +104,13 @@ export function Home() {
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
     if (isLeftSwipe) {
-      setHero((current) => (current + 1) % banners.length);
+      setHero((current) => (current + 1) % activeBanners.length);
     } else if (isRightSwipe) {
-      setHero((current) => (current === 0 ? banners.length - 1 : current - 1));
+      setHero((current) => (current === 0 ? activeBanners.length - 1 : current - 1));
     }
   };
   
   return <Shell>
-    
-
     
     <section className="hero premium-slider"
       onTouchStart={onTouchStart}
@@ -107,7 +118,7 @@ export function Home() {
       onTouchEnd={onTouchEnd}
     >
       <div className="hero-slides">
-        {banners.map((src, i) => (
+        {activeBanners.map((src, i) => (
           <img 
             key={i} 
             src={src} 
@@ -116,9 +127,9 @@ export function Home() {
           />
         ))}
       </div>
-      {banners.length > 1 && (
+      {activeBanners.length > 1 && (
         <div className="hero-pagination">
-          {banners.map((_, i) => (
+          {activeBanners.map((_, i) => (
             <span key={i} className={`dot ${i === hero ? 'active' : ''}`} onClick={() => setHero(i)}></span>
           ))}
         </div>

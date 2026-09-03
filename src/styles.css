@@ -759,6 +759,8 @@ body {
     position: relative;
     overflow: hidden;
     padding: 0;
+    min-height: 200px;
+    background: #231208;
     /* Maintain existing sizing rules */
 }
 .hero-slides {

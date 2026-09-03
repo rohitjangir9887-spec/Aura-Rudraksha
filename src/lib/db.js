@@ -204,7 +204,7 @@ const defaultInitialReviews = [
   }
 ];
 
-// Live MongoDB Data Store Cache with initial catalog fallback for instant UI rendering
+// Live MongoDB Data Store Cache with initial catalog for UI rendering
 const storeCache = {
   products: defaultProducts.map(p => ({
     ...p,
@@ -720,7 +720,7 @@ export const db = {
     
     // Strict privacy: If user is not logged in, return empty orders list
     if (!user || user.isAnonymous || !userEmail) {
-      return { success: true, data: [], demoMode: false };
+      return { success: true, data: [] };
     }
 
     try {
@@ -739,7 +739,7 @@ export const db = {
         (o.userEmail || "").toLowerCase() === userEmail
       );
     }
-    return { success: true, data: userOrders, demoMode: true };
+    return { success: true, data: userOrders };
   },
 
   getOrder: async (id) => {
@@ -756,7 +756,7 @@ export const db = {
       String(o.orderId).toUpperCase() === strId
     );
     if (order) {
-      return { success: true, data: order, demoMode: true };
+      return { success: true, data: order };
     }
     return { success: false, message: "Order not found" };
   },
@@ -900,7 +900,7 @@ export const db = {
       const stored = localStorage.getItem("aura_addresses_cache");
       if (stored) cached = JSON.parse(stored);
     } catch (_) {}
-    return { success: true, data: (cached && cached.length > 0) ? cached : (storeCache.addresses || []), demoMode: true };
+    return { success: true, data: (cached && cached.length > 0) ? cached : (storeCache.addresses || []) };
   },
 
   saveAddress: async (address) => {
@@ -933,7 +933,7 @@ export const db = {
       }
     } catch (_) {}
     try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
-    return { success: true, data: finalAddr, demoMode: true };
+    return { success: true, data: finalAddr };
   },
 
   deleteAddress: async (id) => {
@@ -976,8 +976,7 @@ export const db = {
         address: cached.address || "",
         avatar: cached.avatar || user?.photoURL || "",
         joined: cached.joined || new Date().toISOString()
-      },
-      demoMode: true
+      }
     };
   },
 
@@ -1004,7 +1003,7 @@ export const db = {
     try { localStorage.setItem("aura_cached_me", JSON.stringify(merged)); } catch(_) {}
     emitStoreUpdate("customer:updated", merged);
     
-    return { success: true, data: merged, demoMode: true };
+    return { success: true, data: merged };
   },
 
   // LIVE STATUS

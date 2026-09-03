@@ -1010,14 +1010,10 @@ export async function getAuraAIConversations(req, res, next) {
       return res.json({ success: true, data: convos || [], count: (convos || []).length });
     }
 
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({
-        success: false,
-        message: "Database is unavailable."
-      });
-    }
-
-    return res.json({ success: true, data: [], count: 0, demoMode: true });
+    return res.status(503).json({
+      success: false,
+      message: "Database is unavailable."
+    });
   } catch (err) {
     next(err);
   }

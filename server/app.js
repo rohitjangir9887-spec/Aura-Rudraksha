@@ -202,9 +202,9 @@ export function createApp() {
   app.use("/api/seed", requireDb, seedRoute);
   app.use("/api/addresses", requireDb, addressesRoute);
   app.use("/api/wishlist", requireDb, wishlistRoute);
-  app.use("/api/auth", authRoute);
-  app.use("/api/aura-ai", auraAiRoute);
-  app.use("/api/payment", paymentRoute);
+  app.use("/api/auth", requireDb, authRoute);
+  app.use("/api/aura-ai", requireDb, auraAiRoute);
+  app.use("/api/payment", requireDb, paymentRoute);
 
   // Fallback for unhandled API routes: return JSON 404 (prevents returning SPA HTML for failed API calls)
   app.use("/api", (req, res) => {

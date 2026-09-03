@@ -246,7 +246,10 @@ export async function logVisit(req, res, next) {
       );
       return res.json({ success: true, data: updated });
     }
-    return res.json({ success: true, data: { visits: 1, lastUpdated: now }, demoMode: true });
+    return res.status(503).json({
+      success: false,
+      message: "Database is unavailable."
+    });
   } catch (err) {
     next(err);
   }
@@ -263,7 +266,10 @@ export async function logProductView(req, res, next) {
       );
       return res.json({ success: true, data: updated });
     }
-    return res.json({ success: true, data: { productViews: 1, lastUpdated: now }, demoMode: true });
+    return res.status(503).json({
+      success: false,
+      message: "Database is unavailable."
+    });
   } catch (err) {
     next(err);
   }
