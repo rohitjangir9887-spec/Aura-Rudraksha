@@ -3,9 +3,17 @@ import { emitToast } from "../context/ToastContext";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
 
+function getWishlistStorageKey() {
+  const u = authClient.getUser();
+  if (!u) return "aura_wishlist_guest";
+  const uid = u.authUserId || u.uid || (u.email ? `email_${u.email}` : "guest");
+  return `aura_wishlist_${uid}`;
+}
+
 function readLocalWishlist() {
   try {
-    const raw = JSON.parse(localStorage.getItem("aura_wishlist") || "[]");
+    const key = getWishlistStorageKey();
+    const raw = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(raw) ? raw.map(String) : [];
   } catch {
     return [];
@@ -23,12 +31,15 @@ export function useWishlist() {
           const apiWishlist = res.data.map(String);
           setWishlist(apiWishlist);
           try {
-            localStorage.setItem("aura_wishlist", JSON.stringify(apiWishlist));
+            const key = getWishlistStorageKey();
+            localStorage.setItem(key, JSON.stringify(apiWishlist));
           } catch (_) {}
         }
       } catch (err) {
         console.error("Failed to fetch wishlist", err);
       }
+    } else {
+      setWishlist(readLocalWishlist());
     }
   }, []);
 
@@ -40,13 +51,18 @@ export function useWishlist() {
     const handler = () => {
       setWishlist(readLocalWishlist());
     };
+    const unsubAuth = authClient.onAuthStateChanged(() => {
+      setWishlist(readLocalWishlist());
+      fetchWishlist();
+    });
     window.addEventListener("aura:wishlist-updated", handler);
     window.addEventListener("storage", handler);
     return () => {
+      unsubAuth();
       window.removeEventListener("aura:wishlist-updated", handler);
       window.removeEventListener("storage", handler);
     };
-  }, []);
+  }, [fetchWishlist]);
 
   const toggleWishlist = useCallback(async (productId, productName) => {
     const pid = String(productId);
@@ -64,7 +80,8 @@ export function useWishlist() {
 
     // Optimistic UI update
     try {
-      localStorage.setItem("aura_wishlist", JSON.stringify(next));
+      const key = getWishlistStorageKey();
+      localStorage.setItem(key, JSON.stringify(next));
     } catch (_) {}
     setWishlist(next);
 

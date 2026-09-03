@@ -143,12 +143,16 @@ export async function getAuthoritativeCoupon(couponCode) {
           description: promo.description || promo.title
         };
       }
+
+      // DB is connected, but coupon was not found in Coupon, ActiveOffer, or Promotion.
+      // Do NOT fall back to inMemoryStore so deleted coupons are strictly rejected!
+      return null;
     } catch (err) {
       console.warn("PricingService DB coupon lookup warning:", err.message);
     }
   }
 
-  // In-Memory Fallback
+  // In-Memory Fallback (ONLY when DB is completely disconnected)
   const memCoupon = inMemoryStore.coupons.find(c => c.code === cleanCode);
   if (memCoupon) return memCoupon;
 

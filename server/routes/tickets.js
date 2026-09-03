@@ -1,14 +1,15 @@
 import express from "express";
 import { getTickets, createTicket, updateTicket } from "../controllers/settingController.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
 router.route("/")
-  .get(requireAdmin, getTickets)
-  .post(createTicket);
+  .get(optionalAuth, getTickets)
+  .post(optionalAuth, createTicket);
 
 router.route("/:id")
-  .put(requireAdmin, updateTicket);
+  .put(optionalAuth, updateTicket);
 
 export default router;
+

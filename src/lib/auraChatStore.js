@@ -161,19 +161,16 @@ export const auraChatStore = {
     }
   },
 
-  // Safe Auth Sync that preserves chat history on refresh
+  // Auth Sync that isolates chat history per user and clears local chats on logout or account switch
   syncAuthSession(currentUser, mode = "standard") {
-    const currentUid = currentUser?.uid || (currentUser?.email ? `email_${currentUser.email}` : "guest");
+    const currentUid = currentUser?.authUserId || currentUser?.uid || (currentUser?.email ? `email_${currentUser.email}` : "guest");
     let lastUid = null;
     try {
       lastUid = localStorage.getItem("aura_ai_last_auth_uid");
     } catch (_) {}
 
-    // First time or same user session (page refresh / reload) -> Keep all local messages!
-    if (!lastUid || lastUid === currentUid) {
-      try {
-        localStorage.setItem("aura_ai_last_auth_uid", currentUid);
-      } catch (_) {}
+    // First time or same user session (page refresh / reload) -> Keep current local messages
+    if (lastUid && lastUid === currentUid) {
       return {
         messages: this.getMessages(mode),
         conversationId: this.getConversationId(),
@@ -181,32 +178,22 @@ export const auraChatStore = {
       };
     }
 
-    // If user switched between two distinct authenticated accounts (e.g. user1 -> user2)
-    const isDistinctAccountSwitch = lastUid !== "guest" && currentUid !== "guest" && lastUid !== currentUid;
-    if (isDistinctAccountSwitch) {
-      this.clearLocalChats();
-      const newConvId = "conv_u_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
-      this.setConversationId(newConvId);
-      const initMsgs = [this.getDefaultInitialMessage(mode)];
-      this.saveMessages(initMsgs, mode);
-      try {
-        localStorage.setItem("aura_ai_last_auth_uid", currentUid);
-      } catch (_) {}
-      return {
-        messages: initMsgs,
-        conversationId: newConvId,
-        accountSwitched: true
-      };
-    }
-
-    // Transition between guest <-> user keeps ongoing session
+    // Account changed or logged out (user1 -> user2, user1 -> guest, guest -> user1)
+    // Always clear local chats to guarantee 100% data isolation!
+    this.clearLocalChats();
+    const newConvId = "conv_" + (currentUid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+    this.setConversationId(newConvId);
+    this.resetGuestSession();
+    const initMsgs = [this.getDefaultInitialMessage(mode)];
+    this.saveMessages(initMsgs, mode);
     try {
       localStorage.setItem("aura_ai_last_auth_uid", currentUid);
     } catch (_) {}
+
     return {
-      messages: this.getMessages(mode),
-      conversationId: this.getConversationId(),
-      accountSwitched: false
+      messages: initMsgs,
+      conversationId: newConvId,
+      accountSwitched: true
     };
   },
 

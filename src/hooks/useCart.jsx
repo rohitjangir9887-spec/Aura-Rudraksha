@@ -1,14 +1,25 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { db } from "../lib/db";
+import { authClient } from "../lib/authClient";
 
 const CartContext = createContext(null);
 
-const CART_STORAGE_KEY = "aura-cart";
-const COUPON_STORAGE_KEY = "aura-applied-coupon-code";
+function getUserCartStorageKey(user) {
+  if (!user) return "aura-cart-guest";
+  const uid = user.authUserId || user.uid || (user.email ? `email_${user.email}` : "guest");
+  return `aura-cart-${uid}`;
+}
 
-function readStoredCart() {
+function getUserCouponStorageKey(user) {
+  if (!user) return "aura-applied-coupon-code-guest";
+  const uid = user.authUserId || user.uid || (user.email ? `email_${user.email}` : "guest");
+  return `aura-applied-coupon-code-${uid}`;
+}
+
+function readStoredCart(user) {
   try {
-    const raw = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || "[]");
+    const key = getUserCartStorageKey(user);
+    const raw = JSON.parse(localStorage.getItem(key) || "[]");
     if (!Array.isArray(raw)) return [];
     return raw
       .map((item) => {
@@ -26,9 +37,10 @@ function readStoredCart() {
   }
 }
 
-function readStoredCoupon() {
+function readStoredCoupon(user) {
   try {
-    const raw = localStorage.getItem(COUPON_STORAGE_KEY);
+    const key = getUserCouponStorageKey(user);
+    const raw = localStorage.getItem(key);
     return raw ? String(raw).trim().toUpperCase() : "";
   } catch {
     return "";
@@ -61,17 +73,41 @@ const defaultTotals = {
 };
 
 export function CartProvider({ children }) {
-  const [lines, setLines] = useState(readStoredCart);
-  const [couponCode, setCouponCode] = useState(readStoredCoupon);
+  const [user, setUser] = useState(() => authClient.getUser());
+  const userRef = useRef(user);
+  userRef.current = user;
+
+  const [lines, setLines] = useState(() => readStoredCart(user));
+  const [couponCode, setCouponCode] = useState(() => readStoredCoupon(user));
   const [totals, setTotals] = useState(defaultTotals);
   const [loadingTotals, setLoadingTotals] = useState(false);
   const isMounted = useRef(false);
+
+  // Sync cart state when auth identity changes (login, logout, switch account)
+  useEffect(() => {
+    const unsub = authClient.onAuthStateChanged((currUser) => {
+      const prevUid = userRef.current ? (userRef.current.authUserId || userRef.current.uid || (userRef.current.email ? `email_${userRef.current.email}` : "guest")) : "guest";
+      const nextUid = currUser ? (currUser.authUserId || currUser.uid || (currUser.email ? `email_${currUser.email}` : "guest")) : "guest";
+
+      setUser(currUser);
+      userRef.current = currUser;
+
+      if (prevUid !== nextUid) {
+        const nextLines = readStoredCart(currUser);
+        const nextCoupon = readStoredCoupon(currUser);
+        setLines(nextLines);
+        setCouponCode(nextCoupon);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Synchronize localStorage for lines
   const persistLines = useCallback((nextLines) => {
     setLines(nextLines);
     try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextLines));
+      const key = getUserCartStorageKey(userRef.current);
+      localStorage.setItem(key, JSON.stringify(nextLines));
     } catch (_) {}
   }, []);
 
@@ -80,10 +116,11 @@ export function CartProvider({ children }) {
     const clean = code ? String(code).trim().toUpperCase() : "";
     setCouponCode(clean);
     try {
+      const key = getUserCouponStorageKey(userRef.current);
       if (clean) {
-        localStorage.setItem(COUPON_STORAGE_KEY, clean);
+        localStorage.setItem(key, clean);
       } else {
-        localStorage.removeItem(COUPON_STORAGE_KEY);
+        localStorage.removeItem(key);
       }
     } catch (_) {}
   }, []);

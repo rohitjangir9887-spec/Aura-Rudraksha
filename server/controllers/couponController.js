@@ -1,4 +1,5 @@
 import { Coupon } from "../models/Coupon.js";
+import { ActiveOffer, Promotion } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
@@ -268,14 +269,18 @@ export async function updateCoupon(req, res, next) {
 export async function deleteCoupon(req, res, next) {
   try {
     const { id } = req.params;
+    const cleanId = String(id).trim();
+    const cleanCode = cleanId.toUpperCase();
 
-    if (!isDbConnected()) {
-      inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== String(id) && c.code !== String(id).toUpperCase());
-      return res.json({ success: true, message: "Coupon deleted", id });
+    inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== cleanId && c.code !== cleanCode);
+
+    if (isDbConnected()) {
+      await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });
+      await ActiveOffer.deleteMany({ couponCode: cleanCode });
+      await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }] });
     }
 
-    await Coupon.findOneAndDelete({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] });
-    return res.json({ success: true, message: "Coupon deleted", id });
+    return res.json({ success: true, message: "Coupon deleted successfully", id: cleanId });
   } catch (err) {
     next(err);
   }

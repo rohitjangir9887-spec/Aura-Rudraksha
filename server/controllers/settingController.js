@@ -9,6 +9,7 @@ import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
@@ -130,11 +131,48 @@ export async function savePolicies(req, res, next) {
 // Tickets
 export async function getTickets(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.json({ success: true, data: inMemoryStore.tickets || [] });
+    const authenticatedUser = req.user || null;
+    let isAdmin = false;
+
+    if (authenticatedUser) {
+      const { isInitialAdmin } = isAdminUser(authenticatedUser);
+      isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
     }
 
-    const tickets = await Ticket.find().sort({ createdAt: -1 }).lean();
+    if (!isDbConnected()) {
+      let tickets = inMemoryStore.tickets || [];
+      if (!isAdmin) {
+        if (!authenticatedUser) return res.json({ success: true, data: [] });
+        const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
+        const userId = authenticatedUser.authUserId || "";
+        tickets = tickets.filter(t => 
+          (userId && (t.authUserId === userId || t.userId === userId)) ||
+          (userEmail && (t.userEmail?.toLowerCase() === userEmail || t.email?.toLowerCase() === userEmail))
+        );
+      }
+      return res.json({ success: true, data: tickets });
+    }
+
+    let query = {};
+    if (!isAdmin) {
+      if (!authenticatedUser) {
+        return res.json({ success: true, data: [] });
+      }
+      const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
+      const userId = authenticatedUser.authUserId || "";
+      const queryOr = [];
+      if (userId) {
+        queryOr.push({ authUserId: userId });
+        queryOr.push({ userId: userId });
+      }
+      if (userEmail) {
+        queryOr.push({ userEmail: userEmail });
+        queryOr.push({ email: userEmail });
+      }
+      query = queryOr.length > 0 ? { $or: queryOr } : { authUserId: "__none__" };
+    }
+
+    const tickets = await Ticket.find(query).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: tickets || [] });
   } catch (err) {
     next(err);
@@ -148,10 +186,18 @@ export async function createTicket(req, res, next) {
       return res.status(400).json({ success: false, message: "Name and message are required" });
     }
 
+    const authenticatedUser = req.user || null;
+    const authUserId = authenticatedUser ? authenticatedUser.authUserId : (req.body.authUserId || "");
+    const userEmail = authenticatedUser ? (authenticatedUser.email || "").toLowerCase().trim() : (data.email || "").toLowerCase().trim();
+
     const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
     const payload = {
       ...data,
       id,
+      authUserId: authUserId || "guest",
+      userId: authUserId || "guest",
+      userEmail,
+      email: userEmail || data.email,
       status: "Open",
       priority: "Normal",
       adminResponse: "",
@@ -173,6 +219,14 @@ export async function createTicket(req, res, next) {
 export async function updateTicket(req, res, next) {
   try {
     const { id } = req.params;
+    const authenticatedUser = req.user || null;
+    let isAdmin = false;
+
+    if (authenticatedUser) {
+      const { isInitialAdmin } = isAdminUser(authenticatedUser);
+      isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
+    }
+
     const data = pickFields(req.body, ADMIN_TICKET_FIELDS);
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ success: false, message: "No valid fields to update" });
@@ -183,8 +237,31 @@ export async function updateTicket(req, res, next) {
       if (idx < 0) {
         return res.status(404).json({ success: false, message: "Ticket not found" });
       }
+      const ticket = inMemoryStore.tickets[idx];
+      if (!isAdmin) {
+        if (!authenticatedUser) return res.status(401).json({ success: false, message: "Authentication required" });
+        const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
+        const userId = authenticatedUser.authUserId;
+        const isOwner = (userId && (ticket.authUserId === userId || ticket.userId === userId)) ||
+                        (userEmail && (ticket.userEmail?.toLowerCase() === userEmail || ticket.email?.toLowerCase() === userEmail));
+        if (!isOwner) return res.status(403).json({ success: false, message: "Access denied" });
+      }
       inMemoryStore.tickets[idx] = { ...inMemoryStore.tickets[idx], ...data };
       return res.json({ success: true, data: inMemoryStore.tickets[idx] });
+    }
+
+    const ticket = await Ticket.findOne({ id: String(id) });
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: "Ticket not found" });
+    }
+
+    if (!isAdmin) {
+      if (!authenticatedUser) return res.status(401).json({ success: false, message: "Authentication required" });
+      const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
+      const userId = authenticatedUser.authUserId;
+      const isOwner = (userId && (ticket.authUserId === userId || ticket.userId === userId)) ||
+                      (userEmail && (ticket.userEmail?.toLowerCase() === userEmail || ticket.email?.toLowerCase() === userEmail));
+      if (!isOwner) return res.status(403).json({ success: false, message: "Access denied" });
     }
 
     const updated = await Ticket.findOneAndUpdate(
@@ -192,9 +269,6 @@ export async function updateTicket(req, res, next) {
       { $set: data },
       { returnDocument: "after" }
     );
-    if (!updated) {
-      return res.status(404).json({ success: false, message: "Ticket not found" });
-    }
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
