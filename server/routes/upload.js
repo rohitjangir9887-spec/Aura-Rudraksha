@@ -3,13 +3,32 @@ import multer from "multer";
 import { Media, initMediaIndexes } from "../models/Media.js";
 import { isDbConnected } from "../config/db.js";
 import { mediaStorageManager } from "../services/mediaStorage/index.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
+
+const allowedMimeTypes = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime"
+]);
 
 const multerStorage = multer.memoryStorage();
 const upload = multer({
   storage: multerStorage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  fileFilter: (req, file, cb) => {
+    if (!file || !file.mimetype || !allowedMimeTypes.has(file.mimetype.toLowerCase())) {
+      return cb(new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM, QuickTime."));
+    }
+    cb(null, true);
+  }
 });
 
 // Trigger background index check once DB is connected
@@ -17,9 +36,9 @@ initMediaIndexes().catch(() => {});
 
 /**
  * GET /api/upload/status
- * Returns overview of all server-side media storage providers
+ * Returns overview of all server-side media storage providers (Admin-only)
  */
-router.get("/status", async (req, res) => {
+router.get("/status", requireAdmin, async (req, res) => {
   try {
     const status = await mediaStorageManager.getStatus();
     return res.json({
@@ -55,11 +74,29 @@ router.get("/telegram/file/:fileId", async (req, res) => {
 
 /**
  * POST /api/upload/server
- * Server-side media upload endpoint using TGStorage / Media Storage Providers.
+ * Server-side media upload endpoint using TGStorage / Media Storage Providers (Admin-only).
  * Step 1: Uploads physical media to storage provider (Telegram / TGStorage or Puter).
  * Step 2: Registers metadata in MongoDB ONLY after successful physical upload.
  */
-router.post("/server", upload.single("file"), async (req, res) => {
+router.post("/server", requireAdmin, (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({
+          success: false,
+          error: "Upload Limit Exceeded",
+          message: err.message
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: "Invalid File Upload",
+        message: err.message || "File upload validation failed"
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -89,6 +126,9 @@ router.post("/server", upload.single("file"), async (req, res) => {
 
     // Step 2: Write metadata to MongoDB ONLY after successful physical upload
     let mediaRecord = null;
+    let registeredInDb = false;
+    let dbError = null;
+
     if (isDbConnected()) {
       try {
         const finalReadUrl = uploadResult.url;
@@ -108,8 +148,10 @@ router.post("/server", upload.single("file"), async (req, res) => {
           provider: uploadResult.provider || "telegram"
         });
         await mediaRecord.save();
+        registeredInDb = true;
       } catch (dbErr) {
         console.warn("MongoDB registration warning after storage upload:", dbErr.message);
+        dbError = dbErr.message;
       }
     }
 
@@ -122,7 +164,9 @@ router.post("/server", upload.single("file"), async (req, res) => {
       path: uploadResult.path,
       size: size,
       type: mimetype,
-      media: mediaRecord
+      media: mediaRecord,
+      registeredInDb,
+      dbError
     });
   } catch (err) {
     console.error("Server-side media upload route error:", err);
@@ -183,10 +227,10 @@ router.get("/stats", async (req, res) => {
 
 /**
  * POST /api/upload/register
- * Registers metadata for a file uploaded directly to Puter Cloud.
+ * Registers metadata for a file uploaded directly to Puter Cloud (Admin-only).
  * Fully idempotent with duplicate race condition handling.
  */
-router.post("/register", async (req, res) => {
+router.post("/register", requireAdmin, async (req, res) => {
   try {
     if (!isDbConnected()) {
       return res.status(503).json({
@@ -323,10 +367,10 @@ router.post("/register", async (req, res) => {
 
 /**
  * POST /api/upload/register-batch
- * Registers metadata for multiple files uploaded directly to Puter Cloud in ONE request.
+ * Registers metadata for multiple files uploaded directly to Puter Cloud in ONE request (Admin-only).
  * Fully idempotent with duplicate race condition handling in bulk.
  */
-router.post("/register-batch", async (req, res) => {
+router.post("/register-batch", requireAdmin, async (req, res) => {
   try {
     if (!isDbConnected()) {
       return res.status(503).json({

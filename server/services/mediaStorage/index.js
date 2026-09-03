@@ -24,7 +24,9 @@ class MediaStorageManager {
 
   /**
    * Resolves active provider based on environment configuration and request preference.
-   * Prefers Telegram when configured and contract verified, falls back to Puter.
+   * Default primary provider is strictly Puter Cloud for production safety.
+   * Telegram is ONLY selected if explicitly requested (requestedName === "telegram")
+   * or MEDIA_STORAGE_PROVIDER=telegram is set in process.env.
    */
   async getActiveProvider(requestedName) {
     if (requestedName && this.providers.has(requestedName)) {
@@ -32,16 +34,17 @@ class MediaStorageManager {
       if (p.isConfigured()) return p;
     }
 
-    const telegram = this.getProvider("telegram");
-    if (telegram && telegram.isConfigured()) {
-      const contract = await telegram.verifyContract();
-      if (contract.verified) {
-        return telegram;
-      }
+    const envDefault = (process.env.MEDIA_STORAGE_PROVIDER || "").trim().toLowerCase();
+    if (envDefault && this.providers.has(envDefault)) {
+      const p = this.providers.get(envDefault);
+      if (p.isConfigured()) return p;
     }
 
-    // Legacy / Fallback
-    return this.getProvider("puter");
+    // Default primary provider is strictly Puter Cloud for production safety
+    const puter = this.getProvider("puter");
+    if (puter) return puter;
+
+    throw new Error("No media storage provider available.");
   }
 
   /**

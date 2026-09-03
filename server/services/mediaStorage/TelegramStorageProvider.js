@@ -8,6 +8,8 @@ import { BaseStorageProvider } from "./BaseStorageProvider.js";
 export class TelegramStorageProvider extends BaseStorageProvider {
   constructor() {
     super("telegram");
+    this._contractCache = null;
+    this._contractCacheTime = 0;
   }
 
   /**
@@ -26,27 +28,37 @@ export class TelegramStorageProvider extends BaseStorageProvider {
   }
 
   /**
+   * Strips botToken from any message string or error trace to prevent secret leaks
+   */
+  stripToken(str) {
+    if (!str || typeof str !== "string") return str || "";
+    if (!this.botToken) return str;
+    return str.replaceAll(this.botToken, "[REDACTED_BOT_TOKEN]");
+  }
+
+  /**
    * Safe logger that never exposes raw bot tokens or secrets
    */
   log(level, message, meta = {}) {
     const maskedToken = this.maskSecret(this.botToken);
     const maskedChannel = this.channelId ? String(this.channelId) : "[NOT SET]";
     const logPrefix = `[TGStorage Provider | Bot: ${maskedToken} | Channel: ${maskedChannel}]`;
+    const safeMsg = this.stripToken(message);
 
     if (level === "error") {
-      console.error(`${logPrefix} ${message}`, meta);
+      console.error(`${logPrefix} ${safeMsg}`, meta);
     } else if (level === "warn") {
-      console.warn(`${logPrefix} ${message}`, meta);
+      console.warn(`${logPrefix} ${safeMsg}`, meta);
     } else {
-      console.log(`${logPrefix} ${message}`);
+      console.log(`${logPrefix} ${safeMsg}`);
     }
   }
 
   /**
    * Verifies the Telegram Bot API contract by calling getMe & getChat.
-   * Ensures bot token is valid and channel is accessible without uploading any data.
+   * Caches result for 5 minutes to prevent unnecessary API & rate-limit traffic.
    */
-  async verifyContract() {
+  async verifyContract(force = false) {
     if (!this.isConfigured()) {
       return {
         verified: false,
@@ -58,6 +70,12 @@ export class TelegramStorageProvider extends BaseStorageProvider {
       };
     }
 
+    const now = Date.now();
+    // 5-minute cache TTL
+    if (!force && this._contractCache && (now - this._contractCacheTime < 300000)) {
+      return this._contractCache;
+    }
+
     try {
       this.log("info", "Verifying Telegram Bot API contract via getMe...");
 
@@ -67,12 +85,15 @@ export class TelegramStorageProvider extends BaseStorageProvider {
       const meData = await meRes.json().catch(() => ({}));
 
       if (!meRes.ok || !meData.ok) {
-        this.log("warn", "getMe failed verification", { status: meRes.status, description: meData.description });
-        return {
+        this.log("warn", "getMe failed verification", { status: meRes.status, description: this.stripToken(meData.description) });
+        const result = {
           verified: false,
-          message: `Telegram Bot verification failed: ${meData.description || "Invalid bot token or unauthorized"}`,
+          message: `Telegram Bot verification failed: ${this.stripToken(meData.description) || "Invalid bot token or unauthorized"}`,
           details: { status: meRes.status }
         };
+        this._contractCache = result;
+        this._contractCacheTime = now;
+        return result;
       }
 
       const botUsername = meData.result?.username || meData.result?.first_name || "Bot";
@@ -84,18 +105,21 @@ export class TelegramStorageProvider extends BaseStorageProvider {
       const chatData = await chatRes.json().catch(() => ({}));
 
       if (!chatRes.ok || !chatData.ok) {
-        this.log("warn", "getChat failed verification for channel", { status: chatRes.status, description: chatData.description });
-        return {
+        this.log("warn", "getChat failed verification for channel", { status: chatRes.status, description: this.stripToken(chatData.description) });
+        const result = {
           verified: false,
-          message: `Telegram Channel verification failed: ${chatData.description || "Bot cannot access target channel. Ensure bot is an Admin in the channel."}`,
-          details: { botUsername, channelId: this.channelId, error: chatData.description }
+          message: `Telegram Channel verification failed: ${this.stripToken(chatData.description) || "Bot cannot access target channel. Ensure bot is an Admin in the channel."}`,
+          details: { botUsername, channelId: this.channelId, error: this.stripToken(chatData.description) }
         };
+        this._contractCache = result;
+        this._contractCacheTime = now;
+        return result;
       }
 
       const channelTitle = chatData.result?.title || this.channelId;
       this.log("info", `API contract fully verified! Connected to channel "${channelTitle}"`);
 
-      return {
+      const result = {
         verified: true,
         message: `Telegram TGstorage contract verified. Connected as @${botUsername} to channel "${channelTitle}".`,
         details: {
@@ -105,12 +129,16 @@ export class TelegramStorageProvider extends BaseStorageProvider {
           channelType: chatData.result?.type
         }
       };
+      this._contractCache = result;
+      this._contractCacheTime = now;
+      return result;
     } catch (err) {
-      this.log("error", "Exception during Telegram API contract verification", { error: err.message });
+      const safeErrStr = this.stripToken(err.message);
+      this.log("error", "Exception during Telegram API contract verification", { error: safeErrStr });
       return {
         verified: false,
-        message: `Telegram connection error: ${err.message}`,
-        details: { error: err.message }
+        message: `Telegram connection error: ${safeErrStr}`,
+        details: { error: safeErrStr }
       };
     }
   }
@@ -159,8 +187,9 @@ export class TelegramStorageProvider extends BaseStorageProvider {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        this.log("error", "Telegram upload failed", { status: res.status, description: data.description });
-        throw new Error(`[TGStorage] Upload failed: ${data.description || "Telegram API rejected media payload"}`);
+        const safeDesc = this.stripToken(data.description || "Telegram API rejected media payload");
+        this.log("error", "Telegram upload failed", { status: res.status, description: safeDesc });
+        throw new Error(`[TGStorage] Upload failed: ${safeDesc}`);
       }
 
       const msg = data.result || {};
@@ -200,8 +229,9 @@ export class TelegramStorageProvider extends BaseStorageProvider {
         }
       };
     } catch (err) {
-      this.log("error", "Exception during Telegram media upload", { error: err.message });
-      throw err;
+      const safeErrStr = this.stripToken(err.message);
+      this.log("error", "Exception during Telegram media upload", { error: safeErrStr });
+      throw new Error(safeErrStr);
     }
   }
 
@@ -217,7 +247,8 @@ export class TelegramStorageProvider extends BaseStorageProvider {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok || !data.ok || !data.result?.file_path) {
-      throw new Error(`[TGStorage] Failed to resolve file_id "${fileId}": ${data.description || "File not found"}`);
+      const safeDesc = this.stripToken(data.description || "File not found");
+      throw new Error(`[TGStorage] Failed to resolve file_id: ${safeDesc}`);
     }
 
     return data.result.file_path;
@@ -233,14 +264,25 @@ export class TelegramStorageProvider extends BaseStorageProvider {
 
   /**
    * Streams file content from Telegram to client without leaking Bot Token
+   * Strictly validates requested fileId format
    */
   async streamMedia(fileId, res) {
-    if (!fileId) {
-      return res.status(400).json({ success: false, error: "Missing fileId parameter" });
+    if (!fileId || typeof fileId !== "string") {
+      return res.status(400).json({ success: false, error: "Missing or invalid fileId parameter" });
+    }
+
+    // Strict validation: Telegram file_id contains only alphanumeric, underscores, hyphens, pluses
+    const cleanFileId = fileId.trim();
+    if (!/^[a-zA-Z0-9_\-+]{8,256}$/.test(cleanFileId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid fileId",
+        message: "The requested fileId contains invalid characters or does not match Telegram storage format."
+      });
     }
 
     try {
-      const filePath = await this.getTelegramFilePath(fileId);
+      const filePath = await this.getTelegramFilePath(cleanFileId);
       const downloadUrl = `https://api.telegram.org/file/bot${this.botToken}/${filePath}`;
 
       const mediaRes = await fetch(downloadUrl);
@@ -262,11 +304,12 @@ export class TelegramStorageProvider extends BaseStorageProvider {
       const arrayBuffer = await mediaRes.arrayBuffer();
       return res.send(Buffer.from(arrayBuffer));
     } catch (err) {
-      this.log("error", `Failed to stream media for fileId "${fileId}"`, { error: err.message });
+      const safeMsg = this.stripToken(err.message || "Requested media could not be retrieved from Telegram storage");
+      this.log("error", "Failed to stream media", { error: safeMsg });
       return res.status(404).json({
         success: false,
         error: "Media Not Found",
-        message: err.message || "Requested media could not be retrieved from Telegram storage"
+        message: safeMsg
       });
     }
   }

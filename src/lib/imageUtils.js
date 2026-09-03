@@ -186,15 +186,36 @@ function logUploadTrace(info) {
   }
 }
 
+async function getAuthHeaders() {
+  try {
+    const { auth } = await import("./authClient.js");
+    if (auth?.currentUser) {
+      const token = await auth.currentUser.getIdToken().catch(() => null);
+      if (token) return { Authorization: `Bearer ${token}` };
+    }
+    if (typeof localStorage !== "undefined") {
+      const demo = localStorage.getItem("aura_demo_user");
+      if (demo) return { Authorization: "Bearer demo-token-123" };
+    }
+  } catch (_) {}
+  return {};
+}
+
 /**
  * Executes a fetch request with safe exponential backoff on 429 responses.
  * Respects Retry-After header and adds jitter without infinite loops.
  */
 async function fetchWithBackoff(url, options = {}, maxRetries = 3, batchInfo = {}) {
   let attempt = 0;
+  const authHeaders = await getAuthHeaders();
+  const reqOptions = {
+    ...options,
+    headers: { ...authHeaders, ...(options.headers || {}) }
+  };
+
   while (true) {
     attempt++;
-    const method = options.method || "GET";
+    const method = reqOptions.method || "GET";
 
     logUploadTrace({
       batchId: batchInfo.batchId,
@@ -207,7 +228,7 @@ async function fetchWithBackoff(url, options = {}, maxRetries = 3, batchInfo = {
 
     let res;
     try {
-      res = await fetch(url, options);
+      res = await fetch(url, reqOptions);
     } catch (networkErr) {
       logUploadTrace({
         batchId: batchInfo.batchId,
@@ -1273,9 +1294,12 @@ export async function uploadMediaViaServer(file, onProgress = () => {}, provider
   formData.append("file", file);
   if (provider) formData.append("provider", provider);
 
+  const authHeaders = await getAuthHeaders();
+
   onProgress(40, "Uploading media via Server Storage Adapter...");
   const res = await fetch(`${API_BASE}/upload/server`, {
     method: "POST",
+    headers: authHeaders,
     body: formData
   });
 
@@ -1293,7 +1317,10 @@ export async function uploadMediaViaServer(file, onProgress = () => {}, provider
  */
 export async function getServerStorageStatus() {
   try {
-    const res = await fetch(`${API_BASE}/upload/status`);
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(`${API_BASE}/upload/status`, {
+      headers: authHeaders
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
