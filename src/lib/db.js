@@ -277,6 +277,9 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
+const CACHE_FRESHNESS_LIMIT = 30000; // 30 seconds for background revalidation
+const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
+
 let isInitialized = false;
 let isHydrated = false;
 let hydrationResolver = null;
@@ -284,88 +287,225 @@ let hydrationPromise = new Promise((resolve) => {
   hydrationResolver = resolve;
 });
 
-export async function fetchHomeData() {
+export function loadCacheFromLocalStorage() {
+  if (typeof window === "undefined") return;
   try {
-    const [
-      productsRes,
-      offerRes,
-      offersRes,
-      bannersRes,
-      reviewsRes,
-      settingsRes,
-      reviewSettingsRes
-    ] = await Promise.all([
-      apiRequest("/products"),
-      apiRequest("/active-offer"),
-      apiRequest("/offers"),
-      apiRequest("/banners"),
-      apiRequest("/reviews"),
-      apiRequest("/settings"),
-      apiRequest("/reviews/settings")
-    ]);
-
-    if (productsRes?.success && Array.isArray(productsRes.data)) {
-      storeCache.dbStatus = "connected";
-      storeCache.products = productsRes.data.map(p => ({
-        ...p,
-        id: String(p.id || p._id),
-        showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
-        isPopular: !!p.isPopular,
-        homeOrder: Number(p.homeOrder) || 0,
-        homeBadge: p.homeBadge || p.badge || "",
-        mrp: p.mrp || p.comparePrice || p.price,
-        comparePrice: p.comparePrice || p.mrp || p.price,
-        images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
-      }));
-    } else if (productsRes?.status === 503) {
-      storeCache.dbStatus = "disconnected";
+    const cachedProducts = localStorage.getItem("aura_products_cache");
+    if (cachedProducts) {
+      const parsed = JSON.parse(cachedProducts);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        storeCache.products = parsed;
+      }
     }
-
-    if (offerRes?.success && offerRes.data) {
-      const expiresAt = offerRes.data.expiresAt || offerRes.data.expiry;
-      const startDate = offerRes.data.startDate || offerRes.data.startAt;
-      storeCache.activeOffer = { 
-        ...offerRes.data,
-        expiresAt,
-        expiry: expiresAt,
-        startDate,
-        startAt: startDate
-      };
+    const cachedBanners = localStorage.getItem("aura_banners_cache");
+    if (cachedBanners) {
+      const parsed = JSON.parse(cachedBanners);
+      if (Array.isArray(parsed) && parsed.length > 0) storeCache.banners = parsed;
     }
-
-    if (offersRes?.success && Array.isArray(offersRes.data)) {
-      storeCache.offers = offersRes.data;
+    const cachedOffers = localStorage.getItem("aura_offers_cache");
+    if (cachedOffers) {
+      const parsed = JSON.parse(cachedOffers);
+      if (Array.isArray(parsed) && parsed.length > 0) storeCache.offers = parsed;
     }
-
-    if (bannersRes?.success && Array.isArray(bannersRes.data)) {
-      storeCache.banners = bannersRes.data;
+    const cachedActiveOffer = localStorage.getItem("aura_active_offer_cache");
+    if (cachedActiveOffer) {
+      const parsed = JSON.parse(cachedActiveOffer);
+      if (parsed && typeof parsed === "object") storeCache.activeOffer = parsed;
     }
-
-    if (reviewsRes?.success && Array.isArray(reviewsRes.data)) {
-      const deletedIds = getDeletedReviewIds();
-      storeCache.reviews = reviewsRes.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
+    const cachedSettings = localStorage.getItem("aura_settings_cache");
+    if (cachedSettings) {
+      const parsed = JSON.parse(cachedSettings);
+      if (parsed && typeof parsed === "object") storeCache.settings = { ...storeCache.settings, ...parsed };
     }
-
-    if (settingsRes?.success && settingsRes.data) {
-      storeCache.settings = { ...storeCache.settings, ...settingsRes.data };
+    const cachedReviewSettings = localStorage.getItem("aura_review_settings_cache");
+    if (cachedReviewSettings) {
+      const parsed = JSON.parse(cachedReviewSettings);
+      if (parsed && typeof parsed === "object") storeCache.reviewSettings = { ...storeCache.reviewSettings, ...parsed };
     }
-
-    if (reviewSettingsRes?.success && reviewSettingsRes.data) {
-      storeCache.reviewSettings = { ...storeCache.reviewSettings, ...reviewSettingsRes.data };
+    const cachedReviews = localStorage.getItem("aura_reviews_cache");
+    if (cachedReviews) {
+      const parsed = JSON.parse(cachedReviews);
+      if (Array.isArray(parsed)) storeCache.reviews = parsed;
     }
-
-    isHydrated = true;
-    if (hydrationResolver) hydrationResolver(true);
-
-    emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
+    
+    // Check if we have a valid, unexpired cache
+    const lastFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
+    const hasRealCache = localStorage.getItem("aura_cache_hydrated") === "true";
+    if (hasRealCache && (Date.now() - lastFetch < CACHE_OBSOLETE_LIMIT)) {
+      isHydrated = true;
+      if (hydrationResolver) {
+        hydrationResolver(true);
+      }
+    }
   } catch (err) {
-    storeCache.dbStatus = "disconnected";
+    console.warn("Error loading local storage cache:", err);
+  }
+}
+
+export async function fetchHomeData(force = false) {
+  if (typeof window === "undefined") return;
+
+  // Deduplicate background fetches
+  if (globalThis.__aura_fetching_home) {
+    return globalThis.__aura_fetching_home_promise;
+  }
+
+  // Check background freshness limit to avoid connection storms and cost spikes
+  const lastFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
+  const isCacheHydrated = localStorage.getItem("aura_cache_hydrated") === "true";
+  
+  if (!force && isCacheHydrated && (Date.now() - lastFetch < CACHE_FRESHNESS_LIMIT)) {
     isHydrated = true;
     if (hydrationResolver) hydrationResolver(true);
-    if (process.env.NODE_ENV === "development") {
-      console.warn("[Aura DB] Home hydration note:", err.message);
-    }
+    return;
   }
+
+  const fetchPromise = (async () => {
+    try {
+      globalThis.__aura_fetching_home = true;
+
+      // Parallel but decoupled fetches to prevent a single slow API call from stalling the page
+      const fetchProducts = async () => {
+        try {
+          const res = await apiRequest("/products");
+          if (res?.success && Array.isArray(res.data)) {
+            storeCache.dbStatus = "connected";
+            storeCache.products = res.data.map(p => ({
+              ...p,
+              id: String(p.id || p._id),
+              showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
+              isPopular: !!p.isPopular,
+              homeOrder: Number(p.homeOrder) || 0,
+              homeBadge: p.homeBadge || p.badge || "",
+              mrp: p.mrp || p.comparePrice || p.price,
+              comparePrice: p.comparePrice || p.mrp || p.price,
+              images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+            }));
+            localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+            localStorage.setItem("aura_cache_hydrated", "true");
+            emitStoreUpdate("products:synced", storeCache.products);
+          } else if (res?.status === 503) {
+            storeCache.dbStatus = "disconnected";
+          }
+        } catch (e) {
+          console.warn("Failed background products fetch:", e);
+        }
+      };
+
+      const fetchActiveOffer = async () => {
+        try {
+          const res = await apiRequest("/active-offer");
+          if (res?.success && res.data) {
+            const expiresAt = res.data.expiresAt || res.data.expiry;
+            const startDate = res.data.startDate || res.data.startAt;
+            storeCache.activeOffer = { 
+              ...res.data,
+              expiresAt,
+              expiry: expiresAt,
+              startDate,
+              startAt: startDate
+            };
+            localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
+            emitStoreUpdate("active-offer:synced", storeCache.activeOffer);
+          }
+        } catch (e) {
+          console.warn("Failed background active offer fetch:", e);
+        }
+      };
+
+      const fetchOffers = async () => {
+        try {
+          const res = await apiRequest("/offers");
+          if (res?.success && Array.isArray(res.data)) {
+            storeCache.offers = res.data;
+            localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
+            emitStoreUpdate("offers:synced", storeCache.offers);
+          }
+        } catch (e) {
+          console.warn("Failed background offers fetch:", e);
+        }
+      };
+
+      const fetchBanners = async () => {
+        try {
+          const res = await apiRequest("/banners");
+          if (res?.success && Array.isArray(res.data)) {
+            storeCache.banners = res.data;
+            localStorage.setItem("aura_banners_cache", JSON.stringify(storeCache.banners));
+            emitStoreUpdate("banners:synced", storeCache.banners);
+          }
+        } catch (e) {
+          console.warn("Failed background banners fetch:", e);
+        }
+      };
+
+      const fetchReviews = async () => {
+        try {
+          const res = await apiRequest("/reviews");
+          if (res?.success && Array.isArray(res.data)) {
+            const deletedIds = getDeletedReviewIds();
+            storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
+            localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+            emitStoreUpdate("reviews:synced", storeCache.reviews);
+          }
+        } catch (e) {
+          console.warn("Failed background reviews fetch:", e);
+        }
+      };
+
+      const fetchSettings = async () => {
+        try {
+          const res = await apiRequest("/settings");
+          if (res?.success && res.data) {
+            storeCache.settings = { ...storeCache.settings, ...res.data };
+            localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+            emitStoreUpdate("settings:synced", storeCache.settings);
+          }
+        } catch (e) {
+          console.warn("Failed background settings fetch:", e);
+        }
+      };
+
+      const fetchReviewSettings = async () => {
+        try {
+          const res = await apiRequest("/reviews/settings");
+          if (res?.success && res.data) {
+            storeCache.reviewSettings = { ...storeCache.reviewSettings, ...res.data };
+            localStorage.setItem("aura_review_settings_cache", JSON.stringify(storeCache.reviewSettings));
+            emitStoreUpdate("review-settings:synced", storeCache.reviewSettings);
+          }
+        } catch (e) {
+          console.warn("Failed background review settings fetch:", e);
+        }
+      };
+
+      await Promise.all([
+        fetchProducts(),
+        fetchActiveOffer(),
+        fetchOffers(),
+        fetchBanners(),
+        fetchReviews(),
+        fetchSettings(),
+        fetchReviewSettings()
+      ]);
+
+      localStorage.setItem("aura_last_fetch_time", String(Date.now()));
+      isHydrated = true;
+      if (hydrationResolver) hydrationResolver(true);
+
+      emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
+    } catch (err) {
+      storeCache.dbStatus = "disconnected";
+      isHydrated = true;
+      if (hydrationResolver) hydrationResolver(true);
+      console.warn("Error inside background home data hydration:", err.message);
+    } finally {
+      globalThis.__aura_fetching_home = false;
+    }
+  })();
+
+  globalThis.__aura_fetching_home_promise = fetchPromise;
+  return fetchPromise;
 }
 
 export async function fetchAdminData() {
@@ -393,12 +533,13 @@ export async function fetchAdminData() {
 }
 
 async function hydrateFromBackend() {
-  await fetchHomeData();
+  await fetchHomeData(true);
 }
 
 // Auto-trigger initial home data fetch on load
 if (typeof window !== "undefined" && !isInitialized) {
   isInitialized = true;
+  loadCacheFromLocalStorage();
   fetchHomeData();
 
   // Sync on tab focus / visibility change without global polling loop
@@ -517,6 +658,11 @@ export const db = {
         comparePrice: p.comparePrice || p.mrp || p.price,
         images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
       }));
+      try {
+        localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+        localStorage.setItem("aura_cache_hydrated", "true");
+        localStorage.setItem("aura_last_fetch_time", String(Date.now()));
+      } catch (_) {}
       return db.getProducts();
     }
     if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
@@ -576,7 +722,15 @@ export const db = {
     } else {
       storeCache.products.unshift(normalizedSaved);
     }
+
+    try {
+      localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+      localStorage.setItem("aura_cache_hydrated", "true");
+      localStorage.setItem("aura_last_fetch_time", "0"); // Invalidate freshness for re-sync
+    } catch (_) {}
+
     emitStoreUpdate("product:saved", normalizedSaved);
+    fetchHomeData(true).catch(() => {}); // Force background sync across app
     return normalizedSaved;
   },
 
@@ -600,7 +754,15 @@ export const db = {
     storeCache.products = storeCache.products.filter(p =>
       String(p.id) !== strId && String(p._id) !== strId && p.slug !== strId
     );
+
+    try {
+      localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+      localStorage.setItem("aura_cache_hydrated", "true");
+      localStorage.setItem("aura_last_fetch_time", "0"); // Invalidate freshness for re-sync
+    } catch (_) {}
+
     emitStoreUpdate("product:deleted", strId);
+    fetchHomeData(true).catch(() => {}); // Force background sync across app
     return true;
   },
 

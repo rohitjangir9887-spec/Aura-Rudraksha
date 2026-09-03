@@ -15589,3 +15589,25 @@ button:active, .primary-btn:active, .outline-btn:active {
   animation: aura-pulse-soft 2s infinite ease-in-out;
 }
 
+/* ==========================================================================
+   PREMIUM ICON & 1-1.5 CM SIZE BADGE POLISH
+   ========================================================================== */
+.premium-gold-icon,
+.premium-icon-shimmer,
+.product-size-badge-prominent svg {
+  filter: drop-shadow(0 2px 4px rgba(212, 175, 55, 0.4));
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.product-size-badge-prominent:hover .premium-icon-shimmer {
+  transform: scale(1.1) rotate(6deg);
+}
+
+.product-gallery-column svg,
+.product-info-column svg,
+.why-buy-pillar-icon-circle svg,
+.lab-cert-shield-badge svg,
+.accordion-header svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+}
+

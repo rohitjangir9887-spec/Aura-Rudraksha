@@ -611,10 +611,45 @@ export function Product() {
               {/* PRODUCT HIGHLIGHT BOX */}
               <div className="product-sacred-highlight-box">
                 <div className="highlight-icon">
-                  <Sparkles size={16} />
+                  <Sparkles size={18} className="premium-gold-icon" />
                 </div>
                 <div className="highlight-text">
                   {highlightText}
+                </div>
+              </div>
+
+              {/* PROMINENT 1-1.5 CM SIZE BADGE */}
+              <div className="product-size-badge-prominent" style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                background: "linear-gradient(135deg, #fffcf7 0%, #fef3e2 100%)",
+                border: "1.5px solid rgba(212, 175, 55, 0.6)",
+                borderRadius: "14px",
+                padding: "16px 20px",
+                margin: "18px 0",
+                boxShadow: "0 6px 20px rgba(184, 93, 37, 0.12), inset 0 1px 0 rgba(255,255,255,0.8)"
+              }}>
+                <div style={{
+                  background: "linear-gradient(135deg, #b85d25 0%, #8c2b10 100%)",
+                  color: "#fff",
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  display: "grid",
+                  placeItems: "center",
+                  boxShadow: "0 4px 12px rgba(184, 93, 37, 0.35)",
+                  flexShrink: 0
+                }}>
+                  <Award size={24} className="premium-icon-shimmer" />
+                </div>
+                <div>
+                  <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1.2px", color: "#8c6d53", fontWeight: 700, display: "block", marginBottom: "2px" }}>
+                    Natural Bead Size &amp; Dimensions
+                  </span>
+                  <span style={{ fontSize: "20px", fontWeight: "700", color: "#2b170d", letterSpacing: "0.3px", fontFamily: "Cormorant Garamond, serif" }}>
+                    1 - 1.5 cm <span style={{ fontSize: "14px", fontWeight: "600", color: "#b85d25", fontFamily: "sans-serif" }}>(Authentic Nepali Seed)</span>
+                  </span>
                 </div>
               </div>
 
