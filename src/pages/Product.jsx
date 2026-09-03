@@ -626,8 +626,8 @@ export function Product() {
                 background: "linear-gradient(135deg, #fffcf5 0%, #fff6e5 100%)",
                 border: "2px solid #e5c158",
                 borderRadius: "16px",
-                padding: "20px 24px",
-                margin: "-15px 0 24px 0",
+                padding: "15px 4px 15px 4px",
+                margin: "-29px 16.5655px 20px 16.5595px",
                 boxShadow: "0 10px 28px rgba(229, 193, 88, 0.18), inset 0 1px 0 rgba(255,255,255,0.9)",
                 position: "relative",
                 overflow: "hidden"

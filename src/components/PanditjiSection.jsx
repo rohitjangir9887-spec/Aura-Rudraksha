@@ -233,8 +233,8 @@ export function PanditjiSection() {
             {/* Pandit Ji Photo / Avatar with Divine Halo */}
             <div style={{
               position: 'relative',
-              width: 48,
-              height: 48,
+              width: 64,
+              height: 64,
               borderRadius: '50%',
               padding: 2,
               background: 'linear-gradient(135deg, #D4AF37 0%, #8A6014 50%, #E5C158 100%)',
@@ -252,8 +252,26 @@ export function PanditjiSection() {
                 justifyContent: 'center',
                 position: 'relative'
               }}>
-                {/* High Definition Vedic Acharya Icon */}
-                <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
+                {/* PNG Image Source with fallback to SVG */}
+                <img 
+                  src="https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png" 
+                  alt="Aura Panditji" 
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    display: 'block'
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.parentElement.querySelector('svg');
+                    if (fallback) fallback.style.display = 'block';
+                  }}
+                  referrerPolicy="no-referrer"
+                />
+                {/* High Definition Vedic Acharya Icon (Fallback) */}
+                <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', display: 'none' }}>
                   <defs>
                     <radialGradient id="headerHalo" cx="50%" cy="40%" r="50%">
                       <stop offset="0%" stopColor="#FFF9E6" />
@@ -307,11 +325,11 @@ export function PanditjiSection() {
                 position: 'absolute',
                 bottom: 0,
                 right: 0,
-                width: 12,
-                height: 12,
+                width: 14,
+                height: 14,
                 borderRadius: '50%',
                 background: '#16a34a',
-                border: '2px solid #FFFDF9',
+                border: '2.5px solid #FFFDF9',
                 boxShadow: '0 0 6px rgba(22, 163, 74, 0.7)'
               }} />
             </div>
@@ -933,10 +951,10 @@ export function PanditjiSection() {
                 {/* Traditional Panditji Portrait Artwork */}
                 <div style={{
                   position: 'relative',
-                  width: 68,
-                  height: 68,
+                  width: 64,
+                  height: 64,
                   borderRadius: '50%',
-                  padding: 2.5,
+                  padding: 2,
                   background: 'linear-gradient(135deg, #D4AF37 0%, #996515 50%, #F3E5AB 100%)',
                   boxShadow: '0 4px 14px rgba(153, 101, 21, 0.35)',
                   flexShrink: 0
@@ -952,8 +970,26 @@ export function PanditjiSection() {
                     justifyContent: 'center',
                     position: 'relative'
                   }}>
-                    {/* High Quality Traditional Panditji Vector Portrait */}
-                    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: 'block' }}>
+                     {/* PNG Image Source with fallback to SVG */}
+                     <img 
+                       src="https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png" 
+                       alt="Acharya Panditji" 
+                       style={{
+                         width: '100%',
+                         height: '100%',
+                         borderRadius: '50%',
+                         objectFit: 'cover',
+                         display: 'block'
+                       }}
+                       onError={(e) => {
+                         e.currentTarget.style.display = 'none';
+                         const fallback = e.currentTarget.parentElement.querySelector('svg');
+                         if (fallback) fallback.style.display = 'block';
+                       }}
+                       referrerPolicy="no-referrer"
+                     />
+                    {/* High Quality Traditional Panditji Vector Portrait (Fallback) */}
+                    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: 'none' }}>
                       <defs>
                         {/* Divine Golden Halo Gradient */}
                         <radialGradient id="divineHalo" cx="50%" cy="40%" r="50%">
@@ -1057,13 +1093,13 @@ export function PanditjiSection() {
                     {/* Auspicious Online Green Pulse */}
                     <div style={{
                       position: 'absolute',
-                      bottom: 2,
-                      right: 2,
-                      width: 11,
-                      height: 11,
+                      bottom: 0,
+                      right: 0,
+                      width: 14,
+                      height: 14,
                       borderRadius: '50%',
                       background: '#16a34a',
-                      border: '1.5px solid #FFFFFF',
+                      border: '2.5px solid #FFFFFF',
                       boxShadow: '0 0 5px rgba(22, 163, 74, 0.7)'
                     }} />
                   </div>
