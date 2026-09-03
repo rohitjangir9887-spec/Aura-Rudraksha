@@ -155,6 +155,23 @@ router.post("/server", requireAdmin, (req, res, next) => {
       }
     }
 
+    if (dbError) {
+      return res.status(500).json({
+        success: false,
+        error: "Database Metadata Registration Failed",
+        message: `Physical upload to ${uploadResult.provider} succeeded, but saving metadata to MongoDB failed: ${dbError}`,
+        provider: uploadResult.provider,
+        fileId: uploadResult.fileId,
+        url: uploadResult.url,
+        readURL: uploadResult.url,
+        path: uploadResult.path,
+        size: size,
+        type: mimetype,
+        registeredInDb: false,
+        dbError
+      });
+    }
+
     return res.json({
       success: true,
       provider: uploadResult.provider,
@@ -165,8 +182,7 @@ router.post("/server", requireAdmin, (req, res, next) => {
       size: size,
       type: mimetype,
       media: mediaRecord,
-      registeredInDb,
-      dbError
+      registeredInDb: true
     });
   } catch (err) {
     console.error("Server-side media upload route error:", err);
