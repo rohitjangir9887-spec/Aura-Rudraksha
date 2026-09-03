@@ -156,7 +156,8 @@ export function Shell({children}) {
         bottom: 0,
         left: 0,
         right: 0,
-        zIndex: 9999,
+        zIndex: 10005,
+        pointerEvents: 'auto',
         paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
       }}>
         <Link to="/" className={isHomeActive ? "active" : ""}>

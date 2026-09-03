@@ -564,21 +564,21 @@ export function AuraAIFloating() {
 
   return (
     <>
-      {/* Invisible full-viewport overlay for unconstrained 360-degree floating bounds */}
+      {/* Safe viewport bounds overlay: strictly protects bottom navigation icons (Home, Shop, Cart, Orders, Account) */}
       <div 
         ref={dragAreaRef} 
         style={{ 
           position: "fixed", 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
+          top: 10, 
+          left: 10, 
+          right: 10, 
+          bottom: "calc(78px + env(safe-area-inset-bottom, 0px))", 
           pointerEvents: "none", 
-          zIndex: 99990 
+          zIndex: -1 
         }} 
       />
 
-      {/* 1. Floating Action Button - Draggable across entire screen */}
+      {/* 1. Floating Action Button - Draggable with strict bottom safe area */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
@@ -592,13 +592,22 @@ export function AuraAIFloating() {
             drag
             dragConstraints={dragAreaRef}
             dragMomentum={false}
-            dragElastic={0.08}
-            whileDrag={{ scale: 1.06, cursor: "grabbing" }}
+            dragElastic={0.02}
+            whileDrag={{ scale: 1.05, cursor: "grabbing" }}
             onDragStart={(_, info) => {
-              isDraggingBtnRef.current = true;
               dragStartPos.current = { x: info.point.x, y: info.point.y };
+              isDraggingBtnRef.current = false;
             }}
-            onDragEnd={(_, info) => {
+            onDrag={(_, info) => {
+              const dist = Math.hypot(
+                info.point.x - dragStartPos.current.x,
+                info.point.y - dragStartPos.current.y
+              );
+              if (dist > 6) {
+                isDraggingBtnRef.current = true;
+              }
+            }}
+            onDragEnd={() => {
               setTimeout(() => {
                 isDraggingBtnRef.current = false;
               }, 120);
@@ -724,7 +733,7 @@ export function AuraAIFloating() {
                 left: -Math.max(100, window.innerWidth - 300),
                 right: Math.max(100, window.innerWidth - 300),
                 top: -Math.max(100, window.innerHeight - 400),
-                bottom: Math.max(100, window.innerHeight - 200)
+                bottom: 0
               }}
               whileDrag={{ cursor: "grabbing" }}
               style={{ transformOrigin: isFullWindow ? "center center" : "bottom left", willChange: "transform, width, height" }}
