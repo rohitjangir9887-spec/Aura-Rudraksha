@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "../../components/AdminLayout";
-import { db, onStoreUpdate } from "../../lib/db";
+import { db, onStoreUpdate, isPublicProduct } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
 import { uploadMedia } from "../../lib/imageUtils";
 import { Sparkles, Save, Edit, Check, Upload, Link as LinkIcon, Image as ImageIcon } from "lucide-react";
@@ -19,7 +19,7 @@ export function AdminZodiac() {
     const load = () => {
       const settings = db.getSettings();
       setZodiacs(settings.zodiacs || initialZodiacs);
-      setProducts(db.getProducts().filter(p => p.status === 'Active'));
+      setProducts(db.getProducts().filter(isPublicProduct));
     };
     load();
     // Fresh fetch from MongoDB so admin sees the currently saved zodiac content

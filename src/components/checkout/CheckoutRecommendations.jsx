@@ -2,10 +2,11 @@ import React from "react";
 import { Sparkles, Plus, Star } from "lucide-react";
 import { money } from "../../data";
 import { emitToast } from "../../context/ToastContext";
+import { isPublicProduct } from "../../lib/db";
 
 export function CheckoutRecommendations({ products, cartIds, onAddToCart }) {
   // Filter out products already in cart and select up to 3 relevant items
-  const candidates = products.filter(p => !cartIds.includes(String(p.id)) && p.status === "Active");
+  const candidates = products.filter(p => !cartIds.includes(String(p.id)) && isPublicProduct(p));
   const recommended = candidates.slice(0, 3);
 
   if (recommended.length === 0) return null;

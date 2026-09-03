@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ShieldCheck, PackageCheck, BadgeCheck, Flower2 } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
-import { db, onStoreUpdate } from "../lib/db";
+import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { Countdown } from "../components/Countdown";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
@@ -19,7 +19,7 @@ export function Home() {
   const [banners, setBanners] = useState(() => db.getBanners() || []);
   const [products, setProducts] = useState(() => {
     try {
-      return db.getProducts().filter(p => p.status === 'Active');
+      return db.getProducts().filter(isPublicProduct);
     } catch {
       return [];
     }
@@ -40,52 +40,68 @@ export function Home() {
   });
   const location = useLocation();
 
-  const loadHomeData = async () => {
-    // Instantly set banners from cache so hero slider never disappears during hydration wait
+  const updateLocalState = () => {
+    setProducts(db.getProducts().filter(isPublicProduct));
     const cachedBanners = db.getBanners();
     if (cachedBanners && cachedBanners.length > 0) {
       setBanners(cachedBanners);
     }
-
-    await db.waitForHydration();
-
-    const hydratedBanners = db.getBanners();
-    if (hydratedBanners && hydratedBanners.length > 0) {
-      setBanners(hydratedBanners);
-    }
-
-    setProducts(db.getProducts().filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived'));
-    
-    // Banner offers that are Active
     const allOffers = db.getOffers().filter(o => {
-      // Must be banner type (or legacy undefined)
       if (o.offerType === 'badge') return false;
-      // Must be Active
       if (o.status !== 'Active') return false;
-      
-      // Legacy shownOn check
       if (o.shownOn && o.shownOn !== 'Home Banner') return false;
-      
-      // Expiry check
       if (o.expiry && new Date(o.expiry) < new Date()) return false;
-      
-      // Start date check
       if (o.startDate && new Date(o.startDate) > new Date()) return false;
-      
       return true;
     });
-
     setOffers(allOffers.sort((a,b) => (a.order || 0) - (b.order || 0)));
     setIsLoading(false);
+  };
+
+  const loadHomeData = async () => {
+    // 1. Instantly render from local cache
+    updateLocalState();
+
+    // 2. Revalidate products independently right away (does NOT block on banners/reviews/settings)
+    db.revalidateProducts().then(() => {
+      setProducts(db.getProducts().filter(isPublicProduct));
+    }).catch(() => {});
+
+    // 3. Background fetch for full home dataset
+    db.fetchHomeData().then(() => {
+      updateLocalState();
+    }).catch(() => {});
   };
 
   useEffect(() => {
     loadHomeData();
     db.logVisit();
+
+    // Periodic product revalidation (4s) when tab is visible
+    const intervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        db.revalidateProducts().catch(() => {});
+      }
+    }, 4000);
+
+    const handleFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        db.revalidateProducts().catch(() => {});
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+
     const unsub = onStoreUpdate(() => {
-      loadHomeData();
+      updateLocalState();
     });
-    return () => unsub();
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -95,12 +111,30 @@ export function Home() {
   }, [location.hash]);
 
   const activeBanners = (banners && banners.length > 0) ? banners : db.getBanners();
+  const [loadedBanners, setLoadedBanners] = useState({});
+
+  // Preload all hero banner images into browser cache
+  useEffect(() => {
+    if (!activeBanners || activeBanners.length === 0) return;
+    activeBanners.forEach((src, idx) => {
+      if (src && typeof window !== "undefined") {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+          setLoadedBanners(prev => ({ ...prev, [idx]: true }));
+        };
+        img.onerror = () => {
+          setLoadedBanners(prev => ({ ...prev, [idx]: true }));
+        };
+      }
+    });
+  }, [activeBanners]);
 
   useEffect(() => {
     if (activeBanners.length <= 1) return;
     const interval = setInterval(() => {
       setHero((current) => (current + 1) % activeBanners.length);
-    }, 4500); 
+    }, 5000); 
     return () => clearInterval(interval);
   }, [activeBanners.length]);
 
@@ -135,19 +169,22 @@ export function Home() {
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
+      aria-label="Aura Sacred Hero Banners"
     >
       <div className="hero-slides" style={{ minHeight: "220px", background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => (
           <img 
-            key={i} 
+            key={`${src}-${i}`} 
             src={src} 
             alt={`Aura Sacred Banner ${i + 1}`} 
             className={`hero-slide ${i === hero ? 'active' : ''}`}
             loading={i === 0 ? "eager" : "lazy"}
-            fetchpriority={i === 0 ? "high" : "auto"}
+            fetchPriority={i === 0 ? "high" : "auto"}
             decoding="async"
             referrerPolicy="no-referrer"
+            onLoad={() => setLoadedBanners(prev => ({ ...prev, [i]: true }))}
             onError={(e) => {
+              setLoadedBanners(prev => ({ ...prev, [i]: true }));
               if (!e.currentTarget.src.includes("product-5mukhi.jpg")) {
                 e.currentTarget.src = "/images/product-5mukhi.jpg";
               }
@@ -156,9 +193,17 @@ export function Home() {
         ))}
       </div>
       {activeBanners.length > 1 && (
-        <div className="hero-pagination">
+        <div className="hero-pagination" role="tablist" aria-label="Slider Pagination">
           {activeBanners.map((_, i) => (
-            <span key={i} className={`dot ${i === hero ? 'active' : ''}`} onClick={() => setHero(i)}></span>
+            <button 
+              key={i} 
+              type="button"
+              role="tab"
+              aria-selected={i === hero}
+              aria-label={`Go to slide ${i + 1}`}
+              className={`dot ${i === hero ? 'active' : ''}`} 
+              onClick={() => setHero(i)}
+            />
           ))}
         </div>
       )}

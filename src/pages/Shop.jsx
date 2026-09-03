@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
-import { db, onStoreUpdate } from "../lib/db";
+import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
@@ -102,19 +102,53 @@ export function Shop() {
   const isOfferQuery = params.get("offer") === "1";
   const isWishlistQuery = params.get("wishlist") === "1";
 
-  const loadProducts = async () => {
-    await db.waitForHydration();
-    const all = db.getProducts();
-    setProducts(all.filter(p => p.status !== "Draft" && p.status !== "draft" && p.status !== "Inactive" && p.status !== "inactive" && p.status !== "Archived"));
+  const updateProductsState = () => {
+    setProducts(db.getProducts().filter(isPublicProduct));
     setIsLoading(false);
+  };
+
+  const loadProducts = async () => {
+    // 1. Instantly display cached products
+    updateProductsState();
+
+    // 2. Revalidate products independently right away
+    db.revalidateProducts().then(() => {
+      updateProductsState();
+    }).catch(() => {
+      setIsLoading(false);
+    });
+
+    // 3. Background fetch for secondary resources
+    db.fetchHomeData().catch(() => {});
   };
 
   useEffect(() => {
     loadProducts();
+
+    const intervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        db.revalidateProducts().catch(() => {});
+      }
+    }, 4000);
+
+    const handleFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        db.revalidateProducts().catch(() => {});
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+
     const unsub = onStoreUpdate(() => {
-      loadProducts();
+      updateProductsState();
     });
-    return () => unsub();
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+      unsub();
+    };
   }, []);
 
   useEffect(() => {

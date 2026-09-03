@@ -13,7 +13,7 @@ import { useCart } from "../hooks/useCart";
 import { useWishlist } from "../hooks/useWishlist";
 import { emitToast } from "../context/ToastContext";
 import { money, pct } from "../data";
-import { db, onStoreUpdate } from "../lib/db";
+import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProductCard } from "../components/ProductCard";
@@ -122,7 +122,7 @@ export function Product() {
       if (!silent) setLoading(false);
 
       // Load related products and coupons in background
-      const prods = db.getProducts().filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived');
+      const prods = db.getProducts().filter(isPublicProduct);
       setAllProducts(prods);
       setCoupons(db.getCoupons().filter(c => c.status === "Active"));
     } catch (err) {
@@ -139,6 +139,10 @@ export function Product() {
     db.logVisit();
     db.logProductView();
     loadData(false);
+
+    db.revalidateProducts().then(() => {
+      loadData(true);
+    }).catch(() => {});
 
     // Live real-time sync when Admin updates product, stock, or offers
     const unsub = onStoreUpdate(() => {

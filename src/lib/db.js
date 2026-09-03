@@ -130,12 +130,19 @@ function recordDeletedReviewId(id) {
   } catch (_) {}
 }
 
+export function isPublicProduct(p) {
+  if (!p) return false;
+  const s = String(p.status || "").trim().toLowerCase();
+  if (s === "draft" || s === "inactive" || s === "archived") return false;
+  return true;
+}
+
 // Live MongoDB Data Store Cache with initial catalog for UI rendering
 const storeCache = {
   products: defaultProducts.map(p => ({
     ...p,
     id: String(p.id),
-    status: p.status || "Active",
+    status: p.status || "Published",
     category: p.category || "Rudraksha",
     stock: p.stock !== undefined ? p.stock : 50,
     showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
@@ -342,15 +349,74 @@ export function loadCacheFromLocalStorage() {
   }
 }
 
+const PRODUCT_FRESHNESS_LIMIT = 3500; // Short 3.5s window for fast live sync
+let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
+let inFlightProductsPromise = null;
+
+export async function revalidateProducts(force = false) {
+  if (typeof window === "undefined") return storeCache.products;
+
+  if (!force && inFlightProductsPromise) {
+    return inFlightProductsPromise;
+  }
+
+  const now = Date.now();
+  if (!force && lastProductFetchTime > 0 && (now - lastProductFetchTime < PRODUCT_FRESHNESS_LIMIT)) {
+    return storeCache.products;
+  }
+
+  inFlightProductsPromise = (async () => {
+    try {
+      const res = await apiRequest(`/products?_t=${now}`, { noCache: true });
+      if (res?.success && Array.isArray(res.data)) {
+        storeCache.dbStatus = "connected";
+        const normalized = res.data.map(p => ({
+          ...p,
+          id: String(p.id || p._id),
+          showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
+          isPopular: !!p.isPopular,
+          homeOrder: Number(p.homeOrder) || 0,
+          homeBadge: p.homeBadge || p.badge || "",
+          mrp: p.mrp || p.comparePrice || p.price,
+          comparePrice: p.comparePrice || p.mrp || p.price,
+          images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+        }));
+
+        storeCache.products = normalized;
+        lastProductFetchTime = Date.now();
+        try {
+          localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+          localStorage.setItem("aura_last_product_fetch_time", String(lastProductFetchTime));
+          localStorage.setItem("aura_cache_hydrated", "true");
+        } catch (_) {}
+
+        emitStoreUpdate("products:synced", storeCache.products);
+      } else if (res?.status === 503 || res?.error === "Database unavailable") {
+        storeCache.dbStatus = "disconnected";
+      }
+    } catch (e) {
+      console.warn("Product revalidation background error:", e);
+    } finally {
+      inFlightProductsPromise = null;
+    }
+    return storeCache.products;
+  })();
+
+  return inFlightProductsPromise;
+}
+
 export async function fetchHomeData(force = false) {
   if (typeof window === "undefined") return;
 
-  // Deduplicate background fetches
+  // Always revalidate products independently so updates propagate quickly
+  revalidateProducts(force).catch(() => {});
+
+  // Deduplicate background fetches for other home resources
   if (globalThis.__aura_fetching_home) {
     return globalThis.__aura_fetching_home_promise;
   }
 
-  // Check background freshness limit to avoid connection storms and cost spikes
+  // Check background freshness limit for secondary resources (banners, offers, reviews, settings)
   const lastFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
   const isCacheHydrated = localStorage.getItem("aura_cache_hydrated") === "true";
   
@@ -364,32 +430,9 @@ export async function fetchHomeData(force = false) {
     try {
       globalThis.__aura_fetching_home = true;
 
-      // Parallel but decoupled fetches to prevent a single slow API call from stalling the page
+      // Parallel but decoupled fetches
       const fetchProducts = async () => {
-        try {
-          const res = await apiRequest("/products");
-          if (res?.success && Array.isArray(res.data)) {
-            storeCache.dbStatus = "connected";
-            storeCache.products = res.data.map(p => ({
-              ...p,
-              id: String(p.id || p._id),
-              showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
-              isPopular: !!p.isPopular,
-              homeOrder: Number(p.homeOrder) || 0,
-              homeBadge: p.homeBadge || p.badge || "",
-              mrp: p.mrp || p.comparePrice || p.price,
-              comparePrice: p.comparePrice || p.mrp || p.price,
-              images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
-            }));
-            localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
-            localStorage.setItem("aura_cache_hydrated", "true");
-            emitStoreUpdate("products:synced", storeCache.products);
-          } else if (res?.status === 503) {
-            storeCache.dbStatus = "disconnected";
-          }
-        } catch (e) {
-          console.warn("Failed background products fetch:", e);
-        }
+        await revalidateProducts(force);
       };
 
       const fetchActiveOffer = async () => {
@@ -648,27 +691,16 @@ export const db = {
     return db.getProduct(idOrSlug);
   },
 
-  fetchProducts: async () => {
-    const res = await apiRequest("/products");
-    if (res?.success && Array.isArray(res.data)) {
-      storeCache.products = res.data.map(p => ({
-        ...p,
-        id: String(p.id || p._id),
-        mrp: p.mrp || p.comparePrice || p.price,
-        comparePrice: p.comparePrice || p.mrp || p.price,
-        images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
-      }));
-      try {
-        localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
-        localStorage.setItem("aura_cache_hydrated", "true");
-        localStorage.setItem("aura_last_fetch_time", String(Date.now()));
-      } catch (_) {}
-      return db.getProducts();
-    }
-    if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
-      throw new Error(res?.message || "Database unavailable");
-    }
-    return db.getProducts();
+  revalidateProducts: async (force = false) => {
+    return await revalidateProducts(force);
+  },
+
+  isPublicProduct: (p) => {
+    return isPublicProduct(p);
+  },
+
+  fetchProducts: async (force = false) => {
+    return await revalidateProducts(force);
   },
 
   saveProduct: async (p) => {
@@ -730,9 +762,11 @@ export const db = {
       localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       localStorage.setItem("aura_cache_hydrated", "true");
       localStorage.setItem("aura_last_fetch_time", "0"); // Invalidate freshness for re-sync
+      localStorage.setItem("aura_last_product_fetch_time", "0");
     } catch (_) {}
 
     emitStoreUpdate("product:saved", normalizedSaved);
+    revalidateProducts(true).catch(() => {});
     fetchHomeData(true).catch(() => {}); // Force background sync across app
     return normalizedSaved;
   },
@@ -762,9 +796,11 @@ export const db = {
       localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       localStorage.setItem("aura_cache_hydrated", "true");
       localStorage.setItem("aura_last_fetch_time", "0"); // Invalidate freshness for re-sync
+      localStorage.setItem("aura_last_product_fetch_time", "0");
     } catch (_) {}
 
     emitStoreUpdate("product:deleted", strId);
+    revalidateProducts(true).catch(() => {});
     fetchHomeData(true).catch(() => {}); // Force background sync across app
     return true;
   },

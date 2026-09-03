@@ -4,7 +4,7 @@ import { Shell } from "../components/Shell";
 import { useWishlist } from "../hooks/useWishlist";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
-import { db, onStoreUpdate } from "../lib/db";
+import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { money, pct } from "../data";
 import { Heart, ShoppingCart, Trash2, ArrowRight, Star, ShoppingBag } from "lucide-react";
 
@@ -15,11 +15,12 @@ export function Wishlist() {
   const [addedIds, setAddedIds] = useState({});
 
   const loadProducts = () => {
-    setProducts(db.getProducts().filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived'));
+    setProducts(db.getProducts().filter(isPublicProduct));
   };
 
   useEffect(() => {
     loadProducts();
+    db.revalidateProducts().then(() => loadProducts()).catch(() => {});
     const unsub = onStoreUpdate(() => loadProducts());
     return () => unsub();
   }, []);

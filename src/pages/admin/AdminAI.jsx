@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { db } from "../../lib/db";
+import { db, isPublicProduct } from "../../lib/db";
 
 export function AdminAI() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -482,7 +482,7 @@ export function AdminAI() {
                         )}
                       </td>
                       <td>
-                        {(p.status === "Active" || !p.status) && Number(p.stock) > 0 ? (
+                        {isPublicProduct(p) && Number(p.stock) > 0 ? (
                           <span className="toggle-pill active">✓ Eligible</span>
                         ) : (
                           <span className="toggle-pill" style={{ background: "#f5f5f4", color: "#806f62" }}>Hidden from AI</span>

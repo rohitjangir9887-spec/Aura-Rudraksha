@@ -784,13 +784,15 @@ body {
     overflow: hidden;
     padding: 0;
     min-height: 200px;
-    background: #231208;
+    background: #1e0f07;
+    border-radius: 12px;
     /* Maintain existing sizing rules */
 }
 .hero-slides {
     display: grid;
     width: 100%;
     height: 100%;
+    position: relative;
 }
 .hero-slide {
     grid-area: 1 / 1;
@@ -798,50 +800,64 @@ body {
     height: auto;
     object-fit: contain; /* Keep images from being cropped */
     opacity: 0;
-    transform: scale(1.04);
-    /* Very smooth fade in, and continuous slow floating scale */
-    transition: opacity 1.5s ease-in-out, transform 6s linear;
+    transform: scale(1.015);
+    transition: opacity 0.65s cubic-bezier(0.25, 1, 0.5, 1), transform 0.75s cubic-bezier(0.25, 1, 0.5, 1);
     z-index: 1;
+    will-change: opacity, transform;
+    pointer-events: none;
 }
 .hero-slide.active {
     opacity: 1;
     transform: scale(1);
     z-index: 2;
+    pointer-events: auto;
 }
 .hero-pagination {
     position: absolute;
-    bottom: 25px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
+    align-items: center;
     gap: 8px;
     z-index: 5;
-    background: rgba(0,0,0,0.3);
-    padding: 8px 12px;
+    background: rgba(18, 9, 5, 0.45);
+    padding: 6px 12px;
     border-radius: 20px;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .hero-pagination .dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.4);
+    background: rgba(255, 255, 255, 0.35);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.hero-pagination .dot:hover {
+    background: rgba(255, 255, 255, 0.7);
 }
 .hero-pagination .dot.active {
-    background: #ffffff;
-    transform: scale(1.3);
+    width: 22px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #F0D78C 0%, #C89B3C 100%);
+    box-shadow: 0 0 10px rgba(200, 155, 60, 0.5);
 }
 
 @media(max-width: 600px) {
     .hero-pagination {
-        bottom: 15px;
-        padding: 6px 10px;
+        bottom: 12px;
+        padding: 5px 10px;
+        gap: 6px;
     }
     .hero-pagination .dot {
         width: 6px;
         height: 6px;
+    }
+    .hero-pagination .dot.active {
+        width: 16px;
     }
 }
 
