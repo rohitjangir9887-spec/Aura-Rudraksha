@@ -719,37 +719,9 @@ export function Product() {
               </div>
             </div>
 
-            {/* CENTRAL LIVE STORE OFFER */}
-            <OfferCard product={p} />
+            {/* CENTRAL LIVE STORE OFFER REMOVED AS REQUESTED */}
 
-            {/* FALLBACK COUPONS BOX IF NOT DUPLICATED */}
-            {activeCoupon && (!p.customOffer && activeCoupon.code !== "SHRAWAN200") && (
-              <div className="special-offer-card">
-                <div className="offer-card-header">
-                  <Tag size={16} />
-                  <span>ADDITIONAL PROMO</span>
-                </div>
-                <div className="offer-card-body">
-                  <div className="offer-details">
-                    <strong className="offer-title">Save Extra {activeCoupon.discount}% OFF</strong>
-                    <p className="offer-sub">
-                      Use coupon code <strong className="code-text">{activeCoupon.code}</strong> at checkout.
-                    </p>
-                  </div>
-
-                  <button 
-                    className={`copy-code-btn ${copiedCode === activeCoupon.code ? "copied" : ""}`}
-                    onClick={() => handleCopyCoupon(activeCoupon.code)}
-                  >
-                    {copiedCode === activeCoupon.code ? (
-                      <><Check size={14} /> Copied</>
-                    ) : (
-                      <><Copy size={14} /> Copy Code</>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* FALLBACK COUPONS BOX REMOVED AS REQUESTED */}
 
             {/* BEAD SIZE SELECTION */}
             {!isOutOfStock && (
@@ -1214,11 +1186,7 @@ export function Product() {
           onAddToCart={(pid, q) => add(pid, q)} 
         />
 
-        {/* SCROLL-BASED FLOATING OFFER */}
-        <FloatingOffer 
-          product={p} 
-          hasStickyBar={showStickyBar} 
-        />
+        {/* FLOATING OFFER REMOVED AS REQUESTED */}
 
         {/* IMAGE ZOOM LIGHTBOX MODAL */}
         <AnimatePresence>
