@@ -1,198 +1,11 @@
 import express from "express";
-import multer from "multer";
 import { Media, initMediaIndexes } from "../models/Media.js";
 import { isDbConnected } from "../config/db.js";
-import { mediaStorageManager } from "../services/mediaStorage/index.js";
-import { requireAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
-const allowedMimeTypes = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/svg+xml",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime"
-]);
-
-const multerStorage = multer.memoryStorage();
-const upload = multer({
-  storage: multerStorage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
-  fileFilter: (req, file, cb) => {
-    if (!file || !file.mimetype || !allowedMimeTypes.has(file.mimetype.toLowerCase())) {
-      return cb(new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM, QuickTime."));
-    }
-    cb(null, true);
-  }
-});
-
 // Trigger background index check once DB is connected
 initMediaIndexes().catch(() => {});
-
-/**
- * GET /api/upload/status
- * Returns overview of all server-side media storage providers (Admin-only)
- */
-router.get("/status", requireAdmin, async (req, res) => {
-  try {
-    const status = await mediaStorageManager.getStatus();
-    return res.json({
-      success: true,
-      ...status
-    });
-  } catch (err) {
-    console.error("Failed to fetch media storage status:", err);
-    return res.status(500).json({
-      success: false,
-      error: "Status Check Error",
-      message: err.message || "Failed to check media storage status"
-    });
-  }
-});
-
-/**
- * GET /api/upload/telegram/file/:fileId
- * Secure server proxy endpoint for streaming Telegram files without exposing TELEGRAM_BOT_TOKEN
- */
-router.get("/telegram/file/:fileId", async (req, res) => {
-  try {
-    return await mediaStorageManager.streamMedia(req.params.fileId, res, "telegram");
-  } catch (err) {
-    console.error("Error streaming Telegram media file:", err);
-    return res.status(500).json({
-      success: false,
-      error: "Media Stream Failure",
-      message: err.message || "Failed to stream media file from Telegram storage"
-    });
-  }
-});
-
-/**
- * POST /api/upload/server
- * Server-side media upload endpoint using TGStorage / Media Storage Providers (Admin-only).
- * Step 1: Uploads physical media to storage provider (Telegram / TGStorage or Puter).
- * Step 2: Registers metadata in MongoDB ONLY after successful physical upload.
- */
-router.post("/server", requireAdmin, (req, res, next) => {
-  upload.single("file")(req, res, (err) => {
-    if (err) {
-      if (err instanceof multer.MulterError) {
-        return res.status(400).json({
-          success: false,
-          error: "Upload Limit Exceeded",
-          message: err.message
-        });
-      }
-      return res.status(400).json({
-        success: false,
-        error: "Invalid File Upload",
-        message: err.message || "File upload validation failed"
-      });
-    }
-    next();
-  });
-}, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing File",
-        message: "No media file provided in 'file' field"
-      });
-    }
-
-    const { originalname, mimetype, buffer, size } = req.file;
-    const requestedProvider = req.body.provider || undefined;
-
-    // Step 1: Upload physical file buffer via Media Storage Adapter
-    const uploadResult = await mediaStorageManager.uploadMedia(
-      buffer,
-      { filename: originalname, mimeType: mimetype, size },
-      requestedProvider
-    );
-
-    if (!uploadResult || !uploadResult.success) {
-      return res.status(500).json({
-        success: false,
-        error: "Storage Upload Failed",
-        message: "Media storage provider failed to accept the upload payload"
-      });
-    }
-
-    // Step 2: Write metadata to MongoDB ONLY after successful physical upload
-    let mediaRecord = null;
-    let registeredInDb = false;
-    let dbError = null;
-
-    if (isDbConnected()) {
-      try {
-        const finalReadUrl = uploadResult.url;
-        const finalFileId = uploadResult.fileId || originalname;
-
-        mediaRecord = new Media({
-          readURL: finalReadUrl,
-          url: finalReadUrl,
-          fileId: finalFileId,
-          puterFileId: finalFileId,
-          path: uploadResult.path || finalFileId,
-          filename: originalname,
-          type: mimetype,
-          sizeBytes: size,
-          size: size,
-          metadata: uploadResult.metadata || {},
-          provider: uploadResult.provider || "telegram"
-        });
-        await mediaRecord.save();
-        registeredInDb = true;
-      } catch (dbErr) {
-        console.warn("MongoDB registration warning after storage upload:", dbErr.message);
-        dbError = dbErr.message;
-      }
-    }
-
-    if (dbError) {
-      return res.status(500).json({
-        success: false,
-        error: "Database Metadata Registration Failed",
-        message: `Physical upload to ${uploadResult.provider} succeeded, but saving metadata to MongoDB failed: ${dbError}`,
-        provider: uploadResult.provider,
-        fileId: uploadResult.fileId,
-        url: uploadResult.url,
-        readURL: uploadResult.url,
-        path: uploadResult.path,
-        size: size,
-        type: mimetype,
-        registeredInDb: false,
-        dbError
-      });
-    }
-
-    return res.json({
-      success: true,
-      provider: uploadResult.provider,
-      fileId: uploadResult.fileId,
-      url: uploadResult.url,
-      readURL: uploadResult.url,
-      path: uploadResult.path,
-      size: size,
-      type: mimetype,
-      media: mediaRecord,
-      registeredInDb: true
-    });
-  } catch (err) {
-    console.error("Server-side media upload route error:", err);
-    return res.status(500).json({
-      success: false,
-      error: "Upload Error",
-      message: err.message || "Server media upload failed"
-    });
-  }
-});
 
 /**
  * GET /api/upload/stats
@@ -243,10 +56,10 @@ router.get("/stats", async (req, res) => {
 
 /**
  * POST /api/upload/register
- * Registers metadata for a file uploaded directly to Puter Cloud (Admin-only).
+ * Registers metadata for a file uploaded directly to Puter Cloud.
  * Fully idempotent with duplicate race condition handling.
  */
-router.post("/register", requireAdmin, async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     if (!isDbConnected()) {
       return res.status(503).json({
@@ -383,10 +196,10 @@ router.post("/register", requireAdmin, async (req, res) => {
 
 /**
  * POST /api/upload/register-batch
- * Registers metadata for multiple files uploaded directly to Puter Cloud in ONE request (Admin-only).
+ * Registers metadata for multiple files uploaded directly to Puter Cloud in ONE request.
  * Fully idempotent with duplicate race condition handling in bulk.
  */
-router.post("/register-batch", requireAdmin, async (req, res) => {
+router.post("/register-batch", async (req, res) => {
   try {
     if (!isDbConnected()) {
       return res.status(503).json({

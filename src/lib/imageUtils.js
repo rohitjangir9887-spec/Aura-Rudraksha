@@ -125,10 +125,6 @@ class UploadQueue {
     });
   }
 
-  add(fn) {
-    return this.enqueue(fn);
-  }
-
   async processNext() {
     if (this.running >= this.concurrency || this.queue.length === 0) {
       return;
@@ -190,36 +186,15 @@ function logUploadTrace(info) {
   }
 }
 
-async function getAuthHeaders() {
-  try {
-    const { auth } = await import("./authClient.js");
-    if (auth?.currentUser) {
-      const token = await auth.currentUser.getIdToken().catch(() => null);
-      if (token) return { Authorization: `Bearer ${token}` };
-    }
-    if (typeof localStorage !== "undefined") {
-      const demo = localStorage.getItem("aura_demo_user");
-      if (demo) return { Authorization: "Bearer demo-token-123" };
-    }
-  } catch (_) {}
-  return {};
-}
-
 /**
  * Executes a fetch request with safe exponential backoff on 429 responses.
  * Respects Retry-After header and adds jitter without infinite loops.
  */
 async function fetchWithBackoff(url, options = {}, maxRetries = 3, batchInfo = {}) {
   let attempt = 0;
-  const authHeaders = await getAuthHeaders();
-  const reqOptions = {
-    ...options,
-    headers: { ...authHeaders, ...(options.headers || {}) }
-  };
-
   while (true) {
     attempt++;
-    const method = reqOptions.method || "GET";
+    const method = options.method || "GET";
 
     logUploadTrace({
       batchId: batchInfo.batchId,
@@ -232,7 +207,7 @@ async function fetchWithBackoff(url, options = {}, maxRetries = 3, batchInfo = {
 
     let res;
     try {
-      res = await fetch(url, reqOptions);
+      res = await fetch(url, options);
     } catch (networkErr) {
       logUploadTrace({
         batchId: batchInfo.batchId,
@@ -847,7 +822,7 @@ function findMatchingDescriptor(descriptors, pItem, currentPendingList) {
  * Captures raw Puter error object details and handles 429 rate limit backoff.
  */
 export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
-  return _uploadQueue.enqueue(async () => {
+  return _uploadQueue.add(async () => {
     if (import.meta.env.DEV) {
       console.log("[Puter Diagnostics] UPLOAD_ENGINE_VERSION=5.0.0-RESUMABLE-SINGLE-FILE-QUEUE");
     }
@@ -1282,57 +1257,6 @@ export function getMediaUrl(url) {
 export function deleteMedia(url) {
   return true;
 }
-
-/**
- * Uploads media via the Vercel/Express server media storage adapter API (/api/upload/server).
- * Uses TGStorage / Telegram server provider or configured fallback provider.
- */
-export async function uploadMediaViaServer(file, onProgress = () => {}, provider) {
-  if (!file) return null;
-  if (typeof file === "string" && (file.startsWith("http://") || file.startsWith("https://") || file.startsWith("/images/"))) {
-    return file;
-  }
-
-  onProgress(10, "Preparing media file for server upload...");
-  const formData = new FormData();
-  formData.append("file", file);
-  if (provider) formData.append("provider", provider);
-
-  const authHeaders = await getAuthHeaders();
-
-  onProgress(40, "Uploading media via Server Storage Adapter...");
-  const res = await fetch(`${API_BASE}/upload/server`, {
-    method: "POST",
-    headers: authHeaders,
-    body: formData
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.success) {
-    throw new Error(data.message || data.error || "Server media upload failed");
-  }
-
-  onProgress(100, "Media upload complete.");
-  return data.url || data.readURL;
-}
-
-/**
- * Checks server media storage provider configuration status (/api/upload/status)
- */
-export async function getServerStorageStatus() {
-  try {
-    const authHeaders = await getAuthHeaders();
-    const res = await fetch(`${API_BASE}/upload/status`, {
-      headers: authHeaders
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    console.warn("Failed to fetch server storage status:", err);
-    return null;
-  }
-}
-
 
 
 
