@@ -99,6 +99,7 @@ export function Shop() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const q = (params.get("q") || "").toLowerCase().trim();
+  const categoryParam = (params.get("category") || "").toLowerCase().trim();
   const isOfferQuery = params.get("offer") === "1";
   const isWishlistQuery = params.get("wishlist") === "1";
 
@@ -182,9 +183,16 @@ export function Shop() {
   // Filtered and Sorted list
   const list = useMemo(() => {
     let next = [...products];
+    if (categoryParam) {
+      next = next.filter(p => 
+        (p?.category && p.category.toLowerCase().includes(categoryParam)) ||
+        (p?.name && p.name.toLowerCase().includes(categoryParam))
+      );
+    }
     if (q) {
       next = next.filter(p => 
         (p?.name && p.name.toLowerCase().includes(q)) ||
+        (p?.category && p.category.toLowerCase().includes(q)) ||
         (p?.highlight && p.highlight.toLowerCase().includes(q)) ||
         (p?.tags && p.tags.some(t => t.toLowerCase().includes(q)))
       );
@@ -217,7 +225,7 @@ export function Shop() {
     if (filter === "popular") next.sort((a,b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
     
     return next;
-  }, [products, filter, chip, priceRange, q]);
+  }, [products, filter, chip, priceRange, q, categoryParam]);
 
   return (
     <Shell>

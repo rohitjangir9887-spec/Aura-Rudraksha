@@ -140,6 +140,7 @@ export function AdminLayout({children}) {
     { path: "/admin", icon: <LayoutDashboard size={20}/>, label: "Dashboard" },
     { path: "/admin/ai", icon: <Sparkles size={20}/>, label: "Aura AI" },
     { path: "/admin/products", icon: <Boxes size={20}/>, label: "Products" },
+    { path: "/admin/categories", icon: <Tag size={20}/>, label: "Categories" },
     { path: "/admin/orders", icon: <ClipboardList size={20}/>, label: "Orders", count: pendingOrdersCount },
     { path: "/admin/customers", icon: <Users size={20}/>, label: "Customers" },
     { path: "/admin/reviews", icon: <Star size={20}/>, label: "Reviews", count: pendingReviewsCount },

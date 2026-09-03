@@ -402,10 +402,10 @@ export function AdminProducts() {
   };
 
   const shopCategories = db.getSettings().shopCategories || [];
-  const dynamicCategoryNames = shopCategories.length > 0 
-    ? shopCategories.map(c => c.name) 
-    : ["Rudraksha", "Mala", "Gauri Shankar", "Spiritual"];
-  const categories = ["All", ...dynamicCategoryNames];
+  const configuredCatNames = shopCategories.map(c => c.name);
+  const defaultCats = ["Rudraksha", "Malas", "Bracelets", "Puja Samagri", "Crystals", "Spiritual Essentials"];
+  const allKnownCatNames = Array.from(new Set([...configuredCatNames, ...defaultCats, ...(editing?.category ? [editing.category] : [])])).filter(Boolean);
+  const categories = ["All", ...allKnownCatNames];
 
   if (editing) {
     return (
@@ -469,15 +469,37 @@ export function AdminProducts() {
             </div>
 
             <div className="admin-form-group">
-              <label>Category *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ margin: 0 }}>Category *</label>
+                <Link to="/admin/categories" target="_blank" style={{ fontSize: '11.5px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600' }}>
+                  ⚙️ Manage Categories
+                </Link>
+              </div>
               <select 
-                value={editing.category} 
-                onChange={e => setEditing({...editing, category: e.target.value})}
+                value={allKnownCatNames.includes(editing.category) ? editing.category : "CUSTOM_INPUT"} 
+                onChange={e => {
+                  if (e.target.value === "CUSTOM_INPUT") {
+                    setEditing({...editing, category: "", isCustomCategory: true});
+                  } else {
+                    setEditing({...editing, category: e.target.value, isCustomCategory: false});
+                  }
+                }}
               >
-                {dynamicCategoryNames.map(cat => (
+                {allKnownCatNames.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
+                <option value="CUSTOM_INPUT">➕ Custom / New Category...</option>
               </select>
+              
+              {(editing.isCustomCategory || (editing.category && !allKnownCatNames.includes(editing.category))) && (
+                <input 
+                  type="text"
+                  value={editing.category || ""}
+                  onChange={e => setEditing({...editing, category: e.target.value})}
+                  placeholder="Type new category name..."
+                  style={{ marginTop: '8px' }}
+                />
+              )}
             </div>
           </div>
 

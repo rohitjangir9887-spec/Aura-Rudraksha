@@ -161,6 +161,25 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
       {/* 2. Card Content Area */}
       <div className="aura-card-body">
         <div>
+          {/* Category Tag */}
+          {p.category && (
+            <div className="aura-card-category-row" style={{ marginBottom: "4px" }}>
+              <span style={{
+                fontSize: "11px",
+                fontWeight: "600",
+                color: "#7e3b12",
+                background: "#fef3e7",
+                border: "1px solid #f3d1b7",
+                padding: "2px 8px",
+                borderRadius: "10px",
+                display: "inline-block",
+                letterSpacing: "0.2px"
+              }}>
+                {p.category}
+              </span>
+            </div>
+          )}
+
           {/* Title */}
           <h3 className="aura-card-title">
             <Link 
