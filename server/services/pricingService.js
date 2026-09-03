@@ -2,6 +2,7 @@ import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { ActiveOffer, Promotion } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 /**
  * Single Authoritative Pricing & Coupon Service for Aura Rudraksha
@@ -65,7 +66,7 @@ export function normalizeLines(linesInput) {
 }
 
 /**
- * Fetch authoritative products from MongoDB
+ * Fetch authoritative products from MongoDB or inMemoryStore fallback
  */
 export async function getAuthoritativeProducts(productIds = []) {
   const ids = Array.from(new Set(productIds.map(String)));
@@ -88,7 +89,8 @@ export async function getAuthoritativeProducts(productIds = []) {
     }
   }
 
-  return [];
+  // In-Memory Fallback
+  return inMemoryStore.products.filter(p => ids.includes(String(p.id)) || ids.includes(String(p.slug)) || ids.includes(String(p._id)));
 }
 
 /**
@@ -144,6 +146,23 @@ export async function getAuthoritativeCoupon(couponCode) {
     } catch (err) {
       console.warn("PricingService DB coupon lookup warning:", err.message);
     }
+  }
+
+  // In-Memory Fallback
+  const memCoupon = inMemoryStore.coupons.find(c => c.code === cleanCode);
+  if (memCoupon) return memCoupon;
+
+  if (inMemoryStore.activeOffer && inMemoryStore.activeOffer.couponCode === cleanCode) {
+    return {
+      id: inMemoryStore.activeOffer.id || "OFFER-CENTRAL-1",
+      code: cleanCode,
+      discount: Number(inMemoryStore.activeOffer.discountValue) || 200,
+      type: inMemoryStore.activeOffer.discountType === "percentage" ? "percentage" : "fixed",
+      status: "Active",
+      expiry: inMemoryStore.activeOffer.expiresAt || inMemoryStore.activeOffer.expiry,
+      minAmount: 0,
+      description: inMemoryStore.activeOffer.subtitle || inMemoryStore.activeOffer.title
+    };
   }
 
   return null;

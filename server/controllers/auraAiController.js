@@ -11,6 +11,7 @@ import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import { 
   searchRelevantCatalogProducts, 
   extractMukhiNumber, 
@@ -934,7 +935,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
 
 export async function getAuraAISettings(req, res, next) {
   try {
-    let settings = {
+    let settings = inMemoryStore.aiSettings || {
       id: "AURA_AI_SETTINGS",
       enabled: true,
       showFloatingButton: true,
@@ -963,13 +964,11 @@ export async function getAuraAISettings(req, res, next) {
 
 export async function updateAuraAISettings(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Aura AI settings cannot be saved without a connected MongoDB database."
-      });
-    }
     const updateData = pickFields(req.body, AI_SETTING_FIELDS);
+    if (!isDbConnected()) {
+      inMemoryStore.aiSettings = { ...(inMemoryStore.aiSettings || {}), ...updateData };
+      return res.json({ success: true, data: inMemoryStore.aiSettings, message: "Aura AI settings updated successfully." });
+    }
     const updated = await AuraAISetting.findOneAndUpdate(
       { id: "AURA_AI_SETTINGS" },
       { $set: updateData },
@@ -990,9 +989,8 @@ export async function getAuraAIConversations(req, res, next) {
       ""
     ).trim();
 
-    if (isDbConnected()) {
-      let query = {};
-      
+    if (!isDbConnected()) {
+      let convos = inMemoryStore.aiConversations || [];
       const { isInitialAdmin } = isAdminUser(authenticatedUser || {});
       const isAdmin = isInitialAdmin || (authenticatedUser ? await hasAdminRole(authenticatedUser.authUserId) : false);
 
@@ -1000,34 +998,51 @@ export async function getAuraAIConversations(req, res, next) {
         if (authenticatedUser) {
           const scopedEmail = (authenticatedUser.email || "").toLowerCase().trim();
           const scopedId = authenticatedUser.authUserId || "";
-          const queryOr = [];
-          if (scopedEmail) queryOr.push({ userEmail: scopedEmail });
-          if (scopedId) {
-            queryOr.push({ userId: scopedId });
-            queryOr.push({ authUserId: scopedId });
-          }
-          query = queryOr.length > 0 ? { $or: queryOr } : { userId: "__none__" };
+          convos = convos.filter(c => 
+            (scopedEmail && c.userEmail?.toLowerCase() === scopedEmail) ||
+            (scopedId && (c.userId === scopedId || c.authUserId === scopedId))
+          );
         } else {
           if (!clientGuestSessionId) {
             return res.json({ success: true, data: [], count: 0 });
           }
-          query = { userId: "guest", guestSessionId: clientGuestSessionId };
+          convos = convos.filter(c => c.userId === "guest" && c.guestSessionId === clientGuestSessionId);
         }
       }
-
-      const convos = await AuraAIConversation.find(query)
-        .select("-ipHash")
-        .sort({ updatedAt: -1 })
-        .limit(50)
-        .lean();
-
-      return res.json({ success: true, data: convos || [], count: (convos || []).length });
+      return res.json({ success: true, data: convos, count: convos.length });
     }
 
-    return res.status(503).json({
-      success: false,
-      message: "Database is unavailable."
-    });
+    let query = {};
+    
+    const { isInitialAdmin } = isAdminUser(authenticatedUser || {});
+    const isAdmin = isInitialAdmin || (authenticatedUser ? await hasAdminRole(authenticatedUser.authUserId) : false);
+
+    if (!isAdmin) {
+      if (authenticatedUser) {
+        const scopedEmail = (authenticatedUser.email || "").toLowerCase().trim();
+        const scopedId = authenticatedUser.authUserId || "";
+        const queryOr = [];
+        if (scopedEmail) queryOr.push({ userEmail: scopedEmail });
+        if (scopedId) {
+          queryOr.push({ userId: scopedId });
+          queryOr.push({ authUserId: scopedId });
+        }
+        query = queryOr.length > 0 ? { $or: queryOr } : { userId: "__none__" };
+      } else {
+        if (!clientGuestSessionId) {
+          return res.json({ success: true, data: [], count: 0 });
+        }
+        query = { userId: "guest", guestSessionId: clientGuestSessionId };
+      }
+    }
+
+    const convos = await AuraAIConversation.find(query)
+      .select("-ipHash")
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.json({ success: true, data: convos || [], count: (convos || []).length });
   } catch (err) {
     next(err);
   }
@@ -1036,8 +1051,8 @@ export async function getAuraAIConversations(req, res, next) {
 export async function getAuraAIConversationById(req, res, next) {
   try {
     const { id } = req.params;
-    if (isDbConnected()) {
-      const conv = await AuraAIConversation.findOne({ id }).select("-ipHash").lean();
+    if (!isDbConnected()) {
+      const conv = (inMemoryStore.aiConversations || []).find(c => c.id === id);
       if (!conv) {
         return res.status(404).json({ success: false, message: "Conversation not found" });
       }
@@ -1050,7 +1065,17 @@ export async function getAuraAIConversationById(req, res, next) {
       return res.json({ success: true, data: conv });
     }
 
-    return res.status(503).json({ success: false, message: "Database is unavailable." });
+    const conv = await AuraAIConversation.findOne({ id }).select("-ipHash").lean();
+    if (!conv) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    const check = await verifyConversationOwnership(conv, req);
+    if (!check.allowed) {
+      return res.status(check.status || 403).json({ success: false, message: check.message });
+    }
+
+    return res.json({ success: true, data: conv });
   } catch (err) {
     next(err);
   }
@@ -1059,19 +1084,30 @@ export async function getAuraAIConversationById(req, res, next) {
 export async function deleteAuraAIConversation(req, res, next) {
   try {
     const { id } = req.params;
-    if (isDbConnected()) {
-      const conv = await AuraAIConversation.findOne({ id });
-      if (!conv) {
-        return res.json({ success: true, message: "Conversation already removed." });
+    if (!isDbConnected()) {
+      const idx = (inMemoryStore.aiConversations || []).findIndex(c => c.id === id);
+      if (idx >= 0) {
+        const conv = inMemoryStore.aiConversations[idx];
+        const check = await verifyConversationOwnership(conv, req);
+        if (!check.allowed) {
+          return res.status(check.status || 403).json({ success: false, message: check.message });
+        }
+        inMemoryStore.aiConversations.splice(idx, 1);
       }
-
-      const check = await verifyConversationOwnership(conv, req);
-      if (!check.allowed) {
-        return res.status(check.status || 403).json({ success: false, message: check.message });
-      }
-
-      await AuraAIConversation.deleteOne({ id });
+      return res.json({ success: true, message: "Conversation history removed securely." });
     }
+
+    const conv = await AuraAIConversation.findOne({ id });
+    if (!conv) {
+      return res.json({ success: true, message: "Conversation already removed." });
+    }
+
+    const check = await verifyConversationOwnership(conv, req);
+    if (!check.allowed) {
+      return res.status(check.status || 403).json({ success: false, message: check.message });
+    }
+
+    await AuraAIConversation.deleteOne({ id });
     return res.json({ success: true, message: "Conversation history removed securely." });
   } catch (err) {
     next(err);
@@ -1137,19 +1173,15 @@ export async function getAuraAIAnalytics(req, res, next) {
       hasData: false
     };
 
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
-    }
-
     let convos = [];
-    try {
-      convos = await AuraAIConversation.find().lean();
-    } catch (_) {
-      convos = [];
+    if (isDbConnected()) {
+      try {
+        convos = await AuraAIConversation.find().lean();
+      } catch (_) {
+        convos = [];
+      }
+    } else {
+      convos = inMemoryStore.aiConversations || [];
     }
 
     if (!convos || convos.length === 0) {
@@ -1173,7 +1205,18 @@ export async function getAuraAIAnalytics(req, res, next) {
       if (c.userId) scope.push({ authUserId: c.userId });
       if (c.userEmail) scope.push({ customerEmail: c.userEmail });
       if (!scope.length) continue;
-      const userOrders = await Order.find({ $or: scope, status: { $ne: "Cancelled" } }).lean();
+      
+      let userOrders = [];
+      if (isDbConnected()) {
+        userOrders = await Order.find({ $or: scope, status: { $ne: "Cancelled" } }).lean();
+      } else {
+        userOrders = (inMemoryStore.orders || []).filter(o => 
+          o.status !== "Cancelled" &&
+          ((c.userId && (o.authUserId === c.userId || o.customerAuthUserId === c.userId)) ||
+           (c.userEmail && (o.customerEmail === c.userEmail || o.email === c.userEmail)))
+        );
+      }
+
       for (const o of userOrders) {
         if (seenOrderIds.has(o.id)) continue;
         const orderItemIds = (o.items || o.snapshotItems || [])

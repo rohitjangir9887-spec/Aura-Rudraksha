@@ -72,6 +72,22 @@ class InMemoryStore {
     this.tickets = [];
     this.addresses = [];
     this.wishlist = [];
+    this.aiSettings = {
+      id: "AURA_AI_SETTINGS",
+      enabled: true,
+      showFloatingButton: true,
+      showHeaderButton: true,
+      language: "auto",
+      tone: "polite_spiritual",
+      greeting: "Namaste 🙏 Main Aura AI hoon — Aura Rudraksha ka personal shopping aur support assistant. Aaj main aapki kis cheez mein help karun?",
+      recommendProducts: true,
+      recommendOffers: true,
+      cartActions: true,
+      orderSupport: true,
+      humanSupport: true,
+      personalization: true
+    };
+    this.aiConversations = [];
   }
 }
 

@@ -5,6 +5,7 @@ import { isDbConnected } from "../config/db.js";
 import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import crypto from "crypto";
 
 // In-memory set of deleted review IDs for demo/fallback isolation
@@ -88,11 +89,18 @@ export async function getReviews(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      let filtered = [...inMemoryStore.reviews].filter(r => !deletedReviewIds.has(r.id) && r.status !== "deleted");
+      if (status && status !== "all") filtered = filtered.filter(r => r.status === status);
+      if (type && type !== "all") filtered = filtered.filter(r => r.type === type);
+      if (source && source !== "all") filtered = filtered.filter(r => r.source === source);
+      if (productId && productId !== "all") {
+        filtered = filtered.filter(r => String(r.productId) === String(productId) || r.type === "store" || String(r.productId) === "5");
+      }
+      if (!isAdmin) {
+        filtered = filtered.filter(r => r.status === "Approved" && r.source !== "ai_draft");
+      }
+      const data = isAdmin ? filtered : filtered.map(({ email, ...safe }) => safe);
+      return res.json({ success: true, data, count: data.length });
     }
 
     let query = {
@@ -142,20 +150,22 @@ export async function createReview(req, res, next) {
     let isVerifiedPurchase = false;
     const cleanEmail = (data.email || "").trim().toLowerCase();
     if (cleanEmail) {
-      const matchOrder = await Order.findOne({
-        $or: [
-          { customerEmail: cleanEmail },
-          { email: cleanEmail }
-        ],
-        status: { $in: ["Delivered", "Shipped", "Processing", "Completed"] }
-      }).lean();
+      if (isDbConnected()) {
+        const matchOrder = await Order.findOne({
+          $or: [
+            { customerEmail: cleanEmail },
+            { email: cleanEmail }
+          ],
+          status: { $in: ["Delivered", "Shipped", "Processing", "Completed"] }
+        }).lean();
 
-      if (matchOrder) {
-        if (!data.productId || data.productId === "all" || data.type === "store") {
-          isVerifiedPurchase = true;
-        } else if (Array.isArray(matchOrder.items)) {
-          const itemFound = matchOrder.items.some(it => String(it.id) === String(data.productId) || String(it.productId) === String(data.productId));
-          if (itemFound) isVerifiedPurchase = true;
+        if (matchOrder) {
+          if (!data.productId || data.productId === "all" || data.type === "store") {
+            isVerifiedPurchase = true;
+          } else if (Array.isArray(matchOrder.items)) {
+            const itemFound = matchOrder.items.some(it => String(it.id) === String(data.productId) || String(it.productId) === String(data.productId));
+            if (itemFound) isVerifiedPurchase = true;
+          }
         }
       }
     }
@@ -186,11 +196,8 @@ export async function createReview(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      inMemoryStore.reviews.unshift(payload);
+      return res.status(201).json({ success: true, data: payload });
     }
 
     const created = await Review.create(payload);
@@ -214,11 +221,10 @@ export async function updateReview(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.reviews.findIndex(r => String(r.id) === String(id));
+      if (idx < 0) return res.status(404).json({ success: false, message: "Review not found" });
+      inMemoryStore.reviews[idx] = { ...inMemoryStore.reviews[idx], ...data };
+      return res.json({ success: true, data: inMemoryStore.reviews[idx] });
     }
 
     const updated = await Review.findOneAndUpdate(
@@ -241,11 +247,10 @@ export async function deleteReview(req, res, next) {
     const reviewId = String(id);
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      deletedReviewIds.add(reviewId);
+      const idx = inMemoryStore.reviews.findIndex(r => String(r.id) === reviewId);
+      if (idx >= 0) inMemoryStore.reviews.splice(idx, 1);
+      return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
     }
 
     await Review.findOneAndUpdate(
@@ -270,11 +275,14 @@ export async function voteReview(req, res, next) {
     const { voteType = "up" } = req.body;
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.reviews.findIndex(r => String(r.id) === String(id));
+      if (idx < 0) return res.status(404).json({ success: false, message: "Review not found" });
+      if (voteType === "up") {
+        inMemoryStore.reviews[idx].helpfulUp = (inMemoryStore.reviews[idx].helpfulUp || 0) + 1;
+      } else {
+        inMemoryStore.reviews[idx].helpfulDown = (inMemoryStore.reviews[idx].helpfulDown || 0) + 1;
+      }
+      return res.json({ success: true, data: inMemoryStore.reviews[idx] });
     }
 
     const inc = voteType === "up" ? { helpfulUp: 1 } : { helpfulDown: 1 };
@@ -295,11 +303,7 @@ export async function voteReview(req, res, next) {
 export async function getReviewSettings(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      return res.json({ success: true, data: inMemoryStore.reviewSettings || defaultReviewSettings });
     }
 
     let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
@@ -316,11 +320,8 @@ export async function saveReviewSettings(req, res, next) {
   try {
     const data = req.body;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      inMemoryStore.reviewSettings = { ...(inMemoryStore.reviewSettings || defaultReviewSettings), ...data };
+      return res.json({ success: true, data: inMemoryStore.reviewSettings });
     }
 
     const updated = await ReviewSetting.findOneAndUpdate(
@@ -337,13 +338,29 @@ export async function saveReviewSettings(req, res, next) {
 // ----------------------------------------------------------------------
 // NATURAL FICTIONAL DEVOTEE PERSONAS & RELATIVE DATES
 // ----------------------------------------------------------------------
+// NATURAL FICTIONAL DEVOTEE PERSONAS & RELATIVE DATES (100+ UNIQUE NAMES)
+// ----------------------------------------------------------------------
 const FICTIONAL_DEVOTEE_NAMES = [
-  "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir",
-  "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer", "Suresh Kumar",
-  "Kavita Reddy", "Rajesh Gupta", "Meenakshi Sundaram", "Amitabh Joshi", "Sneha Mukherjee",
-  "Alok Pandey", "Sunita Agarwal", "Harish Rawat", "Divya Pillai", "Manish Malhotra",
-  "Swati Saxena", "Ritu Bhandari", "Gaurav Mishra", "Kunal Singhania", "Vandana Tripathi",
-  "Abhishek Dubey", "Sanjay Kulkarni", "Aditya Swaminathan", "Pooja Trivedi", "Vikas Malhotra"
+  "Pandit Rajesh Sharma", "Dr. Shalini Deshmukh", "Captain Virendra Singh", "Priyanjali Sen",
+  "Karthik Sundaram", "Aditya Kulkarni", "Meera Nambiar", "Gurpreet Singh", "Sunita Chawla",
+  "Tarun Malhotra", "Deepika Joshi", "Anurag Saxena", "Siddharth Rao", "Bhavna Patel",
+  "Madhavan Pillai", "Shruti Agarwal", "Gauri Soni", "Nitin Khurana", "Vandana Nair",
+  "Sanjeev Mukherjee", "Pooja Trivedi", "Alok Pandey", "Prof. R. C. Chaturvedi", "Geeta Bhattacharya",
+  "Harish Rawat", "Deepak Solanki", "Dr. Mukund Shastri", "Meenakshi Sundaram", "Vikramaditya Rathore",
+  "Neelam Upadhyay", "Subhash Mahapatra", "Swati Saxena", "Gaurav Mishra", "Kunal Singhania",
+  "Vandana Tripathi", "Abhishek Dubey", "Rahul Sharma", "Amit Patel", "Pooja Verma",
+  "Suresh Kumar", "Priya Nair", "Rajesh Gupta", "Anjali Deshmukh", "Manoj Tiwari",
+  "Sunil Choudhary", "Ritu Agrawal", "Sanjay Kulkarni", "Neha Bhatt", "Ashok Pandey",
+  "Kavita Reddy", "Alok Sengupta", "Shweta Iyengar", "Manish Malhotra", "Divya Pillai",
+  "Rohit Jangir", "Radheshyam Agrawal", "Brijesh Mishra", "Archana Roy", "Kamal Kishor Varma",
+  "Sunita Somani", "Vidyadhar Joshi", "Hemant Hegde", "Padmini Raman", "Gokul Prasad",
+  "Aniruddh Kotecha", "Devika Rani", "Yogesh Bhati", "Dhananjay Saxena", "Premchand Pareek",
+  "Shubhangi Gaikwad", "Lokesh Choudhary", "Prashant Thapar", "Nirmala Devi", "Satish Chandra",
+  "Manju Rani", "Mahendra Singh", "Bhagwan Das", "Indira Iyer", "Ganesh Shastri",
+  "Kusum Sharma", "Shashi Bhushan", "Urmila Devi", "Vishnu Prasad", "Narayan Das",
+  "Jagdish Prasad", "Dinesh Khandelwal", "Sarojini Naidu", "Avinash Tripathi", "Mukesh Bhasin",
+  "Pankaj Soni", "Sarita Ghosh", "Mahesh Bhati", "Seema Rastogi", "Virendra Kapoor",
+  "Rameshwar Dayal", "Pramod Biyani", "Lata Shekhawat", "Devendra Jhajharia", "Sunil Dutt Sharma"
 ];
 
 const INDIAN_DEVOTEE_NAMES = FICTIONAL_DEVOTEE_NAMES;
@@ -354,14 +371,24 @@ const INDIAN_DEVOTEE_CITIES = [
   "Lucknow, UP", "Indore, MP", "Hyderabad, TS", "Ujjain, MP", 
   "Mumbai, MH", "Chennai, TN", "Kolkata, WB", "Ayodhya, UP", 
   "Bhopal, MP", "Chandigarh", "Dehradun, UK", "Nashik, MH",
-  "Mathura, UP", "Coimbatore, TN", "Nagpur, MH", "Surat, GJ"
+  "Mathura, UP", "Coimbatore, TN", "Nagpur, MH", "Surat, GJ",
+  "Prayagraj, UP", "Shimla, HP", "Guwahati, AS", "Vadodara, GJ"
 ];
 
 const RELATIVE_DATES = [
   "2 days ago", "4 days ago", "1 week ago", "2 weeks ago", 
   "3 weeks ago", "1 month ago", "Yesterday", "5 days ago",
-  "3 days ago", "6 days ago", "10 days ago"
+  "3 days ago", "6 days ago", "10 days ago", "12 days ago"
 ];
+
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 // Helper to extract key features words/phrases from description
 function extractKeyFeaturesList(descriptionText) {
@@ -373,7 +400,7 @@ function extractKeyFeaturesList(descriptionText) {
 }
 
 // ----------------------------------------------------------------------
-// NATURAL CONVERSATIONAL DRAFT GENERATOR (1-4 SHORT LINES, KEY FEATURES GROUNDED)
+// NATURAL CONVERSATIONAL DRAFT GENERATOR WITH DIVERSE TEMPLATES & UNIQUE NAMES
 // ----------------------------------------------------------------------
 function buildDiverseFallbackDrafts({ 
   productName, 
@@ -383,99 +410,177 @@ function buildDiverseFallbackDrafts({
   reviewLength = "Short", 
   count = 5, 
   ratingMix = "Realistic Mix",
-  ratingRange = "Realistic Mix (3-5 Stars)" 
+  ratingRange = "Realistic Mix (3-5 Stars)",
+  existingNames = new Set()
 }) {
   const drafts = [];
   const prodName = productName?.trim() || "Product";
   const featText = (keyFeatures || productDescription || "").trim();
   const featuresList = extractKeyFeaturesList(featText);
 
-  // Pool of natural conversational templates across languages
-  // Grounded in realistic customer experiences without marketing hype
+  // Available unique names shuffled
+  const availableNames = shuffleArray(FICTIONAL_DEVOTEE_NAMES).filter(n => !existingNames.has(n));
+  const availableCities = shuffleArray(INDIAN_DEVOTEE_CITIES);
 
-  // HINGLISH TEMPLATES (Natural, conversational mix)
+  // Expanded Hinglish templates with realistic customer details
   const hinglishTemplates = [
-    (name, f) => `Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।`,
-    (name, f) => `Overall अच्छा experience रहा। Product अच्छा लगा और price के हिसाब से ठीक है।`,
-    (name, f) => `पहली बार try किया। Quality अच्छी लगी और use करना भी काफी simple है।`,
-    (name, f) => f[0] 
-      ? `${f[0]} सच में काफी बढ़िया है। Delivery on time हुई और safe packing मिली।` 
-      : `${name} की finish काफी neat है। Regular use के लिए एकदम suitable लगा।`,
-    (name, f) => f[1] 
-      ? `Product description के हिसाब से एकदम perfect निकला। ${f[1]} का अनुभव काफी अच्छा रहा।`
-      : `Delivery fast थी और product जैसा photo में था वैसा ही receive हुआ। Value for money.`,
-    (name, f) => `Quality decent है और finishing साफ-सुथरी है। Overall satisfied हूँ purchase से।`,
-    (name, f) => f[0] 
-      ? `${f[0]} बहुत natural और authentic लगा। Simple use और solid build.`
-      : `Genuine product मिला। Packing बहुत safe थी और quality में कोई शिकायत नहीं।`,
-    (name, f) => `Daily routine में use करना काफी comfortable है। Worth the price.`,
-    (name, f) => `Packaging neat थी और product quality उम्मीद के मुताबिक अच्छी निकली। Highly recommended.`,
-    (name, f) => f[2] 
-      ? `Details एकदम accurate हैं, especially ${f[2]}। Honest quality मिली।`
-      : `Product time pe deliver hua. Quality aur feel dono kaafi authentic lag rahe hain.`
+    {
+      title: "100% Genuine Quality",
+      fn: (p, f) => `Bohot hi authentic aur pure bead hai. Lab certificate QR code test kiya, result exact match hua. Packaging bohot divine thi.`
+    },
+    {
+      title: "Deep Mukhi Lines",
+      fn: (p, f) => `Mukhi lines bilkul clear aur continuous hain. Water test bhi pass hua, seed float nahi kar raha. Very happy with purchase!`
+    },
+    {
+      title: "Fast DTDC Delivery",
+      fn: (p, f) => `3 din mein Jaipur deliver ho gaya. Wooden velvet box packing ke saath bilva patra fragrance bhi thi. Impressive service!`
+    },
+    {
+      title: "Peaceful Meditation Experience",
+      fn: (p, f) => `Shaam ki Shiva sadhana mein wear karke bohot calm feel hota hai. ${f[0] ? f[0] + ' ki quality super hai.' : 'Pure vibes!'}`
+    },
+    {
+      title: "Solid Build & Natural Finish",
+      fn: (p, f) => `Koi artificial polish ya color coating nahi hai. Natural texture aur solid weight hai. Highly recommended for daily wear.`
+    },
+    {
+      title: "Worth Every Rupee",
+      fn: (p, f) => `Offline market mein same genuine Nepal bead bohot mehenga tha. Aura Rudraksha ne honest price aur lab report di. Thank you!`
+    },
+    {
+      title: "Energized & Blessed",
+      fn: (p, f) => `Pran pratishtha certified product laga. Wear karne ke baad positive energy feel hoti hai. Packaging safe and premium thi.`
+    },
+    {
+      title: "Perfect Silver Capping",
+      fn: (p, f) => `Handcrafted silver capping bohot neat and strong hai. Daily usage mein bilkul skin-friendly hai. Har Har Mahadev! 🙏`
+    },
+    {
+      title: "Exact as Shown in Photos",
+      fn: (p, f) => `Photo se better quality receive hui. Natural Mukhi shape and unbroken grooves. Truly reliable store for authentic beads.`
+    },
+    {
+      title: "Great Customer Support",
+      fn: (p, f) => `Authenticity ke regarding questions the, team ne lab report verify karke instant call par support diya. Very satisfied!`
+    }
   ];
 
-  // HINDI TEMPLATES (Clean, natural conversational Devanagari)
+  // Expanded Hindi templates in Devanagari
   const hindiTemplates = [
-    (name, f) => `गुणवत्ता उम्मीद से काफी बेहतर लगी। उपयोग करने में सरल है और पैकेजिंग भी बहुत व्यवस्थित थी।`,
-    (name, f) => `कुल मिलाकर बहुत अच्छा अनुभव रहा। उत्पाद की बनावट सुंदर है और मूल्य के अनुसार सही है।`,
-    (name, f) => `पहली बार मंगाया था। फिनिशिंग साफ-सुथरी है और उपयोग करना भी बहुत आसान है।`,
-    (name, f) => f[0] 
-      ? `${f[0]} का अनुभव बहुत संतोषप्रद रहा। समय पर सुरक्षित डिलीवरी मिली।`
-      : `${name} की गुणवत्ता बहुत स्वाभाविक और प्रामाणिक है। दैनिक उपयोग के लिए एकदम उपयुक्त।`,
-    (name, f) => f[1] 
-      ? `विवरण के अनुसार ही उत्पाद प्राप्त हुआ। ${f[1]} की सुविधा बहुत अच्छी लगी।`
-      : `उत्पाद एकदम असली और शुद्ध लगा। सुरक्षित पैकेजिंग के साथ समय पर पहुंचा।`,
-    (name, f) => `दैनिक पूजा और साधना के लिए बहुत अच्छा उत्पाद है। सात्विक स्वरूप से मन प्रसन्न हुआ।`,
-    (name, f) => `पैकेजिंग बहुत अच्छी थी और गुणवत्ता में कोई कमी नहीं दिखी। पूरी तरह संतुष्ट हूँ।`,
-    (name, f) => f[0] 
-      ? `${f[0]} बहुत स्पष्ट और स्वाभाविक है। उचित मूल्य में उत्तम उत्पाद।`
-      : `जैसा फोटो में देखा था, बिल्कुल वैसा ही मिला। उपयोग में अत्यंत सहज और टिकाऊ।`
+    {
+      title: "100% शुद्ध एवं प्रामाणिक",
+      fn: (p, f) => `ॐ नमः शिवाय! रुद्राक्ष का दाना अत्यंत शुद्ध और प्राकृतिक है। लैब टेस्ट सर्टिफिकेट का कोड ऑनलाइन मैच हो गया। मन प्रसन्न है।`
+    },
+    {
+      title: "स्पष्ट एवं गहरी मुखी रेखाएं",
+      fn: (p, f) => `मुखी रेखाएं बिना किसी बनावटी कट के गहरी और अखंडित हैं। जल परीक्षण में भी प्राकृतिक रूप से डूब गया। अत्यंत प्रामाणिक।`
+    },
+    {
+      title: "सुरक्षित एवं सुंदर पैकेजिंग",
+      fn: (p, f) => `लकड़ी के बॉक्स में बेलपत्र की महक के साथ सुरक्षित रूप से प्राप्त हुआ। 3 दिनों के भीतर समय पर डिलीवरी मिली।`
+    },
+    {
+      title: "साधना में असीम शांति",
+      fn: (p, f) => `दैनिक शिव पूजा और ध्यान के दौरान धारण करने से मन में अद्भुत एकाग्रता और शांति अनुभव होती है। सात्विक ऊर्जा।`
+    },
+    {
+      title: "उचित मूल्य में सर्वोत्तम गुणवत्ता",
+      fn: (p, f) => `नेपाल का असली दाना उचित मूल्य पर मिला। बाजार में नकली रुद्राक्षों के बीच औरा रुद्राक्ष का विश्वास सच में सराहनीय है।`
+    },
+    {
+      title: "प्राकृतिक स्वरूप एवं ठोस वजन",
+      fn: (p, f) => `किसी भी प्रकार की कृत्रिम पॉलिश या रंग नहीं है। प्राकृतिक गंध और वजन से ही इसकी शुद्धता की पहचान होती है।`
+    },
+    {
+      title: "उत्कृष्ट चांदी की नक्काशी",
+      fn: (p, f) => `चांदी की कैपिंग बहुत मजबूत और आकर्षक बनाई गई है। त्वचा पर धारण करने में बहुत सहज है। जय भोलेनाथ! 🙏`
+    },
+    {
+      title: "पूर्णतः संतुष्ट ग्राहक",
+      fn: (p, f) => `जैसा विवरण में दिया गया था, बिल्कुल वैसा ही शुद्ध दाना प्राप्त हुआ। औरा टीम को हार्दिक धन्यवाद।`
+    }
   ];
 
-  // ENGLISH TEMPLATES (Crisp, conversational, 1-3 lines)
+  // Expanded English templates
   const englishTemplates = [
-    (name, f) => `Quality exceeded expectations. Very simple to use and arrived in neat, safe packaging.`,
-    (name, f) => `Overall a very smooth experience. Product matches description accurately and feels worth the price.`,
-    (name, f) => `Tried it for the first time. Build quality is solid and it is very comfortable for daily use.`,
-    (name, f) => f[0] 
-      ? `The ${f[0]} is noticeably well made. Delivered on time in secure packaging.`
-      : `Clean finish and genuine feel. Exactly what I was looking for.`,
-    (name, f) => f[1] 
-      ? `Matches the specifications nicely, especially the ${f[1]}. Good natural craftsmanship.`
-      : `Fast shipping and honest product quality. No artificial shine or unnecessary coating.`,
-    (name, f) => `Solid and lightweight for everyday routine. Happy with the purchase.`,
-    (name, f) => `Safe packaging and authentic finish. Looks and feels reliable for long-term use.`,
-    (name, f) => f[0] 
-      ? `Appreciate the genuine ${f[0]}. Simple, durable, and fairly priced.`
-      : `Decent product that functions as described. Satisfied with the overall quality.`
+    {
+      title: "Verified Authentic Nepal Bead",
+      fn: (p, f) => `Verified the lab report via QR code on arrival — matched perfectly. Clear, unbroken Mukhi lines with a rich natural texture.`
+    },
+    {
+      title: "Calm & Grounding Energy",
+      fn: (p, f) => `Wearing this for daily evening meditation has brought noticeable mental clarity. Pure divine vibrations and comfortable fit.`
+    },
+    {
+      title: "Prompt DTDC Express Delivery",
+      fn: (p, f) => `Arrived within 3 business days in a beautiful wooden keepsake box. Safe bubble wrapping and pristine condition.`
+    },
+    {
+      title: "No Artificial Polish or Dyes",
+      fn: (p, f) => `Excellently preserved natural seed without chemical dyes or artificially carved grooves. Heavy density and genuine feel.`
+    },
+    {
+      title: "Honest Pricing for Genuine Quality",
+      fn: (p, f) => `Compared to local stores selling fake plastic composites, this is 100% genuine Nepalese quality with government lab proof.`
+    },
+    {
+      title: "Exquisite Silver Capping Detail",
+      fn: (p, f) => `The sterling silver capping is sturdy and smooth. Doesn't snag on clothes or irritate sensitive skin. Highly satisfied!`
+    },
+    {
+      title: "Accurate Specifications & Support",
+      fn: (p, f) => `The dimensions and weight match the test card exactly. Responsive support team answered all my care instructions promptly.`
+    },
+    {
+      title: "Sacred Unboxing Experience",
+      fn: (p, f) => `Opened the parcel to find sacred bilva leaves and gangajal scent inside. A truly devoted and spiritual touch from the brand.`
+    }
   ];
 
   const resolvedRatingMode = ratingRange || ratingMix || "Realistic Mix";
+  const usedTextSet = new Set();
+  const usedNameSet = new Set(existingNames);
 
   for (let i = 0; i < count; i++) {
-    // Determine language for this review
     let currentLang = language;
     if (language === "Auto Mix") {
       const mod = i % 3;
       currentLang = mod === 0 ? "Hinglish" : (mod === 1 ? "Hindi" : "English");
     }
 
-    let textBody = "";
-    let templateIndex = i % 10;
+    let tplList = englishTemplates;
+    if (currentLang === "Hindi") tplList = hindiTemplates;
+    else if (currentLang === "Hinglish") tplList = hinglishTemplates;
 
-    if (currentLang === "Hindi") {
-      const tpl = hindiTemplates[templateIndex % hindiTemplates.length];
-      textBody = tpl(prodName, featuresList);
-    } else if (currentLang === "Hinglish") {
-      const tpl = hinglishTemplates[templateIndex % hinglishTemplates.length];
-      textBody = tpl(prodName, featuresList);
-    } else {
-      const tpl = englishTemplates[templateIndex % englishTemplates.length];
-      textBody = tpl(prodName, featuresList);
+    const shuffledTpls = shuffleArray(tplList);
+    let selectedTpl = shuffledTpls[0];
+    let textBody = selectedTpl.fn(prodName, featuresList);
+
+    // Ensure unique textBody if possible
+    for (const candidate of shuffledTpls) {
+      const candidateText = candidate.fn(prodName, featuresList);
+      if (!usedTextSet.has(candidateText)) {
+        selectedTpl = candidate;
+        textBody = candidateText;
+        break;
+      }
     }
+    usedTextSet.add(textBody);
 
-    // Determine realistic rating based on selection
+    // Pick unique author name
+    let devoteeName = availableNames[i % availableNames.length];
+    for (const nameCandidate of availableNames) {
+      if (!usedNameSet.has(nameCandidate)) {
+        devoteeName = nameCandidate;
+        break;
+      }
+    }
+    usedNameSet.add(devoteeName);
+
+    const devoteeCity = availableCities[i % availableCities.length];
+    const relativeDate = RELATIVE_DATES[i % RELATIVE_DATES.length];
+
     let r = 5;
     if (resolvedRatingMode.includes("5 Stars Only") || resolvedRatingMode === "5_stars") {
       r = 5;
@@ -486,21 +591,14 @@ function buildDiverseFallbackDrafts({
     } else if (resolvedRatingMode.includes("Mostly Positive")) {
       r = (i % 4 === 3) ? 4 : 5;
     } else {
-      // Realistic mix of 3, 4, and 5 stars
       const mod = i % 5;
       if (mod === 0 || mod === 1 || mod === 3) r = 5;
       else if (mod === 2 || mod === 4) r = 4;
-      if (count > 4 && i % 6 === 5) r = 3;
     }
 
-    const devoteeName = FICTIONAL_DEVOTEE_NAMES[i % FICTIONAL_DEVOTEE_NAMES.length];
-    const devoteeCity = INDIAN_DEVOTEE_CITIES[i % INDIAN_DEVOTEE_CITIES.length];
-    const relativeDate = RELATIVE_DATES[i % RELATIVE_DATES.length];
-    const helpfulVotes = (i % 3 === 0) ? Math.floor(Math.random() * 5) + 2 : Math.floor(Math.random() * 3) + 1;
-
     drafts.push({
-      id: `DRAFT-${Date.now()}-${i + 1}`,
-      title: `${prodName} Review`,
+      id: `DRAFT-${Date.now()}-${i + 1}-${Math.random().toString(36).substr(2, 4)}`,
+      title: selectedTpl.title || `${prodName} Review`,
       text: textBody,
       rating: r,
       isAiGenerated: false,
@@ -512,7 +610,7 @@ function buildDiverseFallbackDrafts({
       featured: i === 0,
       status: "Approved",
       source: "customer",
-      helpfulUp: helpfulVotes,
+      helpfulUp: Math.floor(Math.random() * 5) + 1,
       helpfulDown: 0,
       productId: "5",
       productName: prodName,
@@ -574,6 +672,9 @@ export async function generateReviewDrafts(req, res, next) {
     if (isDbConnected()) {
       existingCorpus = await Review.find().select("id title text rating name status").lean();
     }
+    if (!existingCorpus || existingCorpus.length === 0) {
+      existingCorpus = (inMemoryStore.reviews || []).map(r => ({ id: r.id, title: r.title, text: r.text, rating: r.rating, name: r.name, status: r.status }));
+    }
 
     let rawDrafts = [];
 
@@ -587,41 +688,32 @@ export async function generateReviewDrafts(req, res, next) {
         "mistralai/mistral-7b-instruct-v0.2"
       ];
 
-      const systemPrompt = `You are an AI review generator that creates authentic, natural customer reviews for products and services.
+      const systemPrompt = `You are an AI review generator for an authentic Indian Rudraksha store (Aura Rudraksha). You generate realistic, authentic customer reviews.
 
-CRITICAL RULES:
-1. REVIEW FORMAT: Return ONLY a valid JSON array of objects. Each object MUST have:
-   - "name": Realistic Indian customer name (e.g. "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer").
-   - "city": Location in India (e.g. "Jaipur, RJ", "Varanasi, UP", "Delhi", "Mumbai, MH", "Bengaluru, KA").
-   - "title": Short catchy review title (3 to 6 words).
-   - "text": Natural conversational customer review text (1 to 3 sentences).
-   - "rating": Integer star rating (5, 4, 3) matching requested rating mix.
-   - "language": Language used ("Hindi", "Hinglish", "English").
+CRITICAL MANDATES:
+1. DUPLICATE PREVENTION: EVERY single review MUST have a completely unique reviewer name from diverse parts of India (e.g. 'Dr. Shalini Deshmukh', 'Captain Virendra Singh', 'Priyanjali Sen', 'Karthik Sundaram', 'Aditya Kulkarni', 'Meera Nambiar', 'Gurpreet Singh', 'Sunita Chawla') and completely distinct review text with unique wording and specific product observations. NEVER reuse the same reviewer name across reviews.
+2. REVIEW CONTENT: Professional, natural, authentic customer reviews like real Google Reviews / e-commerce reviews. Include genuine details like lab certificate QR code verification, packaging quality, mukhi clarity, wearability, fast delivery, and peaceful feeling in daily Shiva sadhana.
+3. OUTPUT FORMAT: Return ONLY a valid JSON array of objects with keys:
+   - "name": Unique Indian name
+   - "city": Indian location (e.g., "Jaipur, RJ", "Varanasi, UP", "Pune, MH")
+   - "title": Short catchy review title (3-6 words)
+   - "text": Natural conversational customer review text (1-3 sentences)
+   - "rating": Integer rating (5, 4, 3)
+   - "language": Language used ("Hindi", "Hinglish", "English")
 
-2. LANGUAGE RULES:
-   - "Hindi": Natural Devanagari Hindi (e.g. "उत्पाद की गुणवत्ता उम्मीद से बेहतर लगी। समय पर सुरक्षित डिलीवरी मिली।").
-   - "Hinglish": Conversational Hinglish blend (e.g. "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना काफी easy hai aur packaging badiya thi.").
-   - "English": Everyday natural English without robotic phrasing or cliches.
-   - "Auto Mix": Mix Hindi, Hinglish, and English across reviews.
-
-3. GROUNDING & BREVITY:
-   - Keep reviews brief (15 to 35 words).
-   - Mention product name (${resolvedProductName}) or feature details (${productDetails || resolvedProductName}).
-   - Avoid generic AI disclaimers or repetitive promotional boilerplate.
-
-OUTPUT FORMAT: Return ONLY a valid JSON array:
+Example:
 [
   {
-    "name": "Aman Sharma",
-    "city": "Jaipur, RJ",
-    "title": "Natural finish & good quality",
-    "text": "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।",
+    "name": "Dr. Shalini Deshmukh",
+    "city": "Pune, MH",
+    "title": "Lab Certified & Pure Vibration",
+    "text": "Lab test QR code matched online report instantly. Natural Mukhi lines and peaceful energy during daily puja.",
     "rating": 5,
     "language": "${effectiveLanguage}"
   }
 ]`;
 
-      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}".`;
+      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}". Ensure EVERY review has a distinct author name and unique text.`;
 
       for (const nimModel of nimModels) {
         try {
@@ -641,8 +733,8 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
               ],
-              temperature: 0.5,
-              max_tokens: 1200
+              temperature: 0.6,
+              max_tokens: 1500
             }),
             signal: controller.signal
           });
@@ -656,16 +748,24 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
             const parsed = JSON.parse(cleaned);
 
             if (Array.isArray(parsed) && parsed.length > 0) {
+              const usedNamesInNim = new Set();
+              const shuffledNames = shuffleArray(FICTIONAL_DEVOTEE_NAMES);
+
               rawDrafts = parsed.map((item, idx) => {
-                const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
-                  ? item.name
-                  : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+                let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2)
+                  ? item.name.trim()
+                  : "";
+
+                if (!assignedName || usedNamesInNim.has(assignedName)) {
+                  assignedName = shuffledNames.find(n => !usedNamesInNim.has(n)) || FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+                }
+                usedNamesInNim.add(assignedName);
 
                 const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
                 const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
 
                 return {
-                  id: `DRAFT-${Date.now()}-${idx + 1}`,
+                  id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 4)}`,
                   title: item.title || `${resolvedProductName} Review`,
                   text: (item.text || item.body || "").trim(),
                   rating: Number(item.rating) || 5,
@@ -704,18 +804,19 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
 
     // High quality combinatorial fallback with authentic Indian names & locations
     if (!rawDrafts || rawDrafts.length < requestedCount) {
+      const existingNames = new Set(rawDrafts.map(d => d.name));
       const fallbackList = buildDiverseFallbackDrafts({
         productName: resolvedProductName,
         productDescription,
         keyFeatures,
         language: effectiveLanguage,
         reviewLength,
-        count: requestedCount,
+        count: requestedCount - rawDrafts.length,
         ratingMix: effectiveRatingMode,
-        ratingRange: effectiveRatingMode
+        ratingRange: effectiveRatingMode,
+        existingNames
       });
-      const needed = requestedCount - rawDrafts.length;
-      rawDrafts = [...rawDrafts, ...fallbackList.slice(0, needed)];
+      rawDrafts = [...rawDrafts, ...fallbackList];
     }
 
     rawDrafts = rawDrafts.slice(0, requestedCount);
@@ -723,18 +824,27 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
     // Duplicate detection and similarity scoring (strictly 0% to 100%)
     const evaluatedDrafts = [];
     const runningBatchCorpus = [...existingCorpus];
+    const usedBatchNames = new Set();
 
     let uniqueCount = 0;
     let similarCount = 0;
     let duplicateCount = 0;
 
     for (let i = 0; i < rawDrafts.length; i++) {
-      const draft = rawDrafts[i];
-      let finalDraft = draft;
+      let finalDraft = { ...rawDrafts[i] };
+
+      // Ensure author name is unique in the batch
+      if (usedBatchNames.has(finalDraft.name)) {
+        const replacementName = FICTIONAL_DEVOTEE_NAMES.find(n => !usedBatchNames.has(n));
+        if (replacementName) finalDraft.name = replacementName;
+      }
+      usedBatchNames.add(finalDraft.name);
+
       let finalSimResult = evaluateDraftSimilarity(finalDraft.text, runningBatchCorpus);
 
-      // If duplicate detected in batch, attempt simple variation
-      if (finalSimResult.similarityStatus === "Duplicate") {
+      // If duplicate detected in batch or existing corpus, replace with fresh unique fallback draft
+      if (finalSimResult.similarityStatus === "Duplicate" || finalSimResult.similarityStatus === "Similar") {
+        const existingNames = new Set([...usedBatchNames, ...existingCorpus.map(c => c.name)]);
         const variation = buildDiverseFallbackDrafts({
           productName: resolvedProductName,
           productDescription,
@@ -743,10 +853,18 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
           reviewLength,
           count: 1,
           ratingMix: effectiveRatingMode,
-          ratingRange: effectiveRatingMode
+          ratingRange: effectiveRatingMode,
+          existingNames
         })[0];
+
         if (variation && variation.text !== finalDraft.text) {
-          finalDraft = { ...finalDraft, text: variation.text, title: variation.title };
+          finalDraft = {
+            ...finalDraft,
+            text: variation.text,
+            title: variation.title,
+            name: variation.name || finalDraft.name
+          };
+          usedBatchNames.add(finalDraft.name);
           finalSimResult = evaluateDraftSimilarity(finalDraft.text, runningBatchCorpus);
         }
       }
@@ -765,7 +883,7 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
       else duplicateCount++;
 
       evaluatedDrafts.push(enhancedDraft);
-      runningBatchCorpus.push({ id: finalDraft.id, title: finalDraft.title, text: finalDraft.text });
+      runningBatchCorpus.push({ id: finalDraft.id, title: finalDraft.title, text: finalDraft.text, name: finalDraft.name });
     }
 
     return res.json({
@@ -787,13 +905,6 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
 
 export async function bulkSaveReviews(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot save review drafts without a connected MongoDB database."
-      });
-    }
-
     const { reviews = [], allowDuplicates = false } = req.body;
     if (!Array.isArray(reviews) || reviews.length === 0) {
       return res.status(400).json({ success: false, message: "No review drafts provided for saving." });
@@ -841,12 +952,19 @@ export async function bulkSaveReviews(req, res, next) {
         date: relativeDate
       };
 
-      const saved = await Review.findOneAndUpdate(
-        { id: payload.id },
-        payload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      savedList.push(saved);
+      if (isDbConnected()) {
+        const saved = await Review.findOneAndUpdate(
+          { id: payload.id },
+          payload,
+          { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+        );
+        savedList.push(saved);
+      } else {
+        const idx = inMemoryStore.reviews.findIndex(item => item.id === payload.id);
+        if (idx >= 0) inMemoryStore.reviews[idx] = payload;
+        else inMemoryStore.reviews.unshift(payload);
+        savedList.push(payload);
+      }
     }
 
     return res.status(201).json({

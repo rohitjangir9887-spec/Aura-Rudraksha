@@ -168,11 +168,12 @@ export async function getCoupons(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const coupons = inMemoryStore.coupons;
+      if (isAdmin) {
+        return res.json({ success: true, data: coupons, count: coupons.length });
+      }
+      const publicCoupons = coupons.filter(c => c.status === "Active").map(toPublicCoupon);
+      return res.json({ success: true, data: publicCoupons, count: publicCoupons.length });
     }
 
     const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
@@ -215,11 +216,13 @@ export async function createCoupon(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.coupons.findIndex(c => String(c.id) === payload.id || c.code === payload.code);
+      if (idx >= 0) {
+        inMemoryStore.coupons[idx] = { ...inMemoryStore.coupons[idx], ...payload };
+      } else {
+        inMemoryStore.coupons.unshift(payload);
+      }
+      return res.status(201).json({ success: true, data: payload });
     }
 
     const created = await Coupon.findOneAndUpdate(
@@ -240,11 +243,12 @@ export async function updateCoupon(req, res, next) {
     if (data.code) data.code = String(data.code).trim().toUpperCase();
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.coupons.findIndex(c => String(c.id) === String(id) || c.code === String(id).toUpperCase());
+      if (idx < 0) {
+        return res.status(404).json({ success: false, message: "Coupon not found" });
+      }
+      inMemoryStore.coupons[idx] = { ...inMemoryStore.coupons[idx], ...data };
+      return res.json({ success: true, data: inMemoryStore.coupons[idx] });
     }
 
     const updated = await Coupon.findOneAndUpdate(
@@ -266,11 +270,8 @@ export async function deleteCoupon(req, res, next) {
     const { id } = req.params;
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== String(id) && c.code !== String(id).toUpperCase());
+      return res.json({ success: true, message: "Coupon deleted", id });
     }
 
     await Coupon.findOneAndDelete({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] });

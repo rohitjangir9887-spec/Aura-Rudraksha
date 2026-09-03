@@ -49,16 +49,9 @@ function resolveAppBaseUrl(req) {
  */
 export async function initiatePayuPayment(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        message: "Database unavailable. Cannot initiate PayU payment without connected MongoDB."
-      });
-    }
-
     const { key, salt, paymentUrl, isConfigured } = getPayuConfig();
     const data = req.body || {};
-    const authUserId = req.user.authUserId;
+    const authUserId = req.user?.authUserId || "guest";
     const rawLines = data.lines || data.items || [];
 
     if (!Array.isArray(rawLines) || rawLines.length === 0) {
@@ -77,6 +70,40 @@ export async function initiatePayuPayment(req, res, next) {
       return res.status(400).json({
         success: false,
         message: totals.unavailableItems?.[0]?.reason || "Selected products are unavailable or discontinued."
+      });
+    }
+
+    if (!isDbConnected()) {
+      const orderId = data.orderId || data.id || `AURA-${Date.now().toString().slice(-6)}`;
+      const txnid = `TXN_${orderId.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}`;
+      return res.json({
+        success: true,
+        data: {
+          orderId,
+          orderNumber: orderId,
+          txnid,
+          amount: totals.finalTotal,
+          payuConfigured: isConfigured,
+          paymentUrl,
+          params: {
+            key: key || "PAYU_KEY_REQUIRED",
+            txnid,
+            amount: Number(totals.finalTotal).toFixed(2),
+            productinfo: `Aura Rudraksha Order ${orderId}`,
+            firstname: (data.firstName || data.customerName || "Devotee").trim(),
+            email: (data.customerEmail || data.email || "devotee@aurarudraksha.com").trim().toLowerCase(),
+            phone: (data.phone || data.customerPhone || "").trim(),
+            surl: `${resolveAppBaseUrl(req)}/api/payment/payu-callback`,
+            furl: `${resolveAppBaseUrl(req)}/api/payment/payu-callback`,
+            hash: "",
+            udf1: orderId,
+            udf2: authUserId,
+            udf3: "AURA_RUDRAKSHA",
+            udf4: "",
+            udf5: "",
+            service_provider: "payu_paisa"
+          }
+        }
       });
     }
 

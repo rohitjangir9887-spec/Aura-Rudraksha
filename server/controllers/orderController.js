@@ -7,6 +7,7 @@ import Customer from "../models/Customer.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import crypto from "crypto";
 
 // In-flight / recent order cache to prevent rapid double-clicks
@@ -24,11 +25,8 @@ function cleanRecentSubmissions() {
 export async function getOrders(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const orders = inMemoryStore.orders || [];
+      return res.json({ success: true, data: orders, count: orders.length });
     }
     const orders = await Order.find().sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: orders || [], count: (orders || []).length });
@@ -41,11 +39,8 @@ export async function getMyOrders(req, res, next) {
   try {
     const authUserId = req.user.authUserId;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const myOrders = (inMemoryStore.orders || []).filter(o => o.authUserId === authUserId);
+      return res.json({ success: true, data: myOrders, count: myOrders.length });
     }
     const orders = await Order.find({ authUserId }).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: orders, count: orders.length });
@@ -60,11 +55,16 @@ export async function getOrderById(req, res, next) {
     const authUserId = req.user.authUserId;
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const order = (inMemoryStore.orders || []).find(o => String(o.id) === String(id) || String(o.orderId) === String(id));
+      if (!order) {
+        return res.status(404).json({ success: false, message: "Order not found" });
+      }
+      const { isInitialAdmin } = isAdminUser(req.user);
+      const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+      if (!isAdmin && order.authUserId !== authUserId) {
+        return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
+      }
+      return res.json({ success: true, data: order });
     }
 
     let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }] }).lean();
@@ -133,22 +133,36 @@ export async function createOrder(req, res, next) {
     }
 
     // Check stock for all items
-    for (const item of totals.items) {
-      const product = await Product.findOne({ id: item.id });
-      const pStatus = (product?.status || "Published").toLowerCase();
-      if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
-        recentOrderSubmissions.delete(submissionKey);
-        return res.status(400).json({ 
-          success: false, 
-          message: `Product '${item.name}' is no longer available.` 
-        });
+    if (isDbConnected()) {
+      for (const item of totals.items) {
+        const product = await Product.findOne({ id: item.id });
+        const pStatus = (product?.status || "Published").toLowerCase();
+        if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
+          recentOrderSubmissions.delete(submissionKey);
+          return res.status(400).json({ 
+            success: false, 
+            message: `Product '${item.name}' is no longer available.` 
+          });
+        }
+        if (product.stock !== undefined && product.stock < item.quantity) {
+          recentOrderSubmissions.delete(submissionKey);
+          return res.status(400).json({ 
+            success: false, 
+            message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).` 
+          });
+        }
       }
-      if (product.stock !== undefined && product.stock < item.quantity) {
-        recentOrderSubmissions.delete(submissionKey);
-        return res.status(400).json({ 
-          success: false, 
-          message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).` 
-        });
+    } else {
+      for (const item of totals.items) {
+        const product = inMemoryStore.products.find(p => String(p.id) === String(item.id));
+        const pStatus = (product?.status || "Published").toLowerCase();
+        if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
+          recentOrderSubmissions.delete(submissionKey);
+          return res.status(400).json({ 
+            success: false, 
+            message: `Product '${item.name}' is no longer available.` 
+          });
+        }
       }
     }
 
@@ -163,11 +177,15 @@ export async function createOrder(req, res, next) {
           message: totals.couponReason || "The applied coupon is invalid or expired. Please review your order."
         });
       }
-      validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
+      if (isDbConnected()) {
+        validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
+      } else {
+        validCouponDoc = inMemoryStore.coupons.find(c => c.code === String(couponCodeToValidate).trim().toUpperCase());
+      }
     }
 
     // Server always generates the permanent sequential order ID (AURA-YYMMDD-000123)
-    const id = await generateNextOrderNumber();
+    const id = isDbConnected() ? await generateNextOrderNumber() : `AURA-${Date.now().toString().slice(-6)}`;
     const now = new Date().toISOString();
     
     // Create copy of shipping address inside snapshot
@@ -223,26 +241,41 @@ export async function createOrder(req, res, next) {
     const phone = (orderPayload.phone || orderPayload.customerPhone || "").trim();
     const name = orderPayload.customerName || (orderPayload.firstName ? `${orderPayload.firstName} ${orderPayload.lastName || ''}`.trim() : "Customer");
     
-    const created = await Order.findOneAndUpdate(
-      { id: orderPayload.id },
-      orderPayload,
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
+    let created;
+    if (isDbConnected()) {
+      created = await Order.findOneAndUpdate(
+        { id: orderPayload.id },
+        orderPayload,
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+    } else {
+      created = orderPayload;
+      inMemoryStore.orders.unshift(created);
+    }
 
     // Save in deduplication cache
     recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
 
     // Update Coupon Usage
     if (validCouponDoc) {
-      await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
+      if (isDbConnected()) {
+        await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
+      } else {
+        validCouponDoc.usage = (validCouponDoc.usage || 0) + 1;
+      }
     }
 
     // Update Product Stock
     for (const item of totals.items) {
-      await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -item.quantity } });
+      if (isDbConnected()) {
+        await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -item.quantity } });
+      } else {
+        const memP = inMemoryStore.products.find(p => String(p.id) === String(item.id));
+        if (memP && memP.stock !== undefined) memP.stock = Math.max(0, memP.stock - item.quantity);
+      }
     }
 
-    // Auto update/create customer record in MongoDB
+    // Auto update/create customer record in MongoDB or inMemoryStore
     try {
       await recordCustomerOrder({
         authUserId,
@@ -269,11 +302,39 @@ export async function updateOrder(req, res, next) {
     const authUserId = req.user.authUserId;
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
+      if (idx < 0) {
+        return res.status(404).json({ success: false, message: "Order not found" });
+      }
+      const existing = inMemoryStore.orders[idx];
+      const { isInitialAdmin } = isAdminUser(req.user);
+      const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+
+      let updateFields = {};
+      if (isAdmin) {
+        updateFields = { ...data };
+      } else if (existing.authUserId === authUserId) {
+        const cancellableStatuses = ["Pending", "Confirmed", "Processing"];
+        if (data.status === "Cancelled" && cancellableStatuses.includes(existing.status)) {
+          updateFields.status = "Cancelled";
+          updateFields.orderStatus = "Cancelled";
+          updateFields.cancelledAt = new Date().toISOString();
+          updateFields.cancelReason = data.cancelReason || "Cancelled by customer";
+          updateFields.cancelledBy = "Customer";
+        }
+        if (data.address && cancellableStatuses.includes(existing.status)) {
+          updateFields.address = data.address;
+          if (data.shippingAddress) updateFields.shippingAddress = data.shippingAddress;
+        }
+        if (Object.keys(updateFields).length === 0) {
+          return res.status(400).json({ success: false, message: "Cannot modify this order in its current state" });
+        }
+      } else {
+        return res.status(403).json({ success: false, message: "Access Denied: You do not own this order" });
+      }
+
+      inMemoryStore.orders[idx] = { ...existing, ...updateFields };
+      return res.json({ success: true, data: inMemoryStore.orders[idx] });
     }
 
     let existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }] });

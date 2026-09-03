@@ -44,13 +44,21 @@ import {
 import "./admin-pages.css";
 
 const INDIAN_DEVOTEE_NAMES = [
-  "Rahul Sharma", "Amit Patel", "Pooja Verma", "Deepak Joshi",
-  "Suresh Kumar", "Vikram Rathore", "Priya Nair", "Rajesh Gupta",
-  "Anjali Deshmukh", "Manoj Tiwari", "Sunil Choudhary", "Ritu Agrawal",
-  "Sanjay Kulkarni", "Neha Bhatt", "Ashok Pandey", "Kavita Reddy",
-  "Gaurav Mishra", "Swati Saxena", "Alok Sengupta", "Shweta Iyengar",
-  "Manish Malhotra", "Divya Pillai", "Rohit Jangir", "Kunal Singhania",
-  "Vandana Tripathi", "Abhishek Dubey", "Meenakshi Sundaram", "Harish Rawat"
+  "Pandit Rajesh Sharma", "Dr. Shalini Deshmukh", "Captain Virendra Singh", "Priyanjali Sen",
+  "Karthik Sundaram", "Aditya Kulkarni", "Meera Nambiar", "Gurpreet Singh", "Sunita Chawla",
+  "Tarun Malhotra", "Deepika Joshi", "Anurag Saxena", "Siddharth Rao", "Bhavna Patel",
+  "Madhavan Pillai", "Shruti Agarwal", "Gauri Soni", "Nitin Khurana", "Vandana Nair",
+  "Sanjeev Mukherjee", "Pooja Trivedi", "Alok Pandey", "Prof. R. C. Chaturvedi", "Geeta Bhattacharya",
+  "Harish Rawat", "Deepak Solanki", "Dr. Mukund Shastri", "Meenakshi Sundaram", "Vikramaditya Rathore",
+  "Neelam Upadhyay", "Subhash Mahapatra", "Swati Saxena", "Gaurav Mishra", "Kunal Singhania",
+  "Vandana Tripathi", "Abhishek Dubey", "Rahul Sharma", "Amit Patel", "Pooja Verma",
+  "Suresh Kumar", "Priya Nair", "Rajesh Gupta", "Anjali Deshmukh", "Manoj Tiwari",
+  "Sunil Choudhary", "Ritu Agrawal", "Sanjay Kulkarni", "Neha Bhatt", "Ashok Pandey",
+  "Kavita Reddy", "Alok Sengupta", "Shweta Iyengar", "Manish Malhotra", "Divya Pillai",
+  "Rohit Jangir", "Radheshyam Agrawal", "Brijesh Mishra", "Archana Roy", "Kamal Kishor Varma",
+  "Sunita Somani", "Vidyadhar Joshi", "Hemant Hegde", "Padmini Raman", "Gokul Prasad",
+  "Aniruddh Kotecha", "Devika Rani", "Yogesh Bhati", "Dhananjay Saxena", "Premchand Pareek",
+  "Shubhangi Gaikwad", "Lokesh Choudhary", "Prashant Thapar", "Nirmala Devi", "Satish Chandra"
 ];
 
 const INDIAN_DEVOTEE_CITIES = [
