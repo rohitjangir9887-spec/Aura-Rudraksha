@@ -117,16 +117,22 @@ export function Home() {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      <div className="hero-slides">
+      <div className="hero-slides" style={{ minHeight: "220px", background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => (
           <img 
             key={i} 
             src={src} 
-            alt={`Ad Banner ${i + 1}`} 
+            alt={`Aura Sacred Banner ${i + 1}`} 
             className={`hero-slide ${i === hero ? 'active' : ''}`}
             loading={i === 0 ? "eager" : "lazy"}
-            fetchpriority={i === 0 ? "high" : "auto"}
+            fetchPriority={i === 0 ? "high" : "auto"}
             decoding="async"
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              if (!e.currentTarget.src.includes("product-5mukhi.jpg")) {
+                e.currentTarget.src = "/images/product-5mukhi.jpg";
+              }
+            }}
           />
         ))}
       </div>
