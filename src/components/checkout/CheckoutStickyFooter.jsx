@@ -1,6 +1,7 @@
 import React from "react";
-import { Lock, ArrowRight, Loader2 } from "lucide-react";
+import { Lock } from "lucide-react";
 import { money } from "../../data";
+import { PlaceOrderButton } from "./PlaceOrderButton";
 
 export function CheckoutStickyFooter({
   finalTotal,
@@ -62,40 +63,15 @@ export function CheckoutStickyFooter({
         </div>
 
         {/* Right Side: Place Order Button */}
-        <button
-          type="button"
-          id="btn-sticky-place-order"
-          disabled={loading}
-          onClick={onPlaceOrder}
-          style={{
-            background: loading ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "10px",
-            padding: "12px 22px",
-            fontSize: "14.5px",
-            fontWeight: "700",
-            cursor: loading ? "wait" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            boxShadow: "0 4px 12px rgba(165, 77, 43, 0.3)",
-            transition: "all 0.2s",
-            flexShrink: 0
-          }}
-        >
-          {loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              <span>Redirecting to PayU...</span>
-            </>
-          ) : (
-            <>
-              <span>Pay with PayU</span>
-              <ArrowRight size={16} />
-            </>
-          )}
-        </button>
+        <div style={{ flexShrink: 0, minWidth: "160px" }}>
+          <PlaceOrderButton
+            id="btn-sticky-place-order"
+            loading={loading}
+            onClick={onPlaceOrder}
+            variant="sticky"
+            ctaText="Pay with PayU"
+          />
+        </div>
       </div>
 
       <div 

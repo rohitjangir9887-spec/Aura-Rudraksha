@@ -33,6 +33,8 @@ import { CheckoutPaymentMethod } from "../components/checkout/CheckoutPaymentMet
 import { CheckoutReassurance } from "../components/checkout/CheckoutReassurance";
 import { CheckoutStickyFooter } from "../components/checkout/CheckoutStickyFooter";
 import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
+import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
+import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
 
 export function Checkout() {
   const [searchParams] = useSearchParams();
@@ -480,23 +482,8 @@ export function Checkout() {
             animate={{ opacity: 1, scale: 1 }}
             style={{ textAlign: "center", padding: "40px 16px" }}
           >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background: "#eef6f0",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 16px"
-              }}
-            >
-              <CheckCircle2 size={48} color="#20a95a" />
-            </motion.div>
+            {/* Framer Motion Order Success Celebration Animation */}
+            <OrderSuccessAnimation orderNum={orderNum} txnid={finalTxnid} />
 
             <div 
               style={{
@@ -827,42 +814,13 @@ export function Checkout() {
 
         {/* 9. In-page Main Place Order CTA (Always Visible & Prominent) */}
         <div id="checkout-main-place-order-section" style={{ marginTop: "18px", marginBottom: "24px" }}>
-          <button
-            type="button"
+          <PlaceOrderButton
             id="btn-place-order-main"
-            disabled={loading}
+            loading={loading}
             onClick={handlePlaceOrder}
-            className="primary-btn"
-            style={{
-              width: "100%",
-              padding: "16px 20px",
-              fontSize: "17px",
-              fontWeight: "700",
-              borderRadius: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "10px",
-              background: "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
-              boxShadow: "0 6px 20px rgba(165, 77, 43, 0.35)",
-              border: "none",
-              color: "#ffffff",
-              cursor: loading ? "wait" : "pointer"
-            }}
-          >
-            {loading ? (
-              <>
-                <Loader2 size={20} className="animate-spin" />
-                <span>Redirecting to PayU Gateway...</span>
-              </>
-            ) : (
-              <>
-                <Zap size={18} />
-                <span>Pay with PayU • {money(finalTotal)}</span>
-                <ArrowRight size={20} />
-              </>
-            )}
-          </button>
+            finalTotal={finalTotal}
+            variant="main"
+          />
           
           <div style={{ textAlign: "center", marginTop: "10px", fontSize: "12px", color: "#6e5d50", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
             <Lock size={13} color="#166534" />

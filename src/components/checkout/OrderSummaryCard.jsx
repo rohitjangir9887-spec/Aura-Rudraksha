@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
-import { money } from "../../data";
+import { PlaceOrderButton } from "./PlaceOrderButton";
 
 /**
  * OrderSummaryCard - Premium Luxury Spiritual E-Commerce Order Summary Component
@@ -863,47 +863,17 @@ export function OrderSummaryCard({
 
       {/* 8. CHECKOUT CTA (Only shown when not in receipt mode) */}
       {!isReceipt && (
-        <button
-          type="button"
-          id="btn-summary-checkout-cta"
-          onClick={onCheckout}
-          disabled={loading || count === 0}
-          style={{
-            width: "100%",
-            background: "linear-gradient(135deg, #7c3114 0%, #5a1908 100%)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "12px",
-            padding: "14px 20px",
-            fontSize: "15px",
-            fontWeight: "700",
-            cursor: loading ? "wait" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-            marginTop: "14px",
-            boxShadow: "0 4px 14px rgba(124, 49, 20, 0.25)",
-            transition: "transform 0.15s ease, box-shadow 0.15s ease",
-            opacity: count === 0 ? 0.6 : 1
-          }}
-          onMouseEnter={(e) => {
-            if (!loading && count > 0) {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 6px 18px rgba(124, 49, 20, 0.35)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!loading && count > 0) {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 14px rgba(124, 49, 20, 0.25)";
-            }
-          }}
-        >
-          <Lock size={15} />
-          <span>{ctaText}</span>
-          <ArrowRight size={16} />
-        </button>
+        <div style={{ marginTop: "14px" }}>
+          <PlaceOrderButton
+            id="btn-summary-checkout-cta"
+            loading={loading}
+            disabled={count === 0}
+            onClick={onCheckout}
+            variant="summary"
+            ctaText={ctaText}
+            finalTotal={finalTotal}
+          />
+        </div>
       )}
 
       {/* In Receipt Mode: Payment Method Strip */}
