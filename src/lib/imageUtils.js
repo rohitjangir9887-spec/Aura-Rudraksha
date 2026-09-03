@@ -108,10 +108,11 @@ const _registeredMediaCache = new Map();
 
 /**
  * Controlled Concurrency Upload Queue
- * Prevents bursting network requests when multiple files are uploaded simultaneously
+ * Strict sequential processing (concurrency = 1) prevents bursting network requests
+ * when multiple product images are selected simultaneously.
  */
 class UploadQueue {
-  constructor(concurrency = 2) {
+  constructor(concurrency = 1) {
     this.concurrency = concurrency;
     this.running = 0;
     this.queue = [];
@@ -139,13 +140,13 @@ class UploadQueue {
       reject(err);
     } finally {
       this.running--;
-      // Small pacing delay between tasks to prevent burst rate limit triggers
-      setTimeout(() => this.processNext(), 100);
+      // Respectful spacing delay between tasks to prevent burst rate limits
+      setTimeout(() => this.processNext(), 200);
     }
   }
 }
 
-const _uploadQueue = new UploadQueue(2);
+const _uploadQueue = new UploadQueue(1);
 
 /**
  * Parses Retry-After header as either seconds integer or HTTP-date string
@@ -176,10 +177,13 @@ async function fetchWithBackoff(url, options = {}, maxRetries = 3) {
       res = await fetch(url, options);
     } catch (networkErr) {
       if (attempt >= maxRetries) {
-        throw networkErr;
+        const err = new Error("Network error connecting to API server. Please check your connection.");
+        err.source = "api";
+        err.originalError = networkErr;
+        throw err;
       }
       attempt++;
-      const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 6000) + Math.floor(Math.random() * 200);
+      const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000) + Math.floor(Math.random() * 200);
       await new Promise(r => setTimeout(r, delayMs));
       continue;
     }
@@ -192,13 +196,14 @@ async function fetchWithBackoff(url, options = {}, maxRetries = 3) {
       const waitSec = data.retryAfter || retryAfterHeader || 3;
 
       if (attempt > maxRetries) {
-        const err = new Error(data.message || `Media upload registration rate limit reached. Please wait ${waitSec}s before uploading more files.`);
+        const err = new Error(data.message || `API Gateway: Rate limit reached. Please wait ${waitSec}s before uploading more files.`);
+        err.source = "api";
         err.status = 429;
         err.retryAfter = waitSec;
         throw err;
       }
 
-      let delayMs = Math.min(Math.max(1000, waitSec * 1000), 10000) + Math.floor(Math.random() * 300);
+      let delayMs = Math.min(Math.max(1000, waitSec * 1000), 8000) + Math.floor(Math.random() * 300);
 
       if (import.meta.env.DEV) {
         console.warn(`[ImageUpload] HTTP 429 for ${url}. Backing off ${delayMs}ms (Attempt ${attempt}/${maxRetries})`);
@@ -523,8 +528,28 @@ export async function signOutPuter() {
 }
 
 /**
- * Uploads media file (image or video) directly to Puter Cloud Storage
- * Verifies file presence & registers metadata in MongoDB
+ * Generates a collision-resistant unique filename for Puter Cloud storage.
+ * Uses crypto.randomUUID() when available with timestamp and sanitization.
+ */
+function generateUniqueFileName(file) {
+  let uniqueId = "";
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    uniqueId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  } else {
+    uniqueId = `${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+  }
+  const originalName = file?.name || "image.jpg";
+  const lastDot = originalName.lastIndexOf(".");
+  const ext = (lastDot !== -1 ? originalName.slice(lastDot + 1) : "jpg").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "jpg";
+  const baseName = (lastDot !== -1 ? originalName.slice(0, lastDot) : originalName)
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 32) || "media";
+  return `aura_${uniqueId}_${baseName}.${ext}`;
+}
+
+/**
+ * Uploads media file (image or video) directly to Puter Cloud Storage.
+ * Verifies file presence & registers metadata in MongoDB with end-to-end error preservation.
  */
 export async function uploadMedia(file, onProgress = () => {}) {
   if (!file) return null;
@@ -553,14 +578,19 @@ export async function uploadMedia(file, onProgress = () => {}) {
       // 1. Verify Puter connection & authentication
       const status = await getPuterMediaStatus();
       if (!status.connected) {
-        throw new Error("Puter Cloud not connected. Please connect Puter in Admin Panel before uploading media.");
+        const authErr = new Error("Puter Cloud not connected. Please connect Puter in Admin Panel before uploading media.");
+        authErr.source = "puter";
+        authErr.status = 401;
+        throw authErr;
       }
 
       const isVideo = file.type?.startsWith("video/") || file.name?.endsWith(".mp4") || file.name?.endsWith(".webm");
       const maxBytes = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
 
       if (file.size && file.size > maxBytes) {
-        throw new Error(`File size exceeds ${isVideo ? '50MB' : '10MB'} limit.`);
+        const sizeErr = new Error(`File size exceeds ${isVideo ? '50MB' : '10MB'} limit.`);
+        sizeErr.source = "validation";
+        throw sizeErr;
       }
 
       const allowedTypes = [
@@ -568,69 +598,138 @@ export async function uploadMedia(file, onProgress = () => {}) {
         "video/mp4", "video/webm", "video/ogg"
       ];
       if (file.type && !allowedTypes.includes(file.type)) {
-        throw new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.");
+        const typeErr = new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.");
+        typeErr.source = "validation";
+        throw typeErr;
       }
 
       onProgress(15);
       const puter = window.puter;
 
-      const cleanName = (file.name || "media.jpg").replace(/[^a-zA-Z0-9_.-]/g, "_");
-      const fileName = `aura_${Date.now()}_${cleanName}`;
+      // Generate guaranteed unique filename
+      const uniqueFileName = generateUniqueFileName(file);
       const dirPath = "aura_uploads";
-      const filePath = `${dirPath}/${fileName}`;
+      const filePath = `${dirPath}/${uniqueFileName}`;
 
-      if (import.meta.env.DEV) {
-        console.log("[Puter Diagnostics] Uploading file to Puter:", fileName, "Size:", file.size);
+      // Wrap file in a renamed File instance so Puter's upload method writes to the unique filename
+      let uploadFile = file;
+      if (typeof File !== "undefined" && file instanceof File) {
+        try {
+          uploadFile = new File([file], uniqueFileName, {
+            type: file.type || "image/jpeg",
+            lastModified: file.lastModified || Date.now()
+          });
+        } catch {
+          uploadFile = file;
+        }
       }
 
-      // 2. Upload file directly to Puter Cloud File System
-      // Exactly ONE upload attempt. Never blindly fallback to fs.write unless fs.upload is not supported.
-      let uploadedItem = null;
-      if (typeof puter.fs?.upload === "function") {
-        try {
-          uploadedItem = await puter.fs.upload([file], dirPath, {
-            createMissingParents: true,
-            dedupeName: false,
-            progress: (opId, p) => {
-              const pct = Math.min(70, Math.max(20, Math.round(20 + (p || 0) * 0.5)));
-              onProgress(pct);
-            }
-          });
-          if (Array.isArray(uploadedItem)) {
-            uploadedItem = uploadedItem[0];
-          }
-        } catch (uploadErr) {
-          // Check if error is specifically an unsupported method failure
-          const isMethodUnsupported = uploadErr && (
-            uploadErr.name === "TypeError" ||
-            uploadErr.code === "ENOSYS" ||
-            uploadErr.code === "ERR_METHOD_NOT_SUPPORTED" ||
-            String(uploadErr.message || "").toLowerCase().includes("not a function") ||
-            String(uploadErr.message || "").toLowerCase().includes("not supported")
-          );
+      if (import.meta.env.DEV) {
+        console.log("[Puter Diagnostics] Uploading file to Puter:", uniqueFileName, "Size:", file.size);
+      }
 
-          if (isMethodUnsupported && typeof puter.fs?.write === "function") {
-            if (import.meta.env.DEV) {
-              console.warn("[Puter Diagnostics] puter.fs.upload unsupported, falling back to puter.fs.write:", uploadErr);
+      // 2. Upload file directly to Puter Cloud File System with bounded exponential backoff on 429
+      let uploadedItem = null;
+      const maxPuterAttempts = 3;
+      let puterAttempt = 0;
+
+      while (puterAttempt < maxPuterAttempts) {
+        puterAttempt++;
+        try {
+          if (typeof puter.fs?.upload === "function") {
+            try {
+              uploadedItem = await puter.fs.upload([uploadFile], dirPath, {
+                createMissingParents: true,
+                dedupeName: true,
+                overwrite: true,
+                progress: (opId, p) => {
+                  const pct = Math.min(70, Math.max(20, Math.round(20 + (p || 0) * 0.5)));
+                  onProgress(pct);
+                }
+              });
+              if (Array.isArray(uploadedItem)) {
+                uploadedItem = uploadedItem[0];
+              }
+              break; // Success
+            } catch (uploadErr) {
+              // Check if method is genuinely unsupported
+              const isMethodUnsupported = uploadErr && (
+                uploadErr.name === "TypeError" ||
+                uploadErr.code === "ENOSYS" ||
+                uploadErr.code === "ERR_METHOD_NOT_SUPPORTED" ||
+                String(uploadErr.message || "").toLowerCase().includes("not a function") ||
+                String(uploadErr.message || "").toLowerCase().includes("not supported")
+              );
+
+              if (isMethodUnsupported && typeof puter.fs?.write === "function") {
+                if (import.meta.env.DEV) {
+                  console.warn("[Puter Diagnostics] puter.fs.upload unsupported, falling back to puter.fs.write:", uploadErr);
+                }
+                await puter.fs.write(filePath, uploadFile, { createMissingParents: true, overwrite: true });
+                break; // Success via write
+              }
+
+              // Identify Puter 429 or rate limits
+              const isRateLimit = uploadErr && (
+                uploadErr.status === 429 ||
+                uploadErr.code === 429 ||
+                uploadErr.statusCode === 429 ||
+                /too many requests|rate limit|slow down/i.test(uploadErr.message || "")
+              );
+
+              if (isRateLimit && puterAttempt < maxPuterAttempts) {
+                const backoffDelay = Math.min(1500 * Math.pow(2, puterAttempt - 1), 6000) + Math.floor(Math.random() * 300);
+                if (import.meta.env.DEV) {
+                  console.warn(`[Puter Diagnostics] Puter 429 rate limit. Backing off ${backoffDelay}ms (attempt ${puterAttempt}/${maxPuterAttempts})`);
+                }
+                await new Promise(r => setTimeout(r, backoffDelay));
+                continue;
+              }
+
+              const enrichedErr = new Error(
+                isRateLimit 
+                  ? "Puter Cloud: Too many requests. Please wait a moment before uploading more images."
+                  : (uploadErr.message || "Puter Cloud file upload failed.")
+              );
+              enrichedErr.source = "puter";
+              enrichedErr.status = uploadErr.status || (isRateLimit ? 429 : 500);
+              enrichedErr.originalError = uploadErr;
+              throw enrichedErr;
             }
-            await puter.fs.write(filePath, file, { createMissingParents: true });
+          } else if (typeof puter.fs?.write === "function") {
+            await puter.fs.write(filePath, uploadFile, { createMissingParents: true, overwrite: true });
+            break;
           } else {
-            // Real failure (rate limit, quota, network timeout, abort) -> rethrow without creating duplicates
-            throw uploadErr;
+            const noMethodErr = new Error("Puter file storage methods (upload/write) are not available.");
+            noMethodErr.source = "puter";
+            throw noMethodErr;
           }
+        } catch (outerErr) {
+          if (outerErr.source === "puter") {
+            throw outerErr;
+          }
+          const err = new Error(outerErr.message || "Puter upload failed.");
+          err.source = "puter";
+          throw err;
         }
-      } else if (typeof puter.fs?.write === "function") {
-        await puter.fs.write(filePath, file, { createMissingParents: true });
-      } else {
-        throw new Error("Puter file storage methods (upload/write) are not available.");
       }
 
       onProgress(75);
 
       // 3. Verify file exists on Puter Cloud
-      const fileStat = await puter.fs.stat(uploadedItem?.path || filePath).catch(() => null);
+      const targetPuterPath = uploadedItem?.path || filePath;
+      let fileStat = await puter.fs.stat(targetPuterPath).catch(() => null);
+      if (!fileStat && uploadedItem?.name) {
+        fileStat = await puter.fs.stat(`${dirPath}/${uploadedItem.name}`).catch(() => null);
+      }
       if (!fileStat) {
-        throw new Error("File upload verification failed. File not found on Puter Cloud Storage.");
+        fileStat = await puter.fs.stat(filePath).catch(() => null);
+      }
+
+      if (!fileStat) {
+        const verifyErr = new Error("Puter Cloud: Upload verification failed. File not found on Puter storage.");
+        verifyErr.source = "puter";
+        throw verifyErr;
       }
 
       if (import.meta.env.DEV) {
@@ -646,16 +745,18 @@ export async function uploadMedia(file, onProgress = () => {}) {
       // 4. Resolve production-safe permanent public media reference
       let publicUrl = "";
       const hostedDomain = await getPuterHostedDomain();
-      const actualFileName = fileStat.name || fileName;
+      const actualFileName = fileStat.name || uniqueFileName;
 
       if (hostedDomain) {
         publicUrl = `https://${hostedDomain}/${encodeURIComponent(actualFileName)}`;
       } else if (typeof puter.fs.getReadURL === "function") {
-        publicUrl = await puter.fs.getReadURL(fileStat.path || filePath);
+        publicUrl = await puter.fs.getReadURL(fileStat.path || targetPuterPath);
       }
 
       if (!publicUrl) {
-        throw new Error("Could not resolve production public URL from Puter Cloud.");
+        const urlErr = new Error("Puter Cloud: Could not resolve production public URL.");
+        urlErr.source = "puter";
+        throw urlErr;
       }
 
       if (import.meta.env.DEV) {
@@ -665,8 +766,8 @@ export async function uploadMedia(file, onProgress = () => {}) {
       onProgress(90);
 
       // 5. Register media metadata in MongoDB exactly once per file with safe 429 backoff
-      const targetPuterPath = fileStat.path || filePath;
-      const dedupeKey = `${publicUrl}::${targetPuterPath}`;
+      const finalResolvedPath = fileStat.path || targetPuterPath;
+      const dedupeKey = `${publicUrl}::${finalResolvedPath}`;
 
       if (_registeredMediaCache.has(dedupeKey)) {
         if (import.meta.env.DEV) {
@@ -676,31 +777,43 @@ export async function uploadMedia(file, onProgress = () => {}) {
         return publicUrl;
       }
 
-      const registerRes = await fetchWithBackoff(`${API_BASE}/upload/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          readURL: publicUrl,
-          url: publicUrl,
-          puterFileId: targetPuterPath,
-          fileId: targetPuterPath,
-          path: targetPuterPath,
-          filename: actualFileName,
-          type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
-          sizeBytes: file.size || fileStat.size || 0,
-          size: file.size || fileStat.size || 0,
-          metadata: {
-            provider: "puter",
-            originalName: file.name,
-            uploadedAt: new Date().toISOString()
-          },
-          provider: "puter"
-        })
-      });
+      let registerRes;
+      try {
+        registerRes = await fetchWithBackoff(`${API_BASE}/upload/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            readURL: publicUrl,
+            url: publicUrl,
+            puterFileId: finalResolvedPath,
+            fileId: finalResolvedPath,
+            path: finalResolvedPath,
+            filename: actualFileName,
+            type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+            sizeBytes: file.size || fileStat.size || 0,
+            size: file.size || fileStat.size || 0,
+            metadata: {
+              provider: "puter",
+              originalName: file.name,
+              uploadedAt: new Date().toISOString()
+            },
+            provider: "puter"
+          })
+        });
+      } catch (fetchErr) {
+        if (!fetchErr.source) {
+          fetchErr.source = fetchErr.status === 429 ? "api" : "mongodb";
+        }
+        throw fetchErr;
+      }
 
       const registerData = await registerRes.json().catch(() => ({}));
       if (!registerRes.ok || !registerData.success) {
-        throw new Error(registerData.message || "Puter upload succeeded but registering media metadata in MongoDB failed.");
+        const isDbErr = registerRes.status === 503 || registerData.source === "mongodb";
+        const err = new Error(registerData.message || (isDbErr ? "MongoDB: Database unavailable for media registration." : "Failed to register media in MongoDB."));
+        err.source = isDbErr ? "mongodb" : (registerData.source || "api");
+        err.status = registerRes.status;
+        throw err;
       }
 
       _registeredMediaCache.set(dedupeKey, registerData.media || { url: publicUrl });

@@ -53,15 +53,17 @@ router.get("/stats", async (req, res) => {
 
 /**
  * POST /api/upload/register
- * Registers metadata for a file uploaded directly to Puter Cloud
+ * Registers metadata for a file uploaded directly to Puter Cloud.
+ * Fully idempotent with duplicate race condition handling.
  */
 router.post("/register", async (req, res) => {
   try {
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
+        source: "mongodb",
         error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
+        message: "MongoDB database is temporarily unavailable. Please try again shortly."
       });
     }
 
@@ -71,6 +73,8 @@ router.post("/register", async (req, res) => {
     if (!finalReadURL) {
       return res.status(400).json({
         success: false,
+        source: "api",
+        error: "Missing URL",
         message: "No media URL provided for registration"
       });
     }
@@ -123,6 +127,7 @@ router.post("/register", async (req, res) => {
 
       return res.json({
         success: true,
+        source: "mongodb",
         message: "Media metadata verified and deduplicated in MongoDB",
         media: existing,
         deduplicated: true
@@ -143,10 +148,34 @@ router.post("/register", async (req, res) => {
       provider: finalProvider
     });
 
-    await mediaRecord.save();
+    try {
+      await mediaRecord.save();
+    } catch (saveErr) {
+      // Handle race condition: another concurrent request already saved this record
+      if (saveErr.code === 11000) {
+        const found = await Media.findOne({
+          $or: [
+            { puterFileId: finalFileId },
+            { path: finalFileId },
+            { readURL: finalReadURL }
+          ]
+        });
+        if (found) {
+          return res.json({
+            success: true,
+            source: "mongodb",
+            message: "Media metadata verified and deduplicated in MongoDB",
+            media: found,
+            deduplicated: true
+          });
+        }
+      }
+      throw saveErr;
+    }
 
     return res.json({
       success: true,
+      source: "mongodb",
       message: "Media metadata registered in MongoDB",
       media: mediaRecord,
       deduplicated: false
@@ -155,6 +184,8 @@ router.post("/register", async (req, res) => {
     console.error("Media registration error:", err);
     return res.status(500).json({
       success: false,
+      source: "mongodb",
+      error: "Registration Error",
       message: err.message || "Failed to register media metadata in MongoDB"
     });
   }

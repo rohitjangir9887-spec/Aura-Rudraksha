@@ -257,14 +257,11 @@ export function AdminProducts() {
             successCount++;
           }
         } catch (err) {
+          const sourceTag = err.source === "puter" ? "[Puter Cloud]" : (err.source === "mongodb" ? "[MongoDB]" : (err.source === "api" ? "[API Gateway]" : ""));
           const errMsg = err.message || "Upload failed";
-          errors.push(`${file.name}: ${errMsg}`);
-          emitToast(`Failed to upload ${file.name}: ${errMsg}`, "error");
-        }
-
-        // Controlled pacing delay between multiple files
-        if (i < filesToProcess.length - 1) {
-          await new Promise(r => setTimeout(r, 120));
+          const fullErrMsg = sourceTag ? `${sourceTag} ${errMsg}` : errMsg;
+          errors.push(`${file.name}: ${fullErrMsg}`);
+          emitToast(`Failed to upload ${file.name}: ${fullErrMsg}`, "error");
         }
       }
     } finally {
@@ -274,8 +271,10 @@ export function AdminProducts() {
       if (e.target) e.target.value = "";
     }
 
-    if (successCount > 0) {
+    if (successCount > 0 && errors.length === 0) {
       emitToast(`${successCount} image(s) uploaded successfully to Puter Cloud!`, "success");
+    } else if (successCount > 0 && errors.length > 0) {
+      emitToast(`${successCount} of ${filesToProcess.length} image(s) uploaded. ${errors.length} failed.`, "warning");
     }
   };
 
