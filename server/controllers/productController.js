@@ -87,7 +87,9 @@ export async function getProducts(req, res, next) {
     }
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
     next(err);

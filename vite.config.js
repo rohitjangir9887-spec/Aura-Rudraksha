@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 
+const isHmrDisabled = process.env.DISABLE_HMR === "true" || process.env.DISABLE_HMR === "1";
+
 export default defineConfig(({ mode }) => ({
   mode: mode || "production",
   define: {
@@ -9,6 +11,9 @@ export default defineConfig(({ mode }) => ({
     host: "0.0.0.0",
     port: 3000,
     allowedHosts: true,
+    hmr: isHmrDisabled ? false : {
+      overlay: false,
+    },
   },
   preview: {
     host: "0.0.0.0",

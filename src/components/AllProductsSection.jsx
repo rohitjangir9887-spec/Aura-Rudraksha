@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
+import { isPublicProduct } from "../lib/db";
 
 export function AllProductsSection({ products = [], isLoading = false }) {
   const { add } = useCart();
 
   // All active products from catalog
   const allActiveProducts = React.useMemo(() => {
-    return (products || []).filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived');
+    return (products || []).filter(isPublicProduct);
   }, [products]);
 
   return (
