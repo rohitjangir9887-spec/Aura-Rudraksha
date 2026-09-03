@@ -2,7 +2,6 @@ import { Review, ReviewSetting } from "../models/Review.js";
 import { Product } from "../models/Product.js";
 import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
-import { defaultReviews, defaultProducts } from "../data/defaultData.js";
 import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
@@ -296,7 +295,11 @@ export async function voteReview(req, res, next) {
 export async function getReviewSettings(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, data: defaultReviewSettings });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
@@ -313,7 +316,11 @@ export async function saveReviewSettings(req, res, next) {
   try {
     const data = req.body;
     if (!isDbConnected()) {
-      return res.json({ success: true, data: { ...defaultReviewSettings, ...data } });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     const updated = await ReviewSetting.findOneAndUpdate(
@@ -559,24 +566,13 @@ export async function generateReviewDrafts(req, res, next) {
           }
         }
       }
-      if (!resolvedProductName) {
-        const dp = defaultProducts.find(p => String(p.id) === String(productId));
-        if (dp) {
-          resolvedProductName = dp.name;
-          if (!productDetails) {
-            productDetails = `${dp.name} - Natural Authentic Himalayan Bead, certified quality, velvet pouch packaging.`;
-          }
-        }
-      }
     }
-    if (!resolvedProductName) resolvedProductName = "5 Mukhi Rudraksha";
+    if (!resolvedProductName) resolvedProductName = "Rudraksha Bead";
 
     // Gather existing reviews corpus for deduplication
     let existingCorpus = [];
     if (isDbConnected()) {
       existingCorpus = await Review.find().select("id title text rating name status").lean();
-    } else {
-      existingCorpus = defaultReviews.map(r => ({ id: r.id, title: r.title, text: r.text, rating: r.rating, status: r.status }));
     }
 
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";

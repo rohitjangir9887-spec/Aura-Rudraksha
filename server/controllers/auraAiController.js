@@ -10,7 +10,6 @@ import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
-import { defaultProducts, defaultCoupons, defaultSettings, defaultOrders } from "../data/defaultData.js";
 import { 
   searchRelevantCatalogProducts, 
   extractMukhiNumber, 
@@ -510,7 +509,7 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    // Always ensure catalog and coupons are populated from DB or defaultData fallback
+    // Query catalog and coupons strictly from database
     let products = [];
     let coupons = [];
     let userOrders = [];
@@ -534,13 +533,6 @@ export async function chatAuraAI(req, res, next) {
       } catch (err) {
         console.warn("DB fetch error:", err.message);
       }
-    }
-
-    if (!products || products.length === 0) {
-      products = defaultProducts;
-    }
-    if (!coupons || coupons.length === 0) {
-      coupons = defaultCoupons;
     }
 
     const intent = detectUserIntent(message);

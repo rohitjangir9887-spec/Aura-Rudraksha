@@ -3,12 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Suppress Node.js DEP0169 url.parse deprecation warnings from legacy packages
-process.on("warning", (warning) => {
-  if (warning.code === "DEP0169") return;
-  console.warn(warning);
-});
-
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
 if (!cached) {

@@ -65,7 +65,7 @@ export function normalizeLines(linesInput) {
 }
 
 /**
- * Fetch authoritative products from MongoDB (or defaultData fallback in demo)
+ * Fetch authoritative products from MongoDB
  */
 export async function getAuthoritativeProducts(productIds = []) {
   const ids = Array.from(new Set(productIds.map(String)));

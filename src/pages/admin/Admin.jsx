@@ -3,7 +3,7 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { getPuterMediaStatus, signInToPuter, uploadMedia } from "../../lib/imageUtils";
+import { getPuterMediaStatus, signInToPuter, signOutPuter, uploadMedia } from "../../lib/imageUtils";
 
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
@@ -11,7 +11,8 @@ import { emitToast } from "../../context/ToastContext";
 import {
   ShoppingBag, DollarSign, Users, Boxes, Clock, Eye, Plus, Megaphone,
   TicketPercent, ChevronRight, TrendingUp, Sparkles, RefreshCw, CheckCircle2,
-  MessageSquare, Database, WifiOff, Cloud, HardDrive, Video, Image as ImageIcon
+  MessageSquare, Database, WifiOff, Cloud, HardDrive, Video, Image as ImageIcon,
+  LogOut, ShieldCheck, AlertCircle
 } from "lucide-react";
 
 export function Admin() {
@@ -66,6 +67,7 @@ export function Admin() {
       }
     }
   }, []);
+  const [isSigningInPuter, setIsSigningInPuter] = useState(false);
   const [genericUploading, setGenericUploading] = useState(false);
   const [genericProgress, setGenericProgress] = useState(0);
   const [genericUrl, setGenericUrl] = useState("");
@@ -76,6 +78,11 @@ export function Admin() {
   const handleGenericUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+
+    if (!mediaInfo.connected) {
+      emitToast("Puter Cloud not connected. Please connect Puter first.", "warning");
+      return;
+    }
 
     setGenericUploading(true);
     setGenericProgress(10);
@@ -327,13 +334,28 @@ export function Admin() {
             {/* Media Asset Storage Box */}
             {(() => {
               const handlePuterSignIn = async () => {
+                setIsSigningInPuter(true);
                 try {
-                  await signInToPuter();
-                  emitToast("Successfully connected Puter Cloud Storage!", "success");
+                  const res = await signInToPuter();
+                  const username = res.user?.username || res.user?.name || "Admin";
+                  emitToast(`Connected Puter Cloud Storage (${username})!`, "success");
                   await checkPuter();
                   refreshDashboard();
                 } catch (err) {
                   emitToast("Puter login cancelled or failed: " + err.message, "error");
+                } finally {
+                  setIsSigningInPuter(false);
+                }
+              };
+
+              const handlePuterSignOut = async () => {
+                try {
+                  await signOutPuter();
+                  emitToast("Puter Cloud Storage disconnected.", "info");
+                  await checkPuter();
+                  refreshDashboard();
+                } catch (err) {
+                  emitToast("Puter logout error: " + err.message, "error");
                 }
               };
 
@@ -343,8 +365,24 @@ export function Admin() {
                     <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <HardDrive size={14} color="#2563eb" /> Media Storage (Puter Cloud)
                     </span>
-                    <span style={{ fontSize: '10px', color: mediaInfo.connected ? '#15803d' : '#d97706', fontWeight: 600 }}>
-                      {mediaInfo.connected ? '🟢 Puter Connected' : '🟠 Puter Not Connected'}
+                    <span style={{
+                      fontSize: '10px',
+                      color: mediaInfo.connected ? '#15803d' : (mediaInfo.status === "Not Configured" ? '#6b7280' : '#d97706'),
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {mediaInfo.connected ? (
+                        <>
+                          <CheckCircle2 size={11} color="#15803d" />
+                          <span>Connected{mediaInfo.username ? ` (${mediaInfo.username})` : ''}</span>
+                        </>
+                      ) : mediaInfo.status === "Checking..." ? (
+                        <span>⏳ Checking...</span>
+                      ) : (
+                        <span>🟠 Not Connected</span>
+                      )}
                     </span>
                   </div>
                   <p style={{ fontSize: '11px', color: '#6b584c', margin: 0, lineHeight: '1.4' }}>
@@ -371,9 +409,10 @@ export function Admin() {
                     )}
                   </div>
 
-                  {!mediaInfo.connected && typeof window !== 'undefined' && window.puter && (
+                  {!mediaInfo.connected ? (
                     <button
                       onClick={handlePuterSignIn}
+                      disabled={isSigningInPuter}
                       style={{
                         marginTop: '4px',
                         background: '#2563eb',
@@ -383,20 +422,66 @@ export function Admin() {
                         padding: '6px 12px',
                         fontSize: '11px',
                         fontWeight: '600',
-                        cursor: 'pointer',
+                        cursor: isSigningInPuter ? 'not-allowed' : 'pointer',
                         textAlign: 'center',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '6px',
-                        transition: 'background 0.2s'
+                        transition: 'background 0.2s',
+                        opacity: isSigningInPuter ? 0.7 : 1
                       }}
-                      onMouseOver={(e) => e.currentTarget.style.background = '#1d4ed8'}
-                      onMouseOut={(e) => e.currentTarget.style.background = '#2563eb'}
+                      onMouseOver={(e) => { if (!isSigningInPuter) e.currentTarget.style.background = '#1d4ed8'; }}
+                      onMouseOut={(e) => { if (!isSigningInPuter) e.currentTarget.style.background = '#2563eb'; }}
                     >
                       <Cloud size={12} />
-                      <span>🔑 Connect Puter Cloud Storage</span>
+                      <span>{isSigningInPuter ? "Connecting to Puter..." : "🔑 Connect Puter Cloud Storage"}</span>
                     </button>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                      <button
+                        onClick={checkPuter}
+                        style={{
+                          flex: 1,
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          padding: '5px 8px',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <RefreshCw size={10} />
+                        <span>Refresh Status</span>
+                      </button>
+                      <button
+                        onClick={handlePuterSignOut}
+                        style={{
+                          background: '#fef2f2',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          borderRadius: '6px',
+                          padding: '5px 8px',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
+                        }}
+                        title="Disconnect Puter Session"
+                      >
+                        <LogOut size={10} />
+                        <span>Disconnect</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -442,20 +527,69 @@ export function Admin() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
             {/* Left side: Upload Input and Status */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {!mediaInfo.connected && (
+                <div style={{
+                  background: '#fefce8',
+                  border: '1px solid #fef08a',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={16} color="#ca8a04" />
+                    <span style={{ fontSize: '11px', color: '#854d0e', fontWeight: 500 }}>
+                      Puter Cloud is not connected. Connect Puter to upload images/videos.
+                    </span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setIsSigningInPuter(true);
+                      try {
+                        const res = await signInToPuter();
+                        const username = res.user?.username || res.user?.name || "Admin";
+                        emitToast(`Connected Puter Cloud (${username})!`, "success");
+                        await checkPuter();
+                      } catch (err) {
+                        emitToast("Puter login cancelled or failed: " + err.message, "error");
+                      } finally {
+                        setIsSigningInPuter(false);
+                      }
+                    }}
+                    disabled={isSigningInPuter}
+                    style={{
+                      background: '#2563eb',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: isSigningInPuter ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {isSigningInPuter ? "Connecting..." : "Connect Puter"}
+                  </button>
+                </div>
+              )}
+
               <div style={{
-                border: '2px dashed #ebd8c5',
+                border: mediaInfo.connected ? '2px dashed #ebd8c5' : '2px dashed #e2e8f0',
                 borderRadius: '10px',
                 padding: '24px',
                 textAlign: 'center',
-                background: '#faf6f0',
-                cursor: 'pointer',
+                background: mediaInfo.connected ? '#faf6f0' : '#f8fafc',
+                cursor: mediaInfo.connected ? 'pointer' : 'not-allowed',
                 position: 'relative'
               }}>
                 <input
                   type="file"
                   accept="image/*,video/*"
                   onChange={handleGenericUpload}
-                  disabled={genericUploading}
+                  disabled={genericUploading || !mediaInfo.connected}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -463,12 +597,16 @@ export function Admin() {
                     width: '100%',
                     height: '100%',
                     opacity: 0,
-                    cursor: genericUploading ? 'not-allowed' : 'pointer'
+                    cursor: (genericUploading || !mediaInfo.connected) ? 'not-allowed' : 'pointer'
                   }}
                 />
-                <Cloud size={32} color="#a54d2b" style={{ margin: '0 auto 8px', display: 'block' }} />
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#3b322c', display: 'block', marginBottom: '4px' }}>
-                  {genericUploading ? "Uploading to Storage..." : "Click to select or Drag Image/Video here"}
+                <Cloud size={32} color={mediaInfo.connected ? "#a54d2b" : "#94a3b8"} style={{ margin: '0 auto 8px', display: 'block' }} />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: mediaInfo.connected ? '#3b322c' : '#64748b', display: 'block', marginBottom: '4px' }}>
+                  {genericUploading
+                    ? "Uploading to Storage..."
+                    : !mediaInfo.connected
+                    ? "Connect Puter Cloud above to enable upload"
+                    : "Click to select or Drag Image/Video here"}
                 </span>
                 <span style={{ fontSize: '11px', color: '#806f62' }}>
                   Supports PNG, JPEG, WEBP, GIF, MP4, WEBM up to 50MB
