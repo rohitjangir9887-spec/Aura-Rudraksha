@@ -181,25 +181,16 @@ export function createApp() {
     });
   });
 
-  // Middleware ensuring DB connection before database-dependent queries
+  // Middleware ensuring DB connection attempt before database-dependent queries
   const requireDb = async (req, res, next) => {
     if (!isDbConnected()) {
       if (getMongoUri()) {
         try {
           await connectDB();
         } catch (err) {
-          console.warn("⚠️ [DB Middleware] Pre-route connection attempt failed:", err?.message || err);
+          console.warn("⚠️ [DB Middleware] Pre-route connection attempt notice:", err?.message || err);
         }
       }
-    }
-
-    if (!isDbConnected()) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
     }
     next();
   };

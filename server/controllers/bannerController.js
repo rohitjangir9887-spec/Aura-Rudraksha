@@ -1,15 +1,14 @@
 import { Banner } from "../models/Banner.js";
 import { isDbConnected } from "../config/db.js";
 import { isSafeImageValue } from "../utils/imageValidation.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 export async function getBanners(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      const bannerUrls = inMemoryStore.banners.map(b => typeof b === "string" ? b : (b.image || b.url || ""));
+      return res.json({ success: true, data: bannerUrls, full: inMemoryStore.banners });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
@@ -25,25 +24,16 @@ export async function saveBanners(req, res, next) {
     const data = req.body;
     let bannerArray = Array.isArray(data) ? data : (data.banners || []);
 
-    // Server-side image allowlist: same MIME/size rules as review photos
-    // and product images. Drops any banner whose image isn't a plain
-    // http(s) URL, a same-origin relative path, or an allowlisted raster
-    // data URL - in particular this rejects data:image/svg+xml, which can
-    // carry embedded script (a stored-XSS vector).
     bannerArray = bannerArray.filter((item) => {
       const img = typeof item === "string" ? item : (item?.image || item?.url || "");
       return isSafeImageValue(img);
     });
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      inMemoryStore.banners = bannerArray;
+      return res.json({ success: true, data: bannerArray });
     }
 
-    // Clear and re-populate in MongoDB
     await Banner.deleteMany({});
     const docs = bannerArray.map((item, idx) => ({
       id: typeof item === "object" && item.id ? item.id : `BANNER-${Date.now()}-${idx}`,
@@ -76,11 +66,8 @@ export async function createBanner(req, res, next) {
     const payload = { ...data, id };
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      inMemoryStore.banners.push(payload);
+      return res.status(201).json({ success: true, data: payload });
     }
 
     const created = await Banner.create(payload);
@@ -94,11 +81,11 @@ export async function deleteBanner(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
+      inMemoryStore.banners = inMemoryStore.banners.filter(b => {
+        const bId = typeof b === "string" ? b : (b.id || b.image);
+        return String(bId) !== String(id);
       });
+      return res.json({ success: true, message: "Banner deleted", id });
     }
 
     await Banner.findOneAndDelete({ $or: [{ id: String(id) }, { image: String(id) }] });

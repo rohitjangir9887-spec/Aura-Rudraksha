@@ -2,6 +2,7 @@ import { Product } from "../models/Product.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -43,19 +44,31 @@ function normalizeProductStatus(rawStatus, defaultStatus = "Draft") {
 
 export async function getProducts(req, res, next) {
   try {
+    const isAdmin = await checkIsAdmin(req);
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      let products = [...inMemoryStore.products];
+      if (!isAdmin) {
+        products = products.filter(p => {
+          const s = (p.status || "Published").toLowerCase();
+          return s === "published" || s === "active";
+        });
+      } else if (req.query.status) {
+        const queryStatus = String(req.query.status).trim().toLowerCase();
+        products = products.filter(p => {
+          const s = (p.status || "Draft").toLowerCase();
+          if (queryStatus === "draft") return s === "draft" || s === "inactive";
+          if (queryStatus === "published" || queryStatus === "active") return s === "published" || s === "active";
+          return s === queryStatus;
+        });
+      }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+      return res.json({ success: true, data: products, count: products.length });
     }
 
-    const isAdmin = await checkIsAdmin(req);
     let filter = {};
 
     if (isAdmin) {
-      // Admin can view all products or filter by specific query status (e.g. ?status=Draft)
       if (req.query.status) {
         const queryStatus = String(req.query.status).trim();
         if (queryStatus.toLowerCase() === "draft") {
@@ -67,8 +80,6 @@ export async function getProducts(req, res, next) {
         }
       }
     } else {
-      // Customer / Public API: STRICT SERVER-SIDE FILTER
-      // Exclude ALL draft/inactive/archived products
       filter = {
         $and: [
           {
@@ -100,15 +111,24 @@ export async function getProductById(req, res, next) {
   try {
     const { id } = req.params;
     const cleanId = String(id).trim();
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const product = inMemoryStore.products.find(p => String(p.id) === cleanId || p.slug === cleanId);
+      if (!product) {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
+      const isAdmin = await checkIsAdmin(req);
+      if (!isAdmin) {
+        const currentStatus = (product.status || "Published").toLowerCase();
+        if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
+          return res.status(404).json({ success: false, message: "Product not found" });
+        }
+      }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.json({ success: true, data: product });
     }
+
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
-    
     let product = await Product.findOne({
       $or: [
         { id: cleanId },
@@ -121,10 +141,7 @@ export async function getProductById(req, res, next) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    // Check if the caller is an authenticated admin
     const isAdmin = await checkIsAdmin(req);
-
-    // If customer/public caller, reject Draft or Inactive products
     if (!isAdmin) {
       const currentStatus = (product.status || "Published").toLowerCase();
       if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
@@ -163,11 +180,13 @@ export async function createProduct(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.products.findIndex(p => String(p.id) === String(id));
+      if (idx >= 0) {
+        inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...productPayload };
+      } else {
+        inMemoryStore.products.unshift(productPayload);
+      }
+      return res.status(201).json({ success: true, data: productPayload });
     }
 
     const created = await Product.findOneAndUpdate(
@@ -197,11 +216,12 @@ export async function updateProduct(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      const idx = inMemoryStore.products.findIndex(p => String(p.id) === String(id) || p.slug === String(id));
+      if (idx < 0) {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
+      inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...updatePayload };
+      return res.json({ success: true, data: inMemoryStore.products[idx] });
     }
 
     const cleanId = String(id).trim();
@@ -232,11 +252,8 @@ export async function deleteProduct(req, res, next) {
     const cleanId = String(id).trim();
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Please try again shortly."
-      });
+      inMemoryStore.products = inMemoryStore.products.filter(p => String(p.id) !== cleanId && p.slug !== cleanId);
+      return res.json({ success: true, message: "Product deleted", id: cleanId });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);

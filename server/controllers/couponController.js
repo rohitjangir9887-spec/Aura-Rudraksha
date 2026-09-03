@@ -3,6 +3,7 @@ import { isDbConnected } from "../config/db.js";
 import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Fields an admin may set on a coupon. Allowlisted for defense-in-depth
 // consistency with the rest of the admin write paths in this codebase, even
