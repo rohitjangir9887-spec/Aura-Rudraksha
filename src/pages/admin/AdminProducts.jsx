@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
-import { compressImage, uploadMedia } from "../../lib/imageUtils";
+import { compressImage, uploadMedia, uploadMediaBatch } from "../../lib/imageUtils";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
@@ -203,7 +203,7 @@ export function AdminProducts() {
     }
   };
 
-  // Image Upload Handler using Puter Media Storage with Concurrency & Error Preservation
+  // Image Upload Handler using Puter Batch Media Storage
   const handleFileUpload = async (e) => {
     if (isUploading) return;
     const allSelectedFiles = Array.from(e.target.files || []);
@@ -225,56 +225,63 @@ export function AdminProducts() {
     }
 
     setIsUploading(true);
-    let successCount = 0;
-    const errors = [];
+    setUploadProgressMsg("Uploading to Puter Cloud...");
 
     try {
-      for (let i = 0; i < filesToProcess.length; i++) {
-        const file = filesToProcess[i];
-        const stepPrefix = filesToProcess.length > 1 ? ` (${i + 1}/${filesToProcess.length})` : "";
-        
-        setUploadProgressMsg(`Uploading ${file.name}${stepPrefix}...`);
+      const results = await uploadMediaBatch(filesToProcess, (pct, statusMsg) => {
+        setUploadProgressMsg(statusMsg || `Uploading to Puter Cloud — ${pct}%`);
+      });
 
-        try {
-          const mediaUrl = await uploadMedia(file, (pct) => {
-            setUploadProgressMsg(`Uploading ${file.name}${stepPrefix} — ${pct}%`);
-          });
+      const successfulUrls = [];
+      const errors = [];
 
-          if (mediaUrl) {
-            setEditing(prev => {
-              if (!prev) return prev;
-              const newImages = [...(prev.images || [])];
-              if (newImages.length >= 10) return prev;
-              if (!newImages.includes(mediaUrl)) {
-                newImages.push(mediaUrl);
-              }
-              return {
-                ...prev,
-                images: newImages,
-                img: prev.img || mediaUrl
-              };
-            });
-            successCount++;
-          }
-        } catch (err) {
-          const sourceTag = err.source === "puter" ? "[Puter Cloud]" : (err.source === "mongodb" ? "[MongoDB]" : (err.source === "api" ? "[API Gateway]" : ""));
-          const errMsg = err.message || "Upload failed";
+      results.forEach((res, idx) => {
+        const fileName = filesToProcess[idx]?.name || res.originalName || "File";
+        if (res.success && res.url) {
+          successfulUrls.push(res.url);
+        } else {
+          const sourceTag = res.source === "puter" ? "[Puter Cloud]" : (res.source === "mongodb" ? "[MongoDB]" : (res.source === "api" ? "[API Gateway]" : ""));
+          const errMsg = res.error || "Upload failed";
           const fullErrMsg = sourceTag ? `${sourceTag} ${errMsg}` : errMsg;
-          errors.push(`${file.name}: ${fullErrMsg}`);
-          emitToast(`Failed to upload ${file.name}: ${fullErrMsg}`, "error");
+          errors.push(`${fileName}: ${fullErrMsg}`);
         }
+      });
+
+      if (successfulUrls.length > 0) {
+        setEditing(prev => {
+          if (!prev) return prev;
+          const existingImages = prev.images || [];
+          const newImages = [...existingImages];
+          successfulUrls.forEach(url => {
+            if (newImages.length < 10 && !newImages.includes(url)) {
+              newImages.push(url);
+            }
+          });
+          return {
+            ...prev,
+            images: newImages,
+            img: prev.img || newImages[0] || ""
+          };
+        });
       }
+
+      if (successfulUrls.length > 0 && errors.length === 0) {
+        emitToast(`${successfulUrls.length} image(s) uploaded successfully to Puter Cloud!`, "success");
+      } else if (successfulUrls.length > 0 && errors.length > 0) {
+        emitToast(`${successfulUrls.length} of ${filesToProcess.length} image(s) uploaded. ${errors.length} failed.`, "warning");
+        errors.forEach(errStr => emitToast(errStr, "error"));
+      } else if (errors.length > 0) {
+        emitToast(`Upload failed: ${errors[0]}`, "error");
+      }
+    } catch (err) {
+      const sourceTag = err.source === "puter" ? "[Puter Cloud]" : (err.source === "mongodb" ? "[MongoDB]" : (err.source === "api" ? "[API Gateway]" : ""));
+      const errMsg = err.message || "Failed to upload images";
+      emitToast(`${sourceTag} ${errMsg}`.trim(), "error");
     } finally {
       setIsUploading(false);
       setUploadProgressMsg("");
       setFormError("");
       if (e.target) e.target.value = "";
-    }
-
-    if (successCount > 0 && errors.length === 0) {
-      emitToast(`${successCount} image(s) uploaded successfully to Puter Cloud!`, "success");
-    } else if (successCount > 0 && errors.length > 0) {
-      emitToast(`${successCount} of ${filesToProcess.length} image(s) uploaded. ${errors.length} failed.`, "warning");
     }
   };
 

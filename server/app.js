@@ -120,18 +120,18 @@ export function createApp() {
   const isProd = process.env.NODE_ENV === "production";
   const rateLimitDisabled = !isProd && process.env.DISABLE_RATE_LIMIT === "true";
   if (!rateLimitDisabled) {
-    app.use("/api", publicLimit);
+    // Exclude /upload routes from publicLimit so general /api browsing/polling does not throttle media registration
+    app.use("/api", (req, res, next) => {
+      if (req.path && req.path.startsWith("/upload")) {
+        return next();
+      }
+      return publicLimit(req, res, next);
+    });
     app.use("/api/auth/login", loginLimit);
     app.use("/api/auth/admin-login", adminLoginLimit);
     app.use("/api/aura-ai", auraAiLimit);
     app.use("/api/products/search", searchLimit);
     app.use("/api/coupons/validate", couponLimit);
-    // Only order-CREATION (POST) should count against the tight
-    // "order attempts" quota. Applying it to the whole /api/orders prefix
-    // also throttled GET /api/orders, /api/orders/my and /api/orders/:id
-    // (order history/detail lookups), which let a handful of legitimate
-    // order-status checks exhaust a real customer's quota and start
-    // returning 429 for unrelated read requests.
     app.use("/api/orders", (req, res, next) => (req.method === "POST" ? orderLimit(req, res, next) : next()));
     app.use("/api/orders/payment", paymentLimit);
     app.use("/api/reviews", reviewsLimit);
@@ -141,6 +141,7 @@ export function createApp() {
     app.use("/api/customers/me", strictLimit);
     app.use("/api/auth", strictLimit);
     app.use("/api/upload/register", uploadLimit);
+    app.use("/api/upload/register-batch", uploadLimit);
     app.use("/api/analytics", adminApiLimit);
     app.use("/api/settings", adminApiLimit);
   }

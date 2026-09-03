@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, onStoreUpdate } from "../lib/db";
-import { uploadMedia } from "../lib/imageUtils";
+import { uploadMedia, uploadMediaBatch } from "../lib/imageUtils";
 import { emitToast } from "../context/ToastContext";
 
 export function ProductReviews({ product, isPreview = false, previewSettings = null }) {
@@ -329,19 +329,18 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     setUploadingImage(true);
     try {
       emitToast("Uploading photos to Puter Cloud...", "info");
-      const uploadedUrls = [];
-      for (const file of files) {
-        if (!file.type.startsWith("image/")) continue;
-        const url = await uploadMedia(file);
-        if (url) {
-          uploadedUrls.push(url);
-        }
+      const results = await uploadMediaBatch(files);
+      const uploadedUrls = results.filter(r => r.success && r.url).map(r => r.url);
+
+      if (uploadedUrls.length > 0) {
+        setNewReviewForm(prev => ({
+          ...prev,
+          images: [...prev.images, ...uploadedUrls]
+        }));
+        emitToast(`${uploadedUrls.length} photo(s) uploaded successfully!`, "success");
+      } else {
+        emitToast("Failed to upload photo. Please try again.", "error");
       }
-      setNewReviewForm(prev => ({
-        ...prev,
-        images: [...prev.images, ...uploadedUrls]
-      }));
-      emitToast(`${uploadedUrls.length} photo(s) uploaded successfully!`, "success");
     } catch (err) {
       console.error(err);
       emitToast(err.message || "Failed to upload photo. Please try again.", "error");

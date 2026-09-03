@@ -192,6 +192,138 @@ router.post("/register", async (req, res) => {
 });
 
 /**
+ * POST /api/upload/register-batch
+ * Registers metadata for multiple files uploaded directly to Puter Cloud in ONE request.
+ * Fully idempotent with duplicate race condition handling in bulk.
+ */
+router.post("/register-batch", async (req, res) => {
+  try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        source: "mongodb",
+        error: "Database unavailable",
+        message: "MongoDB database is temporarily unavailable. Please try again shortly."
+      });
+    }
+
+    const { items, batchId } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        source: "api",
+        error: "Invalid Request",
+        message: "No media items provided for batch registration"
+      });
+    }
+
+    const results = [];
+    for (const item of items) {
+      const { url, readURL, puterFileId, fileId, path, filename, type, sizeBytes, size, metadata, provider } = item || {};
+      const finalReadURL = (readURL || url || "").trim();
+      if (!finalReadURL) continue;
+
+      const finalFileId = (puterFileId || fileId || path || "").trim();
+      const finalSizeBytes = Number(sizeBytes ?? size ?? 0);
+      const finalFilename = filename || (finalReadURL.split('/').pop() || "media");
+      const finalType = type || "image/jpeg";
+      const finalProvider = provider || "puter";
+
+      let existing = null;
+      if (finalFileId) {
+        existing = await Media.findOne({
+          $or: [
+            { puterFileId: finalFileId },
+            { fileId: finalFileId },
+            { path: finalFileId },
+            { readURL: finalReadURL },
+            { url: finalReadURL }
+          ]
+        });
+      } else {
+        existing = await Media.findOne({
+          $or: [
+            { readURL: finalReadURL },
+            { url: finalReadURL }
+          ]
+        });
+      }
+
+      if (existing) {
+        existing.readURL = finalReadURL;
+        existing.url = finalReadURL;
+        if (finalFileId) {
+          existing.puterFileId = finalFileId;
+          existing.fileId = finalFileId;
+          existing.path = path || finalFileId;
+        }
+        if (finalSizeBytes) {
+          existing.sizeBytes = finalSizeBytes;
+          existing.size = finalSizeBytes;
+        }
+        if (finalFilename) existing.filename = finalFilename;
+        if (metadata && typeof metadata === "object") {
+          existing.metadata = { ...(existing.metadata || {}), ...metadata, batchId };
+        }
+        await existing.save();
+        results.push({ readURL: finalReadURL, success: true, deduplicated: true, media: existing });
+      } else {
+        const mediaRecord = new Media({
+          readURL: finalReadURL,
+          url: finalReadURL,
+          puterFileId: finalFileId,
+          fileId: finalFileId,
+          path: path || finalFileId,
+          filename: finalFilename,
+          type: finalType,
+          sizeBytes: finalSizeBytes,
+          size: finalSizeBytes,
+          metadata: { ...(metadata || {}), batchId },
+          provider: finalProvider
+        });
+
+        try {
+          await mediaRecord.save();
+          results.push({ readURL: finalReadURL, success: true, deduplicated: false, media: mediaRecord });
+        } catch (saveErr) {
+          if (saveErr.code === 11000) {
+            const found = await Media.findOne({
+              $or: [
+                { puterFileId: finalFileId },
+                { path: finalFileId },
+                { readURL: finalReadURL }
+              ]
+            });
+            if (found) {
+              results.push({ readURL: finalReadURL, success: true, deduplicated: true, media: found });
+              continue;
+            }
+          }
+          console.error("Batch media item save error:", saveErr);
+          results.push({ readURL: finalReadURL, success: false, error: saveErr.message });
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      source: "mongodb",
+      message: `Registered ${results.filter(r => r.success).length} of ${items.length} media items in MongoDB`,
+      batchId,
+      results
+    });
+  } catch (err) {
+    console.error("Batch media registration error:", err);
+    return res.status(500).json({
+      success: false,
+      source: "mongodb",
+      error: "Registration Error",
+      message: err.message || "Failed to register batch media metadata in MongoDB"
+    });
+  }
+});
+
+/**
  * Disable local filesystem upload fallback in production
  */
 router.post("/", async (req, res) => {
