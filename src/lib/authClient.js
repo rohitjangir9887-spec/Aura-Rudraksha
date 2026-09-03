@@ -95,23 +95,62 @@ export const authClient = {
   },
   
   signInWithGoogle: async () => {
+    try {
+      localStorage.removeItem("aura_demo_user");
+    } catch (_) {}
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (_) {}
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: "select_account"
+    });
     const result = await signInWithPopup(auth, provider);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+    }
     return result.user;
   },
 
   signInAnonymously: async () => {
+    try {
+      localStorage.removeItem("aura_demo_user");
+    } catch (_) {}
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (_) {}
     const result = await signInAnonymously(auth);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+    }
     return result.user;
   },
 
   signInWithEmail: async (email, password) => {
+    try {
+      localStorage.removeItem("aura_demo_user");
+    } catch (_) {}
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (_) {}
     const result = await signInWithEmailAndPassword(auth, email, password);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+    }
     return result.user;
   },
 
   signUpWithEmail: async (email, password) => {
+    try {
+      localStorage.removeItem("aura_demo_user");
+    } catch (_) {}
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (_) {}
     const result = await createUserWithEmailAndPassword(auth, email, password);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+    }
     return result.user;
   },
 
@@ -154,6 +193,7 @@ export const authClient = {
     } catch {}
     try {
       localStorage.removeItem("aura_demo_user");
+      localStorage.removeItem("aura_ai_last_auth_uid");
     } catch (_) {}
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: null }));
@@ -162,14 +202,22 @@ export const authClient = {
   },
   
   onAuthStateChanged: (callback) => {
-    const initialDemo = readDemoUser();
-    if (initialDemo) {
-      callback(initialDemo);
+    if (auth.currentUser) {
+      callback(auth.currentUser);
+    } else {
+      const initialDemo = readDemoUser();
+      if (initialDemo) {
+        callback(initialDemo);
+      }
     }
 
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) callback(user);
-      else {
+      if (user) {
+        try {
+          localStorage.removeItem("aura_demo_user");
+        } catch (_) {}
+        callback(user);
+      } else {
         const demo = readDemoUser();
         callback(demo || null);
       }
@@ -221,11 +269,14 @@ export const authClient = {
     const msg = err.message || String(err);
 
     if (code === "auth/operation-not-allowed" || msg.includes("operation-not-allowed")) {
-      return "This sign-in provider is not enabled yet in the Firebase Console (Authentication > Sign-in method). Please enable it or try an alternate sign-in method.";
+      return "This sign-in provider is not enabled yet in Firebase Console (Authentication > Sign-in method). Please enable Google / Email provider or use Email/Password sign-in.";
     }
     if (code === "auth/unauthorized-domain" || msg.includes("unauthorized-domain")) {
       const currentHost = typeof window !== "undefined" ? window.location.hostname : "your-domain.run.app";
-      return `Domain not authorized: Firebase requires "${currentHost}" to be added under Firebase Console > Authentication > Settings > Authorized Domains. You can use Email & Password sign-in or guest checkout in the meantime.`;
+      return `Domain not authorized: Firebase requires "${currentHost}" to be added under Firebase Console > Authentication > Settings > Authorized Domains. (You can also use Email & Password sign-in or guest checkout in the meantime).`;
+    }
+    if (code === "auth/popup-blocked" || msg.includes("popup-blocked")) {
+      return "The Google login popup was blocked by the browser. Please allow popups for this site or open the page in a new browser tab.";
     }
     if (code === "auth/network-request-failed" || msg.includes("network-request-failed")) {
       return "Network error. If you are in the iframe preview, please open the app in a new tab or check your connection.";
