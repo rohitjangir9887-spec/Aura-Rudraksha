@@ -132,6 +132,16 @@ export function AdminReviews() {
   const [isNewReviewModalOpen, setIsNewReviewModalOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
+  // External Reviews Import & AI Polish state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [externalInputText, setExternalInputText] = useState("");
+  const [importResults, setImportResults] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const [polishingReviewId, setPolishingReviewId] = useState(null);
+  const [polishModalData, setPolishModalData] = useState(null);
+  const [isPolishing, setIsPolishing] = useState(false);
+
   // Live preview mode
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [previewDevice, setPreviewDevice] = useState("desktop"); // "desktop" | "tablet" | "mobile"
@@ -661,6 +671,73 @@ export function AdminReviews() {
     }
   };
 
+  // Import external Google or third-party reviews with duplicate prevention
+  const handleImportExternalSubmit = async (e) => {
+    e?.preventDefault();
+    if (!externalInputText.trim()) {
+      emitToast("Please paste external reviews or JSON to import.", "warning");
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResults(null);
+    try {
+      let rawList = [];
+      try {
+        const parsed = JSON.parse(externalInputText);
+        rawList = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (_) {
+        const lines = externalInputText.split("\n").map(l => l.trim()).filter(Boolean);
+        rawList = lines.map((line, idx) => {
+          const parts = line.split(/[:|]/);
+          if (parts.length >= 2 && parts[0].trim().length <= 30) {
+            return {
+              authorDisplayName: parts[0].trim(),
+              text: parts.slice(1).join(":").trim(),
+              source: "google_reviews"
+            };
+          }
+          return {
+            authorDisplayName: `Google Customer ${idx + 1}`,
+            text: line,
+            source: "google_reviews"
+          };
+        });
+      }
+
+      const res = await db.importExternalReviews(rawList);
+      setImportResults(res);
+      emitToast(`Imported ${res.importedCount || 0} external review(s). Skipped ${res.skippedCount || 0} duplicate(s).`, "success");
+    } catch (err) {
+      emitToast(err.message || "Failed to import external reviews.", "error");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Polish a review using AI for grammar/spelling while preserving original experience
+  const handlePolishReview = async (review) => {
+    setPolishingReviewId(review.id);
+    setIsPolishing(true);
+    try {
+      const res = await db.polishReviewWithAI({ id: review.id, text: review.text });
+      if (res?.success) {
+        setPolishModalData({
+          reviewId: review.id,
+          originalText: res.originalText,
+          polishedText: res.polishedText,
+          editedByAI: true
+        });
+        emitToast("AI review polish generated! Spelling & readability enhanced.", "success");
+      }
+    } catch (err) {
+      emitToast(err.message || "Failed to polish review with AI.", "error");
+    } finally {
+      setIsPolishing(false);
+      setPolishingReviewId(null);
+    }
+  };
+
   return (
     <AdminLayout title="Reviews & Ratings Management">
       {/* Top Header & Quick Actions */}
@@ -681,6 +758,19 @@ export function AdminReviews() {
           >
             <Eye size={16} />
             <span>{showLivePreview ? "Hide Store Preview" : "Preview Store Experience"}</span>
+          </button>
+
+          <button 
+            type="button"
+            className="admin-btn secondary"
+            onClick={() => {
+              setIsImportModalOpen(true);
+              setImportResults(null);
+            }}
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <Upload size={16} />
+            <span>Import External Reviews</span>
           </button>
 
           <button 
@@ -1464,13 +1554,22 @@ export function AdminReviews() {
                             ))}
                           </div>
                           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
-                            {isAiDraft ? (
+                            {r.source === "google_reviews" || r.source === "imported" ? (
+                              <span className="admin-badge info" style={{ fontSize: "10px", padding: "2px 6px", background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                <ExternalLink size={10} /> External Google Review
+                              </span>
+                            ) : isAiDraft ? (
                               <span className="admin-badge warning" style={{ fontSize: "10px", padding: "2px 6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", display: "inline-flex", alignItems: "center", gap: "3px" }}>
                                 <Sparkles size={10} color="#d97706" /> AI Draft — Internal
                               </span>
                             ) : r.verified && (
                               <span className="admin-badge success" style={{ fontSize: "10px", padding: "2px 6px" }}>
                                 <Check size={10} /> Verified Devotee
+                              </span>
+                            )}
+                            {r.editedByAI && (
+                              <span className="admin-badge success" style={{ fontSize: "10px", padding: "2px 6px", background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", display: "inline-flex", alignItems: "center", gap: "3px" }} title={`Original text: "${r.originalText || r.text}"`}>
+                                <Sparkles size={10} color="#16a34a" /> AI Polished
                               </span>
                             )}
                             {r.featured && (
@@ -1563,6 +1662,15 @@ export function AdminReviews() {
                         {/* Actions */}
                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                           <div style={{ display: "inline-flex", gap: "6px" }}>
+                            <button 
+                              className="admin-icon-btn" 
+                              onClick={() => handlePolishReview(r)}
+                              disabled={polishingReviewId === r.id}
+                              title="Polish review grammar & readability with AI (preserves original experience)"
+                            >
+                              <Sparkles size={15} color="#d97706" />
+                            </button>
+
                             <button 
                               className="admin-icon-btn" 
                               onClick={() => {
@@ -2089,6 +2197,102 @@ export function AdminReviews() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* IMPORT EXTERNAL REVIEWS MODAL */}
+      {isImportModalOpen && (
+        <div className="aura-modal-backdrop" onClick={() => setIsImportModalOpen(false)}>
+          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "620px" }}>
+            <div className="aura-modal-header">
+              <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Upload size={18} color="#0369a1" /> Import External Google / Third-Party Reviews
+              </h3>
+              <button className="aura-modal-close-btn" onClick={() => setIsImportModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 14px" }}>
+              Paste reviews from Google or public sites. Exact & normalized duplicate text matching will automatically filter out duplicates and store original source metadata.
+            </p>
+
+            <form onSubmit={handleImportExternalSubmit} className="aura-modal-form">
+              <div className="aura-form-group">
+                <label className="aura-form-label">Review Data (JSON or Line-by-Line "Author: Text")</label>
+                <textarea 
+                  rows={6}
+                  required
+                  value={externalInputText}
+                  onChange={(e) => setExternalInputText(e.target.value)}
+                  placeholder={`Rahul Sharma: Authentic 5 Mukhi Rudraksha, great energy!\nPriya V.: Very good quality bead and fast packaging.`}
+                  className="aura-textarea"
+                />
+              </div>
+
+              {importResults && (
+                <div style={{ padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }}>
+                  <strong style={{ color: "#0f172a", display: "block", marginBottom: "4px" }}>Import Results Summary:</strong>
+                  <div style={{ color: "#166534" }}>✅ Imported: {importResults.importedCount || 0} unique review(s)</div>
+                  <div style={{ color: "#991b1b" }}>⚠️ Skipped: {importResults.skippedCount || 0} duplicate review(s)</div>
+                  {importResults.duplicates?.length > 0 && (
+                    <ul style={{ margin: "6px 0 0 16px", padding: 0, color: "#64748b" }}>
+                      {importResults.duplicates.map((d, i) => (
+                        <li key={i}>{d.reason}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <div className="aura-modal-actions">
+                <button type="button" className="aura-btn-cancel" onClick={() => setIsImportModalOpen(false)}>
+                  Close
+                </button>
+                <button type="submit" className="aura-btn-submit" disabled={isImporting} style={{ background: "#0369a1" }}>
+                  {isImporting ? "Processing Provenance & Hashes..." : "Check & Import Reviews"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI POLISH RESULT COMPARISON MODAL */}
+      {polishModalData && (
+        <div className="aura-modal-backdrop" onClick={() => setPolishModalData(null)}>
+          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "580px" }}>
+            <div className="aura-modal-header">
+              <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Sparkles size={18} color="#16a34a" /> AI Polish Comparison
+              </h3>
+              <button className="aura-modal-close-btn" onClick={() => setPolishModalData(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 12px" }}>
+              The AI has polished grammar and spelling while strictly preserving original meaning & experience. Original text hash remains permanently stored.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
+              <div style={{ padding: "10px", background: "#fef2f2", borderLeft: "3px solid #ef4444", borderRadius: "4px" }}>
+                <span style={{ fontSize: "11px", fontWeight: "700", color: "#991b1b", display: "block" }}>Original Devotee Text:</span>
+                <p style={{ fontSize: "13px", color: "#374151", margin: "4px 0 0" }}>{polishModalData.originalText}</p>
+              </div>
+
+              <div style={{ padding: "10px", background: "#f0fdf4", borderLeft: "3px solid #22c55e", borderRadius: "4px" }}>
+                <span style={{ fontSize: "11px", fontWeight: "700", color: "#166534", display: "block" }}>Polished Text (Live on Store):</span>
+                <p style={{ fontSize: "13px", color: "#374151", margin: "4px 0 0" }}>{polishModalData.polishedText}</p>
+              </div>
+            </div>
+
+            <div className="aura-modal-actions">
+              <button type="button" className="aura-btn-submit" onClick={() => setPolishModalData(null)} style={{ background: "#166534" }}>
+                Got it
+              </button>
+            </div>
           </div>
         </div>
       )}

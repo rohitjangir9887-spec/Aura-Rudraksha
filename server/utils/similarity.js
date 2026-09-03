@@ -4,6 +4,33 @@
  * All similarity scores are strictly normalized between 0% and 100%.
  */
 
+import crypto from "crypto";
+
+/**
+ * Compute SHA256 hash of a string
+ */
+export function computeSha256(str) {
+  if (!str || typeof str !== "string") return "";
+  return crypto.createHash("sha256").update(str.trim()).digest("hex");
+}
+
+/**
+ * Get hash of exact trimmed raw text
+ */
+export function getExactTextHash(text) {
+  if (!text || typeof text !== "string") return "";
+  return computeSha256(text.trim());
+}
+
+/**
+ * Get hash of normalized text (lowercase, alphanumeric, collapsed spaces)
+ */
+export function getNormalizedTextHash(text) {
+  const norm = normalizeText(text);
+  if (!norm) return "";
+  return computeSha256(norm);
+}
+
 // Normalize text: lowercase, remove punctuation/special characters, collapse whitespace
 export function normalizeText(str) {
   if (!str || typeof str !== "string") return "";
@@ -127,3 +154,67 @@ export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
     matchedReview: bestMatch ? (bestMatch.title ? `"${bestMatch.title}"` : (bestMatch.text || bestMatch.content || "").slice(0, 70) + "...") : null
   };
 }
+
+/**
+ * Check if a review candidate is a duplicate against existing review list.
+ * Returns: { isDuplicate: boolean, reason: string, matchedReview: string }
+ */
+export function checkDuplicateReview(candidate, existingCorpus = []) {
+  const candidateText = candidate?.text || candidate?.content || "";
+  const candidateSourceId = candidate?.sourceReviewId ? String(candidate.sourceReviewId).trim() : "";
+  const candidateId = candidate?.id ? String(candidate.id).trim() : "";
+
+  if (!candidateText) {
+    return { isDuplicate: false, reason: "", matchedReview: null };
+  }
+
+  const exactHash = candidate.exactTextHash || getExactTextHash(candidateText);
+  const normalizedHash = candidate.normalizedTextHash || getNormalizedTextHash(candidateText);
+
+  for (const ex of existingCorpus) {
+    // Skip checking against itself
+    if (candidateId && String(ex.id) === candidateId) continue;
+
+    const exSourceId = ex.sourceReviewId ? String(ex.sourceReviewId).trim() : "";
+    if (candidateSourceId && exSourceId && candidateSourceId === exSourceId) {
+      return {
+        isDuplicate: true,
+        reason: "Same external review ID already imported (sourceReviewId match)",
+        matchedReview: ex.title ? `"${ex.title}"` : (ex.text || "").slice(0, 70) + "..."
+      };
+    }
+
+    const exText = ex.text || ex.content || "";
+    const exExactHash = ex.exactTextHash || getExactTextHash(exText);
+    const exNormHash = ex.normalizedTextHash || getNormalizedTextHash(exText);
+
+    if (exactHash && exExactHash && exactHash === exExactHash) {
+      return {
+        isDuplicate: true,
+        reason: "Exact review text match detected (exactTextHash match)",
+        matchedReview: ex.title ? `"${ex.title}"` : exText.slice(0, 70) + "..."
+      };
+    }
+
+    if (normalizedHash && exNormHash && normalizedHash === exNormHash) {
+      return {
+        isDuplicate: true,
+        reason: "Normalized review text match detected (normalizedTextHash match)",
+        matchedReview: ex.title ? `"${ex.title}"` : exText.slice(0, 70) + "..."
+      };
+    }
+  }
+
+  // Fallback to similarity evaluation
+  const sim = evaluateDraftSimilarity(candidateText, existingCorpus);
+  if (sim.similarityStatus === "Duplicate") {
+    return {
+      isDuplicate: true,
+      reason: `Review content similarity threshold exceeded (${sim.similarityScore}% similarity)`,
+      matchedReview: sim.matchedReview
+    };
+  }
+
+  return { isDuplicate: false, reason: "", matchedReview: null };
+}
+

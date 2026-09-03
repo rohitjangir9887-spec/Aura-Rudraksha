@@ -8,7 +8,9 @@ import {
   getReviewSettings,
   saveReviewSettings,
   generateReviewDrafts,
-  bulkSaveReviews
+  bulkSaveReviews,
+  importExternalReviews,
+  polishReviewWithAI
 } from "../controllers/reviewController.js";
 import { requireAdmin, optionalAuth } from "../middleware/auth.js";
 
@@ -17,6 +19,12 @@ const router = express.Router();
 router.route("/")
   .get(optionalAuth, getReviews)
   .post(createReview);
+
+router.route("/import-external")
+  .post(requireAdmin, importExternalReviews);
+
+router.route("/polish")
+  .post(requireAdmin, polishReviewWithAI);
 
 router.route("/generate-drafts")
   .post(requireAdmin, generateReviewDrafts);

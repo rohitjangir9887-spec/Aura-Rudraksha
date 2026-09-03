@@ -1902,7 +1902,45 @@ export const db = {
       });
       emitStoreUpdate("review:bulk-saved", savedList);
     }
-    return { success: true, data: savedList };
+    return { success: true, data: savedList, skipped: res.skipped || [] };
+  },
+
+  importExternalReviews: async (reviews) => {
+    const res = await apiRequest("/reviews/import-external", {
+      method: "POST",
+      body: JSON.stringify({ reviews }),
+      timeoutMs: 30000
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to import external reviews.");
+    }
+    const importedList = res.data || [];
+    if (Array.isArray(importedList)) {
+      importedList.forEach(rev => {
+        const idx = storeCache.reviews.findIndex(r => String(r.id) === String(rev.id));
+        if (idx !== -1) storeCache.reviews[idx] = rev;
+        else storeCache.reviews.unshift(rev);
+      });
+      emitStoreUpdate("review:imported", importedList);
+    }
+    return res;
+  },
+
+  polishReviewWithAI: async ({ id, text }) => {
+    const res = await apiRequest("/reviews/polish", {
+      method: "POST",
+      body: JSON.stringify({ id, text }),
+      timeoutMs: 15000
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to polish review text with AI.");
+    }
+    if (res.data) {
+      const idx = storeCache.reviews.findIndex(r => String(r.id) === String(res.data.id));
+      if (idx !== -1) storeCache.reviews[idx] = res.data;
+      emitStoreUpdate("review:updated", res.data);
+    }
+    return res;
   },
 
   // STORE SETTINGS & POLICIES
