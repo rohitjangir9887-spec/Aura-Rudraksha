@@ -38,6 +38,7 @@ export function Product() {
 
   // Gallery & UI state
   const [qty, setQty] = useState(1);
+  const [selectedSize, setSelectedSize] = useState("1.5 cm");
   const [activeImg, setActiveImg] = useState("");
   const [slideDirection, setSlideDirection] = useState(1);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -346,14 +347,14 @@ export function Product() {
     if (isOutOfStock) return;
     add(p.id, qty);
     setAdded(true);
-    emitToast(`${p.name} (${qty}) added to your cart ❤️`, "success");
+    emitToast(`${p.name} (${selectedSize}) added to your cart ❤️`, "success");
     setTimeout(() => setAdded(false), 2000);
   };
 
   const handleBuyNow = () => {
     if (isOutOfStock) return;
     add(p.id, qty);
-    emitToast(`Proceeding to checkout with ${p.name}`, "info");
+    emitToast(`Proceeding to checkout with ${p.name} (${selectedSize})`, "info");
     navigate('/checkout');
   };
 
@@ -362,7 +363,7 @@ export function Product() {
     const settings = db.getSettings();
     const supportPhone = settings.supportPhone || "+91 9672996531";
     const waCleanPhone = supportPhone.replace(/[^0-9]/g, "");
-    const message = `Hello Aura Rudraksha,\n\nI would like to order:\n\n*Product:* ${p.name}\n*Quantity:* ${qty}\n*Price:* ${money(price * qty)}\n*Link:* ${window.location.href}\n\nPlease let me know the payment options and delivery details.\n\nThank you!`;
+    const message = `Hello Aura Rudraksha,\n\nI would like to order:\n\n*Product:* ${p.name}\n*Bead Size:* ${selectedSize}\n*Quantity:* ${qty}\n*Price:* ${money(price * qty)}\n*Link:* ${window.location.href}\n\nPlease let me know the payment options and delivery details.\n\nThank you!`;
     const waUrl = `https://wa.me/${waCleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(waUrl, "_blank");
   };
@@ -448,7 +449,11 @@ export function Product() {
           {/* ========================================================
               LEFT COLUMN: PREMIUM PRODUCT IMAGE GALLERY
              ======================================================== */}
-          <div className="product-gallery-column">
+          <div className="product-gallery-column" style={{
+            marginTop: "-25px",
+            paddingTop: "10px",
+            paddingBottom: "10px"
+          }}>
             <div 
               className="main-image-frame"
               onTouchStart={handleTouchStart}
@@ -742,6 +747,66 @@ export function Product() {
                       <><Copy size={14} /> Copy Code</>
                     )}
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* BEAD SIZE SELECTION */}
+            {!isOutOfStock && (
+              <div className="size-selection-block" style={{ margin: "20px 0 15px 0" }}>
+                <span style={{ 
+                  fontSize: "12px", 
+                  textTransform: "uppercase", 
+                  letterSpacing: "1px", 
+                  color: "#806f62", 
+                  fontWeight: 700, 
+                  display: "block", 
+                  marginBottom: "8px" 
+                }}>
+                  Select Bead Size:
+                </span>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  {[
+                    { value: "1.2 cm", label: "1.2 cm", desc: "Compact & Light" },
+                    { value: "1.5 cm", label: "1.5 cm", desc: "Most Auspicious" },
+                    { value: "2.0 cm", label: "2.0 cm", desc: "Collector's Bead" }
+                  ].map((sz) => {
+                    const isSel = selectedSize === sz.value;
+                    return (
+                      <button
+                        key={sz.value}
+                        type="button"
+                        onClick={() => setSelectedSize(sz.value)}
+                        style={{
+                          flex: 1,
+                          minWidth: "100px",
+                          textAlign: "left",
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          border: isSel ? "2px solid #b28514" : "1.5px solid #e8e0d8",
+                          background: isSel ? "#fffdf5" : "#ffffff",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          boxShadow: isSel ? "0 4px 12px rgba(178, 133, 20, 0.1)" : "none"
+                        }}
+                      >
+                        <div style={{ 
+                          fontWeight: 700, 
+                          color: isSel ? "#8c6d53" : "#2b170d", 
+                          fontSize: "14px" 
+                        }}>
+                          {sz.label}
+                        </div>
+                        <div style={{ 
+                          fontSize: "10.5px", 
+                          color: isSel ? "#b28514" : "#806f62",
+                          marginTop: "2px"
+                        }}>
+                          {sz.desc}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
