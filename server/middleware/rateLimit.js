@@ -30,9 +30,12 @@ export function rateLimit({ windowMs = 60_000, max = 30, message, prefix = "rl" 
     res.setHeader("RateLimit-Remaining", String(Math.max(0, max - bucket.count)));
 
     if (bucket.count > max) {
-      res.setHeader("Retry-After", String(Math.ceil((bucket.resetAt - now) / 1000)));
+      const retryAfterSec = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfterSec));
       return res.status(429).json({
         success: false,
+        error: "Too Many Requests",
+        retryAfter: retryAfterSec,
         message: message || "Too many requests. Please slow down and try again in a moment."
       });
     }

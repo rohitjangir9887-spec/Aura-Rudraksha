@@ -22,6 +22,8 @@ export function AdminProducts() {
   const [urlInput, setUrlInput] = useState("");
   const [formError, setFormError] = useState("");
   const [deleteId, setDeleteId] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgressMsg, setUploadProgressMsg] = useState("");
 
   useEffect(() => {
     load();
@@ -178,6 +180,7 @@ const handleEdit = (p) => {
 
   // Image Upload Handler using Puter Media Storage
   const handleFileUpload = async (e) => {
+    if (isUploading) return;
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
@@ -188,36 +191,54 @@ const handleEdit = (p) => {
       return;
     }
 
+    setIsUploading(true);
     let loadedCount = currentCount;
     let successCount = 0;
-    for (const file of files) {
-      if (loadedCount >= 10) {
-        emitToast("Maximum limit of 10 images reached.", "warning");
-        break;
-      }
-      try {
-        const mediaUrl = await uploadMedia(file);
-        if (mediaUrl) {
-          setEditing(prev => {
-            if (!prev) return prev;
-            const newImages = [...(prev.images || [])];
-            if (newImages.length >= 10) return prev;
-            newImages.push(mediaUrl);
-            return {
-              ...prev,
-              images: newImages,
-              img: prev.img || mediaUrl
-            };
-          });
-          loadedCount++;
-          successCount++;
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (loadedCount >= 10) {
+          emitToast("Maximum limit of 10 images reached.", "warning");
+          break;
         }
-      } catch (err) {
-        emitToast(`Failed to upload ${file.name}: ${err.message}`, "error");
+
+        setUploadProgressMsg(`Uploading ${file.name} (${i + 1}/${files.length})...`);
+        try {
+          const mediaUrl = await uploadMedia(file);
+          if (mediaUrl) {
+            setEditing(prev => {
+              if (!prev) return prev;
+              const newImages = [...(prev.images || [])];
+              if (newImages.length >= 10) return prev;
+              if (!newImages.includes(mediaUrl)) {
+                newImages.push(mediaUrl);
+              }
+              return {
+                ...prev,
+                images: newImages,
+                img: prev.img || mediaUrl
+              };
+            });
+            loadedCount++;
+            successCount++;
+          }
+        } catch (err) {
+          emitToast(`Failed to upload ${file.name}: ${err.message}`, "error");
+        }
+
+        // Small pacing delay between multiple files
+        if (i < files.length - 1) {
+          await new Promise(r => setTimeout(r, 100));
+        }
       }
+    } finally {
+      setIsUploading(false);
+      setUploadProgressMsg("");
+      setFormError("");
+      if (e.target) e.target.value = "";
     }
-    setFormError("");
-    e.target.value = "";
+
     if (successCount > 0) {
       emitToast(`${successCount} image(s) uploaded successfully to Puter Cloud!`, "success");
     }
@@ -654,7 +675,7 @@ const handleEdit = (p) => {
 
             <div className="admin-form-row" style={{ gap: '12px', marginBottom: '16px' }}>
               {/* Method A: File Upload */}
-              <div style={{ background: '#fff', padding: '14px', borderRadius: '8px', border: '1px dashed #a54d2b', flex: 1 }}>
+              <div style={{ background: '#fff', padding: '14px', borderRadius: '8px', border: '1px dashed #a54d2b', flex: 1, opacity: isUploading ? 0.75 : 1 }}>
                 <b style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', color: '#a54d2b', marginBottom: '6px' }}>
                   <Upload size={16} /> Method A: File Upload (Select Multiple)
                 </b>
@@ -662,9 +683,15 @@ const handleEdit = (p) => {
                   type="file" 
                   accept="image/*,video/*" 
                   multiple 
+                  disabled={isUploading}
                   onChange={handleFileUpload} 
-                  style={{ fontSize: '12px', width: '100%' }} 
+                  style={{ fontSize: '12px', width: '100%', cursor: isUploading ? 'not-allowed' : 'pointer' }} 
                 />
+                {isUploading && (
+                  <span style={{ display: 'block', fontSize: '11px', color: '#a54d2b', marginTop: '6px', fontWeight: '500' }}>
+                    ⏳ {uploadProgressMsg || "Uploading to Puter Cloud..."}
+                  </span>
+                )}
               </div>
 
               {/* Method B: URL Input */}

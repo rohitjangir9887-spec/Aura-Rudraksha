@@ -42,6 +42,7 @@ const paymentLimit = rateLimit({ windowMs: 60_000, max: 15, message: "Too many p
 const reviewsLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Review submission limit reached.", prefix: "reviews" });
 const ticketsLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Support ticket submission limit reached.", prefix: "tickets" });
 const adminApiLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Admin API rate limit reached.", prefix: "admin_api" });
+const uploadLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Media upload registration rate limit reached. Please wait a moment before uploading more images.", prefix: "upload_reg" });
 
 // Allowed cross-origin frontends, per CORS_ORIGINS (comma-separated) in .env.
 // Empty = same-origin only, which matches the default single-server deploy
@@ -139,6 +140,7 @@ export function createApp() {
     app.use("/api/wishlist", strictLimit);
     app.use("/api/customers/me", strictLimit);
     app.use("/api/auth", strictLimit);
+    app.use("/api/upload/register", uploadLimit);
     app.use("/api/analytics", adminApiLimit);
     app.use("/api/settings", adminApiLimit);
   }

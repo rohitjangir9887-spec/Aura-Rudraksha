@@ -100,6 +100,67 @@ let _retryCount = 0;
 let _listenersInitialized = false;
 let _lastCheckTimestamp = 0;
 
+// In-flight upload deduplication map: Key -> Promise<string>
+const _inFlightUploads = new Map();
+
+/**
+ * Executes a fetch request with safe exponential backoff on 429 responses.
+ * Respects Retry-After header and adds jitter without infinite loops.
+ */
+async function fetchWithBackoff(url, options = {}, maxRetries = 3) {
+  let attempt = 0;
+  while (true) {
+    let res;
+    try {
+      res = await fetch(url, options);
+    } catch (networkErr) {
+      if (attempt >= maxRetries) {
+        throw networkErr;
+      }
+      attempt++;
+      const delayMs = 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 200);
+      await new Promise(r => setTimeout(r, delayMs));
+      continue;
+    }
+
+    // If 429 Too Many Requests, perform safe backoff
+    if (res.status === 429) {
+      attempt++;
+      const data = await res.json().catch(() => ({}));
+      if (attempt > maxRetries) {
+        const retryAfterHeader = res.headers.get("Retry-After");
+        const waitSec = data.retryAfter || (retryAfterHeader ? parseInt(retryAfterHeader, 10) : 5);
+        const err = new Error(data.message || `Rate limit reached. Please wait ${waitSec}s before trying again.`);
+        err.status = 429;
+        err.retryAfter = waitSec;
+        throw err;
+      }
+
+      const retryAfterHeader = res.headers.get("Retry-After");
+      let delayMs = 1500 * Math.pow(2, attempt - 1);
+      if (data.retryAfter && typeof data.retryAfter === "number") {
+        delayMs = Math.min(data.retryAfter * 1000, 10000);
+      } else if (retryAfterHeader) {
+        const parsed = parseInt(retryAfterHeader, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          delayMs = Math.min(parsed * 1000, 10000);
+        }
+      }
+      // Add jitter to avoid burst synchronization
+      delayMs += Math.floor(Math.random() * 300);
+
+      if (import.meta.env.DEV) {
+        console.warn(`[ImageUpload] 429 received for ${url}. Backoff ${delayMs}ms (Attempt ${attempt}/${maxRetries})`);
+      }
+
+      await new Promise(r => setTimeout(r, delayMs));
+      continue;
+    }
+
+    return res;
+  }
+}
+
 function notifyStatusSubscribers(status) {
   _statusSubscribers.forEach((callback) => {
     try {
@@ -424,137 +485,159 @@ export async function uploadMedia(file, onProgress = () => {}) {
     }
   }
 
-  // 1. Verify Puter connection & authentication
-  const status = await getPuterMediaStatus();
-  if (!status.connected) {
-    throw new Error("Puter Cloud not connected. Please connect Puter in Admin Panel before uploading media.");
+  // Deduplicate in-flight uploads for the same file object to prevent double-upload triggers
+  const uploadKey = (file instanceof File || file instanceof Blob)
+    ? `${file.name || "blob"}_${file.size || 0}_${file.lastModified || 0}`
+    : String(file);
+
+  if (_inFlightUploads.has(uploadKey)) {
+    if (import.meta.env.DEV) {
+      console.log("[Puter Diagnostics] In-flight upload reused for key:", uploadKey);
+    }
+    return _inFlightUploads.get(uploadKey);
   }
 
-  const isVideo = file.type?.startsWith("video/") || file.name?.endsWith(".mp4") || file.name?.endsWith(".webm");
-  const maxBytes = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+  const uploadPromise = (async () => {
+    // 1. Verify Puter connection & authentication
+    const status = await getPuterMediaStatus();
+    if (!status.connected) {
+      throw new Error("Puter Cloud not connected. Please connect Puter in Admin Panel before uploading media.");
+    }
 
-  if (file.size && file.size > maxBytes) {
-    throw new Error(`File size exceeds ${isVideo ? '50MB' : '10MB'} limit.`);
-  }
+    const isVideo = file.type?.startsWith("video/") || file.name?.endsWith(".mp4") || file.name?.endsWith(".webm");
+    const maxBytes = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
 
-  const allowedTypes = [
-    "image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "image/svg+xml",
-    "video/mp4", "video/webm", "video/ogg"
-  ];
-  if (file.type && !allowedTypes.includes(file.type)) {
-    throw new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.");
-  }
+    if (file.size && file.size > maxBytes) {
+      throw new Error(`File size exceeds ${isVideo ? '50MB' : '10MB'} limit.`);
+    }
 
-  onProgress(15);
-  const puter = window.puter;
+    const allowedTypes = [
+      "image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "image/svg+xml",
+      "video/mp4", "video/webm", "video/ogg"
+    ];
+    if (file.type && !allowedTypes.includes(file.type)) {
+      throw new Error("Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.");
+    }
 
-  const cleanName = (file.name || "media.jpg").replace(/[^a-zA-Z0-9_.-]/g, "_");
-  const fileName = `aura_${Date.now()}_${cleanName}`;
-  const dirPath = "aura_uploads";
-  const filePath = `${dirPath}/${fileName}`;
+    onProgress(15);
+    const puter = window.puter;
 
-  if (import.meta.env.DEV) {
-    console.log("[Puter Diagnostics] Uploading file to Puter:", fileName, "Size:", file.size);
-  }
+    const cleanName = (file.name || "media.jpg").replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const fileName = `aura_${Date.now()}_${cleanName}`;
+    const dirPath = "aura_uploads";
+    const filePath = `${dirPath}/${fileName}`;
 
-  // 2. Upload file directly to Puter Cloud File System
-  let uploadedItem = null;
-  try {
-    if (typeof puter.fs?.upload === "function") {
-      uploadedItem = await puter.fs.upload([file], dirPath, {
-        createMissingParents: true,
-        dedupeName: false,
-        progress: (opId, p) => {
-          const pct = Math.min(70, Math.max(20, Math.round(20 + (p || 0) * 0.5)));
-          onProgress(pct);
+    if (import.meta.env.DEV) {
+      console.log("[Puter Diagnostics] Uploading file to Puter:", fileName, "Size:", file.size);
+    }
+
+    // 2. Upload file directly to Puter Cloud File System
+    let uploadedItem = null;
+    try {
+      if (typeof puter.fs?.upload === "function") {
+        uploadedItem = await puter.fs.upload([file], dirPath, {
+          createMissingParents: true,
+          dedupeName: false,
+          progress: (opId, p) => {
+            const pct = Math.min(70, Math.max(20, Math.round(20 + (p || 0) * 0.5)));
+            onProgress(pct);
+          }
+        });
+        if (Array.isArray(uploadedItem)) {
+          uploadedItem = uploadedItem[0];
         }
-      });
-      if (Array.isArray(uploadedItem)) {
-        uploadedItem = uploadedItem[0];
+      } else {
+        await puter.fs.write(filePath, file, { createMissingParents: true });
       }
-    } else {
+    } catch (uploadErr) {
+      if (import.meta.env.DEV) {
+        console.warn("[Puter Diagnostics] upload method retry with write:", uploadErr);
+      }
       await puter.fs.write(filePath, file, { createMissingParents: true });
     }
-  } catch (uploadErr) {
-    if (import.meta.env.DEV) {
-      console.warn("[Puter Diagnostics] upload method retry with write:", uploadErr);
+
+    onProgress(75);
+
+    // 3. Verify file exists on Puter Cloud
+    const fileStat = await puter.fs.stat(uploadedItem?.path || filePath).catch(() => null);
+    if (!fileStat) {
+      throw new Error("File upload verification failed. File not found on Puter Cloud Storage.");
     }
-    await puter.fs.write(filePath, file, { createMissingParents: true });
-  }
 
-  onProgress(75);
+    if (import.meta.env.DEV) {
+      console.log("[Puter Diagnostics] Upload verified on Puter. Item:", {
+        name: fileStat.name,
+        size: fileStat.size,
+        path: fileStat.path
+      });
+    }
 
-  // 3. Verify file exists on Puter Cloud
-  const fileStat = await puter.fs.stat(uploadedItem?.path || filePath).catch(() => null);
-  if (!fileStat) {
-    throw new Error("File upload verification failed. File not found on Puter Cloud Storage.");
-  }
+    onProgress(85);
 
-  if (import.meta.env.DEV) {
-    console.log("[Puter Diagnostics] Upload verified on Puter. Item:", {
-      name: fileStat.name,
-      size: fileStat.size,
-      path: fileStat.path
+    // 4. Resolve production-safe permanent public media reference
+    let publicUrl = "";
+    const hostedDomain = await getPuterHostedDomain();
+    const actualFileName = fileStat.name || fileName;
+
+    if (hostedDomain) {
+      publicUrl = `https://${hostedDomain}/${encodeURIComponent(actualFileName)}`;
+    } else if (typeof puter.fs.getReadURL === "function") {
+      publicUrl = await puter.fs.getReadURL(fileStat.path || filePath);
+    }
+
+    if (!publicUrl) {
+      throw new Error("Could not resolve production public URL from Puter Cloud.");
+    }
+
+    if (import.meta.env.DEV) {
+      console.log("[Puter Diagnostics] Resolved public URL:", publicUrl);
+    }
+
+    onProgress(90);
+
+    // 5. Register media metadata in MongoDB with safe backoff
+    const registerRes = await fetchWithBackoff(`${API_BASE}/upload/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        readURL: publicUrl,
+        url: publicUrl,
+        puterFileId: fileStat.path || filePath,
+        fileId: fileStat.path || filePath,
+        path: fileStat.path || filePath,
+        filename: actualFileName,
+        type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+        sizeBytes: file.size || fileStat.size || 0,
+        size: file.size || fileStat.size || 0,
+        metadata: {
+          provider: "puter",
+          originalName: file.name,
+          uploadedAt: new Date().toISOString()
+        },
+        provider: "puter"
+      })
     });
+
+    const registerData = await registerRes.json().catch(() => ({}));
+    if (!registerRes.ok || !registerData.success) {
+      throw new Error(registerData.message || "Puter upload succeeded but registering media metadata in MongoDB failed.");
+    }
+
+    if (import.meta.env.DEV) {
+      console.log("[Puter Diagnostics] MongoDB registration succeeded:", registerData);
+    }
+
+    onProgress(100);
+    return publicUrl;
+  })();
+
+  _inFlightUploads.set(uploadKey, uploadPromise);
+
+  try {
+    return await uploadPromise;
+  } finally {
+    _inFlightUploads.delete(uploadKey);
   }
-
-  onProgress(85);
-
-  // 4. Resolve production-safe permanent public media reference
-  let publicUrl = "";
-  const hostedDomain = await getPuterHostedDomain();
-  const actualFileName = fileStat.name || fileName;
-
-  if (hostedDomain) {
-    publicUrl = `https://${hostedDomain}/${encodeURIComponent(actualFileName)}`;
-  } else if (typeof puter.fs.getReadURL === "function") {
-    publicUrl = await puter.fs.getReadURL(fileStat.path || filePath);
-  }
-
-  if (!publicUrl) {
-    throw new Error("Could not resolve production public URL from Puter Cloud.");
-  }
-
-  if (import.meta.env.DEV) {
-    console.log("[Puter Diagnostics] Resolved public URL:", publicUrl);
-  }
-
-  onProgress(90);
-
-  // 5. Register media metadata in MongoDB
-  const registerRes = await fetch(`${API_BASE}/upload/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      readURL: publicUrl,
-      url: publicUrl,
-      puterFileId: fileStat.path || filePath,
-      fileId: fileStat.path || filePath,
-      path: fileStat.path || filePath,
-      filename: actualFileName,
-      type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
-      sizeBytes: file.size || fileStat.size || 0,
-      size: file.size || fileStat.size || 0,
-      metadata: {
-        provider: "puter",
-        originalName: file.name,
-        uploadedAt: new Date().toISOString()
-      },
-      provider: "puter"
-    })
-  });
-
-  const registerData = await registerRes.json().catch(() => ({}));
-  if (!registerRes.ok || !registerData.success) {
-    throw new Error(registerData.message || "Puter upload succeeded but registering media metadata in MongoDB failed.");
-  }
-
-  if (import.meta.env.DEV) {
-    console.log("[Puter Diagnostics] MongoDB registration succeeded:", registerData);
-  }
-
-  onProgress(100);
-  return publicUrl;
 }
 
 export function getMediaUrl(url) {
