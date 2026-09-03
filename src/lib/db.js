@@ -46,7 +46,8 @@ async function apiRequest(endpoint, options = {}) {
 
   const execute = async () => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 8000);
+    const defaultTimeout = isGet ? 15000 : 35000;
+    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || defaultTimeout);
 
     try {
       const token = await authClient.getToken().catch(() => "");
@@ -1870,7 +1871,8 @@ export const db = {
   generateReviewDrafts: async (params) => {
     const res = await apiRequest("/reviews/generate-drafts", {
       method: "POST",
-      body: JSON.stringify(params)
+      body: JSON.stringify(params),
+      timeoutMs: 60000
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to generate review drafts.");
@@ -1881,7 +1883,8 @@ export const db = {
   bulkSaveReviews: async (reviews, allowDuplicates = false) => {
     const res = await apiRequest("/reviews/bulk-save", {
       method: "POST",
-      body: JSON.stringify({ reviews, allowDuplicates })
+      body: JSON.stringify({ reviews, allowDuplicates }),
+      timeoutMs: 30000
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to bulk save reviews. Database is unavailable.");

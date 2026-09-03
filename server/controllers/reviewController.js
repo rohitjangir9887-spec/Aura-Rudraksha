@@ -647,7 +647,8 @@ Length: "${reviewLength}".`;
       const geminiModels = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest"];
       for (const modelName of geminiModels) {
         try {
-          const response = await aiClient.models.generateContent({
+          // Timeout each Gemini call at 8 seconds
+          const gemPromise = aiClient.models.generateContent({
             model: modelName,
             contents: userPrompt,
             config: {
@@ -656,6 +657,11 @@ Length: "${reviewLength}".`;
               responseMimeType: "application/json"
             }
           });
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Gemini ${modelName} call timed out after 8s`)), 8000)
+          );
+
+          const response = await Promise.race([gemPromise, timeoutPromise]);
 
           const text = response.text;
           if (text) {
@@ -742,7 +748,7 @@ OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown wrappe
       for (const nimModel of nimModels) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
 
           const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
             method: "POST",
