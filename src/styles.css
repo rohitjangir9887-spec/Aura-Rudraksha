@@ -15590,17 +15590,26 @@ button:active, .primary-btn:active, .outline-btn:active {
 }
 
 /* ==========================================================================
-   PREMIUM ICON & 1-1.5 CM SIZE BADGE POLISH
+   PREMIUM ICON & 1-2 CM LUXURY SIZE BADGE POLISH
    ========================================================================== */
 .premium-gold-icon,
 .premium-icon-shimmer,
 .product-size-badge-prominent svg {
-  filter: drop-shadow(0 2px 4px rgba(212, 175, 55, 0.4));
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 2px 4px rgba(229, 193, 88, 0.45));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.product-size-badge-prominent {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product-size-badge-prominent:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(229, 193, 88, 0.22), inset 0 1px 0 rgba(255,255,255,0.9) !important;
 }
 
 .product-size-badge-prominent:hover .premium-icon-shimmer {
-  transform: scale(1.1) rotate(6deg);
+  transform: scale(1.15) rotate(8deg);
 }
 
 .product-gallery-column svg,
@@ -15609,5 +15618,17 @@ button:active, .primary-btn:active, .outline-btn:active {
 .lab-cert-shield-badge svg,
 .accordion-header svg {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  50% {
+    left: 100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 

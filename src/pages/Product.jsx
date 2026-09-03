@@ -618,37 +618,51 @@ export function Product() {
                 </div>
               </div>
 
-              {/* PROMINENT 1-1.5 CM SIZE BADGE */}
+              {/* PROMINENT 1-2 CM LUXURY SIZE BADGE */}
               <div className="product-size-badge-prominent" style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "14px",
-                background: "linear-gradient(135deg, #fffcf7 0%, #fef3e2 100%)",
-                border: "1.5px solid rgba(212, 175, 55, 0.6)",
-                borderRadius: "14px",
-                padding: "16px 20px",
-                margin: "18px 0",
-                boxShadow: "0 6px 20px rgba(184, 93, 37, 0.12), inset 0 1px 0 rgba(255,255,255,0.8)"
+                gap: "18px",
+                background: "linear-gradient(135deg, #fffcf5 0%, #fff6e5 100%)",
+                border: "2px solid #e5c158",
+                borderRadius: "16px",
+                padding: "20px 24px",
+                margin: "-15px 0 24px 0",
+                boxShadow: "0 10px 28px rgba(229, 193, 88, 0.18), inset 0 1px 0 rgba(255,255,255,0.9)",
+                position: "relative",
+                overflow: "hidden"
               }}>
+                {/* Embedded luxury shimmer element */}
                 <div style={{
-                  background: "linear-gradient(135deg, #b85d25 0%, #8c2b10 100%)",
+                  position: "absolute",
+                  top: 0,
+                  left: "-50%",
+                  width: "200%",
+                  height: "100%",
+                  background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)",
+                  transform: "skewX(-25deg)",
+                  animation: "shine 4s infinite linear",
+                  pointerEvents: "none"
+                }} />
+                <div style={{
+                  background: "linear-gradient(135deg, #e5c158 0%, #c49619 100%)",
                   color: "#fff",
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "12px",
+                  width: "52px",
+                  height: "52px",
+                  borderRadius: "14px",
                   display: "grid",
                   placeItems: "center",
-                  boxShadow: "0 4px 12px rgba(184, 93, 37, 0.35)",
+                  boxShadow: "0 6px 18px rgba(196, 150, 25, 0.4)",
                   flexShrink: 0
                 }}>
-                  <Award size={24} className="premium-icon-shimmer" />
+                  <Award size={28} className="premium-icon-shimmer" style={{ strokeWidth: 2.2 }} />
                 </div>
                 <div>
-                  <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1.2px", color: "#8c6d53", fontWeight: 700, display: "block", marginBottom: "2px" }}>
+                  <span style={{ fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "1.5px", color: "#b28514", fontWeight: 800, display: "block", marginBottom: "3px" }}>
                     Natural Bead Size &amp; Dimensions
                   </span>
-                  <span style={{ fontSize: "20px", fontWeight: "700", color: "#2b170d", letterSpacing: "0.3px", fontFamily: "Cormorant Garamond, serif" }}>
-                    1 - 1.5 cm <span style={{ fontSize: "14px", fontWeight: "600", color: "#b85d25", fontFamily: "sans-serif" }}>(Authentic Nepali Seed)</span>
+                  <span style={{ fontSize: "24px", fontWeight: "800", color: "#1a0f08", letterSpacing: "0.5px", fontFamily: "Cormorant Garamond, serif" }}>
+                    1 - 2 cm <span style={{ fontSize: "14px", fontWeight: "600", color: "#c49619", fontFamily: "sans-serif" }}>(Authentic Nepali Seed)</span>
                   </span>
                 </div>
               </div>
