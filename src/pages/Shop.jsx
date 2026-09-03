@@ -133,11 +133,12 @@ export function Shop() {
   const chipCounts = useMemo(() => {
     const counts = { all: products.length, mukhi: 0, gauri: 0, mala: 0, offers: 0 };
     products.forEach(p => {
-      const name = (p.name || "").toLowerCase();
-      if (/[1-7]\s*mukhi/i.test(name)) counts.mukhi++;
-      if (/gauri/i.test(name)) counts.gauri++;
-      if (/mala/i.test(name)) counts.mala++;
-      if ((p.discountPercent && p.discountPercent > 0) || (p.mrp && p.mrp > p.price) || p.customOffer?.enabled) {
+      const name = (p?.name || "").toLowerCase();
+      const cat = (p?.category || "").toLowerCase();
+      if (/mukhi/i.test(name) || /mukhi|rudraksha/i.test(cat)) counts.mukhi++;
+      if (/gauri/i.test(name) || /gauri/i.test(cat)) counts.gauri++;
+      if (/mala/i.test(name) || /mala/i.test(cat)) counts.mala++;
+      if ((p?.discountPercent && p.discountPercent > 0) || (p?.mrp && p.mrp > p.price) || p?.customOffer?.enabled) {
         counts.offers++;
       }
     });
@@ -149,19 +150,19 @@ export function Shop() {
     let next = [...products];
     if (q) {
       next = next.filter(p => 
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.highlight && p.highlight.toLowerCase().includes(q)) ||
-        (p.tags && p.tags.some(t => t.toLowerCase().includes(q)))
+        (p?.name && p.name.toLowerCase().includes(q)) ||
+        (p?.highlight && p.highlight.toLowerCase().includes(q)) ||
+        (p?.tags && p.tags.some(t => t.toLowerCase().includes(q)))
       );
     }
-    if (chip === "mukhi") next = next.filter(p => /[1-7]\s*mukhi/i.test(p.name));
-    if (chip === "gauri") next = next.filter(p => /gauri/i.test(p.name));
-    if (chip === "mala") next = next.filter(p => /mala/i.test(p.name));
+    if (chip === "mukhi") next = next.filter(p => /mukhi/i.test(p?.name || "") || (p?.category && /mukhi|rudraksha/i.test(p.category)));
+    if (chip === "gauri") next = next.filter(p => /gauri/i.test(p?.name || "") || (p?.category && /gauri/i.test(p.category)));
+    if (chip === "mala") next = next.filter(p => /mala/i.test(p?.name || "") || (p?.category && /mala/i.test(p.category)));
     if (chip === "offers") {
       next = next.filter(p => 
-        (p.discountPercent && p.discountPercent > 0) || 
-        (p.mrp && p.mrp > p.price) ||
-        p.customOffer?.enabled
+        (p?.discountPercent && p.discountPercent > 0) || 
+        (p?.mrp && p.mrp > p.price) ||
+        p?.customOffer?.enabled
       );
     }
 

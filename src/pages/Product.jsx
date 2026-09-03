@@ -143,12 +143,20 @@ export function Product() {
     return () => unsub();
   }, [id]);
 
-  // Handle sticky CTA visibility on scroll
+  // Handle sticky CTA visibility on scroll without layout thrashing
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      if (!ctaSectionRef.current) return;
-      const rect = ctaSectionRef.current.getBoundingClientRect();
-      setShowStickyBar(rect.bottom < 0);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (ctaSectionRef.current) {
+            const rect = ctaSectionRef.current.getBoundingClientRect();
+            setShowStickyBar(rect.bottom < 0);
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -552,6 +560,8 @@ export function Product() {
                     src={activeImg || productImages[0]} 
                     alt={`${p.name} - Sacred View ${activeIndex + 1}`}
                     className="main-product-img"
+                    fetchpriority="high"
+                    decoding="async"
                     style={{
                       transformOrigin: zoomStyle.transformOrigin,
                       transform: zoomStyle.transform,
@@ -585,6 +595,7 @@ export function Product() {
                         src={imgUrl} 
                         alt={`${p.name} thumbnail ${idx + 1}`} 
                         loading="lazy"
+                        decoding="async"
                         onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
                       />
                     </button>

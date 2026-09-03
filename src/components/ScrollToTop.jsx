@@ -1,51 +1,21 @@
 import { useEffect, useLayoutEffect } from "react";
-import { useLocation, useNavigationType } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 export function ScrollToTop() {
-  const { pathname, search, hash } = useLocation();
-  const navType = useNavigationType();
+  const { pathname, hash } = useLocation();
 
   // Set browser scroll restoration to manual globally
   useEffect(() => {
     if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
       try {
         window.history.scrollRestoration = "manual";
-      } catch (e) {
+      } catch (_) {
         // Ignore if restricted
       }
     }
   }, []);
 
-  const performScrollTop = () => {
-    try {
-      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    } catch {
-      window.scrollTo(0, 0);
-    }
-
-    if (document.documentElement) {
-      document.documentElement.scrollTop = 0;
-    }
-    if (document.body) {
-      document.body.scrollTop = 0;
-    }
-
-    const rootEl = document.getElementById("root");
-    if (rootEl && typeof rootEl.scrollTop === "number") {
-      rootEl.scrollTop = 0;
-    }
-
-    const scrollContainers = document.querySelectorAll(
-      ".app, .main-content, .page, .shop-page, .account-container, .admin-layout, .admin-main, .admin-content, main, [data-scroll-container]"
-    );
-    scrollContainers.forEach((el) => {
-      if (el && typeof el.scrollTop === "number" && el.scrollTop > 0) {
-        el.scrollTop = 0;
-      }
-    });
-  };
-
-  // Immediate layout effect before paint
+  // Instant scroll to top on route change without repeated delayed timer jumping
   useLayoutEffect(() => {
     if (hash && hash !== "#" && hash !== "#about" && hash !== "#contact") {
       try {
@@ -54,29 +24,16 @@ export function ScrollToTop() {
           element.scrollIntoView({ behavior: "smooth" });
           return;
         }
-      } catch {
-        // Fallback to top if invalid selector
+      } catch (_) {
+        // Fallback to top
       }
     }
 
-    // Scroll to top immediately
-    performScrollTop();
-
-    // Multi-phase execution to guarantee top position during React Suspense,
-    // lazy-loaded component mounts, and image hydration
-    const rafId = requestAnimationFrame(() => {
-      performScrollTop();
-    });
-
-    const timers = [0, 25, 60, 120, 250, 450, 700].map((delay) =>
-      setTimeout(performScrollTop, delay)
-    );
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      timers.forEach(clearTimeout);
-    };
-  }, [pathname, search, hash, navType]);
+    // Immediate instant reset
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [pathname, hash]);
 
   return null;
 }

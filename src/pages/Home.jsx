@@ -123,7 +123,10 @@ export function Home() {
             key={i} 
             src={src} 
             alt={`Ad Banner ${i + 1}`} 
-            className={`hero-slide ${i === hero ? 'active' : ''}`} 
+            className={`hero-slide ${i === hero ? 'active' : ''}`}
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchpriority={i === 0 ? "high" : "auto"}
+            decoding="async"
           />
         ))}
       </div>

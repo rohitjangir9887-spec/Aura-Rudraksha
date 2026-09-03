@@ -20,7 +20,7 @@ export function ProductCardSkeleton() {
   );
 }
 
-export function ProductCard({ p, onAdd, isShop = false }) {
+function ProductCardComponent({ p, onAdd, isShop = false }) {
   if (!p) return null;
   const navigate = useNavigate();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -28,9 +28,11 @@ export function ProductCard({ p, onAdd, isShop = false }) {
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
 
-  const productId = p?.id || p?._id || p?.slug;
+  const productId = String(p?.id || p?._id || p?.slug || "");
   const isSaved = isWishlisted(productId);
-  const images = (p?.images && p.images.length > 0) ? p.images : [p?.img || "/images/product-5mukhi.jpg"];
+  const images = (Array.isArray(p?.images) && p.images.length > 0) 
+    ? p.images 
+    : [p?.img || "/images/product-5mukhi.jpg"];
   const displayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
@@ -45,7 +47,7 @@ export function ProductCard({ p, onAdd, isShop = false }) {
     if (isOutOfStock) return;
     
     if (onAdd) {
-      onAdd(p.id);
+      onAdd(productId || p?.id);
     }
     setAdded(true);
     emitToast(`${p.name} added to cart`, "success");
@@ -57,7 +59,7 @@ export function ProductCard({ p, onAdd, isShop = false }) {
   const handleToggleWishlist = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleWishlist(p.id, p.name);
+    toggleWishlist(productId || p?.id, p.name);
   };
 
   const handleSelectImage = (e, idx) => {
@@ -83,6 +85,7 @@ export function ProductCard({ p, onAdd, isShop = false }) {
           alt={p.name}
           className="aura-card-img"
           loading="lazy"
+          decoding="async"
           onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
         />
 
@@ -224,3 +227,6 @@ export function ProductCard({ p, onAdd, isShop = false }) {
     </div>
   );
 }
+
+export const ProductCard = React.memo(ProductCardComponent);
+

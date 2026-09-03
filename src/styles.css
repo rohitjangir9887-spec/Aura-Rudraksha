@@ -10780,27 +10780,182 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 /* Full Window Mode */
-.aura-ai-panel-full {
-  width: min(840px, 94vw);
-  height: min(700px, 86vh);
-  max-height: 88vh;
-  border-radius: 18px;
-  border: 1.5px solid rgba(212, 175, 55, 0.5);
-  box-shadow: 0 24px 60px rgba(20, 7, 2, 0.6);
+.aura-ai-floating-container-full {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  z-index: 10004 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 0 !important;
+  pointer-events: none !important;
 }
 
-@media (max-width: 640px) {
+.aura-ai-panel-full {
+  width: min(1080px, 88vw);
+  max-width: 1200px;
+  height: min(820px, 86vh);
+  max-height: 88vh;
+  border-radius: 20px;
+  border: 1.5px solid rgba(212, 175, 55, 0.55);
+  box-shadow: 
+    0 24px 70px rgba(12, 5, 2, 0.58),
+    0 4px 20px rgba(0, 0, 0, 0.25),
+    0 0 35px rgba(212, 175, 55, 0.18);
+  background: rgba(255, 253, 249, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  margin: auto;
+  pointer-events: auto;
+  transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1), height 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-radius 0.2s ease, box-shadow 0.28s ease;
+}
+
+.aura-ai-panel-full .aura-ai-header {
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px;
+}
+
+.aura-ai-panel-full .aura-ai-title {
+  font-size: 14px;
+}
+
+.aura-ai-panel-full .aura-ai-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.aura-ai-panel-full .aura-ai-btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.aura-ai-panel-full .aura-ai-body {
+  padding: 14px 18px;
+  gap: 10px;
+}
+
+.aura-ai-panel-full .aura-ai-msg {
+  max-width: 82%;
+}
+
+.aura-ai-panel-full .aura-ai-msg-text {
+  font-size: 13px;
+  padding: 9px 13px;
+  line-height: 1.55;
+  border-radius: 14px;
+}
+
+.aura-ai-panel-full .aura-ai-msg-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.aura-ai-panel-full .aura-ai-footer {
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px)) 16px;
+}
+
+.aura-ai-panel-full .aura-ai-input-box {
+  min-height: 42px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 12px;
+}
+
+.aura-ai-panel-full .aura-ai-input-field {
+  font-size: 13px;
+}
+
+.aura-ai-panel-full .aura-ai-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+@media (max-width: 767px) {
   .aura-ai-panel-full {
-    width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
-    margin: 0;
-    border-radius: 0;
-    border: none;
-    position: fixed;
-    inset: 0;
-    z-index: 1055;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10005 !important;
+    box-shadow: none !important;
   }
+
+  .aura-ai-panel-full .aura-ai-header {
+    height: calc(48px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .aura-ai-panel-full .aura-ai-body {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .aura-ai-panel-full .aura-ai-msg {
+    max-width: 90%;
+  }
+
+  .aura-ai-panel-full .aura-ai-msg-text {
+    font-size: 12.5px;
+    padding: 8px 11px;
+  }
+
+  .aura-ai-panel-full .aura-ai-footer {
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px)) 10px;
+  }
+}
+
+/* Mic voice button in input composer */
+.aura-ai-mic-btn {
+  background: transparent;
+  border: none;
+  color: #7a5a40;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.aura-ai-mic-btn:hover {
+  background: rgba(140, 43, 16, 0.08);
+  color: #8c2b10;
+}
+
+.aura-ai-mic-btn.listening {
+  background: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.4);
+}
+
+.aura-ai-mic-pulse {
+  animation: micPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes micPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
 }
 
 /* Header */
@@ -11977,25 +12132,34 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   line-height: 1.4;
 }
 
-/* Center Chat in Page */
+/* Center Chat in Page - Redesigned to match Full Window Aura AI Mode */
 .aura-ai-main-chat {
-  background: #ffffff;
-  border: 1px solid #ebdccb;
-  border-radius: 16px;
-  box-shadow: 0 6px 20px rgba(43, 20, 8, 0.05);
+  background: rgba(255, 253, 249, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(212, 175, 55, 0.55);
+  border-radius: 20px;
+  box-shadow: 
+    0 20px 60px rgba(12, 5, 2, 0.12),
+    0 4px 20px rgba(0, 0, 0, 0.04),
+    0 0 30px rgba(212, 175, 55, 0.15);
   display: flex;
   flex-direction: column;
-  height: 780px;
+  height: min(820px, 82vh);
+  max-height: 88vh;
   overflow: hidden;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aura-ai-chat-topbar {
-  background: #fbf7ee;
-  border-bottom: 1px solid #ebdccb;
-  padding: 14px 20px;
+  background: linear-gradient(135deg, #2b1408 0%, #1a0b03 100%);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.4);
+  color: #fffdf9;
+  padding: 12px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 52px;
 }
 
 .aura-ai-chat-status {
@@ -12015,7 +12179,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-topbar-sub {
   display: block;
   font-size: 11.5px;
-  color: #806f62;
+  color: #d4af37;
 }
 
 .aura-ai-chat-topbar-actions {
@@ -12024,9 +12188,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-topbar-btn {
-  background: #ffffff;
-  border: 1px solid #dfcfbc;
-  color: #4a2810;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  color: #fffdf9;
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -12036,31 +12200,40 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   gap: 5px;
   text-decoration: none;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aura-ai-topbar-btn:hover {
+  background: rgba(212, 175, 55, 0.25);
+  color: #ffffff;
+  border-color: #d4af37;
 }
 
 .aura-ai-page-messages {
   flex: 1;
-  padding: 24px;
+  padding: 20px 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  background: #fdfaf5;
+  gap: 16px;
+  background: rgba(253, 250, 245, 0.75);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .aura-ai-page-container {
-    padding: 10px 8px 36px 8px;
+    padding: 8px 6px 28px 6px;
   }
   .aura-ai-main-chat {
-    height: calc(100vh - 120px);
-    border-radius: 12px;
+    height: calc(100dvh - 72px);
+    max-height: 100dvh;
+    border-radius: 14px;
   }
   .aura-ai-chat-topbar {
     padding: 10px 12px;
+    min-height: 48px;
   }
   .aura-ai-page-messages {
-    padding: 12px 8px;
+    padding: 12px 10px;
     gap: 12px;
   }
   .aura-ai-page-msg {
@@ -15725,6 +15898,18 @@ button:active, .primary-btn:active, .outline-btn:active {
   }
   100% {
     left: 100%;
+  }
+}
+
+/* Global Prefers-Reduced-Motion Accessibility Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

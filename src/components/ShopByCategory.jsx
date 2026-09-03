@@ -73,11 +73,18 @@ export function ShopByCategory() {
     return () => unsub();
   }, [location.pathname]);
 
+  const tickingRef = useRef(false);
   const checkScrollButtons = () => {
-    if (scrollRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-      setCanScrollLeft(scrollLeft > 10);
-      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+    if (!tickingRef.current) {
+      window.requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+          setCanScrollLeft(scrollLeft > 10);
+          setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+        }
+        tickingRef.current = false;
+      });
+      tickingRef.current = true;
     }
   };
 
@@ -250,6 +257,7 @@ export function ShopByCategory() {
                   src={cat.image}
                   alt={cat.name}
                   loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     if (cat.fallback && !e.currentTarget.src.includes(cat.fallback.replace(/^\//, ''))) {

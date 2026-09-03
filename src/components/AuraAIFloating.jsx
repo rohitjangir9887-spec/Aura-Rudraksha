@@ -19,7 +19,9 @@ import {
   Calendar,
   Clock,
   MapPin,
-  User
+  User,
+  Mic,
+  MicOff
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -60,6 +62,47 @@ export function AuraAIFloating() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshPhase, setRefreshPhase] = useState("idle"); // "idle" | "fading-out" | "fading-in"
   const [showRefreshToast, setShowRefreshToast] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const handleMicToggle = useCallback(() => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) {}
+      }
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not supported in this browser. Please type your message.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = mode === "panditji" ? "hi-IN" : "en-IN";
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onresult = (e) => {
+        const transcript = e.results[0]?.[0]?.transcript;
+        if (transcript) {
+          setInput((prev) => (prev ? prev + " " + transcript : transcript));
+        }
+      };
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.warn("Speech recognition error:", err);
+      setIsListening(false);
+    }
+  }, [isListening, mode]);
   
   // Interactive Birth Details Kundli Form state for AI Panditji mode
   const [showBirthForm, setShowBirthForm] = useState(false);
@@ -670,44 +713,46 @@ export function AuraAIFloating() {
         )}
       </AnimatePresence>
 
-      {/* 3. Aura AI Window - True Floating Interactive Guide (Draggable across screen) */}
+      {/* 3. Aura AI Window - Floating Interactive Guide + Full Window Mode */}
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop overlay to close when clicking outside */}
+            {/* Backdrop overlay */}
             <motion.div
-              className="aura-ai-floating-backdrop"
+              className={`aura-ai-floating-backdrop ${isFullWindow ? "aura-ai-backdrop-full" : ""}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              onClick={() => setIsOpen(false)}
-              onPointerDown={() => setIsOpen(false)}
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "rgba(0, 0, 0, 0.32)",
-                backdropFilter: "blur(2px)",
-                WebkitBackdropFilter: "blur(2px)",
-                zIndex: 10001,
-                pointerEvents: "auto"
+              onClick={() => {
+                if (isFullWindow) {
+                  setIsFullWindow(false);
+                } else {
+                  setIsOpen(false);
+                }
+              }}
+              onPointerDown={(e) => {
+                if (e.target === e.currentTarget) {
+                  if (isFullWindow) {
+                    setIsFullWindow(false);
+                  } else {
+                    setIsOpen(false);
+                  }
+                }
               }}
             />
-            <div className="aura-ai-floating-container">
+            <div className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}>
             <motion.div
               id="aura-ai-floating-panel"
-              className="aura-ai-panel aura-ai-panel-compact"
+              className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
               initial={{ opacity: 0, y: 20, scale: 0.94 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 15, scale: 0.95 }}
               transition={{ 
-                duration: 0.32,
-                ease: [0.16, 1, 0.3, 1] // Smooth spring/cubic-bezier curve rising from button
+                duration: 0.28,
+                ease: [0.16, 1, 0.3, 1]
               }}
-              drag
+              drag={!isFullWindow}
               dragControls={dragControls}
               dragListener={false}
               dragMomentum={false}
@@ -719,14 +764,14 @@ export function AuraAIFloating() {
                 bottom: Math.max(100, window.innerHeight - 200)
               }}
               whileDrag={{ cursor: "grabbing" }}
-              style={{ transformOrigin: "bottom center", willChange: "transform" }}
+              style={{ transformOrigin: isFullWindow ? "center center" : "bottom left", willChange: "transform, width, height" }}
             >
-              {/* Header - Drag Handle Area */}
+              {/* Header - Drag Handle Area (when compact) */}
               <div 
-                className={`aura-ai-header aura-ai-header-draggable ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}
+                className={`aura-ai-header ${!isFullWindow ? "aura-ai-header-draggable" : ""} ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}
                 style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
                 onPointerDown={(e) => {
-                  if (!e.target.closest("button") && !e.target.closest("a") && !e.target.closest("textarea") && !e.target.closest("input")) {
+                  if (!isFullWindow && !e.target.closest("button") && !e.target.closest("a") && !e.target.closest("textarea") && !e.target.closest("input")) {
                     dragControls.start(e, { snapToCursor: false });
                   }
                 }}
@@ -735,9 +780,11 @@ export function AuraAIFloating() {
                   className="aura-ai-header-left" 
                   style={{ touchAction: "none" }}
                 >
-                  <div className="aura-ai-panel-drag-cue" title="Drag window to move anywhere on screen" style={{ touchAction: "none" }}>
-                    <GripVertical size={11} />
-                  </div>
+                  {!isFullWindow && (
+                    <div className="aura-ai-panel-drag-cue" title="Drag window to move anywhere on screen" style={{ touchAction: "none" }}>
+                      <GripVertical size={11} />
+                    </div>
+                  )}
                   <div className={`aura-ai-avatar ${mode === "panditji" ? "aura-ai-avatar-panditji" : ""}`}>
                     {mode === "panditji" ? (
                       <span style={{ fontSize: "14px", lineHeight: 1 }}>🕉️</span>
@@ -770,17 +817,15 @@ export function AuraAIFloating() {
                     <RotateCcw size={12} />
                   </button>
 
-                  {/* Full Window / Spiritual Guide Page Navigation */}
+                  {/* Full Window / Maximize Toggle */}
                   <button 
-                    onClick={() => {
-                      setIsOpen(false);
-                      navigate("/aura-ai");
-                    }} 
+                    type="button"
+                    onClick={() => setIsFullWindow((prev) => !prev)} 
                     className="aura-ai-btn-icon"
-                    title="Full Spiritual Guide Window (Sari chat history ke sath open karein)"
-                    aria-label="Open Full Aura AI Spiritual Guide Page"
+                    title={isFullWindow ? "Restore compact window" : "Maximize to full window"}
+                    aria-label={isFullWindow ? "Restore compact window" : "Maximize to full window"}
                   >
-                    <Maximize2 size={13} />
+                    {isFullWindow ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                   </button>
 
                   <button 
@@ -901,9 +946,13 @@ export function AuraAIFloating() {
                     </button>
                   </>
                 )}
-                <Link to="/aura-ai" onClick={() => setIsOpen(false)} className="aura-ai-strip-btn aura-ai-strip-btn-link">
-                  Full Page <ChevronRight size={11} />
-                </Link>
+                <button 
+                  type="button" 
+                  onClick={() => setIsFullWindow((prev) => !prev)} 
+                  className="aura-ai-strip-btn aura-ai-strip-btn-link"
+                >
+                  {isFullWindow ? "Compact" : "Full Window"} <ChevronRight size={11} />
+                </button>
               </div>
 
               {/* Interactive Kundli Birth Details Form Card for AI Panditji */}
@@ -1299,6 +1348,15 @@ export function AuraAIFloating() {
                   }}
                   className="aura-ai-input-box"
                 >
+                  <button
+                    type="button"
+                    onClick={handleMicToggle}
+                    className={`aura-ai-mic-btn ${isListening ? "listening" : ""}`}
+                    title={isListening ? "Stop listening" : "Voice input"}
+                    aria-label="Voice input"
+                  >
+                    {isListening ? <MicOff size={13} className="aura-ai-mic-pulse" /> : <Mic size={13} />}
+                  </button>
                   <textarea
                     ref={textareaRef}
                     value={input}
@@ -1309,7 +1367,13 @@ export function AuraAIFloating() {
                         handleSend();
                       }
                     }}
-                    placeholder={mode === "panditji" ? "Poochiye Panditji se — Rashi, Rudraksha, Dharan Vidhi..." : "Poochiye — jaise '₹1000 ke andar Rudraksha'..."}
+                    placeholder={
+                      isListening
+                        ? "Listening... boliyen..."
+                        : mode === "panditji"
+                        ? "Poochiye Panditji se — Rashi, Rudraksha, Dharan Vidhi..."
+                        : "Poochiye — jaise '₹1000 ke andar Rudraksha'..."
+                    }
                     disabled={loading}
                     rows={1}
                     className="aura-ai-input-field aura-ai-textarea"
