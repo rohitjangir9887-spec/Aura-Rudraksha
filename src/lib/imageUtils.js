@@ -290,43 +290,64 @@ export function subscribePuterStatus(callback) {
   };
 }
 
+let _cachedHostedDomain = null;
+let _inFlightHostedDomainPromise = null;
+
 /**
- * Resolves or creates a Puter hosted domain for permanent public media access
+ * Resolves or creates a Puter hosted domain for permanent public media access.
+ * Memoized in-memory & in localStorage with Promise deduplication.
  */
 export async function getPuterHostedDomain() {
-  const puter = await waitForPuter(3000);
-  if (!puter || !puter.hosting) return null;
+  if (_cachedHostedDomain) {
+    return `${_cachedHostedDomain}.puter.site`;
+  }
 
-  let cachedSubdomain = localStorage.getItem("aura_puter_subdomain");
+  let cachedSubdomain = typeof localStorage !== "undefined" ? localStorage.getItem("aura_puter_subdomain") : null;
   if (cachedSubdomain) {
+    _cachedHostedDomain = cachedSubdomain;
     return `${cachedSubdomain}.puter.site`;
   }
 
-  try {
-    const sites = await puter.hosting.list();
-    let site = Array.isArray(sites)
-      ? sites.find(s => s.dir_path === "aura_uploads" || s.root_dir?.endsWith("aura_uploads") || (s.subdomain && s.subdomain.startsWith("aura-media-")))
-      : null;
+  const puter = await waitForPuter(3000);
+  if (!puter || !puter.hosting) return null;
 
-    if (!site) {
-      const sub = `aura-media-${Math.random().toString(36).substring(2, 8)}`;
-      if (typeof puter.fs?.mkdir === "function") {
-        await puter.fs.mkdir("aura_uploads", { createMissingParents: true }).catch(() => {});
-      }
-      site = await puter.hosting.create(sub, "aura_uploads");
-    }
-
-    if (site && (site.subdomain || site.subdomain_name)) {
-      const subName = site.subdomain || site.subdomain_name;
-      localStorage.setItem("aura_puter_subdomain", subName);
-      return `${subName}.puter.site`;
-    }
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      console.warn("[Puter Diagnostics] Hosting site resolution note:", err);
-    }
+  if (_inFlightHostedDomainPromise) {
+    return _inFlightHostedDomainPromise;
   }
-  return null;
+
+  _inFlightHostedDomainPromise = (async () => {
+    try {
+      const sites = await puter.hosting.list();
+      let site = Array.isArray(sites)
+        ? sites.find(s => s.dir_path === "aura_uploads" || s.root_dir?.endsWith("aura_uploads") || (s.subdomain && s.subdomain.startsWith("aura-media-")))
+        : null;
+
+      if (!site) {
+        const sub = `aura-media-${Math.random().toString(36).substring(2, 8)}`;
+        site = await puter.hosting.create(sub, "aura_uploads");
+      }
+
+      if (site && (site.subdomain || site.subdomain_name)) {
+        const subName = site.subdomain || site.subdomain_name;
+        _cachedHostedDomain = subName;
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("aura_puter_subdomain", subName);
+        }
+        return `${subName}.puter.site`;
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("[Puter Diagnostics] Hosting site resolution note:", err);
+      }
+    }
+    return null;
+  })();
+
+  try {
+    return await _inFlightHostedDomainPromise;
+  } finally {
+    _inFlightHostedDomainPromise = null;
+  }
 }
 
 /**
@@ -427,13 +448,6 @@ export async function getPuterMediaStatus(options = {}) {
       const username = user?.username || user?.name || user?.email?.split('@')[0] || "Admin";
       const email = user?.email || (user?.username ? `${user.username}@puter.com` : null);
       const lastSync = new Date().toLocaleTimeString();
-
-      // Pre-create upload directory in background
-      try {
-        if (typeof puter.fs?.mkdir === "function") {
-          puter.fs.mkdir("aura_uploads", { createMissingParents: true }).catch(() => {});
-        }
-      } catch (_) {}
 
       const statusObj = {
         connected: true,
@@ -777,49 +791,63 @@ export async function uploadMedia(file, onProgress = () => {}) {
         return publicUrl;
       }
 
-      let registerRes;
-      try {
-        registerRes = await fetchWithBackoff(`${API_BASE}/upload/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            readURL: publicUrl,
-            url: publicUrl,
-            puterFileId: finalResolvedPath,
-            fileId: finalResolvedPath,
-            path: finalResolvedPath,
-            filename: actualFileName,
-            type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
-            sizeBytes: file.size || fileStat.size || 0,
-            size: file.size || fileStat.size || 0,
-            metadata: {
-              provider: "puter",
-              originalName: file.name,
-              uploadedAt: new Date().toISOString()
-            },
-            provider: "puter"
-          })
-        });
-      } catch (fetchErr) {
-        if (!fetchErr.source) {
-          fetchErr.source = fetchErr.status === 429 ? "api" : "mongodb";
+      let registerSuccess = false;
+      let registerAttempts = 0;
+      const maxRegisterAttempts = 2;
+
+      while (!registerSuccess && registerAttempts < maxRegisterAttempts) {
+        registerAttempts++;
+        try {
+          const registerRes = await fetchWithBackoff(`${API_BASE}/upload/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              readURL: publicUrl,
+              url: publicUrl,
+              puterFileId: finalResolvedPath,
+              fileId: finalResolvedPath,
+              path: finalResolvedPath,
+              filename: actualFileName,
+              type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+              sizeBytes: file.size || fileStat.size || 0,
+              size: file.size || fileStat.size || 0,
+              metadata: {
+                provider: "puter",
+                originalName: file.name,
+                uploadedAt: new Date().toISOString()
+              },
+              provider: "puter"
+            })
+          });
+
+          const registerData = await registerRes.json().catch(() => ({}));
+          if (registerRes.ok && registerData.success) {
+            registerSuccess = true;
+            _registeredMediaCache.set(dedupeKey, registerData.media || { url: publicUrl });
+            if (import.meta.env.DEV) {
+              console.log("[Puter Diagnostics] MongoDB registration succeeded:", registerData);
+            }
+            break;
+          }
+
+          // If database is temporarily disconnected or 503, retry or gracefully yield
+          if (registerRes.status === 503) {
+            if (registerAttempts < maxRegisterAttempts) {
+              await new Promise(r => setTimeout(r, 1000));
+              continue;
+            }
+            // Puter file is valid and accessible even if MongoDB is degraded
+            console.warn("[Puter Diagnostics] Database metadata registration deferred (DB unavailable). Puter public URL preserved.");
+            break;
+          }
+        } catch (fetchErr) {
+          if (registerAttempts < maxRegisterAttempts) {
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+          console.warn("[Puter Diagnostics] Metadata registration network error:", fetchErr);
+          break;
         }
-        throw fetchErr;
-      }
-
-      const registerData = await registerRes.json().catch(() => ({}));
-      if (!registerRes.ok || !registerData.success) {
-        const isDbErr = registerRes.status === 503 || registerData.source === "mongodb";
-        const err = new Error(registerData.message || (isDbErr ? "MongoDB: Database unavailable for media registration." : "Failed to register media in MongoDB."));
-        err.source = isDbErr ? "mongodb" : (registerData.source || "api");
-        err.status = registerRes.status;
-        throw err;
-      }
-
-      _registeredMediaCache.set(dedupeKey, registerData.media || { url: publicUrl });
-
-      if (import.meta.env.DEV) {
-        console.log("[Puter Diagnostics] MongoDB registration succeeded:", registerData);
       }
 
       onProgress(100);
