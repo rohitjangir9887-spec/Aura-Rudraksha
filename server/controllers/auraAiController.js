@@ -1,6 +1,24 @@
 import crypto from "crypto";
 const requestCounts = new Map();
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
+
+let geminiClient = null;
+if (process.env.GEMINI_API_KEY) {
+  try {
+    geminiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  } catch (err) {
+    console.warn("Could not initialize GoogleGenAI client:", err);
+  }
+}
+
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
@@ -672,7 +690,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
               model: PRIMARY_NIM_MODEL,
               messages: formattedMessages,
               temperature: 0.3,
-              max_tokens: 450,
+              max_tokens: 2048,
               stream: true,
               chat_template_kwargs: { enable_thinking: false },
               reasoning_effort: "none"
@@ -719,6 +737,55 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
           }
         } catch (nimErr) {
           console.warn("NVIDIA NIM Stream Notice:", nimErr?.message || nimErr);
+        }
+      }
+
+      if (!generatedViaLLM && geminiClient) {
+        try {
+          res.write(`data: ${JSON.stringify({ type: "status", message: "Thinking..." })}\n\n`);
+          if (res.flush) res.flush();
+
+          const contents = [];
+          for (const h of history.slice(-4)) {
+            const role = h.sender === "user" ? "user" : "model";
+            if (h.text) {
+              contents.push({
+                role,
+                parts: [{ text: String(h.text) }]
+              });
+            }
+          }
+          contents.push({
+            role: "user",
+            parts: [{ text: message }]
+          });
+
+          const responseStream = await geminiClient.models.generateContentStream({
+            model: "gemini-3.8-flash",
+            contents,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.3,
+            }
+          });
+
+          for await (const chunk of responseStream) {
+            const deltaText = chunk.text || "";
+            if (deltaText) {
+              fullRawContent += deltaText;
+              const cleanDelta = cleanServerAiText(deltaText);
+              if (cleanDelta) {
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: cleanDelta })}\n\n`);
+                if (res.flush) res.flush();
+              }
+            }
+          }
+
+          if (fullRawContent.trim()) {
+            generatedViaLLM = true;
+          }
+        } catch (geminiErr) {
+          console.warn("Gemini Stream Error in Controller:", geminiErr?.message || geminiErr);
         }
       }
 
@@ -831,7 +898,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
             model: PRIMARY_NIM_MODEL,
             messages: formattedMessages,
             temperature: 0.3,
-            max_tokens: 450,
+            max_tokens: 2048,
             chat_template_kwargs: { enable_thinking: false },
             reasoning_effort: "none"
           })
@@ -844,6 +911,41 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         }
       } catch (nimErr) {
         console.warn("NVIDIA NIM Non-Streaming Notice:", nimErr?.message || nimErr);
+      }
+    }
+
+    if (!generatedViaLLM && geminiClient) {
+      try {
+        const contents = [];
+        for (const h of history.slice(-4)) {
+          const role = h.sender === "user" ? "user" : "model";
+          if (h.text) {
+            contents.push({
+              role,
+              parts: [{ text: String(h.text) }]
+            });
+          }
+        }
+        contents.push({
+          role: "user",
+          parts: [{ text: message }]
+        });
+
+        const response = await geminiClient.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.3,
+          }
+        });
+
+        fullRawContent = response.text || "";
+        if (fullRawContent.trim()) {
+          generatedViaLLM = true;
+        }
+      } catch (geminiErr) {
+        console.warn("Gemini Non-Streaming Error in Controller:", geminiErr?.message || geminiErr);
       }
     }
 
