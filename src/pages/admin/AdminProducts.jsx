@@ -203,34 +203,43 @@ export function AdminProducts() {
     }
   };
 
-  // Image Upload Handler using Puter Media Storage
+  // Image Upload Handler using Puter Media Storage with Concurrency & Error Preservation
   const handleFileUpload = async (e) => {
     if (isUploading) return;
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
+    const allSelectedFiles = Array.from(e.target.files || []);
+    if (!allSelectedFiles.length) return;
 
-    const currentCount = editing?.images?.length || 0;
-    if (currentCount >= 10) {
-      emitToast("Maximum of 10 images allowed.", "warning");
-      e.target.value = "";
+    const currentImages = editing?.images || [];
+    const availableSlots = Math.max(0, 10 - currentImages.length);
+
+    if (availableSlots <= 0) {
+      emitToast("Maximum limit of 10 images reached.", "warning");
+      if (e.target) e.target.value = "";
       return;
     }
 
+    let filesToProcess = allSelectedFiles;
+    if (filesToProcess.length > availableSlots) {
+      emitToast(`Only the first ${availableSlots} image(s) will be uploaded to maintain the 10-image limit.`, "info");
+      filesToProcess = filesToProcess.slice(0, availableSlots);
+    }
+
     setIsUploading(true);
-    let loadedCount = currentCount;
     let successCount = 0;
+    const errors = [];
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (loadedCount >= 10) {
-          emitToast("Maximum limit of 10 images reached.", "warning");
-          break;
-        }
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const file = filesToProcess[i];
+        const stepPrefix = filesToProcess.length > 1 ? ` (${i + 1}/${filesToProcess.length})` : "";
+        
+        setUploadProgressMsg(`Uploading ${file.name}${stepPrefix}...`);
 
-        setUploadProgressMsg(`Uploading ${file.name} (${i + 1}/${files.length})...`);
         try {
-          const mediaUrl = await uploadMedia(file);
+          const mediaUrl = await uploadMedia(file, (pct) => {
+            setUploadProgressMsg(`Uploading ${file.name}${stepPrefix} — ${pct}%`);
+          });
+
           if (mediaUrl) {
             setEditing(prev => {
               if (!prev) return prev;
@@ -245,16 +254,17 @@ export function AdminProducts() {
                 img: prev.img || mediaUrl
               };
             });
-            loadedCount++;
             successCount++;
           }
         } catch (err) {
-          emitToast(`Failed to upload ${file.name}: ${err.message}`, "error");
+          const errMsg = err.message || "Upload failed";
+          errors.push(`${file.name}: ${errMsg}`);
+          emitToast(`Failed to upload ${file.name}: ${errMsg}`, "error");
         }
 
-        // Small pacing delay between multiple files
-        if (i < files.length - 1) {
-          await new Promise(r => setTimeout(r, 100));
+        // Controlled pacing delay between multiple files
+        if (i < filesToProcess.length - 1) {
+          await new Promise(r => setTimeout(r, 120));
         }
       }
     } finally {

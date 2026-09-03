@@ -67,7 +67,7 @@ router.post("/register", async (req, res) => {
 
     const { url, readURL, puterFileId, fileId, path, filename, type, sizeBytes, size, metadata, provider } = req.body || {};
 
-    const finalReadURL = readURL || url;
+    const finalReadURL = (readURL || url || "").trim();
     if (!finalReadURL) {
       return res.status(400).json({
         success: false,
@@ -75,8 +75,59 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const finalFileId = puterFileId || fileId || path || "";
+    const finalFileId = (puterFileId || fileId || path || "").trim();
     const finalSizeBytes = Number(sizeBytes ?? size ?? 0);
+    const finalFilename = filename || (finalReadURL.split('/').pop() || "media");
+    const finalType = type || "image/jpeg";
+    const finalProvider = provider || "puter";
+
+    // Deduplicate registration by puterFileId, path, or URL in MongoDB
+    let existing = null;
+    if (finalFileId) {
+      existing = await Media.findOne({
+        $or: [
+          { puterFileId: finalFileId },
+          { fileId: finalFileId },
+          { path: finalFileId },
+          { readURL: finalReadURL },
+          { url: finalReadURL }
+        ]
+      });
+    } else {
+      existing = await Media.findOne({
+        $or: [
+          { readURL: finalReadURL },
+          { url: finalReadURL }
+        ]
+      });
+    }
+
+    if (existing) {
+      // Update existing record with any newly supplied metadata without creating duplicate
+      existing.readURL = finalReadURL;
+      existing.url = finalReadURL;
+      if (finalFileId) {
+        existing.puterFileId = finalFileId;
+        existing.fileId = finalFileId;
+        existing.path = path || finalFileId;
+      }
+      if (finalSizeBytes) {
+        existing.sizeBytes = finalSizeBytes;
+        existing.size = finalSizeBytes;
+      }
+      if (finalFilename) existing.filename = finalFilename;
+      if (metadata && typeof metadata === "object") {
+        existing.metadata = { ...(existing.metadata || {}), ...metadata };
+      }
+      await existing.save();
+
+      return res.json({
+        success: true,
+        message: "Media metadata verified and deduplicated in MongoDB",
+        media: existing,
+        deduplicated: true
+      });
+    }
 
     const mediaRecord = new Media({
       readURL: finalReadURL,
@@ -84,12 +135,12 @@ router.post("/register", async (req, res) => {
       puterFileId: finalFileId,
       fileId: finalFileId,
       path: path || finalFileId,
-      filename: filename || (finalReadURL.split('/').pop() || "media"),
-      type: type || "image/jpeg",
+      filename: finalFilename,
+      type: finalType,
       sizeBytes: finalSizeBytes,
       size: finalSizeBytes,
       metadata: metadata || {},
-      provider: provider || "puter"
+      provider: finalProvider
     });
 
     await mediaRecord.save();
@@ -97,7 +148,8 @@ router.post("/register", async (req, res) => {
     return res.json({
       success: true,
       message: "Media metadata registered in MongoDB",
-      media: mediaRecord
+      media: mediaRecord,
+      deduplicated: false
     });
   } catch (err) {
     console.error("Media registration error:", err);

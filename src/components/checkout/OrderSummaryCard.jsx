@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { PlaceOrderButton } from "./PlaceOrderButton";
+import { money, pct } from "../../data";
 
 /**
  * OrderSummaryCard - Premium Luxury Spiritual E-Commerce Order Summary Component
