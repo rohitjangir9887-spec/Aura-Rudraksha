@@ -1,6 +1,7 @@
 import { Product } from "../models/Product.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
+import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -12,6 +13,34 @@ const PRODUCT_FIELDS = {
   customOffer: "object", origin: "string"
 };
 
+/**
+ * Check if the current request is from an authenticated admin
+ */
+async function checkIsAdmin(req) {
+  if (!req.user) return false;
+  try {
+    const { isInitialAdmin } = isAdminUser(req.user);
+    if (isInitialAdmin) return true;
+    if (req.user.authUserId) {
+      const hasRole = await hasAdminRole(req.user.authUserId);
+      if (hasRole) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/**
+ * Normalize and validate status values
+ * Allowed normalized values: "Published", "Draft"
+ */
+function normalizeProductStatus(rawStatus, defaultStatus = "Draft") {
+  if (!rawStatus || typeof rawStatus !== "string") return defaultStatus;
+  const s = rawStatus.trim().toLowerCase();
+  if (s === "published" || s === "active") return "Published";
+  if (s === "draft" || s === "inactive" || s === "archived") return "Draft";
+  return defaultStatus;
+}
+
 export async function getProducts(req, res, next) {
   try {
     if (!isDbConnected()) {
@@ -21,7 +50,43 @@ export async function getProducts(req, res, next) {
         message: "Database is temporarily unavailable. Please try again shortly."
       });
     }
-    const products = await Product.find().sort({ createdAt: -1 }).lean();
+
+    const isAdmin = await checkIsAdmin(req);
+    let filter = {};
+
+    if (isAdmin) {
+      // Admin can view all products or filter by specific query status (e.g. ?status=Draft)
+      if (req.query.status) {
+        const queryStatus = String(req.query.status).trim();
+        if (queryStatus.toLowerCase() === "draft") {
+          filter.status = { $in: ["Draft", "draft", "Inactive", "inactive"] };
+        } else if (queryStatus.toLowerCase() === "published" || queryStatus.toLowerCase() === "active") {
+          filter.status = { $in: ["Published", "published", "Active", "active"] };
+        } else {
+          filter.status = queryStatus;
+        }
+      }
+    } else {
+      // Customer / Public API: STRICT SERVER-SIDE FILTER
+      // Exclude ALL draft/inactive/archived products
+      filter = {
+        $and: [
+          {
+            $or: [
+              { status: { $in: ["Published", "published", "Active", "active"] } },
+              { status: { $exists: false } },
+              { status: null },
+              { status: "" }
+            ]
+          },
+          {
+            status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
+          }
+        ]
+      };
+    }
+
+    const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
@@ -53,6 +118,18 @@ export async function getProductById(req, res, next) {
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+
+    // Check if the caller is an authenticated admin
+    const isAdmin = await checkIsAdmin(req);
+
+    // If customer/public caller, reject Draft or Inactive products
+    if (!isAdmin) {
+      const currentStatus = (product.status || "Published").toLowerCase();
+      if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
+    }
+
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: product });
   } catch (err) {
@@ -68,9 +145,12 @@ export async function createProduct(req, res, next) {
     }
 
     const id = data.id || Date.now().toString();
+    const normalizedStatus = normalizeProductStatus(data.status, "Draft");
+
     const productPayload = {
       ...data,
       id,
+      status: normalizedStatus,
       mrp: data.mrp || data.comparePrice || data.price,
       comparePrice: data.comparePrice || data.mrp || data.price,
       images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : []),
@@ -105,6 +185,9 @@ export async function updateProduct(req, res, next) {
     const data = pickFields(req.body, PRODUCT_FIELDS);
 
     const updatePayload = { ...data, id: String(id) };
+    if (data.status !== undefined) {
+      updatePayload.status = normalizeProductStatus(data.status, "Published");
+    }
     if (data.mrp) updatePayload.comparePrice = data.mrp;
     if (data.comparePrice) updatePayload.mrp = data.comparePrice;
     if (Array.isArray(data.images) && data.images.length > 0) {

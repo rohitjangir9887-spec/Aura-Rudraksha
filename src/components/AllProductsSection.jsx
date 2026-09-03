@@ -9,7 +9,7 @@ export function AllProductsSection({ products = [], isLoading = false }) {
 
   // All active products from catalog
   const allActiveProducts = React.useMemo(() => {
-    return (products || []).filter(p => p.status === "Active" || !p.status);
+    return (products || []).filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived');
   }, [products]);
 
   return (

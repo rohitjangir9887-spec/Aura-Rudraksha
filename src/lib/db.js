@@ -676,6 +676,9 @@ export const db = {
     const imgs = (Array.isArray(p.images) && p.images.length > 0) ? p.images : (p.img ? [p.img] : ["/images/product-5mukhi.jpg"]);
     const primaryImg = p.img || imgs[0];
 
+    const rawStatus = p.status || "Draft";
+    const normalizedStatus = (rawStatus === "Published" || rawStatus === "Active" || rawStatus === "published") ? "Published" : "Draft";
+
     const finalProduct = {
       ...p,
       id,
@@ -685,7 +688,7 @@ export const db = {
       comparePrice: Number(p.comparePrice) || Number(p.mrp) || Number(p.price) || 0,
       price: Number(p.price) || 0,
       stock: Number(p.stock) >= 0 ? Number(p.stock) : 50,
-      status: p.status || "Active",
+      status: normalizedStatus,
       showOnHome: p.showOnHome !== undefined ? !!p.showOnHome : true,
       isPopular: !!p.isPopular,
       homeOrder: Number(p.homeOrder) || 0,

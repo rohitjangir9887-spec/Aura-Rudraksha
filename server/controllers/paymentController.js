@@ -83,7 +83,8 @@ export async function initiatePayuPayment(req, res, next) {
     // Verify stock availability
     for (const item of totals.items) {
       const product = await Product.findOne({ id: item.id });
-      if (!product || product.status !== "Active") {
+      const pStatus = (product?.status || "Published").toLowerCase();
+      if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
         return res.status(400).json({
           success: false,
           message: `Product '${item.name}' is no longer available.`

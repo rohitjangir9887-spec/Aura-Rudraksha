@@ -14,6 +14,7 @@ import { useWishlist } from "../hooks/useWishlist";
 import { emitToast } from "../context/ToastContext";
 import { money, pct } from "../data";
 import { db, onStoreUpdate } from "../lib/db";
+import { authClient } from "../lib/authClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
@@ -105,19 +106,23 @@ export function Product() {
     if (!silent) setLoading(true);
     try {
       const found = await db.getProductAsync(id);
-      setProduct(found);
+      const isDraft = found && (found.status === 'Draft' || found.status === 'draft' || found.status === 'Inactive' || found.status === 'inactive' || found.status === 'Archived');
+      const isAdmin = authClient.isAdmin && authClient.isAdmin();
+      const validProduct = (isDraft && !isAdmin) ? null : found;
+
+      setProduct(validProduct);
       
-      if (found) {
-        const defaultImg = (found.images && found.images[0]) || found.img || "/images/product-5mukhi.jpg";
-        setActiveImg(prev => (found.images?.includes(prev) ? prev : defaultImg));
-        setReviews(db.getReviews(found.id || found._id));
+      if (validProduct) {
+        const defaultImg = (validProduct.images && validProduct.images[0]) || validProduct.img || "/images/product-5mukhi.jpg";
+        setActiveImg(prev => (validProduct.images?.includes(prev) ? prev : defaultImg));
+        setReviews(db.getReviews(validProduct.id || validProduct._id));
       }
 
       // Unblock main product UI immediately
       if (!silent) setLoading(false);
 
       // Load related products and coupons in background
-      const prods = db.getProducts().filter(p => p.status === 'Active' || !p.status);
+      const prods = db.getProducts().filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived');
       setAllProducts(prods);
       setCoupons(db.getCoupons().filter(c => c.status === "Active"));
     } catch (err) {

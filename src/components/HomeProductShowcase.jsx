@@ -19,7 +19,7 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
   // Filter products that admin explicitly enabled for Home Page Showcase
   const homeProducts = useMemo(() => {
     return products
-      .filter(p => p.showOnHome !== false && p.status === "Active")
+      .filter(p => p.showOnHome !== false && p.status !== "Draft" && p.status !== "draft" && p.status !== "Inactive" && p.status !== "inactive" && p.status !== "Archived")
       .sort((a, b) => {
         const orderA = a.homeOrder !== undefined && a.homeOrder > 0 ? a.homeOrder : 999;
         const orderB = b.homeOrder !== undefined && b.homeOrder > 0 ? b.homeOrder : 999;

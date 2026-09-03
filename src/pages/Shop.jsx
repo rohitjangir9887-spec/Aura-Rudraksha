@@ -105,7 +105,7 @@ export function Shop() {
   const loadProducts = async () => {
     await db.waitForHydration();
     const all = db.getProducts();
-    setProducts(all.filter(p => p.status === "Active" || !p.status));
+    setProducts(all.filter(p => p.status !== "Draft" && p.status !== "draft" && p.status !== "Inactive" && p.status !== "inactive" && p.status !== "Archived"));
     setIsLoading(false);
   };
 

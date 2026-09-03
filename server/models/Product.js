@@ -15,7 +15,11 @@ const productSchema = new mongoose.Schema(
     images: { type: [String], default: [] },
     img: { type: String, default: "" },
     stock: { type: Number, default: 50, min: 0 },
-    status: { type: String, enum: ["Active", "Draft", "Archived", "Out of Stock"], default: "Active" },
+    status: { 
+      type: String, 
+      enum: ["Published", "Draft", "Active", "Inactive", "Archived", "Out of Stock", "published", "draft"], 
+      default: "Draft" 
+    },
     tags: { type: [String], default: [] },
     highlight: { type: String, default: "" },
     badge: { type: String, default: "" },

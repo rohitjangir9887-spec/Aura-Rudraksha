@@ -54,7 +54,7 @@ export function Home() {
       setBanners(hydratedBanners);
     }
 
-    setProducts(db.getProducts().filter(p => p.status === 'Active'));
+    setProducts(db.getProducts().filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived'));
     
     // Banner offers that are Active
     const allOffers = db.getOffers().filter(o => {

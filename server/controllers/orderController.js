@@ -135,7 +135,8 @@ export async function createOrder(req, res, next) {
     // Check stock for all items
     for (const item of totals.items) {
       const product = await Product.findOne({ id: item.id });
-      if (!product || product.status !== "Active") {
+      const pStatus = (product?.status || "Published").toLowerCase();
+      if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
         recentOrderSubmissions.delete(submissionKey);
         return res.status(400).json({ 
           success: false, 

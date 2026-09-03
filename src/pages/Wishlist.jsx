@@ -15,7 +15,7 @@ export function Wishlist() {
   const [addedIds, setAddedIds] = useState({});
 
   const loadProducts = () => {
-    setProducts(db.getProducts());
+    setProducts(db.getProducts().filter(p => p.status !== 'Draft' && p.status !== 'draft' && p.status !== 'Inactive' && p.status !== 'inactive' && p.status !== 'Archived'));
   };
 
   useEffect(() => {

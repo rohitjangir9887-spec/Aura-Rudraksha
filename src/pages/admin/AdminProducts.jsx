@@ -51,6 +51,10 @@ export function AdminProducts() {
       result = result.filter(p => p.showOnHome !== false);
     } else if (homeFilter === "Hidden") {
       result = result.filter(p => p.showOnHome === false);
+    } else if (homeFilter === "Drafts") {
+      result = result.filter(p => p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive");
+    } else if (homeFilter === "Published") {
+      result = result.filter(p => p.status === "Published" || p.status === "Active" || p.status === "published" || (!p.status && p.status !== "Draft"));
     }
     setFilteredProducts(result);
   }, [searchTerm, selectedCategory, homeFilter, products]);
@@ -60,6 +64,25 @@ export function AdminProducts() {
     setProducts(list);
     setFilteredProducts(list);
     setLoading(false);
+  };
+
+  const handleToggleStatus = async (p, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const isCurrentlyDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
+    const nextStatus = isCurrentlyDraft ? "Published" : "Draft";
+    try {
+      await db.saveProduct({
+        ...p,
+        status: nextStatus
+      });
+      emitToast(nextStatus === "Published" ? `✅ "${p.name}" is now Published to store` : `📝 "${p.name}" moved to Drafts (Admin only)`, "success");
+      load();
+    } catch (err) {
+      emitToast("Failed to update product status", "error");
+    }
   };
 
   const handleToggleHomeShowcase = async (p, e) => {
@@ -143,13 +166,15 @@ export function AdminProducts() {
     }
   };
 
-const handleEdit = (p) => {
+  const handleEdit = (p) => {
     setFormError("");
     setUrlInput("");
     if (p) {
       const imgs = (p.images && p.images.length > 0) ? [...p.images] : (p.img ? [p.img] : []);
+      const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
       setEditing({
         ...p,
+        status: isDraft ? "Draft" : "Published",
         showOnHome: p.showOnHome !== false,
         isPopular: !!p.isPopular,
         homeBadge: p.homeBadge || p.badge || "",
@@ -167,7 +192,7 @@ const handleEdit = (p) => {
         images: [],
         category: "Rudraksha",
         description: "",
-        status: "Active",
+        status: "Draft", // Default new product status is Draft to prevent accidental public publishing
         showOnHome: true,
         isPopular: false,
         homeBadge: "Popular",
@@ -326,6 +351,9 @@ const handleEdit = (p) => {
       return;
     }
 
+    const rawStatus = editing.status || "Draft";
+    const finalStatus = (rawStatus === "Published" || rawStatus === "Active" || rawStatus === "published") ? "Published" : "Draft";
+
     const finalProduct = {
       ...editing,
       name: editing.name.trim(),
@@ -336,7 +364,7 @@ const handleEdit = (p) => {
       images: currentImages.length > 0 ? currentImages : [primaryImg],
       category: editing.category || "Rudraksha",
       description: editing.description || "",
-      status: editing.status || "Active",
+      status: finalStatus,
       showOnHome: editing.showOnHome !== false,
       isPopular: !!editing.isPopular,
       homeOrder: Number(editing.homeOrder) || 0,
@@ -641,15 +669,24 @@ const handleEdit = (p) => {
 
           <div className="admin-form-row">
             <div className="admin-form-group">
-              <label>Status *</label>
+              <label>Product Status *</label>
               <select 
-                value={editing.status} 
+                value={(editing.status === "Draft" || editing.status === "draft" || editing.status === "Inactive") ? "Draft" : "Published"} 
                 onChange={e => setEditing({...editing, status: e.target.value})}
+                style={{
+                  fontWeight: '600',
+                  color: (editing.status === "Draft" || editing.status === "draft" || editing.status === "Inactive") ? '#b45309' : '#15803d',
+                  borderColor: (editing.status === "Draft" || editing.status === "draft" || editing.status === "Inactive") ? '#f59e0b' : '#22c55e'
+                }}
               >
-                <option value="Active">Active (Visible in Store)</option>
-                <option value="Inactive">Inactive (Hidden)</option>
-                <option value="Out of Stock">Out of Stock</option>
+                <option value="Published">Published (Visible on Customer Website)</option>
+                <option value="Draft">Draft (Admin Only — Hidden from Store)</option>
               </select>
+              <small style={{ color: '#7a6a5e', fontSize: '11.5px', marginTop: '4px', display: 'block' }}>
+                {(editing.status === "Draft" || editing.status === "draft" || editing.status === "Inactive") 
+                  ? "📝 Draft products are saved permanently in the database but are completely hidden from customer search, shop, home, and recommendations."
+                  : "✅ Published products are live and available for customers to view and purchase."}
+              </small>
             </div>
             <div className="admin-form-group">
               <label>Rating (1.0 to 5.0)</label>
@@ -886,6 +923,8 @@ const handleEdit = (p) => {
     );
   }
 
+  const publishedCount = products.filter(p => p.status === 'Published' || p.status === 'Active' || (!p.status && p.status !== 'Draft')).length;
+  const draftCount = products.filter(p => p.status === 'Draft' || p.status === 'draft' || p.status === 'Inactive' || p.status === 'inactive').length;
   const homeShowcaseCount = products.filter(p => p.showOnHome !== false).length;
   const hiddenShowcaseCount = products.filter(p => p.showOnHome === false).length;
 
@@ -897,18 +936,18 @@ const handleEdit = (p) => {
       <div className="admin-page-header">
         <div>
           <h1>Product Catalog &amp; Home Showcase</h1>
-          <p className="admin-page-subtitle">Manage store products, stock levels, pricing, and choose which products show on the Home UI</p>
+          <p className="admin-page-subtitle">Manage store products, publish or save drafts, stock levels, pricing, and home showcase</p>
         </div>
         <button className="admin-btn" onClick={() => handleEdit(null)}>
           <Plus size={16} /> Add Product
         </button>
       </div>
 
-      {/* Showcase Summary & Quick Switcher */}
+      {/* Showcase & Status Summary Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '14px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '12px',
         marginBottom: '18px'
       }}>
         <div 
@@ -917,15 +956,55 @@ const handleEdit = (p) => {
             background: homeFilter === "All" ? '#fff' : '#fcfaf8',
             border: homeFilter === "All" ? '2px solid #8c2b10' : '1px solid #e7dcce',
             borderRadius: '12px',
-            padding: '14px 16px',
+            padding: '12px 14px',
             cursor: 'pointer',
             boxShadow: homeFilter === "All" ? '0 4px 12px rgba(140, 43, 16, 0.08)' : 'none',
             transition: 'all 0.2s ease'
           }}
         >
-          <div style={{ fontSize: '12px', color: '#7a6a5e', fontWeight: '600', textTransform: 'uppercase' }}>All Products</div>
-          <div style={{ fontSize: '24px', fontWeight: '800', color: '#2b170d', marginTop: '4px' }}>
-            {products.length} <span style={{ fontSize: '13px', fontWeight: '500', color: '#8c7d72' }}>Total In Catalog</span>
+          <div style={{ fontSize: '11.5px', color: '#7a6a5e', fontWeight: '600', textTransform: 'uppercase' }}>All Products</div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: '#2b170d', marginTop: '4px' }}>
+            {products.length} <span style={{ fontSize: '12px', fontWeight: '500', color: '#8c7d72' }}>Total</span>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setHomeFilter("Published")}
+          style={{
+            background: homeFilter === "Published" ? '#f0fdf4' : '#fcfaf8',
+            border: homeFilter === "Published" ? '2px solid #16a34a' : '1px solid #e7dcce',
+            borderRadius: '12px',
+            padding: '12px 14px',
+            cursor: 'pointer',
+            boxShadow: homeFilter === "Published" ? '0 4px 12px rgba(22, 163, 74, 0.12)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ fontSize: '11.5px', color: '#15803d', fontWeight: '700', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            ✅ Published
+          </div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: '#166534', marginTop: '4px' }}>
+            {publishedCount} <span style={{ fontSize: '12px', fontWeight: '500', color: '#15803d' }}>Live in Store</span>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setHomeFilter("Drafts")}
+          style={{
+            background: homeFilter === "Drafts" ? '#fffbeb' : '#fcfaf8',
+            border: homeFilter === "Drafts" ? '2px solid #d97706' : '1px solid #e7dcce',
+            borderRadius: '12px',
+            padding: '12px 14px',
+            cursor: 'pointer',
+            boxShadow: homeFilter === "Drafts" ? '0 4px 12px rgba(217, 119, 6, 0.12)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <div style={{ fontSize: '11.5px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            📝 Drafts
+          </div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: '#92400e', marginTop: '4px' }}>
+            {draftCount} <span style={{ fontSize: '12px', fontWeight: '500', color: '#b45309' }}>Admin Only</span>
           </div>
         </div>
 
@@ -933,39 +1012,19 @@ const handleEdit = (p) => {
           onClick={() => setHomeFilter("On Home")}
           style={{
             background: homeFilter === "On Home" ? '#fff9f4' : '#fcfaf8',
-            border: homeFilter === "On Home" ? '2px solid #d97706' : '1px solid #e7dcce',
+            border: homeFilter === "On Home" ? '2px solid #ea580c' : '1px solid #e7dcce',
             borderRadius: '12px',
-            padding: '14px 16px',
+            padding: '12px 14px',
             cursor: 'pointer',
-            boxShadow: homeFilter === "On Home" ? '0 4px 12px rgba(217, 119, 6, 0.12)' : 'none',
+            boxShadow: homeFilter === "On Home" ? '0 4px 12px rgba(234, 88, 12, 0.12)' : 'none',
             transition: 'all 0.2s ease'
           }}
         >
-          <div style={{ fontSize: '12px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            ⭐ On Home Showcase
+          <div style={{ fontSize: '11.5px', color: '#c2410c', fontWeight: '700', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            ⭐ Home Showcase
           </div>
-          <div style={{ fontSize: '24px', fontWeight: '800', color: '#92400e', marginTop: '4px' }}>
-            {homeShowcaseCount} <span style={{ fontSize: '13px', fontWeight: '500', color: '#b45309' }}>Visible on Home UI</span>
-          </div>
-        </div>
-
-        <div 
-          onClick={() => setHomeFilter("Hidden")}
-          style={{
-            background: homeFilter === "Hidden" ? '#fff' : '#fcfaf8',
-            border: homeFilter === "Hidden" ? '2px solid #6b7280' : '1px solid #e7dcce',
-            borderRadius: '12px',
-            padding: '14px 16px',
-            cursor: 'pointer',
-            boxShadow: homeFilter === "Hidden" ? '0 4px 12px rgba(107, 114, 128, 0.1)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            ⚪ Hidden from Home
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: '800', color: '#4b5563', marginTop: '4px' }}>
-            {hiddenShowcaseCount} <span style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280' }}>Shop Catalog Only</span>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: '#9a3412', marginTop: '4px' }}>
+            {homeShowcaseCount} <span style={{ fontSize: '12px', fontWeight: '500', color: '#c2410c' }}>On Home UI</span>
           </div>
         </div>
       </div>
@@ -1011,6 +1070,7 @@ const handleEdit = (p) => {
               const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
               const imgCount = p.images?.length || (p.img ? 1 : 0);
               const isShownOnHome = p.showOnHome !== false;
+              const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
 
               return (
                 <div key={p.id} className="admin-mobile-card">
@@ -1039,7 +1099,23 @@ const handleEdit = (p) => {
                         </div>
                       </div>
                     </div>
-                    <span className={`admin-badge ${p.status === 'Active' ? 'success' : 'error'}`}>{p.status}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleStatus(p, e)}
+                      title={isDraft ? "Click to Publish product to store" : "Click to unpublish (Move to Draft)"}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        border: isDraft ? '1px solid #f59e0b' : '1px solid #22c55e',
+                        background: isDraft ? '#fffbeb' : '#f0fdf4',
+                        color: isDraft ? '#b45309' : '#15803d',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {isDraft ? "📝 Draft" : "✅ Published"}
+                    </button>
                   </div>
                   
                   {/* Home Showcase Switch on Mobile */}
@@ -1102,7 +1178,7 @@ const handleEdit = (p) => {
                   <th>Price</th>
                   <th>Stock</th>
                   <th style={{ textAlign: 'center' }}>Home Showcase</th>
-                  <th>Status</th>
+                  <th style={{ textAlign: 'center' }}>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1110,6 +1186,7 @@ const handleEdit = (p) => {
                 {filteredProducts.map(p => {
                   const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
                   const isShownOnHome = p.showOnHome !== false;
+                  const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
 
                   return (
                     <tr key={p.id}>
@@ -1182,10 +1259,28 @@ const handleEdit = (p) => {
                           )}
                         </button>
                       </td>
-                      <td>
-                        <span className={`admin-badge ${p.status === 'Active' ? 'success' : 'error'}`}>
-                          {p.status}
-                        </span>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleStatus(p, e)}
+                          title={isDraft ? "Click to Publish product to store" : "Click to unpublish (Move to Draft)"}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '5px 12px',
+                            borderRadius: '20px',
+                            border: isDraft ? '1px solid #f59e0b' : '1px solid #22c55e',
+                            background: isDraft ? '#fffbeb' : '#f0fdf4',
+                            color: isDraft ? '#b45309' : '#15803d',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {isDraft ? "📝 Draft" : "✅ Published"}
+                        </button>
                       </td>
                       <td>
                         <div className="admin-actions-cell">

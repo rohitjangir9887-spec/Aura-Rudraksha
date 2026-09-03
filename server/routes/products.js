@@ -6,16 +6,16 @@ import {
   updateProduct,
   deleteProduct
 } from "../controllers/productController.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
 router.route("/")
-  .get(getProducts)
+  .get(optionalAuth, getProducts)
   .post(requireAdmin, createProduct);
 
 router.route("/:id")
-  .get(getProductById)
+  .get(optionalAuth, getProductById)
   .put(requireAdmin, updateProduct)
   .delete(requireAdmin, deleteProduct);
 

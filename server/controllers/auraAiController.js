@@ -540,7 +540,10 @@ export async function chatAuraAI(req, res, next) {
     
     if (isDbConnected()) {
       try {
-        products = await Product.find({ inStock: { $ne: false } }).lean();
+        products = await Product.find({ 
+          inStock: { $ne: false },
+          status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
+        }).lean();
         coupons = await Coupon.find({ status: "Active" }).lean();
         if (userIsAuthenticated && (verifiedUserId || verifiedEmail)) {
           const orderQueries = [];
