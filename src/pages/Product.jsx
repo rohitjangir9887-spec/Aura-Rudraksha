@@ -39,7 +39,7 @@ export function Product() {
 
   // Gallery & UI state
   const [qty, setQty] = useState(1);
-  const [selectedSize, setSelectedSize] = useState("1.5 cm");
+  const [selectedSize, setSelectedSize] = useState("Medium (15 - 18 mm)");
   const [activeImg, setActiveImg] = useState("");
   const [slideDirection, setSlideDirection] = useState(1);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -676,55 +676,6 @@ export function Product() {
                 </div>
               </div>
 
-              {/* PROMINENT 1-2 CM LUXURY SIZE BADGE */}
-              <div className="product-size-badge-prominent" style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                background: "linear-gradient(135deg, #fffcf5 0%, #fff6e5 100%)",
-                border: "1.5px solid #e5c158",
-                borderRadius: "12px",
-                padding: "10px 14px",
-                margin: "12px 0",
-                boxShadow: "0 6px 18px rgba(229, 193, 88, 0.12), inset 0 1px 0 rgba(255,255,255,0.9)",
-                position: "relative",
-                overflow: "hidden"
-              }}>
-                {/* Embedded luxury shimmer element */}
-                <div style={{
-                  position: "absolute",
-                  top: 0,
-                  left: "-50%",
-                  width: "200%",
-                  height: "100%",
-                  background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%)",
-                  transform: "skewX(-25deg)",
-                  animation: "shine 4s infinite linear",
-                  pointerEvents: "none"
-                }} />
-                <div style={{
-                  background: "linear-gradient(135deg, #e5c158 0%, #c49619 100%)",
-                  color: "#fff",
-                  width: "38px",
-                  height: "38px",
-                  borderRadius: "10px",
-                  display: "grid",
-                  placeItems: "center",
-                  boxShadow: "0 4px 12px rgba(196, 150, 25, 0.3)",
-                  flexShrink: 0
-                }}>
-                  <Award size={20} className="premium-icon-shimmer" style={{ strokeWidth: 2.0 }} />
-                </div>
-                <div>
-                  <span style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1.2px", color: "#b28514", fontWeight: 800, display: "block", marginBottom: "1px" }}>
-                    Natural Bead Size &amp; Dimensions
-                  </span>
-                  <span style={{ fontSize: "18px", fontWeight: "800", color: "#1a0f08", letterSpacing: "0.3px", fontFamily: "Cormorant Garamond, serif" }}>
-                    1 - 2 cm <span style={{ fontSize: "12px", fontWeight: "600", color: "#c49619", fontFamily: "sans-serif" }}>(Authentic Nepali Seed)</span>
-                  </span>
-                </div>
-              </div>
-
               {/* PRODUCT BENEFIT CHIPS / TAGS */}
               {benefitTags.length > 0 && (
                 <div className="product-benefit-chips-row">
@@ -776,62 +727,48 @@ export function Product() {
 
             {/* FALLBACK COUPONS BOX REMOVED AS REQUESTED */}
 
-            {/* BEAD SIZE SELECTION */}
+            {/* SINGLE PREMIUM MEDIUM SIZE DISPLAY BADGE */}
             {!isOutOfStock && (
-              <div className="size-selection-block" style={{ margin: "20px 0 15px 0" }}>
-                <span style={{ 
-                  fontSize: "12px", 
-                  textTransform: "uppercase", 
-                  letterSpacing: "1px", 
-                  color: "#806f62", 
-                  fontWeight: 700, 
-                  display: "block", 
-                  marginBottom: "8px" 
+              <div className="size-selection-block" style={{ margin: "20px 0 16px 0" }}>
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  background: "linear-gradient(135deg, #fffdfa 0%, #fef3e7 100%)",
+                  border: "1.5px solid #ebd0ba",
+                  borderRadius: "14px",
+                  padding: "14px 18px",
+                  boxShadow: "0 4px 14px rgba(126, 45, 18, 0.06)",
+                  position: "relative"
                 }}>
-                  Select Bead Size:
-                </span>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  {[
-                    { value: "1.2 cm", label: "1.2 cm", desc: "Compact & Light" },
-                    { value: "1.5 cm", label: "1.5 cm", desc: "Most Auspicious" },
-                    { value: "2.0 cm", label: "2.0 cm", desc: "Collector's Bead" }
-                  ].map((sz) => {
-                    const isSel = selectedSize === sz.value;
-                    return (
-                      <button
-                        key={sz.value}
-                        type="button"
-                        onClick={() => setSelectedSize(sz.value)}
-                        style={{
-                          flex: 1,
-                          minWidth: "100px",
-                          textAlign: "left",
-                          padding: "10px 12px",
-                          borderRadius: "10px",
-                          border: isSel ? "2px solid #b28514" : "1.5px solid #e8e0d8",
-                          background: isSel ? "#fffdf5" : "#ffffff",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                          boxShadow: isSel ? "0 4px 12px rgba(178, 133, 20, 0.1)" : "none"
-                        }}
-                      >
-                        <div style={{ 
-                          fontWeight: 700, 
-                          color: isSel ? "#8c6d53" : "#2b170d", 
-                          fontSize: "14px" 
-                        }}>
-                          {sz.label}
-                        </div>
-                        <div style={{ 
-                          fontSize: "10.5px", 
-                          color: isSel ? "#b28514" : "#806f62",
-                          marginTop: "2px"
-                        }}>
-                          {sz.desc}
-                        </div>
-                      </button>
-                    );
-                  })}
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{
+                      background: "linear-gradient(135deg, #7e2d12 0%, #b84319 100%)",
+                      color: "#fff",
+                      width: "44px",
+                      height: "44px",
+                      borderRadius: "12px",
+                      display: "grid",
+                      placeItems: "center",
+                      boxShadow: "0 3px 10px rgba(126, 45, 18, 0.25)",
+                      fontSize: "22px",
+                      flexShrink: 0
+                    }}>
+                      📿
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px", color: "#a54d2b", fontWeight: 800, display: "block", marginBottom: "2px" }}>
+                        Authentic Sacred Bead
+                      </span>
+                      <span style={{ fontSize: "16px", fontWeight: "800", color: "#2b170d", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                        Medium Size Rudraksha
+                        <span style={{ fontSize: "11px", color: "#2e7d32", background: "#e8f5e9", border: "1px solid #a5d6a7", padding: "2px 8px", borderRadius: "10px", fontWeight: "700" }}>
+                          ✓ Premium Rudraksha
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
