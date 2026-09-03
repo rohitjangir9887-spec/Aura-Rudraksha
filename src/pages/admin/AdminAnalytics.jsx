@@ -6,43 +6,64 @@ import "./admin-pages.css";
 
 export function AdminAnalytics() {
   const [stats, setStats] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function loadData() {
-      // Real events only: visits & product views are recorded from actual
-      // customer page loads; revenue is computed from real orders.
-      const [analytics, orders] = await Promise.all([
-        db.fetchAnalytics(),
-        db.fetchOrders()
-      ]);
-      const realOrders = db.getOrders() || [];
-      const validOrders = realOrders.filter(o => o.status !== 'Cancelled');
-      
-      const rev = validOrders.reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
-      
-      // Breakdown by channel source
-      const auraAiOrders = validOrders.filter(o => o.orderSource === 'aura_ai' || o.source === 'aura_ai');
-      const webOrders = validOrders.filter(o => !(o.orderSource === 'aura_ai' || o.source === 'aura_ai'));
+      setError(null);
+      try {
+        // Real events only: visits & product views are recorded from actual
+        // customer page loads; revenue is computed from real orders.
+        const [analytics, orders] = await Promise.all([
+          db.fetchAnalytics(),
+          db.fetchOrders()
+        ]);
+        const realOrders = orders || db.getOrders() || [];
+        const validOrders = realOrders.filter(o => o.status !== 'Cancelled');
+        
+        const rev = validOrders.reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
+        
+        // Breakdown by channel source
+        const auraAiOrders = validOrders.filter(o => o.orderSource === 'aura_ai' || o.source === 'aura_ai');
+        const webOrders = validOrders.filter(o => !(o.orderSource === 'aura_ai' || o.source === 'aura_ai'));
 
-      const auraAiRevenue = auraAiOrders.reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
-      const webRevenue = webOrders.reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
+        const auraAiRevenue = auraAiOrders.reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
+        const webRevenue = webOrders.reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
 
-      setStats({
-        visits: analytics.visits || 0,
-        productViews: analytics.productViews || 0,
-        totalOrders: realOrders.length,
-        conversion: analytics.visits ? ((realOrders.length / analytics.visits) * 100).toFixed(1) : "0.0",
-        revenue: rev,
-        auraAiOrdersCount: auraAiOrders.length,
-        auraAiRevenue,
-        webOrdersCount: webOrders.length,
-        webRevenue,
-        auraSharePercent: validOrders.length > 0 ? ((auraAiOrders.length / validOrders.length) * 100).toFixed(1) : "0.0",
-        hasData: (analytics.visits || 0) > 0 || (analytics.productViews || 0) > 0 || realOrders.length > 0
-      });
+        setStats({
+          visits: analytics.visits || 0,
+          productViews: analytics.productViews || 0,
+          totalOrders: realOrders.length,
+          conversion: analytics.visits ? ((realOrders.length / analytics.visits) * 100).toFixed(1) : "0.0",
+          revenue: rev,
+          auraAiOrdersCount: auraAiOrders.length,
+          auraAiRevenue,
+          webOrdersCount: webOrders.length,
+          webRevenue,
+          auraSharePercent: validOrders.length > 0 ? ((auraAiOrders.length / validOrders.length) * 100).toFixed(1) : "0.0",
+          hasData: (analytics.visits || 0) > 0 || (analytics.productViews || 0) > 0 || realOrders.length > 0
+        });
+      } catch (err) {
+        setError(err?.message || "Failed to load analytics from database.");
+      }
     }
     loadData();
   }, []);
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="admin-page-header">
+          <div>
+            <h1>Analytics & Sales Channels</h1>
+          </div>
+        </div>
+        <div className="admin-card error" style={{ padding: '20px', color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca' }}>
+          ⚠️ <b>Database Error:</b> {error}
+        </div>
+      </AdminLayout>
+    );
+  }
 
   if (!stats) return <AdminLayout><div className="admin-loading">Loading analytics...</div></AdminLayout>;
 

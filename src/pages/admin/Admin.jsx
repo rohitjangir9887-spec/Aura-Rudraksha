@@ -132,16 +132,21 @@ export function Admin() {
     setRefreshing(true);
     setFetchError(null);
     try {
-      // Fresh live data from MongoDB with individual resilient catch handlers
+      // Fresh live data from MongoDB
       const [productsRes, ordersRes, customersRes, analyticsRes, aiMetricsRes] = await Promise.allSettled([
-        db.fetchProducts().catch(() => db.getProducts()),
-        db.fetchOrders().catch(() => db.getOrders()),
-        db.fetchCustomers().catch(() => db.getCustomers()),
-        db.fetchAnalytics().catch(() => ({ visits: 0 })),
+        db.fetchProducts(),
+        db.fetchOrders(),
+        db.fetchCustomers(),
+        db.fetchAnalytics(),
         auraAiClient.getAnalytics().catch(() => ({ totalConvos: 0 }))
       ]);
 
       if (!mountedRef.current) return;
+
+      const dbRejection = [productsRes, ordersRes, customersRes, analyticsRes].find(r => r.status === "rejected");
+      if (dbRejection) {
+        setFetchError(dbRejection.reason?.message || "Database unavailable. Could not sync dashboard metrics.");
+      }
 
       const realProducts = (productsRes.status === "fulfilled" && Array.isArray(productsRes.value)) ? productsRes.value : (db.getProducts() || []);
       const realOrders = (ordersRes.status === "fulfilled" && Array.isArray(ordersRes.value)) ? ordersRes.value : (db.getOrders() || []);

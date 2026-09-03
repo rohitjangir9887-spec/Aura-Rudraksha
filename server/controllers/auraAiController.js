@@ -1124,7 +1124,11 @@ export async function getAuraAIAnalytics(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      return res.json({ success: true, data: empty });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
     let convos = [];

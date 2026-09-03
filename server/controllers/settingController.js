@@ -213,23 +213,24 @@ export async function updateTicket(req, res, next) {
 // Analytics
 export async function getAnalytics(req, res, next) {
   try {
-    if (isDbConnected()) {
-      let doc = await Analytics.findOne({ id: "GLOBAL_ANALYTICS" }).lean();
-      if (!doc) {
-        doc = await Analytics.create({
-          id: "GLOBAL_ANALYTICS",
-          visits: 0,
-          productViews: 0,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-      return res.json({ success: true, data: { ...doc, hasData: (doc.visits || 0) > 0 || (doc.productViews || 0) > 0 } });
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly."
+      });
     }
 
-    return res.json({
-      success: true,
-      data: { visits: 1, productViews: 1, lastUpdated: new Date().toISOString(), hasData: true }
-    });
+    let doc = await Analytics.findOne({ id: "GLOBAL_ANALYTICS" }).lean();
+    if (!doc) {
+      doc = await Analytics.create({
+        id: "GLOBAL_ANALYTICS",
+        visits: 0,
+        productViews: 0,
+        lastUpdated: new Date().toISOString()
+      });
+    }
+    return res.json({ success: true, data: { ...doc, hasData: (doc.visits || 0) > 0 || (doc.productViews || 0) > 0 } });
   } catch (err) {
     next(err);
   }

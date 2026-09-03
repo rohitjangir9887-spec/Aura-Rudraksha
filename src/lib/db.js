@@ -517,6 +517,10 @@ export const db = {
         comparePrice: p.comparePrice || p.mrp || p.price,
         images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
       }));
+      return db.getProducts();
+    }
+    if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
+      throw new Error(res?.message || "Database unavailable");
     }
     return db.getProducts();
   },
@@ -693,12 +697,14 @@ export const db = {
   },
 
   fetchOrders: async () => {
-    try {
-      const res = await apiRequest("/orders");
-      if (res?.success && Array.isArray(res.data)) {
-        storeCache.orders = res.data;
-      }
-    } catch (_) {}
+    const res = await apiRequest("/orders");
+    if (res?.success && Array.isArray(res.data)) {
+      storeCache.orders = res.data;
+      return storeCache.orders;
+    }
+    if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
+      throw new Error(res?.message || "Database unavailable");
+    }
     return storeCache.orders;
   },
 
@@ -919,7 +925,10 @@ export const db = {
     const res = await apiRequest("/customers");
     if (res?.success && Array.isArray(res.data)) {
       storeCache.customers = res.data;
-      // emitStoreUpdate (removed to prevent infinite fetch loop)
+      return db.getCustomers();
+    }
+    if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
+      throw new Error(res?.message || "Database unavailable");
     }
     return db.getCustomers();
   },
@@ -1093,6 +1102,10 @@ export const db = {
         hasData: res.hasData !== undefined ? res.hasData : ((res.data.visits || 0) > 0 || (res.data.productViews || 0) > 0)
       };
       emitStoreUpdate("analytics:updated", storeCache.analytics);
+      return storeCache.analytics;
+    }
+    if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
+      throw new Error(res?.message || "Database unavailable");
     }
     return storeCache.analytics;
   },
