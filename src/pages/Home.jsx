@@ -144,7 +144,7 @@ export function Home() {
             alt={`Aura Sacred Banner ${i + 1}`} 
             className={`hero-slide ${i === hero ? 'active' : ''}`}
             loading={i === 0 ? "eager" : "lazy"}
-            fetchPriority={i === 0 ? "high" : "auto"}
+            fetchpriority={i === 0 ? "high" : "auto"}
             decoding="async"
             referrerPolicy="no-referrer"
             onError={(e) => {
