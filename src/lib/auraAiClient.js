@@ -26,6 +26,7 @@ export const auraAiClient = {
     cartItems = [],
     history = [],
     onChunk,
+    onStatus,
     onDone,
     onError
   }) {
@@ -50,6 +51,8 @@ export const auraAiClient = {
 
           const safeAccumulated = customerSafeAiText(accumulatedRaw);
           if (onChunk) onChunk(chunkDelta, safeAccumulated, finalData);
+        } else if (parsed.type === "status" && parsed.message) {
+          if (onStatus) onStatus(parsed.message);
         } else if (parsed.type === "meta" && (parsed.data || parsed.products || parsed.coupons || parsed.quickReplies)) {
           const payload = parsed.data || parsed;
           const parsedMeta = parseAuraAiPayload(payload);
@@ -159,7 +162,21 @@ export const auraAiClient = {
         if (onDone) onDone(result);
         return result;
       } else {
-        const data = await res.json();
+        const fallbackContentType = res.headers.get("content-type") || "";
+        if (!fallbackContentType.includes("application/json")) {
+          let textBody = "";
+          try {
+            textBody = await res.text();
+            textBody = textBody.slice(0, 300);
+          } catch (_) {}
+          throw new Error(`Server returned HTML/Non-JSON content type: ${fallbackContentType || "unknown"}. Body start: ${textBody}`);
+        }
+        let data;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          throw new Error("Failed to parse JSON response: " + jsonErr.message);
+        }
         const parsed = parseAuraAiPayload(data.data || data);
         let text = customerSafeAiText(parsed.text);
         if (!text.trim()) {
@@ -177,8 +194,14 @@ export const auraAiClient = {
       console.warn("Aura AI streaming notice:", err?.message || err);
       if (onError) onError(err);
       
+      let errorText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+      const errMsg = String(err?.message || "").toLowerCase();
+      if (errMsg.includes("503") || errMsg.includes("database") || errMsg.includes("html") || errMsg.includes("json") || errMsg.includes("status")) {
+        errorText = "Namaste! 🙏 Our digital temple is currently undergoing a brief Vedic alignment & routine maintenance. Our sevaks are working swiftly to restore full access. Please try again in a few moments or reach out to us on WhatsApp!";
+      }
+
       const fallbackResult = {
-        text: "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.",
+        text: errorText,
         products: [],
         coupons: [],
         quickReplies: ["Talk to Support", "Today's Offers", "Help Me Choose"],
@@ -215,8 +238,28 @@ export const auraAiClient = {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        let textBody = "";
+        try {
+          textBody = await res.text();
+          textBody = textBody.slice(0, 300);
+        } catch (_) {}
+        throw new Error(`Expected JSON response from server but received: ${contentType || "unknown"}. Body start: ${textBody}`);
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        throw new Error("Failed to parse JSON response: " + jsonErr.message);
+      }
+
+      if (!data.success) {
         throw new Error(data.message || "Failed to communicate with Aura AI.");
       }
       return parseAuraAiPayload(data.data || data);

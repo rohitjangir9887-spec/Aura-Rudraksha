@@ -627,7 +627,11 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       if (res.flushHeaders) res.flushHeaders();
       
       res.write(`data: ${JSON.stringify({ type: "start", conversationId: targetConversationId, guestSessionId: effectiveGuestSessionId })}\n\n`);
+      if (res.flush) res.flush();
       
+      res.write(`data: ${JSON.stringify({ type: "status", message: "Checking products..." })}\n\n`);
+      if (res.flush) res.flush();
+
       res.write(`data: ${JSON.stringify({ 
         type: "meta", 
         data: { 
@@ -638,12 +642,18 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       })}\n\n`);
       if (res.flush) res.flush();
 
+      res.write(`data: ${JSON.stringify({ type: "status", message: "Finding recommendations..." })}\n\n`);
+      if (res.flush) res.flush();
+
       let fullRawContent = "";
       let generatedViaLLM = false;
 
       const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
       if (nvidiaApiKey) {
         try {
+          res.write(`data: ${JSON.stringify({ type: "status", message: "Thinking..." })}\n\n`);
+          if (res.flush) res.flush();
+
           const formattedMessages = [{ role: "system", content: systemPrompt }];
           for (const h of history.slice(-4)) {
             if (h.sender === "user" && h.text) formattedMessages.push({ role: "user", content: String(h.text) });

@@ -71,6 +71,25 @@ export function AuraAIFloating() {
     concern: "career"
   });
 
+  // Aura AI Live Status and Stop/Retry State Variables
+  const [statusText, setStatusText] = useState("Thinking...");
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [errorOccurred, setErrorOccurred] = useState(false);
+  const [lastUserQuery, setLastUserQuery] = useState("");
+  const timerRef = useRef(null);
+  const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleResize = () => {
+        setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      };
+      handleResize();
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
+  }, []);
+
   const cart = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -236,6 +255,9 @@ export function AuraAIFloating() {
       window.removeEventListener("aura_ai_open_change", handleOpenChange);
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("aura_ai_trigger_chat", handleTriggerChat);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, [mode]);
 
@@ -284,7 +306,20 @@ export function AuraAIFloating() {
     const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
+    
+    // Reset and Start Live Status Tracking
+    setLastUserQuery(textToSend.trim());
+    setErrorOccurred(false);
+    setStatusText("Thinking...");
+    setElapsedTime(0);
     setLoading(true);
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    timerRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
 
     const aiMsgId = "ai_" + Date.now();
     let streamInitialized = false;
@@ -302,11 +337,15 @@ export function AuraAIFloating() {
         mode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
+        onStatus: (statusMsg) => {
+          setStatusText(statusMsg);
+        },
         onChunk: (delta, accumulated, partialData) => {
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
           }
+          setStatusText("Writing answer...");
           const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -334,6 +373,10 @@ export function AuraAIFloating() {
           }
         },
         onDone: (finalData) => {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
           const cleanText = customerSafeAiText(finalData.text);
           const aiMsg = {
             id: aiMsgId,
@@ -363,9 +406,19 @@ export function AuraAIFloating() {
         },
         onError: (err) => {
           console.warn("Stream error in floating assistant:", err);
+          setErrorOccurred(true);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
         }
       });
     } catch (err) {
+      setErrorOccurred(true);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
       if (!streamInitialized) {
         const errMsg = {
           id: "err_" + Date.now(),
@@ -531,7 +584,12 @@ export function AuraAIFloating() {
             drag
             dragMomentum={false}
             dragElastic={0.05}
-            dragConstraints={dragAreaRef}
+            dragConstraints={{
+              left: 10,
+              right: windowSize.width - 150,
+              top: 10,
+              bottom: windowSize.height - 100
+            }}
             whileDrag={{ scale: 1.05, cursor: "grabbing" }}
             onDragStart={(_, info) => {
               isDraggingBtnRef.current = true;
@@ -1217,10 +1275,15 @@ export function AuraAIFloating() {
                     <div className="aura-ai-msg-avatar">
                       <Sparkles size={13} />
                     </div>
-                    <div className="aura-ai-typing-bubble">
-                      <span className="dot" />
-                      <span className="dot" />
-                      <span className="dot" />
+                    <div className="flex flex-col gap-1 items-start" style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                      <div className="aura-ai-typing-bubble">
+                        <span className="dot" />
+                        <span className="dot" />
+                        <span className="dot" />
+                      </div>
+                      <span className="aura-ai-status-text" style={{ fontSize: "10.5px", color: "#8c2b10", fontStyle: "italic", fontWeight: "500", paddingLeft: "4px" }}>
+                        {statusText} {elapsedTime > 0 ? `(${elapsedTime}s)` : ""}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1251,15 +1314,49 @@ export function AuraAIFloating() {
                     rows={1}
                     className="aura-ai-input-field aura-ai-textarea"
                   />
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || loading}
-                    className="aura-ai-send-btn"
-                    aria-label="Send message"
-                  >
-                    <Send size={15} />
-                  </button>
+                  {loading ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        auraAiClient.abortActiveStream();
+                        setLoading(false);
+                        setStatusText("Stopped");
+                        if (timerRef.current) {
+                          clearInterval(timerRef.current);
+                          timerRef.current = null;
+                        }
+                      }}
+                      className="aura-ai-send-btn"
+                      style={{ background: "#c62828", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      aria-label="Stop generation"
+                      title="Stop generation"
+                    >
+                      <span style={{ width: "8px", height: "8px", background: "white", borderRadius: "1px", display: "block" }} />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={!input.trim() || loading}
+                      className="aura-ai-send-btn"
+                      aria-label="Send message"
+                    >
+                      <Send size={15} />
+                    </button>
+                  )}
                 </form>
+                {errorOccurred && lastUserQuery && (
+                  <div className="aura-ai-retry-banner" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "6px 12px", background: "#fef2f2", borderTop: "1px solid #fee2e2", fontSize: "11px", color: "#991b1b" }}>
+                    <span>An error occurred. Would you like to retry?</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSend(lastUserQuery)}
+                      className="aura-ai-retry-btn"
+                      style={{ padding: "3px 8px", background: "#dc2626", color: "white", fontWeight: "600", borderRadius: "4px", fontSize: "10.5px", cursor: "pointer" }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
                 <div className="aura-ai-privacy-note">
                   <ShieldCheck size={11} /> {mode === "panditji" ? "Authentic Vedic & Astrological Guidance" : "Secure shopping assistance • Authentic Vedic guidance"}
                 </div>

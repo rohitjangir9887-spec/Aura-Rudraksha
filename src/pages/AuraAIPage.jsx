@@ -53,6 +53,13 @@ export function AuraAIPage() {
   const [refreshPhase, setRefreshPhase] = useState("idle"); // "idle" | "fading-out" | "fading-in"
   const [showRefreshToast, setShowRefreshToast] = useState(false);
 
+  // Aura AI Live Status and Stop/Retry State Variables
+  const [statusText, setStatusText] = useState("Thinking...");
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [errorOccurred, setErrorOccurred] = useState(false);
+  const [lastUserQuery, setLastUserQuery] = useState("");
+  const timerRef = useRef(null);
+
   const cart = useCart();
   const messagesEndRef = useRef(null);
   const chatScrollContainerRef = useRef(null);
@@ -118,6 +125,9 @@ export function AuraAIPage() {
     return () => {
       isMounted = false;
       if (typeof unsub === "function") unsub();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, [mode]);
 
@@ -209,8 +219,21 @@ export function AuraAIPage() {
     const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
-    setLoading(true);
     setMobileTab("chat");
+
+    // Reset and Start Live Status Tracking
+    setLastUserQuery(textToSend.trim());
+    setErrorOccurred(false);
+    setStatusText("Thinking...");
+    setElapsedTime(0);
+    setLoading(true);
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    timerRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
 
     const aiMsgId = "ai_" + Date.now();
     let streamInitialized = false;
@@ -228,11 +251,15 @@ export function AuraAIPage() {
         mode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
+        onStatus: (statusMsg) => {
+          setStatusText(statusMsg);
+        },
         onChunk: (delta, accumulated, partialData) => {
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
           }
+          setStatusText("Writing answer...");
           const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -257,6 +284,10 @@ export function AuraAIPage() {
           });
         },
         onDone: (finalData) => {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
           const cleanText = customerSafeAiText(finalData.text);
           const aiMsg = {
             id: aiMsgId,
@@ -283,9 +314,19 @@ export function AuraAIPage() {
         },
         onError: (err) => {
           console.warn("Stream error in full-page Aura AI:", err);
+          setErrorOccurred(true);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
         }
       });
     } catch (err) {
+      setErrorOccurred(true);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
       if (!streamInitialized) {
         const errMsg = {
           id: "err_" + Date.now(),
@@ -820,10 +861,15 @@ export function AuraAIPage() {
                   <div className="aura-ai-page-msg-avatar">
                     <Sparkles size={14} />
                   </div>
-                  <div className="aura-ai-typing-bubble">
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="dot" />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                    <div className="aura-ai-typing-bubble">
+                      <span className="dot" />
+                      <span className="dot" />
+                      <span className="dot" />
+                    </div>
+                    <span className="aura-ai-status-text" style={{ fontSize: "10.5px", color: "#8c2b10", fontStyle: "italic", fontWeight: "500", paddingLeft: "4px" }}>
+                      {statusText} {elapsedTime > 0 ? `(${elapsedTime}s)` : ""}
+                    </span>
                   </div>
                 </div>
               )}
@@ -862,15 +908,49 @@ export function AuraAIPage() {
                   rows={1}
                   className="aura-ai-page-input aura-ai-textarea"
                 />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || loading}
-                  className="aura-ai-page-send"
-                  aria-label="Send query"
-                >
-                  <Send size={15} />
-                </button>
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      auraAiClient.abortActiveStream();
+                      setLoading(false);
+                      setStatusText("Stopped");
+                      if (timerRef.current) {
+                        clearInterval(timerRef.current);
+                        timerRef.current = null;
+                      }
+                    }}
+                    className="aura-ai-page-send animate-pulse"
+                    style={{ background: "#c62828", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    aria-label="Stop generation"
+                    title="Stop generation"
+                  >
+                    <span style={{ width: "8px", height: "8px", background: "white", borderRadius: "1px", display: "block" }} />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || loading}
+                    className="aura-ai-page-send"
+                    aria-label="Send query"
+                  >
+                    <Send size={15} />
+                  </button>
+                )}
               </form>
+              {errorOccurred && lastUserQuery && (
+                <div className="aura-ai-retry-banner" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "6px 12px", background: "#fef2f2", borderTop: "1px solid #fee2e2", borderBottom: "1px solid #fee2e2", fontSize: "11px", color: "#991b1b" }}>
+                  <span>An error occurred. Would you like to retry?</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSend(lastUserQuery)}
+                    className="aura-ai-retry-btn"
+                    style={{ padding: "3px 8px", background: "#dc2626", color: "white", fontWeight: "600", borderRadius: "4px", fontSize: "10.5px", cursor: "pointer" }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
               <div className="aura-ai-input-footer-note">
                 <ShieldCheck size={12} />
                 <span>Aura AI uses real database knowledge. Sensitive personal credentials (PIN/OTP/Card) are never requested.</span>
