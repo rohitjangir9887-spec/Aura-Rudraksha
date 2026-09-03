@@ -1,11 +1,138 @@
 import express from "express";
+import multer from "multer";
 import { Media, initMediaIndexes } from "../models/Media.js";
 import { isDbConnected } from "../config/db.js";
+import { mediaStorageManager } from "../services/mediaStorage/index.js";
 
 const router = express.Router();
 
+const multerStorage = multer.memoryStorage();
+const upload = multer({
+  storage: multerStorage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
+
 // Trigger background index check once DB is connected
 initMediaIndexes().catch(() => {});
+
+/**
+ * GET /api/upload/status
+ * Returns overview of all server-side media storage providers
+ */
+router.get("/status", async (req, res) => {
+  try {
+    const status = await mediaStorageManager.getStatus();
+    return res.json({
+      success: true,
+      ...status
+    });
+  } catch (err) {
+    console.error("Failed to fetch media storage status:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Status Check Error",
+      message: err.message || "Failed to check media storage status"
+    });
+  }
+});
+
+/**
+ * GET /api/upload/telegram/file/:fileId
+ * Secure server proxy endpoint for streaming Telegram files without exposing TELEGRAM_BOT_TOKEN
+ */
+router.get("/telegram/file/:fileId", async (req, res) => {
+  try {
+    return await mediaStorageManager.streamMedia(req.params.fileId, res, "telegram");
+  } catch (err) {
+    console.error("Error streaming Telegram media file:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Media Stream Failure",
+      message: err.message || "Failed to stream media file from Telegram storage"
+    });
+  }
+});
+
+/**
+ * POST /api/upload/server
+ * Server-side media upload endpoint using TGStorage / Media Storage Providers.
+ * Step 1: Uploads physical media to storage provider (Telegram / TGStorage or Puter).
+ * Step 2: Registers metadata in MongoDB ONLY after successful physical upload.
+ */
+router.post("/server", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing File",
+        message: "No media file provided in 'file' field"
+      });
+    }
+
+    const { originalname, mimetype, buffer, size } = req.file;
+    const requestedProvider = req.body.provider || undefined;
+
+    // Step 1: Upload physical file buffer via Media Storage Adapter
+    const uploadResult = await mediaStorageManager.uploadMedia(
+      buffer,
+      { filename: originalname, mimeType: mimetype, size },
+      requestedProvider
+    );
+
+    if (!uploadResult || !uploadResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: "Storage Upload Failed",
+        message: "Media storage provider failed to accept the upload payload"
+      });
+    }
+
+    // Step 2: Write metadata to MongoDB ONLY after successful physical upload
+    let mediaRecord = null;
+    if (isDbConnected()) {
+      try {
+        const finalReadUrl = uploadResult.url;
+        const finalFileId = uploadResult.fileId || originalname;
+
+        mediaRecord = new Media({
+          readURL: finalReadUrl,
+          url: finalReadUrl,
+          fileId: finalFileId,
+          puterFileId: finalFileId,
+          path: uploadResult.path || finalFileId,
+          filename: originalname,
+          type: mimetype,
+          sizeBytes: size,
+          size: size,
+          metadata: uploadResult.metadata || {},
+          provider: uploadResult.provider || "telegram"
+        });
+        await mediaRecord.save();
+      } catch (dbErr) {
+        console.warn("MongoDB registration warning after storage upload:", dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      provider: uploadResult.provider,
+      fileId: uploadResult.fileId,
+      url: uploadResult.url,
+      readURL: uploadResult.url,
+      path: uploadResult.path,
+      size: size,
+      type: mimetype,
+      media: mediaRecord
+    });
+  } catch (err) {
+    console.error("Server-side media upload route error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Upload Error",
+      message: err.message || "Server media upload failed"
+    });
+  }
+});
 
 /**
  * GET /api/upload/stats

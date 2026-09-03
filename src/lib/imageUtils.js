@@ -1258,5 +1258,50 @@ export function deleteMedia(url) {
   return true;
 }
 
+/**
+ * Uploads media via the Vercel/Express server media storage adapter API (/api/upload/server).
+ * Uses TGStorage / Telegram server provider or configured fallback provider.
+ */
+export async function uploadMediaViaServer(file, onProgress = () => {}, provider) {
+  if (!file) return null;
+  if (typeof file === "string" && (file.startsWith("http://") || file.startsWith("https://") || file.startsWith("/images/"))) {
+    return file;
+  }
+
+  onProgress(10, "Preparing media file for server upload...");
+  const formData = new FormData();
+  formData.append("file", file);
+  if (provider) formData.append("provider", provider);
+
+  onProgress(40, "Uploading media via Server Storage Adapter...");
+  const res = await fetch(`${API_BASE}/upload/server`, {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || data.error || "Server media upload failed");
+  }
+
+  onProgress(100, "Media upload complete.");
+  return data.url || data.readURL;
+}
+
+/**
+ * Checks server media storage provider configuration status (/api/upload/status)
+ */
+export async function getServerStorageStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/upload/status`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn("Failed to fetch server storage status:", err);
+    return null;
+  }
+}
+
+
 
 
