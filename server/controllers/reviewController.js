@@ -107,7 +107,7 @@ export async function getReviews(req, res, next) {
     if (source && typeof source === "string" && source !== "all") query.source = source;
 
     if (productId && productId !== "all" && typeof productId === "string") {
-      query.$or = [{ productId: String(productId) }, { type: "store" }, { productId: "5" }];
+      query.productId = String(productId);
     }
 
     // Public (non-admin) callers only see approved genuine customer reviews
@@ -383,12 +383,17 @@ function buildDiverseFallbackDrafts({
   reviewLength = "Short", 
   count = 5, 
   ratingMix = "Realistic Mix",
-  ratingRange = "Realistic Mix (3-5 Stars)" 
+  ratingRange = "Realistic Mix (3-5 Stars)",
+  productId = "5"
 }) {
   const drafts = [];
   const prodName = productName?.trim() || "Product";
   const featText = (keyFeatures || productDescription || "").trim();
   const featuresList = extractKeyFeaturesList(featText);
+
+  const randomTemplateOffset = Math.floor(Math.random() * 50);
+  const randomNameOffset = Math.floor(Math.random() * FICTIONAL_DEVOTEE_NAMES.length);
+  const randomCityOffset = Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length);
 
   // Pool of natural conversational templates across languages
   // Grounded in realistic customer experiences without marketing hype
@@ -462,7 +467,7 @@ function buildDiverseFallbackDrafts({
     }
 
     let textBody = "";
-    let templateIndex = i % 10;
+    let templateIndex = (randomTemplateOffset + i) % 10;
 
     if (currentLang === "Hindi") {
       const tpl = hindiTemplates[templateIndex % hindiTemplates.length];
@@ -493,8 +498,10 @@ function buildDiverseFallbackDrafts({
       if (count > 4 && i % 6 === 5) r = 3;
     }
 
-    const devoteeName = FICTIONAL_DEVOTEE_NAMES[i % FICTIONAL_DEVOTEE_NAMES.length];
-    const devoteeCity = INDIAN_DEVOTEE_CITIES[i % INDIAN_DEVOTEE_CITIES.length];
+    const nameIndex = (randomNameOffset + i) % FICTIONAL_DEVOTEE_NAMES.length;
+    const cityIndex = (randomCityOffset + i) % INDIAN_DEVOTEE_CITIES.length;
+    const devoteeName = FICTIONAL_DEVOTEE_NAMES[nameIndex];
+    const devoteeCity = INDIAN_DEVOTEE_CITIES[cityIndex];
     const relativeDate = RELATIVE_DATES[i % RELATIVE_DATES.length];
     const helpfulVotes = (i % 3 === 0) ? Math.floor(Math.random() * 5) + 2 : Math.floor(Math.random() * 3) + 1;
 
@@ -514,7 +521,7 @@ function buildDiverseFallbackDrafts({
       source: "customer",
       helpfulUp: helpfulVotes,
       helpfulDown: 0,
-      productId: "5",
+      productId: String(productId),
       productName: prodName,
       type: "product",
       language: currentLang,
@@ -587,11 +594,16 @@ export async function generateReviewDrafts(req, res, next) {
         "mistralai/mistral-7b-instruct-v0.2"
       ];
 
+      const existingTextsAndNames = existingCorpus.map(r => `- Name: "${r.name}", Text: "${r.text.replace(/\n/g, ' ')}"`).slice(0, 50);
+      const existingConstraint = existingTextsAndNames.length > 0
+        ? `\n\nCRITICAL DEDUPLICATION RULE:\nTo avoid duplicate content, do NOT use or copy any of these existing customer reviews or names currently on the website:\n${existingTextsAndNames.join("\n")}\n\nYou MUST generate completely unique customer names, unique writing styles, different cities, and different phrased sentences than any listed above. Vary the vocabulary extensively.`
+        : "";
+
       const systemPrompt = `You are an AI review generator that creates authentic, natural customer reviews for products and services.
 
 CRITICAL RULES:
 1. REVIEW FORMAT: Return ONLY a valid JSON array of objects. Each object MUST have:
-   - "name": Realistic Indian customer name (e.g. "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer").
+   - "name": Realistic Indian customer name (e.g. "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer"). DO NOT copy these example names.
    - "city": Location in India (e.g. "Jaipur, RJ", "Varanasi, UP", "Delhi", "Mumbai, MH", "Bengaluru, KA").
    - "title": Short catchy review title (3 to 6 words).
    - "text": Natural conversational customer review text (1 to 3 sentences).
@@ -609,19 +621,19 @@ CRITICAL RULES:
    - Mention product name (${resolvedProductName}) or feature details (${productDetails || resolvedProductName}).
    - Avoid generic AI disclaimers or repetitive promotional boilerplate.
 
-OUTPUT FORMAT: Return ONLY a valid JSON array:
+WARNING: The following JSON output is ONLY for structural reference. You MUST NOT use the name "Aman Sharma", or copy the example review text under any circumstances.
 [
   {
-    "name": "Aman Sharma",
+    "name": "Kunal Singhania",
     "city": "Jaipur, RJ",
     "title": "Natural finish & good quality",
     "text": "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।",
     "rating": 5,
     "language": "${effectiveLanguage}"
   }
-]`;
+]${existingConstraint}`;
 
-      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}".`;
+      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}". Make sure names, cities and text are 100% different from any existing reviews.`;
 
       for (const nimModel of nimModels) {
         try {
@@ -631,9 +643,9 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
           const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${nvidiaApiKey}`,
-              "Accept": "application/json"
+               "Content-Type": "application/json",
+               "Authorization": `Bearer ${nvidiaApiKey}`,
+               "Accept": "application/json"
             },
             body: JSON.stringify({
               model: nimModel,
@@ -641,7 +653,7 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
               ],
-              temperature: 0.5,
+              temperature: 0.85,
               max_tokens: 1200
             }),
             signal: controller.signal
@@ -657,12 +669,15 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
 
             if (Array.isArray(parsed) && parsed.length > 0) {
               rawDrafts = parsed.map((item, idx) => {
-                const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
-                  ? item.name
-                  : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+                const randomNameIdx = (Math.floor(Math.random() * FICTIONAL_DEVOTEE_NAMES.length) + idx) % FICTIONAL_DEVOTEE_NAMES.length;
+                const randomCityIdx = (Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length) + idx) % INDIAN_DEVOTEE_CITIES.length;
 
-                const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
-                const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
+                const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name !== "Aman Sharma")
+                  ? item.name
+                  : FICTIONAL_DEVOTEE_NAMES[randomNameIdx];
+
+                const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[randomCityIdx];
+                const relativeDate = RELATIVE_DATES[(Math.floor(Math.random() * RELATIVE_DATES.length) + idx) % RELATIVE_DATES.length];
 
                 return {
                   id: `DRAFT-${Date.now()}-${idx + 1}`,
@@ -712,7 +727,8 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
         reviewLength,
         count: requestedCount,
         ratingMix: effectiveRatingMode,
-        ratingRange: effectiveRatingMode
+        ratingRange: effectiveRatingMode,
+        productId: String(productId || "5")
       });
       const needed = requestedCount - rawDrafts.length;
       rawDrafts = [...rawDrafts, ...fallbackList.slice(0, needed)];
@@ -743,7 +759,8 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
           reviewLength,
           count: 1,
           ratingMix: effectiveRatingMode,
-          ratingRange: effectiveRatingMode
+          ratingRange: effectiveRatingMode,
+          productId: String(productId || "5")
         })[0];
         if (variation && variation.text !== finalDraft.text) {
           finalDraft = { ...finalDraft, text: variation.text, title: variation.title };

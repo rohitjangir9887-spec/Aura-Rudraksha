@@ -1714,13 +1714,13 @@ export const db = {
       }));
 
     if (tab === "product" && productId) {
-      return allReviews.filter(r => r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId));
+      return allReviews.filter(r => r.type === "product" && String(r.productId) === String(productId));
     } else if (tab === "store") {
       return allReviews.filter(r => r.type === "store" || r.productId === "all");
     }
 
     if (!productId || productId === "all") return allReviews;
-    return allReviews.filter(r => String(r.productId) === String(productId) || r.type === "store" || r.productId === "5" || !r.productId);
+    return allReviews.filter(r => String(r.productId) === String(productId));
   },
 
   getAllReviews: () => {
