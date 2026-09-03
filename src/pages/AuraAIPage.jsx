@@ -21,7 +21,8 @@ import {
   Award,
   HeartHandshake,
   MessageSquare,
-  Sparkle
+  Sparkle,
+  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
@@ -554,45 +555,74 @@ export function AuraAIPage() {
             {/* Chat Top Banner */}
             <div className="aura-ai-chat-topbar">
               <div className="aura-ai-chat-status">
-                <span className="aura-ai-online-pulse" style={mode === "panditji" ? { background: "#ff9900" } : undefined} />
-                <div>
-                  <strong>{mode === "panditji" ? "🕉️ AI Panditji — Vedic Astrologer" : "Aura AI Spiritual Guide"}</strong>
+                <span 
+                  className="aura-ai-online-pulse" 
+                  style={mode === "panditji" ? { background: "#ff9900", boxShadow: "0 0 8px #ff9900" } : undefined} 
+                />
+                <div className="aura-ai-topbar-info">
+                  <strong className="aura-ai-topbar-title">
+                    {mode === "panditji" ? "🕉️ AI Panditji" : "Aura AI Guide"}
+                  </strong>
                   <span className="aura-ai-topbar-sub">
-                    {mode === "panditji" ? "Authentic Shastra Guidance • Permanent History Preserved" : "Active Consultation • Permanent History Preserved"}
+                    {mode === "panditji" ? "Vedic Astrologer" : "Active Consultation"}
                   </span>
                 </div>
               </div>
 
-              {/* Mode Switcher Pills */}
-              <div className="aura-ai-mode-bar-page">
-                <button
-                  type="button"
-                  onClick={() => setMode("standard")}
-                  className={`aura-ai-mode-btn-page ${mode === "standard" ? "active" : ""}`}
-                >
-                  <Sparkles size={12} /> ⚡ Quick AI
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("panditji")}
-                  className={`aura-ai-mode-btn-page ${mode === "panditji" ? "active" : ""}`}
-                >
-                  <span>🕉️</span> AI Panditji
-                </button>
-              </div>
+              {/* Compact Icon-Only Action Toolbar */}
+              <div className="aura-ai-action-toolbar" role="toolbar" aria-label="Aura AI Controls">
+                {/* Mode Selector */}
+                <div className="aura-ai-toolbar-group" role="group" aria-label="Mode Selection">
+                  <button
+                    type="button"
+                    onClick={() => setMode("standard")}
+                    className={`aura-ai-icon-action-btn ${mode === "standard" ? "active active-quick" : ""}`}
+                    title="⚡ Quick AI Mode"
+                    aria-label="Quick AI Mode"
+                    aria-pressed={mode === "standard"}
+                  >
+                    <Zap size={18} className="aura-ai-action-icon" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("panditji")}
+                    className={`aura-ai-icon-action-btn ${mode === "panditji" ? "active active-panditji" : ""}`}
+                    title="🕉️ AI Panditji Mode"
+                    aria-label="AI Panditji Mode"
+                    aria-pressed={mode === "panditji"}
+                  >
+                    <span className="aura-ai-om-symbol" aria-hidden="true">ॐ</span>
+                  </button>
+                </div>
 
-              <div className="aura-ai-chat-topbar-actions">
-                <button 
-                  onClick={handleNewChat} 
-                  className={`aura-ai-topbar-btn ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                  title="Start New Session without deleting history"
-                  disabled={isRefreshing}
-                >
-                  <RotateCcw size={13} /> New Chat
-                </button>
-                <Link to="/cart" className="aura-ai-topbar-btn">
-                  <ShoppingCart size={13} /> Cart ({cart.count})
-                </Link>
+                <div className="aura-ai-toolbar-separator" aria-hidden="true" />
+
+                {/* New Chat & Cart Actions */}
+                <div className="aura-ai-toolbar-group" role="group" aria-label="Session Actions">
+                  <button 
+                    type="button"
+                    onClick={handleNewChat} 
+                    className={`aura-ai-icon-action-btn ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
+                    title="New Chat Session (Preserves Past History)"
+                    aria-label="New Chat Session"
+                    disabled={isRefreshing}
+                  >
+                    <RotateCcw size={18} className="aura-ai-action-icon" />
+                  </button>
+                  <Link 
+                    to="/cart" 
+                    className="aura-ai-icon-action-btn aura-ai-cart-action-btn"
+                    title={`Shopping Cart (${cart.count} item${cart.count === 1 ? "" : "s"})`}
+                    aria-label={`Shopping Cart with ${cart.count} items`}
+                  >
+                    <ShoppingCart size={18} className="aura-ai-action-icon" />
+                    {cart.count > 0 && (
+                      <span className="aura-ai-action-cart-badge" aria-hidden="true">
+                        {cart.count > 9 ? "9+" : cart.count}
+                      </span>
+                    )}
+                  </Link>
+                </div>
               </div>
             </div>
 

@@ -1274,6 +1274,7 @@ export function Product() {
                   src={activeImg || productImages[0]} 
                   alt={`${p.name} Full View`} 
                   className="lightbox-img" 
+                  decoding="async"
                 />
                 <div className="lightbox-caption">
                   {p.name} • {activeIndex + 1} of {productImages.length}

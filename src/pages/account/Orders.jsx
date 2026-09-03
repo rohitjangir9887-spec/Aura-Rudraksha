@@ -558,6 +558,8 @@ export function Orders() {
                                   }}>
                                     <img 
                                       src={imgSrc} 
+                                      loading="lazy"
+                                      decoding="async"
                                       style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 2 }} 
                                       alt={prod.name || "Rudraksha"} 
                                     />

@@ -441,7 +441,7 @@ export function OrderDetail() {
                     transition: 'background 0.2s'
                   }}>
                     <div style={{width: 75, height: 75, borderRadius: 10, background: '#fdfbf7', border: '1px solid #eee1cf', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center'}}>
-                      <img src={item.img || db.getOrderItemImage(item)} alt={item.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
+                      <img src={item.img || db.getOrderItemImage(item)} alt={item.name} loading="lazy" decoding="async" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
                     </div>
                     <div style={{flex: 1}}>
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10}}>

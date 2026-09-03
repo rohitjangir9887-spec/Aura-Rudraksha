@@ -10461,12 +10461,36 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  animation: auraFloatingBob 3.2s ease-in-out infinite;
 }
 
 .aura-ai-floating-btn:hover {
+  animation-play-state: paused;
   transform: translateY(-2px) scale(1.02);
   border-color: #d4af37;
   box-shadow: 0 8px 20px rgba(31, 14, 5, 0.45), 0 0 16px rgba(212, 175, 55, 0.3);
+}
+
+@keyframes auraFloatingBob {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.aura-ai-sparkle-spin {
+  animation: auraSparkleSpin 3.5s ease-in-out infinite;
+}
+
+@keyframes auraSparkleSpin {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(14deg) scale(1.12);
+  }
 }
 
 .aura-ai-floating-pulse {
@@ -12176,12 +12200,145 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   box-shadow: 0 0 8px #10b981;
 }
 
-.aura-ai-topbar-sub {
-  display: block;
-  font-size: 11.5px;
-  color: #d4af37;
+.aura-ai-topbar-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
+.aura-ai-topbar-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fffdf9;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aura-ai-topbar-sub {
+  display: block;
+  font-size: 11px;
+  color: #d4af37;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aura-ai-action-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.aura-ai-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.aura-ai-toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background: rgba(212, 175, 55, 0.28);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.aura-ai-icon-action-btn {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: #fffdf9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 44-48px Accessible Hit Area for Mobile without expanding visual size */
+.aura-ai-icon-action-btn::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: -4px;
+  right: -4px;
+  border-radius: inherit;
+}
+
+.aura-ai-icon-action-btn:hover {
+  background: rgba(212, 175, 55, 0.22);
+  border-color: #d4af37;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.aura-ai-icon-action-btn:active {
+  transform: scale(0.94);
+}
+
+.aura-ai-icon-action-btn.active.active-quick {
+  background: linear-gradient(135deg, #d4af37 0%, #aa8010 100%);
+  color: #1a0b03;
+  border-color: #fce38a;
+  box-shadow: 0 2px 10px rgba(212, 175, 55, 0.42);
+}
+
+.aura-ai-icon-action-btn.active.active-panditji {
+  background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
+  color: #fffdf9;
+  border-color: #fdba74;
+  box-shadow: 0 2px 10px rgba(234, 88, 12, 0.45);
+}
+
+.aura-ai-action-icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+}
+
+.aura-ai-om-symbol {
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 700;
+  display: inline-block;
+  user-select: none;
+}
+
+.aura-ai-action-cart-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #2b1408;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Retain backwards compatibility for any helper classes */
 .aura-ai-chat-topbar-actions {
   display: flex;
   gap: 8px;
@@ -12229,8 +12386,40 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     border-radius: 14px;
   }
   .aura-ai-chat-topbar {
-    padding: 10px 12px;
+    padding: 8px 10px;
     min-height: 48px;
+    gap: 8px;
+  }
+  .aura-ai-chat-status {
+    min-width: 0;
+    flex: 1;
+    gap: 7px;
+  }
+  .aura-ai-topbar-title {
+    font-size: 12.5px;
+  }
+  .aura-ai-topbar-sub {
+    font-size: 10px;
+  }
+  .aura-ai-action-toolbar {
+    gap: 3px;
+  }
+  .aura-ai-toolbar-group {
+    gap: 3px;
+  }
+  .aura-ai-icon-action-btn {
+    width: 35px;
+    height: 35px;
+    min-width: 35px;
+    min-height: 35px;
+    border-radius: 8px;
+  }
+  .aura-ai-action-icon {
+    width: 17px;
+    height: 17px;
+  }
+  .aura-ai-om-symbol {
+    font-size: 17px;
   }
   .aura-ai-page-messages {
     padding: 12px 10px;

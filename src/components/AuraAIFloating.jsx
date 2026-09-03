@@ -625,15 +625,10 @@ export function AuraAIFloating() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
             drag
+            dragConstraints={dragAreaRef}
             dragMomentum={false}
-            dragElastic={0.05}
-            dragConstraints={{
-              left: 10,
-              right: windowSize.width - 150,
-              top: 10,
-              bottom: windowSize.height - 100
-            }}
-            whileDrag={{ scale: 1.05, cursor: "grabbing" }}
+            dragElastic={0.08}
+            whileDrag={{ scale: 1.06, cursor: "grabbing" }}
             onDragStart={(_, info) => {
               isDraggingBtnRef.current = true;
               dragStartPos.current = { x: info.point.x, y: info.point.y };
