@@ -1,29 +1,6 @@
 import crypto from "crypto";
 const requestCounts = new Map();
 import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
-
-let geminiClientInstance = null;
-function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-  if (!apiKey) return null;
-  if (!geminiClientInstance) {
-    try {
-      geminiClientInstance = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-    } catch (err) {
-      console.warn("Could not initialize GoogleGenAI client:", err?.message || err);
-      return null;
-    }
-  }
-  return geminiClientInstance;
-}
 
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
@@ -749,56 +726,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         }
       }
 
-      const gemini = getGeminiClient();
-      if (!generatedViaLLM && gemini) {
-        try {
-          res.write(`data: ${JSON.stringify({ type: "status", message: "Thinking..." })}\n\n`);
-          if (res.flush) res.flush();
-
-          const contents = [];
-          for (const h of history.slice(-4)) {
-            const role = h.sender === "user" ? "user" : "model";
-            if (h.text) {
-              contents.push({
-                role,
-                parts: [{ text: String(h.text) }]
-              });
-            }
-          }
-          contents.push({
-            role: "user",
-            parts: [{ text: message }]
-          });
-
-          const responseStream = await gemini.models.generateContentStream({
-            model: "gemini-3.8-flash",
-            contents,
-            config: {
-              systemInstruction: systemPrompt,
-              temperature: 0.3,
-            }
-          });
-
-          for await (const chunk of responseStream) {
-            const deltaText = chunk.text || "";
-            if (deltaText) {
-              fullRawContent += deltaText;
-              const cleanDelta = cleanServerAiText(deltaText);
-              if (cleanDelta) {
-                res.write(`data: ${JSON.stringify({ type: "chunk", delta: cleanDelta })}\n\n`);
-                if (res.flush) res.flush();
-              }
-            }
-          }
-
-          if (fullRawContent.trim()) {
-            generatedViaLLM = true;
-          }
-        } catch (geminiErr) {
-          console.warn("Gemini Stream Error in Controller:", geminiErr?.message || geminiErr);
-        }
-      }
-
       if (!generatedViaLLM || !fullRawContent.trim()) {
         const vedicText = buildAuthenticVedicResponse({
           message,
@@ -921,42 +848,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         }
       } catch (nimErr) {
         console.warn("NVIDIA NIM Non-Streaming Notice:", nimErr?.message || nimErr);
-      }
-    }
-
-    const gemini = getGeminiClient();
-    if (!generatedViaLLM && gemini) {
-      try {
-        const contents = [];
-        for (const h of history.slice(-4)) {
-          const role = h.sender === "user" ? "user" : "model";
-          if (h.text) {
-            contents.push({
-              role,
-              parts: [{ text: String(h.text) }]
-            });
-          }
-        }
-        contents.push({
-          role: "user",
-          parts: [{ text: message }]
-        });
-
-        const response = await gemini.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.3,
-          }
-        });
-
-        fullRawContent = response.text || "";
-        if (fullRawContent.trim()) {
-          generatedViaLLM = true;
-        }
-      } catch (geminiErr) {
-        console.warn("Gemini Non-Streaming Error in Controller:", geminiErr?.message || geminiErr);
       }
     }
 
@@ -1439,52 +1330,7 @@ export async function generateProductDescription(req, res, next) {
 <p>Wear or place on any auspicious morning facing East or North. Chant the sacred mantra <strong>"Om Namah Shivaya"</strong> 108 times. Cleanse monthly with pure water and condition gently with sandalwood oil.</p>`;
     };
 
-    // 1. Try Gemini API first (@google/genai)
-    const gemini = getGeminiClient();
-    if (gemini) {
-      try {
-        const geminiRes = await gemini.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: `You are an expert Vedic eCommerce copywriter for "Aura Rudraksha & Spiritual Store".
-Generate product listing details in JSON for the product titled: "${cleanName}" (Category: ${suggestedCategory}, Language: ${targetLanguage}).
-
-Requirements:
-- "description": Complete HTML description string containing EXACTLY these 5 sections with <h2> tags:
-  <h2>✨ About the Product</h2>
-  <h2>📿 Product Highlights</h2> (use <ul><li> bulleted list)
-  <h2>🌿 Spiritual Significance</h2>
-  <h2>🙏 Suitable For</h2>
-  <h2>🕉️ How to Wear & Care</h2>
-- "category": Recommended store category string (e.g., "Rudraksha", "Malas", "Bracelets", "Gauri Shankar", "Puja Samagri", "Crystals")
-- "highlight": Short 1-line catchy highlight string (max 100 chars, e.g. "100% Original Nepal Bead • Consecrated with Ganga Jal")
-- "badge": Catchy 2-3 word badge string (e.g., "Best Seller", "100% Consecrated", "Authentic Nepal", "Lab Certified")
-- "tags": Array of 3-5 search keyword strings
-`,
-          config: {
-            temperature: 0.3,
-            responseMimeType: "application/json"
-          }
-        });
-
-        if (geminiRes && geminiRes.text) {
-          const parsed = JSON.parse(geminiRes.text);
-          if (parsed.description) {
-            return res.json({
-              success: true,
-              description: parsed.description,
-              category: parsed.category || suggestedCategory,
-              highlight: parsed.highlight || "100% Consecrated • Authentic Nepal Bead",
-              badge: parsed.badge || "Best Seller",
-              tags: Array.isArray(parsed.tags) ? parsed.tags : [suggestedCategory, "Authentic", "Consecrated"]
-            });
-          }
-        }
-      } catch (gemErr) {
-        console.warn("Gemini product generation notice:", gemErr?.message || gemErr);
-      }
-    }
-
-    // 2. Secondary AI Model: NVIDIA NIM
+    // 1. Primary AI Model: NVIDIA NIM
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {

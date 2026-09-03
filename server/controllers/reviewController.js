@@ -6,29 +6,6 @@ import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import crypto from "crypto";
-import { GoogleGenAI } from "@google/genai";
-
-let geminiClientInstance = null;
-function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-  if (!apiKey) return null;
-  if (!geminiClientInstance) {
-    try {
-      geminiClientInstance = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-    } catch (err) {
-      console.warn("[Aura AI Reviews] GoogleGenAI init error:", err?.message || err);
-      return null;
-    }
-  }
-  return geminiClientInstance;
-}
 
 // In-memory set of deleted review IDs for demo/fallback isolation
 const deletedReviewIds = new Set();
@@ -598,12 +575,18 @@ export async function generateReviewDrafts(req, res, next) {
       existingCorpus = await Review.find().select("id title text rating name status").lean();
     }
 
-    const requestedProvider = (req.body.aiProvider || req.body.provider || "auto").toLowerCase();
     let rawDrafts = [];
 
-    // 1. Primary AI Generator: Gemini API (@google/genai)
-    const aiClient = getGeminiClient();
-    if (aiClient && (requestedProvider === "auto" || requestedProvider === "gemini")) {
+    // Primary AI Generator: NVIDIA NIM API
+    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 5) ? process.env.NVIDIA_API_KEY.trim() : "";
+    if (nvidiaApiKey) {
+      const nimModels = [
+        "meta/llama-3.3-70b-instruct",
+        "nvidia/llama-3.1-nemotron-70b-instruct",
+        "meta/llama3-70b-instruct",
+        "mistralai/mistral-7b-instruct-v0.2"
+      ];
+
       const systemPrompt = `You are an AI review generator that creates authentic, natural customer reviews for products and services.
 
 CRITICAL RULES:
@@ -638,117 +621,12 @@ OUTPUT FORMAT: Return ONLY a valid JSON array:
   }
 ]`;
 
-      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}".
-Key Details: "${productDetails || 'High quality genuine product with safe packaging'}".
-Rating Mix: "${effectiveRatingMode}".
-Language: "${effectiveLanguage}".
-Length: "${reviewLength}".`;
-
-      const geminiModels = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest"];
-      for (const modelName of geminiModels) {
-        try {
-          // Timeout each Gemini call at 8 seconds
-          const gemPromise = aiClient.models.generateContent({
-            model: modelName,
-            contents: userPrompt,
-            config: {
-              systemInstruction: systemPrompt,
-              temperature: 0.65,
-              responseMimeType: "application/json"
-            }
-          });
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Gemini ${modelName} call timed out after 8s`)), 8000)
-          );
-
-          const response = await Promise.race([gemPromise, timeoutPromise]);
-
-          const text = response.text;
-          if (text) {
-            const cleaned = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-            const parsed = JSON.parse(cleaned);
-
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              rawDrafts = parsed.map((item, idx) => {
-                const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
-                  ? item.name
-                  : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
-
-                const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
-                const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
-
-                return {
-                  id: `DRAFT-${Date.now()}-${idx + 1}`,
-                  title: item.title || `${resolvedProductName} Review`,
-                  text: (item.text || item.body || "").trim(),
-                  rating: Number(item.rating) || 5,
-                  name: assignedName,
-                  city: assignedCity,
-                  date: relativeDate,
-                  verified: verified !== false,
-                  featured: idx === 0,
-                  status: "Approved",
-                  source: "customer",
-                  helpfulUp: Math.floor(Math.random() * 5) + 1,
-                  helpfulDown: 0,
-                  productId: String(productId || "5"),
-                  productName: resolvedProductName,
-                  type: "product",
-                  language: item.language || effectiveLanguage,
-                  isAiGenerated: true,
-                  images: []
-                };
-              });
-
-              if (rawDrafts.length > 0) {
-                console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via Gemini model: ${modelName}`);
-                break;
-              }
-            }
-          }
-        } catch (gemErr) {
-          console.warn(`[Aura AI Reviews] Gemini (${modelName}) error:`, gemErr?.message || gemErr);
-        }
-      }
-    }
-
-    // 2. NVIDIA NIM API (if provider is nvidia OR if provider is auto and Gemini produced no drafts)
-    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 5) ? process.env.NVIDIA_API_KEY.trim() : "";
-    if ((!rawDrafts || rawDrafts.length === 0 || requestedProvider === "nvidia") && nvidiaApiKey) {
-      const nimModels = [
-        "meta/llama-3.3-70b-instruct",
-        "nvidia/llama-3.1-nemotron-70b-instruct",
-        "meta/llama3-70b-instruct",
-        "mistralai/mistral-7b-instruct-v0.2"
-      ];
-
-      const systemPrompt = `You are a review generator that creates short, natural-looking fictional/sample customer reviews for website demo or placeholder use.
-
-CRITICAL RULES:
-1. REVIEW FORMAT: Each review must have a realistic fictional customer Name, Rating (realistic mix of 3, 4, and 5 stars), and Review text (1 to 4 short lines).
-2. TONE & VOCABULARY: Natural, conversational ${effectiveLanguage}.
-3. GROUNDING: Only mention product features provided by the user in Product Name and Description/Key Features (${productDetails || resolvedProductName}).
-4. BREVITY: Keep each review strictly 1 to 3 short lines (under 30 words).
-5. DIVERSE FICTIONAL NAMES: Use realistic Indian names like "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer".
-
-OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown wrappers:
-[
-  {
-    "name": "Aman Sharma",
-    "city": "Jaipur, RJ",
-    "title": "Natural finish & good quality",
-    "text": "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।",
-    "rating": 5,
-    "language": "${effectiveLanguage}"
-  }
-]`;
-
       const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}".`;
 
       for (const nimModel of nimModels) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
 
           const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
             method: "POST",
