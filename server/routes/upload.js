@@ -1,8 +1,11 @@
 import express from "express";
-import { Media } from "../models/Media.js";
+import { Media, initMediaIndexes } from "../models/Media.js";
 import { isDbConnected } from "../config/db.js";
 
 const router = express.Router();
+
+// Trigger background index check once DB is connected
+initMediaIndexes().catch(() => {});
 
 /**
  * GET /api/upload/stats

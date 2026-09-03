@@ -153,11 +153,13 @@ const _uploadQueue = new UploadQueue(1);
  */
 function parseRetryAfter(headerValue) {
   if (!headerValue) return null;
-  const asNumber = parseInt(headerValue, 10);
+  if (typeof headerValue === "number") return headerValue > 0 ? headerValue : null;
+  const str = String(headerValue).trim();
+  const asNumber = parseInt(str, 10);
   if (!isNaN(asNumber) && asNumber > 0) {
     return asNumber;
   }
-  const asDate = Date.parse(headerValue);
+  const asDate = Date.parse(str);
   if (!isNaN(asDate)) {
     const diffSec = Math.ceil((asDate - Date.now()) / 1000);
     return Math.max(1, diffSec);
@@ -166,23 +168,64 @@ function parseRetryAfter(headerValue) {
 }
 
 /**
+ * Single development tracer for upload requests
+ */
+function logUploadTrace(info) {
+  if (import.meta.env.DEV) {
+    console.log("[UPLOAD TRACE]", {
+      batchId: info.batchId || "",
+      source: info.source || "puter",
+      endpoint: info.endpoint || "",
+      method: info.method || "",
+      status: info.status ?? null,
+      code: info.code ?? null,
+      attempt: info.attempt ?? 1,
+      retryAfter: info.retryAfter ?? null,
+      filename: info.filename || ""
+    });
+  }
+}
+
+/**
  * Executes a fetch request with safe exponential backoff on 429 responses.
  * Respects Retry-After header and adds jitter without infinite loops.
  */
-async function fetchWithBackoff(url, options = {}, maxRetries = 3) {
+async function fetchWithBackoff(url, options = {}, maxRetries = 3, batchInfo = {}) {
   let attempt = 0;
   while (true) {
+    attempt++;
+    const method = options.method || "GET";
+
+    logUploadTrace({
+      batchId: batchInfo.batchId,
+      source: "api",
+      endpoint: url,
+      method,
+      attempt,
+      filename: batchInfo.filename
+    });
+
     let res;
     try {
       res = await fetch(url, options);
     } catch (networkErr) {
-      if (attempt >= maxRetries) {
-        const err = new Error("Network error connecting to API server. Please check your connection.");
+      logUploadTrace({
+        batchId: batchInfo.batchId,
+        source: "api",
+        endpoint: url,
+        method,
+        status: 0,
+        code: "NETWORK_ERROR",
+        attempt,
+        filename: batchInfo.filename
+      });
+
+      if (attempt > maxRetries) {
+        const err = new Error("[API Gateway] Network error connecting to API server. Please check your connection.");
         err.source = "api";
         err.originalError = networkErr;
         throw err;
       }
-      attempt++;
       const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000) + Math.floor(Math.random() * 200);
       await new Promise(r => setTimeout(r, delayMs));
       continue;
@@ -190,32 +233,49 @@ async function fetchWithBackoff(url, options = {}, maxRetries = 3) {
 
     // If 429 Too Many Requests, perform safe backoff
     if (res.status === 429) {
-      attempt++;
       const data = await res.json().catch(() => ({}));
       const retryAfterHeader = parseRetryAfter(res.headers.get("Retry-After"));
-      const waitSec = data.retryAfter || retryAfterHeader || 3;
+      const waitSec = data.retryAfter || retryAfterHeader || Math.pow(2, attempt);
+
+      logUploadTrace({
+        batchId: batchInfo.batchId,
+        source: "api",
+        endpoint: url,
+        method,
+        status: 429,
+        code: "RATE_LIMIT",
+        attempt,
+        retryAfter: waitSec,
+        filename: batchInfo.filename
+      });
 
       if (attempt > maxRetries) {
-        const err = new Error(data.message || `API Gateway: Rate limit reached. Please wait ${waitSec}s before uploading more files.`);
+        const err = new Error(data.message || `[API Gateway] Upload registration rate limit — retrying in ${waitSec}s...`);
         err.source = "api";
         err.status = 429;
         err.retryAfter = waitSec;
         throw err;
       }
 
-      let delayMs = Math.min(Math.max(1000, waitSec * 1000), 8000) + Math.floor(Math.random() * 300);
-
-      if (import.meta.env.DEV) {
-        console.warn(`[ImageUpload] HTTP 429 for ${url}. Backing off ${delayMs}ms (Attempt ${attempt}/${maxRetries})`);
-      }
-
+      const delayMs = Math.min(Math.max(1000, waitSec * 1000), 8000) + Math.floor(Math.random() * 300);
       await new Promise(r => setTimeout(r, delayMs));
       continue;
     }
 
+    logUploadTrace({
+      batchId: batchInfo.batchId,
+      source: "api",
+      endpoint: url,
+      method,
+      status: res.status,
+      attempt,
+      filename: batchInfo.filename
+    });
+
     return res;
   }
 }
+
 
 function notifyStatusSubscribers(status) {
   _statusSubscribers.forEach((callback) => {
@@ -594,6 +654,8 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
         uniqueFileName: file.split("/").pop() || "media",
         uploadFile: null,
         puterPath: "",
+        actualPuterPath: "",
+        actualFileName: file.split("/").pop() || "media",
         size: 0,
         type: "image/jpeg",
         status: "uploaded",
@@ -656,12 +718,12 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
     return items.map(it => ({ success: true, url: it.publicUrl, originalName: it.originalName }));
   }
 
-  onProgress(10, `Initializing Puter Cloud connection for batch upload (${items.length} files)...`);
+  onProgress(10, `Initializing Puter Cloud connection for batch (${items.length} files)...`);
 
   // 1. Verify Puter Connection ONCE for entire batch
   const status = await getPuterMediaStatus();
   if (!status.connected) {
-    const err = new Error("Puter Cloud Storage is not connected. Please connect Puter Cloud in Admin Panel.");
+    const err = new Error("[Puter Cloud] Puter Storage is not connected. Please connect Puter Cloud in Admin Panel.");
     err.source = "puter";
     err.status = 401;
     throw err;
@@ -689,6 +751,15 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
     let uploadRes = null;
     let uploadErr = null;
 
+    logUploadTrace({
+      batchId,
+      source: "puter",
+      endpoint: "puter.fs.upload",
+      method: "POST",
+      attempt: batchAttempt,
+      filename: pendingItems.map(p => p.uniqueFileName).join(", ")
+    });
+
     try {
       if (typeof puter.fs?.upload === "function") {
         uploadRes = await puter.fs.upload(uploadFiles, "aura_uploads", {
@@ -701,70 +772,120 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
           }
         });
       } else if (typeof puter.fs?.write === "function") {
-        // Fallback for environment where puter.fs.upload is missing
         uploadRes = [];
         for (const pItem of pendingItems) {
           await puter.fs.write(pItem.puterPath, pItem.uploadFile, { createMissingParents: true, overwrite: true });
           uploadRes.push({ name: pItem.uniqueFileName, path: pItem.puterPath });
-          await new Promise(r => setTimeout(r, 120));
+          await new Promise(r => setTimeout(r, 100));
         }
       } else {
-        throw new Error("Puter Cloud storage API methods (upload/write) are unavailable.");
+        throw new Error("[Puter Cloud] Puter storage API methods (upload/write) are unavailable.");
       }
     } catch (err) {
       uploadErr = err;
     }
 
-    if (uploadErr) {
-      const isRateLimit = uploadErr && (
-        uploadErr.status === 429 ||
-        uploadErr.code === 429 ||
-        uploadErr.statusCode === 429 ||
-        /too many requests|rate limit|slow down/i.test(uploadErr.message || "")
-      );
+    // Extract any partial success results from uploadRes or uploadErr
+    const responseArray = Array.isArray(uploadRes)
+      ? uploadRes
+      : (uploadRes?.results || uploadRes?.uploaded || uploadRes?.items || (uploadRes ? [uploadRes] : []));
 
-      const isNetwork = uploadErr && (
-        uploadErr.name === "TypeError" ||
-        /network|fetch|failed to fetch/i.test(uploadErr.message || "")
-      );
+    const errResults = Array.isArray(uploadErr?.results)
+      ? uploadErr.results
+      : (Array.isArray(uploadErr?.uploaded) ? uploadErr.uploaded : (Array.isArray(uploadErr?.succeeded) ? uploadErr.succeeded : []));
 
-      if ((isRateLimit || isNetwork) && batchAttempt < maxBatchAttempts) {
-        const retrySec = parseRetryAfter(uploadErr.retryAfter || uploadErr.headers?.get?.("Retry-After")) || Math.pow(2, batchAttempt);
-        const delayMs = Math.min(Math.max(1200, retrySec * 1000), 8000) + Math.floor(Math.random() * 400);
+    const combinedResults = [...responseArray, ...errResults];
 
-        if (import.meta.env.DEV) {
-          console.warn(`[Puter Diagnostics] Batch upload ${isRateLimit ? '429 Rate Limit' : 'Network Note'} (Attempt ${batchAttempt}/${maxBatchAttempts}). Backing off ${delayMs}ms...`);
-        }
-        onProgress(30, `Rate limit reached. Retrying in ${Math.ceil(delayMs / 1000)}s...`);
-        await new Promise(r => setTimeout(r, delayMs));
-        continue;
-      }
-
-      // Non-retryable or max retries reached
-      pendingItems.forEach(it => {
-        it.status = "failed";
-        it.error = isRateLimit
-          ? "Puter Cloud: Too many requests. Rate limit exceeded."
-          : (uploadErr.message || "Puter Cloud file upload failed.");
-        it.source = "puter";
-      });
-      break;
-    }
-
-    // Process response items
-    const responseArray = Array.isArray(uploadRes) ? uploadRes : (uploadRes ? [uploadRes] : []);
-
+    // Identify explicitly succeeded files
     for (const pItem of pendingItems) {
-      const matchedRes = responseArray.find(r =>
+      const matched = combinedResults.find(r =>
         r?.name === pItem.uniqueFileName ||
         r?.path === pItem.puterPath ||
-        r?.name === pItem.originalName
+        r?.name === pItem.originalName ||
+        r?.path?.endsWith(pItem.uniqueFileName)
       ) || (responseArray.length === 1 && pendingItems.length === 1 ? responseArray[0] : null);
 
-      if (matchedRes || uploadRes) {
+      if (matched && (matched.path || matched.name || matched.size)) {
         pItem.status = "uploaded";
-        pItem.actualPuterPath = matchedRes?.path || pItem.puterPath;
-        pItem.actualFileName = matchedRes?.name || pItem.uniqueFileName;
+        pItem.actualPuterPath = matched.path || pItem.puterPath;
+        pItem.actualFileName = matched.name || pItem.uniqueFileName;
+      }
+    }
+
+    // Inspect Puter error properties if upload failed or partially failed
+    if (uploadErr) {
+      const errCode = uploadErr.code || uploadErr.status || uploadErr.statusCode || null;
+      const isRateLimit = errCode === 429 || /too many requests|rate limit|slow down/i.test(uploadErr.message || "");
+      const isNetwork = uploadErr.name === "TypeError" || /network|fetch|failed to fetch/i.test(uploadErr.message || "");
+      const isPermanent = errCode === 400 || errCode === 401 || errCode === 403 || errCode === 404 || errCode === 413 || errCode === 415 || errCode === 422 || /quota|space|permission|unauthorized|invalid mime|invalid path/i.test(uploadErr.message || "");
+
+      const failedItemsList = Array.isArray(uploadErr.failedItems)
+        ? uploadErr.failedItems
+        : (Array.isArray(uploadErr.failed) ? uploadErr.failed : []);
+
+      for (const pItem of pendingItems.filter(i => i.status === "pending")) {
+        const isExplicitlyFailed = failedItemsList.some(fi =>
+          fi === pItem.uploadFile ||
+          fi?.name === pItem.uniqueFileName ||
+          fi?.name === pItem.originalName ||
+          fi?.item?.name === pItem.uniqueFileName
+        );
+
+        if (isExplicitlyFailed && isPermanent) {
+          pItem.status = "failed";
+          pItem.error = `[Puter Cloud] Upload failed: ${uploadErr.message || "Permanent error."}`;
+          pItem.source = "puter";
+        }
+      }
+
+      // Verify unconfirmed pending items with puter.fs.stat before retrying or failing
+      for (const pItem of pendingItems.filter(i => i.status === "pending")) {
+        logUploadTrace({
+          batchId,
+          source: "puter",
+          endpoint: "puter.fs.stat",
+          method: "GET",
+          filename: pItem.uniqueFileName
+        });
+
+        let stat = await puter.fs.stat(pItem.actualPuterPath).catch(() => null);
+        if (!stat) {
+          stat = await puter.fs.stat(`aura_uploads/${pItem.actualFileName}`).catch(() => null);
+        }
+
+        if (stat && stat.size > 0) {
+          pItem.status = "uploaded";
+          pItem.verified = true;
+          pItem.actualPuterPath = stat.path || pItem.actualPuterPath;
+          pItem.actualFileName = stat.name || pItem.actualFileName;
+          pItem.size = stat.size || pItem.size;
+        } else if (isPermanent || batchAttempt >= maxBatchAttempts) {
+          pItem.status = "failed";
+          pItem.error = isRateLimit
+            ? "[Puter Cloud] Rate limit — retrying..."
+            : `[Puter Cloud] ${uploadErr.message || "File upload failed."}`;
+          pItem.source = "puter";
+        }
+      }
+
+      // If pending items remain and error is transient (429 or network), perform backoff
+      const remainingPending = items.filter(it => it.status === "pending");
+      if (remainingPending.length > 0 && (isRateLimit || isNetwork) && batchAttempt < maxBatchAttempts) {
+        const retrySec = parseRetryAfter(uploadErr.retryAfter || uploadErr.retry_after || uploadErr.headers?.get?.("Retry-After")) || Math.pow(2, batchAttempt);
+        const delayMs = Math.min(Math.max(1200, retrySec * 1000), 8000) + Math.floor(Math.random() * 400);
+
+        logUploadTrace({
+          batchId,
+          source: "puter",
+          endpoint: "puter.fs.upload",
+          status: 429,
+          attempt: batchAttempt,
+          retryAfter: Math.ceil(delayMs / 1000),
+          filename: remainingPending.map(r => r.uniqueFileName).join(", ")
+        });
+
+        onProgress(30, `[Puter Cloud] Rate limit — retrying in ${Math.ceil(delayMs / 1000)}s...`);
+        await new Promise(r => setTimeout(r, delayMs));
       }
     }
 
@@ -776,30 +897,42 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
   const uploadedItems = items.filter(it => it.status === "uploaded");
 
   for (const item of uploadedItems) {
-    let stat = await puter.fs.stat(item.actualPuterPath).catch(() => null);
-    if (!stat) {
-      stat = await puter.fs.stat(`aura_uploads/${item.actualFileName}`).catch(() => null);
+    if (!item.verified) {
+      logUploadTrace({
+        batchId,
+        source: "puter",
+        endpoint: "puter.fs.stat",
+        method: "GET",
+        filename: item.actualFileName
+      });
+
+      let stat = await puter.fs.stat(item.actualPuterPath).catch(() => null);
+      if (!stat) {
+        stat = await puter.fs.stat(`aura_uploads/${item.actualFileName}`).catch(() => null);
+      }
+
+      if (stat && stat.size > 0) {
+        item.verified = true;
+        item.actualPuterPath = stat.path || item.actualPuterPath;
+        item.actualFileName = stat.name || item.actualFileName;
+        item.size = stat.size || item.size;
+      } else {
+        item.status = "failed";
+        item.error = "[Puter Cloud] Verification failed. File stat not found.";
+        item.source = "puter";
+      }
     }
 
-    if (stat) {
-      item.verified = true;
-      item.actualPuterPath = stat.path || item.actualPuterPath;
-      item.actualFileName = stat.name || item.actualFileName;
-      item.size = stat.size || item.size;
-
+    if (item.verified) {
       if (hostedDomain) {
         item.publicUrl = `https://${hostedDomain}/${encodeURIComponent(item.actualFileName)}`;
       } else if (typeof puter.fs.getReadURL === "function") {
         item.publicUrl = await puter.fs.getReadURL(item.actualPuterPath);
       }
-    } else {
-      item.status = "failed";
-      item.error = "Puter Cloud: Verification failed. File stat not found.";
-      item.source = "puter";
     }
   }
 
-  // 5. Register media metadata in MongoDB in ONE batch call
+  // 5. Bulk MongoDB Metadata Registration
   const verifiedItems = items.filter(it => it.verified && it.publicUrl);
 
   if (verifiedItems.length > 0) {
@@ -830,7 +963,7 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registerPayload)
-      });
+      }, 3, { batchId, filename: verifiedItems.map(v => v.actualFileName).join(", ") });
 
       const regData = await regRes.json().catch(() => ({}));
 
@@ -839,27 +972,13 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}) {
           it.registeredInDb = true;
           it.success = true;
         });
-      } else if (regRes.status === 503) {
-        if (import.meta.env.DEV) {
-          console.warn("[Puter Diagnostics] MongoDB unavailable (503). Puter public URLs preserved for product gallery.", regData);
-        }
-        verifiedItems.forEach(it => {
-          it.registeredInDb = false;
-          it.success = true; // DO NOT fail verified Puter uploads on DB 503
-        });
       } else {
-        if (import.meta.env.DEV) {
-          console.warn("[Puter Diagnostics] MongoDB registration note:", regData);
-        }
         verifiedItems.forEach(it => {
           it.registeredInDb = false;
           it.success = true; // Preserve Puter public URLs
         });
       }
     } catch (regErr) {
-      if (import.meta.env.DEV) {
-        console.warn("[Puter Diagnostics] MongoDB batch registration network note:", regErr);
-      }
       verifiedItems.forEach(it => {
         it.registeredInDb = false;
         it.success = true; // Preserve Puter public URLs
