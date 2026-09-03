@@ -617,6 +617,9 @@ export const db = {
 
   // Hydration State Checkers
   isHydrated: () => isHydrated,
+  fetchHomeData: async (force = false) => {
+    return await fetchHomeData(force);
+  },
   waitForHydration: async () => {
     if (hydrationPromise) {
       await hydrationPromise;

@@ -569,7 +569,7 @@ export function Product() {
                     src={activeImg || productImages[0]} 
                     alt={`${p.name} - Sacred View ${activeIndex + 1}`}
                     className="main-product-img"
-                    fetchPriority="high"
+                    loading="eager"
                     decoding="async"
                     style={{
                       transformOrigin: zoomStyle.transformOrigin,
