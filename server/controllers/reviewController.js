@@ -6,6 +6,29 @@ import { evaluateDraftSimilarity } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import crypto from "crypto";
+import { GoogleGenAI } from "@google/genai";
+
+let geminiClientInstance = null;
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+  if (!apiKey) return null;
+  if (!geminiClientInstance) {
+    try {
+      geminiClientInstance = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+    } catch (err) {
+      console.warn("[Aura AI Reviews] GoogleGenAI init error:", err?.message || err);
+      return null;
+    }
+  }
+  return geminiClientInstance;
+}
 
 // In-memory set of deleted review IDs for demo/fallback isolation
 const deletedReviewIds = new Set();
@@ -575,10 +598,116 @@ export async function generateReviewDrafts(req, res, next) {
       existingCorpus = await Review.find().select("id title text rating name status").lean();
     }
 
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     let rawDrafts = [];
 
-    if (nvidiaApiKey) {
+    // 1. Primary AI Generator: Gemini API (@google/genai)
+    const aiClient = getGeminiClient();
+    if (aiClient) {
+      const systemPrompt = `You are an AI review generator that creates authentic, natural customer reviews for products and services.
+
+CRITICAL RULES:
+1. REVIEW FORMAT: Return ONLY a valid JSON array of objects. Each object MUST have:
+   - "name": Realistic Indian customer name (e.g. "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer").
+   - "city": Location in India (e.g. "Jaipur, RJ", "Varanasi, UP", "Delhi", "Mumbai, MH", "Bengaluru, KA").
+   - "title": Short catchy review title (3 to 6 words).
+   - "text": Natural conversational customer review text (1 to 3 sentences).
+   - "rating": Integer star rating (5, 4, 3) matching requested rating mix.
+   - "language": Language used ("Hindi", "Hinglish", "English").
+
+2. LANGUAGE RULES:
+   - "Hindi": Natural Devanagari Hindi (e.g. "उत्पाद की गुणवत्ता उम्मीद से बेहतर लगी। समय पर सुरक्षित डिलीवरी मिली।").
+   - "Hinglish": Conversational Hinglish blend (e.g. "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना काफी easy hai aur packaging badiya thi.").
+   - "English": Everyday natural English without robotic phrasing or cliches.
+   - "Auto Mix": Mix Hindi, Hinglish, and English across reviews.
+
+3. GROUNDING & BREVITY:
+   - Keep reviews brief (15 to 35 words).
+   - Mention product name (${resolvedProductName}) or feature details (${productDetails || resolvedProductName}).
+   - Avoid generic AI disclaimers or repetitive promotional boilerplate.
+
+OUTPUT FORMAT: Return ONLY a valid JSON array:
+[
+  {
+    "name": "Aman Sharma",
+    "city": "Jaipur, RJ",
+    "title": "Natural finish & good quality",
+    "text": "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।",
+    "rating": 5,
+    "language": "${effectiveLanguage}"
+  }
+]`;
+
+      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}".
+Key Details: "${productDetails || 'High quality genuine product with safe packaging'}".
+Rating Mix: "${effectiveRatingMode}".
+Language: "${effectiveLanguage}".
+Length: "${reviewLength}".`;
+
+      const geminiModels = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+      for (const modelName of geminiModels) {
+        try {
+          const response = await aiClient.models.generateContent({
+            model: modelName,
+            contents: userPrompt,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.65,
+              responseMimeType: "application/json"
+            }
+          });
+
+          const text = response.text;
+          if (text) {
+            const cleaned = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+            const parsed = JSON.parse(cleaned);
+
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              rawDrafts = parsed.map((item, idx) => {
+                const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
+                  ? item.name
+                  : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+
+                const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
+                const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
+
+                return {
+                  id: `DRAFT-${Date.now()}-${idx + 1}`,
+                  title: item.title || `${resolvedProductName} Review`,
+                  text: (item.text || item.body || "").trim(),
+                  rating: Number(item.rating) || 5,
+                  name: assignedName,
+                  city: assignedCity,
+                  date: relativeDate,
+                  verified: verified !== false,
+                  featured: idx === 0,
+                  status: "Approved",
+                  source: "customer",
+                  helpfulUp: Math.floor(Math.random() * 5) + 1,
+                  helpfulDown: 0,
+                  productId: String(productId || "5"),
+                  productName: resolvedProductName,
+                  type: "product",
+                  language: item.language || effectiveLanguage,
+                  isAiGenerated: true,
+                  images: []
+                };
+              });
+
+              if (rawDrafts.length > 0) {
+                console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via Gemini model: ${modelName}`);
+                break;
+              }
+            }
+          }
+        } catch (gemErr) {
+          console.warn(`[Aura AI Reviews] Gemini (${modelName}) error:`, gemErr?.message || gemErr);
+        }
+      }
+    }
+
+    // 2. Secondary fallback: NVIDIA API (if key length > 10 and valid)
+    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 10) ? process.env.NVIDIA_API_KEY.trim() : "";
+    if ((!rawDrafts || rawDrafts.length === 0) && nvidiaApiKey) {
       try {
         const systemPrompt = `You are a review generator that creates short, natural-looking fictional/sample customer reviews for website demo or placeholder use.
 
