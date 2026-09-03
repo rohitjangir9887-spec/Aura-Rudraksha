@@ -142,10 +142,18 @@ export function AdminProducts() {
       });
       const data = await res.json();
       if (data.success && data.description) {
-        setEditing(prev => ({ ...prev, description: data.description }));
-        emitToast("Complete description generated with Aura AI ✨", "success");
+        setEditing(prev => ({
+          ...prev,
+          description: data.description,
+          category: data.category || prev.category || "Rudraksha",
+          highlight: data.highlight || prev.highlight || "",
+          badge: data.badge || prev.badge || prev.homeBadge || "Best Seller",
+          homeBadge: data.badge || prev.homeBadge || prev.badge || "Best Seller",
+          tags: Array.isArray(data.tags) ? data.tags : prev.tags
+        }));
+        emitToast("AI auto-generated product details and description from title! ✨", "success");
       } else {
-        emitToast(data.message || "Failed to generate description. Please try again.", "error");
+        emitToast(data.message || "Failed to generate details. Please try again.", "error");
       }
     } catch (err) {
       emitToast("Error connecting to Aura AI service. Please retry.", "error");
@@ -425,13 +433,47 @@ export function AdminProducts() {
 
         <form onSubmit={handleSave} className="admin-card">
           <div className="admin-form-group">
-            <label>Product Name *</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+              <label style={{ margin: 0, fontWeight: '700' }}>Product Name / Title *</label>
+              <button
+                type="button"
+                onClick={handleGenerateDescription}
+                disabled={isGeneratingDesc || !editing.name}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'linear-gradient(135deg, #7e2d12, #b84319)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '5px 14px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: (isGeneratingDesc || !editing.name) ? 'not-allowed' : 'pointer',
+                  opacity: (isGeneratingDesc || !editing.name) ? 0.6 : 1,
+                  boxShadow: '0 2px 6px rgba(126, 45, 18, 0.25)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Sparkles size={13} className={isGeneratingDesc ? "animate-spin" : ""} />
+                {isGeneratingDesc ? "AI Generating..." : "✨ Auto-Fill Details from Title"}
+              </button>
+            </div>
             <input 
               required
               value={editing.name} 
               onChange={e => setEditing({...editing, name: e.target.value})}
-              placeholder="e.g., 5 Mukhi Rudraksha"
+              onBlur={() => {
+                if (editing.name && editing.name.trim().length >= 3 && (!editing.description || editing.description.trim().length < 15) && !isGeneratingDesc) {
+                  triggerGenerateDescription();
+                }
+              }}
+              placeholder="e.g. 7 Mukhi Rudraksha Nepal, Sphatik Crystal Mala, or Gauri Shankar Bead"
             />
+            <span style={{ fontSize: '11.5px', color: '#7a6a5e', marginTop: '4px', display: 'block' }}>
+              💡 Type your product title — Aura AI automatically generates the rich description, category, highlights &amp; tags!
+            </span>
           </div>
 
           <div className="admin-form-row">

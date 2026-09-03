@@ -1355,9 +1355,22 @@ export async function generateProductDescription(req, res, next) {
     if (!name) return res.status(400).json({ success: false, message: "Product name is required" });
 
     const targetLanguage = language || "English";
+    const cleanName = name.trim();
+
+    // Helper: Infer category from title
+    const inferCategoryFromTitle = (title) => {
+      const lower = title.toLowerCase();
+      if (lower.includes("mala") || lower.includes("rosary") || lower.includes("108")) return "Malas";
+      if (lower.includes("bracelet") || lower.includes("kada") || lower.includes("wrist")) return "Bracelets";
+      if (lower.includes("gauri shankar") || lower.includes("gaurishankar")) return "Gauri Shankar";
+      if (lower.includes("puja") || lower.includes("pooja") || lower.includes("samagri") || lower.includes("havan") || lower.includes("incense") || lower.includes("dhoop")) return "Puja Samagri";
+      if (lower.includes("crystal") || lower.includes("pyramid") || lower.includes("quartz") || lower.includes("stone") || lower.includes("sphatik") || lower.includes("yantra")) return "Crystals";
+      return "Rudraksha";
+    };
+
+    const suggestedCategory = category && category !== "Rudraksha" ? category : inferCategoryFromTitle(cleanName);
 
     const generateAuthenticFallbackHtml = (prodName, prodCat, lang) => {
-      const cleanName = prodName.trim();
       const isHindi = lang === "Hindi";
       const isHinglish = lang === "Hinglish";
 
@@ -1367,14 +1380,14 @@ export async function generateProductDescription(req, res, next) {
 
 <h2>📿 Product Highlights</h2>
 <ul>
-  <li><strong>100% प्राकृतिक:</strong> प्राकृतिक रूप से निर्मित गहरी एवं स्पष्ट मुखी रेखाएं।</li>
+  <li><strong>100% प्राकृतिक:</strong> प्राकृतिक रूप से निर्मित गहरी एवं स्पष्ट रेखाएं।</li>
   <li><strong>गंगाजल अभिषेक:</strong> प्रेषण से पूर्व गंगाजल से शुद्ध एवं सिद्ध किया गया।</li>
   <li><strong>आध्यात्मिक ऊर्जा:</strong> पूजा, ध्यान और नित्य धारण के लिए अत्यंत शुभ।</li>
   <li><strong>पूर्ण शुद्धता:</strong> किसी भी कृत्रिम रंग, रसायन या पॉलिश से रहित।</li>
 </ul>
 
 <h2>🌿 Spiritual Significance</h2>
-<p>शास्त्रों के अनुसार, रुद्राक्ष भगवान शिव के अश्रु बिंदुओं से प्रकट हुआ है। यह हमारे ऊर्जा केंद्रों (चक्रों) को संतुलित करता है और धारण करने वाले के चारों ओर सकारात्मकता का सुरक्षा कवच (Aura) प्रदान करता है।</p>
+<p>शास्त्रों के अनुसार, यह दिव्य उत्पाद हमारे ऊर्जा केंद्रों (चक्रों) को संतुलित करता है और धारण करने वाले के चारों ओर सकारात्मकता का सुरक्षा कवच (Aura) प्रदान करता है।</p>
 
 <h2>🙏 Suitable For</h2>
 <p>यह विद्यार्थियों, गृहस्थों, आध्यात्मिक साधकों और पेशेवरों के लिए अत्यंत लाभदायक है, जो जीवन में मानसिक शांति, ध्यान, एकाग्रता और दिव्य सुरक्षा चाहते हैं।</p>
@@ -1385,24 +1398,24 @@ export async function generateProductDescription(req, res, next) {
 
       if (isHinglish) {
         return `<h2>✨ About the Product</h2>
-<p>Pavitra <strong>${cleanName}</strong> ek authentic aur spiritually energized sacred bead hai. Yeh Himalayan high-altitude forests se ethically collect kiya jata hai aur iska primary purpose mind ko calm karna aur energy level ko elevate karna hai.</p>
+<p>Pavitra <strong>${cleanName}</strong> ek authentic aur spiritually energized sacred spiritual product hai. Yeh Himalayan high-altitude regions se ethically collect kiya jata hai aur iska primary purpose mind ko calm karna aur energy level ko elevate karna hai.</p>
 
 <h2>📿 Product Highlights</h2>
 <ul>
-  <li><strong>100% Original:</strong> Deeply formed natural grooves aur clear mukhi lines.</li>
+  <li><strong>100% Original:</strong> Naturally crafted high vibration spiritual item.</li>
   <li><strong>Vedic Consecration:</strong> Dispatch se pehle Ganga Jal aur sacred mantras se energize kiya jata hai.</li>
   <li><strong>Daily Sadhana:</strong> Pooja, meditation aur daily wear ke liye highly recommended.</li>
   <li><strong>Pure Form:</strong> No artificial colors, polish, or synthetic chemicals used.</li>
 </ul>
 
 <h2>🌿 Spiritual Significance</h2>
-<p>Vedic tradition ke mutabik, Rudraksha directly Lord Shiva ke tears se originate hua hai. Yeh wearer ke chakra energy ko balance karta hai aur aspas ke negative vibrations ko dur rakh kar ek positive Aura create karta hai.</p>
+<p>Vedic tradition ke mutabik, yeh item wearer ke chakra energy ko balance karta hai aur aspas ke negative vibrations ko dur rakh kar ek positive Aura create karta hai.</p>
 
 <h2>🙏 Suitable For</h2>
 <p>Yeh students, professionals, spiritual seekers aur devotees sabhi ke liye suitable hai jo stressful life mein focus, emotional balance aur dynamic protection chahte hain.</p>
 
 <h2>🕉️ How to Wear & Care</h2>
-<p>Kisi bhi Monday morning ko naha kar East ya North direction face karke <strong>"Om Namah Shivaya"</strong> beej mantra ka 108 baar chant karke pehnein. Month mein ek baar gentle water se wash karein aur pure Sandalwood oil se condition karein.</p>`;
+<p>Kisi bhi Monday morning ko naha kar East ya North direction face karke <strong>"Om Namah Shivaya"</strong> beej mantra ka 108 baar chant karke pehnein/sthapit karein. Month mein ek baar gentle water se wash karein.</p>`;
       }
 
       return `<h2>✨ About the Product</h2>
@@ -1410,23 +1423,68 @@ export async function generateProductDescription(req, res, next) {
 
 <h2>📿 Product Highlights</h2>
 <ul>
-  <li><strong>100% Genuine Nepal Origin:</strong> Features naturally formed deep grooves and clear mukhi lines.</li>
+  <li><strong>100% Genuine Origin:</strong> Features naturally formed high-vibration spiritual craftsmanship.</li>
   <li><strong>Vedic Consecration:</strong> Consecrated with holy Ganga Jal and Vedic mantras before shipping.</li>
-  <li><strong>Spiritual Sadhana:</strong> Ideal for meditation, mindfulness, and promoting peace.</li>
+  <li><strong>Spiritual Sadhana:</strong> Ideal for meditation, mindfulness, and promoting inner peace.</li>
   <li><strong>Ethical Preservation:</strong> Unaltered, pure, and free of synthetic polishes or chemical treatments.</li>
 </ul>
 
 <h2>🌿 Spiritual Significance</h2>
-<p>In Vedic heritage, Rudraksha is believed to have manifested from Lord Shiva's tears of deep compassion. It serves as an emotional grounding shield, helping harmonize personal bio-frequencies and expanding the inner spiritual consciousness.</p>
+<p>In Vedic heritage, sacred spiritual items serve as an emotional grounding shield, helping harmonize personal bio-frequencies and expanding inner spiritual consciousness.</p>
 
 <h2>🙏 Suitable For</h2>
 <p>Highly beneficial for spiritual seekers, meditators, students, and professionals seeking clarity of thought, stress reduction, and positive aura protection.</p>
 
 <h2>🕉️ How to Wear & Care</h2>
-<p>Wear on any auspicious Monday morning facing East or North. Chant the sacred mantra <strong>"Om Namah Shivaya"</strong> 108 times before putting it on. Cleanse monthly with water and lightly condition with sandalwood oil.</p>`;
+<p>Wear or place on any auspicious morning facing East or North. Chant the sacred mantra <strong>"Om Namah Shivaya"</strong> 108 times. Cleanse monthly with pure water and condition gently with sandalwood oil.</p>`;
     };
 
-    // 1. Production AI Model: NVIDIA NIM
+    // 1. Try Gemini API first (@google/genai)
+    const gemini = getGeminiClient();
+    if (gemini) {
+      try {
+        const geminiRes = await gemini.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: `You are an expert Vedic eCommerce copywriter for "Aura Rudraksha & Spiritual Store".
+Generate product listing details in JSON for the product titled: "${cleanName}" (Category: ${suggestedCategory}, Language: ${targetLanguage}).
+
+Requirements:
+- "description": Complete HTML description string containing EXACTLY these 5 sections with <h2> tags:
+  <h2>✨ About the Product</h2>
+  <h2>📿 Product Highlights</h2> (use <ul><li> bulleted list)
+  <h2>🌿 Spiritual Significance</h2>
+  <h2>🙏 Suitable For</h2>
+  <h2>🕉️ How to Wear & Care</h2>
+- "category": Recommended store category string (e.g., "Rudraksha", "Malas", "Bracelets", "Gauri Shankar", "Puja Samagri", "Crystals")
+- "highlight": Short 1-line catchy highlight string (max 100 chars, e.g. "100% Original Nepal Bead • Consecrated with Ganga Jal")
+- "badge": Catchy 2-3 word badge string (e.g., "Best Seller", "100% Consecrated", "Authentic Nepal", "Lab Certified")
+- "tags": Array of 3-5 search keyword strings
+`,
+          config: {
+            temperature: 0.3,
+            responseMimeType: "application/json"
+          }
+        });
+
+        if (geminiRes && geminiRes.text) {
+          const parsed = JSON.parse(geminiRes.text);
+          if (parsed.description) {
+            return res.json({
+              success: true,
+              description: parsed.description,
+              category: parsed.category || suggestedCategory,
+              highlight: parsed.highlight || "100% Consecrated • Authentic Nepal Bead",
+              badge: parsed.badge || "Best Seller",
+              tags: Array.isArray(parsed.tags) ? parsed.tags : [suggestedCategory, "Authentic", "Consecrated"]
+            });
+          }
+        }
+      } catch (gemErr) {
+        console.warn("Gemini product generation notice:", gemErr?.message || gemErr);
+      }
+    }
+
+    // 2. Secondary AI Model: NVIDIA NIM
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {
@@ -1441,7 +1499,7 @@ export async function generateProductDescription(req, res, next) {
             model: PRIMARY_NIM_MODEL,
             messages: [{
               role: "user",
-              content: `Generate a professional, highly readable product description in clean HTML for ${name} (${category || 'Rudraksha'}) in ${targetLanguage}.
+              content: `Generate a professional, highly readable product description in clean HTML for ${cleanName} (${suggestedCategory}) in ${targetLanguage}.
 Use the following structured headings exactly (enclosed in h2):
 <h2>✨ About the Product</h2>
 <h2>📿 Product Highlights</h2>
@@ -1449,14 +1507,7 @@ Use the following structured headings exactly (enclosed in h2):
 <h2>🙏 Suitable For</h2>
 <h2>🕉️ How to Wear & Care</h2>
 
-Requirements:
-- Structure logically with short, spacious paragraphs.
-- Bold important words to highlight meaning.
-- Use a bulleted list for Highlights.
-- Use a natural blend of Hindi + English (Hinglish) where appropriate for cultural resonance.
-- Avoid broken text or HTML entities like "&amp;". Replace them with safe characters.
-- Ensure proper spacing and prevent huge text blocks.
-- Output ONLY the pure HTML body itself, no markdown code fences, no head, no style, and no wrapping HTML/body elements.`
+Output ONLY the pure HTML body itself, no markdown code fences.`
             }],
             temperature: 0.35,
             max_tokens: 1000,
@@ -1469,7 +1520,14 @@ Requirements:
           const nimData = await nimRes.json();
           let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```html\s*/i, "").replace(/\s*```$/i, "").trim();
           if (cleanHtml && cleanHtml.includes("<h2>")) {
-            return res.json({ success: true, description: cleanHtml });
+            return res.json({ 
+              success: true, 
+              description: cleanHtml,
+              category: suggestedCategory,
+              highlight: "100% Consecrated • Authentic Nepal Bead",
+              badge: "Best Seller",
+              tags: [suggestedCategory, "Authentic", "Consecrated"]
+            });
           }
         }
       } catch (nimErr) {
@@ -1477,8 +1535,16 @@ Requirements:
       }
     }
 
-    const fallbackDesc = generateAuthenticFallbackHtml(name, category, targetLanguage);
-    return res.json({ success: true, description: fallbackDesc });
+    // 3. Fallback
+    const fallbackDesc = generateAuthenticFallbackHtml(cleanName, suggestedCategory, targetLanguage);
+    return res.json({ 
+      success: true, 
+      description: fallbackDesc,
+      category: suggestedCategory,
+      highlight: "100% Original & Consecrated with Ganga Jal",
+      badge: "Best Seller",
+      tags: [suggestedCategory, "Authentic", "Consecrated"]
+    });
   } catch (error) {
     console.error("Aura AI Description Generation Error:", error);
     return res.status(500).json({ success: false, message: "AI description could not be generated. Please try again." });
