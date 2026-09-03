@@ -96,6 +96,7 @@ export function AdminReviews() {
     reviewLength: "Short", // "Short" (1-2 lines) | "Medium" (2-3 lines) | "Long" (3-4 lines)
     tone: "Authentic & Conversational",
     useRAG: true,
+    aiProvider: "auto", // "auto" | "gemini" | "nvidia"
     count: 5
   });
   const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false);
@@ -960,6 +961,19 @@ export function AdminReviews() {
                     <option value="Short">⚡ 1–2 Short Lines (Concise)</option>
                     <option value="Medium">📝 2–3 Short Lines</option>
                     <option value="Long">📖 3–4 Short Lines</option>
+                  </select>
+                </div>
+
+                <div className="admin-form-group">
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>6. AI Engine Provider</label>
+                  <select 
+                    value={aiGenForm.aiProvider || "auto"}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, aiProvider: e.target.value })}
+                    className="aura-input"
+                  >
+                    <option value="auto">✨ Auto (Gemini 3.8 / NVIDIA NIM Fallback)</option>
+                    <option value="nvidia">⚡ NVIDIA NIM (Llama 3.3 70B / Nemotron)</option>
+                    <option value="gemini">🌟 Google Gemini 3.8 / 2.5 Flash</option>
                   </select>
                 </div>
               </div>

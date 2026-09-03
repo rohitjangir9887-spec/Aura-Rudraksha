@@ -598,11 +598,12 @@ export async function generateReviewDrafts(req, res, next) {
       existingCorpus = await Review.find().select("id title text rating name status").lean();
     }
 
+    const requestedProvider = (req.body.aiProvider || req.body.provider || "auto").toLowerCase();
     let rawDrafts = [];
 
     // 1. Primary AI Generator: Gemini API (@google/genai)
     const aiClient = getGeminiClient();
-    if (aiClient) {
+    if (aiClient && (requestedProvider === "auto" || requestedProvider === "gemini")) {
       const systemPrompt = `You are an AI review generator that creates authentic, natural customer reviews for products and services.
 
 CRITICAL RULES:
@@ -705,22 +706,24 @@ Length: "${reviewLength}".`;
       }
     }
 
-    // 2. Secondary fallback: NVIDIA API (if key length > 10 and valid)
-    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 10) ? process.env.NVIDIA_API_KEY.trim() : "";
-    if ((!rawDrafts || rawDrafts.length === 0) && nvidiaApiKey) {
-      try {
-        const systemPrompt = `You are a review generator that creates short, natural-looking fictional/sample customer reviews for website demo or placeholder use.
+    // 2. NVIDIA NIM API (if provider is nvidia OR if provider is auto and Gemini produced no drafts)
+    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 5) ? process.env.NVIDIA_API_KEY.trim() : "";
+    if ((!rawDrafts || rawDrafts.length === 0 || requestedProvider === "nvidia") && nvidiaApiKey) {
+      const nimModels = [
+        "meta/llama-3.3-70b-instruct",
+        "nvidia/llama-3.1-nemotron-70b-instruct",
+        "meta/llama3-70b-instruct",
+        "mistralai/mistral-7b-instruct-v0.2"
+      ];
+
+      const systemPrompt = `You are a review generator that creates short, natural-looking fictional/sample customer reviews for website demo or placeholder use.
 
 CRITICAL RULES:
 1. REVIEW FORMAT: Each review must have a realistic fictional customer Name, Rating (realistic mix of 3, 4, and 5 stars), and Review text (1 to 4 short lines).
 2. TONE & VOCABULARY: Natural, conversational ${effectiveLanguage}.
-   - In Hindi: natural spoken Hindi with Devanagari script.
-   - In Hinglish: natural modern conversational blend (e.g. "Quality उम्मीद से अच्छी लगी। इस्तेमाल करना भी काफी easy है और packaging ठीक थी।", "Overall अच्छा experience रहा। Product अच्छा लगा और price के हिसाब से ठीक है।").
-   - In English: concise, natural everyday English without robotic phrasing.
-3. GROUNDING: Only mention product features provided by the user in Product Name and Description/Key Features (${productDetails || resolvedProductName}). Do NOT invent unrelated wild claims.
+3. GROUNDING: Only mention product features provided by the user in Product Name and Description/Key Features (${productDetails || resolvedProductName}).
 4. BREVITY: Keep each review strictly 1 to 3 short lines (under 30 words).
-5. AVOID CLICHES: Strictly avoid repetitive marketing phrases like "life changing", "best in the world", "as an AI". Vary sentence structures across reviews.
-6. DIVERSE FICTIONAL NAMES: Use realistic Indian names like "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer".
+5. DIVERSE FICTIONAL NAMES: Use realistic Indian names like "Aman Sharma", "Neha Verma", "Ravi Meena", "Pooja Sharma", "Rohit Jangir", "Vikas Patel", "Priya Nair", "Deepak Joshi", "Ananya Iyer".
 
 OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown wrappers:
 [
@@ -734,72 +737,84 @@ OUTPUT FORMAT: Return ONLY a valid JSON array of objects without markdown wrappe
   }
 ]`;
 
-        const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}".`;
+      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}".`;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
+      for (const nimModel of nimModels) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({
-            model: "nvidia/nemotron-3-super-120b-a12b",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            temperature: 0.45,
-            max_tokens: 1200
-          }),
-          signal: controller.signal
-        });
+          const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${nvidiaApiKey}`,
+              "Accept": "application/json"
+            },
+            body: JSON.stringify({
+              model: nimModel,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+              ],
+              temperature: 0.5,
+              max_tokens: 1200
+            }),
+            signal: controller.signal
+          });
 
-        clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-        if (nimRes.ok) {
-          const data = await nimRes.json();
-          let content = data.choices?.[0]?.message?.content || "";
-          const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          const parsed = JSON.parse(cleaned);
+          if (nimRes.ok) {
+            const data = await nimRes.json();
+            let content = data.choices?.[0]?.message?.content || "";
+            const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+            const parsed = JSON.parse(cleaned);
 
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            rawDrafts = parsed.map((item, idx) => {
-              const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
-                ? item.name
-                : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              rawDrafts = parsed.map((item, idx) => {
+                const assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous")
+                  ? item.name
+                  : FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
 
-              const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
-              const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
+                const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
+                const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
 
-              return {
-                id: `DRAFT-${Date.now()}-${idx + 1}`,
-                title: item.title || `${resolvedProductName} Review`,
-                text: (item.text || item.body || "").trim(),
-                rating: Number(item.rating) || 5,
-                name: assignedName,
-                city: assignedCity,
-                date: relativeDate,
-                verified: verified !== false,
-                featured: idx === 0,
-                status: "Approved",
-                source: "customer",
-                helpfulUp: Math.floor(Math.random() * 5) + 1,
-                helpfulDown: 0,
-                productId: String(productId || "5"),
-                productName: resolvedProductName,
-                type: "product",
-                language: item.language || effectiveLanguage,
-                images: []
-              };
-            });
+                return {
+                  id: `DRAFT-${Date.now()}-${idx + 1}`,
+                  title: item.title || `${resolvedProductName} Review`,
+                  text: (item.text || item.body || "").trim(),
+                  rating: Number(item.rating) || 5,
+                  name: assignedName,
+                  city: assignedCity,
+                  date: relativeDate,
+                  verified: verified !== false,
+                  featured: idx === 0,
+                  status: "Approved",
+                  source: "customer",
+                  helpfulUp: Math.floor(Math.random() * 5) + 1,
+                  helpfulDown: 0,
+                  productId: String(productId || "5"),
+                  productName: resolvedProductName,
+                  type: "product",
+                  language: item.language || effectiveLanguage,
+                  isAiGenerated: true,
+                  images: []
+                };
+              });
+
+              if (rawDrafts.length > 0) {
+                console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via NVIDIA NIM model: ${nimModel}`);
+                break;
+              }
+            }
+          } else {
+            const errTxt = await nimRes.text().catch(() => "");
+            console.warn(`[Aura AI Reviews] NVIDIA NIM (${nimModel}) HTTP ${nimRes.status}:`, errTxt.slice(0, 150));
           }
+        } catch (err) {
+          console.warn(`[Aura AI Reviews] NIM generation error (${nimModel}):`, err?.message || err);
         }
-      } catch (err) {
-        console.warn("[Aura AI Reviews] NIM generation fallback:", err?.message || err);
       }
     }
 
