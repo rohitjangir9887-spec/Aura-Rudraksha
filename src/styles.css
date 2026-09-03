@@ -2836,11 +2836,6 @@ html { scroll-behavior: smooth; }
   display: block;
   margin: auto;
   border-radius: 10px;
-  transition: transform 0.3s ease;
-}
-
-.main-image-frame:hover .main-product-img {
-  transform: scale(1.02);
 }
 
 .gallery-badges-top-left {
@@ -15398,13 +15393,114 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 @media (max-width: 480px) {
   .aura-panditji-section {
-    padding: 16px 10px 14px;
+    padding: 10px 8px 10px;
   }
 
   .aura-panditji-grid {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 8px;
+  }
+
+  /* 3D Animated Character Mobile Downscaling */
+  .aura-panditji-visual {
+    padding-right: 0 !important;
+    justify-content: center !important;
+  }
+
+  .aura-panditji-stage {
+    max-width: 160px !important;
+    height: 160px !important;
+    margin: 0 auto !important;
+  }
+
+  .aura-panditji-mandap-backdrop {
+    width: 120px !important;
+    height: 120px !important;
+    top: 5px !important;
+  }
+
+  .aura-panditji-character-wrapper {
+    max-width: 140px !important;
+  }
+
+  .aura-panditji-svg,
+  .aura-panditji-media,
+  .aura-panditji-video,
+  .aura-panditji-gif {
+    max-height: 180px !important;
+  }
+
+  /* Traditional Card Mobile Downscaling & Spacing Reduction */
+  .aura-panditji-portrait-card {
+    padding: 8px 10px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .aura-panditji-portrait-header {
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .aura-panditji-portrait-circle {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .aura-panditji-portrait-header b {
+    font-size: 11.5px !important;
+  }
+
+  .aura-panditji-portrait-header span {
+    font-size: 8px !important;
+    padding: 1px 4px !important;
+  }
+
+  .aura-panditji-portrait-header div {
+    font-size: 9.5px !important;
+  }
+
+  .aura-panditji-quote-box {
+    padding: 4px 8px !important;
+    margin-bottom: 6px !important;
+    font-size: 10px !important;
+  }
+
+  .aura-panditji-promises-grid {
+    gap: 4px !important;
+    margin-bottom: 6px !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .aura-panditji-promises-grid div {
+    font-size: 9.5px !important;
+  }
+
+  .aura-panditji-portrait-btn {
+    padding: 6px 10px !important;
+    font-size: 10.5px !important;
+    gap: 4px !important;
+    border-radius: 5px !important;
+  }
+
+  .aura-panditji-whatsapp-card {
+    padding: 6px 10px !important;
+    gap: 4px !important;
+    border-radius: 6px !important;
+  }
+
+  .aura-panditji-whatsapp-card b {
+    font-size: 10.5px !important;
+  }
+
+  .aura-panditji-whatsapp-card span {
+    font-size: 9.5px !important;
+  }
+
+  .aura-panditji-whatsapp-card a {
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+    border-radius: 5px !important;
   }
 
   .aura-panditji-badge {

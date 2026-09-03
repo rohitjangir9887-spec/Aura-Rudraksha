@@ -93,6 +93,7 @@ export function Shop() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState("featured");
   const [chip, setChip] = useState("all");
+  const [priceRange, setPriceRange] = useState("all");
   const [openFaq, setOpenFaq] = useState(0);
   const { add } = useCart();
   const navigate = useNavigate();
@@ -164,13 +165,24 @@ export function Shop() {
       );
     }
 
+    // Filter by specific price range categories
+    if (priceRange === "under-2k") {
+      next = next.filter(p => (Number(p.price) || 0) < 2000);
+    } else if (priceRange === "2k-5k") {
+      next = next.filter(p => (Number(p.price) || 0) >= 2000 && (Number(p.price) || 0) <= 5000);
+    } else if (priceRange === "5k-10k") {
+      next = next.filter(p => (Number(p.price) || 0) >= 5000 && (Number(p.price) || 0) <= 10000);
+    } else if (priceRange === "over-10k") {
+      next = next.filter(p => (Number(p.price) || 0) > 10000);
+    }
+
     if (filter === "price-low") next.sort((a,b) => (Number(a.price) || 0) - (Number(b.price) || 0));
     if (filter === "price-high") next.sort((a,b) => (Number(b.price) || 0) - (Number(a.price) || 0));
     if (filter === "rating") next.sort((a,b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
     if (filter === "popular") next.sort((a,b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
     
     return next;
-  }, [products, filter, chip, q]);
+  }, [products, filter, chip, priceRange, q]);
 
   return (
     <Shell>
@@ -252,6 +264,76 @@ export function Shop() {
               </motion.button>
             );
           })}
+        </div>
+
+        {/* Price Range Filters */}
+        <div 
+          className="shop-price-filters-container" 
+          id="shop-price-range-filters" 
+          style={{ 
+            display: "flex", 
+            alignItems: "center",
+            gap: "10px", 
+            overflowX: "auto", 
+            padding: "8px 4px 14px 4px", 
+            marginBottom: "16px", 
+            borderBottom: "1px dashed #eadecd",
+            scrollbarWidth: "none",
+            WebkitOverflowScrolling: "touch" 
+          }}
+        >
+          <span 
+            className="price-filter-label"
+            style={{ 
+              fontSize: "12px", 
+              fontWeight: "700", 
+              color: "#7a320c", 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "4px", 
+              whiteSpace: "nowrap",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}
+          >
+            <Filter size={12} />
+            Price Range:
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {[
+              { id: "all", label: "All Prices" },
+              { id: "under-2k", label: "Under ₹2,000" },
+              { id: "2k-5k", label: "₹2,000 - ₹5,000" },
+              { id: "5k-10k", label: "₹5,000 - ₹10,000" },
+              { id: "over-10k", label: "Over ₹10,000" },
+            ].map((r) => {
+              const isActive = priceRange === r.id;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={`price-range-btn ${isActive ? "active" : ""}`}
+                  onClick={() => setPriceRange(r.id)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "20px",
+                    fontSize: "11.5px",
+                    fontWeight: isActive ? "700" : "500",
+                    background: isActive ? "#7a320c" : "#ffffff",
+                    color: isActive ? "#ffffff" : "#5c4a3f",
+                    border: isActive ? "1px solid #7a320c" : "1px solid #eadecd",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    boxShadow: isActive ? "0 2px 6px rgba(122, 50, 12, 0.15)" : "0 1px 3px rgba(0,0,0,0.02)",
+                    transition: "all 0.15s ease",
+                  }}
+                  id={`price-filter-${r.id}`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* 5. Responsive Product Grid */}

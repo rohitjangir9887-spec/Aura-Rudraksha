@@ -906,7 +906,7 @@ export function PanditjiSection() {
           {/* RIGHT: WELCOMING TRADITIONAL PANDITJI PORTRAIT & CONSULTATION CARD */}
           <div className="aura-panditji-content" style={{ padding: 0, minWidth: 0 }}>
             {/* TRADITIONAL PANDITJI PORTRAIT CARD */}
-            <div style={{
+            <div className="aura-panditji-portrait-card" style={{
               background: 'linear-gradient(135deg, #FFFDF8 0%, #FAF2E6 100%)',
               border: '1.5px solid #D4AF37',
               borderRadius: 12,
@@ -947,9 +947,9 @@ export function PanditjiSection() {
               </div>
 
               {/* Portrait & Title Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <div className="aura-panditji-portrait-header" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                 {/* Traditional Panditji Portrait Artwork */}
-                <div style={{
+                <div className="aura-panditji-portrait-circle" style={{
                   position: 'relative',
                   width: 64,
                   height: 64,
@@ -1122,7 +1122,7 @@ export function PanditjiSection() {
               </div>
 
               {/* Welcoming Panditji Quote */}
-              <div style={{
+              <div className="aura-panditji-quote-box" style={{
                 background: 'rgba(255, 255, 255, 0.8)',
                 borderLeft: '3px solid #D4AF37',
                 borderRadius: '0 6px 6px 0',
@@ -1137,7 +1137,7 @@ export function PanditjiSection() {
               </div>
 
               {/* 3 Core Vedic Promises */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 6, marginBottom: 10 }}>
+              <div className="aura-panditji-promises-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 6, marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '10.5px', color: '#4A0E17', fontWeight: 600 }}>
                   <CheckCircle2 size={13} color="#C89B3C" style={{ flexShrink: 0 }} />
                   <span>वैदिक कुंडली गणना</span>
@@ -1154,6 +1154,7 @@ export function PanditjiSection() {
 
               {/* Direct Interactive Panditji AI Chat Button */}
               <button
+                className="aura-panditji-portrait-btn"
                 type="button"
                 onClick={() => handleAskInChat("नमस्ते पंडित जी 🙏 मुझे रुद्राक्ष चयन और कुंडली विश्लेषण के बारे में पूर्ण मार्गदर्शन दीजिए।")}
                 style={{
@@ -1180,7 +1181,7 @@ export function PanditjiSection() {
             </div>
 
             {/* QUICK 1-ON-1 WHATSAPP LINK */}
-            <div style={{
+            <div className="aura-panditji-whatsapp-card" style={{
               background: '#f7fee7',
               border: '1px solid #bef264',
               borderRadius: 8,

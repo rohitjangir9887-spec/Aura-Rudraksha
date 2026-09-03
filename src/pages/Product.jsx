@@ -45,6 +45,29 @@ export function Product() {
   const [copiedCode, setCopiedCode] = useState("");
   const [added, setAdded] = useState(false);
 
+  // Hover Zoom Effect States & Handlers
+  const [zoomStyle, setZoomStyle] = useState({ transformOrigin: "center center", transform: "scale(1)" });
+  const [isZooming, setIsZooming] = useState(false);
+
+  const handleMouseMove = (e) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - left) / width) * 100;
+    const y = ((e.clientY - top) / height) * 100;
+    setZoomStyle({
+      transformOrigin: `${x}% ${y}%`,
+      transform: "scale(2.2)"
+    });
+    setIsZooming(true);
+  };
+
+  const handleMouseLeave = () => {
+    setZoomStyle({
+      transformOrigin: "center center",
+      transform: "scale(1)"
+    });
+    setIsZooming(false);
+  };
+
   // Sticky Bar & Accordion states
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [activeAccordion, setActiveAccordion] = useState("about");
@@ -516,14 +539,24 @@ export function Product() {
                 </div>
               )}
 
-              {/* Main Product Image Container with Framer Motion Animation */}
-              <div className="main-image-viewport">
+              {/* Main Product Image Container with Framer Motion Animation & Zoom */}
+              <div 
+                className="main-image-viewport"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+                style={{ overflow: "hidden", cursor: "zoom-in" }}
+              >
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.img 
                     key={activeImg || productImages[0]}
                     src={activeImg || productImages[0]} 
                     alt={`${p.name} - Sacred View ${activeIndex + 1}`}
                     className="main-product-img"
+                    style={{
+                      transformOrigin: zoomStyle.transformOrigin,
+                      transform: zoomStyle.transform,
+                      transition: isZooming ? "transform 0.05s ease-out" : "transform 0.3s ease-out, transform-origin 0.3s ease-out"
+                    }}
                     initial={{ opacity: 0, x: slideDirection * 12 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -slideDirection * 12 }}
