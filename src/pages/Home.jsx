@@ -14,11 +14,30 @@ import { AllProductsSection } from "../components/AllProductsSection";
 
 export function Home() {
   const [hero, setHero] = useState(0);
-  const [isLoading, setIsLoading] = useState(true); 
+  const [isLoading, setIsLoading] = useState(false); 
   const { add } = useCart();
   const [banners, setBanners] = useState(() => db.getBanners() || []);
-  const [products, setProducts] = useState([]);
-  const [offers, setOffers] = useState([]);
+  const [products, setProducts] = useState(() => {
+    try {
+      return db.getProducts().filter(p => p.status === 'Active');
+    } catch {
+      return [];
+    }
+  });
+  const [offers, setOffers] = useState(() => {
+    try {
+      return db.getOffers().filter(o => {
+        if (o.offerType === 'badge') return false;
+        if (o.status !== 'Active') return false;
+        if (o.shownOn && o.shownOn !== 'Home Banner') return false;
+        if (o.expiry && new Date(o.expiry) < new Date()) return false;
+        if (o.startDate && new Date(o.startDate) > new Date()) return false;
+        return true;
+      }).sort((a,b) => (a.order || 0) - (b.order || 0));
+    } catch {
+      return [];
+    }
+  });
   const location = useLocation();
 
   const loadHomeData = async () => {
