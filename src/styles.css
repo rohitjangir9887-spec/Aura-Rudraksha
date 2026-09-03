@@ -273,25 +273,32 @@ html, body {
 }
 .hero-pagination {
     position: absolute;
-    bottom: 90px;
+    bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 12px;
-    z-index: 2;
+    align-items: center;
+    gap: 8px;
+    z-index: 10;
 }
 .hero-pagination .dot {
-    width: 12px;
-    height: 12px;
+    border: none;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    appearance: none;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: #ccc;
+    background: rgba(255, 255, 255, 0.45);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    flex-shrink: 0;
 }
 .hero-pagination .dot.active {
-    background: #7a320c;
-    width: 26px;
-    border-radius: 10px;
+    background: linear-gradient(135deg, #F5D77F 0%, #D49E35 100%);
+    width: 24px;
+    border-radius: 9999px;
 }
 
 /* Feature Bar Override */
@@ -814,50 +821,63 @@ body {
 }
 .hero-pagination {
     position: absolute;
-    bottom: 20px;
+    bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
     gap: 8px;
-    z-index: 5;
-    background: rgba(18, 9, 5, 0.45);
-    padding: 6px 12px;
-    border-radius: 20px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 10;
+    background: rgba(18, 9, 5, 0.65);
+    padding: 6px 14px;
+    border-radius: 30px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
 }
 .hero-pagination .dot {
+    border: none;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    appearance: none;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.45);
     cursor: pointer;
     transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    flex-shrink: 0;
 }
 .hero-pagination .dot:hover {
-    background: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.85);
+    transform: scale(1.15);
 }
 .hero-pagination .dot.active {
-    width: 22px;
+    width: 24px;
+    height: 8px;
     border-radius: 9999px;
-    background: linear-gradient(135deg, #F0D78C 0%, #C89B3C 100%);
-    box-shadow: 0 0 10px rgba(200, 155, 60, 0.5);
+    background: linear-gradient(135deg, #F5D77F 0%, #D49E35 100%);
+    box-shadow: 0 0 10px rgba(212, 158, 53, 0.6);
 }
 
 @media(max-width: 600px) {
     .hero-pagination {
-        bottom: 12px;
-        padding: 5px 10px;
+        bottom: 10px;
+        padding: 4px 10px;
         gap: 6px;
     }
     .hero-pagination .dot {
-        width: 6px;
-        height: 6px;
+        width: 7px;
+        height: 7px;
+        border: none;
+        padding: 0;
+        margin: 0;
     }
     .hero-pagination .dot.active {
-        width: 16px;
+        width: 18px;
+        height: 7px;
     }
 }
 
