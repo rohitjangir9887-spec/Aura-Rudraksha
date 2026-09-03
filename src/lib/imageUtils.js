@@ -390,10 +390,20 @@ export async function uploadMedia(file, onProgress = () => {}) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      readURL: publicUrl,
       url: publicUrl,
+      puterFileId: fileStat.path || filePath,
       fileId: fileStat.path || filePath,
+      path: fileStat.path || filePath,
+      filename: actualFileName,
       type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+      sizeBytes: file.size || fileStat.size || 0,
       size: file.size || fileStat.size || 0,
+      metadata: {
+        provider: "puter",
+        originalName: file.name,
+        uploadedAt: new Date().toISOString()
+      },
       provider: "puter"
     })
   });

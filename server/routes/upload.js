@@ -22,7 +22,7 @@ router.get("/stats", async (req, res) => {
 
     const images = totalMedia.filter(m => m.type && m.type.startsWith("image/"));
     const videos = totalMedia.filter(m => m.type && m.type.startsWith("video/"));
-    const totalSizeBytes = totalMedia.reduce((sum, m) => sum + (Number(m.size) || 0), 0);
+    const totalSizeBytes = totalMedia.reduce((sum, m) => sum + (Number(m.sizeBytes || m.size) || 0), 0);
 
     const lastUpload = totalMedia.length > 0 ? totalMedia[0] : null;
 
@@ -34,11 +34,12 @@ router.get("/stats", async (req, res) => {
       totalCount: totalMedia.length,
       totalSizeBytes,
       lastUpload: lastUpload ? {
-        url: lastUpload.url,
+        url: lastUpload.readURL || lastUpload.url,
+        readURL: lastUpload.readURL || lastUpload.url,
         provider: lastUpload.provider || "puter",
         createdAt: lastUpload.createdAt,
         type: lastUpload.type || "image/jpeg",
-        size: lastUpload.size || 0
+        sizeBytes: lastUpload.sizeBytes || lastUpload.size || 0
       } : null
     });
   } catch (err) {
@@ -64,20 +65,30 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const { url, fileId, type, size, provider } = req.body || {};
+    const { url, readURL, puterFileId, fileId, path, filename, type, sizeBytes, size, metadata, provider } = req.body || {};
 
-    if (!url) {
+    const finalReadURL = readURL || url;
+    if (!finalReadURL) {
       return res.status(400).json({
         success: false,
         message: "No media URL provided for registration"
       });
     }
 
+    const finalFileId = puterFileId || fileId || path || "";
+    const finalSizeBytes = Number(sizeBytes ?? size ?? 0);
+
     const mediaRecord = new Media({
-      url,
-      fileId: fileId || "",
+      readURL: finalReadURL,
+      url: finalReadURL,
+      puterFileId: finalFileId,
+      fileId: finalFileId,
+      path: path || finalFileId,
+      filename: filename || (finalReadURL.split('/').pop() || "media"),
       type: type || "image/jpeg",
-      size: Number(size) || 0,
+      sizeBytes: finalSizeBytes,
+      size: finalSizeBytes,
+      metadata: metadata || {},
       provider: provider || "puter"
     });
 
@@ -108,4 +119,3 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
-

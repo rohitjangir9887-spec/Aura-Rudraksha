@@ -58,14 +58,17 @@ export function Admin() {
 
   const checkPuter = useCallback(async () => {
     try {
-      const info = await getPuterMediaStatus();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Puter status timeout")), 5000)
+      );
+      const info = await Promise.race([getPuterMediaStatus(), timeoutPromise]);
       if (mountedRef.current) setMediaInfo(info);
     } catch (_) {
       if (mountedRef.current) {
         setMediaInfo({
           connected: false,
           status: "Not Connected",
-          message: "Puter Cloud connection check failed."
+          message: "Puter Cloud connection check failed or timed out. Click Reconnect to retry."
         });
       }
     }

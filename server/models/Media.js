@@ -2,11 +2,17 @@ import mongoose from "mongoose";
 
 const mediaSchema = new mongoose.Schema(
   {
-    url: { type: String, required: true },
+    readURL: { type: String, required: true },
+    url: { type: String },
+    puterFileId: { type: String, default: "" },
     fileId: { type: String, default: "" },
+    path: { type: String, default: "" },
+    filename: { type: String, default: "" },
     type: { type: String, default: "image/jpeg" },
+    sizeBytes: { type: Number, default: 0 },
     size: { type: Number, default: 0 },
-    provider: { type: String, required: true, default: "server" }
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    provider: { type: String, required: true, default: "puter" }
   },
   {
     timestamps: true,
