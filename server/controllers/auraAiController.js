@@ -3,20 +3,26 @@ const requestCounts = new Map();
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 
-let geminiClient = null;
-if (process.env.GEMINI_API_KEY) {
-  try {
-    geminiClient = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
+let geminiClientInstance = null;
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+  if (!apiKey) return null;
+  if (!geminiClientInstance) {
+    try {
+      geminiClientInstance = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
         }
-      }
-    });
-  } catch (err) {
-    console.warn("Could not initialize GoogleGenAI client:", err);
+      });
+    } catch (err) {
+      console.warn("Could not initialize GoogleGenAI client:", err?.message || err);
+      return null;
+    }
   }
+  return geminiClientInstance;
 }
 
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
@@ -740,7 +746,8 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         }
       }
 
-      if (!generatedViaLLM && geminiClient) {
+      const gemini = getGeminiClient();
+      if (!generatedViaLLM && gemini) {
         try {
           res.write(`data: ${JSON.stringify({ type: "status", message: "Thinking..." })}\n\n`);
           if (res.flush) res.flush();
@@ -760,7 +767,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
             parts: [{ text: message }]
           });
 
-          const responseStream = await geminiClient.models.generateContentStream({
+          const responseStream = await gemini.models.generateContentStream({
             model: "gemini-3.8-flash",
             contents,
             config: {
@@ -914,7 +921,8 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       }
     }
 
-    if (!generatedViaLLM && geminiClient) {
+    const gemini = getGeminiClient();
+    if (!generatedViaLLM && gemini) {
       try {
         const contents = [];
         for (const h of history.slice(-4)) {
@@ -931,7 +939,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
           parts: [{ text: message }]
         });
 
-        const response = await geminiClient.models.generateContent({
+        const response = await gemini.models.generateContent({
           model: "gemini-3.8-flash",
           contents,
           config: {

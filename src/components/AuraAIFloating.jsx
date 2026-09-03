@@ -584,7 +584,7 @@ export function AuraAIFloating() {
     undoTimerRef.current = setTimeout(() => {
       setShowUndoToast(false);
       undoTimerRef.current = null;
-    }, 7000);
+    }, 3000); // Automatically disappears in 3 seconds (2-4s range)
   };
 
   const handleRestore = () => {
@@ -691,18 +691,21 @@ export function AuraAIFloating() {
         {showUndoToast && !isOpen && (
           <motion.div
             className="aura-ai-dismissed-toast"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 15 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <span>Aura AI sabhi pages se hide ho gaya hai</span>
+            <span className="aura-ai-dismissed-toast-text">Aura AI sabhi pages se hide ho gaya hai</span>
             <button 
+              type="button"
               onClick={handleRestore}
               className="aura-ai-undo-btn"
-              title="Undo and show button again"
+              title="Undo and show Aura AI button again"
+              aria-label="Undo hide"
             >
-              Undo
+              <RotateCcw size={11} className="aura-ai-undo-icon" />
+              <span>Undo</span>
             </button>
           </motion.div>
         )}

@@ -10398,47 +10398,70 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-dismissed-toast {
   position: fixed;
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(82px + env(safe-area-inset-bottom, 0px));
   left: 14px;
   right: auto;
   z-index: 10001;
-  background: #1f0f06;
+  background: rgba(31, 15, 6, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #fffdf9;
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  padding: 8px 14px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  padding: 6px 10px 6px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: fadeInToast 0.3s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.42), 0 0 10px rgba(212, 175, 55, 0.15);
+  pointer-events: auto;
+  user-select: none;
 }
 
-@keyframes fadeInToast {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.aura-ai-dismissed-toast-text {
+  font-size: 11.5px;
+  color: #f5eedc;
+  line-height: 1.2;
 }
 
 .aura-ai-undo-btn {
-  background: transparent;
-  border: none;
-  color: #d4af37;
+  background: rgba(212, 175, 55, 0.18);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  color: #fce38a;
   font-weight: 700;
   cursor: pointer;
-  text-decoration: underline;
-  padding: 0 4px;
-  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.aura-ai-undo-icon {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.4;
 }
 
 .aura-ai-undo-btn:hover {
-  color: #f3e5ab;
+  background: rgba(212, 175, 55, 0.32);
+  border-color: #d4af37;
+  color: #ffffff;
+  transform: translateY(-0.5px);
+}
+
+.aura-ai-undo-btn:active {
+  transform: scale(0.95);
 }
 
 @media (min-width: 1024px) {
   .aura-ai-dismissed-toast {
-    bottom: 28px;
-    right: 28px;
+    bottom: 24px;
+    right: 24px;
     left: auto;
   }
 }
