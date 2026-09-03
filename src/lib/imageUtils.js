@@ -623,39 +623,73 @@ function generateUniqueFileName(file) {
 
 /**
  * Helper: Classifies Puter Cloud upload errors into structured categories
+ * Captures name, message, code, status, statusCode, failedItems, failedCount, totalCount, results, retryAfter
  */
 function classifyPuterError(err) {
   if (!err) {
     return {
+      name: "UnknownError",
       code: null,
+      status: null,
+      statusCode: null,
       message: "Unknown upload failure.",
+      failedItems: [],
+      failedCount: 0,
+      totalCount: 0,
       retryAfterSec: null,
       isRateLimit: false,
+      isAuth: false,
+      isPermission: false,
+      isQuota: false,
+      isTooLarge: false,
+      isInvalidType: false,
       isNetwork: false,
       isPermanent: false,
       isTransient: true
     };
   }
 
+  const errName = err.name || "PuterUploadError";
   const errCode = err.code || err.status || err.statusCode || (err.response && err.response.status) || null;
+  const status = err.status || err.statusCode || (err.response && err.response.status) || null;
+  const statusCode = err.statusCode || err.status || null;
+
   const rawMsg = err.message || err.error || err.reason || (typeof err === "string" ? err : "Puter upload request failed.");
   const msgStr = String(rawMsg);
 
+  const failedItems = Array.isArray(err.failedItems) ? err.failedItems : (Array.isArray(err.failed) ? err.failed : []);
+  const failedCount = typeof err.failedCount === "number" ? err.failedCount : failedItems.length;
+  const totalCount = typeof err.totalCount === "number" ? err.totalCount : 0;
+
   const retryAfterSec = parseRetryAfter(err.retryAfter || err.retry_after || err.headers?.get?.("Retry-After") || err.headers?.["retry-after"]);
 
-  const isRateLimit = errCode === 429 || /429|too many requests|rate limit|slow down/i.test(msgStr);
-  const isNetwork = err.name === "TypeError" || /network|fetch|failed to fetch|econnreset|etimedout|socket/i.test(msgStr);
+  const isRateLimit = errCode === 429 || status === 429 || statusCode === 429 || /429|too many requests|rate limit|slow down/i.test(msgStr);
+  const isAuth = errCode === 401 || status === 401 || /unauthorized|401|not logged in|session expired|invalid token|auth failure/i.test(msgStr);
+  const isPermission = errCode === 403 || status === 403 || /forbidden|403|permission denied|access denied/i.test(msgStr);
+  const isQuota = errCode === 413 || /quota|space|storage full|out of storage|drive full/i.test(msgStr);
+  const isTooLarge = errCode === 413 || /file too large|payload too large|max size/i.test(msgStr);
+  const isInvalidType = errCode === 415 || errCode === 422 || /invalid mime|unsupported media|invalid file/i.test(msgStr);
+  const isNetwork = errName === "TypeError" || /network|fetch|failed to fetch|econnreset|etimedout|socket/i.test(msgStr);
 
-  const isPermanent = errCode === 400 || errCode === 401 || errCode === 403 || errCode === 404 || errCode === 413 || errCode === 415 || errCode === 422 ||
-    /quota|space|permission|unauthorized|invalid mime|invalid path|forbidden|file too large|storage full/i.test(msgStr);
-
-  const isTransient = isRateLimit || isNetwork || (!isPermanent && (errCode >= 500 || /server error|internal error|timeout|batch_upload_partially_failed|batch_upload_failed|batch_upload_no_results/i.test(msgStr)));
+  const isPermanent = isAuth || isPermission || isQuota || isTooLarge || isInvalidType || errCode === 400 || errCode === 404;
+  const isTransient = !isPermanent && (isRateLimit || isNetwork || (errCode && errCode >= 500) || /server error|internal error|timeout|batch_upload_partially_failed|batch_upload_failed|batch_upload_no_results/i.test(msgStr));
 
   return {
+    name: errName,
     code: errCode,
+    status,
+    statusCode,
     message: msgStr,
+    failedItems,
+    failedCount,
+    totalCount,
     retryAfterSec,
     isRateLimit,
+    isAuth,
+    isPermission,
+    isQuota,
+    isTooLarge,
+    isInvalidType,
     isNetwork,
     isPermanent,
     isTransient
@@ -663,22 +697,35 @@ function classifyPuterError(err) {
 }
 
 /**
- * Helper: Formats user-friendly error message for Puter Cloud errors
+ * Helper: Formats detailed user-friendly error message for Puter Cloud errors without generic "Upload failed"
  */
-function formatPuterErrorMessage(classified) {
+function formatPuterErrorMessage(classified, fileName = "") {
+  const prefix = fileName ? `${fileName}: ` : "";
   if (classified.isRateLimit) {
-    return "Rate limit exceeded (429). Please wait a moment.";
+    return `${prefix}Rate limit exceeded (HTTP 429). Please wait a moment before trying again.`;
   }
-  if (classified.isPermanent) {
-    return classified.message.startsWith("[Puter") ? classified.message : `Storage error: ${classified.message}`;
+  if (classified.isAuth) {
+    return `${prefix}Authentication failure: Puter session invalid or expired. Please re-authenticate in Admin Settings.`;
   }
-  if (classified.code) {
-    return `Puter upload failed (HTTP ${classified.code}): ${classified.message}`;
+  if (classified.isPermission) {
+    return `${prefix}Permission denied (HTTP 403): Cannot write to Puter storage path.`;
   }
-  if (classified.message && classified.message !== "Puter upload request failed.") {
-    return classified.message;
+  if (classified.isQuota) {
+    return `${prefix}Storage quota exceeded: Your Puter Cloud storage allocation is full.`;
   }
-  return "Upload failed: Puter storage did not return a valid file descriptor.";
+  if (classified.isTooLarge) {
+    return `${prefix}File too large: Exceeds Puter Cloud max single-file size limit.`;
+  }
+  if (classified.isInvalidType) {
+    return `${prefix}Invalid file type: File format is rejected by Puter Cloud.`;
+  }
+  if (classified.code || classified.status) {
+    return `${prefix}[Puter ${classified.name || "Error"} ${classified.code || classified.status}] ${classified.message}`;
+  }
+  if (classified.message && classified.message !== "Puter upload request failed." && classified.message !== "Upload failed") {
+    return `${prefix}[Puter Error] ${classified.message}`;
+  }
+  return `${prefix}[Puter Error] Storage upload failed without returning a valid file descriptor.`;
 }
 
 /**
@@ -769,426 +816,409 @@ function findMatchingDescriptor(descriptors, pItem, currentPendingList) {
 }
 
 /**
- * Uploads a batch of media files directly to Puter Cloud in controlled sequential chunks.
- * Eliminates request bursts, handles 429 rate limiting with Retry-After backoff,
- * avoids unnecessary stat() checks, registers metadata in MongoDB per chunk,
- * and supports progressive live gallery updates.
+ * Uploads a batch of media files directly to Puter Cloud in a controlled, resumable queue.
+ * Uses a single-active-upload queue to prevent rate limit storms.
+ * Automatically falls back to single-file mode for ambiguous or batch rejection cases.
+ * Captures raw Puter error object details and handles 429 rate limit backoff.
  */
 export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
-  if (import.meta.env.DEV) {
-    console.log("[Puter Diagnostics] UPLOAD_PIPELINE_VERSION=4.0.0-PUTER-HARDENED-RESILIENT");
-  }
+  return _uploadQueue.add(async () => {
+    if (import.meta.env.DEV) {
+      console.log("[Puter Diagnostics] UPLOAD_ENGINE_VERSION=5.0.0-RESUMABLE-SINGLE-FILE-QUEUE");
+    }
 
-  const filesArray = Array.isArray(rawFiles)
-    ? rawFiles
-    : (rawFiles instanceof FileList ? Array.from(rawFiles) : (rawFiles ? [rawFiles] : []));
+    const filesArray = Array.isArray(rawFiles)
+      ? rawFiles
+      : (rawFiles instanceof FileList ? Array.from(rawFiles) : (rawFiles ? [rawFiles] : []));
 
-  if (!filesArray.length) return [];
+    if (!filesArray.length) return [];
 
-  const allowedTypes = [
-    "image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "image/svg+xml",
-    "video/mp4", "video/webm", "video/ogg"
-  ];
+    const allowedTypes = [
+      "image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "image/svg+xml",
+      "video/mp4", "video/webm", "video/ogg"
+    ];
 
-  const batchId = `aura_batch_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const batchId = `aura_batch_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-  // Prepare & validate item tracking objects
-  const items = filesArray.map((file, idx) => {
-    // If file is already a valid URL string
-    if (typeof file === "string" && (file.startsWith("http://") || file.startsWith("https://") || file.startsWith("/images/"))) {
+    // Prepare & validate item tracking objects
+    const items = filesArray.map((file, idx) => {
+      // If file is already a valid URL string
+      if (typeof file === "string" && (file.startsWith("http://") || file.startsWith("https://") || file.startsWith("/images/"))) {
+        return {
+          index: idx,
+          originalName: file.split("/").pop() || "media",
+          uniqueFileName: file.split("/").pop() || "media",
+          uploadFile: null,
+          puterPath: "",
+          actualPuterPath: "",
+          actualFileName: file.split("/").pop() || "media",
+          size: 0,
+          type: "image/jpeg",
+          status: "uploaded",
+          verified: true,
+          success: true,
+          publicUrl: file,
+          error: null,
+          source: null,
+          attempt: 0,
+          statChecked: false
+        };
+      }
+
+      const isVideo = file?.type?.startsWith("video/") || file?.name?.endsWith(".mp4") || file?.name?.endsWith(".webm");
+      const maxBytes = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+      let valError = null;
+
+      if (file.size && file.size > maxBytes) {
+        valError = `File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds ${isVideo ? "50MB" : "10MB"} limit.`;
+      } else if (file.type && !allowedTypes.includes(file.type)) {
+        valError = "Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.";
+      }
+
+      const uniqueFileName = generateUniqueFileName(file);
+      let uploadFile = file;
+      if (typeof File !== "undefined" && file instanceof File) {
+        try {
+          uploadFile = new File([file], uniqueFileName, {
+            type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+            lastModified: file.lastModified || Date.now()
+          });
+        } catch {
+          uploadFile = file;
+        }
+      }
+
       return {
         index: idx,
-        originalName: file.split("/").pop() || "media",
-        uniqueFileName: file.split("/").pop() || "media",
-        uploadFile: null,
-        puterPath: "",
-        actualPuterPath: "",
-        actualFileName: file.split("/").pop() || "media",
-        size: 0,
-        type: "image/jpeg",
-        status: "uploaded",
-        verified: true,
-        success: true,
-        publicUrl: file,
-        error: null,
-        source: null,
+        originalFile: file,
+        originalName: file?.name || `image_${idx + 1}.jpg`,
+        uniqueFileName,
+        uploadFile,
+        puterPath: `aura_uploads/${uniqueFileName}`,
+        actualPuterPath: `aura_uploads/${uniqueFileName}`,
+        actualFileName: uniqueFileName,
+        size: file?.size || 0,
+        type: file?.type || (isVideo ? "video/mp4" : "image/jpeg"),
+        isVideo,
+        status: valError ? "failed" : "pending",
+        verified: false,
+        success: false,
+        publicUrl: "",
+        error: valError,
+        source: valError ? "validation" : null,
         attempt: 0,
         statChecked: false
       };
+    });
+
+    // If all items were already valid URL strings, return directly
+    if (items.every(it => it.success)) {
+      return items.map(it => ({ success: true, url: it.publicUrl, originalName: it.originalName, status: it.status, error: null, source: null }));
     }
 
-    const isVideo = file?.type?.startsWith("video/") || file?.name?.endsWith(".mp4") || file?.name?.endsWith(".webm");
-    const maxBytes = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
-    let valError = null;
+    onProgress(5, `Initializing Puter Cloud storage connection (${items.length} file(s))...`);
 
-    if (file.size && file.size > maxBytes) {
-      valError = `File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds ${isVideo ? "50MB" : "10MB"} limit.`;
-    } else if (file.type && !allowedTypes.includes(file.type)) {
-      valError = "Invalid file type. Allowed formats: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.";
+    // 1. Check Puter Connection ONCE for entire batch
+    const status = await getPuterMediaStatus();
+    if (!status.connected) {
+      const err = new Error("[Puter Cloud] Puter Storage is not connected. Please connect Puter Cloud in Admin Panel.");
+      err.source = "puter";
+      err.status = 401;
+      throw err;
     }
 
-    const uniqueFileName = generateUniqueFileName(file);
-    let uploadFile = file;
-    if (typeof File !== "undefined" && file instanceof File) {
-      try {
-        uploadFile = new File([file], uniqueFileName, {
-          type: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
-          lastModified: file.lastModified || Date.now()
-        });
-      } catch {
-        uploadFile = file;
-      }
-    }
+    // 2. Resolve Hosted Domain ONCE for entire batch
+    const hostedDomain = await getPuterHostedDomain();
+    const puter = window.puter;
 
-    return {
-      index: idx,
-      originalFile: file,
-      originalName: file?.name || `image_${idx + 1}.jpg`,
-      uniqueFileName,
-      uploadFile,
-      puterPath: `aura_uploads/${uniqueFileName}`,
-      actualPuterPath: `aura_uploads/${uniqueFileName}`,
-      actualFileName: uniqueFileName,
-      size: file?.size || 0,
-      type: file?.type || (isVideo ? "video/mp4" : "image/jpeg"),
-      isVideo,
-      status: valError ? "failed" : "pending",
-      verified: false,
-      success: false,
-      publicUrl: "",
-      error: valError,
-      source: valError ? "validation" : null,
-      attempt: 0,
-      statChecked: false
-    };
-  });
-
-  // If all items were already valid URL strings, return directly
-  if (items.every(it => it.success)) {
-    return items.map(it => ({ success: true, url: it.publicUrl, originalName: it.originalName, status: it.status, error: null, source: null }));
-  }
-
-  onProgress(5, `Initializing Puter Cloud storage connection (${items.length} file(s))...`);
-
-  // 1. Check Puter Connection ONCE for entire batch
-  const status = await getPuterMediaStatus();
-  if (!status.connected) {
-    const err = new Error("[Puter Cloud] Puter Storage is not connected. Please connect Puter Cloud in Admin Panel.");
-    err.source = "puter";
-    err.status = 401;
-    throw err;
-  }
-
-  // 2. Resolve Hosted Domain ONCE for entire batch
-  const hostedDomain = await getPuterHostedDomain();
-  const puter = window.puter;
-
-  // 3. Process Pending Files in Controlled Chunks (Chunk size = 2)
-  const pendingItems = items.filter(it => it.status === "pending");
-  const CHUNK_SIZE = 2;
-  const chunks = [];
-  for (let i = 0; i < pendingItems.length; i += CHUNK_SIZE) {
-    chunks.push(pendingItems.slice(i, i + CHUNK_SIZE));
-  }
-
-  let totalProcessed = 0;
-
-  for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
-    const currentChunk = chunks[cIdx];
-    const chunkLabel = `Chunk ${cIdx + 1}/${chunks.length}`;
-
-    let chunkAttempt = 0;
-    const maxChunkAttempts = 3;
-
-    while (chunkAttempt < maxChunkAttempts) {
-      const pendingInChunk = currentChunk.filter(it => it.status === "pending");
-      if (pendingInChunk.length === 0) break; // All items in chunk resolved
-
-      chunkAttempt++;
-      pendingInChunk.forEach(it => it.attempt = chunkAttempt);
-
-      const progressPct = Math.min(85, Math.round(10 + ((totalProcessed + (cIdx * CHUNK_SIZE)) / pendingItems.length) * 75));
-      onProgress(progressPct, `Uploading ${chunkLabel} (${pendingInChunk.length} file(s) - Attempt ${chunkAttempt}/${maxChunkAttempts})...`);
-
-      const uploadFiles = pendingInChunk.map(it => it.uploadFile);
-      let uploadRes = null;
-      let uploadErr = null;
+    // Function to perform single-file upload safely
+    async function uploadSingleFile(pItem, attemptNumber = 1) {
+      pItem.attempt = attemptNumber;
+      let singleRes = null;
+      let singleErr = null;
 
       logUploadTrace({
         batchId,
         source: "puter",
-        endpoint: "puter.fs.upload",
+        endpoint: "puter.fs.upload_single",
         method: "POST",
-        attempt: chunkAttempt,
-        filename: pendingInChunk.map(p => p.uniqueFileName).join(", ")
+        attempt: attemptNumber,
+        filename: pItem.uniqueFileName
       });
 
       try {
         if (typeof puter.fs?.upload === "function") {
-          uploadRes = await puter.fs.upload(uploadFiles, "aura_uploads", {
+          singleRes = await puter.fs.upload([pItem.uploadFile], "aura_uploads", {
             createMissingParents: true,
             dedupeName: false,
             overwrite: true
           });
         } else if (typeof puter.fs?.write === "function") {
-          uploadRes = [];
-          for (const pItem of pendingInChunk) {
-            await puter.fs.write(pItem.puterPath, pItem.uploadFile, { createMissingParents: true, overwrite: true });
-            uploadRes.push({ name: pItem.uniqueFileName, path: pItem.puterPath });
-            await new Promise(r => setTimeout(r, 80));
-          }
+          await puter.fs.write(pItem.puterPath, pItem.uploadFile, { createMissingParents: true, overwrite: true });
+          singleRes = [{ name: pItem.uniqueFileName, path: pItem.puterPath }];
         } else {
           throw new Error("Puter storage API methods unavailable.");
         }
       } catch (err) {
-        uploadErr = err;
+        singleErr = err;
       }
 
-      // Extract descriptors
-      const succeededList = extractSucceededDescriptors(uploadRes, uploadErr);
-      const failedList = extractFailedDescriptors(uploadRes, uploadErr);
+      const succeededList = extractSucceededDescriptors(singleRes, singleErr);
+      const matched = findMatchingDescriptor(succeededList, pItem, [pItem]);
 
-      // 1. Mark explicitly succeeded items
-      for (const pItem of pendingInChunk) {
-        const matched = findMatchingDescriptor(succeededList, pItem, pendingInChunk);
-        if (matched) {
-          pItem.status = "uploaded";
-          pItem.verified = true;
-          pItem.actualPuterPath = matched.path || pItem.puterPath;
-          pItem.actualFileName = matched.name || pItem.uniqueFileName;
-          pItem.size = matched.size || pItem.size;
-          if (hostedDomain) {
-            pItem.publicUrl = `https://${hostedDomain}/${encodeURIComponent(pItem.actualFileName)}`;
-          } else if (typeof puter.fs?.getReadURL === "function") {
-            pItem.publicUrl = await puter.fs.getReadURL(pItem.actualPuterPath).catch(() => "");
-          }
-
-          logUploadTrace({
-            batchId,
-            source: "puter",
-            endpoint: "puter.fs.upload",
-            status: 200,
-            attempt: chunkAttempt,
-            filename: pItem.uniqueFileName,
-            classification: "success"
-          });
+      if (matched) {
+        pItem.status = "uploaded";
+        pItem.verified = true;
+        pItem.actualPuterPath = matched.path || pItem.puterPath;
+        pItem.actualFileName = matched.name || pItem.uniqueFileName;
+        pItem.size = matched.size || pItem.size;
+        if (hostedDomain) {
+          pItem.publicUrl = `https://${hostedDomain}/${encodeURIComponent(pItem.actualFileName)}`;
+        } else if (typeof puter.fs?.getReadURL === "function") {
+          pItem.publicUrl = await puter.fs.getReadURL(pItem.actualPuterPath).catch(() => "");
         }
-      }
-
-      // 2. Mark explicitly failed items
-      const remainingPending = pendingInChunk.filter(it => it.status === "pending");
-
-      for (const pItem of remainingPending) {
-        const matchedFailed = findMatchingDescriptor(failedList, pItem, remainingPending);
-        if (matchedFailed) {
-          const matchedErrStr = matchedFailed.error || matchedFailed.message || matchedFailed.reason || uploadErr?.message || "File upload rejected by Puter.";
-          const isPerm = classifyPuterError(matchedFailed).isPermanent || classifyPuterError(uploadErr).isPermanent;
-          if (isPerm || chunkAttempt >= maxChunkAttempts) {
-            pItem.status = "failed";
-            pItem.error = matchedErrStr;
-            pItem.source = "puter";
-
-            logUploadTrace({
-              batchId,
-              source: "puter",
-              endpoint: "puter.fs.upload",
-              status: classifyPuterError(uploadErr).code || 400,
-              attempt: chunkAttempt,
-              filename: pItem.uniqueFileName,
-              classification: "explicit_failed"
-            });
-          }
-        }
-      }
-
-      // 3. Handle unconfirmed pending items in chunk
-      const unconfirmed = pendingInChunk.filter(it => it.status === "pending");
-
-      if (unconfirmed.length > 0 && uploadErr) {
-        const classified = classifyPuterError(uploadErr);
 
         logUploadTrace({
           batchId,
           source: "puter",
-          endpoint: "puter.fs.upload",
-          status: classified.code || (classified.isRateLimit ? 429 : 500),
-          code: classified.code,
-          attempt: chunkAttempt,
-          filename: unconfirmed.map(u => u.uniqueFileName).join(", "),
-          retryAfter: classified.retryAfterSec,
-          classification: classified.isRateLimit ? "rate_limit" : (classified.isPermanent ? "permanent_error" : "transient_error")
+          endpoint: "puter.fs.upload_single",
+          status: 200,
+          attempt: attemptNumber,
+          filename: pItem.uniqueFileName,
+          classification: "single_success"
         });
+        return true;
+      }
 
-        if (classified.isPermanent || chunkAttempt >= maxChunkAttempts) {
-          // Final attempt or permanent error: perform single targeted stat check per unconfirmed item
-          for (const pItem of unconfirmed) {
-            if (!pItem.statChecked) {
-              pItem.statChecked = true;
-              logUploadTrace({
-                batchId,
-                source: "puter",
-                endpoint: "puter.fs.stat",
-                method: "GET",
-                filename: pItem.uniqueFileName,
-                attempt: chunkAttempt
-              });
+      // Single upload failed or unconfirmed: inspect error
+      const classified = classifyPuterError(singleErr);
 
-              let stat = await puter.fs.stat(pItem.actualPuterPath).catch(() => null);
-              if (!stat) {
-                stat = await puter.fs.stat(`aura_uploads/${pItem.actualFileName}`).catch(() => null);
-              }
+      logUploadTrace({
+        batchId,
+        source: "puter",
+        endpoint: "puter.fs.upload_single",
+        status: classified.code || (classified.isRateLimit ? 429 : 500),
+        code: classified.code,
+        attempt: attemptNumber,
+        filename: pItem.uniqueFileName,
+        retryAfter: classified.retryAfterSec,
+        rawError: classified.message,
+        classification: classified.isRateLimit ? "single_rate_limit" : (classified.isPermanent ? "single_permanent_error" : "single_transient_error")
+      });
 
-              if (stat && stat.size > 0) {
-                pItem.status = "uploaded";
-                pItem.verified = true;
-                pItem.actualPuterPath = stat.path || pItem.actualPuterPath;
-                pItem.actualFileName = stat.name || pItem.actualFileName;
-                pItem.size = stat.size || pItem.size;
-                if (hostedDomain) {
-                  pItem.publicUrl = `https://${hostedDomain}/${encodeURIComponent(pItem.actualFileName)}`;
-                } else if (typeof puter.fs?.getReadURL === "function") {
-                  pItem.publicUrl = await puter.fs.getReadURL(pItem.actualPuterPath).catch(() => "");
-                }
-                continue;
-              }
-            }
-
-            pItem.status = "failed";
-            pItem.error = formatPuterErrorMessage(classified);
-            pItem.source = "puter";
-          }
-        } else if (classified.isTransient || classified.isRateLimit) {
-          // Back off with Retry-After + jitter, then retry unconfirmed items
-          const retrySec = classified.retryAfterSec || Math.pow(2, chunkAttempt);
-          const delayMs = Math.min(Math.max(1200, retrySec * 1000), 8000) + Math.floor(Math.random() * 300);
-
-          onProgress(progressPct, `[Puter Cloud] ${classified.isRateLimit ? "Rate limit" : "Retryable error"} — waiting ${Math.ceil(delayMs / 1000)}s before retry...`);
-          await new Promise(r => setTimeout(r, delayMs));
+      // Targeted stat check if single upload returned ambiguous result
+      if (!pItem.statChecked) {
+        pItem.statChecked = true;
+        let stat = await puter.fs.stat(pItem.actualPuterPath).catch(() => null);
+        if (!stat) {
+          stat = await puter.fs.stat(`aura_uploads/${pItem.actualFileName}`).catch(() => null);
         }
-      } else if (unconfirmed.length > 0 && !uploadErr) {
-        if (chunkAttempt >= maxChunkAttempts) {
-          for (const pItem of unconfirmed) {
-            if (!pItem.statChecked) {
-              pItem.statChecked = true;
-              const stat = await puter.fs.stat(pItem.actualPuterPath).catch(() => null);
-              if (stat && stat.size > 0) {
-                pItem.status = "uploaded";
-                pItem.verified = true;
-                if (hostedDomain) {
-                  pItem.publicUrl = `https://${hostedDomain}/${encodeURIComponent(pItem.actualFileName)}`;
-                }
-                continue;
-              }
-            }
-            pItem.status = "failed";
-            pItem.error = "Upload completed without valid file descriptor returned.";
-            pItem.source = "puter";
+
+        if (stat && stat.size > 0) {
+          pItem.status = "uploaded";
+          pItem.verified = true;
+          pItem.actualPuterPath = stat.path || pItem.actualPuterPath;
+          pItem.actualFileName = stat.name || pItem.actualFileName;
+          pItem.size = stat.size || pItem.size;
+          if (hostedDomain) {
+            pItem.publicUrl = `https://${hostedDomain}/${encodeURIComponent(pItem.actualFileName)}`;
           }
+          return true;
         }
       }
-    } // end while
 
-    // GUARANTEE: Transition ANY remaining pending item in chunk to failed
-    for (const pItem of currentChunk) {
-      if (pItem.status === "pending") {
-        pItem.status = "failed";
-        pItem.error = pItem.error || "Upload failed: Puter storage did not return a valid file descriptor.";
-        pItem.source = "puter";
+      if (classified.isRateLimit) {
+        const waitMs = Math.min(Math.max(1500, (classified.retryAfterSec || 2) * 1000), 10000) + Math.floor(Math.random() * 300);
+        onProgress(30, `[Puter Cloud] Rate limit on ${pItem.originalName} — waiting ${Math.ceil(waitMs/1000)}s...`);
+        await new Promise(r => setTimeout(r, waitMs));
       }
+
+      pItem.status = "failed";
+      pItem.error = formatPuterErrorMessage(classified, pItem.originalName);
+      pItem.source = "puter";
+      return false;
     }
 
-    // 4. Bulk Register Succeeded Chunk Items in MongoDB
-    const chunkUploaded = currentChunk.filter(it => (it.status === "uploaded" || it.status === "registered") && it.publicUrl);
+    // 3. Process Pending Files in Controlled Chunks with Automatic Single-File Fallback
+    const pendingQueue = items.filter(it => it.status === "pending");
+    let totalProcessed = 0;
 
-    if (chunkUploaded.length > 0) {
-      const registerPayload = {
-        batchId,
-        items: chunkUploaded.map(it => ({
-          readURL: it.publicUrl,
-          url: it.publicUrl,
-          puterFileId: it.actualPuterPath,
-          fileId: it.actualPuterPath,
-          path: it.actualPuterPath,
-          filename: it.actualFileName,
-          type: it.type,
-          sizeBytes: it.size,
-          metadata: {
-            originalName: it.originalName,
-            batchId,
-            uploadedAt: new Date().toISOString()
-          },
-          provider: "puter"
-        }))
-      };
+    for (let pIdx = 0; pIdx < pendingQueue.length; pIdx += 2) {
+      const chunk = pendingQueue.slice(pIdx, pIdx + 2);
+      const progressPct = Math.min(85, Math.round(10 + (totalProcessed / pendingQueue.length) * 75));
+      onProgress(progressPct, `Uploading image ${totalProcessed + 1} of ${pendingQueue.length}...`);
 
-      try {
-        const regRes = await fetchWithBackoff(`${API_BASE}/upload/register-batch`, {
+      let uploadRes = null;
+      let uploadErr = null;
+
+      if (chunk.length > 1) {
+        logUploadTrace({
+          batchId,
+          source: "puter",
+          endpoint: "puter.fs.upload_chunk",
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(registerPayload)
-        }, 3, { batchId, filename: chunkUploaded.map(v => v.actualFileName).join(", ") });
+          filename: chunk.map(p => p.uniqueFileName).join(", ")
+        });
 
-        const regData = await regRes.json().catch(() => ({}));
+        try {
+          if (typeof puter.fs?.upload === "function") {
+            uploadRes = await puter.fs.upload(chunk.map(c => c.uploadFile), "aura_uploads", {
+              createMissingParents: true,
+              dedupeName: false,
+              overwrite: true
+            });
+          }
+        } catch (err) {
+          uploadErr = err;
+        }
 
-        if (regRes.ok && regData.success) {
-          chunkUploaded.forEach(it => {
-            it.registeredInDb = true;
-            it.status = "registered";
-            it.success = true;
+        const succeededList = extractSucceededDescriptors(uploadRes, uploadErr);
+
+        for (const pItem of chunk) {
+          const matched = findMatchingDescriptor(succeededList, pItem, chunk);
+          if (matched) {
+            pItem.status = "uploaded";
+            pItem.verified = true;
+            pItem.actualPuterPath = matched.path || pItem.puterPath;
+            pItem.actualFileName = matched.name || pItem.uniqueFileName;
+            pItem.size = matched.size || pItem.size;
+            if (hostedDomain) {
+              pItem.publicUrl = `https://${hostedDomain}/${encodeURIComponent(pItem.actualFileName)}`;
+            } else if (typeof puter.fs?.getReadURL === "function") {
+              pItem.publicUrl = await puter.fs.getReadURL(pItem.actualPuterPath).catch(() => "");
+            }
+          }
+        }
+      }
+
+      // Single-file fallback for any unresolved items in chunk
+      const unresolved = chunk.filter(c => c.status === "pending");
+
+      if (unresolved.length > 0) {
+        if (chunk.length > 1) {
+          logUploadTrace({
+            batchId,
+            source: "puter",
+            endpoint: "single_file_fallback_trigger",
+            filename: unresolved.map(u => u.uniqueFileName).join(", "),
+            rawError: uploadErr?.message || "Batch upload ambiguous response"
           });
-        } else {
+        }
+
+        for (const pItem of unresolved) {
+          let singleAttempts = 0;
+          let singleOk = false;
+          while (singleAttempts < 2 && !singleOk) {
+            singleAttempts++;
+            singleOk = await uploadSingleFile(pItem, singleAttempts);
+            if (!singleOk && pItem.status === "failed") {
+              const classified = classifyPuterError(uploadErr);
+              if (classified.isTransient && singleAttempts < 2) {
+                await new Promise(r => setTimeout(r, 1000));
+              } else {
+                break;
+              }
+            }
+          }
+
+          // Small delay between single file attempts
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+
+      // Register Succeeded Items in MongoDB
+      const chunkUploaded = chunk.filter(it => (it.status === "uploaded" || it.status === "registered") && it.publicUrl);
+
+      if (chunkUploaded.length > 0) {
+        const registerPayload = {
+          batchId,
+          items: chunkUploaded.map(it => ({
+            readURL: it.publicUrl,
+            url: it.publicUrl,
+            puterFileId: it.actualPuterPath,
+            fileId: it.actualPuterPath,
+            path: it.actualPuterPath,
+            filename: it.actualFileName,
+            type: it.type,
+            sizeBytes: it.size,
+            metadata: {
+              originalName: it.originalName,
+              batchId,
+              uploadedAt: new Date().toISOString()
+            },
+            provider: "puter"
+          }))
+        };
+
+        try {
+          const regRes = await fetchWithBackoff(`${API_BASE}/upload/register-batch`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(registerPayload)
+          }, 3, { batchId, filename: chunkUploaded.map(v => v.actualFileName).join(", ") });
+
+          const regData = await regRes.json().catch(() => ({}));
+
+          if (regRes.ok && regData.success) {
+            chunkUploaded.forEach(it => {
+              it.registeredInDb = true;
+              it.status = "registered";
+              it.success = true;
+            });
+          } else {
+            chunkUploaded.forEach(it => {
+              it.registeredInDb = false;
+              it.status = "uploaded";
+              it.success = true; // Preserve Puter public URLs even if DB registration fails
+              it.dbError = "[MongoDB] Metadata registration deferred.";
+            });
+          }
+        } catch (regErr) {
           chunkUploaded.forEach(it => {
             it.registeredInDb = false;
             it.status = "uploaded";
-            it.success = true; // Preserve Puter public URLs even if DB registration fails
+            it.success = true; // Preserve Puter public URLs
             it.dbError = "[MongoDB] Metadata registration deferred.";
           });
         }
-      } catch (regErr) {
-        chunkUploaded.forEach(it => {
-          it.registeredInDb = false;
-          it.status = "uploaded";
-          it.success = true; // Preserve Puter public URLs
-          it.dbError = "[MongoDB] Metadata registration deferred.";
-        });
-      }
 
-      // Notify progressive chunk success callback if provided
-      if (typeof onChunkSuccess === "function") {
-        try {
-          const chunkResults = chunkUploaded.map(it => ({
-            success: true,
-            url: it.publicUrl,
-            filename: it.actualFileName,
-            originalName: it.originalName
-          }));
-          onChunkSuccess(chunkResults);
-        } catch (e) {
-          console.warn("Chunk success callback note:", e);
+        // Notify progressive chunk success callback if provided
+        if (typeof onChunkSuccess === "function") {
+          try {
+            const chunkResults = chunkUploaded.map(it => ({
+              success: true,
+              url: it.publicUrl,
+              filename: it.actualFileName,
+              originalName: it.originalName
+            }));
+            onChunkSuccess(chunkResults);
+          } catch (e) {
+            console.warn("Chunk success callback note:", e);
+          }
         }
       }
+
+      totalProcessed += chunk.length;
+
+      // Small adaptive delay between queue steps to prevent request storms
+      if (pIdx + 2 < pendingQueue.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
     }
 
-    totalProcessed += currentChunk.length;
+    onProgress(100, "All product images processed.");
 
-    // Small adaptive delay between chunks to prevent network request storms
-    if (cIdx < chunks.length - 1) {
-      await new Promise(r => setTimeout(r, 250));
-    }
-  }
-
-  onProgress(100, "All product images processed successfully!");
-
-  return items.map(it => ({
-    success: Boolean(it.success || it.status === "uploaded" || it.status === "registered"),
-    url: it.publicUrl || "",
-    filename: it.actualFileName || it.uniqueFileName,
-    originalName: it.originalName,
-    path: it.actualPuterPath || it.puterPath,
-    status: it.status,
-    error: it.error || null,
-    source: it.source || (it.success ? null : "puter")
-  }));
+    return items.map(it => ({
+      success: Boolean(it.success || it.status === "uploaded" || it.status === "registered"),
+      url: it.publicUrl || "",
+      filename: it.actualFileName || it.uniqueFileName,
+      originalName: it.originalName,
+      path: it.actualPuterPath || it.puterPath,
+      status: it.status,
+      error: it.error || null,
+      source: it.source || (it.success ? null : "puter")
+    }));
+  });
 }
 
 /**
