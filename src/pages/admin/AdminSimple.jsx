@@ -1,9 +1,10 @@
 import React from "react";
 import { AdminLayout } from "../../components/AdminLayout";
-import { products } from "../../data";
+import { db } from "../../lib/db";
 import { motion } from "framer-motion";
 
 export function AdminSimple({title}){
+  const products = db.getProducts();
   return <AdminLayout>
     <div className="admin-content">
       <div className="admin-page-header">

@@ -130,80 +130,6 @@ function recordDeletedReviewId(id) {
   } catch (_) {}
 }
 
-const defaultInitialReviews = [
-  { 
-    id: "REV-101", 
-    type: "product",
-    productId: "5",
-    productName: "5 Mukhi Rudraksha",
-    name: "Pandit Rajesh Sharma", 
-    city: "Varanasi, UP",
-    rating: 5, 
-    date: "2 days ago", 
-    createdAt: Date.now() - 2 * 86400000,
-    verified: true,
-    featured: true,
-    status: "Approved",
-    title: "100% Authentic Nepal Bead with Pure Vibrations",
-    text: "ॐ नमः शिवाय! The 5 Mukhi Rudraksha is genuinely divine and pure. As someone who performs daily Shiva puja, I can immediately feel the calming positive aura. The lab certificate was authentic and the natural mukhi lines are deep and unbroken. Highly recommend Aura Rudraksha to all devotees. 🙏✨", 
-    images: ["/images/product-5mukhi.jpg", "/images/product-mala.jpg"],
-    img: "/images/product-5mukhi.jpg",
-    helpfulUp: 18,
-    helpfulDown: 0,
-    adminReply: {
-      text: "Har Har Mahadev Pandit ji! 🙏 We are truly blessed by your kind words. May Lord Shiva always shower his divine grace and peace upon you and your family.",
-      author: "Aura Rudraksha Spiritual Team",
-      date: "1 day ago"
-    }
-  },
-  { 
-    id: "REV-102", 
-    type: "product",
-    productId: "5",
-    productName: "5 Mukhi Rudraksha",
-    name: "Dr. Ananya Iyer", 
-    city: "Bengaluru, KA",
-    rating: 5, 
-    date: "5 days ago", 
-    createdAt: Date.now() - 5 * 86400000,
-    verified: true,
-    featured: true,
-    status: "Approved",
-    title: "Helped immensely in mental focus and stress reduction",
-    text: "I was looking for an authentic certified Rudraksha for meditation and work focus. Within 2 weeks of wearing this energised bead, my mental clarity has improved significantly. Beautiful wooden box packaging and quick delivery to Bangalore.", 
-    images: ["/images/product-5mukhi.jpg"],
-    img: "/images/product-5mukhi.jpg",
-    helpfulUp: 14,
-    helpfulDown: 1,
-    adminReply: null
-  },
-  { 
-    id: "REV-103", 
-    type: "product",
-    productId: "1",
-    productName: "1 Mukhi Rudraksha",
-    name: "Vikramaditya Rathore", 
-    city: "Jaipur, RJ",
-    rating: 5, 
-    date: "1 week ago", 
-    createdAt: Date.now() - 7 * 86400000,
-    verified: true,
-    featured: true,
-    status: "Approved",
-    title: "Rare half-moon 1 Mukhi bead with X-Ray Certificate",
-    text: "Finding a genuine Ek Mukhi Rudraksha in India is very difficult due to counterfeits. Aura Rudraksha provided a genuine certified bead with full test reports. The antique gold capping is regal and handcrafted with great devotion.", 
-    images: ["/images/product-1mukhi.jpg"],
-    img: "/images/product-1mukhi.jpg",
-    helpfulUp: 23,
-    helpfulDown: 0,
-    adminReply: {
-      text: "Jai Bholenath! We strictly source our Ek Mukhi beads directly from holy forests and conduct government-approved lab tests before dispatch.",
-      author: "Aura Rudraksha Team",
-      date: "6 days ago"
-    }
-  }
-];
-
 // Live MongoDB Data Store Cache with initial catalog for UI rendering
 const storeCache = {
   products: defaultProducts.map(p => ({
@@ -315,7 +241,7 @@ const storeCache = {
     "https://i.ibb.co/23zYS09n/file-00000000886c82118cc5dc60c8082572.png",
     "https://i.ibb.co/vvjdFqNQ/file-0000000057548208a095c1d1fc26f78c.jpg"
   ],
-  reviews: defaultInitialReviews,
+  reviews: [],
   reviewSettings: {
     enabled: true,
     photoGalleryEnabled: true,
@@ -346,27 +272,6 @@ const storeCache = {
   analytics: { visits: 0, productViews: 0, hasData: false },
   votesMap: {},
   dbStatus: "unknown" // "connected" | "disconnected" | "unknown"
-};
-
-// Neutral offer used when the DB is connected but no offer document exists.
-// Components guard on offer.enabled / status, so everything hides safely.
-const NEUTRAL_OFFER = {
-  id: "OFFER-CENTRAL-1",
-  enabled: false,
-  status: "Inactive",
-  title: "",
-  subtitle: "",
-  couponCode: "",
-  discountType: "fixed",
-  discountValue: 0,
-  heroEnabled: false,
-  productCardEnabled: false,
-  productPageEnabled: false,
-  imageBadgeEnabled: false,
-  floatingEnabled: false,
-  stickyEnabled: false,
-  popupEnabled: false,
-  timerEnabled: false
 };
 
 // Domain-Separated Hydration Engine
@@ -417,10 +322,9 @@ export async function fetchHomeData() {
     }
 
     if (offerRes?.success && offerRes.data) {
-      const expiresAt = offerRes.data.expiresAt || offerRes.data.expiry || storeCache.activeOffer?.expiresAt;
-      const startDate = offerRes.data.startDate || offerRes.data.startAt || storeCache.activeOffer?.startDate;
+      const expiresAt = offerRes.data.expiresAt || offerRes.data.expiry;
+      const startDate = offerRes.data.startDate || offerRes.data.startAt;
       storeCache.activeOffer = { 
-        ...storeCache.activeOffer, 
         ...offerRes.data,
         expiresAt,
         expiry: expiresAt,
@@ -455,6 +359,7 @@ export async function fetchHomeData() {
 
     emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
   } catch (err) {
+    storeCache.dbStatus = "disconnected";
     isHydrated = true;
     if (hydrationResolver) hydrationResolver(true);
     if (process.env.NODE_ENV === "development") {
