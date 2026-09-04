@@ -3,6 +3,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// CRITICAL for container / serverless: fail fast, do not hang on queries when DB offline
+mongoose.set("bufferCommands", false);
+
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
 if (!cached) {

@@ -250,8 +250,17 @@ export function createApp() {
       ));
 
     if (isDbErr) {
-      console.error('[Database Error]', err.message);
+      console.warn('[AI Studio] Database offline/unavailable:', err.message);
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      if (req.method === 'GET') {
+        const path = req.path || "";
+        const isPlural = path.endsWith('s') || path.endsWith('s/');
+        return res.json({
+          success: true,
+          data: isPlural ? [] : null,
+          message: 'Database offline — returning graceful fallback'
+        });
+      }
       return res.status(503).json({
         success: false,
         error: 'Database unavailable',
