@@ -46,6 +46,16 @@ router.post("/provider", requireAdmin, async (req, res) => {
     const { provider } = req.body || {};
     const targetProvider = provider === "pcloud" ? "pcloud" : "puter";
 
+    if (targetProvider === "pcloud") {
+      const pcloudStatus = await getPcloudStatus();
+      if (!pcloudStatus.connected) {
+        return res.status(400).json({
+          success: false,
+          message: pcloudStatus.message || "pCloud authentication is invalid or not connected. Please connect pCloud via OAuth before activating."
+        });
+      }
+    }
+
     if (isDbConnected()) {
       await Setting.findOneAndUpdate(
         { id: "STORE_SETTINGS" },
@@ -82,14 +92,13 @@ router.get("/pcloud/connect", async (req, res) => {
     if (!clientId) {
       return res.status(400).json({
         success: false,
-        message: "pCloud Client ID (PCLOUD_CLIENT_ID) is missing on the server. Configure PCLOUD_CLIENT_ID or use manual Access Token input."
+        message: "pCloud server configuration is missing. Add PCLOUD_CLIENT_ID and PCLOUD_CLIENT_SECRET environment variables on the server."
       });
     }
 
-    const host = getPcloudApiHost();
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
     const reqHost = req.get("host");
-    const redirectUri = `${protocol}://${reqHost}/api/upload/pcloud/callback`;
+    const redirectUri = process.env.PCLOUD_REDIRECT_URI || `${protocol}://${reqHost}${req.baseUrl}/pcloud/callback`;
     const authUrl = `https://my.pcloud.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
     if (req.query.redirect === "true") {
@@ -131,7 +140,7 @@ router.get("/pcloud/callback", async (req, res) => {
 
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
     const reqHost = req.get("host");
-    const redirectUri = `${protocol}://${reqHost}/api/upload/pcloud/callback`;
+    const redirectUri = process.env.PCLOUD_REDIRECT_URI || `${protocol}://${reqHost}${req.baseUrl}/pcloud/callback`;
 
     await exchangePcloudCode(code, redirectUri);
 
@@ -143,9 +152,9 @@ router.get("/pcloud/callback", async (req, res) => {
           <script>
             if (window.opener) {
               window.opener.postMessage({ type: 'pcloud:connected' }, '*');
-              setTimeout(() => window.close(), 1500);
+              setTimeout(() => window.close(), 1200);
             } else {
-              setTimeout(() => { window.location.href = '/admin'; }, 1500);
+              setTimeout(() => { window.location.href = '/admin'; }, 1200);
             }
           </script>
         </body>

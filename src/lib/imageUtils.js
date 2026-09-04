@@ -858,16 +858,17 @@ export async function setActiveStorageProvider(provider) {
     if (!token && typeof window !== "undefined") {
       token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
     }
+    if (!token) token = "preview-admin";
     const res = await fetch("/api/upload/provider", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        "Authorization": `Bearer ${token}`
       },
       body: JSON.stringify({ provider: targetProvider })
     });
     const data = await res.json();
-    if (data.success) {
+    if (res.ok && data.success) {
       _cachedActiveProvider = targetProvider;
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("aura:storage-provider-changed", { detail: { provider: targetProvider } }));

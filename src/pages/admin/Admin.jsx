@@ -403,13 +403,28 @@ export function Admin() {
 
   useEffect(() => {
     refreshDashboard();
+    fetchActiveProvider();
+    checkPcloud();
     db.checkDbHealth().then(h => setDbStatus(h.connected ? "connected" : "disconnected")).catch(() => setDbStatus("disconnected"));
-    // Keep the dashboard live when the store changes (other admin tabs / other devices)
     const unsub = onStoreUpdate(() => {
       refreshDashboard();
     });
     return () => unsub();
-  }, [refreshDashboard]);
+  }, [refreshDashboard, fetchActiveProvider, checkPcloud]);
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === "pcloud:connected") {
+        emitToast("pCloud Storage connected via OAuth!", "success");
+        checkPcloud();
+        refreshDashboard();
+      } else if (event.data && event.data.type === "pcloud:error") {
+        emitToast("pCloud OAuth error: " + (event.data.error || "Authorization refused"), "error");
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [checkPcloud, refreshDashboard]);
 
   const connected = dbStatus === "connected";
 
@@ -774,7 +789,7 @@ export function Admin() {
                         <span style={{ fontSize: '10px', fontWeight: 800, background: '#16a34a', color: '#fff', padding: '3px 8px', borderRadius: '4px' }}>
                           ACTIVE PROVIDER
                         </span>
-                      ) : (
+                      ) : pcloudInfo.connected ? (
                         <button
                           onClick={() => setConfirmProviderModal({ isOpen: true, targetProvider: 'pcloud' })}
                           style={{
@@ -788,7 +803,23 @@ export function Admin() {
                             cursor: 'pointer'
                           }}
                         >
-                          Turn ON pCloud
+                          Activate pCloud
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleConnectPcloudOAuth}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            background: '#16a34a',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '4px 12px',
+                            borderRadius: '5px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Connect pCloud
                         </button>
                       )}
                     </div>

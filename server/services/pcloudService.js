@@ -1,10 +1,14 @@
 import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 export function getPcloudApiHost() {
   const custom = (process.env.PCLOUD_API_HOST || "").trim();
   if (custom) {
     return custom.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  }
+  if (inMemoryStore.settings && inMemoryStore.settings.pcloudHostname) {
+    return inMemoryStore.settings.pcloudHostname;
   }
   return "api.pcloud.com";
 }
@@ -17,21 +21,42 @@ export async function getPcloudToken() {
     try {
       const settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
       if (settings && settings.pcloudAccessToken) {
+        if (settings.pcloudHostname && inMemoryStore.settings) {
+          inMemoryStore.settings.pcloudHostname = settings.pcloudHostname;
+        }
         return settings.pcloudAccessToken.trim();
       }
     } catch (_) {}
   }
+  if (inMemoryStore.settings && inMemoryStore.settings.pcloudAccessToken) {
+    return inMemoryStore.settings.pcloudAccessToken.trim();
+  }
   return "";
 }
 
-export async function savePcloudToken(token) {
+export async function savePcloudToken(token, extraData = {}) {
   if (!token) return false;
+  const cleanToken = token.trim();
+  const updateFields = {
+    pcloudAccessToken: cleanToken,
+    ...(extraData.hostname ? { pcloudHostname: extraData.hostname } : {}),
+    ...(extraData.locationId ? { pcloudLocationId: extraData.locationId } : {}),
+    ...(extraData.email ? { pcloudAccountEmail: extraData.email } : {}),
+    ...(extraData.userId ? { pcloudUserId: extraData.userId } : {}),
+    pcloudConnectedAt: new Date()
+  };
+
   if (isDbConnected()) {
     await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
-      { $set: { pcloudAccessToken: token.trim() } },
+      { $set: updateFields },
       { upsert: true }
-    );
+    ).catch(() => {});
+  }
+  if (inMemoryStore.settings) {
+    inMemoryStore.settings.pcloudAccessToken = cleanToken;
+    if (extraData.hostname) inMemoryStore.settings.pcloudHostname = extraData.hostname;
+    if (extraData.email) inMemoryStore.settings.pcloudAccountEmail = extraData.email;
   }
   return true;
 }
@@ -40,9 +65,14 @@ export async function clearPcloudToken() {
   if (isDbConnected()) {
     await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
-      { $set: { pcloudAccessToken: "" } },
+      { $set: { pcloudAccessToken: "", pcloudAccountEmail: "", pcloudHostname: "" } },
       { upsert: true }
-    );
+    ).catch(() => {});
+  }
+  if (inMemoryStore.settings) {
+    inMemoryStore.settings.pcloudAccessToken = "";
+    inMemoryStore.settings.pcloudAccountEmail = "";
+    inMemoryStore.settings.pcloudHostname = "";
   }
   return true;
 }
@@ -50,23 +80,60 @@ export async function clearPcloudToken() {
 export async function exchangePcloudCode(code, redirectUri) {
   const clientId = (process.env.PCLOUD_CLIENT_ID || "").trim();
   const clientSecret = (process.env.PCLOUD_CLIENT_SECRET || "").trim();
-  const host = getPcloudApiHost();
+  const baseHost = getPcloudApiHost();
 
   if (!clientId || !clientSecret) {
-    throw new Error("PCLOUD_CLIENT_ID or PCLOUD_CLIENT_SECRET is missing on server.");
+    throw new Error("pCloud is not configured on the server. Add PCLOUD_CLIENT_ID and PCLOUD_CLIENT_SECRET environment variables.");
   }
 
-  const url = `https://${host}/oauth2/oauth2_token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  const url = `https://${baseHost}/oauth2/oauth2_token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   const res = await fetch(url, { method: "POST" });
   if (!res.ok) {
-    throw new Error(`pCloud OAuth token exchange failed HTTP ${res.status}`);
+    throw new Error(`pCloud OAuth token exchange failed with HTTP ${res.status}`);
   }
   const data = await res.json();
-  if (data.access_token) {
-    await savePcloudToken(data.access_token);
-    return data;
+  if (data.result !== 0 && !data.access_token) {
+    throw new Error(data.error || `pCloud OAuth error (code ${data.result}): Failed to obtain access token.`);
   }
-  throw new Error(data.error || "pCloud OAuth exchange returned no access token.");
+
+  const accessToken = data.access_token;
+  if (!accessToken) {
+    throw new Error("pCloud OAuth token exchange succeeded but returned no access_token.");
+  }
+
+  // Resolve target pCloud API location host (US vs EU)
+  let targetHost = data.hostname || baseHost;
+  if (!data.hostname && data.locationid === 2) {
+    targetHost = "eapi.pcloud.com";
+  }
+
+  // Verify pCloud account user info
+  let accountEmail = "";
+  let userId = data.userid || "";
+  try {
+    const userRes = await fetch(`https://${targetHost}/userinfo?access_token=${encodeURIComponent(accessToken)}`);
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      if (userData.result === 0) {
+        accountEmail = userData.email || "";
+        userId = userData.userid || userId;
+      }
+    }
+  } catch (_) {}
+
+  await savePcloudToken(accessToken, {
+    hostname: targetHost,
+    locationId: data.locationid || 1,
+    email: accountEmail,
+    userId
+  });
+
+  return {
+    success: true,
+    email: accountEmail,
+    hostname: targetHost,
+    locationId: data.locationid || 1
+  };
 }
 
 /**
@@ -75,25 +142,21 @@ export async function exchangePcloudCode(code, redirectUri) {
 export async function getPcloudStatus() {
   const token = await getPcloudToken();
   const clientId = (process.env.PCLOUD_CLIENT_ID || "").trim();
+  const clientSecret = (process.env.PCLOUD_CLIENT_SECRET || "").trim();
 
   if (!token) {
-    const missingVars = [];
-    if (!clientId) missingVars.push("PCLOUD_CLIENT_ID");
-    if (!process.env.PCLOUD_CLIENT_SECRET) missingVars.push("PCLOUD_CLIENT_SECRET");
-    if (!token) missingVars.push("PCLOUD_ACCESS_TOKEN");
-
+    const isConfigured = Boolean(clientId && clientSecret);
     return {
       success: false,
       connected: false,
-      status: "Not Configured",
+      status: isConfigured ? "Not Connected" : "Not Configured",
       provider: "pCloud Storage",
-      message: clientId
-        ? "pCloud client ID set. Click 'Connect pCloud' to complete OAuth authorization."
-        : `pCloud is not configured on the server. Missing variables: ${missingVars.join(", ")}`,
-      missingVars,
-      hasClientId: Boolean(clientId),
-      email: "Not Configured",
-      username: "Not Configured",
+      message: isConfigured
+        ? "pCloud OAuth credentials are set. Click 'Connect pCloud' to authorize."
+        : "pCloud server configuration is missing. Add PCLOUD_CLIENT_ID and PCLOUD_CLIENT_SECRET environment variables on the server.",
+      hasConfig: isConfigured,
+      email: "Not Connected",
+      username: "Not Connected",
       quota: 0,
       usedQuota: 0,
       freeQuota: 0
@@ -145,7 +208,7 @@ export async function getPcloudStatus() {
       connected: false,
       status: "Auth Error",
       provider: "pCloud Storage",
-      message: data.error || `pCloud authentication error (code ${data.result}). Please verify Access Token.`,
+      message: "pCloud authentication is invalid or expired. Please reconnect pCloud via OAuth.",
       email: "Invalid Token",
       username: "Unauthorized",
       quota: 0,
