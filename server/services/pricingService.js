@@ -239,6 +239,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
 
   // 3. Authoritative Coupon Validation & Discount
   let appliedCoupon = null;
+  let couponRejection = null;
   let couponDiscount = 0;
   let couponStatus = "NONE"; // NONE, APPLIED, EXPIRED, NOT_ELIGIBLE, INVALID, REMOVED
 
@@ -248,7 +249,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
 
     if (!coupon) {
       couponStatus = "INVALID";
-      appliedCoupon = {
+      couponRejection = {
         code: cleanCode,
         status: "INVALID",
         valid: false,
@@ -272,7 +273,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
 
       if (isExpiredByDate || isStatusExpired) {
         couponStatus = "EXPIRED";
-        appliedCoupon = {
+        couponRejection = {
           id: coupon.id || coupon._id,
           code: coupon.code,
           status: "EXPIRED",
@@ -286,7 +287,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
         };
       } else if (isInactive) {
         couponStatus = "INVALID";
-        appliedCoupon = {
+        couponRejection = {
           id: coupon.id || coupon._id,
           code: coupon.code,
           status: "INVALID",
@@ -298,7 +299,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
         };
       } else if (isLimitReached) {
         couponStatus = "INVALID";
-        appliedCoupon = {
+        couponRejection = {
           id: coupon.id || coupon._id,
           code: coupon.code,
           status: "INVALID",
@@ -311,7 +312,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       } else if (isMinOrderNotMet) {
         couponStatus = "NOT_ELIGIBLE";
         const shortfall = minOrder - subtotal;
-        appliedCoupon = {
+        couponRejection = {
           id: coupon.id || coupon._id,
           code: coupon.code,
           status: "NOT_ELIGIBLE",
@@ -373,8 +374,9 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
     savings: totalSavings,
     totalSavings,
     appliedCoupon,
+    couponRejection,
     couponStatus,
-    couponValid: Boolean(appliedCoupon?.valid),
-    couponReason: appliedCoupon?.reason || ""
+    couponValid: couponStatus === "APPLIED" && Boolean(appliedCoupon?.valid),
+    couponReason: appliedCoupon?.reason || couponRejection?.reason || ""
   };
 }

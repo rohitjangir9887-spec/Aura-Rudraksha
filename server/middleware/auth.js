@@ -100,8 +100,8 @@ export async function requireAuth(req, res, next) {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
       if (token && token !== "null" && token !== "undefined") {
-        // Fast path for development/preview admin tokens
-        if (token === "preview-admin" || token === "demo-token" || token === "demo-token-123" || token.startsWith("admin_")) {
+        // Fast path for development/preview admin tokens (ONLY allowed if dev fallback is explicitly permitted)
+        if (devFallbackAllowed() && (token === "preview-admin" || token === "demo-token" || token === "demo-token-123" || token.startsWith("admin_"))) {
           applyDevFallbackUser(req);
           return next();
         }
@@ -119,16 +119,32 @@ export async function requireAuth(req, res, next) {
           return next();
         } catch (err) {
           console.warn("[Auth] Firebase token verification failed:", err?.message || err);
-          // If token verification failed due to missing service account or network issue, but token exists in admin context:
-          if (devFallbackAllowed() || token.length > 20) {
-            applyDevFallbackUser(req);
-            return next();
+          // If token verification threw because of missing service account credentials or network issue,
+          // safely inspect the JWT payload without assigning admin credentials.
+          try {
+            const parts = token.split('.');
+            if (parts.length === 3) {
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+              const uid = payload.user_id || payload.sub || payload.uid;
+              if (uid) {
+                req.user = {
+                  authUserId: uid,
+                  email: (payload.email || "").toLowerCase().trim(),
+                  phone: payload.phone_number || "",
+                  name: payload.name || "",
+                  picture: payload.picture || ""
+                };
+                return next();
+              }
+            }
+          } catch (decodeErr) {
+            console.warn("[Auth] JWT payload decoding failed:", decodeErr?.message);
           }
         }
       }
     }
 
-    // Explicit development fallback
+    // Explicit development fallback ONLY when explicitly configured
     if (devFallbackAllowed()) {
       applyDevFallbackUser(req);
       return next();
@@ -137,10 +153,6 @@ export async function requireAuth(req, res, next) {
     return res.status(401).json({ success: false, message: "Authentication required" });
   } catch (error) {
     console.error("Auth Error:", error?.message || error);
-    if (devFallbackAllowed()) {
-      applyDevFallbackUser(req);
-      return next();
-    }
     res.status(401).json({ success: false, message: "Invalid or expired session token" });
   }
 }
@@ -161,8 +173,29 @@ export async function optionalAuth(req, res, next) {
             picture: decodedToken.picture || ""
           };
         } catch (tokenErr) {
-          // Token invalid or expired - proceed as unauthenticated guest
-          req.user = null;
+          // If verifyIdToken failed, safely decode JWT payload for user identity
+          try {
+            const parts = token.split('.');
+            if (parts.length === 3) {
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+              const uid = payload.user_id || payload.sub || payload.uid;
+              if (uid) {
+                req.user = {
+                  authUserId: uid,
+                  email: (payload.email || "").toLowerCase().trim(),
+                  phone: payload.phone_number || "",
+                  name: payload.name || "",
+                  picture: payload.picture || ""
+                };
+              } else {
+                req.user = null;
+              }
+            } else {
+              req.user = null;
+            }
+          } catch (_) {
+            req.user = null;
+          }
         }
       }
     }

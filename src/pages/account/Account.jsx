@@ -55,6 +55,8 @@ export function Account() {
     setUser(null);
     setProfile(null);
     setUserEmail("");
+    setOrdersCount(0);
+    setAddressesCount(0);
     setShowLogoutModal(false);
     emitToast("Logged out successfully from Aura Rudraksha", "success");
     navigate("/account");

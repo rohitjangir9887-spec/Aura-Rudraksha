@@ -26,7 +26,10 @@ export function pickFields(input, types) {
     const v = input[key];
     switch (type) {
       case "string":
-        if (typeof v === "string" && v.length <= 5000) out[key] = v.trim();
+        if (typeof v === "string" && v.length <= 50000) out[key] = v.trim();
+        break;
+      case "richText":
+        if (typeof v === "string" && v.length <= 100000) out[key] = v.trim();
         break;
       case "url":
         // Same allowlist as review photos: http(s) links, same-origin

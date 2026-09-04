@@ -10,7 +10,7 @@ import { invalidateRagCache } from "../services/ragService.js";
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
   comparePrice: "number", mrp: "number", discount: "number", discountPercent: "number",
-  description: "string", category: "string", images: "url[]", img: "url",
+  description: "richText", category: "string", images: "url[]", img: "url",
   stock: "number", status: "string", tags: "string[]", highlight: "string",
   badge: "string", homeBadge: "string", showOnHome: "boolean", homeOrder: "number",
   isPopular: "boolean", rating: "number", reviews: "number", reviewCount: "number",

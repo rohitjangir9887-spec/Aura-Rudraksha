@@ -116,9 +116,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     const filterByTab = (listToFilter) => {
       if (activeTab === "product") {
         if (!productId) return [];
-        return listToFilter.filter(r => r.type === "product" && String(r.productId) === String(productId));
+        return listToFilter.filter(r => r.productId && r.productId !== "all" && String(r.productId) === String(productId));
       } else {
-        return listToFilter.filter(r => r.type === "store" || r.productId === "all");
+        return listToFilter.filter(r => r.type === "store" || r.productId === "all" || !r.productId);
       }
     };
 
@@ -346,7 +346,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
   };
 
   // Submit Review Handler
-  const handleReviewSubmit = (e) => {
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!newReviewForm.name.trim()) {
       emitToast("Please enter your name.", "warning");
@@ -359,7 +359,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
     setIsSubmittingReview(true);
     try {
-      const saved = db.saveReview({
+      const saved = await db.saveReview({
         type: newReviewForm.type,
         productId: newReviewForm.type === "product" ? productId : "all",
         productName: newReviewForm.type === "product" ? productName : "Aura Rudraksha Sacred Store",
@@ -376,6 +376,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
       emitToast("ॐ Har Har Mahadev! Your review has been submitted successfully.", "success");
       setIsWriteModalOpen(false);
+      const targetType = saved?.type || newReviewForm.type || "product";
       setNewReviewForm({
         name: "",
         email: "",
@@ -386,8 +387,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
         text: "",
         images: []
       });
+      loadData();
       // Switch to relevant tab
-      setActiveTab(saved.type);
+      setActiveTab(targetType);
     } catch (err) {
       console.error(err);
       emitToast("Failed to save review. Please try again.", "error");

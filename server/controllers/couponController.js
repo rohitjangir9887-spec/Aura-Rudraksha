@@ -12,9 +12,9 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 // only counter that matters for abuse (incremented server-side only, in
 // orderController, never from this admin form).
 const COUPON_FIELDS = {
-  code: "string", discount: "number", type: "string", limit: "number",
-  usage: "number", minAmount: "number", minOrderValue: "number",
-  expiry: "nullableString", status: "string"
+  code: "string", discount: "number", value: "number", type: "string", limit: "number",
+  usage: "number", minAmount: "number", minOrder: "number", minOrderValue: "number",
+  expiry: "nullableString", status: "string", description: "string"
 };
 
 // Fields safe to show to unauthenticated shoppers on cart/checkout (no usage
@@ -198,7 +198,8 @@ export async function getCoupons(req, res, next) {
 export async function createCoupon(req, res, next) {
   try {
     const data = pickFields(req.body, COUPON_FIELDS);
-    if (!data.code || data.discount === undefined) {
+    const resolvedDiscount = Number(data.discount !== undefined ? data.discount : data.value);
+    if (!data.code || isNaN(resolvedDiscount)) {
       return res.status(400).json({ success: false, message: "Code and discount are required" });
     }
 
@@ -207,13 +208,14 @@ export async function createCoupon(req, res, next) {
       ...data,
       id,
       code: data.code.trim().toUpperCase(),
-      discount: Number(data.discount) || 0,
+      discount: resolvedDiscount,
       type: data.type || "percentage",
       limit: Number(data.limit) || 1000,
       usage: Number(data.usage) || 0,
-      minAmount: Number(data.minAmount || data.minOrder || 0),
+      minAmount: Number(data.minAmount || data.minOrder || data.minOrderValue || 0),
       expiry: data.expiry || null,
-      status: data.status === "Disabled" ? "Inactive" : (data.status || "Active")
+      status: data.status === "Disabled" ? "Inactive" : (data.status || "Active"),
+      description: (data.description || (data.type === "fixed" ? `Flat ₹${resolvedDiscount} Off` : `${resolvedDiscount}% Off`)).trim()
     };
 
     if (!isDbConnected()) {

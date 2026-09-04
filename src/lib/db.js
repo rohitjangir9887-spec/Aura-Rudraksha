@@ -1020,25 +1020,45 @@ export const db = {
     return res;
   },
 
+  // ADDRESSES & PROFILE ISOLATION HELPERS
+  getUserScopedKey: (baseKey) => {
+    if (typeof window === "undefined") return null;
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) return null;
+    const uid = user.authUserId || user.uid || (user.email ? `email_${user.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : null);
+    return uid ? `${baseKey}_${uid}` : null;
+  },
+
   // ADDRESSES
   getAddresses: async () => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) {
+      storeCache.addresses = [];
+      return { success: true, data: [] };
+    }
+    const cacheKey = db.getUserScopedKey("aura_addresses_cache");
     try {
       const res = await apiRequest("/addresses");
       if (res?.success && Array.isArray(res.data)) {
         storeCache.addresses = res.data;
-        try { localStorage.setItem("aura_addresses_cache", JSON.stringify(res.data)); } catch(_) {}
+        if (cacheKey) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
+        }
         return res;
       }
     } catch (_) {}
     let cached = [];
-    try {
-      const stored = localStorage.getItem("aura_addresses_cache");
-      if (stored) cached = JSON.parse(stored);
-    } catch (_) {}
+    if (cacheKey) {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) cached = JSON.parse(stored);
+      } catch (_) {}
+    }
     return { success: true, data: (cached && cached.length > 0) ? cached : (storeCache.addresses || []) };
   },
 
   saveAddress: async (address) => {
+    const cacheKey = db.getUserScopedKey("aura_addresses_cache");
     const id = address.id || ("ADDR-" + Date.now());
     const finalAddr = { ...address, id };
     if (!storeCache.addresses) storeCache.addresses = [];
@@ -1053,7 +1073,9 @@ export const db = {
           body: JSON.stringify(address)
         });
         if (res?.success) {
-          try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
+          if (cacheKey) {
+            try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
+          }
           return res;
         }
       } else {
@@ -1062,21 +1084,28 @@ export const db = {
           body: JSON.stringify(address)
         });
         if (res?.success) {
-          try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
+          if (cacheKey) {
+            try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
+          }
           return res;
         }
       }
     } catch (_) {}
-    try { localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses)); } catch(_) {}
+    if (cacheKey) {
+      try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
+    }
     return { success: true, data: finalAddr };
   },
 
   deleteAddress: async (id) => {
+    const cacheKey = db.getUserScopedKey("aura_addresses_cache");
     if (!storeCache.addresses) storeCache.addresses = [];
     storeCache.addresses = storeCache.addresses.filter(a => a.id !== id);
-    try {
-      localStorage.setItem("aura_addresses_cache", JSON.stringify(storeCache.addresses));
-    } catch (_) {}
+    if (cacheKey) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses));
+      } catch (_) {}
+    }
     try {
       await apiRequest(`/addresses/${id}`, {
         method: "DELETE"
@@ -1087,20 +1116,28 @@ export const db = {
 
   // CUSTOMERS (CUSTOMER ME & PROFILES)
   getCustomerMe: async () => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) {
+      return { success: true, data: null };
+    }
+    const cacheKey = db.getUserScopedKey("aura_cached_me");
     try {
       const res = await apiRequest("/customers/me");
       if (res?.success && res.data) {
-        try { localStorage.setItem("aura_cached_me", JSON.stringify(res.data)); } catch(_) {}
+        if (cacheKey) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
+        }
         return res;
       }
     } catch (_) {}
     
-    const user = authClient.getUser();
     let cached = {};
-    try {
-      const stored = localStorage.getItem("aura_cached_me");
-      if (stored) cached = JSON.parse(stored);
-    } catch (_) {}
+    if (cacheKey) {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) cached = JSON.parse(stored);
+      } catch (_) {}
+    }
 
     return {
       success: true,
@@ -1116,26 +1153,33 @@ export const db = {
   },
 
   updateCustomerMe: async (data) => {
+    const cacheKey = db.getUserScopedKey("aura_cached_me");
     try {
       const res = await apiRequest("/customers/me", {
         method: "PUT",
         body: JSON.stringify(data)
       });
       if (res?.success && res.data) {
-        try { localStorage.setItem("aura_cached_me", JSON.stringify(res.data)); } catch(_) {}
+        if (cacheKey) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
+        }
         emitStoreUpdate("customer:updated", res.data);
         return res;
       }
     } catch (_) {}
     
     let cached = {};
-    try {
-      const stored = localStorage.getItem("aura_cached_me");
-      if (stored) cached = JSON.parse(stored);
-    } catch (_) {}
+    if (cacheKey) {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) cached = JSON.parse(stored);
+      } catch (_) {}
+    }
     
     const merged = { ...cached, ...data };
-    try { localStorage.setItem("aura_cached_me", JSON.stringify(merged)); } catch(_) {}
+    if (cacheKey) {
+      try { localStorage.setItem(cacheKey, JSON.stringify(merged)); } catch(_) {}
+    }
     emitStoreUpdate("customer:updated", merged);
     
     return { success: true, data: merged };

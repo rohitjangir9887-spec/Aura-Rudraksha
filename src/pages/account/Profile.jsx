@@ -120,9 +120,6 @@ export function Profile() {
           address: p.address || "",
           avatar: resolvedAvatar
         });
-        if (Array.isArray(p.addresses) && p.addresses.length > 0) {
-          setAddresses(p.addresses);
-        }
       } else {
         setEmail(googleEmail);
         setProfile({
@@ -134,8 +131,12 @@ export function Profile() {
         });
       }
 
-      if (addrRes?.success && Array.isArray(addrRes.data) && addrRes.data.length > 0) {
+      if (addrRes?.success && Array.isArray(addrRes.data)) {
         setAddresses(addrRes.data);
+      } else if (meRes?.data && Array.isArray(meRes.data.addresses)) {
+        setAddresses(meRes.data.addresses);
+      } else {
+        setAddresses([]);
       }
 
       if (ordersRes?.success && Array.isArray(ordersRes.data)) {
@@ -144,6 +145,9 @@ export function Profile() {
           o.status !== "Delivered" && o.status !== "Cancelled" && o.orderStatus !== "Delivered" && o.orderStatus !== "Cancelled"
         );
         setActiveOrdersCount(active.length);
+      } else {
+        setOrdersCount(0);
+        setActiveOrdersCount(0);
       }
     } catch (_) {
     } finally {

@@ -187,8 +187,8 @@ export async function createTicket(req, res, next) {
     }
 
     const authenticatedUser = req.user || null;
-    const authUserId = authenticatedUser ? authenticatedUser.authUserId : (req.body.authUserId || "");
-    const userEmail = authenticatedUser ? (authenticatedUser.email || "").toLowerCase().trim() : (data.email || "").toLowerCase().trim();
+    const authUserId = authenticatedUser ? (authenticatedUser.authUserId || authenticatedUser.uid || "") : "";
+    const userEmail = authenticatedUser?.email ? authenticatedUser.email.toLowerCase().trim() : (data.email || "").toLowerCase().trim();
 
     const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
     const payload = {

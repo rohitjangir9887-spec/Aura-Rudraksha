@@ -617,11 +617,11 @@ function buildDiverseFallbackDrafts({
       name: devoteeName,
       city: devoteeCity,
       date: relativeDate,
-      verified: true,
-      featured: i === 0,
-      status: "Approved",
-      source: "customer",
-      helpfulUp: Math.floor(Math.random() * 8) + 1,
+      verified: false,
+      featured: false,
+      status: "draft",
+      source: "ai_draft",
+      helpfulUp: 0,
       helpfulDown: 0,
       productId: targetProductId,
       productName: prodName,
@@ -756,11 +756,11 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
               name: assignedName,
               city: assignedCity,
               date: relativeDate,
-              verified: verified !== false,
-              featured: idx === 0,
-              status: "Approved",
-              source: "customer",
-              helpfulUp: Math.floor(Math.random() * 6) + 1,
+              verified: false,
+              featured: false,
+              status: "draft",
+              source: "ai_draft",
+              helpfulUp: 0,
               helpfulDown: 0,
               productId: targetProductId,
               productName: resolvedProductName,
@@ -1137,6 +1137,10 @@ export async function bulkSaveReviews(req, res, next) {
 
       const relativeDate = r.date && r.date !== "AI Draft" ? r.date : RELATIVE_DATES[i % RELATIVE_DATES.length];
 
+      const isDraftOrAi = Boolean(r.isAiGenerated || r.source === "ai_draft" || (r.id && r.id.startsWith("DRAFT-")));
+      const status = r.status ? r.status : (isDraftOrAi ? "draft" : "Approved");
+      const source = isDraftOrAi ? "ai_draft" : (r.source || "customer");
+
       const payload = {
         ...r,
         id,
@@ -1150,16 +1154,16 @@ export async function bulkSaveReviews(req, res, next) {
         exactTextHash: exactHash,
         normalizedTextHash: normalizedHash,
         editedByAI: !!r.editedByAI,
-        isAiGenerated: false,
+        isAiGenerated: isDraftOrAi,
         isSample: false,
         sampleLabel: "",
-        verified: r.verified !== false,
-        source: r.source || "customer",
+        verified: !isDraftOrAi && r.verified !== false,
+        source,
         sourceReviewId: r.sourceReviewId || "",
-        status: r.status || "Approved",
+        status,
         images,
         img: images[0] || null,
-        helpfulUp: Number(r.helpfulUp) || (Math.floor(Math.random() * 5) + 1),
+        helpfulUp: isDraftOrAi ? 0 : (Number(r.helpfulUp) || (Math.floor(Math.random() * 5) + 1)),
         helpfulDown: 0,
         createdAt: Date.now(),
         date: relativeDate
