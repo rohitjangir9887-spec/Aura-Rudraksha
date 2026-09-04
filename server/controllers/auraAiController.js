@@ -703,11 +703,27 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
 
     // Fallback if Gemini LLM response is unavailable
     if (!generatedViaLLM || !fullRawContent.trim()) {
+      let customerOrders = [];
+      if (userIsAuthenticated && effectiveUserId) {
+        try {
+          if (isDbConnected()) {
+            customerOrders = await Order.find({ authUserId: effectiveUserId }).sort({ createdAt: -1, date: -1 }).limit(3).lean();
+          } else {
+            customerOrders = inMemoryStore.orders.filter(o => String(o.authUserId) === String(effectiveUserId)).slice(0, 3);
+          }
+        } catch (ordErr) {
+          console.warn("Notice fetching customer orders for AI context:", ordErr?.message);
+        }
+      }
+
       fullRawContent = buildAuthenticVedicResponse({
         message,
         userIntent: intent,
         products: finalProducts,
-        coupons: finalCoupons
+        coupons: finalCoupons,
+        userIsAuthenticated,
+        verifiedName,
+        customerOrders
       });
     }
 

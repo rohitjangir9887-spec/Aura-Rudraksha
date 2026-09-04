@@ -107,8 +107,13 @@ export function createApp() {
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    // Ensure iframe embedding in AI Studio works cleanly
-    res.removeHeader("X-Frame-Options");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    // For API endpoints, enforce X-Frame-Options: DENY against framing attacks
+    if (req.path && req.path.startsWith("/api")) {
+      res.setHeader("X-Frame-Options", "DENY");
+    } else {
+      res.removeHeader("X-Frame-Options");
+    }
     next();
   });
 

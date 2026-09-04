@@ -295,8 +295,8 @@ export async function createOrder(req, res, next) {
       orderSource: data.orderSource || data.source || "website",
       source: data.orderSource || data.source || "website",
       paymentStatus: PAYMENT_STATES.PENDING, // Strictly PENDING on creation!
-      paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
-      inventoryDeducted: false, // Strictly FALSE until gateway confirms payment!
+      paymentMethod: data.paymentMethod || "PayU Hosted Checkout (UPI / Cards / NetBanking)",
+      inventoryDeducted: true, // Atomically deducted on order placement
       history: [
         createStateHistoryEntry({
           fromStatus: "NONE",
@@ -309,6 +309,23 @@ export async function createOrder(req, res, next) {
       ]
     };
     
+    // Atomically decrement stock
+    if (isDbConnected()) {
+      for (const item of totals.items) {
+        await Product.updateOne(
+          { id: item.id, stock: { $gte: item.quantity } },
+          { $inc: { stock: -item.quantity } }
+        );
+      }
+    } else {
+      for (const item of totals.items) {
+        const p = inMemoryStore.products.find(prod => String(prod.id) === String(item.id));
+        if (p && p.stock !== undefined) {
+          p.stock = Math.max(0, p.stock - item.quantity);
+        }
+      }
+    }
+
     let created;
     if (isDbConnected()) {
       created = await Order.findOneAndUpdate(

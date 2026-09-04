@@ -680,11 +680,50 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
  * 🛍️ Aura Rudraksha mein availability:
  * Available / Currently unavailable
  */
-export function buildAuthenticVedicResponse({ message, userIntent, products = [], coupons = [] }) {
+export function buildAuthenticVedicResponse({ message, userIntent, products = [], coupons = [], userIsAuthenticated = false, verifiedName = "", customerOrders = [] }) {
   const msgLower = (message || "").toLowerCase().trim();
   const mukhi = extractMukhiNumber(msgLower);
 
-  // 1. Specific Mukhi or Bead inquiries (1 to 21, Mala, Gauri Shankar, etc.)
+  // 1. Order Tracking & Status Inquiries
+  const isOrderOrTrackingQuery = (
+    userIntent === "TRACKING" ||
+    userIntent === "ORDER" ||
+    /(track|order status|mera order|order kaha|kaha hai mera order|parcel|shipment|delivery status|order number|dispatch)/i.test(msgLower)
+  );
+
+  if (isOrderOrTrackingQuery) {
+    if (!userIsAuthenticated) {
+      return `🙏 **Order Tracking Information:**\n\nApne order ki sateek live tracking aur real-time status dekhne ke liye kripya pehle apne account mein **Login / Sign In** karein, ya hamare website par **Track Order** page par jaakar apna Order ID aur registered phone number enter karein.`;
+    }
+
+    if (customerOrders && customerOrders.length > 0) {
+      const latestOrder = customerOrders[0];
+      const orderId = latestOrder.id || latestOrder.orderId || latestOrder.orderNumber || "AURA-ORDER";
+      const status = latestOrder.status || latestOrder.orderStatus || "Processing";
+      const paymentStatus = latestOrder.paymentStatus || "Paid";
+      const amount = latestOrder.finalAmount || latestOrder.total || latestOrder.amount || 0;
+      const itemsList = (latestOrder.items || latestOrder.snapshotItems || [])
+        .map(i => `${i.name || 'Sacred Bead'} (Qty: ${i.quantity || 1})`)
+        .join(", ") || "Nepali Rudraksha";
+
+      let resp = `📦 **Namaste ${verifiedName || 'Devotee'}! Aapke Order ki Details:**\n\n`;
+      resp += `• **Order ID:** \`${orderId}\`\n`;
+      resp += `• **Status:** **${status}**\n`;
+      resp += `• **Payment:** ${paymentStatus}\n`;
+      resp += `• **Items:** ${itemsList}\n`;
+      resp += `• **Total Amount:** ₹${amount}\n\n`;
+
+      if (latestOrder.trackingNumber || latestOrder.trackingId) {
+        resp += `• **Courier / AWB:** ${latestOrder.courierName || 'Courier'} - \`${latestOrder.trackingNumber || latestOrder.trackingId}\`\n`;
+      }
+      resp += `Aapka order shuddh Vedic vidhi se energize karke dispatch kiya ja raha hai. Live updates ke liye Track Order page dekhein.`;
+      return resp;
+    } else {
+      return `🙏 **Namaste ${verifiedName || 'Devotee'}!**\n\nAapke account ke sath abhi koi recent order linked nahi mila hai. Yadi aapne kisi anya email ya phone number se checkout kiya tha, to kripya hamare **Track Order** page par apna Order ID enter karke check karein.`;
+    }
+  }
+
+  // 2. Specific Mukhi or Bead inquiries (1 to 21, Mala, Gauri Shankar, etc.)
   if (mukhi && VEDIC_BEADS_KNOWLEDGE[mukhi]) {
     const k = VEDIC_BEADS_KNOWLEDGE[mukhi];
     const { available, product } = isProductInStoreCatalog(mukhi, products);
