@@ -5,6 +5,7 @@ import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { getPcloudStatus, uploadToPcloud, deleteFromPcloud, exchangePcloudCode, savePcloudToken, clearPcloudToken, getPcloudApiHost } from "../services/pcloudService.js";
+import { getImagekitStatus, getImagekitAuthParams, uploadToImagekit, deleteFromImagekit, saveImagekitCredentials } from "../services/imagekitService.js";
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ initMediaIndexes().catch(() => {});
 
 /**
  * GET /api/upload/provider
- * Returns currently active storage provider ("puter" | "pcloud") from MongoDB / Memory
+ * Returns currently active storage provider ("puter" | "pcloud" | "imagekit") from MongoDB / Memory
  */
 router.get("/provider", async (req, res) => {
   try {
@@ -27,9 +28,14 @@ router.get("/provider", async (req, res) => {
       activeProvider = inMemoryStore.settings.storageProvider;
     }
 
+    const validProviders = ["puter", "pcloud", "imagekit"];
+    if (!validProviders.includes(activeProvider)) {
+      activeProvider = "puter";
+    }
+
     return res.json({
       success: true,
-      provider: activeProvider === "pcloud" ? "pcloud" : "puter"
+      provider: activeProvider
     });
   } catch (err) {
     return res.json({ success: true, provider: "puter" });
@@ -38,20 +44,30 @@ router.get("/provider", async (req, res) => {
 
 /**
  * POST /api/upload/provider
- * Admin route to switch active storage provider ("puter" | "pcloud")
+ * Admin route to switch active storage provider ("puter" | "pcloud" | "imagekit")
  * Persists value in MongoDB STORE_SETTINGS
  */
 router.post("/provider", requireAdmin, async (req, res) => {
   try {
     const { provider } = req.body || {};
-    const targetProvider = provider === "pcloud" ? "pcloud" : "puter";
+    let targetProvider = "puter";
+    if (provider === "pcloud") targetProvider = "pcloud";
+    if (provider === "imagekit") targetProvider = "imagekit";
 
     if (targetProvider === "pcloud") {
       const pcloudStatus = await getPcloudStatus();
       if (!pcloudStatus.connected) {
         return res.status(400).json({
           success: false,
-          message: pcloudStatus.message || "pCloud authentication is invalid or not connected. Please connect pCloud via OAuth before activating."
+          message: pcloudStatus.message || "pCloud authentication is invalid or not connected. Please connect pCloud before activating."
+        });
+      }
+    } else if (targetProvider === "imagekit") {
+      const ikStatus = await getImagekitStatus();
+      if (!ikStatus.connected) {
+        return res.status(400).json({
+          success: false,
+          message: ikStatus.message || "ImageKit credentials are not configured or invalid. Please check ImageKit configuration before activating."
         });
       }
     }
@@ -69,10 +85,16 @@ router.post("/provider", requireAdmin, async (req, res) => {
 
     console.log(`[Storage Provider] Active storage provider switched to: ${targetProvider}`);
 
+    const providerNames = {
+      puter: "Puter Cloud Storage",
+      pcloud: "pCloud Storage",
+      imagekit: "ImageKit Storage"
+    };
+
     return res.json({
       success: true,
       provider: targetProvider,
-      message: `Active storage provider switched to ${targetProvider === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage"}. New uploads will use ${targetProvider === "pcloud" ? "pCloud" : "Puter"}. Existing media is preserved.`
+      message: `Active storage provider switched to ${providerNames[targetProvider]}. New uploads will use ${providerNames[targetProvider]}. Existing media is preserved.`
     });
   } catch (err) {
     return res.status(500).json({
@@ -333,6 +355,178 @@ router.post("/pcloud/upload", async (req, res) => {
 });
 
 /**
+ * GET /api/upload/imagekit/status
+ * Returns ImageKit connection status and storage statistics
+ */
+router.get("/imagekit/status", async (req, res) => {
+  try {
+    const status = await getImagekitStatus();
+    let mediaCount = 0;
+    let totalSizeBytes = 0;
+
+    if (isDbConnected()) {
+      const ikMedia = await Media.find({ provider: "imagekit" }).lean();
+      mediaCount = ikMedia.length;
+      totalSizeBytes = ikMedia.reduce((sum, m) => sum + (Number(m.sizeBytes || m.size) || 0), 0);
+    }
+
+    return res.json({
+      ...status,
+      mediaCount,
+      totalSizeBytes
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      connected: false,
+      status: "Server Error",
+      message: err.message || "Failed to check ImageKit status"
+    });
+  }
+});
+
+/**
+ * GET /api/upload/imagekit/auth
+ * Generates client upload authentication parameters (token, signature, expire, publicKey, urlEndpoint)
+ * Admin authorization required
+ */
+router.get("/imagekit/auth", requireAdmin, async (req, res) => {
+  try {
+    const authParams = await getImagekitAuthParams();
+    return res.json({
+      success: true,
+      ...authParams
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message || "Failed to generate ImageKit auth parameters"
+    });
+  }
+});
+
+/**
+ * POST /api/upload/imagekit/credentials
+ * Admin route to save ImageKit credentials
+ */
+router.post("/imagekit/credentials", requireAdmin, async (req, res) => {
+  try {
+    const { publicKey, privateKey, urlEndpoint } = req.body || {};
+    await saveImagekitCredentials({ publicKey, privateKey, urlEndpoint });
+    const status = await getImagekitStatus();
+
+    return res.json({
+      success: status.connected,
+      message: status.message,
+      status
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/upload/imagekit/upload
+ * Server-side proxy handler to upload media directly to ImageKit without exposing secrets
+ */
+router.post("/imagekit/upload", requireAdmin, async (req, res) => {
+  try {
+    const { fileData, filename, type, sizeBytes, metadata, productId } = req.body || {};
+    if (!fileData) {
+      return res.status(400).json({
+        success: false,
+        message: "No file content provided for ImageKit upload"
+      });
+    }
+
+    let buffer;
+    let mimeType = type || "image/jpeg";
+
+    if (fileData.startsWith("data:")) {
+      const matches = fileData.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1];
+        buffer = Buffer.from(matches[2], "base64");
+      } else {
+        return res.status(400).json({ success: false, message: "Invalid base64 data URL format" });
+      }
+    } else {
+      buffer = Buffer.from(fileData, "base64");
+    }
+
+    // Server-side validation
+    const isImage = mimeType.startsWith("image/");
+    const isVideo = mimeType.startsWith("video/");
+    if (!isImage && !isVideo) {
+      return res.status(400).json({ success: false, message: "Only image and video files are permitted." });
+    }
+
+    const maxSizeBytes = isVideo ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+    if (buffer.length > maxSizeBytes) {
+      return res.status(400).json({ success: false, message: `File size exceeds limit (${isVideo ? '100MB' : '20MB'}).` });
+    }
+
+    const cleanFilename = filename || `upload-${Date.now()}.${mimeType.split("/")[1] || "jpg"}`;
+
+    const uploaded = await uploadToImagekit({
+      buffer,
+      filename: cleanFilename,
+      mimeType
+    });
+
+    const finalReadURL = uploaded.url;
+    const finalFileId = uploaded.fileId;
+    const finalSize = Number(uploaded.sizeBytes || sizeBytes || buffer.length);
+
+    let mediaRecord = null;
+    if (isDbConnected()) {
+      mediaRecord = new Media({
+        readURL: finalReadURL,
+        url: finalReadURL,
+        fileId: finalFileId,
+        puterFileId: finalFileId,
+        path: `/imagekit/${finalFileId}`,
+        filename: cleanFilename,
+        type: mimeType,
+        sizeBytes: finalSize,
+        size: finalSize,
+        metadata: { ...(metadata || {}), productId: productId || "" },
+        provider: "imagekit"
+      });
+      await mediaRecord.save().catch((err) => {
+        console.warn("[ImageKit Upload] Media record save notice:", err?.message || err);
+      });
+    } else {
+      mediaRecord = {
+        readURL: finalReadURL,
+        url: finalReadURL,
+        fileId: finalFileId,
+        filename: cleanFilename,
+        type: mimeType,
+        provider: "imagekit"
+      };
+    }
+
+    return res.json({
+      success: true,
+      url: finalReadURL,
+      readURL: finalReadURL,
+      fileId: finalFileId,
+      thumbnailUrl: uploaded.thumbnailUrl || finalReadURL,
+      provider: "imagekit",
+      media: mediaRecord,
+      message: "File successfully uploaded to ImageKit Storage and registered in MongoDB."
+    });
+  } catch (err) {
+    console.error("ImageKit Upload Endpoint Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "ImageKit upload failed. Please check server authentication."
+    });
+  }
+});
+
+/**
  * DELETE /api/upload/media/:id
  * Delete media record from MongoDB and corresponding storage provider
  */
@@ -357,15 +551,41 @@ router.delete("/media/:id", requireAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: "Media item not found" });
     }
 
+    let providerDeleteSuccess = true;
+    let providerName = "Puter Cloud";
+
     if (media.provider === "pcloud" && media.fileId) {
-      await deleteFromPcloud(media.fileId).catch(() => {});
+      providerName = "pCloud Storage";
+      const delRes = await deleteFromPcloud(media.fileId);
+      if (!delRes.success) {
+        console.warn(`pCloud media deletion notice for ${media.fileId}:`, delRes.message);
+        if (delRes.message && !delRes.message.includes("404") && !delRes.message.includes("not found")) {
+          providerDeleteSuccess = false;
+        }
+      }
+    } else if (media.provider === "imagekit" && media.fileId) {
+      providerName = "ImageKit";
+      const delRes = await deleteFromImagekit(media.fileId);
+      if (!delRes.success) {
+        console.warn(`ImageKit media deletion notice for ${media.fileId}:`, delRes.message);
+        if (delRes.message && !delRes.message.includes("404") && !delRes.message.includes("not found")) {
+          providerDeleteSuccess = false;
+        }
+      }
+    }
+
+    if (!providerDeleteSuccess) {
+      return res.status(500).json({
+        success: false,
+        message: `Failed to delete media from ${providerName}. The database record was preserved.`
+      });
     }
 
     await Media.deleteOne({ _id: media._id });
 
     return res.json({
       success: true,
-      message: `Media item deleted from MongoDB and ${media.provider === "pcloud" ? "pCloud" : "Puter"} storage.`
+      message: `Media item deleted from MongoDB and ${providerName}.`
     });
   } catch (err) {
     return res.status(500).json({
@@ -388,6 +608,9 @@ router.get("/stats", async (req, res) => {
         imagesCount: 0,
         videosCount: 0,
         totalCount: 0,
+        puterCount: 0,
+        pcloudCount: 0,
+        imagekitCount: 0,
         totalSizeBytes: 0,
         lastUpload: null
       });
@@ -397,16 +620,21 @@ router.get("/stats", async (req, res) => {
 
     const images = totalMedia.filter(m => m.type && m.type.startsWith("image/"));
     const videos = totalMedia.filter(m => m.type && m.type.startsWith("video/"));
-    const totalSizeBytes = totalMedia.reduce((sum, m) => sum + (Number(m.sizeBytes || m.size) || 0), 0);
+    const puterMedia = totalMedia.filter(m => m.provider === "puter" || !m.provider);
+    const pcloudMedia = totalMedia.filter(m => m.provider === "pcloud");
+    const imagekitMedia = totalMedia.filter(m => m.provider === "imagekit");
 
+    const totalSizeBytes = totalMedia.reduce((sum, m) => sum + (Number(m.sizeBytes || m.size) || 0), 0);
     const lastUpload = totalMedia.length > 0 ? totalMedia[0] : null;
 
     return res.json({
       success: true,
-      serverStorage: "Puter Cloud Direct (Production Ready)",
       imagesCount: images.length,
       videosCount: videos.length,
       totalCount: totalMedia.length,
+      puterCount: puterMedia.length,
+      pcloudCount: pcloudMedia.length,
+      imagekitCount: imagekitMedia.length,
       totalSizeBytes,
       lastUpload: lastUpload ? {
         url: lastUpload.readURL || lastUpload.url,

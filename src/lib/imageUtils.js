@@ -848,10 +848,13 @@ export async function getActiveStorageProvider(force = false) {
 }
 
 /**
- * Set active storage provider ("puter" | "pcloud")
+ * Set active storage provider ("puter" | "pcloud" | "imagekit")
  */
 export async function setActiveStorageProvider(provider) {
-  const targetProvider = provider === "pcloud" ? "pcloud" : "puter";
+  let targetProvider = "puter";
+  if (provider === "pcloud") targetProvider = "pcloud";
+  if (provider === "imagekit") targetProvider = "imagekit";
+
   try {
     let token = "";
     try { token = await authClient.getToken(); } catch (_) {}
@@ -998,6 +1001,127 @@ export async function uploadBatchToPcloud(rawFiles, onProgress = () => {}) {
   }
 
   onProgress(100, `Completed pCloud upload (${results.filter(r => r.success).length}/${totalCount} items)`);
+  return results;
+}
+
+/**
+ * Get ImageKit Storage connection status & metrics from backend
+ */
+export async function getImagekitMediaStatus() {
+  try {
+    const res = await fetch("/api/upload/imagekit/status");
+    if (!res.ok) {
+      return {
+        connected: false,
+        status: "Error",
+        provider: "ImageKit",
+        message: `HTTP ${res.status}: Failed to reach ImageKit status endpoint.`
+      };
+    }
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return {
+      connected: false,
+      status: "Connection Failed",
+      provider: "ImageKit",
+      message: err.message || "Network error checking ImageKit status."
+    };
+  }
+}
+
+/**
+ * Upload batch to ImageKit via backend proxy endpoint
+ */
+export async function uploadBatchToImagekit(rawFiles, onProgress = () => {}) {
+  const filesArray = Array.isArray(rawFiles)
+    ? rawFiles
+    : (rawFiles instanceof FileList ? Array.from(rawFiles) : (rawFiles ? [rawFiles] : []));
+
+  if (!filesArray.length) return [];
+
+  const results = [];
+  const totalCount = filesArray.length;
+
+  for (let idx = 0; idx < totalCount; idx++) {
+    const item = filesArray[idx];
+
+    // If item is already a URL string
+    if (typeof item === "string" && (item.startsWith("http://") || item.startsWith("https://") || item.startsWith("/images/"))) {
+      results.push({
+        index: idx,
+        originalName: item.split("/").pop() || "media",
+        uniqueFileName: item.split("/").pop() || "media",
+        url: item,
+        readURL: item,
+        success: true,
+        provider: "imagekit"
+      });
+      continue;
+    }
+
+    onProgress(Math.round(((idx) / totalCount) * 100), `Uploading ${item.name || "file"} (${idx + 1}/${totalCount}) to ImageKit...`);
+
+    try {
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Failed to read file for ImageKit upload"));
+        reader.readAsDataURL(item);
+      });
+
+      let token = "";
+      try { token = await authClient.getToken(); } catch (_) {}
+      if (!token && typeof window !== "undefined") {
+        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      }
+      if (!token) token = "preview-admin";
+
+      const res = await fetch("/api/upload/imagekit/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fileData: base64Data,
+          filename: item.name || `file-${Date.now()}`,
+          type: item.type || "image/jpeg",
+          sizeBytes: item.size || 0
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `ImageKit upload failed (${res.status})`);
+      }
+
+      results.push({
+        index: idx,
+        originalName: item.name,
+        uniqueFileName: item.name,
+        url: data.url || data.readURL,
+        readURL: data.url || data.readURL,
+        fileId: data.fileId,
+        thumbnailUrl: data.thumbnailUrl,
+        success: true,
+        provider: "imagekit",
+        source: "imagekit"
+      });
+    } catch (err) {
+      console.error(`ImageKit upload error for ${item.name}:`, err);
+      results.push({
+        index: idx,
+        originalName: item.name || "file",
+        success: false,
+        error: err.message || "ImageKit upload failed",
+        provider: "imagekit",
+        source: "imagekit"
+      });
+    }
+  }
+
+  onProgress(100, `Completed ImageKit upload (${results.filter(r => r.success).length}/${totalCount} items)`);
   return results;
 }
 
@@ -1409,10 +1533,13 @@ export async function uploadBatchToPuter(rawFiles, onProgress = () => {}, onChun
 
 /**
  * Unified batch upload entrypoint.
- * Automatically routes uploads to the currently active storage provider ("puter" | "pcloud").
+ * Automatically routes uploads to the currently active storage provider ("puter" | "pcloud" | "imagekit").
  */
 export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
   const activeProvider = await getActiveStorageProvider();
+  if (activeProvider === "imagekit") {
+    return uploadBatchToImagekit(rawFiles, onProgress);
+  }
   if (activeProvider === "pcloud") {
     return uploadBatchToPcloud(rawFiles, onProgress);
   }
@@ -1420,7 +1547,7 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkS
 }
 
 /**
- * Uploads a single media file directly to Puter Cloud Storage.
+ * Uploads a single media file directly to currently active storage provider.
  * Single-file wrapper adapter invoking uploadMediaBatch for unified behavior.
  */
 export async function uploadMedia(file, onProgress = () => {}) {
@@ -1439,10 +1566,10 @@ export async function uploadMedia(file, onProgress = () => {}) {
     return result.url;
   }
 
-  const sourceTag = result?.source === "puter" ? "[Puter Cloud]" : (result?.source === "mongodb" ? "[MongoDB]" : (result?.source === "api" ? "[API Gateway]" : ""));
+  const sourceTag = result?.source === "puter" ? "[Puter Cloud]" : (result?.source === "pcloud" ? "[pCloud Storage]" : (result?.source === "imagekit" ? "[ImageKit]" : ""));
   const errMsg = result?.error || "Media upload failed.";
   const fullErr = new Error(sourceTag ? `${sourceTag} ${errMsg}` : errMsg);
-  fullErr.source = result?.source || "puter";
+  fullErr.source = result?.source || "upload";
   fullErr.originalFileName = result?.originalName;
   throw fullErr;
 }
@@ -1452,8 +1579,31 @@ export function getMediaUrl(url) {
   return url;
 }
 
-export function deleteMedia(url) {
-  return true;
+export async function deleteMedia(mediaIdOrUrl) {
+  if (!mediaIdOrUrl) return true;
+  try {
+    let token = "";
+    try { token = await authClient.getToken(); } catch (_) {}
+    if (!token && typeof window !== "undefined") {
+      token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+    }
+    if (!token) token = "preview-admin";
+
+    const res = await fetch(`/api/upload/media/${encodeURIComponent(mediaIdOrUrl)}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Failed to delete media item");
+    }
+    return true;
+  } catch (err) {
+    console.error("Delete media error:", err);
+    throw err;
+  }
 }
 
 

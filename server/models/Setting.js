@@ -15,9 +15,12 @@ const settingSchema = new mongoose.Schema(
     privacyPolicy: { type: String, default: "" },
     termsPolicy: { type: String, default: "" },
     contactSupport: { type: String, default: "" },
-    storageProvider: { type: String, default: "puter", enum: ["puter", "pcloud"] },
+    storageProvider: { type: String, default: "puter", enum: ["puter", "pcloud", "imagekit"] },
     pcloudAccessToken: { type: String, default: "", trim: true },
     pcloudFolderId: { type: String, default: "", trim: true },
+    imagekitPublicKey: { type: String, default: "", trim: true },
+    imagekitPrivateKey: { type: String, default: "", trim: true },
+    imagekitUrlEndpoint: { type: String, default: "", trim: true },
     zodiacs: { type: Array, default: [] }, // Admin-managed zodiac guide content
     shopCategories: { type: Array, default: [] } // Admin-managed shop categories
   },
