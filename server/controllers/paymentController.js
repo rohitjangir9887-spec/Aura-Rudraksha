@@ -219,7 +219,13 @@ export async function initiatePayuPayment(req, res, next) {
       lastName: data.lastName || ""
     };
 
-    const email = (data.customerEmail || data.email || req.user.email || "devotee@aurarudraksha.com").trim().toLowerCase();
+    const email = (data.customerEmail || data.email || req.user.email || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid customer email is required to initiate payment."
+      });
+    }
     const firstname = (data.firstName || data.customerName || req.user.name || "Devotee").trim();
     const phone = (data.phone || data.customerPhone || "").trim();
     const productinfo = `Aura Rudraksha Order ${orderId}`;
@@ -957,11 +963,20 @@ export async function processPayuRefund(req, res, next) {
       });
     }
 
-    const payuId = order.mihpayid || order.txnid;
-    if (!payuId) {
+    let payuMihpayid = order.mihpayid;
+    if (!payuMihpayid && order.txnid) {
+      const verifyRes = await verifyPayuPaymentServerSide(order.txnid);
+      if (verifyRes.mihpayid) {
+        payuMihpayid = verifyRes.mihpayid;
+        order.mihpayid = verifyRes.mihpayid;
+        await order.save();
+      }
+    }
+
+    if (!payuMihpayid) {
       return res.status(400).json({
         success: false,
-        message: "No PayU Payment ID (mihpayid) or Transaction ID found for this order."
+        message: "No PayU Payment ID (mihpayid) found for this order. Verification required before refund."
       });
     }
 
@@ -1016,9 +1031,9 @@ export async function processPayuRefund(req, res, next) {
 
     let refundResult;
     try {
-      // Call PayU Live Refund API
+      // Call PayU Live Refund API using official mihpayid
       refundResult = await refundPayuTransaction({
-        mihpayid: order.mihpayid,
+        mihpayid: payuMihpayid,
         txnid: order.txnid,
         amount: currentRefundAmount,
         token: refundToken
@@ -1088,3 +1103,85 @@ export async function processPayuRefund(req, res, next) {
     });
   }
 }
+
+/**
+ * 7. Customer-Authorized Cancellation for Unpaid / Pending / Abandoned Orders
+ * POST /api/payment/cancel/:orderId
+ */
+export async function cancelUnpaidOrder(req, res, next) {
+  try {
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database unavailable" });
+    }
+
+    const { orderId } = req.params;
+    const authUserId = req.user?.authUserId;
+
+    if (!authUserId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // IDOR Check: Customer can only cancel their own order (or admin)
+    const { isInitialAdmin } = isAdminUser(req.user);
+    const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+
+    if (!isAdmin && order.authUserId !== authUserId) {
+      return res.status(403).json({ success: false, message: "Access Denied" });
+    }
+
+    // Paid or Refunded orders CANNOT be cancelled through this unpaid cancellation endpoint
+    if (order.paymentStatus === "Paid" || order.paymentStatus === "Refunded") {
+      return res.status(400).json({
+        success: false,
+        message: "Paid orders cannot be cancelled via this endpoint. Please contact customer support for refund/cancellation."
+      });
+    }
+
+    if (order.status === "Cancelled") {
+      return res.json({
+        success: true,
+        message: "Order is already cancelled.",
+        data: { orderId: order.orderNumber || order.id, status: "Cancelled" }
+      });
+    }
+
+    const now = new Date().toISOString();
+    order.status = "Cancelled";
+    order.orderStatus = "Cancelled";
+    order.paymentStatus = "Cancelled";
+    order.cancelledAt = now;
+    order.cancelledBy = isAdmin ? "Admin" : "Customer";
+    order.cancelReason = req.body?.reason || "Customer cancelled unpaid order";
+
+    // If stock was somehow deducted earlier, restore it
+    if (order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+      for (const item of order.snapshotItems) {
+        if (item.id) {
+          const qty = Math.max(1, item.qty || item.quantity || 1);
+          await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: qty } });
+        }
+      }
+      order.inventoryDeducted = false;
+    }
+
+    await order.save();
+
+    return res.json({
+      success: true,
+      message: "Order cancelled successfully.",
+      data: {
+        orderId: order.orderNumber || order.id,
+        status: "Cancelled",
+        paymentStatus: "Cancelled"
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+

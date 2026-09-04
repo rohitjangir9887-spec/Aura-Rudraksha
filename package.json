@@ -39,5 +39,7 @@
     "tsx": "^4.23.12",
     "vite": "^6.0.5"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0"
+  }
 }

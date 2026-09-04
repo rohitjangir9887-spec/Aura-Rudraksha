@@ -391,6 +391,28 @@ export function AdminOrders() {
                   {viewing.refundDetails.payuRefundId && <div>Refund ID: <code>{viewing.refundDetails.payuRefundId}</code></div>}
                 </div>
               ))}
+              {Array.isArray(viewing.paymentAttempts) && viewing.paymentAttempts.length > 0 && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                    Payment Attempts History ({viewing.paymentAttempts.length}):
+                  </div>
+                  {viewing.paymentAttempts.map((att, idx) => (
+                    <div key={idx} style={{ fontSize: 11, color: '#475569', borderTop: idx > 0 ? '1px dashed #cbd5e1' : 'none', paddingTop: idx > 0 ? 4 : 0, marginTop: idx > 0 ? 4 : 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <code style={{ fontFamily: 'monospace', fontSize: 10 }}>{att.txnid}</code>
+                        <span style={{ fontWeight: 600, color: att.status === 'success' ? '#166534' : att.status === 'failure' ? '#991b1b' : '#d97706' }}>
+                          {att.status || 'initiated'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>₹{Number(att.amount || viewing.finalAmount || 0).toLocaleString()}</span>
+                        <span>{att.createdAt ? new Date(att.createdAt).toLocaleString() : ''}</span>
+                      </div>
+                      {att.error && <div style={{ fontSize: 10, color: '#991b1b' }}>Err: {att.error}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
               <hr style={{border: 0, borderTop: '1px solid #f0ebe4', margin: '10px 0'}} />
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
                 <span>Subtotal</span>

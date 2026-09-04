@@ -20,12 +20,22 @@ export function getPayuConfig() {
   // Strict separation of Test vs Production endpoints:
   // Production can NEVER connect to test.payu.in.
   // Test can NEVER connect to secure.payu.in.
-  const paymentUrl = isTest 
-    ? "https://test.payu.in/_payment" 
-    : "https://secure.payu.in/_payment";
+  const prodPaymentUrl = "https://secure.payu.in/_payment";
+  const testPaymentUrl = "https://test.payu.in/_payment";
+
+  let paymentUrl = isTest ? testPaymentUrl : prodPaymentUrl;
+
+  if (process.env.PAYU_PAYMENT_URL) {
+    const customUrl = process.env.PAYU_PAYMENT_URL.trim();
+    if (!isTest && customUrl === prodPaymentUrl) {
+      paymentUrl = prodPaymentUrl;
+    } else if (isTest && customUrl === testPaymentUrl) {
+      paymentUrl = testPaymentUrl;
+    }
+  }
 
   const commandUrl = isTest
-    ? "https://test.payu.in/merchant/postservice?form=2"
+    ? "https://test.payu.in/merchant/postservice.php?form=2"
     : "https://info.payu.in/merchant/postservice.php?form=2";
 
   return {

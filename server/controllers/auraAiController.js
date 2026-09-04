@@ -531,6 +531,8 @@ export async function chatAuraAI(req, res, next) {
     const intent = detectUserIntent(message);
     const targetMukhi = extractMukhiNumber(message);
 
+    const products = await Product.find({ isActive: { $ne: false } }).lean();
+
     // Multi-attribute Vedic catalog search
     let matchedProducts = searchRelevantCatalogProducts(message, products);
     
