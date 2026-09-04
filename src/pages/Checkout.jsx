@@ -102,6 +102,10 @@ export function Checkout() {
   const [couponSuccessMsg, setCouponSuccessMsg] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
+  // Authoritative server-side verification state
+  const [verifyingPayment, setVerifyingPayment] = useState(Boolean(successParam));
+  const [verificationError, setVerificationError] = useState("");
+
   // Redirect if cart is empty and not viewing success/failed
   useEffect(() => {
     if (lines.length === 0 && !successParam && !failedParam && !confirmedOrder) {
@@ -109,27 +113,34 @@ export function Checkout() {
     }
   }, [lines.length, successParam, failedParam, confirmedOrder, navigate]);
 
-  // Handle Return from PayU Success
+  // Handle Return from PayU Success (Authoritatively verified server-side)
+  const verifyOrderPayment = useCallback(async () => {
+    if (!successParam) return;
+    setVerifyingPayment(true);
+    setVerificationError("");
+    try {
+      // Live server-to-server check with PayU
+      const res = await db.verifyPayment(successParam);
+      if (res?.success && res.data && res.data.paymentStatus === "Paid") {
+        setConfirmedOrder(res.data);
+        clear(); // Clear cart only when server confirms Paid
+      } else if (res?.data?.paymentStatus === "Pending") {
+        setVerificationError("Payment is currently awaiting confirmation from PayU. If your account was debited, your order will automatically update to Confirmed shortly.");
+      } else {
+        setVerificationError(res?.message || "Payment could not be verified by the server. If money was deducted, our automated reconciliation will confirm your order or refund it.");
+      }
+    } catch (err) {
+      setVerificationError(err.message || "Failed to verify order payment status with server.");
+    } finally {
+      setVerifyingPayment(false);
+    }
+  }, [successParam, clear]);
+
   useEffect(() => {
     if (successParam) {
-      async function fetchSuccessOrder() {
-        try {
-          const res = await db.getOrder(successParam);
-          if (res?.success && res.data) {
-            setConfirmedOrder(res.data);
-            clear(); // Clear cart on confirmed payment
-          } else {
-            setConfirmedOrder({ id: successParam, txnid: txnidParam });
-            clear();
-          }
-        } catch (_) {
-          setConfirmedOrder({ id: successParam, txnid: txnidParam });
-          clear();
-        }
-      }
-      fetchSuccessOrder();
+      verifyOrderPayment();
     }
-  }, [successParam, txnidParam, clear]);
+  }, [successParam, verifyOrderPayment]);
 
   // Sync store data & customer profile
   useEffect(() => {
@@ -466,10 +477,68 @@ export function Checkout() {
     }
   };
 
-  // SUCCESS SCREEN (Returned from PayU with verified payment)
-  if (confirmedOrder || successParam) {
-    const orderData = confirmedOrder || { id: successParam, txnid: txnidParam };
-    const orderNum = orderData.id || orderData.orderId || successParam;
+  // VERIFYING PAYMENT LOADER (Authoritative server verification)
+  if (verifyingPayment) {
+    return (
+      <Shell>
+        <main className="page" style={{ paddingBottom: "80px", maxWidth: "600px", margin: "0 auto", textAlign: "center", paddingTop: "60px" }}>
+          <div className="card" style={{ padding: "40px 24px", background: "#fffdf9", border: "1.5px solid #e8dac9", borderRadius: "16px" }}>
+            <div className="spinner" style={{ width: "40px", height: "40px", border: "3px solid #f5ece2", borderTopColor: "#b85d25", borderRadius: "50%", margin: "0 auto 20px", animation: "spin 1s linear infinite" }} />
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "28px", color: "#2b170d", margin: "0 0 10px" }}>
+              Verifying Sacred Payment...
+            </h2>
+            <p style={{ color: "#806f62", fontSize: "14px", lineHeight: "1.6", margin: "0" }}>
+              Please wait while our server authoritatively confirms your PayU transaction. Do not refresh or close this window.
+            </p>
+          </div>
+        </main>
+      </Shell>
+    );
+  }
+
+  // PAYMENT VERIFICATION ERROR / PENDING
+  if (verificationError && !confirmedOrder) {
+    return (
+      <Shell>
+        <main className="page" style={{ paddingBottom: "80px", maxWidth: "640px", margin: "0 auto", paddingTop: "40px" }}>
+          <div className="card" style={{ padding: "36px 24px", background: "#fffdf9", border: "1.5px solid #fde68a", borderRadius: "16px", textAlign: "center" }}>
+            <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#fef3c7", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <AlertCircle size={32} />
+            </div>
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "28px", color: "#92400e", margin: "0 0 12px" }}>
+              Payment Verification Pending
+            </h2>
+            <p style={{ color: "#4a3528", fontSize: "14.5px", lineHeight: "1.6", marginBottom: "24px" }}>
+              {verificationError}
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+              <button 
+                onClick={verifyOrderPayment} 
+                className="primary-btn" 
+                style={{ padding: "12px 24px", fontSize: "14px" }}
+              >
+                Retry Verification
+              </button>
+              {successParam && (
+                <Link 
+                  to={`/account/orders/${successParam}`} 
+                  className="outline-btn" 
+                  style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none", background: "#fffdf9" }}
+                >
+                  Check In My Account
+                </Link>
+              )}
+            </div>
+          </div>
+        </main>
+      </Shell>
+    );
+  }
+
+  // SUCCESS SCREEN (Authoritatively confirmed Paid by PayU server)
+  if (confirmedOrder && confirmedOrder.paymentStatus === "Paid") {
+    const orderData = confirmedOrder;
+    const orderNum = orderData.orderNumber || orderData.id || orderData.orderId || successParam;
     const finalTxnid = orderData.txnid || txnidParam || "Verified";
 
     return (
@@ -529,7 +598,7 @@ export function Checkout() {
               </div>
               <div style={{ color: "#4a3528", lineHeight: "1.6" }}>
                 <b>{orderData.customerName || (orderData.firstName ? `${orderData.firstName} ${orderData.lastName || ''}` : "Sacred Devotee")}</b><br />
-                {orderData.address || `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`}<br />
+                {orderData.address || (orderData.shippingAddress?.address ? `${orderData.shippingAddress.address}, ${orderData.shippingAddress.city}, ${orderData.shippingAddress.state} - ${orderData.shippingAddress.pincode}` : `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`)}<br />
                 📞 Phone: {orderData.phone || orderData.customerPhone || formData.phone}
                 {(orderData.customerEmail || formData.email) && <><br />✉️ Email: {orderData.customerEmail || formData.email}</>}
               </div>

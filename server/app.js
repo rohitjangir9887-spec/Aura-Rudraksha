@@ -195,12 +195,21 @@ export function createApp() {
     next();
   };
 
+  // Strict no-cache headers for sensitive payment and order transactions
+  const noCacheMiddleware = (req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    next();
+  };
+
   // API Routes Mount
   app.use("/api/upload", requireDb, uploadRoute);
   app.use("/api/admin/storage", requireDb, uploadRoute);
   app.use("/api/cart", requireDb, cartRoute);
   app.use("/api/products", requireDb, productsRoute);
-  app.use("/api/orders", requireDb, ordersRoute);
+  app.use("/api/orders", requireDb, noCacheMiddleware, ordersRoute);
   app.use("/api/customers", requireDb, customersRoute);
   app.use("/api/coupons", requireDb, couponsRoute);
   app.use("/api/promotions", requireDb, promotionsRoute);
@@ -216,7 +225,7 @@ export function createApp() {
   app.use("/api/wishlist", requireDb, wishlistRoute);
   app.use("/api/auth", requireDb, authRoute);
   app.use("/api/aura-ai", auraAiRoute);
-  app.use("/api/payment", requireDb, paymentRoute);
+  app.use("/api/payment", requireDb, noCacheMiddleware, paymentRoute);
 
   // Fallback for unhandled API routes: return JSON 404 (prevents returning SPA HTML for failed API calls)
   app.use("/api", (req, res) => {

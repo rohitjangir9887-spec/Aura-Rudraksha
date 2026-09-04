@@ -8,25 +8,59 @@ import {
   processPayuRefund
 } from "../controllers/paymentController.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rateLimit.js";
 
 const router = express.Router();
 
-// Initiate PayU Hosted Checkout Payment
-router.post("/initiate", requireAuth, initiatePayuPayment);
+// Strict anti-caching for all payment endpoints
+router.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+  next();
+});
 
-// PayU Browser Redirect Callback (surl/furl - standard PayU Hosted Checkout POST)
-router.post("/payu-callback", handlePayuCallback);
+// Dedicated rate limiters for payment actions
+const paymentInitiateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  message: "Too many payment initiation attempts. Please wait a moment.",
+  prefix: "pay_init"
+});
 
-// PayU Background Server Webhook
-router.post("/payu-webhook", handlePayuWebhook);
+const paymentVerifyLimit = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  message: "Too many payment verification checks. Please wait a moment.",
+  prefix: "pay_ver"
+});
 
-// Check / Verify Payment status for an order
-router.get("/verify/:orderId", requireAuth, verifyPaymentStatus);
+const paymentRefundLimit = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  message: "Too many refund requests. Please wait a moment.",
+  prefix: "pay_ref"
+});
 
-// Retry Payment on an existing pending/failed order
-router.post("/retry/:orderId", requireAuth, retryPayuPayment);
+// 1. Initiate PayU Hosted Checkout Payment (Customer authenticated)
+router.post("/initiate", requireAuth, paymentInitiateLimit, initiatePayuPayment);
 
-// Admin Process PayU Live Refund
-router.post("/refund/:orderId", requireAdmin, processPayuRefund);
+// 2. PayU Browser Redirect Callback (surl/furl - standard PayU Hosted Checkout POST / GET fallback)
+// DO NOT rate-limit PayU customer redirect callback
+router.all("/payu-callback", handlePayuCallback);
+
+// 3. PayU Background Server Webhook
+// DO NOT rate-limit PayU server webhook
+router.all("/payu-webhook", handlePayuWebhook);
+
+// 4. Check / Verify Payment status for an order
+router.get("/verify/:orderId", requireAuth, paymentVerifyLimit, verifyPaymentStatus);
+
+// 5. Retry Payment on an existing pending/failed order
+router.post("/retry/:orderId", requireAuth, paymentInitiateLimit, retryPayuPayment);
+
+// 6. Admin Process PayU Live Refund
+router.post("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
 
 export default router;

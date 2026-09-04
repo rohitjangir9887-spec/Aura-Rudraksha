@@ -228,13 +228,14 @@ export async function createOrder(req, res, next) {
       finalAmount: totals.finalTotal,
       savings: totals.totalSavings,
       totalSavings: totals.totalSavings,
-      status: "Confirmed",
-      orderStatus: "Confirmed",
+      status: "Pending",
+      orderStatus: "Pending",
       orderSource: data.orderSource || data.source || "website",
       source: data.orderSource || data.source || "website",
-      paymentStatus: data.paymentStatus || "Pending",
+      paymentStatus: data.paymentStatus === "Paid" ? "Paid" : "Pending",
       paymentMethod: data.paymentMethod || "PayU Hosted Checkout (UPI / Cards / NetBanking)",
-      shippingAddress
+      shippingAddress,
+      inventoryDeducted: data.paymentStatus === "Paid"
     };
 
     const email = (orderPayload.customerEmail || data.email || "").trim().toLowerCase();
@@ -256,22 +257,28 @@ export async function createOrder(req, res, next) {
     // Save in deduplication cache
     recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
 
-    // Update Coupon Usage
-    if (validCouponDoc) {
-      if (isDbConnected()) {
-        await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
-      } else {
-        validCouponDoc.usage = (validCouponDoc.usage || 0) + 1;
+    // Deduct stock and update coupon usage ONLY if immediately paid (otherwise handled securely upon PayU callback/webhook)
+    if (orderPayload.inventoryDeducted) {
+      // Update Coupon Usage
+      if (validCouponDoc) {
+        if (isDbConnected()) {
+          await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
+        } else {
+          validCouponDoc.usage = (validCouponDoc.usage || 0) + 1;
+        }
       }
-    }
 
-    // Update Product Stock
-    for (const item of totals.items) {
-      if (isDbConnected()) {
-        await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: -item.quantity } });
-      } else {
-        const memP = inMemoryStore.products.find(p => String(p.id) === String(item.id));
-        if (memP && memP.stock !== undefined) memP.stock = Math.max(0, memP.stock - item.quantity);
+      // Update Product Stock (prevent negative stock)
+      for (const item of totals.items) {
+        if (isDbConnected()) {
+          await Product.findOneAndUpdate(
+            { id: item.id, stock: { $gte: item.quantity } },
+            { $inc: { stock: -item.quantity } }
+          );
+        } else {
+          const memP = inMemoryStore.products.find(p => String(p.id) === String(item.id));
+          if (memP && memP.stock !== undefined) memP.stock = Math.max(0, memP.stock - item.quantity);
+        }
       }
     }
 
@@ -337,7 +344,7 @@ export async function updateOrder(req, res, next) {
       return res.json({ success: true, data: inMemoryStore.orders[idx] });
     }
 
-    let existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }] });
+    let existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] });
     if (!existing && id.match(/^[0-9a-fA-F]{24}$/)) {
       existing = await Order.findById(id);
     }

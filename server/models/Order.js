@@ -61,6 +61,13 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+orderSchema.index({ orderNumber: 1 });
+orderSchema.index({ txnid: 1 });
+orderSchema.index({ mihpayid: 1 });
+orderSchema.index({ authUserId: 1 });
+orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ "paymentAttempts.txnid": 1 });
+
 orderSchema.pre("save", function () {
   if (!this.orderId && this.id) {
     this.orderId = this.id;
