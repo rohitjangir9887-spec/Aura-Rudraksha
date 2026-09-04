@@ -98,7 +98,7 @@ export async function getReviews(req, res, next) {
       if (type && type !== "all") filtered = filtered.filter(r => r.type === type);
       if (source && source !== "all") filtered = filtered.filter(r => r.source === source);
       if (productId && productId !== "all") {
-        filtered = filtered.filter(r => String(r.productId) === String(productId) || r.type === "store" || String(r.productId) === "5");
+        filtered = filtered.filter(r => String(r.productId) === String(productId));
       }
       if (!isAdmin) {
         filtered = filtered.filter(r => (r.status === "Approved" || r.status === "Published") && r.source !== "ai_draft");
@@ -119,7 +119,7 @@ export async function getReviews(req, res, next) {
     if (source && typeof source === "string" && source !== "all") query.source = source;
 
     if (productId && productId !== "all" && typeof productId === "string") {
-      query.$or = [{ productId: String(productId) }, { type: "store" }, { productId: "5" }];
+      query.productId = String(productId);
     }
 
     // Public (non-admin) callers only see approved or published genuine customer reviews
@@ -373,30 +373,73 @@ export async function saveReviewSettings(req, res, next) {
 // ----------------------------------------------------------------------
 // NATURAL FICTIONAL DEVOTEE PERSONAS & RELATIVE DATES (100+ UNIQUE NAMES)
 // ----------------------------------------------------------------------
-const FICTIONAL_DEVOTEE_NAMES = [
-  "Pandit Rajesh Sharma", "Dr. Shalini Deshmukh", "Captain Virendra Singh", "Priyanjali Sen",
-  "Karthik Sundaram", "Aditya Kulkarni", "Meera Nambiar", "Gurpreet Singh", "Sunita Chawla",
-  "Tarun Malhotra", "Deepika Joshi", "Anurag Saxena", "Siddharth Rao", "Bhavna Patel",
-  "Madhavan Pillai", "Shruti Agarwal", "Gauri Soni", "Nitin Khurana", "Vandana Nair",
-  "Sanjeev Mukherjee", "Pooja Trivedi", "Alok Pandey", "Prof. R. C. Chaturvedi", "Geeta Bhattacharya",
-  "Harish Rawat", "Deepak Solanki", "Dr. Mukund Shastri", "Meenakshi Sundaram", "Vikramaditya Rathore",
-  "Neelam Upadhyay", "Subhash Mahapatra", "Swati Saxena", "Gaurav Mishra", "Kunal Singhania",
-  "Vandana Tripathi", "Abhishek Dubey", "Rahul Sharma", "Amit Patel", "Pooja Verma",
-  "Suresh Kumar", "Priya Nair", "Rajesh Gupta", "Anjali Deshmukh", "Manoj Tiwari",
-  "Sunil Choudhary", "Ritu Agrawal", "Sanjay Kulkarni", "Neha Bhatt", "Ashok Pandey",
-  "Kavita Reddy", "Alok Sengupta", "Shweta Iyengar", "Manish Malhotra", "Divya Pillai",
-  "Rohit Jangir", "Radheshyam Agrawal", "Brijesh Mishra", "Archana Roy", "Kamal Kishor Varma",
-  "Sunita Somani", "Vidyadhar Joshi", "Hemant Hegde", "Padmini Raman", "Gokul Prasad",
-  "Aniruddh Kotecha", "Devika Rani", "Yogesh Bhati", "Dhananjay Saxena", "Premchand Pareek",
-  "Shubhangi Gaikwad", "Lokesh Choudhary", "Prashant Thapar", "Nirmala Devi", "Satish Chandra",
-  "Manju Rani", "Mahendra Singh", "Bhagwan Das", "Indira Iyer", "Ganesh Shastri",
-  "Kusum Sharma", "Shashi Bhushan", "Urmila Devi", "Vishnu Prasad", "Narayan Das",
-  "Jagdish Prasad", "Dinesh Khandelwal", "Sarojini Naidu", "Avinash Tripathi", "Mukesh Bhasin",
-  "Pankaj Soni", "Sarita Ghosh", "Mahesh Bhati", "Seema Rastogi", "Virendra Kapoor",
-  "Rameshwar Dayal", "Pramod Biyani", "Lata Shekhawat", "Devendra Jhajharia", "Sunil Dutt Sharma"
+// ----------------------------------------------------------------------
+// NATURAL FICTIONAL DEVOTEE PERSONAS & RELATIVE DATES (MASSIVE DIVERSE POOL)
+// ----------------------------------------------------------------------
+const INDIAN_FIRST_NAMES = [
+  "Aarav", "Advait", "Aditya", "Ajay", "Alok", "Amit", "Anand", "Anil", "Aniruddh", "Ankush", 
+  "Anshul", "Anurag", "Arjun", "Arun", "Arvind", "Ashish", "Ashok", "Avinash", "Balram", "Bhagwan",
+  "Bhanu", "Bharat", "Bhaskar", "Brijesh", "Chandan", "Chetan", "Darshan", "Deepak", "Devendra", "Dhananjay",
+  "Dharmendra", "Dinesh", "Divyansh", "Gajendra", "Ganesh", "Gaurav", "Girish", "Gokul", "Gopal", "Govind",
+  "Gurpreet", "Harish", "Harishankar", "Hemant", "Himanshu", "Ishwar", "Jagdish", "Jayant", "Jitendra", "Kailash",
+  "Kamal", "Karan", "Karthik", "Keshav", "Kishore", "Krishan", "Kuldeep", "Kunal", "Lalit", "Lokesh",
+  "Madhav", "Madhavan", "Mahendra", "Mahesh", "Manish", "Manoj", "Mayank", "Mukesh", "Mukund", "Nandkishor",
+  "Naresh", "Navin", "Neeraj", "Nikhil", "Nilesh", "Nirmal", "Nitin", "Omkar", "Pankaj", "Parag",
+  "Pawan", "Prabhat", "Prakash", "Pramod", "Pranav", "Prashant", "Prateek", "Praveen", "Prem", "Raghav",
+  "Rahul", "Rajeev", "Rajendra", "Rajesh", "Rakesh", "Ramakant", "Raman", "Ramesh", "Ratan", "Ravindra",
+  "Ritesh", "Rohit", "Sachin", "Samir", "Sandeep", "Sanjay", "Sanjeev", "Santosh", "Satish", "Saurabh",
+  "Shailendra", "Shashi", "Shiva", "Shivendra", "Shravan", "Shrikant", "Shubham", "Siddharth", "Somesh", "Subhash",
+  "Sudhir", "Sumit", "Sundaram", "Sunil", "Suresh", "Surya", "Tarun", "Trilok", "Uday", "Umang",
+  "Umesh", "Utkarsh", "Vaibhav", "Varun", "Vasant", "Vedant", "Venkatesh", "Vidur", "Vidyadhar", "Vijay",
+  "Vikas", "Vikram", "Vikramaditya", "Vimal", "Vinay", "Vinod", "Vipin", "Virendra", "Vishal", "Vishnu",
+  "Vivek", "Yash", "Yashwant", "Yogendra", "Yogesh",
+  // Female Devotee Names
+  "Aarti", "Aditi", "Alka", "Amrita", "Ananya", "Anjali", "Anita", "Anupama", "Aparna", "Archana",
+  "Asha", "Babita", "Bhavna", "Chhavi", "Deepa", "Deepika", "Devika", "Divya", "Gayatri", "Geeta",
+  "Gauri", "Hemlata", "Indira", "Jyoti", "Kalyani", "Kamini", "Kanchan", "Kavita", "Kiran", "Komal",
+  "Kusum", "Lata", "Madhu", "Madhuri", "Mamta", "Manju", "Meena", "Meenakshi", "Meera", "Mona",
+  "Monika", "Nandini", "Neelam", "Neelima", "Neha", "Nirmala", "Nisha", "Pallavi", "Pooja", "Prabha",
+  "Prachi", "Pratibha", "Preeti", "Priya", "Priyanjali", "Priyanka", "Pushpa", "Rachna", "Radha", "Rajni",
+  "Rakhi", "Rashmi", "Rekha", "Renu", "Richa", "Ritu", "Rupa", "Sakshi", "Sandhya", "Sangeeta",
+  "Sapna", "Sarita", "Saroj", "Seema", "Shalini", "Sharda", "Shashi", "Shikha", "Shilpa", "Shivani",
+  "Shobha", "Shraddha", "Shreya", "Shruti", "Sneha", "Sonia", "Sudha", "Suman", "Sunita", "Surabhi",
+  "Sushila", "Sushma", "Swati", "Tanuja", "Uma", "Urmila", "Usha", "Vandana", "Varsha", "Vidya"
 ];
 
-const INDIAN_DEVOTEE_NAMES = FICTIONAL_DEVOTEE_NAMES;
+const INDIAN_LAST_NAMES = [
+  "Sharma", "Verma", "Gupta", "Malhotra", "Kapoor", "Mishra", "Pandey", "Tiwari", "Dubey", "Shukla",
+  "Chaturvedi", "Tripathi", "Upadhyay", "Joshi", "Bhatt", "Shastri", "Vashishtha", "Saxena", "Srivastava", "Mathur",
+  "Agarwal", "Agrawal", "Goyal", "Bansal", "Mittal", "Singhal", "Garg", "Jindal", "Singhania", "Khandelwal",
+  "Somani", "Biyani", "Pareek", "Maheshwari", "Patel", "Shah", "Mehta", "Desai", "Amin", "Panchal",
+  "Choudhary", "Rathore", "Shekhawat", "Chauhan", "Solanki", "Bhati", "Sisodia", "Jhala", "Tanwar", "Gehlot",
+  "Deshmukh", "Kulkarni", "Patil", "Pawar", "Gaikwad", "Shinde", "Jadhav", "Bhosale", "Kadam", "Sawant",
+  "Nair", "Pillai", "Menon", "Kurup", "Nambiar", "Iyer", "Iyengar", "Sundaram", "Subramanian", "Raman",
+  "Swaminathan", "Venkatesan", "Reddy", "Rao", "Chowdary", "Naidu", "Varma", "Raju", "Hegde", "Bhat",
+  "Shetty", "Gowda", "Mukherjee", "Banerjee", "Chatterjee", "Bhattacharya", "Sengupta", "Dey", "Ghosh", "Roy",
+  "Mahapatra", "Pradhan", "Patnaik", "Singh", "Kaur", "Rawat", "Negi", "Thakur", "Chawla", "Khurana",
+  "Soni", "Ahuja", "Bhasin", "Kohli", "Seth", "Bhatia", "Dhawan", "Suri", "Arora", "Taneja"
+];
+
+const RESPECTFUL_TITLES = [
+  "", "", "", "", "", // Weighted towards regular names
+  "Dr. ", "Adv. ", "Prof. ", "Pt. ", "Acharya ", "Capt. ", "Er. ", "Shri "
+];
+
+function generateUniqueDevoteeName(usedSet) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const title = RESPECTFUL_TITLES[Math.floor(Math.random() * RESPECTFUL_TITLES.length)];
+    const first = INDIAN_FIRST_NAMES[Math.floor(Math.random() * INDIAN_FIRST_NAMES.length)];
+    const last = INDIAN_LAST_NAMES[Math.floor(Math.random() * INDIAN_LAST_NAMES.length)];
+    const fullName = `${title}${first} ${last}`.trim();
+    if (!usedSet.has(fullName)) {
+      usedSet.add(fullName);
+      return fullName;
+    }
+  }
+  const fallback = `Devotee ${Math.floor(Math.random() * 9000) + 1000}`;
+  usedSet.add(fallback);
+  return fallback;
+}
 
 const INDIAN_DEVOTEE_CITIES = [
   "Varanasi, UP", "Haridwar, UK", "Rishikesh, UK", "Jaipur, RJ", 
@@ -405,13 +448,17 @@ const INDIAN_DEVOTEE_CITIES = [
   "Mumbai, MH", "Chennai, TN", "Kolkata, WB", "Ayodhya, UP", 
   "Bhopal, MP", "Chandigarh", "Dehradun, UK", "Nashik, MH",
   "Mathura, UP", "Coimbatore, TN", "Nagpur, MH", "Surat, GJ",
-  "Prayagraj, UP", "Shimla, HP", "Guwahati, AS", "Vadodara, GJ"
+  "Prayagraj, UP", "Shimla, HP", "Guwahati, AS", "Vadodara, GJ",
+  "Jodhpur, RJ", "Udaipur, RJ", "Kota, RJ", "Bhubaneswar, OD",
+  "Puri, OD", "Kochi, KL", "Madurai, TN", "Tirupati, AP",
+  "Visakhapatnam, AP", "Mysuru, KA", "Patna, BR", "Gaya, BR",
+  "Ranchi, JH", "Jammu, JK", "Amritsar, PB", "Gurugram, HR"
 ];
 
 const RELATIVE_DATES = [
-  "2 days ago", "4 days ago", "1 week ago", "2 weeks ago", 
-  "3 weeks ago", "1 month ago", "Yesterday", "5 days ago",
-  "3 days ago", "6 days ago", "10 days ago", "12 days ago"
+  "Yesterday", "2 days ago", "3 days ago", "4 days ago", "5 days ago",
+  "6 days ago", "1 week ago", "10 days ago", "2 weeks ago", "3 weeks ago",
+  "1 month ago", "5 weeks ago", "Recently"
 ];
 
 function shuffleArray(arr) {
@@ -437,6 +484,7 @@ function extractKeyFeaturesList(descriptionText) {
 // ----------------------------------------------------------------------
 function buildDiverseFallbackDrafts({ 
   productName, 
+  productId = "all",
   productDescription = "",
   keyFeatures = "",
   language = "English", 
@@ -447,172 +495,102 @@ function buildDiverseFallbackDrafts({
   existingNames = new Set()
 }) {
   const drafts = [];
-  const prodName = productName?.trim() || "Product";
-  const featText = (keyFeatures || productDescription || "").trim();
-  const featuresList = extractKeyFeaturesList(featText);
+  const prodName = productName?.trim() || "Rudraksha Bead";
+  const targetProductId = String(productId || "all");
 
-  // Available unique names shuffled
-  const availableNames = shuffleArray(FICTIONAL_DEVOTEE_NAMES).filter(n => !existingNames.has(n));
-  const availableCities = shuffleArray(INDIAN_DEVOTEE_CITIES);
+  const usedTextSet = new Set();
+  const usedNameSet = new Set(existingNames);
 
-  // Expanded Hinglish templates with realistic customer details
-  const hinglishTemplates = [
-    {
-      title: "100% Genuine Quality",
-      fn: (p, f) => `Bohot hi authentic aur pure bead hai. Lab certificate QR code test kiya, result exact match hua. Packaging bohot divine thi.`
-    },
-    {
-      title: "Deep Mukhi Lines",
-      fn: (p, f) => `Mukhi lines bilkul clear aur continuous hain. Water test bhi pass hua, seed float nahi kar raha. Very happy with purchase!`
-    },
-    {
-      title: "Fast DTDC Delivery",
-      fn: (p, f) => `3 din mein Jaipur deliver ho gaya. Wooden velvet box packing ke saath bilva patra fragrance bhi thi. Impressive service!`
-    },
-    {
-      title: "Peaceful Meditation Experience",
-      fn: (p, f) => `Shaam ki Shiva sadhana mein wear karke bohot calm feel hota hai. ${f[0] ? f[0] + ' ki quality super hai.' : 'Pure vibes!'}`
-    },
-    {
-      title: "Solid Build & Natural Finish",
-      fn: (p, f) => `Koi artificial polish ya color coating nahi hai. Natural texture aur solid weight hai. Highly recommended for daily wear.`
-    },
-    {
-      title: "Worth Every Rupee",
-      fn: (p, f) => `Offline market mein same genuine Nepal bead bohot mehenga tha. Aura Rudraksha ne honest price aur lab report di. Thank you!`
-    },
-    {
-      title: "Energized & Blessed",
-      fn: (p, f) => `Pran pratishtha certified product laga. Wear karne ke baad positive energy feel hoti hai. Packaging safe and premium thi.`
-    },
-    {
-      title: "Perfect Silver Capping",
-      fn: (p, f) => `Handcrafted silver capping bohot neat and strong hai. Daily usage mein bilkul skin-friendly hai. Har Har Mahadev! 🙏`
-    },
-    {
-      title: "Exact as Shown in Photos",
-      fn: (p, f) => `Photo se better quality receive hui. Natural Mukhi shape and unbroken grooves. Truly reliable store for authentic beads.`
-    },
-    {
-      title: "Great Customer Support",
-      fn: (p, f) => `Authenticity ke regarding questions the, team ne lab report verify karke instant call par support diya. Very satisfied!`
-    }
+  // Dynamic review generator components for varied natural text
+  const openersHindi = [
+    "ॐ नमः शिवाय! ", "हर हर महादेव! ", "जय भोलेनाथ! ", "अत्यंत दिव्य अनुभव। ", "प्रणाम, ",
+    "मैंने यह पावन रुद्राक्ष मंगवाया। ", "दर्शन मात्र से ही मन प्रसन्न हो गया। ", "उत्कृष्ट सात्विक उत्पाद। "
+  ];
+  const bodiesHindi = [
+    `रुद्राक्ष का दाना 100% प्राकृतिक और ठोस है। लैब सर्टिफिकेट का QR कोड तुरंत मैच हुआ।`,
+    `गहरी और स्पष्ट मुखी रेखाएं हैं। जल परीक्षण में भी यह प्राकृतिक रूप से डूब गया।`,
+    `दैनिक शिव पूजा और ध्यान के समय इसे धारण करने से अद्भुत मानसिक शांति और सकारात्मक ऊर्जा महसूस होती है।`,
+    `पैकेजिंग बहुत ही सुरक्षित और पवित्र थी, साथ में बेलपत्र की महक भी थी।`,
+    `नेपाल का असली दाना उचित मूल्य में मिला। बाजार के नकली दानों से बिल्कुल अलग और शुद्ध है।`,
+    `चांदी की नक्काशी और फिनिशिंग बहुत मजबूत और आकर्षक है। त्वचा पर धारण करने में बहुत आरामदायक है।`,
+    `उत्पाद की गुणवत्ता और वजन दोनों बहुत उत्तम हैं। किसी भी रासायनिक पॉलिश या बनावटी रंग से मुक्त है।`
+  ];
+  const closersHindi = [
+    "औरा रुद्राक्ष का हृदय से धन्यवाद।", "पूर्णतः संतुष्ट ग्राहक!", "सभी शिव भक्तों को अवश्य धारण करना चाहिए।",
+    "समय पर डिलीवरी के लिए धन्यवाद।", "अत्यंत अनुशंसित!", "जय शिव शंभू! 🙏"
   ];
 
-  // Expanded Hindi templates in Devanagari
-  const hindiTemplates = [
-    {
-      title: "100% शुद्ध एवं प्रामाणिक",
-      fn: (p, f) => `ॐ नमः शिवाय! रुद्राक्ष का दाना अत्यंत शुद्ध और प्राकृतिक है। लैब टेस्ट सर्टिफिकेट का कोड ऑनलाइन मैच हो गया। मन प्रसन्न है।`
-    },
-    {
-      title: "स्पष्ट एवं गहरी मुखी रेखाएं",
-      fn: (p, f) => `मुखी रेखाएं बिना किसी बनावटी कट के गहरी और अखंडित हैं। जल परीक्षण में भी प्राकृतिक रूप से डूब गया। अत्यंत प्रामाणिक।`
-    },
-    {
-      title: "सुरक्षित एवं सुंदर पैकेजिंग",
-      fn: (p, f) => `लकड़ी के बॉक्स में बेलपत्र की महक के साथ सुरक्षित रूप से प्राप्त हुआ। 3 दिनों के भीतर समय पर डिलीवरी मिली।`
-    },
-    {
-      title: "साधना में असीम शांति",
-      fn: (p, f) => `दैनिक शिव पूजा और ध्यान के दौरान धारण करने से मन में अद्भुत एकाग्रता और शांति अनुभव होती है। सात्विक ऊर्जा।`
-    },
-    {
-      title: "उचित मूल्य में सर्वोत्तम गुणवत्ता",
-      fn: (p, f) => `नेपाल का असली दाना उचित मूल्य पर मिला। बाजार में नकली रुद्राक्षों के बीच औरा रुद्राक्ष का विश्वास सच में सराहनीय है।`
-    },
-    {
-      title: "प्राकृतिक स्वरूप एवं ठोस वजन",
-      fn: (p, f) => `किसी भी प्रकार की कृत्रिम पॉलिश या रंग नहीं है। प्राकृतिक गंध और वजन से ही इसकी शुद्धता की पहचान होती है।`
-    },
-    {
-      title: "उत्कृष्ट चांदी की नक्काशी",
-      fn: (p, f) => `चांदी की कैपिंग बहुत मजबूत और आकर्षक बनाई गई है। त्वचा पर धारण करने में बहुत सहज है। जय भोलेनाथ! 🙏`
-    },
-    {
-      title: "पूर्णतः संतुष्ट ग्राहक",
-      fn: (p, f) => `जैसा विवरण में दिया गया था, बिल्कुल वैसा ही शुद्ध दाना प्राप्त हुआ। औरा टीम को हार्दिक धन्यवाद।`
-    }
+  const openersHinglish = [
+    "Har Har Mahadev! ", "Om Namah Shivaya! ", "Truly blessed experience. ", "Namaste! ",
+    "Received this sacred bead today. ", "Superb authentic quality! ", "Honest review: "
+  ];
+  const bodiesHinglish = [
+    `Product 100% genuine aur authentic Nepal origin ka hai. Lab test report QR code perfect match hua.`,
+    `Mukhi lines bilkul clear aur continuous hain. Density aur weight se hi original Nepali bead lagta hai.`,
+    `Daily morning pooja aur meditation ke time wear karke bohot peace aur positive vibrations feel hoti hain.`,
+    `DTDC express delivery bohot fast thi aur velvet keepsake box packaging truly royal aur safe thi.`,
+    `Market mein local shops fake bechte hain, but Aura Rudraksha ne original certificate ke saath authentic bead provide kiya.`,
+    `Sterling silver capping bohot sturdy hai aur skin par comfortable fit hoti hai. No rough edges.`,
+    `Natural texture, no artificial chemicals or synthetic polish. Pure Himalayan energy!`
+  ];
+  const closersHinglish = [
+    "Highly recommended to all devotees!", "Very happy with this divine purchase.", "Thank you Aura Rudraksha team.",
+    "Worth every single rupee!", "Will definitely order again. 🙏"
   ];
 
-  // Expanded English templates
-  const englishTemplates = [
-    {
-      title: "Verified Authentic Nepal Bead",
-      fn: (p, f) => `Verified the lab report via QR code on arrival — matched perfectly. Clear, unbroken Mukhi lines with a rich natural texture.`
-    },
-    {
-      title: "Calm & Grounding Energy",
-      fn: (p, f) => `Wearing this for daily evening meditation has brought noticeable mental clarity. Pure divine vibrations and comfortable fit.`
-    },
-    {
-      title: "Prompt DTDC Express Delivery",
-      fn: (p, f) => `Arrived within 3 business days in a beautiful wooden keepsake box. Safe bubble wrapping and pristine condition.`
-    },
-    {
-      title: "No Artificial Polish or Dyes",
-      fn: (p, f) => `Excellently preserved natural seed without chemical dyes or artificially carved grooves. Heavy density and genuine feel.`
-    },
-    {
-      title: "Honest Pricing for Genuine Quality",
-      fn: (p, f) => `Compared to local stores selling fake plastic composites, this is 100% genuine Nepalese quality with government lab proof.`
-    },
-    {
-      title: "Exquisite Silver Capping Detail",
-      fn: (p, f) => `The sterling silver capping is sturdy and smooth. Doesn't snag on clothes or irritate sensitive skin. Highly satisfied!`
-    },
-    {
-      title: "Accurate Specifications & Support",
-      fn: (p, f) => `The dimensions and weight match the test card exactly. Responsive support team answered all my care instructions promptly.`
-    },
-    {
-      title: "Sacred Unboxing Experience",
-      fn: (p, f) => `Opened the parcel to find sacred bilva leaves and gangajal scent inside. A truly devoted and spiritual touch from the brand.`
-    }
+  const openersEnglish = [
+    "Om Namah Shivaya! ", "Genuine & Divine. ", "Outstanding Vedic quality. ", "Authentic Himalayan Bead. ",
+    "Verified Purchase Review: ", "Blessed experience. "
+  ];
+  const bodiesEnglish = [
+    `The Mukhi lines are deep, clear, and naturally formed without any artificial carving. Lab QR report verified instantly.`,
+    `Wearing this during evening meditation has brought deep mental clarity, calm focus, and positive grounding aura.`,
+    `Arrived safely within 3 business days in a beautiful velvet wooden box with sacred Gangajal aroma.`,
+    `Heavy density, unpolished natural surface, and passed the pure water test with flying colors.`,
+    `Superior craftsmanship on the sterling silver capping. It rests smoothly against the chest without irritation.`,
+    `Honest pricing for an authenticated Nepal seed with valid government gemological lab certification.`
+  ];
+  const closersEnglish = [
+    "Extremely satisfied with this purchase!", "Highly recommended for serious spiritual practitioners.",
+    "A trustworthy brand for genuine Rudraksha.", "Har Har Mahadev! 🙏"
   ];
 
   const resolvedRatingMode = ratingRange || ratingMix || "Realistic Mix";
-  const usedTextSet = new Set();
-  const usedNameSet = new Set(existingNames);
 
   for (let i = 0; i < count; i++) {
     let currentLang = language;
     if (language === "Auto Mix") {
-      const mod = i % 3;
+      const mod = (i + Math.floor(Math.random() * 3)) % 3;
       currentLang = mod === 0 ? "Hinglish" : (mod === 1 ? "Hindi" : "English");
     }
 
-    let tplList = englishTemplates;
-    if (currentLang === "Hindi") tplList = hindiTemplates;
-    else if (currentLang === "Hinglish") tplList = hinglishTemplates;
+    let textBody = "";
+    let title = "";
 
-    const shuffledTpls = shuffleArray(tplList);
-    let selectedTpl = shuffledTpls[0];
-    let textBody = selectedTpl.fn(prodName, featuresList);
-
-    // Ensure unique textBody if possible
-    for (const candidate of shuffledTpls) {
-      const candidateText = candidate.fn(prodName, featuresList);
-      if (!usedTextSet.has(candidateText)) {
-        selectedTpl = candidate;
-        textBody = candidateText;
-        break;
-      }
+    if (currentLang === "Hindi") {
+      const op = openersHindi[Math.floor(Math.random() * openersHindi.length)];
+      const bd = bodiesHindi[(i + Math.floor(Math.random() * bodiesHindi.length)) % bodiesHindi.length];
+      const cl = closersHindi[Math.floor(Math.random() * closersHindi.length)];
+      textBody = `${op}${bd} ${cl}`;
+      title = ["100% शुद्ध एवं प्रामाणिक", "अद्भुत सात्विक ऊर्जा", "स्पष्ट मुखी रेखाएं", "उत्कृष्ट पैकेजिंग", "पूर्णतः संतुष्ट ग्राहक"][i % 5];
+    } else if (currentLang === "Hinglish") {
+      const op = openersHinglish[Math.floor(Math.random() * openersHinglish.length)];
+      const bd = bodiesHinglish[(i + Math.floor(Math.random() * bodiesHinglish.length)) % bodiesHinglish.length];
+      const cl = closersHinglish[Math.floor(Math.random() * closersHinglish.length)];
+      textBody = `${op}${bd} ${cl}`;
+      title = ["100% Genuine Quality", "Deep Mukhi Lines", "Fast Express Delivery", "Peaceful Meditation", "Worth Every Rupee"][i % 5];
+    } else {
+      const op = openersEnglish[Math.floor(Math.random() * openersEnglish.length)];
+      const bd = bodiesEnglish[(i + Math.floor(Math.random() * bodiesEnglish.length)) % bodiesEnglish.length];
+      const cl = closersEnglish[Math.floor(Math.random() * closersEnglish.length)];
+      textBody = `${op}${bd} ${cl}`;
+      title = ["Verified Authentic Nepal Bead", "Deep Calming Energy", "Pristine Sacred Packaging", "Natural & Pure Finish", "Exquisite Craftsmanship"][i % 5];
     }
-    usedTextSet.add(textBody);
 
     // Pick unique author name
-    let devoteeName = availableNames[i % availableNames.length];
-    for (const nameCandidate of availableNames) {
-      if (!usedNameSet.has(nameCandidate)) {
-        devoteeName = nameCandidate;
-        break;
-      }
-    }
-    usedNameSet.add(devoteeName);
-
-    const devoteeCity = availableCities[i % availableCities.length];
-    const relativeDate = RELATIVE_DATES[i % RELATIVE_DATES.length];
+    const devoteeName = generateUniqueDevoteeName(usedNameSet);
+    const devoteeCity = INDIAN_DEVOTEE_CITIES[Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length)];
+    const relativeDate = RELATIVE_DATES[Math.floor(Math.random() * RELATIVE_DATES.length)];
 
     let r = 5;
     if (resolvedRatingMode.includes("5 Stars Only") || resolvedRatingMode === "5_stars") {
@@ -624,17 +602,17 @@ function buildDiverseFallbackDrafts({
     } else if (resolvedRatingMode.includes("Mostly Positive")) {
       r = (i % 4 === 3) ? 4 : 5;
     } else {
-      const mod = i % 5;
+      const mod = (i + Math.floor(Math.random() * 5)) % 5;
       if (mod === 0 || mod === 1 || mod === 3) r = 5;
       else if (mod === 2 || mod === 4) r = 4;
     }
 
     drafts.push({
-      id: `DRAFT-${Date.now()}-${i + 1}-${Math.random().toString(36).substr(2, 4)}`,
-      title: selectedTpl.title || `${prodName} Review`,
+      id: `DRAFT-${Date.now()}-${i + 1}-${Math.random().toString(36).substr(2, 5)}`,
+      title: title || `${prodName} Review`,
       text: textBody,
       rating: r,
-      isAiGenerated: false,
+      isAiGenerated: true,
       isSample: false,
       name: devoteeName,
       city: devoteeCity,
@@ -643,9 +621,9 @@ function buildDiverseFallbackDrafts({
       featured: i === 0,
       status: "Approved",
       source: "customer",
-      helpfulUp: Math.floor(Math.random() * 5) + 1,
+      helpfulUp: Math.floor(Math.random() * 8) + 1,
       helpfulDown: 0,
-      productId: "5",
+      productId: targetProductId,
       productName: prodName,
       type: "product",
       language: currentLang,
@@ -662,7 +640,7 @@ function buildDiverseFallbackDrafts({
 export async function generateReviewDrafts(req, res, next) {
   try {
     const {
-      productId = "5",
+      productId = "all",
       productName,
       productDescription = "",
       keyFeatures = "",
@@ -679,6 +657,7 @@ export async function generateReviewDrafts(req, res, next) {
       useRAG = true
     } = req.body;
 
+    const targetProductId = String(productId || "all");
     const requestedCount = Math.max(1, Math.min(50, Number(count) || 5));
     const effectiveLanguage = language || languageMix || "Hinglish";
     const effectiveRatingMode = ratingRange || ratingMix || "Realistic Mix";
@@ -687,9 +666,9 @@ export async function generateReviewDrafts(req, res, next) {
     let resolvedProductName = productName?.trim();
     let productDetails = (keyFeatures || productDescription || "").trim();
 
-    if (!resolvedProductName && productId && productId !== "all") {
+    if (!resolvedProductName && targetProductId !== "all") {
       if (isDbConnected()) {
-        const p = await Product.findOne({ id: String(productId) }).lean();
+        const p = await Product.findOne({ id: targetProductId }).lean();
         if (p) {
           resolvedProductName = p.name;
           if (!productDetails) {
@@ -716,28 +695,35 @@ export async function generateReviewDrafts(req, res, next) {
     if (geminiApiKey) {
       try {
         const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-        const systemPrompt = `You are an AI review generator for an authentic Indian Rudraksha store (Aura Rudraksha). You generate realistic, authentic customer review drafts for admin review.
+        const randomEntropy = Date.now() + "-" + Math.random().toString(36).substring(2, 7);
+        const systemPrompt = `You are an authentic Indian customer review generator for Aura Rudraksha.
+Generate realistic, completely distinct customer reviews for e-commerce products.
 
 CRITICAL MANDATES:
-1. DUPLICATE PREVENTION: EVERY single review MUST have a completely unique reviewer name from diverse parts of India (e.g. 'Dr. Shalini Deshmukh', 'Captain Virendra Singh', 'Priyanjali Sen', 'Karthik Sundaram', 'Aditya Kulkarni', 'Meera Nambiar', 'Gurpreet Singh', 'Sunita Chawla') and completely distinct review text with unique wording and specific product observations. NEVER reuse the same reviewer name across reviews.
-2. REVIEW CONTENT: Professional, natural, authentic customer reviews like real Google Reviews / e-commerce reviews. Include genuine details like lab certificate QR code verification, packaging quality, mukhi clarity, wearability, fast delivery, and peaceful feeling in daily Shiva sadhana.
+1. DIVERSE & UNIQUE CUSTOMER NAMES: Every review MUST have a realistic, different Indian full name from different regions of India (North, South, East, West - e.g., 'Advocate Hemant Trivedi', 'Dr. Shalini Deshmukh', 'Captain Virendra Singh', 'Priyanjali Sen', 'Karthik Sundaram', 'Ananya Kulkarni', 'Meera Nambiar', 'Gurpreet Singh', 'Sunita Chawla', 'Siddharth Rao', 'Deepika Pillai', 'Manoj Khandelwal', 'Archana Bhattacharya'). NEVER repeat customer names.
+2. DIVERSE & UNIQUE CONTENT: Every single review text must be unique with different sentence phrasing, personal experiences, observation on delivery, lab testing certificate QR verification, daily Shiva meditation, packaging in sacred wooden box, or silver capping quality.
 3. OUTPUT FORMAT: Return ONLY a valid JSON array of objects with keys:
    - "name": Unique Indian name
-   - "city": Indian location (e.g., "Jaipur, RJ", "Varanasi, UP", "Pune, MH")
+   - "city": Indian location (e.g., "Jaipur, RJ", "Varanasi, UP", "Pune, MH", "Bengaluru, KA")
    - "title": Short catchy review title (3-6 words)
    - "text": Natural conversational customer review text (1-3 sentences)
    - "rating": Integer rating (5, 4, 3)
    - "language": Language used ("Hindi", "Hinglish", "English")`;
 
-        const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}". Ensure EVERY review has a distinct author name and unique text. Return JSON array only.`;
+        const userPrompt = `Generate ${requestedCount} unique customer reviews for Product: "${resolvedProductName}".
+Key Features / Details: "${productDetails || 'High quality genuine Rudraksha bead with lab certificate and sacred packaging'}".
+Rating Mode: "${effectiveRatingMode}".
+Language: "${effectiveLanguage}".
+Seed/Entropy: ${randomEntropy}.
+Ensure 100% variety in customer names, locations, and review sentences. Output pure JSON array only.`;
 
         const response = await ai.models.generateContent({
           model: "gemini-2.5-flash",
           config: {
             systemInstruction: systemPrompt,
             responseMimeType: "application/json",
-            temperature: 0.6,
-            maxOutputTokens: 2000
+            temperature: 0.95,
+            maxOutputTokens: 2500
           },
           contents: [{ role: "user", parts: [{ text: userPrompt }] }]
         });
@@ -748,7 +734,6 @@ CRITICAL MANDATES:
 
         if (Array.isArray(parsed) && parsed.length > 0) {
           const usedNamesInGemini = new Set();
-          const shuffledNames = shuffleArray(FICTIONAL_DEVOTEE_NAMES);
 
           rawDrafts = parsed.map((item, idx) => {
             let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2)
@@ -756,15 +741,15 @@ CRITICAL MANDATES:
               : "";
 
             if (!assignedName || usedNamesInGemini.has(assignedName)) {
-              assignedName = shuffledNames.find(n => !usedNamesInGemini.has(n)) || FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+              assignedName = generateUniqueDevoteeName(usedNamesInGemini);
             }
             usedNamesInGemini.add(assignedName);
 
-            const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
-            const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
+            const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length)];
+            const relativeDate = RELATIVE_DATES[Math.floor(Math.random() * RELATIVE_DATES.length)];
 
             return {
-              id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 4)}`,
+              id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 5)}`,
               title: item.title || `${resolvedProductName} Review`,
               text: (item.text || item.body || "").trim(),
               rating: Number(item.rating) || 5,
@@ -775,9 +760,9 @@ CRITICAL MANDATES:
               featured: idx === 0,
               status: "Approved",
               source: "customer",
-              helpfulUp: Math.floor(Math.random() * 5) + 1,
+              helpfulUp: Math.floor(Math.random() * 6) + 1,
               helpfulDown: 0,
-              productId: String(productId || "5"),
+              productId: targetProductId,
               productName: resolvedProductName,
               type: "product",
               language: item.language || effectiveLanguage,
@@ -798,6 +783,7 @@ CRITICAL MANDATES:
       const existingNames = new Set(rawDrafts.map(d => d.name));
       const fallbackList = buildDiverseFallbackDrafts({
         productName: resolvedProductName,
+        productId: targetProductId,
         productDescription,
         keyFeatures,
         language: effectiveLanguage,
@@ -826,8 +812,7 @@ CRITICAL MANDATES:
 
       // Ensure author name is unique in the batch
       if (usedBatchNames.has(finalDraft.name)) {
-        const replacementName = FICTIONAL_DEVOTEE_NAMES.find(n => !usedBatchNames.has(n));
-        if (replacementName) finalDraft.name = replacementName;
+        finalDraft.name = generateUniqueDevoteeName(usedBatchNames);
       }
       usedBatchNames.add(finalDraft.name);
 
@@ -838,6 +823,7 @@ CRITICAL MANDATES:
         const existingNames = new Set([...usedBatchNames, ...existingCorpus.map(c => c.name)]);
         const variation = buildDiverseFallbackDrafts({
           productName: resolvedProductName,
+          productId: targetProductId,
           productDescription,
           keyFeatures,
           language: effectiveLanguage,

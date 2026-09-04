@@ -27,8 +27,8 @@ import { uploadMedia, uploadMediaBatch } from "../lib/imageUtils";
 import { emitToast } from "../context/ToastContext";
 
 export function ProductReviews({ product, isPreview = false, previewSettings = null }) {
-  const productId = product?.id ? String(product.id) : "5";
-  const productName = product?.name || "5 Mukhi Rudraksha";
+  const productId = product?.id ? String(product.id) : "";
+  const productName = product?.name || "Rudraksha Bead";
 
   // Data states
   const [allReviews, setAllReviews] = useState([]);
@@ -112,28 +112,17 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       r.source !== "ai_draft"
     );
 
-    // Group into real vs sample reviews
-    const realReviews = baseList.filter(r => !r.isAiGenerated && !r.isSample);
-
     // Filter by tab helper
     const filterByTab = (listToFilter) => {
       if (activeTab === "product") {
-        return listToFilter.filter(r => r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId));
+        if (!productId) return [];
+        return listToFilter.filter(r => r.type === "product" && String(r.productId) === String(productId));
       } else {
         return listToFilter.filter(r => r.type === "store" || r.productId === "all");
       }
     };
 
-    const realTabReviews = filterByTab(realReviews);
-    let list = [];
-
-    if (realTabReviews.length > 0) {
-      // If we have real customer reviews, only show real customer reviews!
-      list = realTabReviews;
-    } else {
-      // Fallback: Show labeled sample reviews if there are no real devotee reviews yet
-      list = filterByTab(baseList);
-    }
+    let list = filterByTab(baseList);
 
     // Filter by Search Query
     if (searchQuery.trim()) {

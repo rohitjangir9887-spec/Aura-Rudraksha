@@ -49,12 +49,26 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
 
   const loadTickets = async () => {
     try {
+      const u = authClient.getUser();
+      const userEmail = (u?.email || "").toLowerCase().trim();
+      const userUid = u?.authUserId || u?.uid || "";
+      if (!userEmail && !userUid) {
+        setCustomerTickets([]);
+        return;
+      }
       await db.fetchTickets();
       const all = db.getTickets() || [];
-      const userEmail = user?.email || "";
-      const mine = all.filter(t => !userEmail || t.email?.toLowerCase() === userEmail.toLowerCase() || t.userEmail?.toLowerCase() === userEmail.toLowerCase() || t.name);
+      const mine = all.filter(t => {
+        const ticketEmail = (t.email || t.userEmail || "").toLowerCase().trim();
+        const ticketUid = t.authUserId || t.userId || "";
+        const emailMatch = Boolean(userEmail && ticketEmail && ticketEmail === userEmail);
+        const uidMatch = Boolean(userUid && ticketUid && ticketUid === userUid);
+        return emailMatch || uidMatch;
+      });
       setCustomerTickets(mine);
-    } catch (_) {}
+    } catch (_) {
+      setCustomerTickets([]);
+    }
   };
 
   useEffect(() => {

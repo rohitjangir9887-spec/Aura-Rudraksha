@@ -320,6 +320,11 @@ export function loadCacheFromLocalStorage() {
       const parsed = JSON.parse(cachedActiveOffer);
       if (parsed && typeof parsed === "object") storeCache.activeOffer = parsed;
     }
+    const cachedCoupons = localStorage.getItem("aura_coupons_cache");
+    if (cachedCoupons) {
+      const parsed = JSON.parse(cachedCoupons);
+      if (Array.isArray(parsed)) storeCache.coupons = parsed;
+    }
     const cachedSettings = localStorage.getItem("aura_settings_cache");
     if (cachedSettings) {
       const parsed = JSON.parse(cachedSettings);
@@ -523,6 +528,19 @@ export async function fetchHomeData(force = false) {
         }
       };
 
+      const fetchCoupons = async () => {
+        try {
+          const res = await apiRequest("/coupons");
+          if (res?.success && Array.isArray(res.data)) {
+            storeCache.coupons = res.data;
+            localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+            emitStoreUpdate("coupons:synced", storeCache.coupons);
+          }
+        } catch (e) {
+          console.warn("Failed background coupons fetch:", e);
+        }
+      };
+
       await Promise.all([
         fetchProducts(),
         fetchActiveOffer(),
@@ -530,7 +548,8 @@ export async function fetchHomeData(force = false) {
         fetchBanners(),
         fetchReviews(),
         fetchSettings(),
-        fetchReviewSettings()
+        fetchReviewSettings(),
+        fetchCoupons()
       ]);
 
       localStorage.setItem("aura_last_fetch_time", String(Date.now()));
@@ -1670,6 +1689,9 @@ export const db = {
     const curIdx = storeCache.coupons.findIndex(x => x.id === id || x.code === finalCoupon.code);
     if (curIdx >= 0) storeCache.coupons[curIdx] = saved;
     else storeCache.coupons.push(saved);
+    try {
+      localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+    } catch (_) {}
     emitStoreUpdate("coupon:saved", saved);
     return saved;
   },
@@ -1679,7 +1701,11 @@ export const db = {
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete coupon. Database is unavailable.");
     }
-    storeCache.coupons = storeCache.coupons.filter(x => x.id !== id && x.code !== String(id).toUpperCase());
+    const targetCode = String(id).toUpperCase();
+    storeCache.coupons = storeCache.coupons.filter(x => x.id !== id && x.code !== targetCode);
+    try {
+      localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+    } catch (_) {}
     emitStoreUpdate("coupon:deleted", id);
     return true;
   },
@@ -1692,7 +1718,7 @@ export const db = {
       .map(r => ({
         id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
         type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
-        productId: r.productId || "5",
+        productId: r.productId ? String(r.productId) : "all",
         productName: r.productName || "Rudraksha Bead",
         name: r.name || "Aura Devotee",
         city: r.city || "",
@@ -1713,14 +1739,14 @@ export const db = {
         isAiGenerated: !!r.isAiGenerated
       }));
 
-    if (tab === "product" && productId) {
-      return allReviews.filter(r => r.type === "product" && (String(r.productId) === String(productId) || r.productId === "5" || !r.productId));
+    if (tab === "product" && productId && productId !== "all") {
+      return allReviews.filter(r => r.type === "product" && String(r.productId) === String(productId));
     } else if (tab === "store") {
       return allReviews.filter(r => r.type === "store" || r.productId === "all");
     }
 
     if (!productId || productId === "all") return allReviews;
-    return allReviews.filter(r => String(r.productId) === String(productId) || r.type === "store" || r.productId === "5" || !r.productId);
+    return allReviews.filter(r => String(r.productId) === String(productId));
   },
 
   getAllReviews: () => {
@@ -1728,11 +1754,27 @@ export const db = {
     return storeCache.reviews
       .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted")
       .map(r => ({
-        ...r,
-        images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        status: r.status || "Approved",
+        id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
+        type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
+        productId: r.productId ? String(r.productId) : "all",
+        productName: r.productName || "Rudraksha Bead",
+        name: r.name || "Aura Devotee",
+        city: r.city || "",
+        rating: Number(r.rating) || 5,
+        title: r.title || "",
+        text: r.text || "",
+        date: r.date || "Recently",
+        createdAt: r.createdAt || Date.now(),
         verified: !!(r.verified && !r.isAiGenerated),
-        source: r.source || (r.isAiGenerated ? "ai_draft" : "customer")
+        featured: !!r.featured,
+        source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
+        status: r.status || "Approved",
+        images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
+        img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
+        helpfulUp: Number(r.helpfulUp) || 0,
+        helpfulDown: Number(r.helpfulDown) || 0,
+        adminReply: r.adminReply || null,
+        isAiGenerated: !!r.isAiGenerated
       }));
   },
 
@@ -1745,8 +1787,8 @@ export const db = {
     const newRev = {
       ...rev,
       id,
-      type: rev.type || "product",
-      productId: rev.productId || "5",
+      type: rev.type || (rev.productId && rev.productId !== "all" ? "product" : "store"),
+      productId: rev.productId ? String(rev.productId) : "all",
       name: rev.name?.trim() || "Aura Devotee",
       city: rev.city?.trim() || "Varanasi, UP",
       rating: Number(rev.rating) || 5,
@@ -1985,6 +2027,17 @@ export const db = {
 
   // SUPPORT TICKETS
   getTickets: () => storeCache.tickets,
+  fetchTickets: async () => {
+    try {
+      const res = await apiRequest("/tickets", { noCache: true });
+      if (res?.success && Array.isArray(res.data)) {
+        storeCache.tickets = res.data;
+        emitStoreUpdate("tickets:synced", storeCache.tickets);
+        return storeCache.tickets;
+      }
+    } catch (_) {}
+    return storeCache.tickets;
+  },
   saveTicket: async (t) => {
     const isExisting = Boolean(t.id && storeCache.tickets.some(x => x.id === t.id));
     const id = t.id || ("TIC-" + Math.floor(1000 + Math.random() * 9000));

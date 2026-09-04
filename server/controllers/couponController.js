@@ -273,6 +273,10 @@ export async function deleteCoupon(req, res, next) {
     const cleanCode = cleanId.toUpperCase();
 
     inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== cleanId && c.code !== cleanCode);
+    if (inMemoryStore.activeOffer && inMemoryStore.activeOffer.couponCode === cleanCode) {
+      inMemoryStore.activeOffer.couponCode = "";
+      inMemoryStore.activeOffer.discountValue = 0;
+    }
 
     if (isDbConnected()) {
       await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });

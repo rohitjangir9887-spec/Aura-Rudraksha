@@ -105,8 +105,24 @@ export const auraChatStore = {
     }
   },
 
+  getCurrentUserUid() {
+    try {
+      const rawUser = localStorage.getItem("auth_user") || localStorage.getItem("aura_auth_user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        const resolved = u?.authUserId || u?.uid || (u?.email ? `email_${u.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')}` : "guest");
+        if (resolved && resolved !== "guest") return resolved;
+      }
+    } catch (_) {}
+    return "guest";
+  },
+
   clearLocalChats() {
     try {
+      const uid = this.getCurrentUserUid();
+      localStorage.removeItem(`aura_ai_chat_standard_${uid}`);
+      localStorage.removeItem(`aura_ai_chat_panditji_${uid}`);
+      localStorage.removeItem(`aura_ai_active_conv_${uid}`);
       localStorage.removeItem(STORAGE_KEY_MSGS_STANDARD);
       localStorage.removeItem(STORAGE_KEY_MSGS_PANDITJI);
       localStorage.removeItem(STORAGE_KEY_CONV_ID);
@@ -115,7 +131,9 @@ export const auraChatStore = {
   },
 
   getStorageKey(mode = "standard") {
-    return mode === "panditji" ? STORAGE_KEY_MSGS_PANDITJI : STORAGE_KEY_MSGS_STANDARD;
+    const uid = this.getCurrentUserUid();
+    const prefix = mode === "panditji" ? "aura_ai_chat_panditji" : "aura_ai_chat_standard";
+    return `${prefix}_${uid}`;
   },
 
   getDefaultInitialMessage(mode = "standard") {
@@ -262,6 +280,8 @@ export const auraChatStore = {
   setConversationId(id) {
     try {
       if (id) {
+        const uid = this.getCurrentUserUid();
+        localStorage.setItem(`aura_ai_active_conv_${uid}`, id);
         localStorage.setItem(STORAGE_KEY_CONV_ID, id);
       }
     } catch (_) {}
@@ -270,9 +290,12 @@ export const auraChatStore = {
   // Get active conversation ID
   getConversationId() {
     try {
-      let cid = localStorage.getItem(STORAGE_KEY_CONV_ID);
+      const uid = this.getCurrentUserUid();
+      const userKey = `aura_ai_active_conv_${uid}`;
+      let cid = localStorage.getItem(userKey) || localStorage.getItem(STORAGE_KEY_CONV_ID);
       if (!cid) {
-        cid = "conv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        cid = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        localStorage.setItem(userKey, cid);
         localStorage.setItem(STORAGE_KEY_CONV_ID, cid);
       }
       return cid;

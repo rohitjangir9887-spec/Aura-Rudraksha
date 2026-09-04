@@ -1327,7 +1327,58 @@ export async function generateProductDescription(req, res, next) {
 <p>Wear or place on any auspicious morning facing East or North. Chant the sacred mantra <strong>"Om Namah Shivaya"</strong> 108 times. Cleanse monthly with pure water and condition gently with sandalwood oil.</p>`;
     };
 
-    // 1. Primary AI Model: NVIDIA NIM
+    // 1. Primary AI Model: Google Gemini (@google/genai)
+    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+    if (geminiApiKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+        const geminiPrompt = `Generate a rich, deeply engaging, and authentic Vedic product description in clean HTML for:
+Product Name: "${cleanName}"
+Category: "${suggestedCategory}"
+Language: "${targetLanguage}"
+Additional Details: "${details || 'Authentic Nepal Rudraksha, sacred and energized'}"
+
+Structure the HTML response using these exact section headings with <h2> tags:
+<h2>✨ About the Product</h2>
+<h2>📿 Product Highlights</h2>
+<h2>🌿 Spiritual Significance</h2>
+<h2>🙏 Suitable For</h2>
+<h2>🕉️ How to Wear & Care</h2>
+
+Guidelines:
+- In "About the Product", provide a compelling 2-3 sentence overview of this sacred item.
+- In "Product Highlights", provide an unordered list (<ul>/<li>) with 4-5 key bullet points (natural Nepal origin, Vedic lab testing, Ganga Jal energization, comfortable wear).
+- In "Spiritual Significance", describe the ruling deity (Lord Shiva, Ganesha, Laxmi, etc.), ruling planet/chakra, and spiritual merits.
+- In "Suitable For", explain who benefits most (students, professionals, business owners, spiritual seekers, health/peace seekers).
+- In "How to Wear & Care", provide auspicious day (e.g. Monday), Beej Mantra (e.g. Om Namah Shivaya or specific Mukhi mantra), and cleaning/oiling tips.
+- Output ONLY pure clean HTML body without any markdown formatting or \`\`\` code fences.`;
+
+        const geminiRes = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          config: {
+            temperature: 0.7,
+            maxOutputTokens: 1200
+          },
+          contents: [{ role: "user", parts: [{ text: geminiPrompt }] }]
+        });
+
+        const geminiText = (geminiRes.text || "").replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
+        if (geminiText && geminiText.includes("<h2>")) {
+          return res.json({
+            success: true,
+            description: geminiText,
+            category: suggestedCategory,
+            highlight: "100% Consecrated • Authentic Nepal Bead",
+            badge: "Best Seller",
+            tags: [suggestedCategory, "Authentic", "Consecrated"]
+          });
+        }
+      } catch (geminiErr) {
+        console.warn("Gemini description generation notice:", geminiErr?.message || geminiErr);
+      }
+    }
+
+    // 2. Secondary AI Model: NVIDIA NIM
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {
@@ -1339,7 +1390,7 @@ export async function generateProductDescription(req, res, next) {
             "Accept": "application/json"
           },
           body: JSON.stringify({
-            model: PRIMARY_NIM_MODEL,
+            model: "meta/llama-3.1-70b-instruct",
             messages: [{
               role: "user",
               content: `Generate a professional, highly readable product description in clean HTML for ${cleanName} (${suggestedCategory}) in ${targetLanguage}.
@@ -1361,7 +1412,7 @@ Output ONLY the pure HTML body itself, no markdown code fences.`
 
         if (nimRes.ok) {
           const nimData = await nimRes.json();
-          let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```html\s*/i, "").replace(/\s*```$/i, "").trim();
+          let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
           if (cleanHtml && cleanHtml.includes("<h2>")) {
             return res.json({ 
               success: true, 

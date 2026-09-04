@@ -91,11 +91,11 @@ export function AdminReviews() {
 
   // AI Review Studio State
   const [aiGenForm, setAiGenForm] = useState({
-    productId: "5",
-    productName: "5 Mukhi Rudraksha",
-    productDescription: "Original 5 Mukhi Himalayan Rudraksha, laboratory certified, pure natural bead with sacred red velvet pouch and safe packaging.",
+    productId: "all",
+    productName: "Aura Rudraksha Sacred Store",
+    productDescription: "Original Himalayan Rudraksha beads, laboratory certified, pure natural beads with sacred red velvet pouch and safe packaging.",
     keyFeatures: "Clear mukhi lines, authentic lab certificate, solid natural weight, safe packaging",
-    ratingRange: "Realistic Mix (3, 4 & 5 Stars)",
+    ratingRange: "Realistic Mix (3-5 Stars)",
     ratingMix: "Mostly Positive", // fallback
     customRatings: { r5: 70, r4: 20, r3: 10, r2: 0, r1: 0 },
     language: "Hinglish",
@@ -104,7 +104,7 @@ export function AdminReviews() {
     reviewLength: "Short", // "Short" (1-2 lines) | "Medium" (2-3 lines) | "Long" (3-4 lines)
     tone: "Authentic & Conversational",
     useRAG: true,
-    aiProvider: "nvidia", // "nvidia" | "auto"
+    aiProvider: "auto", // "nvidia" | "auto"
     count: 5
   });
   const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false);
@@ -522,10 +522,13 @@ export function AdminReviews() {
         return;
       }
 
+      const randOffset = Math.floor(Math.random() * INDIAN_DEVOTEE_NAMES.length);
+      const randCityOffset = Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length);
+
       const formattedReviews = validDrafts.map((d, i) => ({
         ...d,
-        name: d.name || INDIAN_DEVOTEE_NAMES[i % INDIAN_DEVOTEE_NAMES.length],
-        city: d.city || INDIAN_DEVOTEE_CITIES[i % INDIAN_DEVOTEE_CITIES.length],
+        name: d.name || INDIAN_DEVOTEE_NAMES[(i + randOffset) % INDIAN_DEVOTEE_NAMES.length],
+        city: d.city || INDIAN_DEVOTEE_CITIES[(i + randCityOffset) % INDIAN_DEVOTEE_CITIES.length],
         rating: Number(d.rating) || 5,
         isAiGenerated: false,
         isSample: false,
