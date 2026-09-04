@@ -151,39 +151,42 @@ export function Shell({children}) {
         <Footer />
       </div>
 
-      <div className="mobile-nav" style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10005,
-        pointerEvents: 'auto',
-        paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
-      }}>
-        <Link to="/" className={isHomeActive ? "active" : ""}>
-          <div className="nav-icon-box"><Home size={22} strokeWidth={1.8} /></div>
-          <span className="nav-label">Home</span>
-        </Link>
-        <Link to="/shop" className={isShopActive ? "active" : ""}>
-          <div className="nav-icon-box"><ShoppingBag size={22} strokeWidth={1.8} /></div>
-          <span className="nav-label">Shop</span>
-        </Link>
-        <Link to="/cart" className={isCartActive ? "active" : ""}>
-          <div className="nav-icon-box" style={{ position: 'relative' }}>
-            <ShoppingCart size={22} strokeWidth={1.8} />
-            {count > 0 && <span className="mobile-nav-cart-badge">{count}</span>}
-          </div>
-          <span className="nav-label">Cart</span>
-        </Link>
-        <Link to="/account/orders" className={isOrdersActive ? "active" : ""}>
-          <div className="nav-icon-box"><PackageCheck size={22} strokeWidth={1.8} /></div>
-          <span className="nav-label">Orders</span>
-        </Link>
-        <Link to="/account" className={isAccountActive ? "active" : ""}>
-          <div className="nav-icon-box"><User size={22} strokeWidth={1.8} /></div>
-          <span className="nav-label">Account</span>
-        </Link>
-      </div>
+      {/* Hide bottom mobile navigation on checkout page */}
+      {pathname !== "/checkout" && (
+        <div className="mobile-nav" style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10005,
+          pointerEvents: 'auto',
+          paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
+        }}>
+          <Link to="/" className={isHomeActive ? "active" : ""}>
+            <div className="nav-icon-box"><Home size={22} strokeWidth={1.8} /></div>
+            <span className="nav-label">Home</span>
+          </Link>
+          <Link to="/shop" className={isShopActive ? "active" : ""}>
+            <div className="nav-icon-box"><ShoppingBag size={22} strokeWidth={1.8} /></div>
+            <span className="nav-label">Shop</span>
+          </Link>
+          <Link to="/cart" className={isCartActive ? "active" : ""}>
+            <div className="nav-icon-box" style={{ position: 'relative' }}>
+              <ShoppingCart size={22} strokeWidth={1.8} />
+              {count > 0 && <span className="mobile-nav-cart-badge">{count}</span>}
+            </div>
+            <span className="nav-label">Cart</span>
+          </Link>
+          <Link to="/account/orders" className={isOrdersActive ? "active" : ""}>
+            <div className="nav-icon-box"><PackageCheck size={22} strokeWidth={1.8} /></div>
+            <span className="nav-label">Orders</span>
+          </Link>
+          <Link to="/account" className={isAccountActive ? "active" : ""}>
+            <div className="nav-icon-box"><User size={22} strokeWidth={1.8} /></div>
+            <span className="nav-label">Account</span>
+          </Link>
+        </div>
+      )}
     </>
   );
 }
