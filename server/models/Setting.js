@@ -15,6 +15,7 @@ const settingSchema = new mongoose.Schema(
     privacyPolicy: { type: String, default: "" },
     termsPolicy: { type: String, default: "" },
     contactSupport: { type: String, default: "" },
+    storageProvider: { type: String, default: "puter", enum: ["puter", "pcloud"] },
     zodiacs: { type: Array, default: [] }, // Admin-managed zodiac guide content
     shopCategories: { type: Array, default: [] } // Admin-managed shop categories
   },

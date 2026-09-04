@@ -1,11 +1,238 @@
 import express from "express";
 import { Media, initMediaIndexes } from "../models/Media.js";
+import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
+import { requireAdmin } from "../middleware/auth.js";
+import { getPcloudStatus, uploadToPcloud, deleteFromPcloud } from "../services/pcloudService.js";
 
 const router = express.Router();
 
 // Trigger background index check once DB is connected
 initMediaIndexes().catch(() => {});
+
+/**
+ * GET /api/upload/provider
+ * Returns currently active storage provider ("puter" | "pcloud") from MongoDB / Memory
+ */
+router.get("/provider", async (req, res) => {
+  try {
+    let activeProvider = "puter";
+    if (isDbConnected()) {
+      const settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+      if (settings && settings.storageProvider) {
+        activeProvider = settings.storageProvider;
+      }
+    } else if (inMemoryStore.settings && inMemoryStore.settings.storageProvider) {
+      activeProvider = inMemoryStore.settings.storageProvider;
+    }
+
+    return res.json({
+      success: true,
+      provider: activeProvider === "pcloud" ? "pcloud" : "puter"
+    });
+  } catch (err) {
+    return res.json({ success: true, provider: "puter" });
+  }
+});
+
+/**
+ * POST /api/upload/provider
+ * Admin route to switch active storage provider ("puter" | "pcloud")
+ * Persists value in MongoDB STORE_SETTINGS
+ */
+router.post("/provider", requireAdmin, async (req, res) => {
+  try {
+    const { provider } = req.body || {};
+    const targetProvider = provider === "pcloud" ? "pcloud" : "puter";
+
+    if (isDbConnected()) {
+      await Setting.findOneAndUpdate(
+        { id: "STORE_SETTINGS" },
+        { $set: { storageProvider: targetProvider } },
+        { upsert: true, returnDocument: "after" }
+      );
+    }
+    if (inMemoryStore.settings) {
+      inMemoryStore.settings.storageProvider = targetProvider;
+    }
+
+    console.log(`[Storage Provider] Active storage provider switched to: ${targetProvider}`);
+
+    return res.json({
+      success: true,
+      provider: targetProvider,
+      message: `Active storage provider switched to ${targetProvider === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage"}. New uploads will use ${targetProvider === "pcloud" ? "pCloud" : "Puter"}. Existing media is preserved.`
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to update storage provider"
+    });
+  }
+});
+
+/**
+ * GET /api/upload/pcloud/status
+ * Returns pCloud account connection status, quota, and storage statistics
+ */
+router.get("/pcloud/status", async (req, res) => {
+  try {
+    const status = await getPcloudStatus();
+    let mediaCount = 0;
+    let totalSizeBytes = 0;
+
+    if (isDbConnected()) {
+      const pcloudMedia = await Media.find({ provider: "pcloud" }).lean();
+      mediaCount = pcloudMedia.length;
+      totalSizeBytes = pcloudMedia.reduce((sum, m) => sum + (Number(m.sizeBytes || m.size) || 0), 0);
+    }
+
+    return res.json({
+      ...status,
+      mediaCount,
+      totalSizeBytes
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      connected: false,
+      status: "Server Error",
+      message: err.message || "Failed to check pCloud status"
+    });
+  }
+});
+
+/**
+ * POST /api/upload/pcloud/upload
+ * Server-side handler to upload media directly to pCloud without exposing secrets
+ */
+router.post("/pcloud/upload", async (req, res) => {
+  try {
+    const { fileData, filename, type, sizeBytes, metadata } = req.body || {};
+    if (!fileData) {
+      return res.status(400).json({
+        success: false,
+        message: "No file content provided for pCloud upload"
+      });
+    }
+
+    let buffer;
+    let mimeType = type || "image/jpeg";
+
+    if (fileData.startsWith("data:")) {
+      const matches = fileData.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1];
+        buffer = Buffer.from(matches[2], "base64");
+      } else {
+        return res.status(400).json({ success: false, message: "Invalid base64 data URL format" });
+      }
+    } else {
+      buffer = Buffer.from(fileData, "base64");
+    }
+
+    const cleanFilename = filename || `upload-${Date.now()}.${mimeType.split("/")[1] || "jpg"}`;
+
+    const uploaded = await uploadToPcloud({
+      buffer,
+      filename: cleanFilename,
+      mimeType
+    });
+
+    const finalReadURL = uploaded.url;
+    const finalFileId = uploaded.fileId;
+    const finalSize = Number(uploaded.sizeBytes || sizeBytes || buffer.length);
+
+    let mediaRecord = null;
+    if (isDbConnected()) {
+      mediaRecord = new Media({
+        readURL: finalReadURL,
+        url: finalReadURL,
+        fileId: finalFileId,
+        puterFileId: finalFileId,
+        path: `/pcloud/${finalFileId}`,
+        filename: cleanFilename,
+        type: mimeType,
+        sizeBytes: finalSize,
+        size: finalSize,
+        metadata: metadata || {},
+        provider: "pcloud"
+      });
+      await mediaRecord.save().catch((err) => {
+        console.warn("[pCloud Upload] Media record save notice:", err?.message || err);
+      });
+    } else {
+      mediaRecord = {
+        readURL: finalReadURL,
+        url: finalReadURL,
+        fileId: finalFileId,
+        filename: cleanFilename,
+        type: mimeType,
+        provider: "pcloud"
+      };
+    }
+
+    return res.json({
+      success: true,
+      url: finalReadURL,
+      readURL: finalReadURL,
+      fileId: finalFileId,
+      provider: "pcloud",
+      media: mediaRecord,
+      message: "File successfully uploaded to pCloud Storage and registered in MongoDB."
+    });
+  } catch (err) {
+    console.error("pCloud Upload Endpoint Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "pCloud upload failed. Please check server authentication."
+    });
+  }
+});
+
+/**
+ * DELETE /api/upload/media/:id
+ * Delete media record from MongoDB and corresponding storage provider
+ */
+router.delete("/media/:id", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isDbConnected()) {
+      return res.json({ success: true, message: "Media deleted in fallback mode" });
+    }
+
+    const media = await Media.findOne({
+      $or: [
+        { _id: id },
+        { fileId: id },
+        { puterFileId: id },
+        { readURL: id },
+        { url: id }
+      ]
+    });
+
+    if (!media) {
+      return res.status(404).json({ success: false, message: "Media item not found" });
+    }
+
+    if (media.provider === "pcloud" && media.fileId) {
+      await deleteFromPcloud(media.fileId).catch(() => {});
+    }
+
+    await Media.deleteOne({ _id: media._id });
+
+    return res.json({
+      success: true,
+      message: `Media item deleted from MongoDB and ${media.provider === "pcloud" ? "pCloud" : "Puter"} storage.`
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to delete media item"
+    });
+  }
+});
 
 /**
  * GET /api/upload/stats

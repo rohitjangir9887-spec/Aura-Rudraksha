@@ -599,6 +599,7 @@ export const defaultSettings = {
   supportEmail: "aurarudrakshaofficial@gmail.com",
   supportPhone: "+91 9672996531",
   currency: "INR",
+  storageProvider: "puter",
   instagramUrl: "https://instagram.com/aurarudraksha",
   facebookUrl: "https://facebook.com/aurarudraksha",
   youtubeUrl: "https://youtube.com/@aurarudraksha",

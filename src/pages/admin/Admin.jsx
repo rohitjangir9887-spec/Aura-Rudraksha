@@ -3,7 +3,10 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { getPuterMediaStatus, signInToPuter, signOutPuter, uploadMedia, subscribePuterStatus } from "../../lib/imageUtils";
+import {
+  getPuterMediaStatus, signInToPuter, signOutPuter, uploadMedia, subscribePuterStatus,
+  getActiveStorageProvider, setActiveStorageProvider, getPcloudMediaStatus
+} from "../../lib/imageUtils";
 
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
@@ -55,6 +58,51 @@ export function Admin() {
     status: "Checking...",
     message: "Checking Puter Cloud status..."
   });
+
+  const [activeStorageProvider, setActiveStorageProviderState] = useState("puter");
+  const [pcloudInfo, setPcloudInfo] = useState({
+    connected: false,
+    status: "Checking...",
+    message: "Checking pCloud Storage status...",
+    email: "",
+    username: "",
+    quota: 0,
+    usedQuota: 0,
+    freeQuota: 0,
+    mediaCount: 0,
+    totalSizeBytes: 0
+  });
+  const [confirmProviderModal, setConfirmProviderModal] = useState({
+    isOpen: false,
+    targetProvider: null
+  });
+
+  const fetchActiveProvider = useCallback(async () => {
+    try {
+      const p = await getActiveStorageProvider(true);
+      if (mountedRef.current) {
+        setActiveStorageProviderState(p);
+      }
+    } catch (_) {}
+  }, []);
+
+  const checkPcloud = useCallback(async () => {
+    try {
+      const info = await getPcloudMediaStatus();
+      if (mountedRef.current && info) {
+        setPcloudInfo(info);
+      }
+    } catch (_) {
+      if (mountedRef.current) {
+        setPcloudInfo(prev => ({
+          ...prev,
+          connected: false,
+          status: "Error",
+          message: "Failed to connect to pCloud API endpoint."
+        }));
+      }
+    }
+  }, []);
 
   const checkPuter = useCallback(async (isManual = false) => {
     try {
@@ -242,7 +290,9 @@ export function Admin() {
   }, []);
 
   useEffect(() => {
-    // Auto-restore and subscribe to Puter Cloud connection status
+    // Auto-restore and check active provider, Puter Cloud & pCloud status
+    fetchActiveProvider();
+    checkPcloud();
     checkPuter();
     const unsubPuter = subscribePuterStatus((info) => {
       if (mountedRef.current && info) {
@@ -402,7 +452,7 @@ export function Admin() {
               </div>
             </div>
 
-            {/* Media Asset Storage Box */}
+            {/* Dual Media Storage Providers & Active Selector Box */}
             {(() => {
               const handlePuterSignIn = async () => {
                 setIsSigningInPuter(true);
@@ -439,168 +489,206 @@ export function Admin() {
               };
 
               return (
-                <div style={{ background: '#fff', padding: '14px 16px', borderRadius: '10px', border: '1px solid #e8dac9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <HardDrive size={14} color="#2563eb" /> Media Storage (Puter Cloud)
+                <div style={{ background: '#fff', padding: '16px', borderRadius: '12px', border: '1px solid #e8dac9', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3ece4', paddingBottom: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <HardDrive size={16} color="#2563eb" /> Aura Admin Cloud & Media Storage Sync Status
                     </span>
                     <span style={{
                       fontSize: '10px',
-                      color: mediaInfo.connected ? '#15803d' : (mediaInfo.status === "Checking..." ? '#d97706' : '#dc2626'),
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      background: activeStorageProvider === 'pcloud' ? '#f0fdf4' : '#eff6ff',
+                      color: activeStorageProvider === 'pcloud' ? '#15803d' : '#1d4ed8',
+                      border: `1px solid ${activeStorageProvider === 'pcloud' ? '#bbf7d0' : '#bfdbfe'}`
                     }}>
-                      {mediaInfo.connected ? (
-                        <>
-                          <CheckCircle2 size={11} color="#15803d" />
-                          <span>Connected ({mediaInfo.username || 'Admin'})</span>
-                        </>
-                      ) : mediaInfo.status === "Checking..." ? (
-                        <span>⏳ Checking...</span>
-                      ) : (
-                        <span>🔴 Not Connected</span>
-                      )}
+                      Active Provider: {activeStorageProvider === 'pcloud' ? 'pCloud Storage' : 'Puter Cloud Storage'}
                     </span>
                   </div>
+
                   <p style={{ fontSize: '11px', color: '#6b584c', margin: 0, lineHeight: '1.4' }}>
-                    {mediaInfo.message}
+                    Select which cloud storage provider receives all <b>NEW</b> product images and videos. Only one provider can be active at a time. Existing uploaded media is never moved, overwritten, or deleted.
                   </p>
-                  
-                  <div style={{ borderTop: '1px dashed #e8dac9', margin: '4px 0', padding: '6px 0 0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Account Name:</span>
-                      <b>{mediaInfo.username || (mediaInfo.connected ? "Admin" : "Unavailable")}</b>
+
+                  {/* Provider 1: Puter Cloud Card */}
+                  <div style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: activeStorageProvider === 'puter' ? '2px solid #2563eb' : '1px solid #e5e7eb',
+                    background: activeStorageProvider === 'puter' ? '#f8fafc' : '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Cloud size={14} color="#2563eb" /> Puter Cloud Storage
+                      </span>
+                      {activeStorageProvider === 'puter' ? (
+                        <span style={{ fontSize: '9px', fontWeight: 800, background: '#2563eb', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>
+                          ACTIVE PROVIDER
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmProviderModal({ isOpen: true, targetProvider: 'puter' })}
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: '#2563eb',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '4px 10px',
+                            borderRadius: '5px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Turn ON Puter
+                        </button>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Account Email:</span>
-                      <b>{mediaInfo.email || (mediaInfo.connected ? `${mediaInfo.username || 'admin'}@puter.com` : "Unavailable")}</b>
+
+                    <div style={{ fontSize: '10px', color: '#64748b', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+                      <span>Status: <b>{mediaInfo.connected ? `Connected (${mediaInfo.username || 'Admin'})` : 'Not Connected'}</b></span>
+                      <span>Total Media: <b>{mediaStats.totalCount !== null ? `${mediaStats.totalCount} files` : '0 files'}</b></span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Total Media Files:</span>
-                      <b>{mediaStats.totalCount !== null ? `${mediaStats.totalCount} files` : "Unavailable"}</b>
+
+                    <div style={{ fontSize: '10px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Account Email: <b>{mediaInfo.email || (mediaInfo.connected ? `${mediaInfo.username || 'admin'}@puter.com` : 'Unavailable')}</b></span>
+                      <span>Storage Used: <b style={{ color: '#2563eb' }}>{formatStorage(mediaStats.totalSizeBytes)}</b></span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Images Stored:</span>
-                      <b>{mediaStats.imagesCount !== null ? `${mediaStats.imagesCount} files` : "Unavailable"}</b>
+
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                      {!mediaInfo.connected ? (
+                        <button
+                          onClick={handlePuterSignIn}
+                          disabled={isSigningInPuter}
+                          style={{
+                            flex: 1,
+                            background: '#2563eb',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '5px',
+                            padding: '5px 10px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isSigningInPuter ? "Connecting..." : "🔑 Connect Puter"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handlePuterSignOut}
+                          style={{
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecaca',
+                            borderRadius: '5px',
+                            padding: '4px 8px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Disconnect Puter
+                        </button>
+                      )}
+                      <button
+                        onClick={() => checkPuter(true)}
+                        style={{
+                          background: '#f1f5f9',
+                          color: '#334155',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '5px',
+                          padding: '4px 8px',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <RefreshCw size={10} /> Refresh
+                      </button>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Videos Stored:</span>
-                      <b>{mediaStats.videosCount !== null ? `${mediaStats.videosCount} files` : "Unavailable"}</b>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Total Storage Used:</span>
-                      <b style={{ color: '#2563eb' }}>{formatStorage(mediaStats.totalSizeBytes)}</b>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#806f62', marginBottom: '4px' }}>
-                      <span>Last Successful Sync:</span>
-                      <b>{mediaStats.lastSyncTime || mediaInfo.lastSync || (mediaInfo.connected ? "Active" : "Unavailable")}</b>
-                    </div>
-                    {mediaStats.lastUpload ? (
-                      <div style={{ fontSize: '9px', color: '#9e8a7c', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Last Upload: <a href={mediaStats.lastUpload.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: '#7a320c' }}>{mediaStats.lastUpload.url.split('/').pop()}</a> ({new Date(mediaStats.lastUpload.createdAt).toLocaleTimeString()})
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '9px', color: '#9e8a7c', marginTop: '6px' }}>
-                        Last Upload: <i>Unavailable</i>
-                      </div>
-                    )}
                   </div>
 
-                  {!mediaInfo.connected ? (
+                  {/* Provider 2: pCloud Storage Card */}
+                  <div style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: activeStorageProvider === 'pcloud' ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                    background: activeStorageProvider === 'pcloud' ? '#f0fdf4' : '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Database size={14} color="#16a34a" /> pCloud Storage
+                      </span>
+                      {activeStorageProvider === 'pcloud' ? (
+                        <span style={{ fontSize: '9px', fontWeight: 800, background: '#16a34a', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>
+                          ACTIVE PROVIDER
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmProviderModal({ isOpen: true, targetProvider: 'pcloud' })}
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: '#16a34a',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '4px 10px',
+                            borderRadius: '5px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Turn ON pCloud
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: '10px', color: '#475569', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+                      <span>Status: <b>{pcloudInfo.connected ? `Connected (${pcloudInfo.email})` : (pcloudInfo.status || 'Not Connected')}</b></span>
+                      <span>pCloud Media: <b>{pcloudInfo.mediaCount ?? 0} files</b></span>
+                    </div>
+
+                    <div style={{ fontSize: '10px', color: '#475569', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Account Email: <b>{pcloudInfo.email || 'Not Configured'}</b></span>
+                      <span>Quota Used: <b style={{ color: '#16a34a' }}>{formatStorage(pcloudInfo.usedQuota)} / {formatStorage(pcloudInfo.quota)}</b></span>
+                    </div>
+
+                    <p style={{ fontSize: '10px', color: pcloudInfo.connected ? '#166534' : '#dc2626', margin: '2px 0 0 0', lineHeight: '1.3' }}>
+                      {pcloudInfo.message || (pcloudInfo.connected ? 'pCloud connected and ready.' : 'pCloud Access Token missing or invalid in server environment.')}
+                    </p>
+
                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
                       <button
-                        onClick={handlePuterSignIn}
-                        disabled={isSigningInPuter}
+                        onClick={checkPcloud}
                         style={{
                           flex: 1,
-                          background: '#2563eb',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '6px 12px',
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          cursor: isSigningInPuter ? 'not-allowed' : 'pointer',
-                          textAlign: 'center',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          opacity: isSigningInPuter ? 0.7 : 1
-                        }}
-                      >
-                        <Cloud size={12} />
-                        <span>{isSigningInPuter ? "Connecting..." : "🔑 Connect Puter Cloud"}</span>
-                      </button>
-                      <button
-                        onClick={() => checkPuter(true)}
-                        style={{
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          padding: '6px 10px',
+                          background: '#f1f5f9',
+                          color: '#334155',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '5px',
+                          padding: '4px 8px',
                           fontSize: '10px',
                           fontWeight: '600',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '4px'
                         }}
-                        title="Reconnect / Retry Status Check"
                       >
-                        <RefreshCw size={11} />
-                        <span>Reconnect</span>
+                        <RefreshCw size={10} /> Refresh pCloud Status
                       </button>
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                      <button
-                        onClick={() => checkPuter(true)}
-                        style={{
-                          flex: 1,
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          padding: '5px 8px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <RefreshCw size={10} />
-                        <span>Refresh Status</span>
-                      </button>
-                      <button
-                        onClick={handlePuterSignOut}
-                        style={{
-                          background: '#fef2f2',
-                          color: '#dc2626',
-                          border: '1px solid #fecaca',
-                          borderRadius: '6px',
-                          padding: '5px 8px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px'
-                        }}
-                        title="Disconnect Puter Session"
-                      >
-                        <LogOut size={10} />
-                        <span>Disconnect</span>
-                      </button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               );
             })()}
@@ -969,6 +1057,31 @@ export function Admin() {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmProviderModal.isOpen}
+        title="Switch Active Media Storage Provider?"
+        message={`Are you sure you want to switch the active storage provider to ${confirmProviderModal.targetProvider === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage"}?\n\n• All NEW product image/video uploads will automatically use ${confirmProviderModal.targetProvider === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage"}.\n• Existing media stored on ${activeStorageProvider === "pcloud" ? "pCloud" : "Puter"} will NOT be deleted, moved, or modified.`}
+        confirmText={`Switch to ${confirmProviderModal.targetProvider === "pcloud" ? "pCloud" : "Puter"}`}
+        cancelText="Cancel"
+        isDanger={false}
+        onConfirm={async () => {
+          const target = confirmProviderModal.targetProvider;
+          setConfirmProviderModal({ isOpen: false, targetProvider: null });
+          try {
+            await setActiveStorageProvider(target);
+            setActiveStorageProviderState(target);
+            emitToast(`Active storage provider switched to ${target === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage"}!`, "success");
+            await fetchActiveProvider();
+            await checkPcloud();
+            await checkPuter(true);
+            refreshDashboard();
+          } catch (err) {
+            emitToast("Failed to switch storage provider: " + (err.message || err), "error");
+          }
+        }}
+        onClose={() => setConfirmProviderModal({ isOpen: false, targetProvider: null })}
+      />
 
     </AdminLayout>
   );

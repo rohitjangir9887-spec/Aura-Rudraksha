@@ -15,7 +15,7 @@ const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
   instagramUrl: "url", facebookUrl: "url", youtubeUrl: "url",
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
-  termsPolicy: "string", contactSupport: "string", zodiacs: "array",
+  termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array"
 };
 const POLICY_FIELDS = {

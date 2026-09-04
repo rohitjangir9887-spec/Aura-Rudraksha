@@ -819,13 +819,184 @@ function findMatchingDescriptor(descriptors, pItem, currentPendingList) {
   return null;
 }
 
+// Cache for active storage provider ("puter" | "pcloud")
+let _cachedActiveProvider = null;
+
+/**
+ * Get active storage provider from server
+ */
+export async function getActiveStorageProvider(force = false) {
+  if (_cachedActiveProvider && !force) {
+    return _cachedActiveProvider;
+  }
+  try {
+    const res = await fetch("/api/upload/provider");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.provider) {
+        _cachedActiveProvider = data.provider;
+        return data.provider;
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to fetch active storage provider:", err);
+  }
+  _cachedActiveProvider = "puter";
+  return "puter";
+}
+
+/**
+ * Set active storage provider ("puter" | "pcloud")
+ */
+export async function setActiveStorageProvider(provider) {
+  const targetProvider = provider === "pcloud" ? "pcloud" : "puter";
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "" : "";
+    const res = await fetch("/api/upload/provider", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ provider: targetProvider })
+    });
+    const data = await res.json();
+    if (data.success) {
+      _cachedActiveProvider = targetProvider;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aura:storage-provider-changed", { detail: { provider: targetProvider } }));
+      }
+      return data;
+    } else {
+      throw new Error(data.message || "Failed to switch active storage provider");
+    }
+  } catch (err) {
+    console.error("Error setting active storage provider:", err);
+    throw err;
+  }
+}
+
+/**
+ * Get pCloud Storage connection status & metrics from backend
+ */
+export async function getPcloudMediaStatus() {
+  try {
+    const res = await fetch("/api/upload/pcloud/status");
+    if (!res.ok) {
+      return {
+        connected: false,
+        status: "Error",
+        provider: "pCloud Storage",
+        message: `HTTP ${res.status}: Failed to reach pCloud status endpoint.`
+      };
+    }
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return {
+      connected: false,
+      status: "Connection Failed",
+      provider: "pCloud Storage",
+      message: err.message || "Network error checking pCloud status."
+    };
+  }
+}
+
+/**
+ * Upload batch to pCloud via backend proxy endpoint
+ */
+export async function uploadBatchToPcloud(rawFiles, onProgress = () => {}) {
+  const filesArray = Array.isArray(rawFiles)
+    ? rawFiles
+    : (rawFiles instanceof FileList ? Array.from(rawFiles) : (rawFiles ? [rawFiles] : []));
+
+  if (!filesArray.length) return [];
+
+  const results = [];
+  const totalCount = filesArray.length;
+
+  for (let idx = 0; idx < totalCount; idx++) {
+    const item = filesArray[idx];
+
+    // If item is already a URL string
+    if (typeof item === "string" && (item.startsWith("http://") || item.startsWith("https://") || item.startsWith("/images/"))) {
+      results.push({
+        index: idx,
+        originalName: item.split("/").pop() || "media",
+        uniqueFileName: item.split("/").pop() || "media",
+        url: item,
+        readURL: item,
+        success: true,
+        provider: "pcloud"
+      });
+      continue;
+    }
+
+    onProgress(Math.round(((idx) / totalCount) * 100), `Uploading ${item.name || "file"} (${idx + 1}/${totalCount}) to pCloud...`);
+
+    try {
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Failed to read file for pCloud upload"));
+        reader.readAsDataURL(item);
+      });
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "" : "";
+      const res = await fetch("/api/upload/pcloud/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          fileData: base64Data,
+          filename: item.name || `file-${Date.now()}`,
+          type: item.type || "image/jpeg",
+          sizeBytes: item.size || 0
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `pCloud upload failed (${res.status})`);
+      }
+
+      results.push({
+        index: idx,
+        originalName: item.name,
+        uniqueFileName: item.name,
+        url: data.url || data.readURL,
+        readURL: data.url || data.readURL,
+        fileId: data.fileId,
+        success: true,
+        provider: "pcloud",
+        source: "pcloud"
+      });
+    } catch (err) {
+      console.error(`pCloud upload error for ${item.name}:`, err);
+      results.push({
+        index: idx,
+        originalName: item.name || "file",
+        success: false,
+        error: err.message || "pCloud upload failed",
+        provider: "pcloud",
+        source: "pcloud"
+      });
+    }
+  }
+
+  onProgress(100, `Completed pCloud upload (${results.filter(r => r.success).length}/${totalCount} items)`);
+  return results;
+}
+
 /**
  * Uploads a batch of media files directly to Puter Cloud in a controlled, resumable queue.
  * Uses a single-active-upload queue to prevent rate limit storms.
  * Automatically falls back to single-file mode for ambiguous or batch rejection cases.
  * Captures raw Puter error object details and handles 429 rate limit backoff.
  */
-export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
+export async function uploadBatchToPuter(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
   return _uploadQueue.add(async () => {
     if (import.meta.env.DEV) {
       console.log("[Puter Diagnostics] UPLOAD_ENGINE_VERSION=5.0.0-RESUMABLE-SINGLE-FILE-QUEUE");
@@ -1223,6 +1394,18 @@ export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkS
       source: it.source || (it.success ? null : "puter")
     }));
   });
+}
+
+/**
+ * Unified batch upload entrypoint.
+ * Automatically routes uploads to the currently active storage provider ("puter" | "pcloud").
+ */
+export async function uploadMediaBatch(rawFiles, onProgress = () => {}, onChunkSuccess = null) {
+  const activeProvider = await getActiveStorageProvider();
+  if (activeProvider === "pcloud") {
+    return uploadBatchToPcloud(rawFiles, onProgress);
+  }
+  return uploadBatchToPuter(rawFiles, onProgress, onChunkSuccess);
 }
 
 /**
