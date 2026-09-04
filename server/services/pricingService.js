@@ -1,5 +1,6 @@
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
+import { Setting } from "../models/Setting.js";
 import { ActiveOffer, Promotion } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
@@ -14,8 +15,8 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
  * - Coupon validation (/api/coupons/validate)
  */
 
-export const FREE_SHIPPING_THRESHOLD = 499;
-export const STANDARD_SHIPPING_FEE = 50;
+export const FREE_SHIPPING_THRESHOLD = 0;
+export const STANDARD_SHIPPING_FEE = 0;
 
 /**
  * Format date for user-friendly display (e.g., 27 Aug 2026)
@@ -232,10 +233,47 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
 
   const productSavings = Math.max(0, totalMrp - subtotal);
 
-  // 2. Authoritative Shipping Calculation
-  const isFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD || subtotal === 0;
-  const shipping = (subtotal === 0 || isFreeShipping) ? 0 : STANDARD_SHIPPING_FEE;
-  const shippingDiscount = isFreeShipping && subtotal > 0 ? STANDARD_SHIPPING_FEE : 0;
+  // 2. Authoritative Shipping Calculation (Dynamically fetched from Store Settings & Product Overrides)
+  let storeStandardShippingFee = 0;
+  let storeFreeShippingThreshold = 0;
+  let enableProductShipping = true;
+
+  if (isDbConnected()) {
+    try {
+      const dbSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+      if (dbSettings) {
+        storeStandardShippingFee = Number(dbSettings.standardShippingFee ?? 0);
+        storeFreeShippingThreshold = Number(dbSettings.freeShippingThreshold ?? 0);
+        enableProductShipping = dbSettings.enableProductShipping !== false;
+      }
+    } catch (_) {}
+  } else if (inMemoryStore.settings) {
+    storeStandardShippingFee = Number(inMemoryStore.settings.standardShippingFee ?? 0);
+    storeFreeShippingThreshold = Number(inMemoryStore.settings.freeShippingThreshold ?? 0);
+    enableProductShipping = inMemoryStore.settings.enableProductShipping !== false;
+  }
+
+  // Calculate per-product custom shipping fees if set
+  let productShippingFees = 0;
+  for (const line of normalized) {
+    const product = fetchedProducts.find(p => String(p.id) === String(line.id) || String(p._id) === String(line.id));
+    if (product && enableProductShipping) {
+      if (product.freeShipping === false && Number(product.shippingFee) > 0) {
+        productShippingFees += Number(product.shippingFee) * line.qty;
+      }
+    }
+  }
+
+  // Base shipping fee determination:
+  // If freeShippingThreshold is 0, OR subtotal >= threshold, base store shipping is FREE (0).
+  // Otherwise base store shipping is storeStandardShippingFee.
+  const isBaseFreeShipping = subtotal === 0 || storeFreeShippingThreshold === 0 || subtotal >= storeFreeShippingThreshold;
+  const baseShippingFee = isBaseFreeShipping ? 0 : storeStandardShippingFee;
+
+  // Combined shipping
+  const shipping = baseShippingFee + productShippingFees;
+  const isFreeShipping = (shipping === 0);
+  const shippingDiscount = (isBaseFreeShipping && storeStandardShippingFee > 0) ? storeStandardShippingFee : 0;
 
   // 3. Authoritative Coupon Validation & Discount
   let appliedCoupon = null;
@@ -366,7 +404,10 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
     shippingFee: shipping,
     shippingDiscount,
     isFreeShipping,
-    freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+    freeShippingThreshold: storeFreeShippingThreshold,
+    standardShippingFee: storeStandardShippingFee,
+    baseShippingFee,
+    productShippingFees,
     tax: 0,
     finalTotal,
     total: finalTotal,

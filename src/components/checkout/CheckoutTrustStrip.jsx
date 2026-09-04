@@ -1,7 +1,11 @@
 import React from "react";
 import { ShieldCheck, Truck, RotateCcw, Lock } from "lucide-react";
+import { useCart } from "../../hooks/useCart";
 
 export function CheckoutTrustStrip() {
+  const { totals } = useCart();
+  const threshold = totals?.freeShippingThreshold ?? 0;
+
   const trustItems = [
     {
       id: "trust-auth",
@@ -13,7 +17,7 @@ export function CheckoutTrustStrip() {
       id: "trust-ship",
       icon: Truck,
       title: "Free Express Delivery",
-      subtitle: "Orders Above ₹499"
+      subtitle: threshold > 0 ? `Orders Above ₹${threshold}` : "All Orders Across India"
     },
     {
       id: "trust-returns",

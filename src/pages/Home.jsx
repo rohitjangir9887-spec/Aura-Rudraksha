@@ -15,7 +15,8 @@ import { AllProductsSection } from "../components/AllProductsSection";
 export function Home() {
   const [hero, setHero] = useState(0);
   const [isLoading, setIsLoading] = useState(false); 
-  const { add } = useCart();
+  const { add, totals } = useCart();
+  const shippingThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const [banners, setBanners] = useState(() => db.getBanners() || []);
   const [products, setProducts] = useState(() => {
     try {
@@ -215,7 +216,7 @@ export function Home() {
       <div><div className="icon-wrapper"><BadgeCheck strokeWidth={1.5}/></div><b>100% Authentic</b><span>Lab Certified</span></div>
       <div><div className="icon-wrapper"><Flower2 strokeWidth={1.5}/></div><b>Positive Energy</b><span>Energized Beads</span></div>
       <div><div className="icon-wrapper"><ShieldCheck strokeWidth={1.5}/></div><b>Premium Quality</b><span>Nepal Origin</span></div>
-      <div><div className="icon-wrapper"><PackageCheck strokeWidth={1.5}/></div><b>Free Shipping</b><span>On Orders ₹499+</span></div>
+      <div><div className="icon-wrapper"><PackageCheck strokeWidth={1.5}/></div><b>Free Shipping</b><span>{shippingThreshold > 0 ? `On Orders ₹${shippingThreshold}+` : "On All Orders"}</span></div>
     </div>
 
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}

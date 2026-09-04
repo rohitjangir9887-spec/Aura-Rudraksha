@@ -145,7 +145,7 @@ export function Footer() {
           <div className="nf-b-icon"><Truck size={20} strokeWidth={1.5} /></div>
           <div className="nf-b-text">
             <b>Free Shipping</b>
-            <span>On orders above ₹499</span>
+            <span>{(settings.freeShippingThreshold ?? 0) > 0 ? `On orders above ₹${settings.freeShippingThreshold}` : "On all orders nationwide"}</span>
           </div>
         </div>
         <div className="nf-benefit-item">

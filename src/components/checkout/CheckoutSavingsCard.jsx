@@ -7,7 +7,7 @@ export function CheckoutSavingsCard({
   subtotal, 
   totalSavings, 
   couponDiscount, 
-  freeShippingThreshold = 499 
+  freeShippingThreshold = 0 
 }) {
   const isFreeShipping = subtotal >= freeShippingThreshold;
   const shortfall = Math.max(0, freeShippingThreshold - subtotal);

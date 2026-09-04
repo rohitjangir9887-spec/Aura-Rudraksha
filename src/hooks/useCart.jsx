@@ -56,8 +56,9 @@ const defaultTotals = {
   shipping: 0,
   shippingFee: 0,
   shippingDiscount: 0,
-  isFreeShipping: false,
-  freeShippingThreshold: 499,
+  isFreeShipping: true,
+  freeShippingThreshold: 0,
+  standardShippingFee: 0,
   tax: 0,
   finalTotal: 0,
   total: 0,
@@ -182,10 +183,12 @@ export function CartProvider({ children }) {
           });
         });
 
-        const productSavings = Math.max(0, totalMrp - subtotal);
-        const isFreeShipping = subtotal >= 499 || subtotal === 0;
-        const shipping = isFreeShipping ? 0 : 50;
-        const shippingDiscount = isFreeShipping && subtotal > 0 ? 50 : 0;
+        const storeSettings = (db.getSettings ? db.getSettings() : {}) || {};
+        const standardFee = Number(storeSettings.standardShippingFee ?? 0);
+        const threshold = Number(storeSettings.freeShippingThreshold ?? 0);
+        const isFreeShipping = subtotal === 0 || threshold === 0 || subtotal >= threshold;
+        const shipping = isFreeShipping ? 0 : standardFee;
+        const shippingDiscount = isFreeShipping && standardFee > 0 ? standardFee : 0;
 
         let appliedCouponObj = null;
         let couponRejectionObj = null;
@@ -264,7 +267,8 @@ export function CartProvider({ children }) {
           shippingFee: shipping,
           shippingDiscount,
           isFreeShipping,
-          freeShippingThreshold: 499,
+          freeShippingThreshold: threshold,
+          standardShippingFee: standardFee,
           tax: 0,
           finalTotal,
           total: finalTotal,

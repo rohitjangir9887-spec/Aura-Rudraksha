@@ -547,6 +547,37 @@ export function AdminProducts() {
             </div>
           </div>
 
+          {/* 🚚 Product Shipping Charges */}
+          <div style={{ background: '#fcfaf7', border: '1px solid #e2d7cc', padding: '12px 14px', borderRadius: '10px', margin: '14px 0' }}>
+            <label style={{ fontWeight: '700', fontSize: '13px', color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+              🚚 Product Shipping Charges (शिपिंग शुल्क)
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', cursor: 'pointer', fontWeight: '600', color: '#3d2a1d' }}>
+                <input 
+                  type="checkbox" 
+                  checked={editing.freeShipping !== false} 
+                  onChange={e => setEditing({ ...editing, freeShipping: e.target.checked })} 
+                />
+                <span>Free Shipping (फ्री डिलीवरी)</span>
+              </label>
+
+              {editing.freeShipping === false && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#6e5d50', fontWeight: '600' }}>Custom Shipping Charge (₹):</span>
+                  <input 
+                    type="number"
+                    min="0"
+                    style={{ width: '100px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #c8b9ab', fontSize: '13px' }}
+                    value={editing.shippingFee || 0}
+                    onChange={e => setEditing({ ...editing, shippingFee: Number(e.target.value) || 0 })}
+                    placeholder="50"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* 🏠 Home Page Display & Popular Showcase Controls */}
           <div style={{
             background: 'linear-gradient(135deg, #fdf8f3 0%, #faede1 100%)',

@@ -27,7 +27,8 @@ import "../components/RichTextEditor.css";
 export function Product() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { add } = useCart();
+  const { add, totals } = useCart();
+  const shipThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const { isWishlisted, toggleWishlist } = useWishlist();
 
   // Core product state
@@ -874,7 +875,9 @@ export function Product() {
                     <Truck size={20} />
                   </div>
                   <strong className="why-buy-pillar-title">Free Shipping</strong>
-                  <span className="why-buy-pillar-desc">On All Orders Above ₹499</span>
+                  <span className="why-buy-pillar-desc">
+                    {product?.freeShipping !== false ? (shipThreshold > 0 ? `On Orders Above ₹${shipThreshold}` : "On All Orders") : `+₹${product?.shippingFee || 0} Shipping`}
+                  </span>
                 </div>
 
                 <div className="why-buy-pillar-divider" />

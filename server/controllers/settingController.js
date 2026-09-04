@@ -16,7 +16,8 @@ const SETTING_FIELDS = {
   instagramUrl: "url", facebookUrl: "url", youtubeUrl: "url",
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
-  shopCategories: "array"
+  shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
+  enableProductShipping: "boolean"
 };
 const POLICY_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",

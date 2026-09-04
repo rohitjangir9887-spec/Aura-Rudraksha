@@ -168,10 +168,10 @@ export function Cart() {
                 ) : (
                   <div className="so-progress">
                     <div className="so-text">
-                      <strong>Add {money((freeShippingThreshold || 499) - subtotal)} more to unlock FREE SHIPPING</strong>
+                      <strong>Add {money((freeShippingThreshold || 0) - subtotal)} more to unlock FREE SHIPPING</strong>
                     </div>
                     <div className="so-bar-bg">
-                      <div className="so-bar-fill" style={{ width: `${Math.min(100, (subtotal / (freeShippingThreshold || 499)) * 100)}%` }}></div>
+                      <div className="so-bar-fill" style={{ width: `${Math.min(100, (subtotal / (freeShippingThreshold || 1)) * 100)}%` }}></div>
                     </div>
                   </div>
                 )}

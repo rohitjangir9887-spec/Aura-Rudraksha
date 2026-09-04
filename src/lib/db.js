@@ -271,6 +271,9 @@ const storeCache = {
     supportEmail: "aurarudrakshaofficial@gmail.com",
     supportPhone: "+91 9672996531",
     currency: "INR",
+    standardShippingFee: 0,
+    freeShippingThreshold: 0,
+    enableProductShipping: true,
     instagramUrl: "https://instagram.com/aurarudraksha",
     facebookUrl: "https://facebook.com/aurarudraksha",
     youtubeUrl: "https://youtube.com/@aurarudraksha"
@@ -1583,10 +1586,27 @@ export const db = {
       });
     });
 
-    const productSavings = Math.max(0, totalMrp - subtotal);
-    const isFreeShipping = subtotal >= 499 || subtotal === 0;
-    const shipping = isFreeShipping ? 0 : 50;
-    const shippingDiscount = isFreeShipping && subtotal > 0 ? 50 : 0;
+    const storeSettings = storeCache.settings || {};
+    const standardFee = Number(storeSettings.standardShippingFee ?? 0);
+    const threshold = Number(storeSettings.freeShippingThreshold ?? 0);
+    const enableProductShipping = storeSettings.enableProductShipping !== false;
+
+    // Check product specific shipping fees
+    let productShippingFees = 0;
+    if (enableProductShipping) {
+      lines.forEach(l => {
+        const p = prods.find(x => String(x.id) === String(l.id));
+        if (p && p.freeShipping === false && Number(p.shippingFee) > 0) {
+          productShippingFees += Number(p.shippingFee) * l.qty;
+        }
+      });
+    }
+
+    const isBaseFreeShipping = subtotal === 0 || threshold === 0 || subtotal >= threshold;
+    const baseShippingFee = isBaseFreeShipping ? 0 : standardFee;
+    const shipping = baseShippingFee + productShippingFees;
+    const isFreeShipping = (shipping === 0);
+    const shippingDiscount = (isBaseFreeShipping && standardFee > 0) ? standardFee : 0;
 
     let couponDiscount = 0;
     let appliedCoupon = null;
@@ -1635,7 +1655,9 @@ export const db = {
         shippingFee: shipping,
         shippingDiscount,
         isFreeShipping,
-        freeShippingThreshold: 499,
+        freeShippingThreshold: threshold,
+        standardShippingFee: standardFee,
+        freeShippingRemaining: isFreeShipping ? 0 : Math.max(0, threshold - subtotal),
         tax: 0,
         finalTotal,
         total: finalTotal,

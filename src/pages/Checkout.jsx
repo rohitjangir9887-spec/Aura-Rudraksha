@@ -317,7 +317,7 @@ export function Checkout() {
     emitToast("Coupon removed", "info");
   };
 
-  const FREE_SHIPPING_THRESHOLD = 499;
+  const FREE_SHIPPING_THRESHOLD = cartTotals.freeShippingThreshold ?? 0;
 
   // Validate form fields
   const validateForm = () => {

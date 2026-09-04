@@ -30,7 +30,9 @@ const productSchema = new mongoose.Schema(
     rating: { type: Number, default: 4.9, min: 0, max: 5 },
     reviews: { type: Number, default: 0, min: 0 },
     reviewCount: { type: Number, default: 0, min: 0 },
-    customOffer: { type: Object, default: null }
+    customOffer: { type: Object, default: null },
+    freeShipping: { type: Boolean, default: true },
+    shippingFee: { type: Number, default: 0, min: 0 }
   },
   {
     timestamps: true,
