@@ -3,6 +3,7 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { auraAiClient } from "../../lib/auraAiClient";
+import { authClient } from "../../lib/authClient";
 import {
   getPuterMediaStatus, signInToPuter, signOutPuter, uploadMedia, subscribePuterStatus,
   getActiveStorageProvider, setActiveStorageProvider, getPcloudMediaStatus
@@ -88,7 +89,11 @@ export function Admin() {
     }
     setIsSavingPcloudToken(true);
     try {
-      const token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      let token = "";
+      try { token = await authClient.getToken(); } catch (_) {}
+      if (!token) {
+        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      }
       const res = await fetch("/api/upload/pcloud/connect-token", {
         method: "POST",
         headers: {
@@ -115,7 +120,11 @@ export function Admin() {
 
   const handleDisconnectPcloud = async () => {
     try {
-      const token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      let token = "";
+      try { token = await authClient.getToken(); } catch (_) {}
+      if (!token) {
+        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      }
       const res = await fetch("/api/upload/pcloud/disconnect", {
         method: "POST",
         headers: {

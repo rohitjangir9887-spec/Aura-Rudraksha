@@ -6,6 +6,8 @@
  * Pure serverless cloud storage with verified MongoDB metadata persistence.
  */
 
+import { authClient } from "./authClient";
+
 // API Base URL
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 
@@ -851,7 +853,11 @@ export async function getActiveStorageProvider(force = false) {
 export async function setActiveStorageProvider(provider) {
   const targetProvider = provider === "pcloud" ? "pcloud" : "puter";
   try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "" : "";
+    let token = "";
+    try { token = await authClient.getToken(); } catch (_) {}
+    if (!token && typeof window !== "undefined") {
+      token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+    }
     const res = await fetch("/api/upload/provider", {
       method: "POST",
       headers: {
@@ -942,7 +948,11 @@ export async function uploadBatchToPcloud(rawFiles, onProgress = () => {}) {
         reader.readAsDataURL(item);
       });
 
-      const token = typeof window !== "undefined" ? localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "" : "";
+      let token = "";
+      try { token = await authClient.getToken(); } catch (_) {}
+      if (!token && typeof window !== "undefined") {
+        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      }
       const res = await fetch("/api/upload/pcloud/upload", {
         method: "POST",
         headers: {
