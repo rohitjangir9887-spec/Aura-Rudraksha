@@ -317,12 +317,22 @@ export async function createOrder(req, res, next) {
           { $inc: { stock: -item.quantity } }
         );
       }
+      if (totals.appliedCoupon && totals.appliedCoupon.code) {
+        await Coupon.updateOne(
+          { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
+          { $inc: { usage: 1 } }
+        );
+      }
     } else {
       for (const item of totals.items) {
         const p = inMemoryStore.products.find(prod => String(prod.id) === String(item.id));
         if (p && p.stock !== undefined) {
           p.stock = Math.max(0, p.stock - item.quantity);
         }
+      }
+      if (totals.appliedCoupon && totals.appliedCoupon.code) {
+        const c = inMemoryStore.coupons.find(coup => coup.code.toUpperCase() === String(totals.appliedCoupon.code).trim().toUpperCase());
+        if (c) c.usage = (c.usage || 0) + 1;
       }
     }
 

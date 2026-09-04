@@ -420,53 +420,54 @@ export async function seedDatabase(req, res, next) {
 
     let seeded = { products: 0, reviews: 0, coupons: 0, banners: 0, orders: 0, customers: 0 };
 
-    // Insert-only seeding: $setOnInsert means existing records are NEVER modified.
-    // We report how many new records appeared by comparing counts (portable).
-    const diffCount = async (Model, run) => {
+    // Insert-only seeding: check existence before creating so existing records are NEVER modified.
+    const seedInsertOnly = async (Model, items) => {
       const before = await Model.countDocuments();
-      await run();
+      for (const item of items) {
+        if (!item || !item.id) continue;
+        const exists = await Model.exists({ id: String(item.id) });
+        if (!exists) {
+          const { _id, createdAt, updatedAt, ...cleanItem } = item;
+          try {
+            await Model.create(cleanItem);
+          } catch (err) {
+            console.warn(`Seed create notice for ${item.id}:`, err?.message);
+          }
+        }
+      }
       const after = await Model.countDocuments();
       return Math.max(0, after - before);
     };
 
-    seeded.products = await diffCount(Product, async () => {
-      for (const p of defaultProducts) {
-        await Product.findOneAndUpdate({ id: String(p.id) }, { $setOnInsert: p }, { upsert: true });
+    seeded.products = await seedInsertOnly(Product, defaultProducts);
+    seeded.orders = await seedInsertOnly(Order, defaultOrders);
+    seeded.customers = await seedInsertOnly(Customer, defaultCustomers);
+    seeded.coupons = await seedInsertOnly(Coupon, defaultCoupons);
+    seeded.banners = await seedInsertOnly(Banner, defaultBanners);
+
+    // Reviews seeding
+    const reviewsBefore = await Review.countDocuments();
+    for (const r of defaultReviews) {
+      if (!r || !r.id) continue;
+      const exists = await Review.exists({ id: String(r.id) });
+      if (!exists) {
+        const { _id, createdAt, updatedAt, ...cleanReview } = r;
+        try {
+          await Review.create({
+            ...cleanReview,
+            source: "customer",
+            status: "Approved",
+            isSample: true,
+            isAiGenerated: true,
+            sampleLabel: "Sample Review"
+          });
+        } catch (err) {
+          console.warn(`Seed review notice for ${r.id}:`, err?.message);
+        }
       }
-    });
-    seeded.orders = await diffCount(Order, async () => {
-      for (const o of defaultOrders) {
-        await Order.findOneAndUpdate({ id: String(o.id) }, { $setOnInsert: o }, { upsert: true });
-      }
-    });
-    seeded.customers = await diffCount(Customer, async () => {
-      for (const cust of defaultCustomers) {
-        await Customer.findOneAndUpdate({ id: String(cust.id) }, { $setOnInsert: cust }, { upsert: true });
-      }
-    });
-    seeded.reviews = await diffCount(Review, async () => {
-      for (const r of defaultReviews) {
-        await Review.findOneAndUpdate(
-          { id: String(r.id) },
-          {
-            $set: {
-              ...r,
-              source: "customer",
-              status: "Approved",
-              isSample: true,
-              isAiGenerated: true,
-              sampleLabel: "Sample Review"
-            }
-          },
-          { upsert: true }
-        );
-      }
-    });
-    seeded.coupons = await diffCount(Coupon, async () => {
-      for (const c of defaultCoupons) {
-        await Coupon.findOneAndUpdate({ id: String(c.id) }, { $setOnInsert: c }, { upsert: true });
-      }
-    });
+    }
+    const reviewsAfter = await Review.countDocuments();
+    seeded.reviews = Math.max(0, reviewsAfter - reviewsBefore);
 
     // Active Offer
     await ActiveOffer.findOneAndUpdate(

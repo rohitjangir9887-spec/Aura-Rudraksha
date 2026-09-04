@@ -1095,34 +1095,39 @@ export async function trackAuraAIAction(req, res, next) {
     const cleanProduct = typeof productId === "string" ? productId.slice(0, 120) : "";
     const cleanOrder = typeof orderId === "string" ? orderId.slice(0, 120) : "";
 
-    if (isDbConnected()) {
-      const conv = await AuraAIConversation.findOne({ id: conversationId });
+    if (!isDbConnected()) {
+      const conv = (inMemoryStore.aiConversations || []).find(c => c.id === conversationId);
       if (conv) {
-        const check = await verifyConversationOwnership(conv, req);
-        if (!check.allowed) {
-          return res.status(check.status || 403).json({ success: false, message: check.message });
+        if (action === "cart" && cleanProduct) {
+          conv.addedToCart = Array.from(new Set([...(conv.addedToCart || []), cleanProduct]));
+        } else if (action === "click" && cleanProduct) {
+          conv.productsClicked = Array.from(new Set([...(conv.productsClicked || []), cleanProduct]));
+        } else if (action === "order" && cleanOrder) {
+          conv.ordersDiscussed = Array.from(new Set([...(conv.ordersDiscussed || []), cleanOrder]));
         }
       }
-
-      if (action === "cart" && cleanProduct) {
-        await AuraAIConversation.findOneAndUpdate(
-          { id: conversationId },
-          { $addToSet: { addedToCart: cleanProduct } }
-        );
-      } else if (action === "click" && cleanProduct) {
-        await AuraAIConversation.findOneAndUpdate(
-          { id: conversationId },
-          { $addToSet: { productsClicked: cleanProduct } }
-        );
-      } else if (action === "order" && cleanOrder) {
-        await AuraAIConversation.findOneAndUpdate(
-          { id: conversationId },
-          { $addToSet: { ordersDiscussed: cleanOrder } }
-        );
-      } else {
-        return res.status(400).json({ success: false, message: "Unsupported action" });
-      }
+      return res.json({ success: true });
     }
+
+    if (action === "cart" && cleanProduct) {
+      await AuraAIConversation.findOneAndUpdate(
+        { id: conversationId },
+        { $addToSet: { addedToCart: cleanProduct } }
+      );
+    } else if (action === "click" && cleanProduct) {
+      await AuraAIConversation.findOneAndUpdate(
+        { id: conversationId },
+        { $addToSet: { productsClicked: cleanProduct } }
+      );
+    } else if (action === "order" && cleanOrder) {
+      await AuraAIConversation.findOneAndUpdate(
+        { id: conversationId },
+        { $addToSet: { ordersDiscussed: cleanOrder } }
+      );
+    } else {
+      return res.status(400).json({ success: false, message: "Unsupported action" });
+    }
+
     return res.json({ success: true });
   } catch (err) {
     next(err);
