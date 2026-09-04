@@ -6,6 +6,7 @@ import { emitToast } from "../context/ToastContext";
 import { money } from "../data";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { 
   CheckCircle2, 
   ChevronLeft, 
@@ -61,14 +62,14 @@ export function Checkout() {
     couponCode,
     appliedCoupon,
     couponStatus,
-    totals,
-    subtotal,
-    totalMrp,
-    productSavings,
-    couponDiscount,
-    shipping: shippingFee,
-    finalTotal,
-    totalSavings,
+    totals: cartTotals,
+    subtotal: cartSubtotal,
+    totalMrp: cartTotalMrp,
+    productSavings: cartProductSavings,
+    couponDiscount: cartCouponDiscount,
+    shipping: cartShippingFee,
+    finalTotal: cartFinalTotal,
+    totalSavings: cartTotalSavings,
     applyCoupon,
     removeCoupon
   } = useCart();
@@ -77,6 +78,7 @@ export function Checkout() {
   const [retrying, setRetrying] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -119,6 +121,50 @@ export function Checkout() {
   }, [buyNowIntentStr]);
 
   const activeLines = buyNowLines || lines;
+
+  // Real-time calculation for Buy Now items if distinct from cart
+  const [buyNowTotals, setBuyNowTotals] = useState(null);
+  useEffect(() => {
+    if (buyNowLines && buyNowLines.length > 0) {
+      db.calculateCart(buyNowLines, appliedCoupon?.code || couponCode).then((res) => {
+        if (res?.success && res.data) {
+          setBuyNowTotals(res.data);
+        }
+      }).catch(() => {});
+    } else {
+      setBuyNowTotals(null);
+    }
+  }, [buyNowLines, appliedCoupon, couponCode]);
+
+  const activeTotals = buyNowTotals || cartTotals;
+  const subtotal = activeTotals?.subtotal ?? cartSubtotal;
+  const totalMrp = activeTotals?.totalMrp ?? cartTotalMrp;
+  const productSavings = activeTotals?.productSavings ?? cartProductSavings;
+  const couponDiscount = activeTotals?.couponDiscount ?? cartCouponDiscount;
+  const shippingFee = activeTotals?.shipping ?? cartShippingFee;
+  const finalTotal = activeTotals?.finalTotal ?? cartFinalTotal;
+  const totalSavings = activeTotals?.totalSavings ?? cartTotalSavings;
+
+  // Intercept beforeunload when payment / checkout is in progress
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (loading) {
+        e.preventDefault();
+        e.returnValue = "Your order / payment is in progress. Leaving may interrupt your transaction.";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [loading]);
+
+  const handleBackNavigation = () => {
+    if (loading) {
+      setShowLeaveModal(true);
+    } else {
+      navigate("/cart");
+    }
+  };
 
   // Redirect if cart is empty and not viewing success/failed
   useEffect(() => {
@@ -453,7 +499,7 @@ export function Checkout() {
 
   const handlePlaceOrder = async (e) => {
     if (e) e.preventDefault();
-    if (!lines.length || loading) return;
+    if (!activeLines.length || loading) return;
 
     if (!validateForm()) {
       emitToast("Please fill in all required shipping details correctly.", "warning");
@@ -802,7 +848,7 @@ export function Checkout() {
           <button 
             type="button"
             id="btn-back-to-cart"
-            onClick={() => navigate("/cart")}
+            onClick={handleBackNavigation}
             style={{
               background: "none",
               border: "none",
@@ -871,7 +917,7 @@ export function Checkout() {
 
         {/* 5. Review Your Items (Card 2) */}
         <CheckoutItemsReview 
-          lines={lines}
+          lines={activeLines}
           products={products}
           onUpdateQty={setQty}
           onRemoveItem={remove}
@@ -886,7 +932,7 @@ export function Checkout() {
           couponDiscount={couponDiscount}
           shippingFee={shippingFee}
           finalTotal={finalTotal}
-          lines={lines}
+          lines={activeLines}
           products={products}
           onApplyCoupon={handleApplyCoupon}
           onRemoveCoupon={handleRemoveCoupon}
@@ -938,6 +984,21 @@ export function Checkout() {
             />
           )}
         </AnimatePresence>
+
+        {/* Leave Confirmation Modal during Active Checkout */}
+        <ConfirmModal
+          isOpen={showLeaveModal}
+          onClose={() => setShowLeaveModal(false)}
+          onConfirm={() => {
+            setShowLeaveModal(false);
+            navigate("/cart");
+          }}
+          title="Leave Checkout?"
+          message="Your sacred Rudraksha order is currently processing. If you navigate away now, your session will be saved in your cart, but active payment processing will be paused."
+          confirmText="Yes, Return to Cart"
+          cancelText="Stay on Checkout"
+          type="warning"
+        />
       </main>
     </Shell>
   );

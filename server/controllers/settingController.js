@@ -17,7 +17,9 @@ const SETTING_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
-  enableProductShipping: "boolean"
+  enableProductShipping: "boolean",
+  pcloudAccessToken: "string", pcloudFolderId: "string",
+  imagekitPublicKey: "string", imagekitPrivateKey: "string", imagekitUrlEndpoint: "string"
 };
 const POLICY_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
@@ -91,6 +93,14 @@ export async function getSettings(req, res, next) {
 export async function saveSettings(req, res, next) {
   try {
     const data = pickFields(req.body, SETTING_FIELDS);
+
+    // If incoming secret fields are masked placeholders or empty strings, do not overwrite existing secrets
+    if (data.imagekitPrivateKey && (data.imagekitPrivateKey.includes("••••") || !data.imagekitPrivateKey.trim())) {
+      delete data.imagekitPrivateKey;
+    }
+    if (data.pcloudAccessToken && (data.pcloudAccessToken.includes("••••") || !data.pcloudAccessToken.trim())) {
+      delete data.pcloudAccessToken;
+    }
 
     if (!isDbConnected()) {
       inMemoryStore.settings = { ...inMemoryStore.settings, ...data };
