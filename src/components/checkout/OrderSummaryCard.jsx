@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { PlaceOrderButton } from "./PlaceOrderButton";
+import { SecurePaymentGuarantee } from "./SecurePaymentGuarantee";
 import { money, pct } from "../../data";
 
 /**
@@ -864,17 +865,22 @@ export function OrderSummaryCard({
 
       {/* 8. CHECKOUT CTA (Only shown when not in receipt mode) */}
       {!isReceipt && (
-        <div style={{ marginTop: "14px" }}>
+        <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
           <PlaceOrderButton
             id="btn-summary-checkout-cta"
             loading={loading}
             disabled={count === 0}
             onClick={onCheckout}
-            variant="summary"
+            variant="gold"
             ctaText={ctaText}
             finalTotal={finalTotal}
           />
         </div>
+      )}
+
+      {/* 100% SECURE PAYMENT GUARANTEE BADGE WITH PAYMENT LOGOS */}
+      {!isReceipt && (
+        <SecurePaymentGuarantee style={{ margin: "14px 0 6px 0" }} />
       )}
 
       {/* In Receipt Mode: Payment Method Strip */}

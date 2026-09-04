@@ -22,6 +22,7 @@ import { OfferBadge } from "../components/OfferBadge";
 import { OfferCard } from "../components/OfferCard";
 import { FloatingOffer } from "../components/FloatingOffer";
 import { StickyPurchaseBar } from "../components/StickyPurchaseBar";
+import { SecurePaymentGuarantee } from "../components/checkout/SecurePaymentGuarantee";
 import "../components/RichTextEditor.css";
 
 export function Product() {
@@ -806,23 +807,55 @@ export function Product() {
             )}
 
             {/* CTA BUTTONS */}
-            <div className="product-cta-group">
-              <button 
-                className={`add-to-cart-btn ${added ? "added" : ""}`}
-                onClick={handleAddToCart}
-                disabled={isOutOfStock}
-              >
-                <ShoppingCart size={18} />
-                <span>{isOutOfStock ? "Out of Stock" : added ? "Added to Cart ✓" : "Add to Cart"}</span>
-              </button>
+            <div className="product-cta-group" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <button 
+                  className={`add-to-cart-btn ${added ? "added" : ""}`}
+                  onClick={handleAddToCart}
+                  disabled={isOutOfStock}
+                  style={{
+                    background: isOutOfStock ? "#ccc" : added ? "#16a34a" : "linear-gradient(135deg, #b88a58 0%, #a07343 100%)",
+                    color: "#ffffff",
+                    border: "1px solid #c99a67",
+                    borderRadius: "14px",
+                    padding: "14px 18px",
+                    fontSize: "15.5px",
+                    fontWeight: "700",
+                    cursor: isOutOfStock ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 14px rgba(184,138,88,0.3)"
+                  }}
+                >
+                  <ShoppingCart size={18} />
+                  <span>{isOutOfStock ? "Out of Stock" : added ? "Added to Cart ✓" : "Add to cart"}</span>
+                </button>
 
-              <button 
-                className="buy-now-btn"
-                onClick={handleBuyNow}
-                disabled={isOutOfStock}
-              >
-                <span>{isOutOfStock ? "Unavailable" : "⚡ Order on Website"}</span>
-              </button>
+                <button 
+                  className="buy-now-btn"
+                  onClick={handleBuyNow}
+                  disabled={isOutOfStock}
+                  style={{
+                    background: isOutOfStock ? "#ccc" : "linear-gradient(135deg, #2e1d15 0%, #1f120c 100%)",
+                    color: "#ffffff",
+                    border: "1px solid #4a3224",
+                    borderRadius: "14px",
+                    padding: "14px 18px",
+                    fontSize: "15.5px",
+                    fontWeight: "700",
+                    cursor: isOutOfStock ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 14px rgba(46,29,21,0.35)"
+                  }}
+                >
+                  <span>{isOutOfStock ? "Unavailable" : "Buy It Now"}</span>
+                </button>
+              </div>
 
               <button 
                 className="whatsapp-order-btn"
@@ -832,6 +865,9 @@ export function Product() {
                 <span>{isOutOfStock ? "Unavailable" : "💬 Order on WhatsApp"}</span>
               </button>
             </div>
+
+            {/* 100% SECURE PAYMENT GUARANTEE BOX */}
+            <SecurePaymentGuarantee style={{ margin: "14px 0 16px 0" }} />
 
             {/* WHY BUY FROM AURA RUDRAKSHA? COMPACT 5-COLUMN TRUST STRIP */}
             <div className="why-buy-aura-strip">

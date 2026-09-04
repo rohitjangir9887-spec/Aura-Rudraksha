@@ -9,14 +9,29 @@ export function PlaceOrderButton({
   disabled = false,
   finalTotal,
   ctaText,
-  variant = "main", // 'main', 'sticky', 'summary'
+  variant = "gold", // 'gold', 'dark', 'sticky', 'summary'
   id = "btn-place-order",
   style = {}
 }) {
   const isSticky = variant === "sticky";
+  const isDark = variant === "dark";
   const isSummary = variant === "summary";
 
-  const buttonText = ctaText || (finalTotal ? `Pay with PayU • ${money(finalTotal)}` : "Pay with PayU");
+  const buttonText = ctaText || (finalTotal ? `Pay Securely • ${money(finalTotal)}` : "Pay Securely");
+
+  // Background colors matching user's requested palette:
+  // Golden Sand: #b88a58 -> #a57845
+  // Dark Chocolate: #2c1e18 -> #201510
+  let bgGradient = "linear-gradient(135deg, #b88a58 0%, #a07343 100%)";
+  let boxShadow = "0 4px 16px rgba(184, 138, 88, 0.35)";
+
+  if (isDark) {
+    bgGradient = "linear-gradient(135deg, #2f1e16 0%, #20130d 100%)";
+    boxShadow = "0 4px 16px rgba(47, 30, 22, 0.4)";
+  } else if (isSticky) {
+    bgGradient = "linear-gradient(135deg, #b88a58 0%, #a07343 100%)";
+    boxShadow = "0 4px 14px rgba(184, 138, 88, 0.3)";
+  }
 
   return (
     <motion.button
@@ -24,42 +39,40 @@ export function PlaceOrderButton({
       id={id}
       disabled={disabled || loading}
       onClick={onClick}
-      whileHover={{ scale: (disabled || loading) ? 1 : 1.012, y: (disabled || loading) ? 0 : -1 }}
-      whileTap={{ scale: (disabled || loading) ? 1 : 0.985 }}
+      whileHover={{ scale: disabled || loading ? 1 : 1.015, y: disabled || loading ? 0 : -1 }}
+      whileTap={{ scale: disabled || loading ? 1 : 0.985 }}
       style={{
         position: "relative",
         overflow: "hidden",
         width: "100%",
-        padding: isSticky ? "12px 22px" : isSummary ? "14px 20px" : "16px 20px",
-        fontSize: isSticky ? "14.5px" : isSummary ? "15px" : "17px",
+        padding: isSticky ? "12px 20px" : "15px 24px",
+        fontSize: isSticky ? "14.5px" : "16.5px",
         fontWeight: "700",
-        borderRadius: isSticky ? "10px" : "12px",
+        borderRadius: "14px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: "10px",
-        background: loading
-          ? "linear-gradient(135deg, #a54d2b 0%, #8c3214 100%)"
-          : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
-        boxShadow: loading
-          ? "0 4px 15px rgba(165, 77, 43, 0.4)"
-          : "0 6px 20px rgba(165, 77, 43, 0.35)",
-        border: "none",
+        background: loading ? "linear-gradient(135deg, #8c633a 0%, #6f4c28 100%)" : bgGradient,
+        boxShadow: loading ? "0 4px 12px rgba(140, 99, 58, 0.3)" : boxShadow,
+        border: isDark ? "1px solid #4a3224" : "1px solid #c99a67",
         color: "#ffffff",
-        cursor: (disabled || loading) ? (loading ? "wait" : "not-allowed") : "pointer",
+        cursor: disabled || loading ? (loading ? "wait" : "not-allowed") : "pointer",
         opacity: disabled && !loading ? 0.6 : 1,
-        transition: "background 0.3s ease, box-shadow 0.3s ease",
+        transition: "all 0.25s ease",
+        letterSpacing: "0.2px",
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         ...style
       }}
     >
-      {/* Subtle Glowing Animated Shimmer Overlay when Loading */}
+      {/* Animated Shimmer Overlay when Loading */}
       {loading && (
         <motion.div
           initial={{ x: "-100%" }}
           animate={{ x: "100%" }}
           transition={{
             repeat: Infinity,
-            duration: 1.4,
+            duration: 1.2,
             ease: "easeInOut"
           }}
           style={{
@@ -67,7 +80,7 @@ export function PlaceOrderButton({
             top: 0,
             bottom: 0,
             width: "50%",
-            background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0) 100%)",
+            background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 100%)",
             pointerEvents: "none",
             zIndex: 1
           }}
@@ -80,23 +93,23 @@ export function PlaceOrderButton({
           <>
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
+              transition={{ repeat: Infinity, duration: 0.85, ease: "linear" }}
               style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
             >
               <Loader2 size={isSticky ? 18 : 20} color="#ffffff" />
             </motion.div>
             <motion.span
-              animate={{ opacity: [0.7, 1, 0.7] }}
-              transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+              animate={{ opacity: [0.75, 1, 0.75] }}
+              transition={{ repeat: Infinity, duration: 1.1, ease: "easeInOut" }}
             >
-              Connecting to PayU Gateway...
+              Connecting to Secure Gateway...
             </motion.span>
           </>
         ) : (
           <>
-            {isSummary ? <Lock size={15} /> : <Zap size={isSticky ? 16 : 18} />}
+            {isDark ? <Zap size={isSticky ? 16 : 18} fill="#ffffff" /> : <Lock size={isSticky ? 15 : 17} />}
             <span>{buttonText}</span>
-            <ArrowRight size={isSticky ? 16 : 20} />
+            <ArrowRight size={isSticky ? 16 : 19} strokeWidth={2.4} />
           </>
         )}
       </div>

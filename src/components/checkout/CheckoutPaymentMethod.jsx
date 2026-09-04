@@ -1,17 +1,18 @@
 import React from "react";
-import { ShieldCheck, Lock, Zap, Check, ArrowRight } from "lucide-react";
+import { ShieldCheck, Lock, Zap, Check, ArrowRight, Smartphone, CreditCard, Building2, Sparkles } from "lucide-react";
+import { SecurePaymentGuarantee } from "./SecurePaymentGuarantee";
 
 export function CheckoutPaymentMethod() {
   return (
     <div 
       id="checkout-payment-section"
       style={{
-        background: "#fffdf9",
+        background: "#ffffff",
         border: "1.5px solid #d4a373",
-        borderRadius: "14px",
-        padding: "18px 16px",
-        marginBottom: "16px",
-        boxShadow: "0 4px 14px rgba(43, 23, 13, 0.05)"
+        borderRadius: "16px",
+        padding: "20px 18px",
+        marginBottom: "20px",
+        boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)"
       }}
     >
       {/* Header */}
@@ -20,34 +21,34 @@ export function CheckoutPaymentMethod() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: "14px",
-          paddingBottom: "10px",
+          marginBottom: "16px",
+          paddingBottom: "12px",
           borderBottom: "1px solid #f0e6da"
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div 
             style={{
-              width: "26px",
-              height: "26px",
+              width: "28px",
+              height: "28px",
               borderRadius: "50%",
-              background: "#b85d25",
+              background: "linear-gradient(135deg, #b88a58 0%, #a07343 100%)",
               color: "#ffffff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "12px",
-              fontWeight: "700"
+              fontSize: "13px",
+              fontWeight: "800"
             }}
           >
-            3
+            2
           </div>
           <div>
-            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "20px", fontWeight: "700", margin: 0, color: "#2b170d" }}>
-              Payment Method
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "22px", fontWeight: "700", margin: 0, color: "#2b170d" }}>
+              Select Payment Method
             </h2>
-            <div style={{ fontSize: "11px", color: "#806f62" }}>
-              256-Bit SSL Encrypted Payment Gateway
+            <div style={{ fontSize: "12px", color: "#806f62" }}>
+              Encrypted 256-Bit Bank-Grade Gateway
             </div>
           </div>
         </div>
@@ -56,38 +57,39 @@ export function CheckoutPaymentMethod() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "4px",
-            background: "#eef6f0",
+            gap: "5px",
+            background: "#eef9f2",
             color: "#166534",
-            padding: "4px 8px",
-            borderRadius: "6px",
-            fontSize: "11px",
+            padding: "5px 10px",
+            borderRadius: "20px",
+            fontSize: "11.5px",
             fontWeight: "700"
           }}
         >
-          <Lock size={12} /> PayU Live Verified
+          <Lock size={12} /> Live Verified
         </div>
       </div>
 
-      {/* PayU Hosted Checkout Option */}
+      {/* PayU Online Payment Gateway (Primary Selected Option) */}
       <div 
         id="payment-option-payu"
         style={{
-          padding: "14px",
-          borderRadius: "12px",
-          border: "2px solid #b85d25",
-          background: "linear-gradient(180deg, #fdf8f4 0%, #fffdfa 100%)",
-          boxShadow: "0 2px 8px rgba(184, 93, 37, 0.08)"
+          padding: "16px",
+          borderRadius: "14px",
+          border: "2px solid #b88a58",
+          background: "linear-gradient(180deg, #fefcf9 0%, #fdf8f2 100%)",
+          boxShadow: "0 4px 14px rgba(184, 138, 88, 0.12)",
+          marginBottom: "14px"
         }}
       >
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div 
               style={{
-                width: "20px",
-                height: "20px",
+                width: "22px",
+                height: "22px",
                 borderRadius: "50%",
-                background: "#b85d25",
+                background: "#b88a58",
                 color: "#ffffff",
                 display: "flex",
                 alignItems: "center",
@@ -95,12 +97,12 @@ export function CheckoutPaymentMethod() {
                 flexShrink: 0
               }}
             >
-              <Check size={13} strokeWidth={3} />
+              <Check size={14} strokeWidth={3} />
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "14.5px", fontWeight: "800", color: "#2b170d" }}>
-                  PayU Hosted Checkout
+                <span style={{ fontSize: "16px", fontWeight: "800", color: "#2b170d" }}>
+                  Instant Online Payment (UPI, Cards, NetBanking)
                 </span>
                 <span 
                   style={{
@@ -109,88 +111,64 @@ export function CheckoutPaymentMethod() {
                     letterSpacing: "0.5px",
                     color: "#ffffff",
                     background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
+                    padding: "2px 8px",
+                    borderRadius: "20px",
                     textTransform: "uppercase"
                   }}
                 >
-                  Instant Confirmation
+                  Zero Extra Fees
                 </span>
               </div>
-              <div style={{ fontSize: "11.5px", color: "#6b5649", marginTop: "2px" }}>
-                Pay seamlessly with UPI, Cards, Net Banking & Wallets
+              <div style={{ fontSize: "12px", color: "#6b5649", marginTop: "3px" }}>
+                Pay seamlessly with Google Pay, PhonePe, Paytm, BHIM, Cards, or NetBanking
               </div>
             </div>
           </div>
         </div>
 
-        {/* Supported Payment Badges Grid */}
+        {/* 100% Secure Payment Guarantee Trust Box */}
+        <SecurePaymentGuarantee style={{ margin: "10px 0 12px 0" }} />
+
+        {/* Key Features Pill Grid */}
         <div 
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
             gap: "8px",
-            marginTop: "10px",
-            paddingTop: "10px",
-            borderTop: "1px dashed #e8dac9"
+            marginTop: "12px"
           }}
         >
-          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "8px", padding: "8px 10px" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "4px" }}>
-              <span>📱</span> UPI & QR
-            </div>
-            <div style={{ fontSize: "10px", color: "#806f62" }}>
-              GPay, PhonePe, Paytm, CRED
-            </div>
-          </div>
-
-          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "8px", padding: "8px 10px" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "4px" }}>
-              <span>💳</span> Cards & EMI
-            </div>
-            <div style={{ fontSize: "10px", color: "#806f62" }}>
-              Visa, RuPay, Mastercard, Amex
+          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "10px", padding: "8px 12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Smartphone size={16} color="#b88a58" />
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: "700", color: "#2b170d" }}>Instant UPI</div>
+              <div style={{ fontSize: "10px", color: "#806f62" }}>GPay, PhonePe, Paytm</div>
             </div>
           </div>
 
-          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "8px", padding: "8px 10px" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "4px" }}>
-              <span>🏛️</span> Net Banking
-            </div>
-            <div style={{ fontSize: "10px", color: "#806f62" }}>
-              All 50+ Indian Banks
+          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "10px", padding: "8px 12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <CreditCard size={16} color="#b88a58" />
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: "700", color: "#2b170d" }}>Cards & EMI</div>
+              <div style={{ fontSize: "10px", color: "#806f62" }}>Visa, RuPay, Master</div>
             </div>
           </div>
 
-          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "8px", padding: "8px 10px" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "4px" }}>
-              <span>⚡</span> Priority Dispatch
-            </div>
-            <div style={{ fontSize: "10px", color: "#166534", fontWeight: "600" }}>
-              Ships within 24 Hours
+          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "10px", padding: "8px 12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Building2 size={16} color="#b88a58" />
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: "700", color: "#2b170d" }}>Net Banking</div>
+              <div style={{ fontSize: "10px", color: "#806f62" }}>50+ Indian Banks</div>
             </div>
           </div>
-        </div>
 
-        {/* Benefits notice */}
-        <div 
-          style={{
-            marginTop: "12px",
-            background: "#fff9f2",
-            border: "1px solid #fae1c8",
-            borderRadius: "8px",
-            padding: "8px 12px",
-            fontSize: "11.5px",
-            color: "#7c3114",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px"
-          }}
-        >
-          <Zap size={15} color="#b85d25" style={{ flexShrink: 0 }} />
-          <span>
-            <b>Secure Checkout:</b> Direct integration with PayU Hosted Checkout.
-          </span>
+          <div style={{ background: "#ffffff", border: "1px solid #ebd9c8", borderRadius: "10px", padding: "8px 12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Sparkles size={16} color="#16a34a" />
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: "700", color: "#166534" }}>Fast Dispatch</div>
+              <div style={{ fontSize: "10px", color: "#166534" }}>Within 24 Hours</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -201,13 +179,13 @@ export function CheckoutPaymentMethod() {
           alignItems: "center",
           justifyContent: "center",
           gap: "8px",
-          marginTop: "12px",
-          fontSize: "11px",
+          marginTop: "14px",
+          fontSize: "11.5px",
           color: "#806f62"
         }}
       >
-        <ShieldCheck size={14} color="#166534" />
-        <span>Secured by PayU Payment Services (India) Ltd. • 256-Bit SSL Encrypted</span>
+        <ShieldCheck size={15} color="#166534" />
+        <span>Secured by 256-Bit SSL Encryption • Instant Order Confirmation</span>
       </div>
     </div>
   );
