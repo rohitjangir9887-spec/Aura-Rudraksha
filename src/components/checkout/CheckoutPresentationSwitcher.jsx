@@ -1,5 +1,6 @@
 import React from "react";
-import { Monitor, Smartphone, Columns, Sparkles, Check, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Monitor, Smartphone, Columns, Sparkles, Check, ShieldCheck, Layers } from "lucide-react";
 
 /**
  * CheckoutPresentationSwitcher
@@ -55,7 +56,8 @@ export function CheckoutPresentationSwitcher({
           background: "rgba(255, 255, 255, 0.08)",
           padding: "3px",
           borderRadius: "10px",
-          border: "1px solid rgba(212, 163, 115, 0.25)"
+          border: "1px solid rgba(212, 163, 115, 0.25)",
+          gap: "2px"
         }}
       >
         <button
@@ -126,6 +128,27 @@ export function CheckoutPresentationSwitcher({
           <Smartphone size={13} />
           <span>Mobile Device View</span>
         </button>
+
+        <Link
+          to="/mobile-design"
+          style={{
+            background: "#166534",
+            color: "#ffffff",
+            border: "1px solid #22c55e",
+            padding: "5px 12px",
+            borderRadius: "7px",
+            fontSize: "11.5px",
+            fontWeight: "700",
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            transition: "all 0.15s ease"
+          }}
+        >
+          <Layers size={13} />
+          <span>5-Screen Mobile Flow (390×844)</span>
+        </Link>
       </div>
 
       {/* Right: Security info */}

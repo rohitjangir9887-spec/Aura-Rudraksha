@@ -28,6 +28,7 @@ const TrackOrder = lazy(() => import("./pages/TrackOrder").then(m => ({ default:
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage").then(m => ({ default: m.CategoriesPage })));
 const Wholesale = lazy(() => import("./pages/Wholesale").then(m => ({ default: m.Wholesale })));
 const ContactUs = lazy(() => import("./pages/ContactUs").then(m => ({ default: m.ContactUs })));
+const MobileDesignPage = lazy(() => import("./pages/MobileDesignPage").then(m => ({ default: m.MobileDesignPage })));
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
@@ -124,6 +125,7 @@ export function App() {
           <Route path="/wholesale" element={<Wholesale />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/aura-ai" element={<AuraAIPage />} />
+          <Route path="/mobile-design" element={<MobileDesignPage />} />
 
           {/* Isolated Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
