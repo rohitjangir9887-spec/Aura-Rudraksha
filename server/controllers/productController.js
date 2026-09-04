@@ -159,6 +159,8 @@ export async function getProductById(req, res, next) {
   }
 }
 
+import { logAuditEvent } from "../services/auditService.js";
+
 export async function createProduct(req, res, next) {
   try {
     const data = pickFields(req.body, PRODUCT_FIELDS);
@@ -190,6 +192,15 @@ export async function createProduct(req, res, next) {
         inMemoryStore.products.unshift(productPayload);
       }
       invalidateRagCache();
+      await logAuditEvent({
+        actor: req.user?.email || "admin",
+        actorRole: "admin",
+        action: "PRODUCT_CREATED",
+        entityType: "Product",
+        entityId: String(id),
+        newState: productPayload,
+        req
+      });
       return res.status(201).json({ success: true, data: productPayload });
     }
 
@@ -199,6 +210,17 @@ export async function createProduct(req, res, next) {
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
     invalidateRagCache();
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "PRODUCT_CREATED",
+      entityType: "Product",
+      entityId: String(id),
+      newState: created,
+      req
+    });
+
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -227,11 +249,28 @@ export async function updateProduct(req, res, next) {
       }
       inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...updatePayload };
       invalidateRagCache();
+      await logAuditEvent({
+        actor: req.user?.email || "admin",
+        actorRole: "admin",
+        action: "PRODUCT_UPDATED",
+        entityType: "Product",
+        entityId: String(id),
+        newState: updatePayload,
+        req
+      });
       return res.json({ success: true, data: inMemoryStore.products[idx] });
     }
 
     const cleanId = String(id).trim();
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+    const oldProduct = await Product.findOne({
+      $or: [
+        { id: cleanId },
+        { slug: cleanId },
+        ...(isMongoId ? [{ _id: cleanId }] : [])
+      ]
+    }).lean();
+
     let updated = await Product.findOneAndUpdate(
       {
         $or: [
@@ -247,6 +286,18 @@ export async function updateProduct(req, res, next) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
     invalidateRagCache();
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "PRODUCT_UPDATED",
+      entityType: "Product",
+      entityId: cleanId,
+      oldState: oldProduct,
+      newState: updatePayload,
+      req
+    });
+
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -261,6 +312,14 @@ export async function deleteProduct(req, res, next) {
     if (!isDbConnected()) {
       inMemoryStore.products = inMemoryStore.products.filter(p => String(p.id) !== cleanId && p.slug !== cleanId);
       invalidateRagCache();
+      await logAuditEvent({
+        actor: req.user?.email || "admin",
+        actorRole: "admin",
+        action: "PRODUCT_DELETED",
+        entityType: "Product",
+        entityId: cleanId,
+        req
+      });
       return res.json({ success: true, message: "Product deleted", id: cleanId });
     }
 
@@ -300,6 +359,16 @@ export async function deleteProduct(req, res, next) {
     }
 
     invalidateRagCache();
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "PRODUCT_DELETED",
+      entityType: "Product",
+      entityId: cleanId,
+      req
+    });
+
     return res.json({ success: true, message: "Product deleted", id: cleanId });
   } catch (err) {
     next(err);

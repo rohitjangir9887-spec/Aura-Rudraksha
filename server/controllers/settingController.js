@@ -38,17 +38,51 @@ import {
   defaultCustomers
 } from "../data/defaultData.js";
 
+import { logAuditEvent } from "../services/auditService.js";
+
+function sanitizeSettingsForClient(settings, isAdmin = false) {
+  if (!settings || typeof settings !== "object") return {};
+  const copy = JSON.parse(JSON.stringify(settings));
+  
+  if (!isAdmin) {
+    delete copy.pcloudAccessToken;
+    delete copy.pcloudFolderId;
+    delete copy.pcloudRefreshToken;
+    delete copy.imagekitPrivateKey;
+    delete copy.imagekitPublicKey;
+    delete copy.imagekitUrlEndpoint;
+  } else {
+    if (copy.imagekitPrivateKey) {
+      copy.imagekitPrivateKeyMasked = copy.imagekitPrivateKey.length > 8
+        ? copy.imagekitPrivateKey.slice(0, 4) + "••••••••" + copy.imagekitPrivateKey.slice(-4)
+        : "••••••••";
+      delete copy.imagekitPrivateKey;
+    }
+    if (copy.pcloudAccessToken) {
+      copy.hasPcloudToken = true;
+      delete copy.pcloudAccessToken;
+    }
+  }
+  return copy;
+}
+
 export async function getSettings(req, res, next) {
   try {
+    let isAdmin = false;
+    if (req.user) {
+      const { isInitialAdmin } = isAdminUser(req.user);
+      isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
+    }
+
     if (!isDbConnected()) {
-      return res.json({ success: true, data: inMemoryStore.settings });
+      return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, isAdmin) });
     }
 
     let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
     if (!settings) {
       settings = await Setting.create(defaultSettings);
     }
-    return res.json({ success: true, data: settings });
+    return res.json({ success: true, data: sanitizeSettingsForClient(settings, isAdmin) });
   } catch (err) {
     next(err);
   }
@@ -60,15 +94,37 @@ export async function saveSettings(req, res, next) {
 
     if (!isDbConnected()) {
       inMemoryStore.settings = { ...inMemoryStore.settings, ...data };
-      return res.json({ success: true, data: inMemoryStore.settings });
+      await logAuditEvent({
+        actor: req.user?.email || "admin",
+        actorRole: "admin",
+        action: "SETTINGS_UPDATED",
+        entityType: "Setting",
+        entityId: "STORE_SETTINGS",
+        newState: data,
+        req
+      });
+      return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, true) });
     }
 
+    const oldSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
     const updated = await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
       { $set: data },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
-    return res.json({ success: true, data: updated });
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "SETTINGS_UPDATED",
+      entityType: "Setting",
+      entityId: "STORE_SETTINGS",
+      oldState: oldSettings,
+      newState: data,
+      req
+    });
+
+    return res.json({ success: true, data: sanitizeSettingsForClient(updated, true) });
   } catch (err) {
     next(err);
   }

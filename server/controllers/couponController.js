@@ -195,6 +195,8 @@ export async function getCoupons(req, res, next) {
   }
 }
 
+import { logAuditEvent } from "../services/auditService.js";
+
 export async function createCoupon(req, res, next) {
   try {
     const data = pickFields(req.body, COUPON_FIELDS);
@@ -225,6 +227,15 @@ export async function createCoupon(req, res, next) {
       } else {
         inMemoryStore.coupons.unshift(payload);
       }
+      await logAuditEvent({
+        actor: req.user?.email || "admin",
+        actorRole: "admin",
+        action: "COUPON_CREATED",
+        entityType: "Coupon",
+        entityId: payload.code,
+        newState: payload,
+        req
+      });
       return res.status(201).json({ success: true, data: payload });
     }
 
@@ -233,6 +244,17 @@ export async function createCoupon(req, res, next) {
       payload,
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "COUPON_CREATED",
+      entityType: "Coupon",
+      entityId: payload.code,
+      newState: created,
+      req
+    });
+
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -251,9 +273,19 @@ export async function updateCoupon(req, res, next) {
         return res.status(404).json({ success: false, message: "Coupon not found" });
       }
       inMemoryStore.coupons[idx] = { ...inMemoryStore.coupons[idx], ...data };
+      await logAuditEvent({
+        actor: req.user?.email || "admin",
+        actorRole: "admin",
+        action: "COUPON_UPDATED",
+        entityType: "Coupon",
+        entityId: String(id),
+        newState: data,
+        req
+      });
       return res.json({ success: true, data: inMemoryStore.coupons[idx] });
     }
 
+    const oldCoupon = await Coupon.findOne({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] }).lean();
     const updated = await Coupon.findOneAndUpdate(
       { $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] },
       { $set: data },
@@ -262,6 +294,18 @@ export async function updateCoupon(req, res, next) {
     if (!updated) {
       return res.status(404).json({ success: false, message: "Coupon not found" });
     }
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "COUPON_UPDATED",
+      entityType: "Coupon",
+      entityId: String(id),
+      oldState: oldCoupon,
+      newState: data,
+      req
+    });
+
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -285,6 +329,15 @@ export async function deleteCoupon(req, res, next) {
       await ActiveOffer.deleteMany({ couponCode: cleanCode });
       await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }] });
     }
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "COUPON_DELETED",
+      entityType: "Coupon",
+      entityId: cleanCode,
+      req
+    });
 
     return res.json({ success: true, message: "Coupon deleted successfully", id: cleanId });
   } catch (err) {

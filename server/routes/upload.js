@@ -104,11 +104,51 @@ router.post("/provider", requireAdmin, async (req, res) => {
   }
 });
 
+import { logAuditEvent } from "../services/auditService.js";
+import crypto from "crypto";
+
+const pendingOauthStates = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of pendingOauthStates.entries()) {
+    if (now - v.timestamp > 15 * 60 * 1000) pendingOauthStates.delete(k);
+  }
+}, 5 * 60 * 1000).unref?.();
+
+function generateOauthState(userId) {
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const timestamp = Date.now();
+  const secret = process.env.JWT_SECRET || process.env.ADMIN_SETUP_SECRET || "aura_oauth_secret_salt";
+  const signature = crypto.createHmac("sha256", secret).update(`${userId}:${timestamp}:${nonce}`).digest("hex");
+  const state = `${nonce}.${timestamp}.${signature}`;
+  pendingOauthStates.set(state, { userId, timestamp });
+  return state;
+}
+
+function verifyOauthState(state) {
+  if (!state || typeof state !== "string") return false;
+  const parts = state.split(".");
+  if (parts.length !== 3) return false;
+  const [nonce, timestampStr, signature] = parts;
+  const timestamp = Number(timestampStr);
+  if (isNaN(timestamp) || Date.now() - timestamp > 15 * 60 * 1000) return false;
+
+  const secret = process.env.JWT_SECRET || process.env.ADMIN_SETUP_SECRET || "aura_oauth_secret_salt";
+  const cached = pendingOauthStates.get(state);
+  const expectedSig = crypto.createHmac("sha256", secret).update(`${cached?.userId || ""}:${timestamp}:${nonce}`).digest("hex");
+  
+  if (crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSig, "hex"))) {
+    pendingOauthStates.delete(state);
+    return true;
+  }
+  return false;
+}
+
 /**
  * GET /api/upload/pcloud/connect
- * Starts pCloud OAuth authorization flow
+ * Starts pCloud OAuth authorization flow (Admin Authenticated)
  */
-router.get("/pcloud/connect", async (req, res) => {
+router.get("/pcloud/connect", requireAdmin, async (req, res) => {
   try {
     const clientId = (process.env.PCLOUD_CLIENT_ID || "").trim();
     if (!clientId) {
@@ -121,7 +161,8 @@ router.get("/pcloud/connect", async (req, res) => {
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
     const reqHost = req.get("host");
     const redirectUri = process.env.PCLOUD_REDIRECT_URI || `${protocol}://${reqHost}${req.baseUrl}/pcloud/callback`;
-    const authUrl = `https://my.pcloud.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    const state = generateOauthState(req.user?.authUserId || "admin");
+    const authUrl = `https://my.pcloud.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 
     if (req.query.redirect === "true") {
       return res.redirect(authUrl);
@@ -130,7 +171,8 @@ router.get("/pcloud/connect", async (req, res) => {
     return res.json({
       success: true,
       authUrl,
-      redirectUri
+      redirectUri,
+      state
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -139,11 +181,11 @@ router.get("/pcloud/connect", async (req, res) => {
 
 /**
  * GET /api/upload/pcloud/callback
- * Handles OAuth code exchange callback from pCloud
+ * Handles OAuth code exchange callback from pCloud with CSRF State Verification
  */
 router.get("/pcloud/callback", async (req, res) => {
   try {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
     if (error) {
       return res.send(`
         <html>
@@ -160,11 +202,25 @@ router.get("/pcloud/callback", async (req, res) => {
       return res.status(400).send("Missing OAuth code parameter from pCloud redirect.");
     }
 
+    // CSRF State parameter check
+    if (state && !verifyOauthState(state)) {
+      return res.status(403).send("OAuth State Verification Failed: Potential CSRF or expired session.");
+    }
+
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
     const reqHost = req.get("host");
     const redirectUri = process.env.PCLOUD_REDIRECT_URI || `${protocol}://${reqHost}${req.baseUrl}/pcloud/callback`;
 
     await exchangePcloudCode(code, redirectUri);
+
+    await logAuditEvent({
+      actor: "admin_oauth",
+      actorRole: "admin",
+      action: "PCLOUD_STORAGE_CONNECTED_OAUTH",
+      entityType: "Storage",
+      entityId: "pcloud",
+      req
+    });
 
     return res.send(`
       <html>

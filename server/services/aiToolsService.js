@@ -347,34 +347,48 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
 
         if (!isDbConnected()) {
           return {
-            orderId: orderId || "ORD-DEMO-9821",
+            orderId: orderId || "AURA-260904-000123",
             status: "In Transit",
-            estimatedDelivery: "3 Days",
+            estimatedDelivery: "3-4 Days",
             courier: "BlueDart Express",
             trackingId: "BD98231049IN",
-            note: "Pre-authenticated demo order status."
+            note: "Demo order status."
           };
         }
 
-        // Strict Owner Isolation: Match either authenticatedUserId, or matching email/phone
-        let orderFilter = {};
+        // Strict Owner Isolation: Match authUserId, customerEmail, or customerPhone
+        let userCondition = {};
         if (authenticatedUserId && authenticatedUserId !== "guest") {
-          orderFilter.userId = authenticatedUserId;
+          userCondition = { $or: [{ authUserId: authenticatedUserId }, { userId: authenticatedUserId }] };
         } else if (email || userEmail) {
-          orderFilter.email = (email || userEmail).toLowerCase();
+          const targetEmail = (email || userEmail).toLowerCase().trim();
+          userCondition = { $or: [{ customerEmail: targetEmail }, { email: targetEmail }] };
         } else if (phone || userPhone) {
-          orderFilter.phone = phone || userPhone;
+          const targetPhone = (phone || userPhone).trim();
+          userCondition = { $or: [{ customerPhone: targetPhone }, { phone: targetPhone }] };
         } else {
           return {
-            error: "Authentication required to fetch order details. Please log in or provide your order ID with email/phone."
+            error: "Authentication required to fetch order details. Please log in or provide your order ID with registered email/phone."
           };
         }
 
+        let query = { ...userCondition };
         if (orderId) {
-          orderFilter.$or = [{ orderId: orderId }, { _id: orderId }];
+          const cleanId = String(orderId).trim();
+          query.$and = [
+            userCondition,
+            {
+              $or: [
+                { id: cleanId },
+                { orderId: cleanId },
+                { orderNumber: cleanId },
+                ...(cleanId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: cleanId }] : [])
+              ]
+            }
+          ];
         }
 
-        const foundOrder = await Order.findOne(orderFilter).sort({ createdAt: -1 }).lean();
+        const foundOrder = await Order.findOne(query).sort({ createdAt: -1 }).lean();
 
         if (!foundOrder) {
           return {
@@ -385,14 +399,15 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
 
         return {
           found: true,
-          orderId: foundOrder.orderId || String(foundOrder._id),
-          status: foundOrder.status || "Processing",
-          total: foundOrder.totalAmount || foundOrder.total,
-          itemsCount: (foundOrder.items || []).length,
-          trackingId: foundOrder.trackingId || "BD" + Math.floor(10000000 + Math.random() * 90000000) + "IN",
-          courier: foundOrder.courierPartner || "BlueDart Express",
-          estimatedDelivery: foundOrder.estimatedDelivery || "3-4 Business Days",
-          createdAt: foundOrder.createdAt
+          orderId: foundOrder.orderNumber || foundOrder.orderId || foundOrder.id || String(foundOrder._id),
+          status: foundOrder.orderStatus || foundOrder.status || "Processing",
+          paymentStatus: foundOrder.paymentStatus || "Pending",
+          total: foundOrder.finalAmount || foundOrder.total || foundOrder.amount,
+          itemsCount: (foundOrder.items || foundOrder.snapshotItems || []).length,
+          trackingId: foundOrder.trackingNumber || foundOrder.trackingId || "",
+          courier: foundOrder.courierName || foundOrder.carrier || foundOrder.courierPartner || "Express Shipping",
+          estimatedDelivery: foundOrder.estimatedDeliveryDate || foundOrder.estimatedDelivery || "3-5 Business Days",
+          createdAt: foundOrder.createdAt || foundOrder.date
         };
       }
 
@@ -409,8 +424,16 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         let ordersCount = 0;
 
         if (isDbConnected()) {
-          custProfile = await Customer.findOne({ $or: [{ userId: authenticatedUserId }, { email: userEmail }] }).lean();
-          ordersCount = await Order.countDocuments({ userId: authenticatedUserId });
+          custProfile = await Customer.findOne({
+            $or: [
+              { authUserId: authenticatedUserId },
+              { userId: authenticatedUserId },
+              ...(userEmail ? [{ email: userEmail.toLowerCase() }] : [])
+            ]
+          }).lean();
+          ordersCount = await Order.countDocuments({
+            $or: [{ authUserId: authenticatedUserId }, { userId: authenticatedUserId }]
+          });
         }
 
         return {
@@ -418,6 +441,7 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
           userId: authenticatedUserId,
           name: custProfile?.name || userEmail?.split("@")[0] || "Devotee",
           email: userEmail || custProfile?.email,
+          phone: custProfile?.phone || userPhone || "",
           totalOrdersPlaced: ordersCount,
           addresses: custProfile?.addresses || []
         };

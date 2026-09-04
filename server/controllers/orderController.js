@@ -8,7 +8,34 @@ import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { pickFields } from "../utils/sanitize.js";
+import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency } from "../services/idempotencyService.js";
+import { isValidOrderTransition, isValidPaymentTransition, createStateHistoryEntry, ORDER_STATES, PAYMENT_STATES } from "../services/stateMachineService.js";
+import { logAuditEvent } from "../services/auditService.js";
 import crypto from "crypto";
+
+// Allowed customer input fields during order creation
+const CUSTOMER_ORDER_FIELDS = {
+  items: "array",
+  lines: "array",
+  firstName: "string",
+  lastName: "string",
+  customerName: "string",
+  customerEmail: "string",
+  customerPhone: "string",
+  phone: "string",
+  address: "string",
+  city: "string",
+  state: "string",
+  pincode: "string",
+  shippingAddress: "object",
+  notes: "string",
+  couponCode: "string",
+  coupon: "string",
+  orderSource: "string",
+  source: "string",
+  idempotencyKey: "string"
+};
 
 // In-flight / recent order cache to prevent rapid double-clicks
 const recentOrderSubmissions = new Map();
@@ -90,32 +117,49 @@ export async function getOrderById(req, res, next) {
 }
 
 export async function createOrder(req, res, next) {
+  const data = pickFields(req.body, CUSTOMER_ORDER_FIELDS);
+  const authUserId = req.user.authUserId;
+
+  const rawLines = data.lines || data.items || [];
+  if (!Array.isArray(rawLines) || rawLines.length === 0) {
+    return res.status(400).json({ success: false, message: "Order must contain valid items" });
+  }
+
+  // Persistent & in-memory Idempotency Guard
+  const idempotencyKey = req.headers["x-idempotency-key"] || data.idempotencyKey || null;
+  if (idempotencyKey) {
+    const idempResult = await checkOrAcquireIdempotency({
+      key: idempotencyKey,
+      userId: authUserId,
+      action: "create_order",
+      payload: { rawLines, couponCode: data.couponCode || data.coupon || "" }
+    });
+
+    if (idempResult.status === "COMPLETED") {
+      return res.status(idempResult.responseStatus || 200).json(idempResult.responseBody);
+    }
+    if (idempResult.status === "IN_PROGRESS") {
+      return res.status(409).json({ success: false, message: idempResult.error || "Order creation already in progress" });
+    }
+    if (idempResult.status === "PAYLOAD_MISMATCH") {
+      return res.status(422).json({ success: false, message: idempResult.error });
+    }
+  }
+
+  // In-flight debounce protection
+  cleanRecentSubmissions();
+  const submissionKey = `${authUserId}:${JSON.stringify(rawLines)}:${data.couponCode || data.coupon || ""}`;
+  const existingSubmission = recentOrderSubmissions.get(submissionKey);
+  if (existingSubmission && (Date.now() - existingSubmission.time < 5000)) {
+    if (existingSubmission.order) {
+      return res.status(200).json({ success: true, data: existingSubmission.order, duplicatePrevented: true });
+    }
+    return res.status(429).json({ success: false, message: "Order is already being processed. Please wait..." });
+  }
+
+  recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: null });
+
   try {
-    const data = req.body;
-    const authUserId = req.user.authUserId;
-
-    if (!data.items && !data.lines) {
-      return res.status(400).json({ success: false, message: "Order must contain items" });
-    }
-
-    const rawLines = data.lines || data.items || [];
-    if (!Array.isArray(rawLines) || rawLines.length === 0) {
-      return res.status(400).json({ success: false, message: "Order must contain valid items" });
-    }
-
-    // 0. Double-submission / in-flight protection
-    cleanRecentSubmissions();
-    const submissionKey = `${authUserId}:${JSON.stringify(rawLines)}:${data.couponCode || data.coupon || ""}`;
-    const existingSubmission = recentOrderSubmissions.get(submissionKey);
-    if (existingSubmission && (Date.now() - existingSubmission.time < 5000)) {
-      if (existingSubmission.order) {
-        return res.status(200).json({ success: true, data: existingSubmission.order, duplicatePrevented: true });
-      }
-      return res.status(429).json({ success: false, message: "Order is already being processed. Please wait..." });
-    }
-
-    recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: null });
-
     // 1. Authoritative Server Calculation (never trust client prices, discounts, or shipping)
     const couponCodeToValidate = data.couponCode || data.coupon || null;
     const totals = await calculateOrderTotals({
@@ -126,6 +170,7 @@ export async function createOrder(req, res, next) {
 
     if (!totals.items || totals.items.length === 0) {
       recentOrderSubmissions.delete(submissionKey);
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
       return res.status(400).json({ 
         success: false, 
         message: totals.unavailableItems?.[0]?.reason || "Selected products are unavailable or discontinued." 
@@ -139,6 +184,7 @@ export async function createOrder(req, res, next) {
         const pStatus = (product?.status || "Published").toLowerCase();
         if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
           recentOrderSubmissions.delete(submissionKey);
+          if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
           return res.status(400).json({ 
             success: false, 
             message: `Product '${item.name}' is no longer available.` 
@@ -146,6 +192,7 @@ export async function createOrder(req, res, next) {
         }
         if (product.stock !== undefined && product.stock < item.quantity) {
           recentOrderSubmissions.delete(submissionKey);
+          if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
           return res.status(400).json({ 
             success: false, 
             message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).` 
@@ -158,6 +205,7 @@ export async function createOrder(req, res, next) {
         const pStatus = (product?.status || "Published").toLowerCase();
         if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
           recentOrderSubmissions.delete(submissionKey);
+          if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
           return res.status(400).json({ 
             success: false, 
             message: `Product '${item.name}' is no longer available.` 
@@ -171,6 +219,7 @@ export async function createOrder(req, res, next) {
     if (couponCodeToValidate) {
       if (totals.couponStatus !== "APPLIED" || !totals.couponValid) {
         recentOrderSubmissions.delete(submissionKey);
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
         return res.status(400).json({
           success: false,
           status: totals.couponStatus,
@@ -187,29 +236,42 @@ export async function createOrder(req, res, next) {
     // Server always generates the permanent sequential order ID (AURA-YYMMDD-000123)
     const id = isDbConnected() ? await generateNextOrderNumber() : `AURA-${Date.now().toString().slice(-6)}`;
     const now = new Date().toISOString();
-    
+
     // Create copy of shipping address inside snapshot
     const shippingAddress = data.shippingAddress || {
-       address: data.address,
-       city: data.city,
-       state: data.state,
-       pincode: data.pincode,
-       phone: data.phone,
-       firstName: data.firstName,
-       lastName: data.lastName
+       address: data.address || "",
+       city: data.city || "",
+       state: data.state || "",
+       pincode: data.pincode || "",
+       phone: data.phone || data.customerPhone || "",
+       firstName: data.firstName || "",
+       lastName: data.lastName || ""
     };
 
-    // Immutable price & order snapshot. Strip any client-supplied Mongo
-    // internal identifiers before spreading, so a crafted _id can't be used
-    // to target/collide with another document.
-    const { _id, __v, ...clientData } = data;
+    const email = (data.customerEmail || req.user.email || "").trim().toLowerCase();
+    const phone = (data.customerPhone || data.phone || req.user.phoneNumber || "").trim();
+    const name = data.customerName || (data.firstName ? `${data.firstName} ${data.lastName || ''}`.trim() : (req.user.name || "Customer"));
+
+    // Server-authoritative Order Payload (P0: NEVER allow client-controlled payment/order state)
     const orderPayload = {
-      ...clientData,
-      authUserId,
       id,
       orderId: id,
       orderNumber: id,
-      date: data.date || now,
+      authUserId,
+      customerId: authUserId,
+      customerName: name,
+      customerEmail: email,
+      customerPhone: phone,
+      phone,
+      firstName: data.firstName || "",
+      lastName: data.lastName || "",
+      address: data.address || "",
+      city: data.city || "",
+      state: data.state || "",
+      pincode: data.pincode || "",
+      shippingAddress,
+      notes: data.notes || "",
+      date: now,
       items: totals.items,
       snapshotItems: totals.items,
       subtotal: totals.subtotal,
@@ -228,19 +290,24 @@ export async function createOrder(req, res, next) {
       finalAmount: totals.finalTotal,
       savings: totals.totalSavings,
       totalSavings: totals.totalSavings,
-      status: "Pending",
-      orderStatus: "Pending",
+      status: ORDER_STATES.PENDING,
+      orderStatus: ORDER_STATES.PENDING,
       orderSource: data.orderSource || data.source || "website",
       source: data.orderSource || data.source || "website",
-      paymentStatus: data.paymentStatus === "Paid" ? "Paid" : "Pending",
-      paymentMethod: data.paymentMethod || "PayU Hosted Checkout (UPI / Cards / NetBanking)",
-      shippingAddress,
-      inventoryDeducted: data.paymentStatus === "Paid"
+      paymentStatus: PAYMENT_STATES.PENDING, // Strictly PENDING on creation!
+      paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
+      inventoryDeducted: false, // Strictly FALSE until gateway confirms payment!
+      history: [
+        createStateHistoryEntry({
+          fromStatus: "NONE",
+          toStatus: ORDER_STATES.PENDING,
+          actor: authUserId,
+          actorRole: "customer",
+          reason: "Order created",
+          source: "checkout"
+        })
+      ]
     };
-
-    const email = (orderPayload.customerEmail || data.email || "").trim().toLowerCase();
-    const phone = (orderPayload.phone || orderPayload.customerPhone || "").trim();
-    const name = orderPayload.customerName || (orderPayload.firstName ? `${orderPayload.firstName} ${orderPayload.lastName || ''}`.trim() : "Customer");
     
     let created;
     if (isDbConnected()) {
@@ -257,31 +324,6 @@ export async function createOrder(req, res, next) {
     // Save in deduplication cache
     recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
 
-    // Deduct stock and update coupon usage ONLY if immediately paid (otherwise handled securely upon PayU callback/webhook)
-    if (orderPayload.inventoryDeducted) {
-      // Update Coupon Usage
-      if (validCouponDoc) {
-        if (isDbConnected()) {
-          await Coupon.findByIdAndUpdate(validCouponDoc._id, { $inc: { usage: 1 } });
-        } else {
-          validCouponDoc.usage = (validCouponDoc.usage || 0) + 1;
-        }
-      }
-
-      // Update Product Stock (prevent negative stock)
-      for (const item of totals.items) {
-        if (isDbConnected()) {
-          await Product.findOneAndUpdate(
-            { id: item.id, stock: { $gte: item.quantity } },
-            { $inc: { stock: -item.quantity } }
-          );
-        } else {
-          const memP = inMemoryStore.products.find(p => String(p.id) === String(item.id));
-          if (memP && memP.stock !== undefined) memP.stock = Math.max(0, memP.stock - item.quantity);
-        }
-      }
-    }
-
     // Auto update/create customer record in MongoDB or inMemoryStore
     try {
       await recordCustomerOrder({
@@ -295,9 +337,22 @@ export async function createOrder(req, res, next) {
     } catch (custErr) {
       console.warn("Could not sync customer on order:", custErr.message);
     }
+
+    const responsePayload = { success: true, data: created };
+
+    if (idempotencyKey) {
+      await commitIdempotency({
+        key: idempotencyKey,
+        action: "create_order",
+        responseStatus: 201,
+        responseBody: responsePayload,
+        resourceId: created.id
+      });
+    }
     
-    return res.status(201).json({ success: true, data: created });
+    return res.status(201).json(responsePayload);
   } catch (err) {
+    if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
     next(err);
   }
 }
@@ -308,78 +363,124 @@ export async function updateOrder(req, res, next) {
     const data = req.body;
     const authUserId = req.user.authUserId;
 
-    if (!isDbConnected()) {
-      const idx = inMemoryStore.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
-      if (idx < 0) {
-        return res.status(404).json({ success: false, message: "Order not found" });
-      }
-      const existing = inMemoryStore.orders[idx];
-      const { isInitialAdmin } = isAdminUser(req.user);
-      const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
-
-      let updateFields = {};
-      if (isAdmin) {
-        updateFields = { ...data };
-      } else if (existing.authUserId === authUserId) {
-        const cancellableStatuses = ["Pending", "Confirmed", "Processing"];
-        if (data.status === "Cancelled" && cancellableStatuses.includes(existing.status)) {
-          updateFields.status = "Cancelled";
-          updateFields.orderStatus = "Cancelled";
-          updateFields.cancelledAt = new Date().toISOString();
-          updateFields.cancelReason = data.cancelReason || "Cancelled by customer";
-          updateFields.cancelledBy = "Customer";
-        }
-        if (data.address && cancellableStatuses.includes(existing.status)) {
-          updateFields.address = data.address;
-          if (data.shippingAddress) updateFields.shippingAddress = data.shippingAddress;
-        }
-        if (Object.keys(updateFields).length === 0) {
-          return res.status(400).json({ success: false, message: "Cannot modify this order in its current state" });
-        }
-      } else {
-        return res.status(403).json({ success: false, message: "Access Denied: You do not own this order" });
-      }
-
-      inMemoryStore.orders[idx] = { ...existing, ...updateFields };
-      return res.json({ success: true, data: inMemoryStore.orders[idx] });
-    }
-
-    let existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] });
-    if (!existing && id.match(/^[0-9a-fA-F]{24}$/)) {
-      existing = await Order.findById(id);
-    }
-    if (!existing) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-
-    // Check if user is admin (verified Firebase identity -> server-side admin role)
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
 
-    // Authorization & field security
-    let updateFields = {};
-    if (isAdmin) {
-      // Admin has full permissions
-      updateFields = { ...data };
-    } else if (existing.authUserId === authUserId) {
-      // Customer can only cancel or update shipping address on pending/processing orders
-      const cancellableStatuses = ["Pending", "Confirmed", "Processing"];
-      if (data.status === "Cancelled" && cancellableStatuses.includes(existing.status)) {
-        updateFields.status = "Cancelled";
-        updateFields.orderStatus = "Cancelled";
-        updateFields.cancelledAt = new Date().toISOString();
-        updateFields.cancelReason = data.cancelReason || "Cancelled by customer";
-        updateFields.cancelledBy = "Customer";
+    let existing;
+    if (!isDbConnected()) {
+      const idx = inMemoryStore.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
+      if (idx < 0) return res.status(404).json({ success: false, message: "Order not found" });
+      existing = inMemoryStore.orders[idx];
+    } else {
+      existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] });
+      if (!existing && id.match(/^[0-9a-fA-F]{24}$/)) {
+        existing = await Order.findById(id);
       }
-      if (data.address && cancellableStatuses.includes(existing.status)) {
-        updateFields.address = data.address;
+      if (!existing) return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    let updateFields = {};
+
+    if (isAdmin) {
+      // Admin state transitions with validation
+      if (data.orderStatus && data.orderStatus !== existing.orderStatus) {
+        if (!isValidOrderTransition(existing.orderStatus, data.orderStatus)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid order status transition from '${existing.orderStatus}' to '${data.orderStatus}'`
+          });
+        }
+        updateFields.orderStatus = data.orderStatus;
+        updateFields.status = data.orderStatus;
+      }
+      if (data.status && data.status !== existing.status && !updateFields.status) {
+        if (!isValidOrderTransition(existing.status, data.status)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid order status transition from '${existing.status}' to '${data.status}'`
+          });
+        }
+        updateFields.status = data.status;
+        updateFields.orderStatus = data.status;
+      }
+      if (data.paymentStatus && data.paymentStatus !== existing.paymentStatus) {
+        if (!isValidPaymentTransition(existing.paymentStatus, data.paymentStatus)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid payment status transition from '${existing.paymentStatus}' to '${data.paymentStatus}'`
+          });
+        }
+        updateFields.paymentStatus = data.paymentStatus;
+      }
+
+      // Tracking & shipping updates
+      if (data.trackingNumber !== undefined) updateFields.trackingNumber = String(data.trackingNumber).trim();
+      if (data.trackingId !== undefined) updateFields.trackingId = String(data.trackingId).trim();
+      if (data.courierName !== undefined) updateFields.courierName = String(data.courierName).trim();
+      if (data.carrier !== undefined) updateFields.carrier = String(data.carrier).trim();
+      if (data.trackingUrl !== undefined) updateFields.trackingUrl = String(data.trackingUrl).trim();
+      if (data.shippingLink !== undefined) updateFields.shippingLink = String(data.shippingLink).trim();
+      if (data.estimatedDeliveryDate !== undefined) updateFields.estimatedDeliveryDate = String(data.estimatedDeliveryDate).trim();
+      if (data.notes !== undefined) updateFields.notes = String(data.notes).trim();
+      if (data.address !== undefined) updateFields.address = String(data.address).trim();
+      if (data.shippingAddress) updateFields.shippingAddress = data.shippingAddress;
+
+      // Log audit trail
+      await logAuditEvent({
+        actor: req.user.email || authUserId,
+        actorRole: "admin",
+        action: "ORDER_UPDATED_BY_ADMIN",
+        entityType: "Order",
+        entityId: existing.id || String(existing._id),
+        oldState: { orderStatus: existing.orderStatus, paymentStatus: existing.paymentStatus },
+        newState: updateFields,
+        reason: data.reason || "Admin order update",
+        req
+      });
+    } else if (existing.authUserId === authUserId) {
+      // Customer permissions: Only cancel or update address on pending/cancellable orders
+      const cancellableStatuses = [ORDER_STATES.PENDING, ORDER_STATES.PAYMENT_PENDING, ORDER_STATES.CONFIRMED, ORDER_STATES.PROCESSING];
+      
+      if (data.status === "Cancelled" || data.orderStatus === "Cancelled") {
+        if (!cancellableStatuses.includes(existing.orderStatus || existing.status)) {
+          return res.status(400).json({
+            success: false,
+            message: `Order cannot be cancelled in '${existing.orderStatus || existing.status}' state.`
+          });
+        }
+        updateFields.status = ORDER_STATES.CANCELLED;
+        updateFields.orderStatus = ORDER_STATES.CANCELLED;
+        updateFields.cancelledAt = new Date().toISOString();
+        updateFields.cancelReason = String(data.cancelReason || "Cancelled by customer").trim();
+        updateFields.cancelledBy = "Customer";
+
+        // If customer cancels an already-paid order, flag for refund review
+        if (existing.paymentStatus === PAYMENT_STATES.PAID) {
+          updateFields.paymentStatus = PAYMENT_STATES.REFUND_PENDING;
+          updateFields.refundDetails = {
+            requestedAt: new Date().toISOString(),
+            reason: updateFields.cancelReason,
+            status: "Refund Pending Review"
+          };
+        }
+      }
+
+      if (data.address && cancellableStatuses.includes(existing.orderStatus || existing.status)) {
+        updateFields.address = String(data.address).trim();
         if (data.shippingAddress) updateFields.shippingAddress = data.shippingAddress;
       }
+
       if (Object.keys(updateFields).length === 0) {
         return res.status(400).json({ success: false, message: "Cannot modify this order in its current state" });
       }
     } else {
       return res.status(403).json({ success: false, message: "Access Denied: You do not own this order" });
+    }
+
+    if (!isDbConnected()) {
+      const idx = inMemoryStore.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
+      inMemoryStore.orders[idx] = { ...existing, ...updateFields };
+      return res.json({ success: true, data: inMemoryStore.orders[idx] });
     }
 
     const updated = await Order.findByIdAndUpdate(existing._id, { $set: updateFields }, { returnDocument: "after" });

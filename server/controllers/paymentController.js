@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
+import { PaymentTransaction } from "../models/PaymentTransaction.js";
+import { WebhookEvent } from "../models/WebhookEvent.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
@@ -14,6 +16,8 @@ import {
   refundPayuTransaction
 } from "../services/payuService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { logAuditEvent } from "../services/auditService.js";
+import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
 
 /**
  * Safely parse and normalize incoming PayU callback/webhook body
@@ -284,6 +288,27 @@ export async function initiatePayuPayment(req, res, next) {
     // Save order in MongoDB
     await Order.create(orderPayload);
 
+    // Record Payment Transaction Ledger
+    try {
+      await PaymentTransaction.create({
+        transactionId: txnid,
+        orderId,
+        orderNumber: orderId,
+        authUserId,
+        provider: "payu",
+        amount: totals.finalTotal,
+        currency: "INR",
+        status: "PENDING",
+        initiatedAt: new Date(),
+        metadata: {
+          customerEmail: email,
+          customerName: firstname
+        }
+      });
+    } catch (txnErr) {
+      console.warn("Could not save PaymentTransaction record:", txnErr.message);
+    }
+
     // Authoritative Callback URLs for PayU
     const appBaseUrl = resolveAppBaseUrl(req);
     const surl = `${appBaseUrl}/api/payment/payu-callback`;
@@ -516,7 +541,7 @@ export async function handlePayuCallback(req, res) {
         }
       }
 
-      // Increment coupon usage (atomically claimed strictly once)
+      // Increment coupon usage (atomically claimed strictly once with concurrency limit guard)
       if (order.couponCode) {
         const couponClaim = await Order.findOneAndUpdate(
           { _id: order._id, couponUsedRecorded: { $ne: true } },
@@ -524,8 +549,38 @@ export async function handlePayuCallback(req, res) {
           { new: false }
         );
         if (couponClaim && !couponClaim.couponUsedRecorded) {
-          await Coupon.findOneAndUpdate({ code: order.couponCode.toUpperCase() }, { $inc: { usage: 1 } });
+          await Coupon.findOneAndUpdate(
+            {
+              code: String(order.couponCode).trim().toUpperCase(),
+              $or: [
+                { limit: { $exists: false } },
+                { limit: null },
+                { limit: 0 },
+                { $expr: { $lt: ["$usage", "$limit"] } }
+              ]
+            },
+            { $inc: { usage: 1 } }
+          );
         }
+      }
+
+      // Update PaymentTransaction Ledger
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          {
+            $set: {
+              status: "SUCCESS",
+              gatewayPaymentId: params.mihpayid || verifyRes?.mihpayid || "",
+              bankRefNum: params.bank_ref_num || verifyRes?.bankRefNum || "",
+              paymentMode: params.mode || verifyRes?.mode || "",
+              verifiedAt: new Date(),
+              completedAt: new Date()
+            }
+          }
+        );
+      } catch (txnErr) {
+        console.warn("Could not update PaymentTransaction record on callback:", txnErr.message);
       }
 
       // Record customer profile
@@ -613,13 +668,43 @@ export async function handlePayuWebhook(req, res) {
       return res.status(400).json({ success: false, message: "Amount mismatch" });
     }
 
+    // Record Webhook Event Audit Log
+    const eventId = `WH_${txnid}_${Date.now()}`;
+    try {
+      await WebhookEvent.create({
+        eventId,
+        provider: "payu",
+        txnid,
+        orderId: order._id ? String(order._id) : orderId,
+        gatewayPaymentId: params.mihpayid || "",
+        payloadHash: hashPayload(params),
+        signatureValid: hashCheck.valid,
+        processingStatus: status === "success" ? "PROCESSING" : "PROCESSED",
+        receivedAt: new Date()
+      });
+    } catch (whErr) {
+      console.warn("Could not save WebhookEvent:", whErr.message);
+    }
+
     if (status !== "success") {
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          { $set: { status: "FAILED", errorMessage: params.error_Message || params.unmappedstatus || "Gateway reported failure" } }
+        );
+      } catch (_) {}
       return res.status(200).json({ success: true, message: "Webhook received (payment not successful)" });
     }
 
     // Authoritative Server-to-Server Verification
     const verifyRes = await verifyPayuPaymentServerSide(txnid);
     if (!verifyRes.isPaid || Math.abs(verifyRes.amount - expectedAmount) > 0.01) {
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          { $set: { status: "FAILED", errorMessage: "Server-side verification mismatch" } }
+        );
+      } catch (_) {}
       return res.status(400).json({ success: false, message: "Server-side payment verification failed" });
     }
 
@@ -671,9 +756,37 @@ export async function handlePayuWebhook(req, res) {
           { new: false }
         );
         if (couponClaim && !couponClaim.couponUsedRecorded) {
-          await Coupon.findOneAndUpdate({ code: order.couponCode.toUpperCase() }, { $inc: { usage: 1 } });
+          await Coupon.findOneAndUpdate(
+            {
+              code: String(order.couponCode).trim().toUpperCase(),
+              $or: [
+                { limit: { $exists: false } },
+                { limit: null },
+                { limit: 0 },
+                { $expr: { $lt: ["$usage", "$limit"] } }
+              ]
+            },
+            { $inc: { usage: 1 } }
+          );
         }
       }
+
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          {
+            $set: {
+              status: "SUCCESS",
+              gatewayPaymentId: params.mihpayid || verifyRes?.mihpayid || "",
+              bankRefNum: params.bank_ref_num || verifyRes?.bankRefNum || "",
+              paymentMode: params.mode || verifyRes?.mode || "",
+              verifiedAt: new Date(),
+              completedAt: new Date()
+            }
+          }
+        );
+        await WebhookEvent.findOneAndUpdate({ eventId }, { $set: { processingStatus: "PROCESSED", processedAt: new Date() } });
+      } catch (_) {}
     }
 
     return res.status(200).json({ success: true, message: "Webhook processed successfully" });
@@ -1084,6 +1197,34 @@ export async function processPayuRefund(req, res, next) {
 
     await order.save();
     await Order.updateOne({ _id: order._id }, { $unset: { isRefunding: 1 } });
+
+    // Update Payment Transaction record
+    try {
+      await PaymentTransaction.findOneAndUpdate(
+        { orderId: order.id },
+        {
+          $set: {
+            status: isFullRefund ? "REFUNDED" : "PARTIAL_REFUND"
+          },
+          $push: {
+            refunds: refundEntry
+          }
+        }
+      );
+    } catch (_) {}
+
+    // Audit log refund event
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: isFullRefund ? "PAYMENT_REFUNDED_FULL" : "PAYMENT_REFUNDED_PARTIAL",
+      entityType: "Order",
+      entityId: order.orderNumber || order.id,
+      oldState: { paymentStatus: isFullRefund ? "Paid" : "Partially Refunded", amountRefunded: alreadyRefunded },
+      newState: { paymentStatus: order.paymentStatus, amountRefunded: newAmountRefunded, refund: refundEntry },
+      reason: reason || "Admin PayU Live Refund",
+      req
+    });
 
     return res.json({
       success: true,
