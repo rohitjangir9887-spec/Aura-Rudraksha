@@ -1,9 +1,7 @@
-/**
- * pCloud REST API Integration Service
- * Keeps pCloud access tokens and secrets strictly server-side.
- */
+import { Setting } from "../models/Setting.js";
+import { isDbConnected } from "../config/db.js";
 
-function getPcloudApiHost() {
+export function getPcloudApiHost() {
   const custom = (process.env.PCLOUD_API_HOST || "").trim();
   if (custom) {
     return custom.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -11,22 +9,89 @@ function getPcloudApiHost() {
   return "api.pcloud.com";
 }
 
-function getPcloudToken() {
-  return (process.env.PCLOUD_ACCESS_TOKEN || "").trim();
+export async function getPcloudToken() {
+  const envToken = (process.env.PCLOUD_ACCESS_TOKEN || "").trim();
+  if (envToken) return envToken;
+
+  if (isDbConnected()) {
+    try {
+      const settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+      if (settings && settings.pcloudAccessToken) {
+        return settings.pcloudAccessToken.trim();
+      }
+    } catch (_) {}
+  }
+  return "";
+}
+
+export async function savePcloudToken(token) {
+  if (!token) return false;
+  if (isDbConnected()) {
+    await Setting.findOneAndUpdate(
+      { id: "STORE_SETTINGS" },
+      { $set: { pcloudAccessToken: token.trim() } },
+      { upsert: true }
+    );
+  }
+  return true;
+}
+
+export async function clearPcloudToken() {
+  if (isDbConnected()) {
+    await Setting.findOneAndUpdate(
+      { id: "STORE_SETTINGS" },
+      { $set: { pcloudAccessToken: "" } },
+      { upsert: true }
+    );
+  }
+  return true;
+}
+
+export async function exchangePcloudCode(code, redirectUri) {
+  const clientId = (process.env.PCLOUD_CLIENT_ID || "").trim();
+  const clientSecret = (process.env.PCLOUD_CLIENT_SECRET || "").trim();
+  const host = getPcloudApiHost();
+
+  if (!clientId || !clientSecret) {
+    throw new Error("PCLOUD_CLIENT_ID or PCLOUD_CLIENT_SECRET is missing on server.");
+  }
+
+  const url = `https://${host}/oauth2/oauth2_token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`pCloud OAuth token exchange failed HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.access_token) {
+    await savePcloudToken(data.access_token);
+    return data;
+  }
+  throw new Error(data.error || "pCloud OAuth exchange returned no access token.");
 }
 
 /**
  * Fetch pCloud account userinfo and storage statistics
  */
 export async function getPcloudStatus() {
-  const token = getPcloudToken();
+  const token = await getPcloudToken();
+  const clientId = (process.env.PCLOUD_CLIENT_ID || "").trim();
+
   if (!token) {
+    const missingVars = [];
+    if (!clientId) missingVars.push("PCLOUD_CLIENT_ID");
+    if (!process.env.PCLOUD_CLIENT_SECRET) missingVars.push("PCLOUD_CLIENT_SECRET");
+    if (!token) missingVars.push("PCLOUD_ACCESS_TOKEN");
+
     return {
       success: false,
       connected: false,
       status: "Not Configured",
       provider: "pCloud Storage",
-      message: "pCloud Access Token is not set on the server (PCLOUD_ACCESS_TOKEN environment variable missing).",
+      message: clientId
+        ? "pCloud client ID set. Click 'Connect pCloud' to complete OAuth authorization."
+        : `pCloud is not configured on the server. Missing variables: ${missingVars.join(", ")}`,
+      missingVars,
+      hasClientId: Boolean(clientId),
       email: "Not Configured",
       username: "Not Configured",
       quota: 0,
@@ -44,7 +109,12 @@ export async function getPcloudStatus() {
         connected: false,
         status: "API Error",
         provider: "pCloud Storage",
-        message: `pCloud API HTTP ${res.status}: ${res.statusText}`
+        message: `pCloud API HTTP ${res.status}: ${res.statusText}`,
+        email: "Error",
+        username: "Error",
+        quota: 0,
+        usedQuota: 0,
+        freeQuota: 0
       };
     }
 
@@ -75,7 +145,12 @@ export async function getPcloudStatus() {
       connected: false,
       status: "Auth Error",
       provider: "pCloud Storage",
-      message: data.error || `pCloud authentication error (code ${data.result}). Please verify PCLOUD_ACCESS_TOKEN.`
+      message: data.error || `pCloud authentication error (code ${data.result}). Please verify Access Token.`,
+      email: "Invalid Token",
+      username: "Unauthorized",
+      quota: 0,
+      usedQuota: 0,
+      freeQuota: 0
     };
   } catch (err) {
     return {
@@ -83,7 +158,12 @@ export async function getPcloudStatus() {
       connected: false,
       status: "Connection Failed",
       provider: "pCloud Storage",
-      message: `Failed to connect to pCloud API: ${err.message || err}`
+      message: `Failed to connect to pCloud API: ${err.message || err}`,
+      email: "Offline",
+      username: "Offline",
+      quota: 0,
+      usedQuota: 0,
+      freeQuota: 0
     };
   }
 }
@@ -92,7 +172,7 @@ export async function getPcloudStatus() {
  * Upload a file buffer directly to pCloud and return a direct public URL
  */
 export async function uploadToPcloud({ buffer, filename, mimeType }) {
-  const token = getPcloudToken();
+  const token = await getPcloudToken();
   if (!token) {
     throw new Error("pCloud upload failed: PCLOUD_ACCESS_TOKEN is missing on server.");
   }
@@ -105,7 +185,8 @@ export async function uploadToPcloud({ buffer, filename, mimeType }) {
   const blob = new Blob([buffer], { type: mimeType || "application/octet-stream" });
   formData.append("file", blob, cleanFilename);
 
-  const uploadUrl = `https://${host}/uploadfile?access_token=${encodeURIComponent(token)}&folderid=0&nopublink=0`;
+  const folderId = (process.env.PCLOUD_FOLDER_ID || "0").trim();
+  const uploadUrl = `https://${host}/uploadfile?access_token=${encodeURIComponent(token)}&folderid=${encodeURIComponent(folderId)}&nopublink=0`;
 
   const res = await fetch(uploadUrl, {
     method: "POST",
@@ -173,7 +254,7 @@ export async function uploadToPcloud({ buffer, filename, mimeType }) {
  * Delete a file from pCloud by file ID
  */
 export async function deleteFromPcloud(fileId) {
-  const token = getPcloudToken();
+  const token = await getPcloudToken();
   if (!token || !fileId) return { success: false, message: "No token or fileId" };
 
   const host = getPcloudApiHost();
@@ -186,3 +267,4 @@ export async function deleteFromPcloud(fileId) {
     return { success: false, message: err.message };
   }
 }
+

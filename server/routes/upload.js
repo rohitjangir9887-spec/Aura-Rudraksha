@@ -4,7 +4,7 @@ import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { requireAdmin } from "../middleware/auth.js";
-import { getPcloudStatus, uploadToPcloud, deleteFromPcloud } from "../services/pcloudService.js";
+import { getPcloudStatus, uploadToPcloud, deleteFromPcloud, exchangePcloudCode, savePcloudToken, clearPcloudToken, getPcloudApiHost } from "../services/pcloudService.js";
 
 const router = express.Router();
 
@@ -69,6 +69,138 @@ router.post("/provider", requireAdmin, async (req, res) => {
       success: false,
       message: err.message || "Failed to update storage provider"
     });
+  }
+});
+
+/**
+ * GET /api/upload/pcloud/connect
+ * Starts pCloud OAuth authorization flow
+ */
+router.get("/pcloud/connect", async (req, res) => {
+  try {
+    const clientId = (process.env.PCLOUD_CLIENT_ID || "").trim();
+    if (!clientId) {
+      return res.status(400).json({
+        success: false,
+        message: "pCloud Client ID (PCLOUD_CLIENT_ID) is missing on the server. Configure PCLOUD_CLIENT_ID or use manual Access Token input."
+      });
+    }
+
+    const host = getPcloudApiHost();
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const reqHost = req.get("host");
+    const redirectUri = `${protocol}://${reqHost}/api/upload/pcloud/callback`;
+    const authUrl = `https://my.pcloud.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+    if (req.query.redirect === "true") {
+      return res.redirect(authUrl);
+    }
+
+    return res.json({
+      success: true,
+      authUrl,
+      redirectUri
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/upload/pcloud/callback
+ * Handles OAuth code exchange callback from pCloud
+ */
+router.get("/pcloud/callback", async (req, res) => {
+  try {
+    const { code, error } = req.query;
+    if (error) {
+      return res.send(`
+        <html>
+          <body style="font-family: sans-serif; text-align: center; padding: 40px; background: #fffdfa;">
+            <h2 style="color: #dc2626;">pCloud Connection Refused</h2>
+            <p>${error}</p>
+            <script>if (window.opener) { window.opener.postMessage({ type: 'pcloud:error', error: '${error}' }, '*'); setTimeout(() => window.close(), 2500); }</script>
+          </body>
+        </html>
+      `);
+    }
+
+    if (!code) {
+      return res.status(400).send("Missing OAuth code parameter from pCloud redirect.");
+    }
+
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const reqHost = req.get("host");
+    const redirectUri = `${protocol}://${reqHost}/api/upload/pcloud/callback`;
+
+    await exchangePcloudCode(code, redirectUri);
+
+    return res.send(`
+      <html>
+        <body style="font-family: sans-serif; text-align: center; padding: 40px; background: #f0fdf4;">
+          <h2 style="color: #16a34a;">✅ pCloud Storage Connected!</h2>
+          <p>You may close this window. Returning to Aura Admin...</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'pcloud:connected' }, '*');
+              setTimeout(() => window.close(), 1500);
+            } else {
+              setTimeout(() => { window.location.href = '/admin'; }, 1500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    return res.status(500).send(`pCloud OAuth token exchange error: ${err.message}`);
+  }
+});
+
+/**
+ * POST /api/upload/pcloud/connect-token
+ * Manually connect pCloud via an Access Token
+ */
+router.post("/pcloud/connect-token", requireAdmin, async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token || typeof token !== "string" || !token.trim()) {
+      return res.status(400).json({ success: false, message: "Valid pCloud Access Token is required." });
+    }
+
+    await savePcloudToken(token.trim());
+    const status = await getPcloudStatus();
+
+    if (status.connected) {
+      return res.json({
+        success: true,
+        message: `pCloud Storage connected successfully as ${status.email}.`,
+        status
+      });
+    }
+
+    await clearPcloudToken();
+    return res.status(400).json({
+      success: false,
+      message: status.message || "Failed to verify pCloud Access Token. Please check token permissions."
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/upload/pcloud/disconnect
+ * Disconnect pCloud Storage
+ */
+router.post("/pcloud/disconnect", requireAdmin, async (req, res) => {
+  try {
+    await clearPcloudToken();
+    return res.json({
+      success: true,
+      message: "pCloud Storage disconnected successfully. Existing media files remain untouched."
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
