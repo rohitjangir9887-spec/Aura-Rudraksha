@@ -1,5 +1,5 @@
 import crypto from "crypto";
-const requestCounts = new Map();
+import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
@@ -18,6 +18,11 @@ import {
   buildAuthenticVedicResponse, 
   VEDIC_BEADS_KNOWLEDGE 
 } from "../services/vedicKnowledgeService.js";
+import { getUserMemories, extractAndUpdateMemories } from "../services/memoryService.js";
+import { retrieveRagContext } from "../services/ragService.js";
+import { GEMINI_TOOL_DECLARATIONS, executeAiToolCall } from "../services/aiToolsService.js";
+
+const requestCounts = new Map();
 
 const AI_SETTING_FIELDS = {
   enabled: "bool", showFloatingButton: "bool", showHeaderButton: "bool",
@@ -511,34 +516,17 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    // Query catalog and coupons strictly from database
-    let products = [];
-    let coupons = [];
-    let userOrders = [];
-    
-    if (isDbConnected()) {
-      try {
-        products = await Product.find({ 
-          inStock: { $ne: false },
-          status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
-        }).lean();
-        coupons = await Coupon.find({ status: "Active" }).lean();
-        if (userIsAuthenticated && (verifiedUserId || verifiedEmail)) {
-          const orderQueries = [];
-          if (verifiedUserId) {
-            orderQueries.push({ authUserId: verifiedUserId });
-            orderQueries.push({ customerAuthUserId: verifiedUserId });
-          }
-          if (verifiedEmail) {
-            orderQueries.push({ customerEmail: verifiedEmail });
-            orderQueries.push({ email: verifiedEmail });
-          }
-          userOrders = await Order.find({ $or: orderQueries }).sort({ createdAt: -1 }).limit(5).lean();
-        }
-      } catch (err) {
-        console.warn("DB fetch error:", err.message);
-      }
-    }
+    // Fetch Mem0-style long-term user memories
+    const userMemories = await getUserMemories({ userId: effectiveUserId, guestSessionId: effectiveGuestSessionId });
+    const memoryContextText = userMemories.length > 0 
+      ? userMemories.map(m => `${m.memoryKey}: ${m.memoryValue}`).join(" | ")
+      : "No previous preference memories recorded yet.";
+
+    // Fetch live RAG context documents from MongoDB / store index
+    const ragDocs = await retrieveRagContext(message, 4);
+    const ragContextText = ragDocs.length > 0
+      ? ragDocs.map(d => `[${d.docType.toUpperCase()}] ${d.title}: ${d.content}`).join("\n\n")
+      : "Standard store catalog policy and authentic Nepal Rudraksha guarantee applies.";
 
     const intent = detectUserIntent(message);
     const targetMukhi = extractMukhiNumber(message);
@@ -575,28 +563,10 @@ export async function chatAuraAI(req, res, next) {
 
     const quickReplies = generateDynamicQuickReplies({ userMessage: message, intent, targetMukhi });
 
-    const catalogContext = finalProducts.map(p => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      mrp: p.mrp,
-      inStock: p.inStock,
-      rating: p.rating,
-      reviews: p.reviews,
-      highlight: p.highlight || ""
-    }));
-
-    const ordersContext = userOrders.map(o => ({
-      id: o.id || o.orderId,
-      status: o.status,
-      total: o.total || o.finalAmount,
-      date: o.createdAt
-    }));
-
     const isPanditji = mode === "panditji";
     const assistantIdentity = isPanditji
       ? `You are "AI Panditji" (🕉️ AI Panditji), a revered 35+ years experienced Vedic Astrologer, Rudraksha Specialist, and Spiritual Guide for Aura Rudraksha.`
-      : `You are "Aura AI", the intelligent Vedic Rudraksha shopping and guidance assistant for Aura Rudraksha.`;
+      : `You are "Aura AI", the production-grade intelligent Vedic Rudraksha shopping and guidance assistant for Aura Rudraksha.`;
 
     const systemPrompt = `${assistantIdentity}
 
@@ -605,23 +575,149 @@ ${isPanditji ? `TONE & PERSONA (AI PANDITJI MODE):
 - Address the user as "Devotee", "Priya Bhaktjan", or "Ji". Start greetings respectfully: "Hari Om 🙏 Pranam Devotee!", "Har Har Mahadev 🕉️", "Jai Shree Krishna 🕉️", or "Radhe Radhe 🚩".
 - Provide authentic traditional Jyotish (astrology), Rashi, Nakshatra, Mulank, and Rudraksha Mukhi guidance based on ancient scriptures (Shiva Purana, Padma Purana).
 - Whenever a user shares their birth details (Name, Date of Birth, Birth Time, Birth Place, Concern), perform a thorough, respectful Vedic analysis explaining their Rashi, ruling planet, element, recommended Mukhi Rudraksha, Beej Mantra, and Dharan Vidhi.
-- Always include traditional Dharan Vidhi (wearing day, auspicious muhurat, Beej Mantra, Gangajal & raw milk purification, and daily Nitya Niyama).
-- If the user has not shared their birth details yet, politely invite them to enter their Name, DOB, Time, and Place using the in-chat Birth Details Form.` : `TONE & PERSONA (STANDARD MODE):
+- Always include traditional Dharan Vidhi (wearing day, auspicious muhurat, Beej Mantra, Gangajal & raw milk purification, and daily Nitya Niyama).` : `TONE & PERSONA (STANDARD MODE):
 - Warm, polite, knowledgeable, concise, and helpful. Answer customer queries directly.`}
 
-PRIVACY & ORDER SUPPORT:
-Never reveal another customer's data. Only show authenticated customer's own order details.
-Tone: Warm, respectful, spiritual, knowledgeable, premium, trustworthy, helpful, concise.
-Strictly NEVER output internal reasoning tags (<think>), JSON code blocks, or chain of thought.
+HONESTY & SOURCE OF TRUTH:
+- NEVER invent prices, stock availability, discount coupons, customer orders, or delivery dates.
+- For product catalog details, stock, shipping, coupons, and customer orders, rely strictly on live function tool data or RAG context.
+- For external general questions outside the website (e.g., general world news, astrology transits, history articles), use external search grounding or model knowledge.
+
+PRIVACY & USER ISOLATION:
+- Never reveal another customer's data or orders. Only access authenticated customer's own details.
+
+MEM0 LONG-TERM USER MEMORY (RESERVED CONTEXT):
+${memoryContextText}
+
+RELEVANT LIVE RAG KNOWLEDGE SNIPPETS:
+${ragContextText}
 
 Current Devotee State:
 Mode: ${mode}
 Authenticated: ${userIsAuthenticated ? verifiedName : "Guest"}
 Intent: ${intent}
-Target Mukhi/Bead: ${targetMukhi || "General"}
-Live Catalog Available: ${JSON.stringify(catalogContext)}
-Live Active Coupons: ${JSON.stringify(coupons.map(c => `${c.code} (${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF)`))}
-Customer Orders: ${JSON.stringify(ordersContext)}`;
+Target Mukhi/Bead: ${targetMukhi || "General"}`;
+
+    let fullRawContent = "";
+    let generatedViaLLM = false;
+    let triggeredAction = null;
+
+    // Primary AI Generation using Gemini API (@google/genai)
+    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+    if (geminiApiKey) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: geminiApiKey,
+          httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+        });
+
+        // Format multi-turn message history for Gemini
+        const contents = [];
+        for (const h of history.slice(-6)) {
+          if (h.sender === "user" && h.text) {
+            contents.push({ role: "user", parts: [{ text: String(h.text) }] });
+          } else if (h.sender === "ai" && h.text) {
+            contents.push({ role: "model", parts: [{ text: String(h.text) }] });
+          }
+        }
+        contents.push({ role: "user", parts: [{ text: message }] });
+
+        // Gemini Tools Configuration: Live Store Functions & Search Grounding
+        const isExternalQuery = /(news|article|history|research|today|weather|external|scientific|planet transit|astrology today)/i.test(message);
+        
+        const toolsConfig = isExternalQuery
+          ? [{ googleSearch: {} }]
+          : [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }];
+
+        // Generate content with function calling capabilities
+        let response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          config: {
+            systemInstruction: systemPrompt,
+            tools: toolsConfig,
+            temperature: 0.3,
+            maxOutputTokens: 2048
+          },
+          contents
+        });
+
+        // Handle potential tool function calls in loop
+        let functionCalls = response.functionCalls || [];
+        let maxToolTurns = 3;
+
+        while (functionCalls && functionCalls.length > 0 && maxToolTurns > 0) {
+          maxToolTurns -= 1;
+          const toolCall = functionCalls[0];
+          const toolName = toolCall.name;
+          const toolArgs = toolCall.args || {};
+
+          console.log(`[Aura AI] Gemini requested tool execution: ${toolName}`, toolArgs);
+
+          const toolResult = await executeAiToolCall(toolName, toolArgs, {
+            authenticatedUserId: userIsAuthenticated ? verifiedUserId : null,
+            userEmail: verifiedEmail
+          });
+
+          if (toolResult?.action) {
+            triggeredAction = toolResult;
+          }
+
+          // Append function call and function response to multi-turn contents
+          contents.push({
+            role: "model",
+            parts: [{ functionCall: toolCall }]
+          });
+          contents.push({
+            role: "user",
+            parts: [{
+              functionResponse: {
+                name: toolName,
+                response: { output: toolResult }
+              }
+            }]
+          });
+
+          response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            config: {
+              systemInstruction: systemPrompt,
+              tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
+              temperature: 0.3
+            },
+            contents
+          });
+
+          functionCalls = response.functionCalls || [];
+        }
+
+        fullRawContent = response.text || "";
+        if (fullRawContent.trim()) {
+          generatedViaLLM = true;
+        }
+      } catch (geminiErr) {
+        console.warn("[Aura AI] Gemini API Execution Notice:", geminiErr?.message || geminiErr);
+      }
+    }
+
+    // Fallback if Gemini LLM response is unavailable
+    if (!generatedViaLLM || !fullRawContent.trim()) {
+      fullRawContent = buildAuthenticVedicResponse({
+        message,
+        userIntent: intent,
+        products: finalProducts,
+        coupons: finalCoupons
+      });
+    }
+
+    const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
+
+    // Update Mem0-style long-term user memory in background
+    extractAndUpdateMemories({
+      userId: effectiveUserId,
+      guestSessionId: effectiveGuestSessionId,
+      userMessage: message,
+      aiResponse: safeFinalText
+    }).catch(mErr => console.warn("Memory extract notice:", mErr?.message));
 
     const isStreaming = Boolean(req.query?.stream === "true" || req.body?.stream === true || (req.headers?.accept && req.headers.accept.includes("text/event-stream")));
 
@@ -634,112 +730,19 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
       res.write(`data: ${JSON.stringify({ type: "start", conversationId: targetConversationId, guestSessionId: effectiveGuestSessionId })}\n\n`);
       if (res.flush) res.flush();
       
-      res.write(`data: ${JSON.stringify({ type: "status", message: "Checking products..." })}\n\n`);
-      if (res.flush) res.flush();
-
       res.write(`data: ${JSON.stringify({ 
         type: "meta", 
         data: { 
           products: finalProducts, 
           coupons: finalCoupons, 
-          quickReplies 
+          quickReplies,
+          action: triggeredAction
         } 
       })}\n\n`);
       if (res.flush) res.flush();
 
-      res.write(`data: ${JSON.stringify({ type: "status", message: "Finding recommendations..." })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "chunk", delta: safeFinalText })}\n\n`);
       if (res.flush) res.flush();
-
-      let fullRawContent = "";
-      let generatedViaLLM = false;
-
-      const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
-      if (nvidiaApiKey) {
-        try {
-          res.write(`data: ${JSON.stringify({ type: "status", message: "Thinking..." })}\n\n`);
-          if (res.flush) res.flush();
-
-          const formattedMessages = [{ role: "system", content: systemPrompt }];
-          for (const h of history.slice(-4)) {
-            if (h.sender === "user" && h.text) formattedMessages.push({ role: "user", content: String(h.text) });
-            else if (h.sender === "ai" && h.text) formattedMessages.push({ role: "assistant", content: String(h.text) });
-          }
-          formattedMessages.push({ role: "user", content: message });
-
-          const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${nvidiaApiKey}`,
-              "Accept": "text/event-stream"
-            },
-            body: JSON.stringify({
-              model: PRIMARY_NIM_MODEL,
-              messages: formattedMessages,
-              temperature: 0.3,
-              max_tokens: 2048,
-              stream: true,
-              chat_template_kwargs: { enable_thinking: false },
-              reasoning_effort: "none"
-            })
-          });
-
-          if (nimRes.ok && nimRes.body) {
-            const reader = nimRes.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (value) {
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split("\n");
-                buffer = lines.pop() || "";
-
-                for (const line of lines) {
-                  const trimmed = line.trim();
-                  if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-                    try {
-                      const parsedJson = JSON.parse(trimmed.slice(6));
-                      const deltaObj = parsedJson.choices?.[0]?.delta;
-                      if (deltaObj?.reasoning_content || deltaObj?.thinking || deltaObj?.reasoning) continue;
-                      const deltaText = deltaObj?.content || "";
-                      if (deltaText) {
-                        fullRawContent += deltaText;
-                        const cleanDelta = cleanServerAiText(deltaText);
-                        if (cleanDelta) {
-                          res.write(`data: ${JSON.stringify({ type: "chunk", delta: cleanDelta })}\n\n`);
-                          if (res.flush) res.flush();
-                        }
-                      }
-                    } catch (_) {}
-                  }
-                }
-              }
-              if (done) break;
-            }
-            if (fullRawContent.trim()) {
-              generatedViaLLM = true;
-            }
-          }
-        } catch (nimErr) {
-          console.warn("NVIDIA NIM Stream Notice:", nimErr?.message || nimErr);
-        }
-      }
-
-      if (!generatedViaLLM || !fullRawContent.trim()) {
-        const vedicText = buildAuthenticVedicResponse({
-          message,
-          userIntent: intent,
-          products: finalProducts,
-          coupons: finalCoupons
-        });
-        fullRawContent = vedicText;
-        res.write(`data: ${JSON.stringify({ type: "chunk", delta: vedicText })}\n\n`);
-        if (res.flush) res.flush();
-      }
-
-      const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
 
       // Save turn to MongoDB
       if (isDbConnected()) {
@@ -803,6 +806,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
           coupons: finalCoupons, 
           quickReplies,
           requiresHuman: false,
+          action: triggeredAction,
           conversationId: targetConversationId,
           guestSessionId: effectiveGuestSessionId
         } 
@@ -812,57 +816,6 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
     }
 
     // Standard Non-Streaming Handling
-    let fullRawContent = "";
-    let generatedViaLLM = false;
-
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
-    if (nvidiaApiKey) {
-      try {
-        const formattedMessages = [{ role: "system", content: systemPrompt }];
-        for (const h of history.slice(-4)) {
-          if (h.sender === "user" && h.text) formattedMessages.push({ role: "user", content: String(h.text) });
-          else if (h.sender === "ai" && h.text) formattedMessages.push({ role: "assistant", content: String(h.text) });
-        }
-        formattedMessages.push({ role: "user", content: message });
-
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({
-            model: PRIMARY_NIM_MODEL,
-            messages: formattedMessages,
-            temperature: 0.3,
-            max_tokens: 2048,
-            chat_template_kwargs: { enable_thinking: false },
-            reasoning_effort: "none"
-          })
-        });
-
-        if (nimRes.ok) {
-          const nimData = await nimRes.json();
-          fullRawContent = nimData.choices?.[0]?.message?.content || "";
-          if (fullRawContent.trim()) generatedViaLLM = true;
-        }
-      } catch (nimErr) {
-        console.warn("NVIDIA NIM Non-Streaming Notice:", nimErr?.message || nimErr);
-      }
-    }
-
-    if (!generatedViaLLM || !fullRawContent.trim()) {
-      fullRawContent = buildAuthenticVedicResponse({
-        message,
-        userIntent: intent,
-        products: finalProducts,
-        coupons: finalCoupons
-      });
-    }
-
-    const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
-
     if (isDbConnected()) {
       try {
         const userMsg = {
@@ -924,6 +877,7 @@ Customer Orders: ${JSON.stringify(ordersContext)}`;
         coupons: finalCoupons,
         quickReplies,
         requiresHuman: false,
+        action: triggeredAction,
         conversationId: targetConversationId,
         guestSessionId: effectiveGuestSessionId
       }

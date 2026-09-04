@@ -6,6 +6,7 @@ import { evaluateDraftSimilarity, getExactTextHash, getNormalizedTextHash, check
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 
 // In-memory set of deleted review IDs for demo/fallback isolation
@@ -710,17 +711,12 @@ export async function generateReviewDrafts(req, res, next) {
 
     let rawDrafts = [];
 
-    // Primary AI Generator: NVIDIA NIM API
-    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 5) ? process.env.NVIDIA_API_KEY.trim() : "";
-    if (nvidiaApiKey) {
-      const nimModels = [
-        "meta/llama-3.3-70b-instruct",
-        "nvidia/llama-3.1-nemotron-70b-instruct",
-        "meta/llama3-70b-instruct",
-        "mistralai/mistral-7b-instruct-v0.2"
-      ];
-
-      const systemPrompt = `You are an AI review generator for an authentic Indian Rudraksha store (Aura Rudraksha). You generate realistic, authentic customer reviews.
+    // Primary AI Generator: Gemini API (@google/genai)
+    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+    if (geminiApiKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+        const systemPrompt = `You are an AI review generator for an authentic Indian Rudraksha store (Aura Rudraksha). You generate realistic, authentic customer review drafts for admin review.
 
 CRITICAL MANDATES:
 1. DUPLICATE PREVENTION: EVERY single review MUST have a completely unique reviewer name from diverse parts of India (e.g. 'Dr. Shalini Deshmukh', 'Captain Virendra Singh', 'Priyanjali Sen', 'Karthik Sundaram', 'Aditya Kulkarni', 'Meera Nambiar', 'Gurpreet Singh', 'Sunita Chawla') and completely distinct review text with unique wording and specific product observations. NEVER reuse the same reviewer name across reviews.
@@ -731,106 +727,69 @@ CRITICAL MANDATES:
    - "title": Short catchy review title (3-6 words)
    - "text": Natural conversational customer review text (1-3 sentences)
    - "rating": Integer rating (5, 4, 3)
-   - "language": Language used ("Hindi", "Hinglish", "English")
+   - "language": Language used ("Hindi", "Hinglish", "English")`;
 
-Example:
-[
-  {
-    "name": "Dr. Shalini Deshmukh",
-    "city": "Pune, MH",
-    "title": "Lab Certified & Pure Vibration",
-    "text": "Lab test QR code matched online report instantly. Natural Mukhi lines and peaceful energy during daily puja.",
-    "rating": 5,
-    "language": "${effectiveLanguage}"
-  }
-]`;
+        const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}". Ensure EVERY review has a distinct author name and unique text. Return JSON array only.`;
 
-      const userPrompt = `Generate ${requestedCount} short natural customer reviews for Product: "${resolvedProductName}". Key Features / Description: "${productDetails || 'High quality genuine product with safe packaging'}". Rating Range: "${effectiveRatingMode}". Language: "${effectiveLanguage}". Ensure EVERY review has a distinct author name and unique text.`;
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: "application/json",
+            temperature: 0.6,
+            maxOutputTokens: 2000
+          },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }]
+        });
 
-      for (const nimModel of nimModels) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const content = response.text || "";
+        const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+        const parsed = JSON.parse(cleaned);
 
-          const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${nvidiaApiKey}`,
-              "Accept": "application/json"
-            },
-            body: JSON.stringify({
-              model: nimModel,
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
-              ],
-              temperature: 0.6,
-              max_tokens: 1500
-            }),
-            signal: controller.signal
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const usedNamesInGemini = new Set();
+          const shuffledNames = shuffleArray(FICTIONAL_DEVOTEE_NAMES);
+
+          rawDrafts = parsed.map((item, idx) => {
+            let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2)
+              ? item.name.trim()
+              : "";
+
+            if (!assignedName || usedNamesInGemini.has(assignedName)) {
+              assignedName = shuffledNames.find(n => !usedNamesInGemini.has(n)) || FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
+            }
+            usedNamesInGemini.add(assignedName);
+
+            const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
+            const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
+
+            return {
+              id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 4)}`,
+              title: item.title || `${resolvedProductName} Review`,
+              text: (item.text || item.body || "").trim(),
+              rating: Number(item.rating) || 5,
+              name: assignedName,
+              city: assignedCity,
+              date: relativeDate,
+              verified: verified !== false,
+              featured: idx === 0,
+              status: "Approved",
+              source: "customer",
+              helpfulUp: Math.floor(Math.random() * 5) + 1,
+              helpfulDown: 0,
+              productId: String(productId || "5"),
+              productName: resolvedProductName,
+              type: "product",
+              language: item.language || effectiveLanguage,
+              isAiGenerated: true,
+              images: []
+            };
           });
 
-          clearTimeout(timeoutId);
-
-          if (nimRes.ok) {
-            const data = await nimRes.json();
-            let content = data.choices?.[0]?.message?.content || "";
-            const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-            const parsed = JSON.parse(cleaned);
-
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const usedNamesInNim = new Set();
-              const shuffledNames = shuffleArray(FICTIONAL_DEVOTEE_NAMES);
-
-              rawDrafts = parsed.map((item, idx) => {
-                let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2)
-                  ? item.name.trim()
-                  : "";
-
-                if (!assignedName || usedNamesInNim.has(assignedName)) {
-                  assignedName = shuffledNames.find(n => !usedNamesInNim.has(n)) || FICTIONAL_DEVOTEE_NAMES[idx % FICTIONAL_DEVOTEE_NAMES.length];
-                }
-                usedNamesInNim.add(assignedName);
-
-                const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[idx % INDIAN_DEVOTEE_CITIES.length];
-                const relativeDate = RELATIVE_DATES[idx % RELATIVE_DATES.length];
-
-                return {
-                  id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 4)}`,
-                  title: item.title || `${resolvedProductName} Review`,
-                  text: (item.text || item.body || "").trim(),
-                  rating: Number(item.rating) || 5,
-                  name: assignedName,
-                  city: assignedCity,
-                  date: relativeDate,
-                  verified: verified !== false,
-                  featured: idx === 0,
-                  status: "Approved",
-                  source: "customer",
-                  helpfulUp: Math.floor(Math.random() * 5) + 1,
-                  helpfulDown: 0,
-                  productId: String(productId || "5"),
-                  productName: resolvedProductName,
-                  type: "product",
-                  language: item.language || effectiveLanguage,
-                  isAiGenerated: true,
-                  images: []
-                };
-              });
-
-              if (rawDrafts.length > 0) {
-                console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via NVIDIA NIM model: ${nimModel}`);
-                break;
-              }
-            }
-          } else {
-            const errTxt = await nimRes.text().catch(() => "");
-            console.warn(`[Aura AI Reviews] NVIDIA NIM (${nimModel}) HTTP ${nimRes.status}:`, errTxt.slice(0, 150));
-          }
-        } catch (err) {
-          console.warn(`[Aura AI Reviews] NIM generation error (${nimModel}):`, err?.message || err);
+          console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via Gemini 2.5 Flash`);
         }
+      } catch (err) {
+        console.warn("[Aura AI Reviews] Gemini generation notice:", err?.message || err);
       }
     }
 
@@ -1061,54 +1020,37 @@ export async function polishReviewWithAI(req, res, next) {
 
     let polishedText = originalTextToPolish.trim();
 
-    const nvidiaApiKey = (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 5) ? process.env.NVIDIA_API_KEY.trim() : "";
-    if (nvidiaApiKey) {
+    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+    if (geminiApiKey) {
       try {
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
         const systemPrompt = `You are an expert review editor for an authentic Rudraksha store (Aura Rudraksha).
-Your ONLY task is to improve spelling, grammar, punctuation, and sentence flow of the provided customer review.
+Your ONLY task is to polish the grammar, spelling, punctuation, and readability of genuine customer reviews.
 
 CRITICAL MANDATES:
-1. DO NOT alter the customer's sentiment, rating, core experience, or original meaning.
-2. DO NOT add fictional claims, fake facts, or marketing hype.
-3. Keep the original language (English, Hindi, or Hinglish) and authentic voice.
-4. Return ONLY the polished review text without commentary or quotation marks.`;
+1. DO NOT artificially generate or invent new claims, fake facts, or marketing hype.
+2. STRICTLY preserve the customer's original sentiment, rating, tone, and core message.
+3. Preserve original language (English, Hindi, or Hinglish) and customer's authentic voice.
+4. Return ONLY the polished review text with no quotation marks or commentary.`;
 
         const userPrompt = `Polish this customer review for grammar, spelling, and professional readability while strictly preserving its original meaning:\n"${originalTextToPolish}"`;
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "application/json"
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.2,
+            maxOutputTokens: 500
           },
-          body: JSON.stringify({
-            model: "meta/llama-3.3-70b-instruct",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            temperature: 0.3,
-            max_tokens: 500
-          }),
-          signal: controller.signal
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }]
         });
 
-        clearTimeout(timeoutId);
-
-        if (nimRes.ok) {
-          const data = await nimRes.json();
-          const out = data.choices?.[0]?.message?.content || "";
-          const cleaned = out.replace(/^["'\s]+|["'\s]+$/g, "").trim();
-          if (cleaned && cleaned.length >= 5) {
-            polishedText = cleaned;
-          }
+        const outText = response.text ? response.text.replace(/^["'\s]+|["'\s]+$/g, "").trim() : "";
+        if (outText && outText.length >= 5) {
+          polishedText = outText;
         }
       } catch (err) {
-        console.warn("[Aura AI Polish] NIM API warning:", err.message);
+        console.warn("[Aura AI Polish] Gemini API notice:", err?.message || err);
       }
     }
 

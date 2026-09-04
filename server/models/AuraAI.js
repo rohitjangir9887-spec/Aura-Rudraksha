@@ -62,3 +62,39 @@ const auraAIConversationSchema = new mongoose.Schema(
 );
 
 export const AuraAIConversation = mongoose.models.AuraAIConversation || mongoose.model("AuraAIConversation", auraAIConversationSchema);
+
+// Long-Term Memory Schema (Mem0-Style Context Memory)
+const auraAIMemorySchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, required: true, index: true }, // AuthUserId or GuestSessionId
+    memoryKey: { type: String, required: true }, // e.g. 'budget_preference', 'rashi_zodiac', 'preferred_language', 'primary_concern'
+    memoryValue: { type: String, required: true },
+    category: { type: String, default: "preference" }, // 'preference' | 'astrology' | 'product_interest' | 'order_context'
+    confidence: { type: Number, default: 0.9 },
+    sourceConversationId: { type: String, default: "" },
+    lastUpdated: { type: Date, default: Date.now }
+  },
+  { timestamps: true }
+);
+
+auraAIMemorySchema.index({ userId: 1, memoryKey: 1 }, { unique: true });
+
+export const AuraAIMemory = mongoose.models.AuraAIMemory || mongoose.model("AuraAIMemory", auraAIMemorySchema);
+
+// RAG Document Index Schema
+const auraAIRagDocumentSchema = new mongoose.Schema(
+  {
+    docId: { type: String, required: true, unique: true, index: true },
+    docType: { type: String, required: true, index: true }, // 'product' | 'faq' | 'policy' | 'coupon' | 'review' | 'knowledge'
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    metadata: { type: Object, default: {} },
+    embedding: { type: [Number], default: [] }, // Vector embedding for Atlas/cosine search
+    lastIndexedAt: { type: Date, default: Date.now }
+  },
+  { timestamps: true }
+);
+
+export const AuraAIRagDocument = mongoose.models.AuraAIRagDocument || mongoose.model("AuraAIRagDocument", auraAIRagDocumentSchema);
+

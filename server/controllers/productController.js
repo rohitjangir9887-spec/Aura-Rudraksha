@@ -3,6 +3,7 @@ import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { invalidateRagCache } from "../services/ragService.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -186,6 +187,7 @@ export async function createProduct(req, res, next) {
       } else {
         inMemoryStore.products.unshift(productPayload);
       }
+      invalidateRagCache();
       return res.status(201).json({ success: true, data: productPayload });
     }
 
@@ -194,6 +196,7 @@ export async function createProduct(req, res, next) {
       productPayload,
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+    invalidateRagCache();
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -221,6 +224,7 @@ export async function updateProduct(req, res, next) {
         return res.status(404).json({ success: false, message: "Product not found" });
       }
       inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...updatePayload };
+      invalidateRagCache();
       return res.json({ success: true, data: inMemoryStore.products[idx] });
     }
 
@@ -240,6 +244,7 @@ export async function updateProduct(req, res, next) {
     if (!updated) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+    invalidateRagCache();
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -253,6 +258,7 @@ export async function deleteProduct(req, res, next) {
 
     if (!isDbConnected()) {
       inMemoryStore.products = inMemoryStore.products.filter(p => String(p.id) !== cleanId && p.slug !== cleanId);
+      invalidateRagCache();
       return res.json({ success: true, message: "Product deleted", id: cleanId });
     }
 
@@ -265,6 +271,7 @@ export async function deleteProduct(req, res, next) {
         ...(isMongoId ? [{ _id: cleanId }] : [])
       ]
     });
+    invalidateRagCache();
     return res.json({ success: true, message: "Product deleted", id: cleanId });
   } catch (err) {
     next(err);
