@@ -17,14 +17,7 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
-    // Explicitly reject any unhandled /api requests with JSON 404 before passing to Vite SPA
-    app.use((req, res, next) => {
-      const p = req.path || req.url || "";
-      if (p.startsWith("/api")) {
-        return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
-      }
-      vite.middlewares(req, res, next);
-    });
+    app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));

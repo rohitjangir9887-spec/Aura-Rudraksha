@@ -152,7 +152,7 @@ export function Shell({children}) {
       </div>
 
       {/* Hide bottom mobile navigation on checkout page */}
-      {pathname !== "/checkout" && (
+      {!pathname.startsWith("/checkout") && (
         <div className="mobile-nav" style={{
           position: 'fixed',
           bottom: 0,

@@ -24,6 +24,7 @@ import auraAiRoute from "./routes/auraAi.js";
 import cartRoute from "./routes/cart.js";
 import paymentRoute from "./routes/payment.js";
 import uploadRoute from "./routes/upload.js";
+import { handlePayuCallback } from "./controllers/paymentController.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -232,6 +233,23 @@ export function createApp() {
   app.use("/api/auth", requireDb, authRoute);
   app.use("/api/aura-ai", auraAiRoute);
   app.use("/api/payment", requireDb, noCacheMiddleware, paymentRoute);
+
+  // Top-level PayU callback URL aliases (surl / furl redirects from PayU)
+  app.all(["/payu-callback", "/payment/callback", "/checkout/callback", "/api/payment/payu-callback"], requireDb, handlePayuCallback);
+
+  // Prevent HTTP 405 Method Not Allowed when PayU or external gateways POST directly to SPA client routes
+  app.all(["/checkout", /^\/checkout\/.*/, "/account/orders", /^\/account\/orders\/.*/], (req, res, next) => {
+    if (req.method === "POST" || req.method === "PUT") {
+      // If POST contains PayU callback parameters, handle payment callback authoritatively
+      if (req.body && (req.body.mihpayid || req.body.txnid || req.body.status || req.body.hash || req.body.udf1)) {
+        return handlePayuCallback(req, res);
+      }
+      // Otherwise convert POST to clean 303 See Other GET redirect
+      const targetUrl = req.originalUrl || req.url || "/checkout";
+      return res.redirect(303, targetUrl);
+    }
+    next();
+  });
 
   // Fallback for unhandled API routes: return JSON 404 (prevents returning SPA HTML for failed API calls)
   app.use("/api", (req, res) => {

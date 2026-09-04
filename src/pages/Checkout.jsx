@@ -156,25 +156,40 @@ export function Checkout() {
   const finalTotal = activeTotals?.finalTotal ?? cartFinalTotal;
   const totalSavings = activeTotals?.totalSavings ?? cartTotalSavings;
 
-  // Intercept beforeunload when payment / checkout is in progress
+  // Intercept browser Back button and tab close during active checkout / payment
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (loading) {
-        e.preventDefault();
-        e.returnValue = "Your order / payment is in progress. Leaving may interrupt your transaction.";
-        return e.returnValue;
-      }
+    if (successParam || confirmedOrder) return; // Allow normal navigation after confirmed payment
+
+    // Push state to trap browser back button
+    try {
+      window.history.pushState({ checkoutActive: true }, "", window.location.href);
+    } catch (_) {}
+
+    const handlePopState = (e) => {
+      // Re-push state so URL doesn't leave immediately
+      try {
+        window.history.pushState({ checkoutActive: true }, "", window.location.href);
+      } catch (_) {}
+      setShowLeaveModal(true);
     };
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "Your payment is in progress. Are you sure you want to leave?";
+      return e.returnValue;
+    };
+
+    window.addEventListener("popstate", handlePopState);
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [loading]);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [successParam, confirmedOrder]);
 
   const handleBackNavigation = () => {
-    if (loading) {
-      setShowLeaveModal(true);
-    } else {
-      navigate("/cart");
-    }
+    setShowLeaveModal(true);
   };
 
   // Redirect if cart is empty and not viewing success/failed
@@ -1006,12 +1021,69 @@ export function Checkout() {
             setShowLeaveModal(false);
             navigate("/cart");
           }}
-          title="Leave Checkout?"
-          message="Your sacred Rudraksha order is currently processing. If you navigate away now, your session will be saved in your cart, but active payment processing will be paused."
-          confirmText="Yes, Return to Cart"
-          cancelText="Stay on Checkout"
+          title="Are you sure you want to leave?"
+          message="Your payment is in progress. Cancel payment and return to cart?"
+          confirmText="Cancel Payment"
+          cancelText="Stay"
           type="warning"
         />
+
+        {/* Full-Screen PayU Gateway Transition Loading Overlay */}
+        <AnimatePresence>
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 20000,
+                background: "rgba(18, 10, 6, 0.88)",
+                backdropFilter: "blur(6px)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "24px",
+                color: "#fff",
+                textAlign: "center"
+              }}
+            >
+              <div style={{
+                background: "#2b170d",
+                border: "1px solid #7a320c",
+                borderRadius: "20px",
+                padding: "32px 28px",
+                maxWidth: "420px",
+                width: "100%",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.5)"
+              }}>
+                <div style={{
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "50%",
+                  background: "#7a320c",
+                  display: "grid",
+                  placeItems: "center",
+                  margin: "0 auto 20px",
+                  color: "#fbf5ef"
+                }}>
+                  <Loader2 size={32} className="spin" />
+                </div>
+                <h3 style={{ fontSize: "19px", color: "#fbf5ef", marginBottom: "8px", fontFamily: "Cormorant Garamond, serif" }}>
+                  Connecting to PayU Gateway...
+                </h3>
+                <p style={{ fontSize: "13px", color: "#dcd1c6", lineHeight: 1.5, marginBottom: "20px" }}>
+                  Redirecting to 256-Bit SSL Encrypted PayU Payment Portal. Please do not refresh or press back.
+                </p>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#166534", color: "#f0fdf4", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "700" }}>
+                  <ShieldCheck size={14} /> PayU 256-Bit SSL Secured
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </Shell>
   );
