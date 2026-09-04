@@ -38,12 +38,12 @@ export function CheckoutAddressCard({
     <div 
       id="checkout-address-section"
       style={{
-        background: "#fffdf9",
-        border: "1px solid #e8dac9",
-        borderRadius: "14px",
-        padding: "18px 16px",
-        marginBottom: "16px",
-        boxShadow: "0 2px 10px rgba(43, 23, 13, 0.03)"
+        background: "#ffffff",
+        border: "1.5px solid #ebd9c8",
+        borderRadius: "16px",
+        padding: "20px 18px",
+        marginBottom: "20px",
+        boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)"
       }}
     >
       {/* Step Header */}
@@ -52,33 +52,33 @@ export function CheckoutAddressCard({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "14px",
-          paddingBottom: "10px",
+          marginBottom: "16px",
+          paddingBottom: "12px",
           borderBottom: "1px solid #f0e6da"
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div 
             style={{
-              width: "26px",
-              height: "26px",
+              width: "28px",
+              height: "28px",
               borderRadius: "50%",
-              background: "#b85d25",
+              background: "linear-gradient(135deg, #b88a58 0%, #8c5d2e 100%)",
               color: "#ffffff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "12px",
-              fontWeight: "700"
+              fontSize: "12.5px",
+              fontWeight: "800"
             }}
           >
             1
           </div>
           <div>
-            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "20px", fontWeight: "700", margin: 0, color: "#2b170d" }}>
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "22px", fontWeight: "700", margin: 0, color: "#2b170d" }}>
               Shipping Address
             </h2>
-            <div style={{ fontSize: "11px", color: "#806f62" }}>
+            <div style={{ fontSize: "12px", color: "#806f62" }}>
               Where should we dispatch your sacred order?
             </div>
           </div>
@@ -112,28 +112,30 @@ export function CheckoutAddressCard({
         <div 
           id="saved-address-view"
           style={{
-            background: "#fdfbf7",
-            border: "1.5px solid #d4c5b9",
-            borderRadius: "10px",
-            padding: "14px",
-            position: "relative"
+            background: "linear-gradient(180deg, #fdfcf9 0%, #fbf8f2 100%)",
+            border: "1.5px solid #dfc7af",
+            borderRadius: "14px",
+            padding: "16px 18px",
+            position: "relative",
+            boxShadow: "0 2px 8px rgba(43, 23, 13, 0.03)"
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
             <span 
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "4px",
-                background: "#eef6f0",
+                gap: "5px",
+                background: "#eef9f2",
+                border: "1px solid #cce8d4",
                 color: "#166534",
-                padding: "3px 8px",
-                borderRadius: "4px",
+                padding: "3px 10px",
+                borderRadius: "20px",
                 fontSize: "11px",
                 fontWeight: "700"
               }}
             >
-              <Check size={13} /> Default Address
+              <Check size={12} strokeWidth={3} /> Default Address
             </span>
 
             <div style={{ display: "flex", gap: "8px" }}>
@@ -141,54 +143,56 @@ export function CheckoutAddressCard({
                 type="button"
                 onClick={onEditAddress}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#b85d25",
-                  fontSize: "12px",
-                  fontWeight: "600",
+                  background: "#f7eee3",
+                  border: "1px solid #ebd9c8",
+                  color: "#99582a",
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  fontSize: "11.5px",
+                  fontWeight: "700",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "3px"
+                  gap: "4px"
                 }}
               >
-                <Edit3 size={13} /> Edit
+                <Edit3 size={12} /> Edit
               </button>
             </div>
           </div>
 
-          <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#2b170d", marginBottom: "4px" }}>
+          <div style={{ fontSize: "14.5px", fontWeight: "700", color: "#2b170d", marginBottom: "4px" }}>
             {savedAddress.firstName} {savedAddress.lastName}
           </div>
           
-          <div style={{ fontSize: "12.5px", color: "#4a3528", lineHeight: "1.5" }}>
+          <div style={{ fontSize: "13px", color: "#4a3528", lineHeight: "1.5" }}>
             {savedAddress.address}, {savedAddress.city}, {savedAddress.state} - <b>{savedAddress.pincode}</b>
           </div>
 
-          <div style={{ fontSize: "11.5px", color: "#7a695e", marginTop: "6px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ fontSize: "12px", color: "#7a695e", marginTop: "8px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
             <span>📞 {savedAddress.phone}</span>
             {savedAddress.email ? <span>✉️ {savedAddress.email}</span> : null}
           </div>
 
-          <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px dashed #e8dac9" }}>
+          <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px dashed #dfc7af" }}>
             <button 
               type="button"
               onClick={onUseDifferentAddress}
               style={{
                 background: "transparent",
-                border: "1px dashed #b85d25",
-                color: "#b85d25",
-                padding: "6px 12px",
-                borderRadius: "6px",
-                fontSize: "11.5px",
-                fontWeight: "600",
+                border: "1px dashed #b88a58",
+                color: "#99582a",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: "700",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "5px"
+                gap: "6px"
               }}
             >
-              <PlusCircle size={13} /> Deliver to a Different Address
+              <PlusCircle size={14} /> Deliver to a Different Address
             </button>
           </div>
         </div>

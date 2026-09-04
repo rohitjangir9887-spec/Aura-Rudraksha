@@ -1,5 +1,30 @@
 export const defaultProducts = [
   {
+    id: "14",
+    name: "Original 14 Mukhi Rudraksha (Nepali) — Lab Certified Chaudah Mukhi Rudraksha",
+    price: 36950,
+    comparePrice: 59000,
+    mrp: 59000,
+    rating: 5.0,
+    reviews: 142,
+    reviewCount: 142,
+    img: "/images/product-1mukhi.jpg",
+    images: [
+      "/images/product-1mukhi.jpg",
+      "/images/product-5mukhi.jpg",
+      "/images/product-7mukhi.jpg",
+      "/images/product-mala.jpg"
+    ],
+    badge: "Deva Mani",
+    highlight: "Original Nepali 14 Mukhi Rudraksha known as Deva Mani, blessed by Lord Shiva & Lord Hanuman. Awakens the Ajna Chakra with Govt Lab Certification.",
+    tags: ["Deva Mani", "Awakens Ajna Chakra", "Supreme Intuition & Victory", "Govt Lab Certified", "100% Nepali Origin"],
+    category: "Rudraksha",
+    status: "Active",
+    stock: 25,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
     id: "5",
     name: "5 Mukhi Rudraksha",
     price: 999,
