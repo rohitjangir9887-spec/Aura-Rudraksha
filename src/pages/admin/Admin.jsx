@@ -727,7 +727,7 @@ export function Admin() {
             <Video size={16} color="#7a320c" /> ⚡ Interactive Media Asset Uploader Tool
           </h3>
           <p style={{ fontSize: '12px', color: '#806f62', margin: '0 0 16px 0' }}>
-            Drag and drop or select any Image or Video file to upload. This uploads directly using the active Puter Cloud or Server Storage, saves metadata to MongoDB, and provides a permanent file URL.
+            Drag and drop or select any Image or Video file to upload. This uploads directly using the active storage provider ({activeStorageProvider === 'pcloud' ? 'pCloud Storage' : 'Puter Cloud Storage'}), saves metadata to MongoDB, and provides a permanent file URL.
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
@@ -782,42 +782,47 @@ export function Admin() {
                 </div>
               )}
 
-              <div style={{
-                border: mediaInfo.connected ? '2px dashed #ebd8c5' : '2px dashed #e2e8f0',
-                borderRadius: '10px',
-                padding: '24px',
-                textAlign: 'center',
-                background: mediaInfo.connected ? '#faf6f0' : '#f8fafc',
-                cursor: mediaInfo.connected ? 'pointer' : 'not-allowed',
-                position: 'relative'
-              }}>
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  onChange={handleGenericUpload}
-                  disabled={genericUploading || !mediaInfo.connected}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    opacity: 0,
-                    cursor: (genericUploading || !mediaInfo.connected) ? 'not-allowed' : 'pointer'
-                  }}
-                />
-                <Cloud size={32} color={mediaInfo.connected ? "#a54d2b" : "#94a3b8"} style={{ margin: '0 auto 8px', display: 'block' }} />
-                <span style={{ fontSize: '13px', fontWeight: 600, color: mediaInfo.connected ? '#3b322c' : '#64748b', display: 'block', marginBottom: '4px' }}>
-                  {genericUploading
-                    ? "Uploading to Storage..."
-                    : !mediaInfo.connected
-                    ? "Connect Puter Cloud above to enable upload"
-                    : "Click to select or Drag Image/Video here"}
-                </span>
-                <span style={{ fontSize: '11px', color: '#806f62' }}>
-                  Supports PNG, JPEG, WEBP, GIF, MP4, WEBM up to 50MB
-                </span>
-              </div>
+              {(() => {
+                const isActiveReady = activeStorageProvider === 'pcloud' ? pcloudInfo.connected : mediaInfo.connected;
+                return (
+                  <div style={{
+                    border: isActiveReady ? '2px dashed #ebd8c5' : '2px dashed #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '24px',
+                    textAlign: 'center',
+                    background: isActiveReady ? '#faf6f0' : '#f8fafc',
+                    cursor: isActiveReady ? 'pointer' : 'not-allowed',
+                    position: 'relative'
+                  }}>
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      onChange={handleGenericUpload}
+                      disabled={genericUploading || !isActiveReady}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        opacity: 0,
+                        cursor: (genericUploading || !isActiveReady) ? 'not-allowed' : 'pointer'
+                      }}
+                    />
+                    <Cloud size={32} color={isActiveReady ? (activeStorageProvider === 'pcloud' ? "#16a34a" : "#a54d2b") : "#94a3b8"} style={{ margin: '0 auto 8px', display: 'block' }} />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: isActiveReady ? '#3b322c' : '#64748b', display: 'block', marginBottom: '4px' }}>
+                      {genericUploading
+                        ? `Uploading to ${activeStorageProvider === 'pcloud' ? 'pCloud' : 'Puter'}...`
+                        : !isActiveReady
+                        ? `Enable ${activeStorageProvider === 'pcloud' ? 'pCloud Storage' : 'Puter Cloud'} above to enable upload`
+                        : `Click to select or Drag Image/Video here (${activeStorageProvider === 'pcloud' ? 'pCloud Active' : 'Puter Active'})`}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#806f62' }}>
+                      Supports PNG, JPEG, WEBP, GIF, MP4, WEBM up to 50MB
+                    </span>
+                  </div>
+                );
+              })()}
 
               {genericUploading && (
                 <div style={{ background: '#f5ebe0', borderRadius: '8px', padding: '12px' }}>

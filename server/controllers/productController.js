@@ -1,4 +1,6 @@
 import { Product } from "../models/Product.js";
+import { Media } from "../models/Media.js";
+import { deleteFromPcloud } from "../services/pcloudService.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
@@ -271,6 +273,32 @@ export async function deleteProduct(req, res, next) {
         ...(isMongoId ? [{ _id: cleanId }] : [])
       ]
     });
+
+    if (deleted) {
+      const productUrls = Array.from(new Set([
+        ...(deleted.images || []),
+        ...(deleted.img ? [deleted.img] : [])
+      ].filter(Boolean)));
+
+      if (productUrls.length > 0) {
+        try {
+          const mediaItems = await Media.find({
+            $or: [
+              { readURL: { $in: productUrls } },
+              { url: { $in: productUrls } }
+            ]
+          });
+
+          for (const media of mediaItems) {
+            if (media.provider === "pcloud" && media.fileId) {
+              await deleteFromPcloud(media.fileId).catch(() => {});
+            }
+            await Media.deleteOne({ _id: media._id }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+    }
+
     invalidateRagCache();
     return res.json({ success: true, message: "Product deleted", id: cleanId });
   } catch (err) {
