@@ -16183,3 +16183,110 @@ button:active, .primary-btn:active, .outline-btn:active {
   }
 }
 
+/* ==========================================================================
+   AURA RUDRAKSHA - GENUINELY RESPONSIVE CHECKOUT & MOBILE UX REBUILD
+   ========================================================================== */
+
+/* Main Checkout Layout Grid */
+.checkout-responsive-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr);
+  gap: 28px;
+  align-items: start;
+  width: 100%;
+}
+
+.checkout-main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  width: 100%;
+}
+
+.checkout-sidebar-column {
+  position: sticky;
+  top: 86px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Payment Selector Grid */
+.desktop-payment-selector-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 16px;
+  width: 100%;
+}
+
+.mobile-payment-accordion-view {
+  display: none;
+  width: 100%;
+}
+
+/* Mobile Responsive Breakpoints (Below 1024px) */
+@media (max-width: 1023px) {
+  .checkout-responsive-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .checkout-main-column,
+  .checkout-sidebar-column {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .desktop-payment-selector-grid {
+    display: none !important;
+  }
+
+  .mobile-payment-accordion-view {
+    display: block !important;
+  }
+
+  #checkout-page-container {
+    padding: 12px 14px 100px !important;
+    max-width: 100% !important;
+  }
+
+  .checkout-hero-wrap {
+    padding: 12px 14px !important;
+  }
+}
+
+/* Extra small mobile adjustments (360px - 430px) */
+@media (max-width: 480px) {
+  #checkout-page-container {
+    padding: 8px 10px 110px !important;
+  }
+
+  #checkout-address-section,
+  #checkout-product-review-card,
+  #checkout-payment-selector-container,
+  #checkout-sticky-summary {
+    padding: 14px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .checkout-input-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.mobile-sticky-checkout-bar {
+  display: none !important;
+}
+
+@media (max-width: 1023px) {
+  .mobile-sticky-checkout-bar {
+    display: flex !important;
+  }
+}
+
+
+

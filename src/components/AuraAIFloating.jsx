@@ -562,6 +562,11 @@ export function AuraAIFloating() {
     setIsDismissed(false);
   };
 
+  // Do not render floating trigger on checkout or admin dashboard to prevent UI/button occlusion
+  if (location.pathname === "/checkout" || location.pathname.startsWith("/admin")) {
+    return null;
+  }
+
   return (
     <>
       {/* Safe viewport bounds overlay: strictly protects bottom navigation icons (Home, Shop, Cart, Orders, Account) */}

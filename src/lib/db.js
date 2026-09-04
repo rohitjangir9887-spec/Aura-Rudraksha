@@ -870,7 +870,7 @@ export const db = {
     return [];
   },
 
-  getMyOrders: async () => {
+  getMyOrders: async (forceRefresh = false) => {
     const user = authClient.getUser();
     const userEmail = (user?.email || "").trim().toLowerCase();
     
@@ -881,11 +881,18 @@ export const db = {
 
     const cacheKey = db.getUserScopedKey("aura_cached_my_orders");
     const cached = db.getCachedMyOrders();
+    const now = Date.now();
+
+    // Fast-path in-memory return (30s cache TTL unless forceRefresh is true)
+    if (!forceRefresh && Array.isArray(storeCache.myOrders) && storeCache.myOrders.length > 0 && storeCache._myOrdersTimestamp && (now - storeCache._myOrdersTimestamp < 30000)) {
+      return { success: true, data: storeCache.myOrders };
+    }
 
     try {
-      const res = await apiRequest("/orders/my", { timeoutMs: 6000 });
+      const res = await apiRequest("/orders/my", { timeoutMs: 5000 });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
+        storeCache._myOrdersTimestamp = now;
         if (cacheKey && typeof window !== "undefined") {
           try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch (_) {}
         }
@@ -1222,17 +1229,25 @@ export const db = {
     };
   },
 
-  getCustomerMe: async () => {
+  getCustomerMe: async (forceRefresh = false) => {
     const user = authClient.getUser();
     if (!user || user.isAnonymous) {
       return { success: true, data: null };
     }
     const cacheKey = db.getUserScopedKey("aura_cached_me");
     const cached = db.getCachedCustomerMe();
+    const now = Date.now();
+
+    // Fast-path in-memory return (30s cache TTL unless forceRefresh is true)
+    if (!forceRefresh && storeCache.customerMe && storeCache._customerMeTimestamp && (now - storeCache._customerMeTimestamp < 30000)) {
+      return { success: true, data: storeCache.customerMe };
+    }
 
     try {
       const res = await apiRequest("/customers/me", { timeoutMs: 5000 });
       if (res?.success && res.data) {
+        storeCache.customerMe = res.data;
+        storeCache._customerMeTimestamp = now;
         if (cacheKey && typeof window !== "undefined") {
           try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
         }
