@@ -8,7 +8,7 @@ import {
   processPayuRefund,
   cancelUnpaidOrder
 } from "../controllers/paymentController.js";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth, optionalAuth, requireAdmin } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 
 const router = express.Router();
@@ -56,10 +56,10 @@ router.all("/payu-callback", handlePayuCallback);
 router.all("/payu-webhook", handlePayuWebhook);
 
 // 4. Check / Verify Payment status for an order
-router.get("/verify/:orderId", requireAuth, paymentVerifyLimit, verifyPaymentStatus);
+router.get("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
 
 // 5. Retry Payment on an existing pending/failed order
-router.post("/retry/:orderId", requireAuth, paymentInitiateLimit, retryPayuPayment);
+router.post("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
 
 // 6. Admin Process PayU Live Refund
 router.post("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);

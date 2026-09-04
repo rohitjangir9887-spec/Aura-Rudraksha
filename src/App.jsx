@@ -4,6 +4,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
 import { AuraAIFloating } from "./components/AuraAIFloating";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // ---------------------------------------------------------------------------
 // Code splitting: Customer secondary pages & Admin pages are lazy-loaded so
@@ -87,8 +88,9 @@ export function App() {
   return (
     <>
       <ScrollToTop />
-      <Suspense fallback={<PageLoader />}>
-        <PageTransition>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <PageTransition>
           <Routes>
             {/* Canonical Customer Routes */}
           <Route path="/" element={<Home />} />
@@ -147,7 +149,10 @@ export function App() {
         </Routes>
         </PageTransition>
       </Suspense>
-      <AuraAIFloating />
+      </ErrorBoundary>
+      <ErrorBoundary isolate fallback={null}>
+        <AuraAIFloating />
+      </ErrorBoundary>
     </>
   );
 }

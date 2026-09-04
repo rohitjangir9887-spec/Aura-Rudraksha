@@ -817,22 +817,29 @@ export async function verifyPaymentStatus(req, res, next) {
 
     const { orderId } = req.params;
     const authUserId = req.user?.authUserId;
-
-    if (!authUserId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
+    const reqTxnid = String(req.query.txnid || req.headers["x-payu-txnid"] || "").trim();
 
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // IDOR Security Check
+    // IDOR Security Check: Allow if authenticated user owns the order, OR admin,
+    // OR if client presents the matching PayU txnid generated for this order,
+    // OR if guest order.
     const { isInitialAdmin } = isAdminUser(req.user);
-    const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+    const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
+    const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
+    const matchesTxnid = reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)));
+    const isGuestOrder = !order.authUserId || order.authUserId === "guest";
 
-    if (!isAdmin && order.authUserId !== authUserId) {
+    if (!isAdmin && !isOwner && !matchesTxnid && !isGuestOrder) {
       return res.status(403).json({ success: false, message: "Access Denied" });
+    }
+
+    // If order is already confirmed as Paid, return immediately with authoritative data
+    if (order.paymentStatus === "Paid") {
+      return res.status(200).json({ success: true, data: order });
     }
 
     // If order is pending and has a transaction ID, perform live PayU server-to-server check
@@ -937,20 +944,21 @@ export async function retryPayuPayment(req, res, next) {
 
     const { orderId } = req.params;
     const authUserId = req.user?.authUserId;
-
-    if (!authUserId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
+    const reqTxnid = String(req.body?.txnid || req.query?.txnid || req.headers["x-payu-txnid"] || "").trim();
 
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Check ownership
+    // Check ownership: Authenticated owner, Admin, or matching transaction reference, or guest order
     const { isInitialAdmin } = isAdminUser(req.user);
-    const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
-    if (!isAdmin && order.authUserId !== authUserId) {
+    const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
+    const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
+    const matchesTxnid = reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)));
+    const isGuestOrder = !order.authUserId || order.authUserId === "guest";
+
+    if (!isAdmin && !isOwner && !matchesTxnid && !isGuestOrder) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 

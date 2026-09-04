@@ -1013,8 +1013,9 @@ export const db = {
     return res;
   },
 
-  verifyPayment: async (orderId) => {
-    const res = await apiRequest(`/payment/verify/${orderId}`);
+  verifyPayment: async (orderId, txnid = "") => {
+    const url = txnid ? `/payment/verify/${orderId}?txnid=${encodeURIComponent(txnid)}` : `/payment/verify/${orderId}`;
+    const res = await apiRequest(url);
     if (res?.success && res.data) {
       const idx = storeCache.orders.findIndex(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
       if (idx >= 0) {
@@ -1025,9 +1026,10 @@ export const db = {
     return res;
   },
 
-  retryPayment: async (orderId) => {
+  retryPayment: async (orderId, txnid = "") => {
     const res = await apiRequest(`/payment/retry/${orderId}`, {
-      method: "POST"
+      method: "POST",
+      body: JSON.stringify({ txnid })
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to generate PayU payment retry.");

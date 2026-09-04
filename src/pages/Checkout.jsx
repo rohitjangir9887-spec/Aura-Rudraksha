@@ -206,7 +206,7 @@ export function Checkout() {
     setVerificationError("");
     try {
       // Live server-to-server check with PayU
-      const res = await db.verifyPayment(successParam);
+      const res = await db.verifyPayment(successParam, txnidParam);
       if (res?.success && res.data && res.data.paymentStatus === "Paid") {
         setConfirmedOrder(res.data);
         if (buyNowLines) {
@@ -224,7 +224,7 @@ export function Checkout() {
     } finally {
       setVerifyingPayment(false);
     }
-  }, [successParam, clear, buyNowLines]);
+  }, [successParam, txnidParam, clear, buyNowLines]);
 
   useEffect(() => {
     if (successParam) {
@@ -558,7 +558,7 @@ export function Checkout() {
   const handleRetryPayment = async (orderId) => {
     setRetrying(true);
     try {
-      const res = await db.retryPayment(orderId);
+      const res = await db.retryPayment(orderId, txnidParam);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         emitToast("Connecting to PayU for payment retry...", "info");
         postToPayuGateway(res.data.paymentUrl, res.data.params);

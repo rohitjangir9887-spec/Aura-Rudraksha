@@ -578,59 +578,27 @@ export function AuraAIFloating() {
         }} 
       />
 
-      {/* 1. Floating Action Button - Draggable with strict bottom safe area */}
+      {/* 1. Floating Action Button - Strictly fixed position with clean touch targets */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
             id="aura-ai-floating-trigger"
             className="aura-ai-floating-btn-wrap"
-            style={{ touchAction: "none", userSelect: "none" }}
-            initial={{ scale: 0, opacity: 0 }}
+            initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            drag
-            dragConstraints={dragAreaRef}
-            dragMomentum={false}
-            dragElastic={0.02}
-            whileDrag={{ scale: 1.05, cursor: "grabbing" }}
-            onDragStart={(_, info) => {
-              dragStartPos.current = { x: info.point.x, y: info.point.y };
-              isDraggingBtnRef.current = false;
-            }}
-            onDrag={(_, info) => {
-              const dist = Math.hypot(
-                info.point.x - dragStartPos.current.x,
-                info.point.y - dragStartPos.current.y
-              );
-              if (dist > 6) {
-                isDraggingBtnRef.current = true;
-              }
-            }}
-            onDragEnd={() => {
-              setTimeout(() => {
-                isDraggingBtnRef.current = false;
-              }, 120);
-            }}
+            exit={{ scale: 0.85, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isDraggingBtnRef.current) {
-                  setIsOpen(true);
-                }
-              }}
+              onClick={() => setIsOpen(true)}
               className="aura-ai-floating-btn"
               aria-label="Open Aura AI Shopping Guide"
               title="Chat with Aura AI"
             >
-              <div className="aura-ai-drag-handle" title="Drag to move">
-                <GripVertical size={12} />
-              </div>
               <div className="aura-ai-floating-pulse" />
               <div className="aura-ai-floating-icon">
-                <Sparkles size={13} className="aura-ai-sparkle-spin" />
+                <Sparkles size={14} className="aura-ai-sparkle-spin" />
               </div>
               <span className="aura-ai-floating-label">Aura AI</span>
             </button>

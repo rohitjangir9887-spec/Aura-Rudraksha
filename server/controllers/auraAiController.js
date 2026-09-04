@@ -701,7 +701,47 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
       }
     }
 
-    // Fallback if Gemini LLM response is unavailable
+    // Secondary LLM Generation: NVIDIA NIM (with retry logic and timeout)
+    if (!generatedViaLLM || !fullRawContent.trim()) {
+      const nvidiaClient = getNvidiaClient();
+      if (nvidiaClient) {
+        for (let attempt = 1; attempt <= 2 && !generatedViaLLM; attempt++) {
+          try {
+            const nimMessages = [
+              { role: "system", content: systemPrompt }
+            ];
+            for (const h of history.slice(-6)) {
+              if (h.sender === "user" && h.text) {
+                nimMessages.push({ role: "user", content: String(h.text) });
+              } else if (h.sender === "ai" && h.text) {
+                nimMessages.push({ role: "assistant", content: String(h.text) });
+              }
+            }
+            nimMessages.push({ role: "user", content: message });
+
+            const nimCompletion = await nvidiaClient.chat.completions.create({
+              model: PRIMARY_NIM_MODEL,
+              messages: nimMessages,
+              temperature: 0.35,
+              max_tokens: 1500,
+              chat_template_kwargs: { enable_thinking: false },
+              reasoning_effort: "none"
+            });
+
+            const nimText = nimCompletion.choices?.[0]?.message?.content || "";
+            if (nimText.trim()) {
+              fullRawContent = nimText;
+              generatedViaLLM = true;
+              break;
+            }
+          } catch (nimErr) {
+            console.warn(`[Aura AI] NVIDIA NIM attempt ${attempt} notice:`, nimErr?.message || nimErr);
+          }
+        }
+      }
+    }
+
+    // Deterministic Vedic Knowledge Fallback if LLM responses are unavailable
     if (!generatedViaLLM || !fullRawContent.trim()) {
       let customerOrders = [];
       if (userIsAuthenticated && effectiveUserId) {
