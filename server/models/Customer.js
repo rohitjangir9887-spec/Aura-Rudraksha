@@ -10,6 +10,7 @@ const customerSchema = new mongoose.Schema(
     phone: { type: String, default: "", trim: true, index: true },
     address: { type: String, default: "" },
     addresses: { type: Array, default: [] },
+    cart: { type: Array, default: [] },
     wishlist: { type: [String], default: [] },
     joined: { type: String, default: () => new Date().toISOString() },
     firstSeen: { type: String, default: () => new Date().toISOString() },

@@ -1551,6 +1551,33 @@ export const db = {
 
   // COUPONS & CART CALCULATION (server-authoritative pricing with robust local fallback)
   getCoupons: () => storeCache.coupons,
+  getUserCart: async () => {
+    try {
+      const res = await apiRequest("/cart");
+      if (res?.success) return res.data?.lines || [];
+    } catch (_) {}
+    return null;
+  },
+  saveUserCart: async (lines = []) => {
+    try {
+      const res = await apiRequest("/cart", {
+        method: "POST",
+        body: JSON.stringify({ lines })
+      });
+      if (res?.success) return res.data?.lines || [];
+    } catch (_) {}
+    return null;
+  },
+  mergeUserCart: async (guestLines = []) => {
+    try {
+      const res = await apiRequest("/cart/merge", {
+        method: "POST",
+        body: JSON.stringify({ guestLines })
+      });
+      if (res?.success) return res.data?.lines || [];
+    } catch (_) {}
+    return null;
+  },
   calculateCart: async (lines = [], couponCode = null) => {
     try {
       const res = await apiRequest("/cart/calculate", {

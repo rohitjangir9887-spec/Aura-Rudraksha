@@ -16,22 +16,33 @@ function getUserCouponStorageKey(user) {
   return `aura-applied-coupon-code-${uid}`;
 }
 
+function sanitizeLines(rawLines) {
+  if (!Array.isArray(rawLines)) return [];
+  const map = new Map();
+  for (const item of rawLines) {
+    if (!item) continue;
+    let id = null;
+    let qty = 1;
+    if (typeof item === "string" || typeof item === "number") {
+      id = String(item).trim();
+    } else if (typeof item === "object") {
+      const rawId = item.id || item.productId || item._id;
+      if (rawId && typeof rawId !== "object") {
+        id = String(rawId).trim();
+      }
+      qty = Math.max(1, Math.floor(Number(item.qty || item.quantity) || 1));
+    }
+    if (!id || id === "[object Object]" || id === "undefined" || id === "null") continue;
+    map.set(id, (map.get(id) || 0) + qty);
+  }
+  return Array.from(map.entries()).map(([id, qty]) => ({ id, qty }));
+}
+
 function readStoredCart(user) {
   try {
     const key = getUserCartStorageKey(user);
     const raw = JSON.parse(localStorage.getItem(key) || "[]");
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .map((item) => {
-        if (typeof item === "string" || typeof item === "number") {
-          return { id: String(item), qty: 1 };
-        }
-        if (item && item.id) {
-          return { id: String(item.id), qty: Math.max(1, Number(item.qty) || 1) };
-        }
-        return null;
-      })
-      .filter(Boolean);
+    return sanitizeLines(raw);
   } catch {
     return [];
   }
@@ -103,12 +114,16 @@ export function CartProvider({ children }) {
     return () => unsub();
   }, []);
 
-  // Synchronize localStorage for lines
+  // Synchronize localStorage and server for lines
   const persistLines = useCallback((nextLines) => {
-    setLines(nextLines);
+    const sanitized = sanitizeLines(nextLines);
+    setLines(sanitized);
     try {
       const key = getUserCartStorageKey(userRef.current);
-      localStorage.setItem(key, JSON.stringify(nextLines));
+      localStorage.setItem(key, JSON.stringify(sanitized));
+      if (userRef.current && !userRef.current.isAnonymous) {
+        db.saveUserCart(sanitized).catch(() => {});
+      }
     } catch (_) {}
   }, []);
 
@@ -362,14 +377,37 @@ export function CartProvider({ children }) {
     const cart = lines.flatMap((l) => Array.from({ length: l.qty }, () => l.id));
     const count = lines.reduce((n, l) => n + l.qty, 0);
 
-    const add = (id, qty = 1) => {
-      const pid = String(id);
+    const add = (idOrObj, qty = 1) => {
+      let pid = null;
+      if (idOrObj && typeof idOrObj === "object") {
+        pid = String(idOrObj.id || idOrObj.productId || idOrObj._id || "").trim();
+      } else if (idOrObj !== undefined && idOrObj !== null) {
+        pid = String(idOrObj).trim();
+      }
+      if (!pid || pid === "[object Object]" || pid === "undefined" || pid === "null") return;
+
       const extra = Math.max(1, Number(qty) || 1);
       persistLines(
         lines.some((l) => l.id === pid)
           ? lines.map((l) => (l.id === pid ? { ...l, qty: l.qty + extra } : l))
           : [...lines, { id: pid, qty: extra }]
       );
+    };
+
+    const buyNow = (idOrObj, qty = 1) => {
+      let pid = null;
+      if (idOrObj && typeof idOrObj === "object") {
+        pid = String(idOrObj.id || idOrObj.productId || idOrObj._id || "").trim();
+      } else if (idOrObj !== undefined && idOrObj !== null) {
+        pid = String(idOrObj).trim();
+      }
+      if (!pid || pid === "[object Object]") return;
+
+      const count = Math.max(1, Number(qty) || 1);
+      const buyNowIntent = [{ id: pid, qty: count }];
+      try {
+        sessionStorage.setItem("aura_buy_now_intent", JSON.stringify(buyNowIntent));
+      } catch (_) {}
     };
 
     const remove = (id) => persistLines(lines.filter((l) => l.id !== String(id)));
@@ -391,6 +429,7 @@ export function CartProvider({ children }) {
       lines,
       count,
       add,
+      buyNow,
       remove,
       setQty,
       clear,

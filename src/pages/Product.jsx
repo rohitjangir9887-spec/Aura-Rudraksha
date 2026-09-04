@@ -27,7 +27,7 @@ import "../components/RichTextEditor.css";
 export function Product() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { add, totals } = useCart();
+  const { add, buyNow, totals } = useCart();
   const shipThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const { isWishlisted, toggleWishlist } = useWishlist();
 
@@ -394,7 +394,13 @@ export function Product() {
 
   const handleBuyNow = () => {
     if (isOutOfStock) return;
-    add(p.id, qty);
+    if (buyNow) {
+      buyNow(p.id, qty);
+    } else {
+      try {
+        sessionStorage.setItem("aura_buy_now_intent", JSON.stringify([{ id: String(p.id), qty }]));
+      } catch (_) {}
+    }
     emitToast(`Proceeding to checkout with ${p.name} (${selectedSize})`, "info");
     navigate('/checkout');
   };

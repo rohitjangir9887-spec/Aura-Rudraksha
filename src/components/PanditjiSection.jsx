@@ -167,7 +167,7 @@ export function PanditjiSection() {
 
   const handleAddToCart = () => {
     if (result?.matchedProduct) {
-      add(result.matchedProduct);
+      add(result.matchedProduct.id, 1);
       setAddedSuccess(true);
       emitToast(`${result.matchedProduct.name} को कार्ट में जोड़ दिया गया है!`, "success");
       setTimeout(() => setAddedSuccess(false), 3000);

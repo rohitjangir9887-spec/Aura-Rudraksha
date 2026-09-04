@@ -105,13 +105,27 @@ export function Checkout() {
   // Authoritative server-side verification state
   const [verifyingPayment, setVerifyingPayment] = useState(Boolean(successParam));
   const [verificationError, setVerificationError] = useState("");
+  const [isUserDataLoading, setIsUserDataLoading] = useState(() => Boolean(authClient.getUser() && !authClient.getUser().isAnonymous));
+
+  // Determine active checkout items (Buy Now intent vs normal cart lines)
+  const buyNowIntentStr = typeof window !== "undefined" ? sessionStorage.getItem("aura_buy_now_intent") : null;
+  const buyNowLines = useMemo(() => {
+    if (!buyNowIntentStr) return null;
+    try {
+      const parsed = JSON.parse(buyNowIntentStr);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (_) {}
+    return null;
+  }, [buyNowIntentStr]);
+
+  const activeLines = buyNowLines || lines;
 
   // Redirect if cart is empty and not viewing success/failed
   useEffect(() => {
-    if (lines.length === 0 && !successParam && !failedParam && !confirmedOrder) {
+    if (activeLines.length === 0 && !successParam && !failedParam && !confirmedOrder) {
       navigate("/cart");
     }
-  }, [lines.length, successParam, failedParam, confirmedOrder, navigate]);
+  }, [activeLines.length, successParam, failedParam, confirmedOrder, navigate]);
 
   // Handle Return from PayU Success (Authoritatively verified server-side)
   const verifyOrderPayment = useCallback(async () => {
@@ -123,7 +137,11 @@ export function Checkout() {
       const res = await db.verifyPayment(successParam);
       if (res?.success && res.data && res.data.paymentStatus === "Paid") {
         setConfirmedOrder(res.data);
-        clear(); // Clear cart only when server confirms Paid
+        if (buyNowLines) {
+          try { sessionStorage.removeItem("aura_buy_now_intent"); } catch (_) {}
+        } else {
+          clear(); // Clear cart only when server confirms Paid for normal cart checkout
+        }
       } else if (res?.data?.paymentStatus === "Pending") {
         setVerificationError("Payment is currently awaiting confirmation from PayU. If your account was debited, your order will automatically update to Confirmed shortly.");
       } else {
@@ -134,7 +152,7 @@ export function Checkout() {
     } finally {
       setVerifyingPayment(false);
     }
-  }, [successParam, clear]);
+  }, [successParam, clear, buyNowLines]);
 
   useEffect(() => {
     if (successParam) {
@@ -152,6 +170,7 @@ export function Checkout() {
       const user = authClient.getUser();
       if (typeof window !== "undefined" && user && !user.isAnonymous) {
         try {
+          setIsUserDataLoading(true);
           const [addrRes, meRes] = await Promise.all([
             db.getAddresses(),
             db.getCustomerMe()
@@ -208,7 +227,10 @@ export function Checkout() {
               phone: autoPhone || prev.phone
             }));
           }
-        } catch (_) {}
+        } catch (_) {
+        } finally {
+          setIsUserDataLoading(false);
+        }
       }
     }
 
@@ -386,7 +408,7 @@ export function Checkout() {
     const fullName = `${addressObj.firstName} ${addressObj.lastName}`.trim();
     const fullAddressString = `${addressObj.address}, ${addressObj.city}, ${addressObj.state} - ${addressObj.pincode}`;
 
-    const snapshotItems = lines.map(line => {
+    const snapshotItems = activeLines.map(line => {
       const p = products.find(x => String(x.id) === String(line.id));
       return {
         id: line.id,
@@ -409,8 +431,8 @@ export function Checkout() {
       address: fullAddressString,
       shippingAddress: addressObj,
       couponCode: appliedCoupon?.code || couponCode || "",
-      items: cart,
-      lines: lines,
+      items: activeLines.flatMap(l => Array.from({ length: l.qty }, () => l.id)),
+      lines: activeLines,
       snapshotItems: snapshotItems
     };
 
@@ -843,6 +865,7 @@ export function Checkout() {
           onEditAddress={handleEditAddress}
           saveAddressCheck={saveAddressCheck}
           onToggleSaveAddressCheck={setSaveAddressCheck}
+          isLoading={isUserDataLoading}
           errors={formErrors}
         />
 
