@@ -112,7 +112,7 @@ export function AuraAIChatOrderModal({
 
   const finalAmount = Math.max(0, subtotal - discountAmount);
 
-  const applyCoupon = (codeToApply) => {
+  const applyCoupon = async (codeToApply) => {
     setCouponError("");
     const code = (codeToApply || couponCode).trim().toUpperCase();
     if (!code) {
@@ -120,6 +120,7 @@ export function AuraAIChatOrderModal({
       return;
     }
 
+    // First check in-memory / cache
     const found = availableCoupons.find(c => c.code.toUpperCase() === code);
     if (found) {
       if (found.minOrder && subtotal < found.minOrder) {
@@ -130,21 +131,23 @@ export function AuraAIChatOrderModal({
       setAppliedCoupon(found);
       setCouponCode(found.code);
       setCouponError("");
-    } else {
-      // Allow general fallback codes
-      if (code === "SHRAWAN200") {
-        setAppliedCoupon({ code: "SHRAWAN200", discount: 200, type: "flat" });
-        setCouponCode("SHRAWAN200");
-      } else if (code === "AURA100") {
-        setAppliedCoupon({ code: "AURA100", discount: 100, type: "flat" });
-        setCouponCode("AURA100");
-      } else if (code === "MAHADEV10") {
-        setAppliedCoupon({ code: "MAHADEV10", discount: 10, type: "percentage" });
-        setCouponCode("MAHADEV10");
+      return;
+    }
+
+    // Validate with server
+    try {
+      const res = await db.validateCoupon(code, subtotal);
+      if (res?.success && res.data) {
+        setAppliedCoupon(res.data);
+        setCouponCode(res.data.code || code);
+        setCouponError("");
       } else {
-        setCouponError(`Coupon code "${code}" is invalid or expired.`);
+        setCouponError(res?.message || `Coupon code "${code}" is invalid or expired.`);
         setAppliedCoupon(null);
       }
+    } catch (_) {
+      setCouponError(`Coupon code "${code}" is invalid or expired.`);
+      setAppliedCoupon(null);
     }
   };
 
@@ -174,20 +177,9 @@ export function AuraAIChatOrderModal({
       const u = authClient.getUser();
       const customerEmail = u?.email || localStorage.getItem("user_email") || `${phone.replace(/\D/g, "")}@auracustomer.in`;
 
-      const orderPayload = {
-        customer: {
-          name: name.trim(),
-          email: customerEmail,
-          phone: phone.trim()
-        },
-        shippingAddress: {
-          name: name.trim(),
-          phone: phone.trim(),
-          street: address.trim(),
-          city: city.trim() || "India",
-          pincode: pincode.trim()
-        },
-        items: [
+      // Save buy-now intent in session storage so checkout seamlessly resumes
+      const buyNowPayload = {
+        lines: [
           {
             id: product.id,
             name: product.name,
@@ -196,32 +188,77 @@ export function AuraAIChatOrderModal({
             img: product.image || product.img || product.images?.[0] || ""
           }
         ],
-        amount: subtotal,
-        discount: discountAmount,
-        finalAmount: finalAmount,
+        couponCode: appliedCoupon ? appliedCoupon.code : "",
+        prefillShipping: {
+          fullName: name.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          city: city.trim() || "India",
+          pincode: pincode.trim(),
+          email: customerEmail
+        }
+      };
+
+      try {
+        sessionStorage.setItem("aura_buy_now_intent", JSON.stringify(buyNowPayload));
+      } catch (_) {}
+
+      // Initiate authoritative payment
+      const paymentIntentPayload = {
+        amount: finalAmount,
+        customer: {
+          name: name.trim(),
+          email: customerEmail,
+          phone: phone.trim()
+        },
+        shippingAddress: {
+          fullName: name.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          city: city.trim() || "India",
+          pincode: pincode.trim()
+        },
+        items: buyNowPayload.lines,
         coupon: appliedCoupon ? appliedCoupon.code : null,
-        paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
-        paymentStatus: "Pending",
-        status: "Confirmed",
-        source: "aura_ai",
         orderSource: "aura_ai",
         notes: "Placed via Aura AI Chat Assistant"
       };
 
-      const res = await db.createOrder(orderPayload);
-      if (res?.success && res.data) {
-        const createdOrder = res.data;
-        setOrderComplete(createdOrder);
-        emitToast("Order placed successfully via Aura AI! 🎉", "success");
-        if (onOrderSuccess) {
-          onOrderSuccess(createdOrder, product, { qty, finalAmount, appliedCoupon });
-        }
+      const payRes = await db.initiatePayment(paymentIntentPayload);
+
+      if (payRes?.success && payRes.data?.payuUrl && payRes.data?.params) {
+        // Redirect/submit to PayU gateway form
+        const { payuUrl, params } = payRes.data;
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = payuUrl;
+        form.style.display = "none";
+
+        Object.entries(params).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = k;
+            input.value = String(v);
+            form.appendChild(input);
+          }
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
+
+      // If direct checkout fallback or mock gateway
+      if (payRes?.success && payRes.data?.orderId) {
+        window.location.href = `/checkout?buyNow=1&orderId=${encodeURIComponent(payRes.data.orderId)}`;
       } else {
-        throw new Error(res?.error || "Order creation failed. Please try again.");
+        window.location.href = "/checkout?buyNow=1";
       }
     } catch (err) {
-      console.error("Aura AI Chat Order Error:", err);
-      setErrorMsg(err.message || "Could not complete order. Please check your connection and try again.");
+      console.error("Aura AI Chat Order Payment Error:", err);
+      // If initiation fails, gracefully route to standard checkout
+      window.location.href = "/checkout?buyNow=1";
     } finally {
       setSubmitting(false);
     }

@@ -897,6 +897,36 @@ export const db = {
     return { success: false, message: "Order not found" };
   },
 
+  trackOrder: async (queryOrOrderId, phone = "") => {
+    const rawTerm = String(queryOrOrderId || "").trim();
+    const rawPhone = String(phone || "").replace(/\D/g, "");
+    try {
+      const res = await apiRequest(`/orders/public/track?query=${encodeURIComponent(rawTerm)}&phone=${encodeURIComponent(rawPhone)}`);
+      if (res?.success && res.data) {
+        return res;
+      }
+    } catch (_) {}
+
+    // Fallback search in local cache
+    const cleanTerm = rawTerm.toUpperCase();
+    const found = storeCache.orders.find(o => {
+      const idMatch = rawTerm && (
+        String(o.id || "").toUpperCase() === cleanTerm || 
+        String(o.orderId || "").toUpperCase() === cleanTerm || 
+        String(o.orderNumber || "").toUpperCase() === cleanTerm ||
+        String(o.trackingNumber || "").toUpperCase() === cleanTerm
+      );
+      const oPhone = String(o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/\D/g, "");
+      const phoneMatch = rawPhone && rawPhone.length >= 7 && oPhone.endsWith(rawPhone.slice(-10));
+      return idMatch || phoneMatch;
+    });
+
+    if (found) {
+      return { success: true, data: found };
+    }
+    return { success: false, message: "No matching order found" };
+  },
+
   updateOrder: async (id, data) => {
     const res = await apiRequest(`/orders/${id}`, {
       method: "PUT",

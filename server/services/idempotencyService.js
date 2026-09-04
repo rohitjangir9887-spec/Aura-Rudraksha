@@ -44,8 +44,11 @@ export async function checkOrAcquireIdempotency({ key, userId = "", action, payl
   if (!isDbConnected()) {
     const existing = inMemoryIdempotency.get(cleanKey);
     if (existing) {
+      if (existing.userId && userId && existing.userId !== userId) {
+        return { status: "USER_MISMATCH", error: "Idempotency key ownership mismatch." };
+      }
       if (existing.requestHash !== requestHash) {
-        return { status: "PAYLOAD_MISMATCH", error: "Idempotency key reused with different payload parameters." };
+        return { status: "PAYLOAD_MISMATCH", error: "Idempotency key reused with different request payload parameters." };
       }
       if (existing.status === "in_progress") {
         return { status: "IN_PROGRESS", error: "A matching operation is already in progress. Please wait." };
@@ -72,8 +75,11 @@ export async function checkOrAcquireIdempotency({ key, userId = "", action, payl
   try {
     const existing = await IdempotencyRecord.findOne({ key: cleanKey });
     if (existing) {
+      if (existing.userId && userId && existing.userId !== userId) {
+        return { status: "USER_MISMATCH", error: "Idempotency key ownership mismatch." };
+      }
       if (existing.requestHash !== requestHash) {
-        return { status: "PAYLOAD_MISMATCH", error: "Idempotency key reused with different payload parameters." };
+        return { status: "PAYLOAD_MISMATCH", error: "Idempotency key reused with different request payload parameters." };
       }
       if (existing.status === "in_progress") {
         return { status: "IN_PROGRESS", error: "A matching operation is already in progress. Please wait." };
@@ -100,18 +106,24 @@ export async function checkOrAcquireIdempotency({ key, userId = "", action, payl
     if (err.code === 11000) {
       // Race condition - duplicate key caught by unique index
       const duplicate = await IdempotencyRecord.findOne({ key: cleanKey });
-      if (duplicate && duplicate.requestHash === requestHash && duplicate.status === "completed") {
-        return {
-          status: "COMPLETED",
-          responseStatus: duplicate.responseStatus || 200,
-          responseBody: duplicate.responseBody
-        };
+      if (duplicate) {
+        if (duplicate.userId && userId && duplicate.userId !== userId) {
+          return { status: "USER_MISMATCH", error: "Idempotency key ownership mismatch." };
+        }
+        if (duplicate.requestHash === requestHash && duplicate.status === "completed") {
+          return {
+            status: "COMPLETED",
+            responseStatus: duplicate.responseStatus || 200,
+            responseBody: duplicate.responseBody
+          };
+        }
       }
       return { status: "IN_PROGRESS", error: "Concurrent request detected. Please wait." };
     }
-    // Fail-open for idempotency service errors in dev, but log
-    console.warn("Idempotency store warning:", err.message);
-    return { status: "NEW" };
+    
+    // Fail-closed for persistent idempotency errors on critical paths to prevent duplicate transactions
+    console.error("Idempotency store error:", err.message);
+    return { status: "STORE_ERROR", error: "Idempotency store failure: unable to safely verify request deduplication." };
   }
 }
 

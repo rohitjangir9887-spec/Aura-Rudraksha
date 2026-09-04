@@ -489,3 +489,115 @@ export async function updateOrder(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * Public, privacy-safe Order Tracking endpoint (No Auth Required)
+ * Allows customers to track their orders using Order ID / Phone / Tracking Number
+ * Masks sensitive PII while providing accurate live dispatch and fulfillment status.
+ */
+export async function trackOrderPublic(req, res, next) {
+  try {
+    const rawQuery = String(req.query.query || req.query.orderId || req.body?.orderId || "").trim();
+    const rawPhone = String(req.query.phone || req.body?.phone || "").replace(/\D/g, "");
+
+    if (!rawQuery && !rawPhone) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Order ID (e.g. AUR-1001) or Registered Phone number is required for tracking." 
+      });
+    }
+
+    let order = null;
+    const cleanTerm = rawQuery.toUpperCase();
+
+    if (isDbConnected()) {
+      const queryConditions = [];
+      if (rawQuery) {
+        queryConditions.push({ id: cleanTerm });
+        queryConditions.push({ orderId: cleanTerm });
+        queryConditions.push({ orderNumber: cleanTerm });
+        queryConditions.push({ trackingNumber: cleanTerm });
+        queryConditions.push({ trackingId: cleanTerm });
+        if (cleanTerm.match(/^[0-9A-F]{24}$/i)) {
+          queryConditions.push({ _id: cleanTerm });
+        }
+      }
+      if (rawPhone && rawPhone.length >= 7) {
+        const phoneSuffix = rawPhone.slice(-10);
+        queryConditions.push({ customerPhone: { $regex: phoneSuffix + "$" } });
+        queryConditions.push({ phone: { $regex: phoneSuffix + "$" } });
+        queryConditions.push({ "shippingAddress.phone": { $regex: phoneSuffix + "$" } });
+      }
+
+      order = await Order.findOne({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
+    } else {
+      const allOrders = inMemoryStore.orders || [];
+      order = allOrders.find(o => {
+        const idMatch = rawQuery && (
+          String(o.id || "").toUpperCase() === cleanTerm ||
+          String(o.orderId || "").toUpperCase() === cleanTerm ||
+          String(o.orderNumber || "").toUpperCase() === cleanTerm ||
+          String(o.trackingNumber || "").toUpperCase() === cleanTerm
+        );
+        const oPhone = String(o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/\D/g, "");
+        const phoneMatch = rawPhone && rawPhone.length >= 7 && oPhone.endsWith(rawPhone.slice(-10));
+        return idMatch || phoneMatch;
+      });
+    }
+
+    if (!order) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No matching order found. Please check your Order ID or phone number." 
+      });
+    }
+
+    // Mask sensitive PII for public tracking
+    const custPhone = String(order.customerPhone || order.phone || order.shippingAddress?.phone || "");
+    const maskedPhone = custPhone.length >= 10 
+      ? custPhone.slice(0, 3) + "••••" + custPhone.slice(-3)
+      : "••••••••";
+
+    const custName = String(order.customerName || order.firstName || order.shippingAddress?.name || order.shippingAddress?.fullName || "Aura Devotee");
+    const nameParts = custName.trim().split(" ");
+    const maskedName = nameParts.length > 1
+      ? `${nameParts[0]} ${nameParts[1][0]}***`
+      : `${nameParts[0]}`;
+
+    const safePublicOrder = {
+      id: order.id || order.orderId,
+      orderId: order.orderId || order.id,
+      orderNumber: order.orderNumber || order.id,
+      status: order.status || order.orderStatus || "Confirmed",
+      orderStatus: order.orderStatus || order.status || "Confirmed",
+      paymentStatus: order.paymentStatus || "Pending",
+      paymentMethod: order.paymentMethod || "PayU Hosted (UPI / Cards / NetBanking)",
+      trackingNumber: order.trackingNumber || order.trackingId || "",
+      courierPartner: order.courierPartner || order.courierName || order.carrier || "Express Air (Shiprocket / BlueDart)",
+      trackingUrl: order.trackingUrl || order.shippingLink || "",
+      createdAt: order.createdAt || order.date,
+      expectedDelivery: order.expectedDelivery || order.estimatedDeliveryDate || null,
+      destinationCity: order.shippingAddress?.city || order.city || "India",
+      destinationPincode: order.shippingAddress?.pincode ? String(order.shippingAddress.pincode).slice(0, 3) + "***" : "",
+      maskedCustomer: maskedName,
+      maskedPhone: maskedPhone,
+      items: (order.items || order.lines || []).map(item => ({
+        id: item.id || item._id,
+        name: item.name || item.title || "Sacred Rudraksha",
+        qty: item.quantity || item.qty || 1,
+        img: item.img || item.image || item.images?.[0] || "/images/product-5mukhi.jpg"
+      })),
+      timeline: order.timeline && order.timeline.length > 0 ? order.timeline : [
+        { title: "Order Confirmed & Placed", date: new Date(order.createdAt || order.date || Date.now()).toLocaleDateString("en-IN"), done: true },
+        { title: "Temple Prana Pratishtha Consecration", date: "Consecrated with Vedic Mantras", done: order.status !== "Cancelled" },
+        { title: "Lab X-Ray Verification & Certification", date: "Certified Authentic Himalayan Bead", done: ["Processing", "Shipped", "Out for Delivery", "Delivered"].includes(order.status || order.orderStatus) },
+        { title: "Dispatched via Express Air", date: order.trackingNumber ? `AWB: ${order.trackingNumber}` : "In Transit", done: ["Shipped", "Out for Delivery", "Delivered"].includes(order.status || order.orderStatus), current: (order.status || order.orderStatus) === "Shipped" },
+        { title: "Delivered & Blessed", date: (order.status || order.orderStatus) === "Delivered" ? "Delivered" : "Expected in 2-4 days", done: (order.status || order.orderStatus) === "Delivered", current: (order.status || order.orderStatus) === "Delivered" }
+      ]
+    };
+
+    return res.json({ success: true, data: safePublicOrder });
+  } catch (err) {
+    next(err);
+  }
+}

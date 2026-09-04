@@ -60,8 +60,9 @@ export function resolveAllowedOrigins() {
 export function createApp() {
   const app = express();
 
-  // Enable trust proxy for containerized environments (Cloud Run / reverse proxy)
-  app.set("trust proxy", true);
+  // Bounded trust proxy for containerized environments (Cloud Run / reverse proxy)
+  const proxyHops = parseInt(process.env.TRUST_PROXY_HOPS || "1", 10);
+  app.set("trust proxy", isNaN(proxyHops) ? 1 : proxyHops);
 
   // CORS Middleware - strictly enforce allowed origins allowlist & handle preflights
   app.use((req, res, next) => {
@@ -84,7 +85,7 @@ export function createApp() {
       res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,Accept");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,Accept,X-Idempotency-Key,Idempotency-Key");
       res.setHeader("Access-Control-Max-Age", "86400");
     }
 

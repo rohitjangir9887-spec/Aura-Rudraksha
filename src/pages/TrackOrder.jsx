@@ -36,55 +36,21 @@ export function TrackOrder() {
     setOrderResult(null);
 
     try {
-      // 1. Fetch latest orders from store / backend
-      let allOrders = [];
-      try {
-        const fetched = await db.fetchOrders();
-        if (Array.isArray(fetched) && fetched.length > 0) {
-          allOrders = fetched;
-        }
-      } catch (_) {}
-
-      if (!allOrders || allOrders.length === 0) {
-        allOrders = db.getOrders() || [];
+      // 1. Call dedicated public tracking endpoint
+      const trackRes = await db.trackOrder(rawTerm);
+      if (trackRes?.success && trackRes.data) {
+        setOrderResult(trackRes.data);
+        return;
       }
 
-      // 2. Try direct getOrder API lookup first
-      let found = null;
-      try {
-        const singleRes = await db.getOrder(rawTerm);
-        if (singleRes?.success && singleRes.data) {
-          found = singleRes.data;
-        }
-      } catch (_) {}
-
-      // 3. Match against all known real orders
-      if (!found && Array.isArray(allOrders)) {
-        const termLower = rawTerm.toLowerCase();
-        const cleanDigits = rawTerm.replace(/[^0-9]/g, "");
-
-        found = allOrders.find(o => {
-          if (!o) return false;
-          const orderId = String(o.id || o.orderId || "").toLowerCase();
-          const trackingNo = String(o.trackingNumber || o.trackingId || "").toLowerCase();
-          const email = String(o.customerEmail || o.email || o.shippingAddress?.email || "").toLowerCase();
-          const phone = String(o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/[^0-9]/g, "");
-
-          const idMatch = orderId === termLower || orderId.replace(/[^a-z0-9]/g, "") === rawTerm.replace(/[^a-z0-9]/gi, "").toLowerCase();
-          const trackMatch = trackingNo && (trackingNo === termLower || trackingNo.replace(/[^a-z0-9]/g, "") === rawTerm.replace(/[^a-z0-9]/gi, "").toLowerCase());
-          const emailMatch = email && email === termLower;
-          const phoneMatch = cleanDigits.length >= 7 && phone && (phone === cleanDigits || phone.includes(cleanDigits) || cleanDigits.includes(phone));
-
-          return idMatch || trackMatch || emailMatch || phoneMatch;
-        });
+      // 2. Direct lookup fallback for authenticated users
+      const singleRes = await db.getOrder(rawTerm);
+      if (singleRes?.success && singleRes.data) {
+        setOrderResult(singleRes.data);
+        return;
       }
 
-      // ONLY set if an actual real order exists - strictly NO fake / dummy fallback data
-      if (found) {
-        setOrderResult(found);
-      } else {
-        setOrderResult(null);
-      }
+      setOrderResult(null);
     } catch (err) {
       console.error("Tracking search error:", err);
       setOrderResult(null);

@@ -119,27 +119,7 @@ export async function requireAuth(req, res, next) {
           return next();
         } catch (err) {
           console.warn("[Auth] Firebase token verification failed:", err?.message || err);
-          // If token verification threw because of missing service account credentials or network issue,
-          // safely inspect the JWT payload without assigning admin credentials.
-          try {
-            const parts = token.split('.');
-            if (parts.length === 3) {
-              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-              const uid = payload.user_id || payload.sub || payload.uid;
-              if (uid) {
-                req.user = {
-                  authUserId: uid,
-                  email: (payload.email || "").toLowerCase().trim(),
-                  phone: payload.phone_number || "",
-                  name: payload.name || "",
-                  picture: payload.picture || ""
-                };
-                return next();
-              }
-            }
-          } catch (decodeErr) {
-            console.warn("[Auth] JWT payload decoding failed:", decodeErr?.message);
-          }
+          // When token verification fails, do not trust unverified JWT payloads
         }
       }
     }
@@ -173,29 +153,8 @@ export async function optionalAuth(req, res, next) {
             picture: decodedToken.picture || ""
           };
         } catch (tokenErr) {
-          // If verifyIdToken failed, safely decode JWT payload for user identity
-          try {
-            const parts = token.split('.');
-            if (parts.length === 3) {
-              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-              const uid = payload.user_id || payload.sub || payload.uid;
-              if (uid) {
-                req.user = {
-                  authUserId: uid,
-                  email: (payload.email || "").toLowerCase().trim(),
-                  phone: payload.phone_number || "",
-                  name: payload.name || "",
-                  picture: payload.picture || ""
-                };
-              } else {
-                req.user = null;
-              }
-            } else {
-              req.user = null;
-            }
-          } catch (_) {
-            req.user = null;
-          }
+          // If verifyIdToken failed, strictly nullify user identity (no unverified payload decoding)
+          req.user = null;
         }
       }
     }

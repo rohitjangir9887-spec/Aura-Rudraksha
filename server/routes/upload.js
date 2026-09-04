@@ -115,10 +115,29 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref?.();
 
+function escapeHtml(str) {
+  if (!str || typeof str !== "string") return "";
+  return str.replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
+}
+
+function getOauthSecret() {
+  const secret = process.env.PCLOUD_OAUTH_SECRET || process.env.JWT_SECRET || process.env.ADMIN_SETUP_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("PCLOUD_OAUTH_SECRET or JWT_SECRET is required in production for secure OAuth state.");
+  }
+  return secret || "aura_oauth_secret_salt_dev";
+}
+
 function generateOauthState(userId) {
   const nonce = crypto.randomBytes(16).toString("hex");
   const timestamp = Date.now();
-  const secret = process.env.JWT_SECRET || process.env.ADMIN_SETUP_SECRET || "aura_oauth_secret_salt";
+  const secret = getOauthSecret();
   const signature = crypto.createHmac("sha256", secret).update(`${userId}:${timestamp}:${nonce}`).digest("hex");
   const state = `${nonce}.${timestamp}.${signature}`;
   pendingOauthStates.set(state, { userId, timestamp });
@@ -133,14 +152,16 @@ function verifyOauthState(state) {
   const timestamp = Number(timestampStr);
   if (isNaN(timestamp) || Date.now() - timestamp > 15 * 60 * 1000) return false;
 
-  const secret = process.env.JWT_SECRET || process.env.ADMIN_SETUP_SECRET || "aura_oauth_secret_salt";
-  const cached = pendingOauthStates.get(state);
-  const expectedSig = crypto.createHmac("sha256", secret).update(`${cached?.userId || ""}:${timestamp}:${nonce}`).digest("hex");
-  
-  if (crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSig, "hex"))) {
-    pendingOauthStates.delete(state);
-    return true;
-  }
+  try {
+    const secret = getOauthSecret();
+    const cached = pendingOauthStates.get(state);
+    const expectedSig = crypto.createHmac("sha256", secret).update(`${cached?.userId || ""}:${timestamp}:${nonce}`).digest("hex");
+    
+    if (signature.length === expectedSig.length && crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSig, "hex"))) {
+      pendingOauthStates.delete(state);
+      return true;
+    }
+  } catch (_) {}
   return false;
 }
 
@@ -181,18 +202,28 @@ router.get("/pcloud/connect", requireAdmin, async (req, res) => {
 
 /**
  * GET /api/upload/pcloud/callback
- * Handles OAuth code exchange callback from pCloud with CSRF State Verification
+ * Handles OAuth code exchange callback from pCloud with Mandatory CSRF State Verification
  */
 router.get("/pcloud/callback", async (req, res) => {
   try {
     const { code, error, state } = req.query;
     if (error) {
+      const safeError = escapeHtml(String(error || "Authorization was denied by pCloud."));
+      const jsonError = JSON.stringify(safeError);
       return res.send(`
+        <!DOCTYPE html>
         <html>
           <body style="font-family: sans-serif; text-align: center; padding: 40px; background: #fffdfa;">
             <h2 style="color: #dc2626;">pCloud Connection Refused</h2>
-            <p>${error}</p>
-            <script>if (window.opener) { window.opener.postMessage({ type: 'pcloud:error', error: '${error}' }, '*'); setTimeout(() => window.close(), 2500); }</script>
+            <p>${safeError}</p>
+            <script>
+              if (window.opener) { 
+                try {
+                  window.opener.postMessage({ type: 'pcloud:error', error: ${jsonError} }, window.location.origin); 
+                } catch(e) {}
+                setTimeout(() => window.close(), 2500); 
+              }
+            </script>
           </body>
         </html>
       `);
@@ -202,8 +233,8 @@ router.get("/pcloud/callback", async (req, res) => {
       return res.status(400).send("Missing OAuth code parameter from pCloud redirect.");
     }
 
-    // CSRF State parameter check
-    if (state && !verifyOauthState(state)) {
+    // CSRF State parameter check (Mandatory)
+    if (!state || !verifyOauthState(state)) {
       return res.status(403).send("OAuth State Verification Failed: Potential CSRF or expired session.");
     }
 
@@ -223,13 +254,16 @@ router.get("/pcloud/callback", async (req, res) => {
     });
 
     return res.send(`
+      <!DOCTYPE html>
       <html>
         <body style="font-family: sans-serif; text-align: center; padding: 40px; background: #f0fdf4;">
           <h2 style="color: #16a34a;">✅ pCloud Storage Connected!</h2>
           <p>You may close this window. Returning to Aura Admin...</p>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ type: 'pcloud:connected' }, '*');
+              try {
+                window.opener.postMessage({ type: 'pcloud:connected' }, window.location.origin);
+              } catch(e) {}
               setTimeout(() => window.close(), 1200);
             } else {
               setTimeout(() => { window.location.href = '/admin'; }, 1200);
@@ -239,7 +273,8 @@ router.get("/pcloud/callback", async (req, res) => {
       </html>
     `);
   } catch (err) {
-    return res.status(500).send(`pCloud OAuth token exchange error: ${err.message}`);
+    console.error("[pCloud OAuth Error]:", err?.message || err);
+    return res.status(500).send("Failed to complete pCloud authorization. Please try again from Admin Settings.");
   }
 });
 

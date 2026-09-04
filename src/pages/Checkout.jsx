@@ -108,6 +108,17 @@ export function Checkout() {
   const [verifyingPayment, setVerifyingPayment] = useState(Boolean(successParam));
   const [verificationError, setVerificationError] = useState("");
   const [isUserDataLoading, setIsUserDataLoading] = useState(() => Boolean(authClient.getUser() && !authClient.getUser().isAnonymous));
+  const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || {});
+
+  useEffect(() => {
+    let mounted = true;
+    db.fetchSettings?.().then(res => {
+      if (mounted && res) {
+        setStoreSettings(res);
+      }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   // Determine active checkout items (Buy Now intent vs normal cart lines)
   const buyNowIntentStr = typeof window !== "undefined" ? sessionStorage.getItem("aura_buy_now_intent") : null;
@@ -948,7 +959,9 @@ export function Checkout() {
         <CheckoutPaymentMethod />
 
         {/* 8. Final Reassurance */}
-        <CheckoutReassurance />
+        <CheckoutReassurance 
+          supportPhone={storeSettings.contactPhone || storeSettings.supportPhone || storeSettings.phone || "+91 9672996531"} 
+        />
 
         {/* 9. In-page Main Place Order CTA (Always Visible & Prominent) */}
         <div id="checkout-main-place-order-section" style={{ marginTop: "18px", marginBottom: "24px" }}>

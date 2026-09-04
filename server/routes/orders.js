@@ -4,7 +4,8 @@ import {
   getOrderById,
   createOrder,
   updateOrder,
-  getMyOrders
+  getMyOrders,
+  trackOrderPublic
 } from "../controllers/orderController.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -18,6 +19,12 @@ router.use((req, res, next) => {
   res.setHeader("Surrogate-Control", "no-store");
   next();
 });
+
+// Dedicated Public Order Tracking (Unauthenticated & Privacy Safe)
+router.get("/public/track", trackOrderPublic);
+router.post("/public/track", trackOrderPublic);
+router.get("/track", trackOrderPublic);
+router.post("/track", trackOrderPublic);
 
 router.route("/my")
   .get(requireAuth, getMyOrders);
