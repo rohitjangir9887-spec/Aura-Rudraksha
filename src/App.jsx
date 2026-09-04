@@ -125,7 +125,7 @@ export function App() {
           <Route path="/wholesale" element={<Wholesale />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/aura-ai" element={<AuraAIPage />} />
-          <Route path="/mobile-design" element={<MobileDesignPage />} />
+          <Route path="/mobile-design" element={<Navigate to="/checkout" replace />} />
 
           {/* Isolated Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
