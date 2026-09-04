@@ -893,7 +893,7 @@ export function Checkout() {
           
           <div style={{ textAlign: "center", marginTop: "10px", fontSize: "12px", color: "#6e5d50", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
             <Lock size={13} color="#166534" />
-            <span>Clicking "Pay with PayU" safely redirects to RBI-authorized 256-Bit SSL payment gateway</span>
+            <span>Clicking "Pay with PayU" safely redirects to PayU 256-Bit SSL payment gateway</span>
           </div>
         </div>
 

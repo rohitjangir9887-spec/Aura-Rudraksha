@@ -47,7 +47,7 @@ export function CheckoutPaymentMethod() {
               Payment Method
             </h2>
             <div style={{ fontSize: "11px", color: "#806f62" }}>
-              100% Encrypted & RBI Authorized Gateway
+              256-Bit SSL Encrypted Payment Gateway
             </div>
           </div>
         </div>
@@ -189,7 +189,7 @@ export function CheckoutPaymentMethod() {
         >
           <Zap size={15} color="#b85d25" style={{ flexShrink: 0 }} />
           <span>
-            <b>Zero Transaction Fees:</b> Aura Rudraksha covers all gateway charges for all sacred devotees.
+            <b>Secure Checkout:</b> Direct integration with PayU Hosted Checkout.
           </span>
         </div>
       </div>

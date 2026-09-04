@@ -2218,5 +2218,17 @@ export const db = {
       await hydrateFromBackend();
     }
     return res;
+  },
+
+  clearUserCache: () => {
+    storeCache.addresses = [];
+    storeCache.orders = [];
+    storeCache.tickets = [];
+    storeCache.customerMe = null;
+    storeCache.wishlist = [];
   }
 };
+
+authClient.onAuthStateChanged(() => {
+  db.clearUserCache();
+});

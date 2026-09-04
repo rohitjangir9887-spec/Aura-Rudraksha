@@ -74,6 +74,15 @@ export function sanitizePaymentDetails(details) {
   delete copy.auth;
   delete copy.authorization;
   delete copy.headers;
+  delete copy.cardnum;
+  delete copy.card_no;
+  delete copy.card_number;
+  delete copy.cvv;
+  delete copy.card_cvv;
+  delete copy.upi_pin;
+  delete copy.pin;
+  delete copy.password;
+  delete copy.pass;
   
   // Truncate hash string representation if needed
   if (copy.hash && typeof copy.hash === "string" && copy.hash.length > 32) {

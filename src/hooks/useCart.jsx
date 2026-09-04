@@ -130,14 +130,7 @@ export function CartProvider({ children }) {
     if (!currentLines || currentLines.length === 0) {
       setTotals({
         ...defaultTotals,
-        appliedCoupon: currentCoupon ? {
-          code: currentCoupon,
-          status: "NOT_ELIGIBLE",
-          valid: false,
-          discount: 0,
-          discountAmount: 0,
-          reason: "Cart is empty. Add products to apply coupon."
-        } : null,
+        appliedCoupon: null,
         couponStatus: currentCoupon ? "NOT_ELIGIBLE" : "NONE",
         couponReason: currentCoupon ? "Cart is empty. Add products to apply coupon." : ""
       });
@@ -148,7 +141,15 @@ export function CartProvider({ children }) {
       setLoadingTotals(true);
       const res = await db.calculateCart(currentLines, currentCoupon);
       if (res?.success && res.data) {
-        setTotals(res.data);
+        // Ensure appliedCoupon is null if valid is false or status is not APPLIED
+        const data = res.data;
+        const isValidApplied = Boolean(data.appliedCoupon && (data.appliedCoupon.valid || data.appliedCoupon.status === "APPLIED"));
+        setTotals({
+          ...data,
+          appliedCoupon: isValidApplied ? data.appliedCoupon : null,
+          couponRejection: !isValidApplied && (data.couponRejection || data.appliedCoupon),
+          couponDiscount: isValidApplied ? (data.couponDiscount || 0) : 0
+        });
       } else {
         throw new Error(res?.message || "Cart API returned unsuccessful response");
       }
@@ -187,8 +188,10 @@ export function CartProvider({ children }) {
         const shippingDiscount = isFreeShipping && subtotal > 0 ? 50 : 0;
 
         let appliedCouponObj = null;
+        let couponRejectionObj = null;
         let couponDiscount = 0;
         let couponStatus = "NONE";
+        let couponReason = "";
 
         if (currentCoupon) {
           const c = coupons.find(x => x.code?.toUpperCase() === currentCoupon.toUpperCase());
@@ -196,7 +199,8 @@ export function CartProvider({ children }) {
             const minOrder = Number(c.minAmount || c.minOrder || 0);
             if (minOrder > 0 && subtotal < minOrder) {
               couponStatus = "NOT_ELIGIBLE";
-              appliedCouponObj = {
+              couponReason = `Add ₹${minOrder - subtotal} more to use this coupon.`;
+              couponRejectionObj = {
                 code: c.code,
                 status: "NOT_ELIGIBLE",
                 valid: false,
@@ -204,17 +208,18 @@ export function CartProvider({ children }) {
                 discountAmount: 0,
                 minOrder,
                 shortfall: minOrder - subtotal,
-                reason: `Add ₹${minOrder - subtotal} more to use this coupon.`
+                reason: couponReason
               };
             } else if (c.status === "Expired" || (c.expiry && new Date(c.expiry) < new Date())) {
               couponStatus = "EXPIRED";
-              appliedCouponObj = {
+              couponReason = "This coupon is expired.";
+              couponRejectionObj = {
                 code: c.code,
                 status: "EXPIRED",
                 valid: false,
                 discount: Number(c.discount) || 0,
                 discountAmount: 0,
-                reason: "This coupon is expired."
+                reason: couponReason
               };
             } else {
               couponStatus = "APPLIED";
@@ -232,13 +237,14 @@ export function CartProvider({ children }) {
             }
           } else {
             couponStatus = "INVALID";
-            appliedCouponObj = {
+            couponReason = "Invalid coupon code.";
+            couponRejectionObj = {
               code: currentCoupon,
               status: "INVALID",
               valid: false,
               discount: 0,
               discountAmount: 0,
-              reason: "Invalid coupon code."
+              reason: couponReason
             };
           }
         }
@@ -266,9 +272,10 @@ export function CartProvider({ children }) {
           savings: totalSavings,
           totalSavings,
           appliedCoupon: appliedCouponObj,
+          couponRejection: couponRejectionObj,
           couponStatus,
           couponValid: Boolean(appliedCouponObj?.valid),
-          couponReason: appliedCouponObj?.reason || ""
+          couponReason: couponReason || appliedCouponObj?.reason || couponRejectionObj?.reason || ""
         });
       } catch (_) {}
     } finally {

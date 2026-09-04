@@ -217,7 +217,7 @@ export function Policies() {
                 <div style={{ lineHeight: "1.8", color: "#4a3b32", whiteSpace: "pre-wrap", fontSize: "13.5px" }}>
 {`At Aura Rudraksha, your financial security is guarded with highest banking-grade standards:
 
-• 100% PCI-DSS Level 1 Compliant: Payment processing is handled by RBI-approved premier payment gateway (PayU Hosted Checkout).
+• 100% PCI-DSS Level 1 Compliant: Payment processing is handled by premier payment gateway (PayU Hosted Checkout).
 • Supported Payment Modes:
    - All UPI Apps (Google Pay, PhonePe, Paytm, BHIM, CRED)
    - Credit & Debit Cards (Visa, MasterCard, RuPay, American Express)
