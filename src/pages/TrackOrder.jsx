@@ -213,11 +213,19 @@ export function TrackOrder() {
                   </div>
                 </div>
 
-                {/* Carrier & Tracking Code Bar */}
+                {/* Carrier & Tracking Code Bar (ONLY show if NOT cancelled AND shipping details were added by admin) */}
                 {(() => {
-                  const courier = orderResult.courierName || orderResult.carrier || orderResult.courier || "DTDC / Delhivery Express";
-                  const trackingNum = orderResult.trackingNumber || orderResult.trackingId;
-                  const trackingUrl = orderResult.trackingUrl || orderResult.shippingLink;
+                  const isCancelled = String(orderResult.status || "").toLowerCase() === "cancelled";
+                  const courier = (orderResult.courierName || orderResult.carrier || orderResult.courier || "").trim();
+                  const trackingNum = (orderResult.trackingNumber || orderResult.trackingId || "").trim();
+                  const trackingUrl = (orderResult.trackingUrl || orderResult.shippingLink || "").trim();
+
+                  // Hide completely if cancelled OR if admin has not added any courier/tracking details yet
+                  if (isCancelled || (!courier && !trackingNum && !trackingUrl)) {
+                    return null;
+                  }
+
+                  const displayCourier = courier || "Assigned Courier Partner";
 
                   return (
                     <div style={{
@@ -243,7 +251,7 @@ export function TrackOrder() {
                           </div>
                           <div>
                             <span style={{ fontSize: "11px", color: "#7d6d62", display: "block" }}>Courier Partner</span>
-                            <strong style={{ fontSize: "14px", color: "#2b170d" }}>{courier}</strong>
+                            <strong style={{ fontSize: "14px", color: "#2b170d" }}>{displayCourier}</strong>
                           </div>
                         </div>
 
@@ -283,7 +291,7 @@ export function TrackOrder() {
                       {(trackingUrl || trackingNum) && (
                         <div style={{ borderTop: '1px dashed #ebdccb', paddingTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
                           <a
-                            href={trackingUrl || `https://www.google.com/search?q=track+${encodeURIComponent(courier)}+${encodeURIComponent(trackingNum)}`}
+                            href={trackingUrl || `https://www.google.com/search?q=track+${encodeURIComponent(courier || 'courier')}+${encodeURIComponent(trackingNum)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{
@@ -300,7 +308,7 @@ export function TrackOrder() {
                               boxShadow: '0 2px 5px rgba(165, 77, 43, 0.2)'
                             }}
                           >
-                            <ExternalLink size={13} /> Track Package on {courier} Official Portal ↗
+                            <ExternalLink size={13} /> Track Package on {displayCourier} Portal ↗
                           </a>
                         </div>
                       )}

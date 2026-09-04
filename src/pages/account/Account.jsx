@@ -36,11 +36,45 @@ export function Account() {
   const location = useLocation();
   const { count: wishlistCount } = useWishlist();
   const [user, setUser] = useState(() => authClient.getUser());
-  const [userEmail, setUserEmail] = useState("");
-  const [profile, setProfile] = useState(null);
-  const [ordersCount, setOrdersCount] = useState(0);
-  const [addressesCount, setAddressesCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState(() => {
+    const u = authClient.getUser();
+    const cached = db.getCachedCustomerMe();
+    return (cached?.email || u?.email || "");
+  });
+  const [profile, setProfile] = useState(() => {
+    const u = authClient.getUser();
+    const cached = db.getCachedCustomerMe();
+    if (cached) {
+      return {
+        ...cached,
+        name: cached.name || u?.displayName || (u?.email ? u.email.split("@")[0] : "Aura Devotee"),
+        avatar: cached.avatar || u?.photoURL || ""
+      };
+    }
+    if (u && !u.isAnonymous) {
+      return {
+        name: u.displayName || (u.email ? u.email.split("@")[0] : "Aura Devotee"),
+        email: u.email || "",
+        avatar: u.photoURL || "",
+        role: "customer"
+      };
+    }
+    return null;
+  });
+  const [ordersCount, setOrdersCount] = useState(() => {
+    const cached = db.getCachedMyOrders();
+    return Array.isArray(cached) ? cached.length : 0;
+  });
+  const [addressesCount, setAddressesCount] = useState(() => {
+    const cached = db.getCachedAddresses();
+    return Array.isArray(cached) ? cached.length : 0;
+  });
+  const [loading, setLoading] = useState(() => {
+    const initialUser = authClient.getUser();
+    if (!initialUser || initialUser.isAnonymous) return false;
+    const cachedProfile = db.getCachedCustomerMe();
+    return !cachedProfile;
+  });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = async () => {
@@ -121,16 +155,21 @@ export function Account() {
       setLoading(false);
     }
 
+    let lastUid = initialUser?.uid || initialUser?.authUserId || initialUser?.email || null;
     const unsubscribe = authClient.onAuthStateChanged((u) => {
-      setUser(u);
-      if (u && !u.isAnonymous) {
-        loadAccountData(u);
-      } else {
-        setProfile(null);
-        setUserEmail("");
-        setOrdersCount(0);
-        setAddressesCount(0);
-        setLoading(false);
+      const currentUid = u?.uid || u?.authUserId || u?.email || null;
+      if (currentUid !== lastUid) {
+        lastUid = currentUid;
+        setUser(u);
+        if (u && !u.isAnonymous) {
+          loadAccountData(u);
+        } else {
+          setProfile(null);
+          setUserEmail("");
+          setOrdersCount(0);
+          setAddressesCount(0);
+          setLoading(false);
+        }
       }
     });
 

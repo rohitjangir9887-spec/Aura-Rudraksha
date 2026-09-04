@@ -18,10 +18,21 @@ export function getOrderProducts(o) {
 }
 
 export function Orders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [currentUser, setCurrentUser] = useState(() => authClient.getUser());
+  const [orders, setOrders] = useState(() => {
+    const cached = db.getCachedMyOrders();
+    if (Array.isArray(cached) && cached.length > 0) {
+      return [...cached].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) return false;
+    const cached = db.getCachedMyOrders();
+    return !(Array.isArray(cached) && cached.length > 0);
+  });
+  const [loadError, setLoadError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [retryingOrderId, setRetryingOrderId] = useState(null);
@@ -33,20 +44,28 @@ export function Orders() {
   const location = useLocation();
 
   useEffect(() => {
-    // Check initial user and listen for auth updates without redirecting
     const user = authClient.getUser();
     setCurrentUser(user);
-    loadOrders(user);
+    const hasCache = (db.getCachedMyOrders() || []).length > 0;
+    loadOrders(user, hasCache);
 
+    let lastUid = user?.uid || user?.authUserId || user?.email || null;
     const unsubscribe = authClient.onAuthStateChanged((u) => {
-      setCurrentUser(u);
-      loadOrders(u);
+      const currentUid = u?.uid || u?.authUserId || u?.email || null;
+      if (currentUid !== lastUid) {
+        lastUid = currentUid;
+        setCurrentUser(u);
+        const hasCachedOrders = (db.getCachedMyOrders() || []).length > 0;
+        loadOrders(u, hasCachedOrders);
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  async function loadOrders(user = null) {
-    setLoading(true);
+  async function loadOrders(user = null, isBackground = false) {
+    if (!isBackground) {
+      setLoading(true);
+    }
     setLoadError("");
     try {
       const authUser = user || authClient.getUser();
@@ -61,12 +80,12 @@ export function Orders() {
       if (res?.success && Array.isArray(res.data)) {
         const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
         setOrders(sorted);
-      } else {
+      } else if (!isBackground) {
         setOrders([]);
       }
     } catch (err) {
       console.error("Error loading orders:", err);
-      setOrders([]);
+      if (!isBackground) setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -638,25 +657,27 @@ export function Orders() {
                               </button>
                             )}
 
-                            <Link 
-                              to={`/track-order?id=${o.orderNumber || o.id}`} 
-                              onClick={(e) => e.stopPropagation()}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '8px 14px',
-                                background: '#fcf4ed',
-                                border: '1px solid #ebdccb',
-                                color: '#a54d2b',
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                textDecoration: 'none'
-                              }}
-                            >
-                              <Truck size={13} /> Track
-                            </Link>
+                            {!isCancelled && (o.trackingNumber || o.trackingId || o.courierName || o.carrier || o.trackingUrl || o.shippingLink) && (
+                              <Link 
+                                to={`/track-order?id=${o.orderNumber || o.id}`} 
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '8px 14px',
+                                  background: '#fcf4ed',
+                                  border: '1px solid #ebdccb',
+                                  color: '#a54d2b',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                <Truck size={13} /> Track
+                              </Link>
+                            )}
 
                             <Link 
                               to={`/account/orders/${o.orderNumber || o.id}`} 

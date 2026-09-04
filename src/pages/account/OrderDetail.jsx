@@ -525,164 +525,159 @@ export function OrderDetail() {
               </p>
             </div>
 
-            {/* Shipping & Tracking Information Section */}
+            {/* Shipping & Tracking Information Section (ONLY show if NOT cancelled AND shipping details were added by admin) */}
             {(() => {
-              const trackingNumber = order.trackingNumber || order.trackingId;
-              const courier = order.courierName || order.carrier || order.courier;
-              const directLink = order.trackingUrl || order.shippingLink;
-              const estDate = order.estimatedDelivery || order.estimatedDeliveryDate;
+              const isCancelled = String(order.status || "").toLowerCase() === "cancelled";
+              const trackingNumber = (order.trackingNumber || order.trackingId || "").trim();
+              const courier = (order.courierName || order.carrier || order.courier || "").trim();
+              const directLink = (order.trackingUrl || order.shippingLink || "").trim();
+              const estDate = (order.estimatedDelivery || order.estimatedDeliveryDate || "").trim();
 
-              if (trackingNumber || directLink) {
-                return (
-                  <div style={{
-                    background: '#fcf8f3',
-                    border: '1px solid #ebdccb',
-                    borderRadius: 12,
-                    padding: '16px',
-                    marginTop: 16
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Truck size={16} color="#a54d2b" /> Dispatched via {courier || 'Express Courier'}
-                      </span>
-                      <span style={{ fontSize: 11, background: '#e5f6ea', color: '#1d9450', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
-                        In Transit
-                      </span>
+              // Hide completely on cancelled orders or if admin hasn't added courier/tracking info
+              if (isCancelled || (!trackingNumber && !courier && !directLink)) {
+                return null;
+              }
+
+              const displayCourier = courier || "Assigned Courier";
+
+              return (
+                <div style={{
+                  background: '#fcf8f3',
+                  border: '1px solid #ebdccb',
+                  borderRadius: 12,
+                  padding: '16px',
+                  marginTop: 16
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Truck size={16} color="#a54d2b" /> Dispatched via {displayCourier}
+                    </span>
+                    <span style={{ fontSize: 11, background: '#e5f6ea', color: '#1d9450', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                      In Transit
+                    </span>
+                  </div>
+
+                  {trackingNumber && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: '#ffffff',
+                      border: '1px solid #e8decb',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      marginBottom: 10
+                    }}>
+                      <div>
+                        <span style={{ fontSize: 11, color: '#806f62', display: 'block' }}>AWB / Consignment No.</span>
+                        <strong style={{ fontSize: 13, color: '#2b170d', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
+                          {trackingNumber}
+                        </strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(trackingNumber);
+                          setCopiedAwb(true);
+                          emitToast("Tracking AWB copied to clipboard!", "success");
+                          setTimeout(() => setCopiedAwb(false), 2000);
+                        }}
+                        style={{
+                          background: '#fdf5ef',
+                          border: '1px solid #ebdccb',
+                          color: '#a54d2b',
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        {copiedAwb ? <CheckCheck size={13} /> : <Copy size={13} />}
+                        {copiedAwb ? "Copied" : "Copy"}
+                      </button>
                     </div>
+                  )}
 
-                    {trackingNumber && (
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        background: '#ffffff',
-                        border: '1px solid #e8decb',
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        marginBottom: 10
-                      }}>
-                        <div>
-                          <span style={{ fontSize: 11, color: '#806f62', display: 'block' }}>AWB / Consignment No.</span>
-                          <strong style={{ fontSize: 13, color: '#2b170d', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
-                            {trackingNumber}
-                          </strong>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(trackingNumber);
-                            setCopiedAwb(true);
-                            emitToast("Tracking AWB copied to clipboard!", "success");
-                            setTimeout(() => setCopiedAwb(false), 2000);
-                          }}
-                          style={{
-                            background: '#fdf5ef',
-                            border: '1px solid #ebdccb',
-                            color: '#a54d2b',
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}
-                        >
-                          {copiedAwb ? <CheckCheck size={13} /> : <Copy size={13} />}
-                          {copiedAwb ? "Copied" : "Copy"}
-                        </button>
-                      </div>
-                    )}
+                  {estDate && (
+                    <div style={{ fontSize: 12, color: '#665a51', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                      <Calendar size={13} color="#a54d2b" />
+                      <span>Estimated Delivery: <b>{estDate}</b></span>
+                    </div>
+                  )}
 
-                    {estDate && (
-                      <div style={{ fontSize: 12, color: '#665a51', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                        <Calendar size={13} color="#a54d2b" />
-                        <span>Estimated Delivery: <b>{estDate}</b></span>
-                      </div>
-                    )}
-
-                    {/* Direct Tracking CTA Buttons */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                      {directLink ? (
-                        <a
-                          href={directLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#a54d2b',
-                            color: '#ffffff',
-                            padding: '10px 14px',
-                            borderRadius: 8,
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            textDecoration: 'none',
-                            boxShadow: '0 2px 6px rgba(165, 77, 43, 0.25)'
-                          }}
-                        >
-                          <ExternalLink size={14} /> Track on {courier || 'Courier'} Official Website ↗
-                        </a>
-                      ) : (
-                        <a
-                          href={`https://www.google.com/search?q=track+${encodeURIComponent(courier || 'courier')}+${encodeURIComponent(trackingNumber)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#a54d2b',
-                            color: '#ffffff',
-                            padding: '10px 14px',
-                            borderRadius: 8,
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            textDecoration: 'none'
-                          }}
-                        >
-                          <ExternalLink size={14} /> Track Shipment Online ↗
-                        </a>
-                      )}
-
-                      <Link
-                        to={`/track-order?id=${order.id}`}
+                  {/* Direct Tracking CTA Buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                    {directLink ? (
+                      <a
+                        href={directLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         style={{
                           display: 'flex',
                           justifyContent: 'center',
                           alignItems: 'center',
                           gap: 6,
-                          background: '#ffffff',
-                          border: '1px solid #ebdccb',
-                          color: '#5c483b',
-                          padding: '8px 12px',
+                          background: '#a54d2b',
+                          color: '#ffffff',
+                          padding: '10px 14px',
                           borderRadius: 8,
-                          fontSize: 12,
-                          fontWeight: 600,
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          boxShadow: '0 2px 6px rgba(165, 77, 43, 0.25)'
+                        }}
+                      >
+                        <ExternalLink size={14} /> Track on {displayCourier} Official Website ↗
+                      </a>
+                    ) : (
+                      <a
+                        href={`https://www.google.com/search?q=track+${encodeURIComponent(courier || 'courier')}+${encodeURIComponent(trackingNumber)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: '#a54d2b',
+                          color: '#ffffff',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          fontSize: 12.5,
+                          fontWeight: 700,
                           textDecoration: 'none'
                         }}
                       >
-                        View Vedic Consecration & Timeline
-                      </Link>
-                    </div>
-                  </div>
-                );
-              }
+                        <ExternalLink size={14} /> Track Shipment Online ({displayCourier}) ↗
+                      </a>
+                    )}
 
-              if (!isCancelled && currentStatusIdx >= 1) {
-                return (
-                  <div style={{background: '#f8f4ee', padding: '12px 15px', borderRadius: 8, marginTop: 15, fontSize: 11.5, color: '#806f62', lineHeight: 1.5}}>
-                    <Truck size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} color="#a54d2b" />
-                    Courier dispatch details and live tracking link will be uploaded here once packed and handed over to our express logistics partner.
+                    <Link
+                      to={`/track-order?id=${order.id}`}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: '#ffffff',
+                        border: '1px solid #ebdccb',
+                        color: '#5c483b',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textDecoration: 'none'
+                      }}
+                    >
+                      View Vedic Consecration & Timeline
+                    </Link>
                   </div>
-                );
-              }
-
-              return null;
+                </div>
+              );
             })()}
           </motion.div>
         </div>

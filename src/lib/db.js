@@ -850,21 +850,52 @@ export const db = {
     });
   },
 
+  getCachedMyOrders: () => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) return [];
+    if (Array.isArray(storeCache.myOrders) && storeCache.myOrders.length > 0) return storeCache.myOrders;
+    const cacheKey = db.getUserScopedKey("aura_cached_my_orders");
+    if (cacheKey && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            storeCache.myOrders = parsed;
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+    return [];
+  },
+
   getMyOrders: async () => {
     const user = authClient.getUser();
     const userEmail = (user?.email || "").trim().toLowerCase();
     
     // Strict privacy: If user is not logged in, return empty orders list
-    if (!user || user.isAnonymous || !userEmail) {
+    if (!user || user.isAnonymous) {
       return { success: true, data: [] };
     }
 
+    const cacheKey = db.getUserScopedKey("aura_cached_my_orders");
+    const cached = db.getCachedMyOrders();
+
     try {
-      const res = await apiRequest("/orders/my");
+      const res = await apiRequest("/orders/my", { timeoutMs: 6000 });
       if (res?.success && Array.isArray(res.data)) {
+        storeCache.myOrders = res.data;
+        if (cacheKey && typeof window !== "undefined") {
+          try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch (_) {}
+        }
         return res;
       }
     } catch (_) {}
+
+    if (cached && cached.length > 0) {
+      return { success: true, data: cached };
+    }
 
     let userOrders = [];
     if (userEmail) {
@@ -1015,7 +1046,7 @@ export const db = {
 
   verifyPayment: async (orderId, txnid = "") => {
     const url = txnid ? `/payment/verify/${orderId}?txnid=${encodeURIComponent(txnid)}` : `/payment/verify/${orderId}`;
-    const res = await apiRequest(url);
+    const res = await apiRequest(url, { timeoutMs: 8000 });
     if (res?.success && res.data) {
       const idx = storeCache.orders.findIndex(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
       if (idx >= 0) {
@@ -1065,6 +1096,26 @@ export const db = {
   },
 
   // ADDRESSES
+  getCachedAddresses: () => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) return [];
+    if (Array.isArray(storeCache.addresses) && storeCache.addresses.length > 0) return storeCache.addresses;
+    const cacheKey = db.getUserScopedKey("aura_addresses_cache");
+    if (cacheKey && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            storeCache.addresses = parsed;
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+    return [];
+  },
+
   getAddresses: async () => {
     const user = authClient.getUser();
     if (!user || user.isAnonymous) {
@@ -1072,23 +1123,19 @@ export const db = {
       return { success: true, data: [] };
     }
     const cacheKey = db.getUserScopedKey("aura_addresses_cache");
+    const cached = db.getCachedAddresses();
+
     try {
-      const res = await apiRequest("/addresses");
+      const res = await apiRequest("/addresses", { timeoutMs: 5000 });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.addresses = res.data;
-        if (cacheKey) {
+        if (cacheKey && typeof window !== "undefined") {
           try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
         }
         return res;
       }
     } catch (_) {}
-    let cached = [];
-    if (cacheKey) {
-      try {
-        const stored = localStorage.getItem(cacheKey);
-        if (stored) cached = JSON.parse(stored);
-      } catch (_) {}
-    }
+
     return { success: true, data: (cached && cached.length > 0) ? cached : (storeCache.addresses || []) };
   },
 
@@ -1150,39 +1197,58 @@ export const db = {
   },
 
   // CUSTOMERS (CUSTOMER ME & PROFILES)
+  getCachedCustomerMe: () => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) return null;
+    const cacheKey = db.getUserScopedKey("aura_cached_me");
+    if (cacheKey && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === "object") {
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+    return {
+      email: user?.email || "",
+      name: user?.displayName || user?.name || "Aura Devotee",
+      phone: user?.phoneNumber || user?.phone || "",
+      address: "",
+      avatar: user?.photoURL || "",
+      joined: new Date().toISOString()
+    };
+  },
+
   getCustomerMe: async () => {
     const user = authClient.getUser();
     if (!user || user.isAnonymous) {
       return { success: true, data: null };
     }
     const cacheKey = db.getUserScopedKey("aura_cached_me");
+    const cached = db.getCachedCustomerMe();
+
     try {
-      const res = await apiRequest("/customers/me");
+      const res = await apiRequest("/customers/me", { timeoutMs: 5000 });
       if (res?.success && res.data) {
-        if (cacheKey) {
+        if (cacheKey && typeof window !== "undefined") {
           try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
         }
         return res;
       }
     } catch (_) {}
-    
-    let cached = {};
-    if (cacheKey) {
-      try {
-        const stored = localStorage.getItem(cacheKey);
-        if (stored) cached = JSON.parse(stored);
-      } catch (_) {}
-    }
 
     return {
       success: true,
-      data: {
-        email: cached.email || user?.email || "",
-        name: cached.name || user?.displayName || user?.name || "Aura Devotee",
-        phone: cached.phone || user?.phoneNumber || user?.phone || "",
-        address: cached.address || "",
-        avatar: cached.avatar || user?.photoURL || "",
-        joined: cached.joined || new Date().toISOString()
+      data: cached || {
+        email: user?.email || "",
+        name: user?.displayName || user?.name || "Aura Devotee",
+        phone: user?.phoneNumber || user?.phone || "",
+        address: "",
+        avatar: user?.photoURL || "",
+        joined: new Date().toISOString()
       }
     };
   },
