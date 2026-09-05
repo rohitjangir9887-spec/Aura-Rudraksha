@@ -49,7 +49,7 @@ export async function validateCoupon(req, res, next) {
     const { code, couponCode, subtotal = 0 } = req.body;
     const rawCode = code || couponCode;
     if (!rawCode) {
-      return res.status(400).json({ success: false, valid: false, status: "INVALID", message: "Coupon code is required" });
+      return res.status(400).json({ error: "Coupon code required" });
     }
 
     const cleanCode = String(rawCode).trim().toUpperCase();
