@@ -339,10 +339,16 @@ export async function getReviewSettings(req, res, next) {
       return res.json({ success: true, data: inMemoryStore.reviewSettings || defaultReviewSettings });
     }
 
+    if (inMemoryStore.reviewSettings) {
+      return res.json({ success: true, data: inMemoryStore.reviewSettings });
+    }
+
     let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
     if (!settings) {
       settings = await ReviewSetting.create(defaultReviewSettings);
+      settings = settings.toObject ? settings.toObject() : settings;
     }
+    inMemoryStore.reviewSettings = settings;
     return res.json({ success: true, data: settings });
   } catch (err) {
     next(err);
@@ -362,6 +368,7 @@ export async function saveReviewSettings(req, res, next) {
       { $set: data },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+    inMemoryStore.reviewSettings = updated.toObject ? updated.toObject() : updated;
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
