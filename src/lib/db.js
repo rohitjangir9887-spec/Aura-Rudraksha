@@ -2370,6 +2370,7 @@ export const db = {
   clearUserCache: () => {
     storeCache.addresses = [];
     storeCache.orders = [];
+    storeCache.myOrders = [];
     storeCache.tickets = [];
     storeCache.customerMe = null;
     storeCache.wishlist = [];

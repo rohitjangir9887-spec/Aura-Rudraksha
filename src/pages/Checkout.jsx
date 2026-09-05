@@ -230,15 +230,25 @@ export function Checkout() {
     setShowLeaveModal(true);
   };
 
-  // Handle Return from PayU Success (Authoritatively verified server-side)
+  // Handle Return from PayU Success (Authoritatively verified server-side with strict timeout)
   const verifyOrderPayment = useCallback(async () => {
     if (!successParam) return;
     setVerifyingPayment(true);
     setVerificationError("");
+
+    let timeoutFired = false;
+    const timeoutId = setTimeout(() => {
+      timeoutFired = true;
+      setVerifyingPayment(false);
+      setVerificationError("Verification timed out. If money was deducted, your payment will automatically sync shortly or you can check your order status.");
+    }, 12000);
+
     try {
       // Live server-to-server check with PayU
       const res = await db.verifyPayment(successParam, txnidParam);
-      if (res?.success && res.data && res.data.paymentStatus === "Paid") {
+      if (timeoutFired) return;
+
+      if (res?.success && res.data && (res.data.paymentStatus === "Paid" || res.data.status === "Confirmed" || res.data.orderStatus === "Confirmed")) {
         setConfirmedOrder(res.data);
         if (buyNowLines) {
           try { sessionStorage.removeItem("aura_buy_now_intent"); } catch (_) {}
@@ -251,9 +261,14 @@ export function Checkout() {
         setVerificationError(res?.message || "Payment could not be verified by the server. If money was deducted, our automated reconciliation will confirm your order or refund it.");
       }
     } catch (err) {
-      setVerificationError(err.message || "Failed to verify order payment status with server.");
+      if (!timeoutFired) {
+        setVerificationError(err.message || "Failed to verify order payment status with server.");
+      }
     } finally {
-      setVerifyingPayment(false);
+      clearTimeout(timeoutId);
+      if (!timeoutFired) {
+        setVerifyingPayment(false);
+      }
     }
   }, [successParam, txnidParam, clear, buyNowLines]);
 

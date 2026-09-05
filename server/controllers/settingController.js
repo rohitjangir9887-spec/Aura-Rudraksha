@@ -209,34 +209,20 @@ export async function getTickets(req, res, next) {
     if (!isDbConnected()) {
       let tickets = inMemoryStore.tickets || [];
       if (!isAdmin) {
-        if (!authenticatedUser) return res.json({ success: true, data: [] });
-        const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
-        const userId = authenticatedUser.authUserId || "";
-        tickets = tickets.filter(t => 
-          (userId && (t.authUserId === userId || t.userId === userId)) ||
-          (userEmail && (t.userEmail?.toLowerCase() === userEmail || t.email?.toLowerCase() === userEmail))
-        );
+        if (!authenticatedUser || !authenticatedUser.authUserId) return res.json({ success: true, data: [] });
+        const userId = authenticatedUser.authUserId;
+        tickets = tickets.filter(t => t.authUserId === userId || t.userId === userId);
       }
       return res.json({ success: true, data: tickets });
     }
 
     let query = {};
     if (!isAdmin) {
-      if (!authenticatedUser) {
+      if (!authenticatedUser || !authenticatedUser.authUserId) {
         return res.json({ success: true, data: [] });
       }
-      const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
-      const userId = authenticatedUser.authUserId || "";
-      const queryOr = [];
-      if (userId) {
-        queryOr.push({ authUserId: userId });
-        queryOr.push({ userId: userId });
-      }
-      if (userEmail) {
-        queryOr.push({ userEmail: userEmail });
-        queryOr.push({ email: userEmail });
-      }
-      query = queryOr.length > 0 ? { $or: queryOr } : { authUserId: "__none__" };
+      const userId = authenticatedUser.authUserId;
+      query = { $or: [{ authUserId: userId }, { userId: userId }] };
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 }).lean();

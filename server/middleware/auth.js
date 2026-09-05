@@ -85,11 +85,13 @@ export function devFallbackAllowed() {
 }
 
 function applyDevFallbackUser(req) {
+  const devEmail = (process.env.INITIAL_ADMIN_EMAIL || "admin@aurarudraksha.com").trim().toLowerCase();
+  const devPhone = (process.env.INITIAL_ADMIN_PHONE || "+919672996531").trim();
   req.user = {
     authUserId: "admin-dev-user",
-    email: "rohitjangir8740@gmail.com",
-    phone: "+919672996531",
-    name: "Aura Admin",
+    email: devEmail,
+    phone: devPhone,
+    name: "Aura Dev Admin",
     picture: ""
   };
 }
@@ -173,17 +175,17 @@ export async function optionalAuth(req, res, next) {
 // Never trust client-supplied role flags.
 // ---------------------------------------------------------------------------
 export function isAdminUser(user) {
-  const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
+  const allowedEmails = [];
   if (process.env.INITIAL_ADMIN_EMAIL) {
     allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
   }
-  const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "+919672996531").trim();
+  const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "").trim();
 
   const userEmail = (user && user.email ? user.email.trim().toLowerCase() : "");
-  const matchesEmail = Boolean(userEmail && allowedEmails.includes(userEmail));
+  const matchesEmail = Boolean(userEmail && allowedEmails.length > 0 && allowedEmails.includes(userEmail));
   const cleanUserPhone = ((user && user.phone) || "").replace(/[^0-9]/g, "");
   const cleanAdminPhone = initialAdminPhone.replace(/[^0-9]/g, "");
-  const matchesPhone = Boolean(cleanUserPhone && (cleanUserPhone === cleanAdminPhone || cleanUserPhone.endsWith("9672996531")));
+  const matchesPhone = Boolean(cleanUserPhone && cleanAdminPhone && cleanUserPhone === cleanAdminPhone);
 
   return { matchesEmail, matchesPhone, isInitialAdmin: matchesEmail || matchesPhone };
 }
@@ -220,19 +222,21 @@ async function checkAdmin(req, res, next) {
     const authUserId = req.user.authUserId;
     const { isInitialAdmin } = isAdminUser(req.user);
 
-    // STRICT ENFORCEMENT: Admin dashboard & APIs are ONLY accessible if email is rohitjangir8740@gmail.com or phone is +919672996531.
-    if (!isInitialAdmin) {
-      // Ensure any rogue customer record with admin role is demoted
+    const dbAdminRole = await hasAdminRole(authUserId);
+    const hasAdminAccess = isInitialAdmin || dbAdminRole;
+
+    if (!hasAdminAccess) {
+      // Ensure any non-admin record with role: "admin" is demoted if neither initial admin nor valid DB admin
       if (mongoose.connection.readyState === 1) {
         await Customer.updateOne({ authUserId, role: "admin" }, { $set: { role: "customer" } }).catch(() => {});
       }
       return res.status(403).json({ 
         success: false, 
-        message: "Access Denied: Admin dashboard is exclusively reserved for rohitjangir8740@gmail.com or +91 9672996531." 
+        message: "Access Denied: Admin authorization required."
       });
     }
 
-    if (mongoose.connection.readyState === 1) {
+    if (mongoose.connection.readyState === 1 && isInitialAdmin) {
       try {
         let customer = await Customer.findOne({ authUserId }).catch(() => null);
         if (customer) {
@@ -243,9 +247,9 @@ async function checkAdmin(req, res, next) {
         } else {
           await Customer.create({
             authUserId,
-            email: req.user.email || "rohitjangir8740@gmail.com",
-            phone: req.user.phone || "+919672996531",
-            name: req.user.name || "Rohit Jangir",
+            email: req.user.email || process.env.INITIAL_ADMIN_EMAIL || "",
+            phone: req.user.phone || process.env.INITIAL_ADMIN_PHONE || "",
+            name: req.user.name || "Aura Admin",
             role: "admin"
           }).catch(() => {});
         }
