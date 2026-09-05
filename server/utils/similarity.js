@@ -108,7 +108,7 @@ function computeSemanticOverlap(normA, normB) {
  * Check a candidate review draft against a corpus of existing reviews & current batch.
  * Returns: { similarityStatus: 'Unique'|'Similar'|'Duplicate', similarityScore: number (0-100), semanticScore: number (0-100), matchedReview: string }
  */
-export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
+export function evaluateDraftSimilarity(candidateText, existingCorpus = [], candidateId = null) {
   if (!candidateText || typeof candidateText !== "string") {
     return { similarityStatus: "Unique", similarityScore: 0, semanticScore: 0, matchedReview: null };
   }
@@ -119,6 +119,7 @@ export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
   const normA = normalizeText(candidateText);
 
   for (const existing of existingCorpus) {
+    if (candidateId && existing.id && String(existing.id) === String(candidateId)) continue;
     const exText = existing?.text || existing?.content || "";
     if (!exText) continue;
 
@@ -206,7 +207,7 @@ export function checkDuplicateReview(candidate, existingCorpus = []) {
   }
 
   // Fallback to similarity evaluation
-  const sim = evaluateDraftSimilarity(candidateText, existingCorpus);
+  const sim = evaluateDraftSimilarity(candidateText, existingCorpus, candidateId);
   if (sim.similarityStatus === "Duplicate") {
     return {
       isDuplicate: true,
