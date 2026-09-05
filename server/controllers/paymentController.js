@@ -824,16 +824,17 @@ export async function verifyPaymentStatus(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // IDOR Security Check: Allow if authenticated user owns the order, OR admin,
-    // OR if client presents the matching PayU txnid generated for this order,
-    // OR if guest order.
+    // Strict Ownership Check:
+    // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
+    // Transaction ID alone is NOT an authorization credential.
+    // For guest orders, require a secure server-issued guestToken match.
+    const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const matchesTxnid = reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)));
-    const isGuestOrder = !order.authUserId || order.authUserId === "guest";
+    const isGuestOwner = (!order.authUserId || order.authUserId === "guest") && Boolean(order.guestToken) && reqGuestToken === order.guestToken;
 
-    if (!isAdmin && !isOwner && !matchesTxnid && !isGuestOrder) {
+    if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
@@ -951,14 +952,17 @@ export async function retryPayuPayment(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Check ownership: Authenticated owner, Admin, or matching transaction reference, or guest order
+    // Strict Ownership Check:
+    // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
+    // Transaction ID alone is NOT an authorization credential.
+    // For guest orders, require a secure server-issued guestToken match.
+    const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || req.body?.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const matchesTxnid = reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)));
-    const isGuestOrder = !order.authUserId || order.authUserId === "guest";
+    const isGuestOwner = (!order.authUserId || order.authUserId === "guest") && Boolean(order.guestToken) && reqGuestToken === order.guestToken;
 
-    if (!isAdmin && !isOwner && !matchesTxnid && !isGuestOrder) {
+    if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
