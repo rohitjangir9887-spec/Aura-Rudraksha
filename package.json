@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "server": "node server/server.js",
     "lint": "vite build --mode production",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
@@ -40,6 +41,7 @@
     "vite": "^6.0.5"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^11.2.0"
+    "mongodb-memory-server": "^11.2.0",
+    "vitest": "^5.0.0"
   }
 }
