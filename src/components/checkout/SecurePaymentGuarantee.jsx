@@ -14,10 +14,13 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
       style={{
         background: "#eef9f2",
         border: "1px solid #d4eedb",
-        borderRadius: "16px",
-        padding: "16px 14px",
-        margin: "14px 0",
+        borderRadius: "14px",
+        padding: "12px 14px",
+        margin: "12px 0",
         boxSizing: "border-box",
+        width: "100%",
+        maxWidth: "100%",
+        overflow: "hidden",
         ...style
       }}
     >
@@ -26,14 +29,14 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "10px",
-          marginBottom: "14px"
+          gap: "8px",
+          marginBottom: "10px"
         }}
       >
         <div
           style={{
-            width: "24px",
-            height: "24px",
+            width: "22px",
+            height: "22px",
             borderRadius: "6px",
             background: "#16a34a",
             color: "#ffffff",
@@ -43,11 +46,11 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
             flexShrink: 0
           }}
         >
-          <ShieldCheck size={18} strokeWidth={2.6} />
+          <ShieldCheck size={16} strokeWidth={2.6} />
         </div>
         <span
           style={{
-            fontSize: "15px",
+            fontSize: "13.5px",
             fontWeight: "700",
             color: "#0f172a",
             letterSpacing: "-0.2px",
@@ -58,14 +61,16 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
         </span>
       </div>
 
-      {/* Payment Provider Badges Grid / Row */}
+      {/* Payment Provider Badges Grid */}
       <div
+        className="secure-payment-badges-grid"
         style={{
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(42px, 1fr))",
+          gap: "6px",
           alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "8px"
+          width: "100%",
+          boxSizing: "border-box"
         }}
       >
         {/* 1. Google Pay */}
@@ -74,18 +79,18 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 12px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 6px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "48px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ maxWidth: "100%", maxHeight: "18px" }}>
             <path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
               fill="#4285F4"
@@ -111,21 +116,21 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 12px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 6px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "48px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
           <div
             style={{
-              width: "22px",
-              height: "22px",
+              width: "18px",
+              height: "18px",
               borderRadius: "50%",
               background: "#5f259f",
               color: "#ffffff",
@@ -133,7 +138,7 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
               alignItems: "center",
               justifyContent: "center",
               fontWeight: "900",
-              fontSize: "13px",
+              fontSize: "11px",
               lineHeight: 1,
               fontFamily: "sans-serif"
             }}
@@ -148,18 +153,18 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 12px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 6px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "48px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
-          <svg width="22" height="18" viewBox="0 0 40 32" fill="none">
+          <svg width="20" height="15" viewBox="0 0 40 32" fill="none" style={{ maxWidth: "100%", maxHeight: "15px" }}>
             <path d="M18 4L32 16L18 28L24 16L18 4Z" fill="#00833F" />
             <path d="M8 4L22 16L8 28L14 16L8 4Z" fill="#F37021" />
           </svg>
@@ -171,21 +176,21 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 10px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 4px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "56px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
           <span
             style={{
               fontWeight: "900",
-              fontSize: "13px",
+              fontSize: "11.5px",
               letterSpacing: "-0.5px",
               fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
             }}
@@ -201,21 +206,21 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 10px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 4px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "52px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
           <span
             style={{
               fontWeight: "900",
-              fontSize: "14px",
+              fontSize: "12px",
               fontStyle: "italic",
               color: "#1a1f71",
               letterSpacing: "0.5px",
@@ -232,21 +237,21 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 10px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 4px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "56px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
           <span
             style={{
               fontWeight: "900",
-              fontSize: "13px",
+              fontSize: "11px",
               fontStyle: "italic",
               fontFamily: 'sans-serif'
             }}
@@ -262,18 +267,18 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
           style={{
             background: "#ffffff",
             border: "1px solid #e2e8f0",
-            borderRadius: "10px",
-            padding: "6px 10px",
-            height: "36px",
+            borderRadius: "8px",
+            padding: "4px 4px",
+            height: "32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-            flex: "1 1 0",
-            minWidth: "48px"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            minWidth: 0,
+            boxSizing: "border-box"
           }}
         >
-          <svg width="24" height="16" viewBox="0 0 32 20" fill="none">
+          <svg width="22" height="14" viewBox="0 0 32 20" fill="none" style={{ maxWidth: "100%", maxHeight: "14px" }}>
             <circle cx="10" cy="10" r="10" fill="#EB001B" />
             <circle cx="22" cy="10" r="10" fill="#F79E1B" fillOpacity="0.85" />
           </svg>

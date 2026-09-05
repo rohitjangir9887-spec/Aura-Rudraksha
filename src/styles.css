@@ -16183,3 +16183,48 @@ button:active, .primary-btn:active, .outline-btn:active {
   }
 }
 
+/* ==========================================================================
+   CART PAGE MOBILE + DESKTOP REDESIGN (AURA RUDRAKSHA UI)
+   ========================================================================== */
+#cart-main-responsive-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 16px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 900px) {
+  #cart-main-responsive-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(360px, 400px) !important;
+    gap: 24px !important;
+  }
+
+  .cart-right-column {
+    position: sticky !important;
+    top: 90px !important;
+  }
+
+  .cart-mobile-sticky-bar {
+    display: none !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .cart-mobile-sticky-bar {
+    display: flex !important;
+  }
+
+  #aura-cart-page {
+    padding-bottom: 90px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .cart-item-card {
+    padding: 12px 10px !important;
+    gap: 10px !important;
+  }
+}
+
+

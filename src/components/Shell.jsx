@@ -151,8 +151,8 @@ export function Shell({children}) {
         <Footer />
       </div>
 
-      {/* Hide bottom mobile navigation on checkout page */}
-      {!pathname.startsWith("/checkout") && (
+      {/* Hide bottom mobile navigation on checkout page and on cart with items */}
+      {!pathname.startsWith("/checkout") && !(pathname === "/cart" && count > 0) && (
         <div className="mobile-nav" style={{
           position: 'fixed',
           bottom: 0,

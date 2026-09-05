@@ -41,9 +41,12 @@ export function CheckoutAddressCard({
         background: "#ffffff",
         border: "1.5px solid #ebd9c8",
         borderRadius: "16px",
-        padding: "20px 18px",
-        marginBottom: "20px",
-        boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)"
+        padding: "18px 16px",
+        marginBottom: "0",
+        boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)",
+        boxSizing: "border-box",
+        width: "100%",
+        maxWidth: "100%"
       }}
     >
       {/* Step Header */}
@@ -52,34 +55,37 @@ export function CheckoutAddressCard({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "16px",
-          paddingBottom: "12px",
-          borderBottom: "1px solid #f0e6da"
+          marginBottom: "12px",
+          paddingBottom: "10px",
+          borderBottom: "1px solid #f0e6da",
+          flexWrap: "wrap",
+          gap: "8px"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div 
             style={{
-              width: "28px",
-              height: "28px",
+              width: "24px",
+              height: "24px",
               borderRadius: "50%",
               background: "linear-gradient(135deg, #b88a58 0%, #8c5d2e 100%)",
               color: "#ffffff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "12.5px",
-              fontWeight: "800"
+              fontSize: "12px",
+              fontWeight: "800",
+              flexShrink: 0
             }}
           >
             1
           </div>
           <div>
-            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "22px", fontWeight: "700", margin: 0, color: "#2b170d" }}>
-              Shipping Address
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "20px", fontWeight: "700", margin: 0, color: "#2b170d", lineHeight: "1.2" }}>
+              Delivery Address
             </h2>
-            <div style={{ fontSize: "12px", color: "#806f62" }}>
-              Where should we dispatch your sacred order?
+            <div style={{ fontSize: "11px", color: "#806f62", marginTop: "1px" }}>
+              Enter where your order should be delivered
             </div>
           </div>
         </div>
@@ -198,10 +204,10 @@ export function CheckoutAddressCard({
         </div>
       ) : (
         /* ADDRESS INPUT FORM */
-        <div id="address-input-form">
+        <div id="address-input-form" style={{ width: "100%", boxSizing: "border-box" }}>
           {/* Row 1: Name */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-            <div>
+          <div className="checkout-form-row-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", width: "100%", boxSizing: "border-box" }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 First Name <span style={{ color: "#dc2626" }}>*</span>
               </label>
@@ -213,6 +219,7 @@ export function CheckoutAddressCard({
                 onChange={(e) => onInputChange("firstName", e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "10px 12px",
                   borderRadius: "8px",
                   border: errors.firstName ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
@@ -225,7 +232,7 @@ export function CheckoutAddressCard({
               {errors.firstName && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.firstName}</div>}
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 Last Name <span style={{ color: "#dc2626" }}>*</span>
               </label>
@@ -237,6 +244,7 @@ export function CheckoutAddressCard({
                 onChange={(e) => onInputChange("lastName", e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "10px 12px",
                   borderRadius: "8px",
                   border: errors.lastName ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
@@ -251,8 +259,8 @@ export function CheckoutAddressCard({
           </div>
 
           {/* Row 2: Phone & Email */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-            <div>
+          <div className="checkout-form-row-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", width: "100%", boxSizing: "border-box" }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 WhatsApp / Phone <span style={{ color: "#dc2626" }}>*</span>
               </label>
@@ -270,6 +278,7 @@ export function CheckoutAddressCard({
                 }}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "10px 12px",
                   borderRadius: "8px",
                   border: errors.phone ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
@@ -282,7 +291,7 @@ export function CheckoutAddressCard({
               {errors.phone && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.phone}</div>}
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 Email <span style={{ color: "#806f62", fontWeight: "400", fontSize: "10px" }}>(Optional)</span>
               </label>
@@ -294,6 +303,7 @@ export function CheckoutAddressCard({
                 onChange={(e) => onInputChange("email", e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "10px 12px",
                   borderRadius: "8px",
                   border: "1px solid #d4c5b9",
@@ -307,7 +317,7 @@ export function CheckoutAddressCard({
           </div>
 
           {/* Row 3: Street Address */}
-          <div style={{ marginBottom: "12px" }}>
+          <div style={{ marginBottom: "12px", width: "100%", boxSizing: "border-box" }}>
             <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
               Full Delivery Address <span style={{ color: "#dc2626" }}>*</span>
             </label>
@@ -320,6 +330,7 @@ export function CheckoutAddressCard({
               onChange={(e) => onInputChange("address", e.target.value)}
               style={{
                 width: "100%",
+                boxSizing: "border-box",
                 padding: "10px 12px",
                 borderRadius: "8px",
                 border: errors.address ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
@@ -334,8 +345,8 @@ export function CheckoutAddressCard({
           </div>
 
           {/* Row 4: Pincode, City, State */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
-            <div>
+          <div className="checkout-form-row-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "14px", width: "100%", boxSizing: "border-box" }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 Pincode <span style={{ color: "#dc2626" }}>*</span>
               </label>
@@ -352,6 +363,7 @@ export function CheckoutAddressCard({
                 }}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "9px 10px",
                   borderRadius: "8px",
                   border: errors.pincode ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
@@ -364,7 +376,7 @@ export function CheckoutAddressCard({
               {errors.pincode && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.pincode}</div>}
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 City <span style={{ color: "#dc2626" }}>*</span>
               </label>
@@ -376,6 +388,7 @@ export function CheckoutAddressCard({
                 onChange={(e) => onInputChange("city", e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "9px 10px",
                   borderRadius: "8px",
                   border: errors.city ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
@@ -388,7 +401,7 @@ export function CheckoutAddressCard({
               {errors.city && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.city}</div>}
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 State <span style={{ color: "#dc2626" }}>*</span>
               </label>
@@ -400,6 +413,7 @@ export function CheckoutAddressCard({
                 onChange={(e) => onInputChange("state", e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: "9px 10px",
                   borderRadius: "8px",
                   border: errors.state ? "1.5px solid #dc2626" : "1px solid #d4c5b9",

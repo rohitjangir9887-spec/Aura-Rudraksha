@@ -10,12 +10,16 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
     <div 
       id="checkout-items-review"
       style={{
-        background: "#fffdf9",
-        border: "1px solid #e8dac9",
+        background: "#ffffff",
+        border: "1.5px solid #ebd9c8",
         borderRadius: "16px",
-        padding: "22px 18px",
-        marginBottom: "18px",
-        boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)"
+        padding: "18px 16px",
+        marginBottom: "0",
+        boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)",
+        boxSizing: "border-box",
+        width: "100%",
+        maxWidth: "100%",
+        overflow: "hidden"
       }}
     >
       {/* Header */}
@@ -24,36 +28,38 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "16px",
-          paddingBottom: "12px",
-          borderBottom: "1px solid #f0e6da"
+          marginBottom: "12px",
+          paddingBottom: "10px",
+          borderBottom: "1px solid #f0e6da",
+          flexWrap: "wrap",
+          gap: "8px"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div 
             style={{
-              width: "30px",
-              height: "30px",
+              width: "24px",
+              height: "24px",
               borderRadius: "50%",
-              background: "#b85d25",
+              background: "linear-gradient(135deg, #b88a58 0%, #8c5d2e 100%)",
               color: "#ffffff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "13px",
-              fontWeight: "700",
+              fontSize: "12px",
+              fontWeight: "800",
               flexShrink: 0
             }}
           >
             2
           </div>
           <div>
-            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "22px", fontWeight: "700", margin: 0, color: "#2b170d", letterSpacing: "0.2px" }}>
-              Review Your Items ({totalItemCount} {totalItemCount === 1 ? "Item" : "Items"})
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "20px", fontWeight: "700", margin: 0, color: "#2b170d", lineHeight: "1.2" }}>
+              Order Items ({totalItemCount})
             </h2>
-            <div style={{ fontSize: "12px", color: "#806f62", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
-              <ShieldCheck size={13} color="#20a95a" />
-              <span>100% Original & Lab-Certified Sacred Rudraksha</span>
+            <div style={{ fontSize: "11px", color: "#806f62", marginTop: "1px", display: "flex", alignItems: "center", gap: "4px" }}>
+              <ShieldCheck size={12} color="#166534" />
+              <span>100% Original & Lab-Certified</span>
             </div>
           </div>
         </div>
@@ -62,27 +68,27 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
           to="/cart"
           id="btn-edit-cart"
           style={{
-            fontSize: "12px",
+            fontSize: "11.5px",
             color: "#b85d25",
             fontWeight: "700",
             textDecoration: "none",
             background: "#fbf3ea",
-            padding: "6px 12px",
+            padding: "5px 10px",
             borderRadius: "8px",
             border: "1px solid #e8dac9",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            gap: "5px",
+            gap: "4px",
             transition: "all 0.2s"
           }}
         >
-          <Edit3 size={13} />
+          <Edit3 size={12} />
           <span>Edit Cart</span>
         </Link>
       </div>
 
       {/* Item List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", boxSizing: "border-box" }}>
         {lines.map((line) => {
           const p = products.find(x => String(x.id) === String(line.id));
           if (!p) return null;
@@ -101,26 +107,27 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
               id={`checkout-item-${line.id}`}
               style={{
                 display: "flex",
-                gap: "14px",
-                padding: "14px",
+                gap: "10px",
+                padding: "10px 12px",
                 background: "#fcf9f4",
                 borderRadius: "12px",
                 border: "1px solid #efe4d5",
                 position: "relative",
-                boxShadow: "0 2px 6px rgba(43, 23, 13, 0.02)"
+                boxShadow: "0 2px 6px rgba(43, 23, 13, 0.02)",
+                boxSizing: "border-box",
+                width: "100%"
               }}
             >
               {/* Product Image */}
               <div 
                 style={{
-                  width: "80px",
-                  height: "80px",
-                  borderRadius: "10px",
+                  width: "68px",
+                  height: "68px",
+                  borderRadius: "8px",
                   overflow: "hidden",
                   background: "#efe4d3",
                   flexShrink: 0,
-                  border: "1px solid #e2d2c1",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.04)"
+                  border: "1px solid #e2d2c1"
                 }}
               >
                 <img 
@@ -136,24 +143,24 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
               {/* Product Info */}
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ fontSize: "15px", fontWeight: "700", color: "#2b170d", lineHeight: "1.35", marginBottom: "4px" }}>
+                  <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#2b170d", lineHeight: "1.3", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                     {p.name}
                   </div>
 
                   {/* Price and MRP */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
-                    <b style={{ fontSize: "16px", color: "#2b170d", fontWeight: "800" }}>{money(sellingPrice)}</b>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <b style={{ fontSize: "14.5px", color: "#2b170d", fontWeight: "800" }}>{money(sellingPrice)}</b>
                     {hasDiscount && (
                       <>
-                        <del style={{ fontSize: "12.5px", color: "#8c796d" }}>{money(mrpPrice)}</del>
+                        <del style={{ fontSize: "11.5px", color: "#8c796d" }}>{money(mrpPrice)}</del>
                         <span 
                           style={{
-                            fontSize: "11px",
+                            fontSize: "10px",
                             fontWeight: "700",
                             color: "#166534",
                             background: "#e5f6ea",
-                            padding: "2px 7px",
-                            borderRadius: "5px",
+                            padding: "1px 5px",
+                            borderRadius: "4px",
                             border: "1px solid #c4e9cf"
                           }}
                         >
@@ -165,8 +172,8 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
 
                   {/* Savings tag */}
                   {unitSavings > 0 && (
-                    <div style={{ fontSize: "11.5px", color: "#166534", fontWeight: "600", marginBottom: "8px" }}>
-                      ✓ You save {money(unitSavings * line.qty)} on this item
+                    <div style={{ fontSize: "10.5px", color: "#166534", fontWeight: "600", marginBottom: "4px" }}>
+                      ✓ Save {money(unitSavings * line.qty)}
                     </div>
                   )}
                 </div>
@@ -178,10 +185,9 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                       display: "flex",
                       alignItems: "center",
                       border: "1px solid #d4c5b9",
-                      borderRadius: "8px",
+                      borderRadius: "6px",
                       background: "#ffffff",
-                      height: "30px",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
+                      height: "26px"
                     }}
                   >
                     <button
@@ -191,7 +197,7 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                       style={{
                         background: "none",
                         border: "none",
-                        width: "28px",
+                        width: "24px",
                         height: "100%",
                         display: "flex",
                         alignItems: "center",
@@ -200,9 +206,9 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                         color: "#4a3528"
                       }}
                     >
-                      <Minus size={13} />
+                      <Minus size={11} />
                     </button>
-                    <span style={{ fontSize: "13px", fontWeight: "700", padding: "0 8px", color: "#2b170d", minWidth: "18px", textAlign: "center" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", padding: "0 6px", color: "#2b170d", minWidth: "16px", textAlign: "center" }}>
                       {line.qty}
                     </span>
                     <button
@@ -212,7 +218,7 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                       style={{
                         background: "none",
                         border: "none",
-                        width: "28px",
+                        width: "24px",
                         height: "100%",
                         display: "flex",
                         alignItems: "center",
@@ -221,14 +227,13 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                         color: "#4a3528"
                       }}
                     >
-                      <Plus size={13} />
+                      <Plus size={11} />
                     </button>
                   </div>
 
                   {/* Line Total */}
                   <div style={{ textAlign: "right" }}>
-                    <span style={{ fontSize: "11px", color: "#806f62", display: "block" }}>Subtotal</span>
-                    <span style={{ fontSize: "15px", fontWeight: "800", color: "#2b170d" }}>
+                    <span style={{ fontSize: "13.5px", fontWeight: "800", color: "#2b170d" }}>
                       {money(lineTotal)}
                     </span>
                   </div>

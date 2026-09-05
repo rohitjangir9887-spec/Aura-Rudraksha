@@ -36,18 +36,18 @@ export function CheckoutTrustStrip() {
   return (
     <div 
       id="checkout-trust-strip"
+      className="checkout-trust-grid"
       style={{
         background: "#fffdf9",
         border: "1px solid #e8dac9",
         borderRadius: "12px",
-        padding: "12px 14px",
+        padding: "10px 12px",
         marginBottom: "16px",
         display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
         gap: "10px",
-        overflowX: "auto"
+        boxSizing: "border-box",
+        width: "100%"
       }}
-      className="checkout-trust-grid"
     >
       {trustItems.map((item) => {
         const Icon = item.icon;
@@ -59,14 +59,15 @@ export function CheckoutTrustStrip() {
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              minWidth: "120px"
+              minWidth: 0,
+              boxSizing: "border-box"
             }}
           >
             <div 
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "7px",
+                width: "26px",
+                height: "26px",
+                borderRadius: "6px",
                 background: "#f7eee3",
                 color: "#b85d25",
                 display: "flex",
@@ -75,13 +76,13 @@ export function CheckoutTrustStrip() {
                 flexShrink: 0
               }}
             >
-              <Icon size={16} strokeWidth={2} />
+              <Icon size={15} strokeWidth={2} />
             </div>
-            <div style={{ lineHeight: "1.2" }}>
-              <div style={{ fontSize: "11px", fontWeight: "700", color: "#2b170d", whiteSpace: "nowrap" }}>
+            <div style={{ lineHeight: "1.2", minWidth: 0, overflow: "hidden" }}>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#2b170d", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {item.title}
               </div>
-              <div style={{ fontSize: "9.5px", color: "#806f62", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: "9.5px", color: "#806f62", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {item.subtitle}
               </div>
             </div>

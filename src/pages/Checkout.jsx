@@ -31,23 +31,13 @@ import { CheckoutAddressCard } from "../components/checkout/CheckoutAddressCard"
 import { CheckoutItemsReview } from "../components/checkout/CheckoutItemsReview";
 import { CheckoutPriceSummary } from "../components/checkout/CheckoutPriceSummary";
 import { CheckoutPaymentMethod } from "../components/checkout/CheckoutPaymentMethod";
+import { CheckoutCompactPriceList } from "../components/checkout/CheckoutCompactPriceList";
+import { CheckoutCompactPayment } from "../components/checkout/CheckoutCompactPayment";
 import { CheckoutReassurance } from "../components/checkout/CheckoutReassurance";
 import { CheckoutStickyFooter } from "../components/checkout/CheckoutStickyFooter";
 import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
 import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
-
-// Redesigned Spiritual Luxury Checkout Components
-import { CheckoutHeader } from "../components/checkout/CheckoutHeader";
-import { CheckoutHero } from "../components/checkout/CheckoutHero";
-import { CheckoutBreadcrumbs } from "../components/checkout/CheckoutBreadcrumbs";
-import { ProductReviewCard } from "../components/checkout/ProductReviewCard";
-import { PremiumPaymentMethodSelector } from "../components/checkout/PremiumPaymentMethodSelector";
-import { PaymentGuaranteeCard } from "../components/checkout/PaymentGuaranteeCard";
-import { StickyOrderSummary } from "../components/checkout/StickyOrderSummary";
-import { MobileCheckoutView } from "../components/checkout/MobileCheckoutView";
-import { CheckoutPresentationSwitcher } from "../components/checkout/CheckoutPresentationSwitcher";
-import { MobileStickyFooter } from "../components/checkout/MobileStickyFooter";
 
 export function Checkout() {
   const [searchParams] = useSearchParams();
@@ -131,9 +121,6 @@ export function Checkout() {
     }).catch(() => {});
     return () => { mounted = false; };
   }, []);
-
-  // Checkout Presentation Mode: "desktop" | "mobile" | "dual"
-  const [viewMode, setViewMode] = useState("desktop");
 
   // Determine active checkout items (Buy Now intent vs normal cart lines)
   const buyNowIntentStr = typeof window !== "undefined" ? sessionStorage.getItem("aura_buy_now_intent") : null;
@@ -888,244 +875,135 @@ export function Checkout() {
 
   return (
     <Shell>
-      {/* Top Presentation Switcher Bar */}
-      <CheckoutPresentationSwitcher viewMode={viewMode} setViewMode={setViewMode} />
-
       <main 
         id="checkout-page-container"
-        className="page" 
+        className="page checkout-page checkout-main-wrapper" 
         style={{ 
-          maxWidth: viewMode === "dual" ? "1480px" : viewMode === "mobile" ? "880px" : "1240px", 
+          maxWidth: "760px", 
           margin: "0 auto", 
-          padding: "16px 20px 100px",
           minHeight: "85vh",
-          transition: "max-width 0.3s ease"
+          padding: "16px 14px 60px",
+          boxSizing: "border-box"
         }}
       >
-        {/* Presentation Mode 1: Mobile Device View */}
-        {viewMode === "mobile" && (
-          <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 40px" }}>
-            <div 
-              style={{
-                width: "100%",
-                maxWidth: "412px",
-                background: "#fcfaf7",
-                borderRadius: "40px",
-                boxShadow: "0 25px 60px -15px rgba(43, 23, 13, 0.28), 0 0 0 10px #221812, 0 0 0 12px #b88a58",
-                overflow: "hidden",
-                border: "1px solid rgba(184, 138, 88, 0.3)"
-              }}
-            >
-              {/* Smartphone Speaker & Camera Notch */}
-              <div style={{ height: "24px", background: "#221812", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ width: "80px", height: "4px", background: "#3a2c22", borderRadius: "4px" }} />
-              </div>
+        {/* Top Active Promotional Offer with Countdown & Click-to-Apply */}
+        <CheckoutTopOffer 
+          activeOffer={activeOffer} 
+          onApplyCoupon={handleApplyCoupon} 
+        />
 
-              {/* Mobile Checkout View Component */}
-              <MobileCheckoutView
-                lines={effectiveLines}
-                products={products}
-                totals={effectiveTotals}
-                formData={formData}
-                onInputChange={handleInputChange}
-                onUpdateQty={setQty}
-                onRemoveItem={remove}
-                couponCode={couponInput}
-                setCouponCode={setCouponInput}
-                appliedCoupon={appliedCoupon?.code}
-                couponDiscount={couponDiscount}
-                onApplyCoupon={handleApplyCoupon}
-                onRemoveCoupon={handleRemoveCoupon}
-                couponError={couponError}
-                onPay={handlePlaceOrder}
-                loading={loading}
-                onBack={handleBackNavigation}
-              />
-            </div>
+        {/* Top Header & Navigation Actions */}
+        <motion.div 
+          className="checkout-header-actions"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "14px",
+            flexWrap: "wrap",
+            gap: "8px"
+          }}
+        >
+          <button 
+            type="button" 
+            className="back-btn" 
+            onClick={handleBackNavigation}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "#ffffff",
+              border: "1px solid #e5d8cc",
+              padding: "7px 12px",
+              borderRadius: "10px",
+              color: "#4a3223",
+              fontSize: "12.5px",
+              fontWeight: "600",
+              cursor: "pointer"
+            }}
+          >
+            <ChevronLeft size={16} /> Back to Cart
+          </button>
+          
+          <div 
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              background: "#eef9f2",
+              border: "1px solid #c9ebd4",
+              color: "#166534",
+              padding: "5px 10px",
+              borderRadius: "20px",
+              fontSize: "11.5px",
+              fontWeight: "700"
+            }}
+          >
+            <ShieldCheck size={14} /> 256-Bit SSL Secured
           </div>
-        )}
+        </motion.div>
 
-        {/* Presentation Mode 2: Desktop Web UI */}
-        {viewMode === "desktop" && (
-          <div>
-            {/* Header & Trust Signals */}
-            <CheckoutHeader onBack={handleBackNavigation} />
+        {/* Compact Vertical Checkout Flow: Address -> Products -> Price Details -> Payment */}
+        <div 
+          id="checkout-compact-flow-container"
+          style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "14px", 
+            width: "100%", 
+            boxSizing: "border-box" 
+          }}
+        >
+          {/* 1. DELIVERY ADDRESS (ऊपर address) */}
+          <CheckoutAddressCard 
+            formData={formData}
+            onInputChange={handleInputChange}
+            savedAddress={savedAddress}
+            usingSavedAddress={usingSavedAddress}
+            onUseSavedAddress={handleUseSavedAddress}
+            onUseDifferentAddress={handleUseDifferentAddress}
+            onEditAddress={handleEditAddress}
+            saveAddressCheck={saveAddressCheck}
+            onToggleSaveAddressCheck={setSaveAddressCheck}
+            isLoading={isUserDataLoading}
+            errors={formErrors}
+          />
 
-            {/* Sacred Rudraksha Checkout Banner */}
-            <CheckoutHero />
+          {/* 2. PRODUCTS LIST (Produced) */}
+          <CheckoutItemsReview 
+            lines={effectiveLines}
+            products={products}
+            onUpdateQty={setQty}
+            onRemoveItem={remove}
+          />
 
-            {/* Breadcrumbs Stepper */}
-            <CheckoutBreadcrumbs activeStep="payment" />
+          {/* 3. PRICE LIST BREAKDOWN (Produced price list) */}
+          <CheckoutCompactPriceList
+            totalMrp={totalMrp}
+            subtotal={subtotal}
+            productSavings={productSavings}
+            appliedCoupon={appliedCoupon}
+            couponDiscount={couponDiscount}
+            shippingFee={shippingFee}
+            finalTotal={finalTotal}
+            availableCoupons={availableCoupons}
+            onApplyCoupon={handleApplyCoupon}
+            onRemoveCoupon={handleRemoveCoupon}
+            couponError={couponError}
+            couponSuccessMsg={couponSuccessMsg}
+          />
 
-            {/* Main 2-Column Luxury Checkout Layout */}
-            <div 
-              style={{ 
-                display: "grid", 
-                gridTemplateColumns: "minmax(0, 1.45fr) minmax(360px, 0.95fr)", 
-                gap: "28px", 
-                alignItems: "start",
-                marginTop: "16px"
-              }}
-            >
-              {/* Left Column: Shipping Address + Item Review + Payment Method + Guarantee */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                {/* 1. Shipping Address Card */}
-                <CheckoutAddressCard 
-                  formData={formData}
-                  onInputChange={handleInputChange}
-                  savedAddress={savedAddress}
-                  usingSavedAddress={usingSavedAddress}
-                  onUseSavedAddress={handleUseSavedAddress}
-                  onUseDifferentAddress={handleUseDifferentAddress}
-                  onEditAddress={handleEditAddress}
-                  saveAddressCheck={saveAddressCheck}
-                  onToggleSaveAddressCheck={setSaveAddressCheck}
-                  isLoading={isUserDataLoading}
-                  errors={formErrors}
-                />
-
-                {/* 2. Sacred Item Review Card with Lab Certification and Consecration */}
-                <ProductReviewCard
-                  lines={effectiveLines}
-                  products={products}
-                  onUpdateQty={setQty}
-                  onRemoveItem={remove}
-                />
-
-                {/* 3. Premium Payment Method Selector (PayU Powered) */}
-                <PremiumPaymentMethodSelector
-                  finalTotal={finalTotal}
-                  loading={loading}
-                  onPay={handlePlaceOrder}
-                />
-
-                {/* 4. Payment Guarantee and Trust Badges */}
-                <PaymentGuaranteeCard />
-              </div>
-
-              {/* Right Column: Sticky Order Summary */}
-              <div style={{ position: "sticky", top: "86px" }}>
-                <StickyOrderSummary
-                  lines={effectiveLines}
-                  products={products}
-                  totals={effectiveTotals}
-                  couponCode={couponInput}
-                  setCouponCode={setCouponInput}
-                  appliedCoupon={appliedCoupon?.code}
-                  couponDiscount={couponDiscount}
-                  onApplyCoupon={handleApplyCoupon}
-                  onRemoveCoupon={handleRemoveCoupon}
-                  couponError={couponError}
-                  loading={loading}
-                  onPay={handlePlaceOrder}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Presentation Mode 3: Dual Side-by-Side Review */}
-        {viewMode === "dual" && (
-          <div>
-            <CheckoutHeader onBack={handleBackNavigation} />
-            <CheckoutHero />
-
-            <div 
-              style={{ 
-                display: "grid", 
-                gridTemplateColumns: "1.2fr 420px", 
-                gap: "36px", 
-                alignItems: "start",
-                marginTop: "20px"
-              }}
-            >
-              {/* Left Side: Desktop Experience Preview */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "2px solid #b88a58", paddingBottom: "8px" }}>
-                  <span style={{ fontSize: "14px", fontWeight: "700", color: "#2b170d", textTransform: "uppercase", letterSpacing: "1px" }}>
-                    Desktop Web View
-                  </span>
-                  <span style={{ fontSize: "11px", background: "#f5eee4", padding: "2px 8px", borderRadius: "12px", color: "#7a3e1d", fontWeight: "600" }}>
-                    Live Synchronized
-                  </span>
-                </div>
-
-                <CheckoutAddressCard 
-                  formData={formData}
-                  onInputChange={handleInputChange}
-                  savedAddress={savedAddress}
-                  usingSavedAddress={usingSavedAddress}
-                  onUseSavedAddress={handleUseSavedAddress}
-                  onUseDifferentAddress={handleUseDifferentAddress}
-                  onEditAddress={handleEditAddress}
-                  saveAddressCheck={saveAddressCheck}
-                  onToggleSaveAddressCheck={setSaveAddressCheck}
-                  isLoading={isUserDataLoading}
-                  errors={formErrors}
-                />
-
-                <ProductReviewCard
-                  lines={effectiveLines}
-                  products={products}
-                  onUpdateQty={setQty}
-                  onRemoveItem={remove}
-                />
-
-                <PremiumPaymentMethodSelector
-                  finalTotal={finalTotal}
-                  loading={loading}
-                  onPay={handlePlaceOrder}
-                />
-
-                <PaymentGuaranteeCard />
-              </div>
-
-              {/* Right Side: Mobile Smartphone Chassis Preview */}
-              <div style={{ position: "sticky", top: "86px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "2px solid #b88a58", paddingBottom: "8px", marginBottom: "16px" }}>
-                  <span style={{ fontSize: "14px", fontWeight: "700", color: "#2b170d", textTransform: "uppercase", letterSpacing: "1px" }}>
-                    Mobile App View
-                  </span>
-                  <span style={{ fontSize: "11px", background: "#166534", padding: "2px 8px", borderRadius: "12px", color: "#fff", fontWeight: "600" }}>
-                    Interactive Device Chassis
-                  </span>
-                </div>
-
-                <div 
-                  style={{
-                    width: "100%",
-                    maxHeight: "820px",
-                    overflowY: "auto",
-                    background: "#fcfaf7",
-                    borderRadius: "36px",
-                    boxShadow: "0 25px 60px -15px rgba(43, 23, 13, 0.35), 0 0 0 10px #221812",
-                    border: "1px solid rgba(184, 138, 88, 0.4)"
-                  }}
-                >
-                  <MobileCheckoutView
-                    lines={effectiveLines}
-                    products={products}
-                    totals={effectiveTotals}
-                    formData={formData}
-                    onInputChange={handleInputChange}
-                    onUpdateQty={setQty}
-                    onRemoveItem={remove}
-                    couponCode={couponInput}
-                    setCouponCode={setCouponInput}
-                    appliedCoupon={appliedCoupon?.code}
-                    couponDiscount={couponDiscount}
-                    onApplyCoupon={handleApplyCoupon}
-                    onRemoveCoupon={handleRemoveCoupon}
-                    couponError={couponError}
-                    onPay={handlePlaceOrder}
-                    loading={loading}
-                    onBack={handleBackNavigation}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          {/* 4. PAYMENT SECTION (Logos above Pay Now + Pay Now Button + Secure Payment Icons below) */}
+          <CheckoutCompactPayment
+            finalTotal={finalTotal}
+            loading={loading}
+            onPayNow={handlePlaceOrder}
+            disabled={effectiveLines.length === 0}
+            totalSavings={totalSavings}
+          />
+        </div>
 
         {/* In-Page Guest Authentication Modal */}
         <AnimatePresence>
