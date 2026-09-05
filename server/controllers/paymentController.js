@@ -748,11 +748,20 @@ export async function handlePayuWebhook(req, res) {
         { new: false }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+        const bulkOps = [];
         for (const item of order.snapshotItems) {
           if (item.id) {
             const qty = Math.max(1, item.qty || item.quantity || 1);
-            await Product.findOneAndUpdate({ id: item.id, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+            bulkOps.push({
+              updateOne: {
+                filter: { id: item.id, stock: { $gte: qty } },
+                update: { $inc: { stock: -qty } }
+              }
+            });
           }
+        }
+        if (bulkOps.length > 0) {
+          await Product.bulkWrite(bulkOps);
         }
       }
 
@@ -878,11 +887,20 @@ export async function verifyPaymentStatus(req, res, next) {
               { new: false }
             );
             if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+              const bulkOps = [];
               for (const item of order.snapshotItems) {
                 if (item.id) {
                   const qty = Math.max(1, item.qty || item.quantity || 1);
-                  await Product.findOneAndUpdate({ id: item.id, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+                  bulkOps.push({
+                    updateOne: {
+                      filter: { id: item.id, stock: { $gte: qty } },
+                      update: { $inc: { stock: -qty } }
+                    }
+                  });
                 }
+              }
+              if (bulkOps.length > 0) {
+                await Product.bulkWrite(bulkOps);
               }
             }
 
@@ -972,15 +990,20 @@ export async function retryPayuPayment(req, res, next) {
 
     // Verify item stock availability before allowing retry payment
     if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
-      for (const item of order.snapshotItems) {
-        if (item.id) {
-          const product = await Product.findOne({ id: item.id });
-          const qty = Math.max(1, item.qty || item.quantity || 1);
-          if (product && product.stock !== undefined && product.stock < qty) {
-            return res.status(400).json({
-              success: false,
-              message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
-            });
+      const itemIds = order.snapshotItems.map(i => i.id).filter(Boolean);
+      if (itemIds.length > 0) {
+        const dbProducts = await Product.find({ id: { $in: itemIds } }).lean();
+        const productMap = new Map(dbProducts.map(p => [p.id, p]));
+        for (const item of order.snapshotItems) {
+          if (item.id) {
+            const product = productMap.get(item.id);
+            const qty = Math.max(1, item.qty || item.quantity || 1);
+            if (product && product.stock !== undefined && product.stock < qty) {
+              return res.status(400).json({
+                success: false,
+                message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
+              });
+            }
           }
         }
       }
@@ -1201,11 +1224,20 @@ export async function processPayuRefund(req, res, next) {
 
     // Restock inventory only on full refund
     if (isFullRefund && order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+      const bulkOps = [];
       for (const item of order.snapshotItems) {
         if (item.id) {
           const qty = Math.max(1, item.qty || item.quantity || 1);
-          await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: qty } });
+          bulkOps.push({
+            updateOne: {
+              filter: { id: item.id },
+              update: { $inc: { stock: qty } }
+            }
+          });
         }
+      }
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
       }
       order.inventoryDeducted = false;
     }
@@ -1316,11 +1348,20 @@ export async function cancelUnpaidOrder(req, res, next) {
 
     // If stock was somehow deducted earlier, restore it
     if (order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+      const bulkOps = [];
       for (const item of order.snapshotItems) {
         if (item.id) {
           const qty = Math.max(1, item.qty || item.quantity || 1);
-          await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: qty } });
+          bulkOps.push({
+            updateOne: {
+              filter: { id: item.id },
+              update: { $inc: { stock: qty } }
+            }
+          });
         }
+      }
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
       }
       order.inventoryDeducted = false;
     }
