@@ -42,7 +42,7 @@ export function ConfirmModal({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.2 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
           style={{
             position: "relative",
             width: "100%",

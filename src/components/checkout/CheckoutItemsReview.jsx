@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Plus, Minus, Trash2, ShieldCheck, Edit3 } from "lucide-react";
 import { money } from "../../data";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem }) {
   const totalItemCount = lines.reduce((acc, l) => acc + l.qty, 0);
@@ -89,35 +90,41 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
 
       {/* Item List */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", boxSizing: "border-box" }}>
-        {lines.map((line) => {
-          const p = products.find(x => String(x.id) === String(line.id));
-          if (!p) return null;
+        <AnimatePresence initial={false}>
+          {lines.map((line) => {
+            const p = products.find(x => String(x.id) === String(line.id));
+            if (!p) return null;
 
-          const itemImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
-          const sellingPrice = Number(p.price) || 0;
-          const mrpPrice = Number(p.mrp || p.comparePrice || 0);
-          const hasDiscount = mrpPrice > sellingPrice;
-          const discountPercent = hasDiscount ? Math.round(((mrpPrice - sellingPrice) / mrpPrice) * 100) : 0;
-          const unitSavings = hasDiscount ? (mrpPrice - sellingPrice) : 0;
-          const lineTotal = sellingPrice * line.qty;
+            const itemImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+            const sellingPrice = Number(p.price) || 0;
+            const mrpPrice = Number(p.mrp || p.comparePrice || 0);
+            const hasDiscount = mrpPrice > sellingPrice;
+            const discountPercent = hasDiscount ? Math.round(((mrpPrice - sellingPrice) / mrpPrice) * 100) : 0;
+            const unitSavings = hasDiscount ? (mrpPrice - sellingPrice) : 0;
+            const lineTotal = sellingPrice * line.qty;
 
-          return (
-            <div 
-              key={line.id}
-              id={`checkout-item-${line.id}`}
-              style={{
-                display: "flex",
-                gap: "10px",
-                padding: "10px 12px",
-                background: "#fcf9f4",
-                borderRadius: "12px",
-                border: "1px solid #efe4d5",
-                position: "relative",
-                boxShadow: "0 2px 6px rgba(43, 23, 13, 0.02)",
-                boxSizing: "border-box",
-                width: "100%"
-              }}
-            >
+            return (
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -10, transition: { duration: 0.2 } }}
+                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                key={line.id}
+                id={`checkout-item-${line.id}`}
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  background: "#fcf9f4",
+                  borderRadius: "12px",
+                  border: "1px solid #efe4d5",
+                  position: "relative",
+                  boxShadow: "0 2px 6px rgba(43, 23, 13, 0.02)",
+                  boxSizing: "border-box",
+                  width: "100%"
+                }}
+              >
               {/* Product Image */}
               <div 
                 style={{
@@ -239,9 +246,10 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );

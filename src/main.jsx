@@ -5,8 +5,14 @@ import { App } from "./App";
 import { CartProvider } from "./hooks/useCart";
 import { ToastProvider } from "./context/ToastContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { initStaticRevealObserver } from "./lib/MotionObserver";
 import "./styles.css";
 import "./pages/Shop.css";
+
+// Initialize global motion observer for statically rendered bits
+if (typeof window !== "undefined") {
+  initStaticRevealObserver();
+}
 
 // ---------------------------------------------------------------------------
 // 60-90 FPS Smooth Scrolling & Hardware Acceleration Setup

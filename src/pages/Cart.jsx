@@ -13,7 +13,7 @@ import {
   ArrowRight,
   Sparkles
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { OrderSummaryCard } from "../components/checkout/OrderSummaryCard";
 import { CartItemCard } from "../components/cart/CartItemCard";
 import { CartFreeShippingMeter } from "../components/cart/CartFreeShippingMeter";
@@ -276,24 +276,34 @@ export function Cart() {
                   width: "100%"
                 }}
               >
-                {Object.entries(items).map(([id, qty], index) => {
-                  const p = products.find((x) => String(x.id) === String(id));
-                  if (!p) return null;
+                <AnimatePresence initial={false}>
+                  {Object.entries(items).map(([id, qty], index) => {
+                    const p = products.find((x) => String(x.id) === String(id));
+                    if (!p) return null;
 
-                  return (
-                    <CartItemCard
-                      key={id}
-                      id={id}
-                      product={p}
-                      qty={qty}
-                      index={index}
-                      onUpdateQty={setQty}
-                      onRequestDelete={(targetId) => setDeleteTargetId(targetId)}
-                      onToggleWishlist={toggleWishlist}
-                      isWishlisted={isWishlisted(p.id || p._id)}
-                    />
-                  );
-                })}
+                    return (
+                      <motion.div
+                        key={id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -10, transition: { duration: 0.2 } }}
+                        transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                      >
+                        <CartItemCard
+                          id={id}
+                          product={p}
+                          qty={qty}
+                          index={index}
+                          onUpdateQty={setQty}
+                          onRequestDelete={(targetId) => setDeleteTargetId(targetId)}
+                          onToggleWishlist={toggleWishlist}
+                          isWishlisted={isWishlisted(p.id || p._id)}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
 
               {/* 3. Temple Consecration & Lab Guarantee Trust Banner */}

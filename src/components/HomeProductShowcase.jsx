@@ -196,7 +196,7 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
       )}
 
       {/* Product Grid */}
-      <div className="product-grid swipeable">
+      <div className="product-grid swipeable reveal-stagger">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
         ) : displayedProducts.length === 0 ? (

@@ -123,8 +123,8 @@ export function Shell({children}) {
 
         <AnimatePresence>
           {menuOpen && (
-            <motion.div className="drawer-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setMenuOpen(false)}>
-              <motion.aside className="side-drawer" initial={{x:-280}} animate={{x:0}} exit={{x:-280}} transition={{type:"spring", stiffness:280, damping:28}} onClick={e=>e.stopPropagation()}>
+            <motion.div className="drawer-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0, transition: { duration: 0.2 }}} onClick={()=>setMenuOpen(false)}>
+              <motion.aside className="side-drawer" initial={{x:-280}} animate={{x:0}} exit={{x:-320}} transition={{type:"spring", stiffness:350, damping:32}} onClick={e=>e.stopPropagation()}>
                 <div className="drawer-top">
                   <strong>Aura Rudraksha</strong>
                   <button onClick={()=>setMenuOpen(false)} aria-label="Close"><X size={20}/></button>
@@ -173,7 +173,20 @@ export function Shell({children}) {
           <Link to="/cart" className={isCartActive ? "active" : ""}>
             <div className="nav-icon-box" style={{ position: 'relative' }}>
               <ShoppingCart size={22} strokeWidth={1.8} />
-              {count > 0 && <span className="mobile-nav-cart-badge">{count}</span>}
+              <AnimatePresence>
+                {count > 0 && (
+                  <motion.span
+                    key={count}
+                    className="mobile-nav-cart-badge"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  >
+                    {count}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </div>
             <span className="nav-label">Cart</span>
           </Link>

@@ -40,11 +40,11 @@ export function PageTransition({ children }) {
       {/* Smooth Page Entrance Motion keyed strictly to pathname to prevent unmounting on filter changes */}
       <motion.div
         key={location.pathname}
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        style={{ width: "100%" }}
+        initial={{ opacity: 0, y: 12, scale: 0.995 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8, scale: 0.995, transition: { duration: 0.15, ease: "easeIn" } }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        style={{ width: "100%", transformOrigin: "top center" }}
       >
         {children}
       </motion.div>
