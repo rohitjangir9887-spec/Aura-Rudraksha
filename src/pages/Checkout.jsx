@@ -115,34 +115,8 @@ export function Checkout() {
 
   // PayU Redirect Modal State
   const [payuModalOpen, setPayuModalOpen] = useState(false);
-  const [payuStep, setPayuStep] = useState(2); // 1: Order Confirmed, 2: Connecting, 3: Secure Payment, 4: Redirecting
   const [payuTimeout, setPayuTimeout] = useState(false);
   const [payuError, setPayuError] = useState(null);
-  const [pendingPayuData, setPendingPayuData] = useState(null);
-
-  // Intercept browser Back button while PayU redirect modal is active
-  useEffect(() => {
-    if (!payuModalOpen) return;
-    window.history.pushState({ payuModalActive: true }, "");
-
-    const handlePopState = () => {
-      const confirmLeave = window.confirm("Do you want to cancel the payment redirect and stay on checkout?");
-      if (confirmLeave) {
-        setPayuModalOpen(false);
-        setLoading(false);
-        setRetrying(false);
-        setPayuTimeout(false);
-        setPayuError(null);
-      } else {
-        window.history.pushState({ payuModalActive: true }, "");
-      }
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [payuModalOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -512,7 +486,6 @@ export function Checkout() {
 
   // Helper to submit standard POST form to PayU Hosted Checkout URL
   const postToPayuGateway = (paymentUrl, params) => {
-    setPayuStep(4); // "Redirecting"
     const form = document.createElement("form");
     form.method = "POST";
     form.action = paymentUrl;
@@ -534,13 +507,12 @@ export function Checkout() {
   const executeOrderSubmission = async () => {
     setLoading(true);
     setPayuModalOpen(true);
-    setPayuStep(1); // "Order Confirmed"
     setPayuTimeout(false);
     setPayuError(null);
 
     const timeoutTimer = setTimeout(() => {
       setPayuTimeout(true);
-    }, 12000);
+    }, 15000);
 
     const { firstName, lastName, phone, email, address, pincode, city, state } = formData;
     const cleanEmail = (email || "").trim().toLowerCase();
@@ -603,24 +575,18 @@ export function Checkout() {
     };
 
     try {
-      setPayuStep(2); // "Connecting to PayU"
       const res = await db.initiatePayment(paymentPayload);
       clearTimeout(timeoutTimer);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        setPayuStep(3); // "Secure Payment"
-        setPendingPayuData({ paymentUrl: res.data.paymentUrl, params: res.data.params });
-        
-        setTimeout(() => {
-          setPayuStep(4); // "Redirecting"
-          postToPayuGateway(res.data.paymentUrl, res.data.params);
-        }, 250);
+        // Automatically and immediately redirect to PayU
+        postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not initialize PayU payment gateway");
       }
     } catch (err) {
       clearTimeout(timeoutTimer);
-      setPayuError(err.message || "Payment initiation failed. Please verify your details and retry.");
+      setPayuError(err.message || "Payment gateway connection failed. Please verify your details and try again.");
       setLoading(false);
     }
   };
@@ -660,26 +626,19 @@ export function Checkout() {
   const handleRetryPayment = async (orderId) => {
     setRetrying(true);
     setPayuModalOpen(true);
-    setPayuStep(2); // "Connecting to PayU"
     setPayuTimeout(false);
     setPayuError(null);
 
     const timeoutTimer = setTimeout(() => {
       setPayuTimeout(true);
-    }, 12000);
+    }, 15000);
 
     try {
       const res = await db.retryPayment(orderId, txnidParam);
       clearTimeout(timeoutTimer);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        setPayuStep(3); // "Secure Payment"
-        setPendingPayuData({ paymentUrl: res.data.paymentUrl, params: res.data.params });
-
-        setTimeout(() => {
-          setPayuStep(4); // "Redirecting"
-          postToPayuGateway(res.data.paymentUrl, res.data.params);
-        }, 250);
+        postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not generate retry payment attempt");
       }
@@ -1119,16 +1078,8 @@ export function Checkout() {
             setPayuError(null);
           }}
           onRetry={() => {
-            if (pendingPayuData?.paymentUrl && pendingPayuData?.params) {
-              setPayuStep(4);
-              setPayuTimeout(false);
-              setPayuError(null);
-              postToPayuGateway(pendingPayuData.paymentUrl, pendingPayuData.params);
-            } else {
-              executeOrderSubmission();
-            }
+            executeOrderSubmission();
           }}
-          step={payuStep}
           errorMsg={payuError}
           timeoutOccurred={payuTimeout}
         />
