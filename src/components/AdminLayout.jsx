@@ -1,236 +1,32 @@
 import React, { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Boxes, ClipboardList, Users, Megaphone, Tag, TicketPercent, BarChart3, Headphones, Settings, Menu, X, User, Store, MoreHorizontal, LogOut, Star, Sparkles } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Menu, X, Store, MoreHorizontal, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { authClient } from "../lib/authClient";
-import { db, onStoreUpdate } from "../lib/db";
+
+import { useAdminAuth } from "../hooks/useAdminAuth";
+import { useAdminMetrics } from "../hooks/useAdminMetrics";
+import { getMenuItems, getBottomTabs } from "./admin/adminConfig";
+import { AdminNavLinks } from "./admin/AdminNavLinks";
 
 export function AdminLayout({children}) {
   const location = useLocation();
-  const navigate = useNavigate();
+  const { loadingAuth, userEmail, handleLogout } = useAdminAuth();
+  const counts = useAdminMetrics();
   
-  const [adminSession, setAdminSession] = useState(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  const [openTicketsCount, setOpenTicketsCount] = useState(0);
-  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
-  const [pendingReviewsCount, setPendingReviewsCount] = useState(0);
-
-  const userEmail = adminSession?.email || (authClient.getUser()?.email) || (authClient.getUser()?.displayName) || "Admin";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    async function initialLoad() {
-      try {
-        await Promise.all([
-          db.fetchTickets().catch(() => {}),
-          db.fetchOrders().catch(() => {})
-        ]);
-        updateCounts();
-      } catch (_) {}
-    }
-    
-    function updateCounts() {
-      try {
-        const tickets = db.getTickets() || [];
-        const orders = db.getOrders() || [];
-        const reviews = db.getReviews ? db.getReviews() : [];
-
-        const openT = tickets.filter(t => !t.status || t.status === 'Open' || t.status === 'In Progress').length;
-        const pendO = orders.filter(o => !o.status || o.status === 'Pending' || o.status === 'Processing').length;
-        const pendR = reviews.filter(r => !r.approved && r.status !== 'approved').length;
-
-        setOpenTicketsCount(openT);
-        setPendingOrdersCount(pendO);
-        setPendingReviewsCount(pendR);
-      } catch (_) {}
-    }
-    
-    initialLoad();
-    const unsub = onStoreUpdate(() => updateCounts());
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    // Check role from backend / client auth
-    async function checkAuth() {
-      try {
-        const currentUser = await authClient.getCurrentUserAsync();
-        if (!currentUser && !authClient.isSignedIn()) {
-          setLoadingAuth(false);
-          navigate("/admin/login", { replace: true, state: { from: location.pathname + location.search + location.hash } });
-          return;
-        }
-
-        const authUser = authClient.getUser() || currentUser;
-        const allowedEmails = [
-          "rohitjangir8740@gmail.com",
-          "rohitjangir9887@gmail.com",
-          "rohitjangir80055@gmail.com",
-          "aurarudrakshaofficial@gmail.com",
-          "admin@aurarudraksha.com"
-        ];
-        const targetPhoneDigits = "9672996531";
-
-        const localEmail = (authUser?.email || "").trim().toLowerCase();
-        const localPhone = (authUser?.phoneNumber || "").replace(/[^0-9]/g, "");
-
-        let isAuthorizedAdmin = allowedEmails.includes(localEmail) ||
-                                localEmail.endsWith("@aurarudraksha.com") ||
-                                localPhone.endsWith(targetPhoneDigits) ||
-                                authUser?.uid === "DEMO-ADMIN-UID";
-
-        // Try API check if available
-        try {
-          const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-          const token = await authClient.getToken().catch(() => "");
-          const res = await fetch(`${apiBase}/customers/me`, {
-            headers: { ...(token ? { "Authorization": "Bearer " + token } : {}) }
-          }).catch(() => null);
-
-          if (res && res.ok) {
-            const json = await res.json().catch(() => ({}));
-            const resEmail = (json.data?.email || localEmail).trim().toLowerCase();
-            const resPhone = (json.data?.phone || localPhone).replace(/[^0-9]/g, "");
-            if (allowedEmails.includes(resEmail) || resEmail.endsWith("@aurarudraksha.com") || resPhone.endsWith(targetPhoneDigits)) {
-              isAuthorizedAdmin = true;
-            }
-          }
-        } catch (_) {
-          // If network or database is unavailable, preserve local authorization state
-        }
-
-        if (!isAuthorizedAdmin) {
-          setLoadingAuth(false);
-          navigate("/account", { replace: true });
-          return;
-        }
-
-        const displayIdentifier = authUser?.email || authUser?.displayName || authUser?.phoneNumber || "Admin";
-        setAdminSession({
-          email: displayIdentifier,
-          name: authUser?.displayName || displayIdentifier
-        });
-      } catch (err) {
-        const authUser = authClient.getUser();
-        if (authUser) {
-          const displayIdentifier = authUser.email || authUser.displayName || authUser.phoneNumber || "Admin";
-          setAdminSession({ email: displayIdentifier, name: authUser.displayName || displayIdentifier });
-        } else {
-          navigate("/admin/login", { replace: true });
-        }
-      } finally {
-        setLoadingAuth(false);
-      }
-    }
-    checkAuth();
-  }, [location.pathname, navigate]);
-  
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  const handleLogout = async () => {
-    try {
-      await authClient.signOut();
-    } catch (_) {}
-    navigate("/admin/login", { replace: true });
-  };
-
-  const menuItems = [
-    { path: "/admin", icon: <LayoutDashboard size={20}/>, label: "Dashboard" },
-    { path: "/admin/ai", icon: <Sparkles size={20}/>, label: "Aura AI" },
-    { path: "/admin/products", icon: <Boxes size={20}/>, label: "Products" },
-    { path: "/admin/categories", icon: <Tag size={20}/>, label: "Categories" },
-    { path: "/admin/orders", icon: <ClipboardList size={20}/>, label: "Orders", count: pendingOrdersCount },
-    { path: "/admin/customers", icon: <Users size={20}/>, label: "Customers" },
-    { path: "/admin/reviews", icon: <Star size={20}/>, label: "Reviews", count: pendingReviewsCount },
-    { path: "/admin/banners", icon: <Megaphone size={20}/>, label: "Home Content" },
-    { path: "/admin/offers", icon: <Tag size={20}/>, label: "Offers" },
-    { path: "/admin/coupons", icon: <TicketPercent size={20}/>, label: "Coupons" },
-    { path: "/admin/zodiac", icon: <LayoutDashboard size={20}/>, label: "Zodiac" },
-    { path: "/admin/analytics", icon: <BarChart3 size={20}/>, label: "Analytics" },
-    { path: "/admin/support", icon: <Headphones size={20}/>, label: "Support", count: openTicketsCount },
-    { path: "/admin/settings", icon: <Settings size={20}/>, label: "Settings" }
-  ];
+  const menuItems = getMenuItems(counts);
+  const bottomTabs = getBottomTabs(counts);
 
   const currentItem = menuItems.find(i => i.path === location.pathname || (i.path !== '/admin' && location.pathname.startsWith(i.path)));
   const pageTitle = currentItem?.label || "Admin";
 
-  const bottomTabs = [
-    { path: "/admin", icon: <LayoutDashboard size={20}/>, label: "Home" },
-    { path: "/admin/products", icon: <Boxes size={20}/>, label: "Products" },
-    { path: "/admin/orders", icon: <ClipboardList size={20}/>, label: "Orders", count: pendingOrdersCount },
-    { path: "/admin/customers", icon: <Users size={20}/>, label: "Customers" },
-  ];
-
-  const NavLinks = () => (
-    <>
-      <div className="admin-brand">
-        Aura<span>Admin</span>
-        <span className="live-status-pill"><span className="pulse-dot"></span> Live</span>
-      </div>
-      <div className="nav-links">
-        {menuItems.map(item => (
-          <Link 
-            key={item.path} 
-            to={item.path}
-            className={location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path)) ? 'active' : ''}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {item.icon} {item.label}
-            </span>
-            {item.count > 0 && (
-              <span style={{
-                background: '#d64b2e',
-                color: '#fff',
-                fontSize: '11px',
-                fontWeight: '700',
-                padding: '2px 7px',
-                borderRadius: '10px',
-                minWidth: '20px',
-                textAlign: 'center',
-                boxShadow: '0 2px 6px rgba(214,75,46,0.3)'
-              }}>
-                {item.count}
-              </span>
-            )}
-            {item.count === 0 && (item.path === '/admin/support' || item.path === '/admin/orders') && (
-              <span style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: '#cbd5e1'
-              }} />
-            )}
-          </Link>
-        ))}
-        <Link to="/" className="store-link-btn" target="_blank">
-          <Store size={18}/> View Customer Store
-        </Link>
-        <button 
-          onClick={handleLogout} 
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#c62828',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 16px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            marginTop: '15px'
-          }}
-        >
-          <LogOut size={18} /> Admin Logout
-        </button>
-      </div>
-    </>
-  );
-
   if (loadingAuth) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Verifying Admin Privileges...</div>;
+
   return (
     <div className="admin-wrapper">
       {/* Mobile Header */}
@@ -278,7 +74,7 @@ export function AdminLayout({children}) {
                 <button onClick={() => setMobileMenuOpen(false)} aria-label="Close Menu"><X size={22} /></button>
               </div>
               <aside className="mobile-aside">
-                <NavLinks />
+                <AdminNavLinks counts={counts} onLogout={handleLogout} />
               </aside>
             </motion.div>
           </>
@@ -287,7 +83,7 @@ export function AdminLayout({children}) {
 
       {/* Desktop Sidebar */}
       <aside className="admin-desktop-sidebar">
-        <NavLinks />
+        <AdminNavLinks counts={counts} onLogout={handleLogout} />
       </aside>
 
       {/* Main Content Area */}
@@ -346,5 +142,3 @@ export function AdminLayout({children}) {
     </div>
   );
 }
-
-
