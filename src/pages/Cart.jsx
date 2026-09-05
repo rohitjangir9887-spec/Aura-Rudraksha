@@ -325,34 +325,6 @@ export function Cart() {
                 ctaText="Proceed to Checkout"
                 isCheckoutPage={false}
               />
-
-              {/* Secondary Direct Checkout CTA */}
-              <button
-                type="button"
-                id="btn-cart-secondary-checkout"
-                onClick={handleCheckout}
-                style={{
-                  width: "100%",
-                  marginTop: "10px",
-                  padding: "13px 18px",
-                  background: "linear-gradient(135deg, #2e1d15 0%, #1f120c 100%)",
-                  color: "#ffffff",
-                  border: "1px solid #4a3224",
-                  borderRadius: "14px",
-                  fontSize: "15px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  boxShadow: "0 4px 14px rgba(46,29,21,0.3)",
-                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                }}
-              >
-                <span>Proceed to Checkout</span>
-                <ArrowRight size={17} strokeWidth={2.4} />
-              </button>
             </div>
           </div>
         )}
