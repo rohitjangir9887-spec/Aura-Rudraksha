@@ -1,6 +1,121 @@
-import { describe, it } from 'node:test';
+import test, { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { sanitizeCustomerText } from './auraAiResponse.js';
+import { parseAuraAiPayload, sanitizeCustomerText } from './auraAiResponse.js';
+
+describe('parseAuraAiPayload', () => {
+  it('handles null and undefined', () => {
+    const expectedEmpty = {
+      text: "",
+      products: [],
+      coupons: [],
+      recommendedProductIds: [],
+      couponCodes: [],
+      requiresHuman: false,
+      quickReplies: [],
+      orderInfo: null
+    };
+
+    assert.deepStrictEqual(parseAuraAiPayload(null), expectedEmpty);
+    assert.deepStrictEqual(parseAuraAiPayload(undefined), expectedEmpty);
+  });
+
+  it('handles simple string input', () => {
+    const result = parseAuraAiPayload("Hello World");
+    assert.strictEqual(result.text, "Hello World");
+    assert.strictEqual(result.products.length, 0);
+  });
+
+  it('handles JSON string input', () => {
+    const jsonStr = JSON.stringify({ text: "JSON test", requiresHuman: true });
+    const result = parseAuraAiPayload(jsonStr);
+    assert.strictEqual(result.text, "JSON test");
+    assert.strictEqual(result.requiresHuman, true);
+  });
+
+  it('handles JSON string with markdown formatting', () => {
+    const jsonStr = `\`\`\`json
+{
+  "text": "Markdown test",
+  "couponCodes": ["DISCOUNT10"]
+}
+\`\`\``;
+    const result = parseAuraAiPayload(jsonStr);
+    assert.strictEqual(result.text, "Markdown test");
+    assert.deepStrictEqual(result.couponCodes, ["DISCOUNT10"]);
+  });
+
+  it('handles nested data object', () => {
+    const input = {
+      success: true,
+      data: {
+        text: "Nested text",
+        products: [{ id: "p1", name: "Product 1" }]
+      }
+    };
+    const result = parseAuraAiPayload(input);
+    assert.strictEqual(result.text, "Nested text");
+    assert.strictEqual(result.products.length, 1);
+    assert.strictEqual(result.products[0].id, "p1");
+  });
+
+  it('extracts alternative text sources', () => {
+    const messageInput = { message: "From message" };
+    const contentInput = { content: "From content" };
+
+    assert.strictEqual(parseAuraAiPayload(messageInput).text, "From message");
+    assert.strictEqual(parseAuraAiPayload(contentInput).text, "From content");
+  });
+
+  it('filters and validates arrays', () => {
+    const input = {
+      products: [
+        { id: "1" },
+        { name: "Product 2" },
+        { invalid: true }, // Should be filtered out
+        null // Should be filtered out
+      ],
+      coupons: [
+        { code: "SAVE20" },
+        { invalid: "no code" } // Should be filtered out
+      ],
+      quickReplies: [
+        "Reply 1",
+        { label: "Reply 2" },
+        { text: "Reply 3" },
+        { invalid: "yes" }, // empty string after mapping, filtered out
+        "Reply 4",
+        "Reply 5",
+        "Reply 6" // Should be capped at 4
+      ]
+    };
+
+    const result = parseAuraAiPayload(input);
+
+    assert.strictEqual(result.products.length, 2);
+    assert.strictEqual(result.products[0].id, "1");
+    assert.strictEqual(result.products[1].name, "Product 2");
+
+    assert.strictEqual(result.coupons.length, 1);
+    assert.strictEqual(result.coupons[0].code, "SAVE20");
+
+    assert.strictEqual(result.quickReplies.length, 4);
+    assert.deepStrictEqual(result.quickReplies, ["Reply 1", "Reply 2", "Reply 3", "Reply 4"]);
+  });
+
+  it('extracts specific scalar fields', () => {
+    const input = {
+      requiresHuman: true,
+      orderInfo: { status: "shipped" },
+      conversationId: "conv_123"
+    };
+
+    const result = parseAuraAiPayload(input);
+
+    assert.strictEqual(result.requiresHuman, true);
+    assert.deepStrictEqual(result.orderInfo, { status: "shipped" });
+    assert.strictEqual(result.conversationId, "conv_123");
+  });
+});
 
 describe('sanitizeCustomerText', () => {
   it('should return empty string for non-string inputs', () => {
