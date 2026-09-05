@@ -198,7 +198,7 @@ export function Checkout() {
   const totalMrp = effectiveTotals.totalMrp;
   const productSavings = effectiveTotals.productSavings;
   const couponDiscount = effectiveTotals.couponDiscount;
-  const shippingFee = effectiveTotals.shipping;
+  const shippingFee = subtotal === 0 ? 0 : effectiveTotals.shipping;
   const finalTotal = effectiveTotals.finalTotal;
   const totalSavings = effectiveTotals.totalSavings;
 
@@ -599,6 +599,11 @@ export function Checkout() {
   const handlePlaceOrder = async (e) => {
     if (e) e.preventDefault();
     if (loading) return;
+
+    if (effectiveLines.length === 0 || subtotal === 0) {
+      emitToast("Your cart is empty.", "warning");
+      return;
+    }
 
     if (!validateForm()) {
       emitToast("Please fill in all required shipping details correctly.", "warning");
@@ -1039,7 +1044,7 @@ export function Checkout() {
             finalTotal={finalTotal}
             loading={loading}
             onPayNow={handlePlaceOrder}
-            disabled={effectiveLines.length === 0}
+            disabled={effectiveLines.length === 0 || subtotal === 0}
             totalSavings={totalSavings}
           />
         </div>
