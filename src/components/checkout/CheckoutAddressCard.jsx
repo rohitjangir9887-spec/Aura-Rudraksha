@@ -17,6 +17,91 @@ export function CheckoutAddressCard({
   isLoading = false,
   errors = {}
 }) {
+  const [isLookingUp, setIsLookingUp] = React.useState(false);
+  const [pinLookupError, setPinLookupError] = React.useState(null);
+  const [postOffices, setPostOffices] = React.useState([]);
+  const [selectedPostOffice, setSelectedPostOffice] = React.useState(null);
+  const pinCache = React.useRef({});
+
+  // Track the pincode that we currently have successfully autofilled for
+  const [autoFilledPin, setAutoFilledPin] = React.useState("");
+
+  React.useEffect(() => {
+    const pin = formData.pincode;
+    if (!pin || pin.length !== 6) {
+      // Don't lookup if not exactly 6 digits
+      return;
+    }
+
+    if (pin === autoFilledPin) {
+      return; // Already processed this pin
+    }
+
+    const lookup = async () => {
+      setIsLookingUp(true);
+      setPinLookupError(null);
+
+      try {
+        if (pinCache.current[pin]) {
+          processLookupResult(pinCache.current[pin], pin);
+          return;
+        }
+
+        const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+        if (!res.ok) throw new Error("Network response was not ok");
+        const data = await res.json();
+
+        pinCache.current[pin] = data;
+        processLookupResult(data, pin);
+
+      } catch (err) {
+        setPinLookupError("We couldn't connect. Please check your network and try again.");
+        setIsLookingUp(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      lookup();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.pincode, autoFilledPin]);
+
+  const processLookupResult = (data, pin) => {
+    setIsLookingUp(false);
+    if (data && data[0] && data[0].Status === "Success") {
+      const offices = data[0].PostOffice || [];
+      setPostOffices(offices);
+      setPinLookupError(null);
+      setAutoFilledPin(pin);
+
+      if (offices.length > 0) {
+        let matchedOffice = null;
+        if (formData.locality) {
+          matchedOffice = offices.find(o => o.Name === formData.locality);
+        }
+
+        const officeToUse = matchedOffice || offices[0];
+        setSelectedPostOffice(officeToUse.Name);
+
+        const city = officeToUse.District || officeToUse.Region || "";
+        const state = officeToUse.State || "";
+
+        // If this is a brand new lookup triggered by typing (indicated by empty city/state or no matched locality), we overwrite.
+        if (!formData.city || !matchedOffice) {
+          onInputChange("city", city);
+          onInputChange("state", state);
+          onInputChange("locality", officeToUse.Name);
+        }
+      }
+    } else {
+      setPostOffices([]);
+      setSelectedPostOffice(null);
+      setAutoFilledPin("");
+      setPinLookupError("We couldn't find this PIN code. Please check and try again.");
+    }
+  };
+
   if (isLoading) {
     return <CheckoutAddressLoading />;
   }
@@ -115,6 +200,15 @@ export function CheckoutAddressCard({
           saveAddressCheck={saveAddressCheck}
           onToggleSaveAddressCheck={onToggleSaveAddressCheck}
           errors={errors}
+          isLookingUp={isLookingUp}
+          pinLookupError={pinLookupError}
+          postOffices={postOffices}
+          selectedPostOffice={selectedPostOffice}
+          setSelectedPostOffice={setSelectedPostOffice}
+          autoFilledPin={autoFilledPin}
+          setAutoFilledPin={setAutoFilledPin}
+          setPostOffices={setPostOffices}
+          setPinLookupError={setPinLookupError}
         />
       )}
     </div>
