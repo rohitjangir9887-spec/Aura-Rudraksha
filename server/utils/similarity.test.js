@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { jaccardSimilarity } from './similarity.js';
+import { jaccardSimilarity, evaluateDraftSimilarity } from './similarity.js';
 
 describe('jaccardSimilarity', () => {
   test('returns 1 for identical sets', () => {
@@ -47,5 +47,46 @@ describe('jaccardSimilarity', () => {
     assert.strictEqual(jaccardSimilarity(undefined, undefined), 0);
     assert.strictEqual(jaccardSimilarity(new Set(['a']), null), 0);
     assert.strictEqual(jaccardSimilarity(null, new Set(['a'])), 0);
+  });
+});
+
+describe('evaluateDraftSimilarity', () => {
+  test('handles very long text efficiently and correctly', () => {
+    // Generate a very long text with many distinct words
+    // We generate 5000 distinct words, and then another version with 1 different word at the end
+    const distinctWords = Array.from({ length: 5000 }, (_, i) => `word${i}`);
+    const longText = distinctWords.join(' ');
+
+    // Copy the array, change the last word to make it slightly different
+    const similarDistinctWords = [...distinctWords];
+    similarDistinctWords[similarDistinctWords.length - 1] = 'differentword';
+    const similarText = similarDistinctWords.join(' ');
+
+    // Existing corpus with the very long text
+    const existingCorpus = [
+      { text: longText, title: 'Very Long Review' }
+    ];
+
+    // Test with exactly the same text
+    const resultExact = evaluateDraftSimilarity(longText, existingCorpus);
+    assert.strictEqual(resultExact.similarityStatus, 'Duplicate');
+    assert.strictEqual(resultExact.similarityScore, 100);
+    assert.strictEqual(resultExact.semanticScore, 100);
+    assert.strictEqual(resultExact.matchedReview, '"Very Long Review"');
+
+    // Test with slightly different but very long text
+    const resultSimilar = evaluateDraftSimilarity(similarText, existingCorpus);
+    assert.strictEqual(resultSimilar.similarityStatus, 'Duplicate');
+    // Scores should be very high due to length of match
+    assert.ok(resultSimilar.similarityScore > 90);
+    assert.ok(resultSimilar.semanticScore > 90);
+    assert.strictEqual(resultSimilar.matchedReview, '"Very Long Review"');
+
+    // Test empty text
+    const resultEmpty = evaluateDraftSimilarity('', existingCorpus);
+    assert.strictEqual(resultEmpty.similarityStatus, 'Unique');
+    assert.strictEqual(resultEmpty.similarityScore, 0);
+    assert.strictEqual(resultEmpty.semanticScore, 0);
+    assert.strictEqual(resultEmpty.matchedReview, null);
   });
 });

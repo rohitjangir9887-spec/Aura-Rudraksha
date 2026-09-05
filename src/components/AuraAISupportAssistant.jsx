@@ -25,6 +25,9 @@ import { auraChatStore, formatMessageTime } from "../lib/auraChatStore";
 import { parseAuraAiPayload, customerSafeAiText } from "../lib/auraAiResponse";
 import { emitToast } from "../context/ToastContext";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
+import { SupportTicketsDrawer } from "./support/SupportTicketsDrawer";
+import { SupportTicketForm } from "./support/SupportTicketForm";
+import { SupportChatView } from "./support/SupportChatView";
 
 export function AuraAISupportAssistant({ defaultTopic = "orders", compact = false }) {
   const [user, setUser] = useState(() => authClient.getUser());
@@ -365,250 +368,30 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
         </button>
       </div>
 
-      {/* My Support Tickets Drawer */}
-      <AnimatePresence>
-        {showMyTickets && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{
-              background: "#fff",
-              border: "1px solid #bbf7d0",
-              borderRadius: 12,
-              padding: 14,
-              marginBottom: 14,
-              maxHeight: 280,
-              overflowY: "auto"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: "#166534", margin: 0 }}>
-                Your Support Tickets & Admin Answers
-              </h4>
-              <button onClick={() => setShowMyTickets(false)} style={{ background: "none", border: "none", fontSize: 12, cursor: "pointer", color: "#666" }}>✕ Close</button>
-            </div>
-            {customerTickets.length === 0 ? (
-              <p style={{ fontSize: 12, color: "#6b584c", margin: 0 }}>No support tickets raised yet. Click "Raise Support Ticket" to ask our spiritual care team.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {customerTickets.map(t => (
-                  <div key={t.id} style={{ background: "#fcfcfc", border: "1px solid #e5e7eb", borderRadius: 8, padding: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#2b1408" }}>#{t.id} • {t.subject}</span>
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        background: t.status === 'Resolved' || t.status === 'Closed' ? '#dcfce7' : '#fef9c3',
-                        color: t.status === 'Resolved' || t.status === 'Closed' ? '#15803d' : '#854d0e'
-                      }}>
-                        {t.status || 'Open'} {t.status === 'Resolved' ? '✓ (समाधान हो गया)' : ''}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: "#4b5563", margin: "0 0 6px 0" }}><b>Issue:</b> {t.message}</p>
-                    {t.adminResponse ? (
-                      <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: 8, borderRadius: 6, fontSize: 11, color: "#166534" }}>
-                        <b>Admin Answer (जवाब):</b> {t.adminResponse}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 10.5, color: "#d97706", fontStyle: "italic" }}>
-                        ⏳ Pending Admin Review (Our team will reply soon)
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <SupportTicketsDrawer
+        showMyTickets={showMyTickets}
+        setShowMyTickets={setShowMyTickets}
+        customerTickets={customerTickets}
+      />
 
-      {/* Raise Support Ticket Form Drawer */}
-      <AnimatePresence>
-        {showTicketForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{
-              background: "#fff",
-              border: "1px solid #ebdccb",
-              borderRadius: 12,
-              padding: 14,
-              marginBottom: 14
-            }}
-          >
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: "#2b1408", margin: "0 0 8px 0" }}>
-              Create Customer Support Ticket
-            </h4>
-            {ticketSuccess ? (
-              <div style={{ color: "#16a34a", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                <CheckCircle2 size={16} /> Ticket submitted! Our spiritual care team is reviewing it.
-              </div>
-            ) : (
-              <form onSubmit={handleCreateTicket} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <input
-                  type="text"
-                  required
-                  placeholder="Subject (e.g. Need delivery address update / Mukhi query)"
-                  value={ticketSubject}
-                  onChange={(e) => setTicketSubject(e.target.value)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #dfcfbc",
-                    fontSize: 12,
-                    outline: "none"
-                  }}
-                />
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="Describe your issue or order inquiry..."
-                  value={ticketMessage}
-                  onChange={(e) => setTicketMessage(e.target.value)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #dfcfbc",
-                    fontSize: 12,
-                    outline: "none",
-                    resize: "vertical"
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowTicketForm(false)}
-                    style={{
-                      background: "#f4ede2",
-                      border: "none",
-                      padding: "6px 12px",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      cursor: "pointer"
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    style={{
-                      background: "#8c2b10",
-                      color: "#fff",
-                      border: "none",
-                      padding: "6px 14px",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                  >
-                    Submit Ticket
-                  </button>
-                </div>
-              </form>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <SupportTicketForm
+        showTicketForm={showTicketForm}
+        setShowTicketForm={setShowTicketForm}
+        ticketSuccess={ticketSuccess}
+        ticketSubject={ticketSubject}
+        setTicketSubject={setTicketSubject}
+        ticketMessage={ticketMessage}
+        setTicketMessage={setTicketMessage}
+        handleCreateTicket={handleCreateTicket}
+      />
 
-      {/* Interactive Conversation View */}
-      {chatMessages.length > 0 && (
-        <div style={{
-          maxHeight: 240,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          marginBottom: 12,
-          padding: "10px 12px",
-          background: "#fff",
-          borderRadius: 12,
-          border: "1px solid #ebdccb"
-        }}>
-          {chatMessages.map((m, idx) => (
-            <div
-              key={idx}
-              style={{
-                alignSelf: m.sender === "user" ? "flex-end" : "flex-start",
-                background: m.sender === "user" ? "linear-gradient(135deg, #8c2b10 0%, #6e1e07 100%)" : "#ffffff",
-                color: m.sender === "user" ? "#fff" : "#2b1408",
-                padding: "8px 12px",
-                borderRadius: 10,
-                fontSize: 12.5,
-                maxWidth: "88%",
-                lineHeight: 1.5,
-                border: m.sender === "user" ? "none" : "1px solid #ebdccb",
-                boxShadow: "0 1px 4px rgba(43, 20, 8, 0.04)"
-              }}
-            >
-              <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
-            </div>
-          ))}
-          {loadingAi && (
-            <div style={{ alignSelf: "flex-start", fontSize: 11, color: "#8c2b10", display: "flex", alignItems: "center", gap: 5 }}>
-              <Sparkles size={12} className="aura-ai-sparkle-spin" /> Aura AI is consulting store records...
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Input Field */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (input.trim()) {
-            handleAskQuickQuery(input.trim());
-            setInput("");
-          }
-        }}
-        style={{
-          display: "flex",
-          gap: 6,
-          background: "#fff",
-          border: "1px solid #dfcfbc",
-          borderRadius: 10,
-          padding: "3px 4px 3px 10px"
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Ask Aura AI about your order, tracking, returns, or bead selection..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={loadingAi}
-          style={{
-            flex: 1,
-            border: "none",
-            background: "transparent",
-            fontSize: 12.5,
-            outline: "none",
-            color: "#2b1408"
-          }}
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || loadingAi}
-          style={{
-            background: "#8c2b10",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            width: 32,
-            height: 32,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: !input.trim() || loadingAi ? "not-allowed" : "pointer",
-            opacity: !input.trim() || loadingAi ? 0.6 : 1
-          }}
-        >
-          <Send size={14} />
-        </button>
-      </form>
+      <SupportChatView
+        chatMessages={chatMessages}
+        loadingAi={loadingAi}
+        input={input}
+        setInput={setInput}
+        handleAskQuickQuery={handleAskQuickQuery}
+      />
     </div>
   );
 }

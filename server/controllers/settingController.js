@@ -42,6 +42,36 @@ import {
 
 import { logAuditEvent } from "../services/auditService.js";
 
+const CACHE_TTL_MS = 60000;
+let settingsCache = null;
+let settingsCacheTime = 0;
+
+export function clearSettingsCache() {
+  settingsCache = null;
+  settingsCacheTime = 0;
+}
+
+async function fetchStoreSettings() {
+  const now = Date.now();
+  if (settingsCache && now - settingsCacheTime < CACHE_TTL_MS) {
+    return settingsCache;
+  }
+
+  let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+  if (!settings) {
+    settings = await Setting.create(defaultSettings);
+    // If it was just created, it might be a mongoose document instead of plain object,
+    // so we can lean it if we fetched again, or we can just use toObject if it's a doc.
+    if (settings && typeof settings.toObject === 'function') {
+      settings = settings.toObject();
+    }
+  }
+
+  settingsCache = settings;
+  settingsCacheTime = now;
+  return settingsCache;
+}
+
 function sanitizeSettingsForClient(settings, isAdmin = false) {
   if (!settings || typeof settings !== "object") return {};
   const copy = JSON.parse(JSON.stringify(settings));
@@ -80,10 +110,7 @@ export async function getSettings(req, res, next) {
       return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, isAdmin) });
     }
 
-    let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
-    if (!settings) {
-      settings = await Setting.create(defaultSettings);
-    }
+    const settings = await fetchStoreSettings();
     return res.json({ success: true, data: sanitizeSettingsForClient(settings, isAdmin) });
   } catch (err) {
     next(err);
@@ -123,6 +150,8 @@ export async function saveSettings(req, res, next) {
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
 
+    clearSettingsCache();
+
     await logAuditEvent({
       actor: req.user?.email || "admin",
       actorRole: "admin",
@@ -156,10 +185,7 @@ export async function getPolicies(req, res, next) {
       });
     }
 
-    let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
-    if (!settings) {
-      settings = await Setting.create(defaultSettings);
-    }
+    const settings = await fetchStoreSettings();
     return res.json({
       success: true,
       data: {
@@ -189,6 +215,8 @@ export async function savePolicies(req, res, next) {
       { $set: data },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+
+    clearSettingsCache();
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -468,6 +496,7 @@ export async function seedDatabase(req, res, next) {
       { $setOnInsert: defaultSettings },
       { upsert: true }
     );
+    clearSettingsCache();
 
     // Banners
     const existingBanners = await Banner.countDocuments();

@@ -45,7 +45,7 @@ const paymentRefundLimit = rateLimit({
 });
 
 // 1. Initiate PayU Hosted Checkout Payment (Customer authenticated)
-router.post("/initiate", requireAuth, paymentInitiateLimit, initiatePayuPayment);
+router.all("/initiate", requireAuth, paymentInitiateLimit, initiatePayuPayment);
 
 // 2. PayU Browser Redirect Callback (surl/furl - standard PayU Hosted Checkout POST / GET fallback)
 // DO NOT rate-limit PayU customer redirect callback
@@ -56,15 +56,15 @@ router.all("/payu-callback", handlePayuCallback);
 router.all("/payu-webhook", handlePayuWebhook);
 
 // 4. Check / Verify Payment status for an order
-router.get("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
+router.all("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
 
 // 5. Retry Payment on an existing pending/failed order
-router.post("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
+router.all("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
 
 // 6. Admin Process PayU Live Refund
-router.post("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
+router.all("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
 
 // 7. Customer Cancel Unpaid Order
-router.post("/cancel/:orderId", requireAuth, paymentInitiateLimit, cancelUnpaidOrder);
+router.all("/cancel/:orderId", requireAuth, paymentInitiateLimit, cancelUnpaidOrder);
 
 export default router;
