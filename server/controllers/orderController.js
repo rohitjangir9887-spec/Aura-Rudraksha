@@ -311,11 +311,17 @@ export async function createOrder(req, res, next) {
     
     // Atomically decrement stock
     if (isDbConnected()) {
+      const bulkOps = [];
       for (const item of totals.items) {
-        await Product.updateOne(
-          { id: item.id, stock: { $gte: item.quantity } },
-          { $inc: { stock: -item.quantity } }
-        );
+        bulkOps.push({
+          updateOne: {
+            filter: { id: item.id, stock: { $gte: item.quantity } },
+            update: { $inc: { stock: -item.quantity } }
+          }
+        });
+      }
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
       }
       if (totals.appliedCoupon && totals.appliedCoupon.code) {
         await Coupon.updateOne(
