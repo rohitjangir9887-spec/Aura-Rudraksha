@@ -292,26 +292,22 @@ export async function initiatePayuPayment(req, res, next) {
     // Save order in MongoDB
     await Order.create(orderPayload);
 
-    // Record Payment Transaction Ledger
-    try {
-      await PaymentTransaction.create({
-        transactionId: txnid,
-        orderId,
-        orderNumber: orderId,
-        authUserId,
-        provider: "payu",
-        amount: totals.finalTotal,
-        currency: "INR",
-        status: "PENDING",
-        initiatedAt: new Date(),
-        metadata: {
-          customerEmail: email,
-          customerName: firstname
-        }
-      });
-    } catch (txnErr) {
-      console.warn("Could not save PaymentTransaction record:", txnErr.message);
-    }
+    // Record Payment Transaction Ledger (non-blocking)
+    PaymentTransaction.create({
+      transactionId: txnid,
+      orderId,
+      orderNumber: orderId,
+      authUserId,
+      provider: "payu",
+      amount: totals.finalTotal,
+      currency: "INR",
+      status: "PENDING",
+      initiatedAt: new Date(),
+      metadata: {
+        customerEmail: email,
+        customerName: firstname
+      }
+    }).catch(txnErr => console.warn("Could not save PaymentTransaction record:", txnErr.message));
 
     // Authoritative Callback URLs for PayU
     const appBaseUrl = resolveAppBaseUrl(req);

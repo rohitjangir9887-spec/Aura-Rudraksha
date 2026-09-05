@@ -38,6 +38,7 @@ import { CheckoutStickyFooter } from "../components/checkout/CheckoutStickyFoote
 import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
 import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
+import { PayuRedirectModal } from "../components/checkout/PayuRedirectModal";
 
 export function Checkout() {
   const [searchParams] = useSearchParams();
@@ -111,6 +112,37 @@ export function Checkout() {
   const [verificationError, setVerificationError] = useState("");
   const [isUserDataLoading, setIsUserDataLoading] = useState(() => Boolean(authClient.getUser() && !authClient.getUser().isAnonymous));
   const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || {});
+
+  // PayU Redirect Modal State
+  const [payuModalOpen, setPayuModalOpen] = useState(false);
+  const [payuStep, setPayuStep] = useState(2); // 1: Order Confirmed, 2: Connecting, 3: Secure Payment, 4: Redirecting
+  const [payuTimeout, setPayuTimeout] = useState(false);
+  const [payuError, setPayuError] = useState(null);
+  const [pendingPayuData, setPendingPayuData] = useState(null);
+
+  // Intercept browser Back button while PayU redirect modal is active
+  useEffect(() => {
+    if (!payuModalOpen) return;
+    window.history.pushState({ payuModalActive: true }, "");
+
+    const handlePopState = () => {
+      const confirmLeave = window.confirm("Do you want to cancel the payment redirect and stay on checkout?");
+      if (confirmLeave) {
+        setPayuModalOpen(false);
+        setLoading(false);
+        setRetrying(false);
+        setPayuTimeout(false);
+        setPayuError(null);
+      } else {
+        window.history.pushState({ payuModalActive: true }, "");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [payuModalOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -480,6 +512,7 @@ export function Checkout() {
 
   // Helper to submit standard POST form to PayU Hosted Checkout URL
   const postToPayuGateway = (paymentUrl, params) => {
+    setPayuStep(4); // "Redirecting"
     const form = document.createElement("form");
     form.method = "POST";
     form.action = paymentUrl;
@@ -500,6 +533,14 @@ export function Checkout() {
   // Live PayU Hosted Checkout Submission Flow
   const executeOrderSubmission = async () => {
     setLoading(true);
+    setPayuModalOpen(true);
+    setPayuStep(1); // "Order Confirmed"
+    setPayuTimeout(false);
+    setPayuError(null);
+
+    const timeoutTimer = setTimeout(() => {
+      setPayuTimeout(true);
+    }, 12000);
 
     const { firstName, lastName, phone, email, address, pincode, city, state } = formData;
     const cleanEmail = (email || "").trim().toLowerCase();
@@ -562,17 +603,25 @@ export function Checkout() {
     };
 
     try {
+      setPayuStep(2); // "Connecting to PayU"
       const res = await db.initiatePayment(paymentPayload);
+      clearTimeout(timeoutTimer);
+
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        emitToast("Redirecting to PayU Secure Gateway...", "info");
-        // Automatically submit hidden form to PayU Hosted Checkout
-        postToPayuGateway(res.data.paymentUrl, res.data.params);
+        setPayuStep(3); // "Secure Payment"
+        setPendingPayuData({ paymentUrl: res.data.paymentUrl, params: res.data.params });
+        
+        setTimeout(() => {
+          setPayuStep(4); // "Redirecting"
+          postToPayuGateway(res.data.paymentUrl, res.data.params);
+        }, 250);
       } else {
         throw new Error(res?.message || "Could not initialize PayU payment gateway");
       }
     } catch (err) {
+      clearTimeout(timeoutTimer);
+      setPayuError(err.message || "Payment initiation failed. Please verify your details and retry.");
       setLoading(false);
-      emitToast(err.message || "Payment initiation failed. Please verify your details and retry.", "error");
     }
   };
 
@@ -610,17 +659,34 @@ export function Checkout() {
   // Retry Payment on failed order
   const handleRetryPayment = async (orderId) => {
     setRetrying(true);
+    setPayuModalOpen(true);
+    setPayuStep(2); // "Connecting to PayU"
+    setPayuTimeout(false);
+    setPayuError(null);
+
+    const timeoutTimer = setTimeout(() => {
+      setPayuTimeout(true);
+    }, 12000);
+
     try {
       const res = await db.retryPayment(orderId, txnidParam);
+      clearTimeout(timeoutTimer);
+
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        emitToast("Connecting to PayU for payment retry...", "info");
-        postToPayuGateway(res.data.paymentUrl, res.data.params);
+        setPayuStep(3); // "Secure Payment"
+        setPendingPayuData({ paymentUrl: res.data.paymentUrl, params: res.data.params });
+
+        setTimeout(() => {
+          setPayuStep(4); // "Redirecting"
+          postToPayuGateway(res.data.paymentUrl, res.data.params);
+        }, 250);
       } else {
         throw new Error(res?.message || "Could not generate retry payment attempt");
       }
     } catch (err) {
+      clearTimeout(timeoutTimer);
+      setPayuError(err.message || "Failed to retry payment. Please try again or create a fresh order.");
       setRetrying(false);
-      emitToast(err.message || "Failed to retry payment. Please try again or create a fresh order.", "error");
     }
   };
 
@@ -1042,59 +1108,30 @@ export function Checkout() {
 
         {/* Full-Screen PayU Gateway Transition Loading Overlay */}
         <AnimatePresence>
-          {loading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 20000,
-                background: "rgba(18, 10, 6, 0.88)",
-                backdropFilter: "blur(6px)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "24px",
-                color: "#fff",
-                textAlign: "center"
-              }}
-            >
-              <div style={{
-                background: "#2b170d",
-                border: "1px solid #7a320c",
-                borderRadius: "20px",
-                padding: "32px 28px",
-                maxWidth: "420px",
-                width: "100%",
-                boxShadow: "0 20px 40px rgba(0,0,0,0.5)"
-              }}>
-                <div style={{
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "50%",
-                  background: "#7a320c",
-                  display: "grid",
-                  placeItems: "center",
-                  margin: "0 auto 20px",
-                  color: "#fbf5ef"
-                }}>
-                  <Loader2 size={32} className="spin" />
-                </div>
-                <h3 style={{ fontSize: "19px", color: "#fbf5ef", marginBottom: "8px", fontFamily: "Cormorant Garamond, serif" }}>
-                  Connecting to PayU Gateway...
-                </h3>
-                <p style={{ fontSize: "13px", color: "#dcd1c6", lineHeight: 1.5, marginBottom: "20px" }}>
-                  Redirecting to 256-Bit SSL Encrypted PayU Payment Portal. Please do not refresh or press back.
-                </p>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#166534", color: "#f0fdf4", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "700" }}>
-                  <ShieldCheck size={14} /> PayU 256-Bit SSL Secured
-                </div>
-              </div>
-            </motion.div>
-          )}
+        {/* Centered Premium Aura Rudraksha PayU Redirect Modal */}
+        <PayuRedirectModal
+          isOpen={payuModalOpen}
+          onClose={() => {
+            setPayuModalOpen(false);
+            setLoading(false);
+            setRetrying(false);
+            setPayuTimeout(false);
+            setPayuError(null);
+          }}
+          onRetry={() => {
+            if (pendingPayuData?.paymentUrl && pendingPayuData?.params) {
+              setPayuStep(4);
+              setPayuTimeout(false);
+              setPayuError(null);
+              postToPayuGateway(pendingPayuData.paymentUrl, pendingPayuData.params);
+            } else {
+              executeOrderSubmission();
+            }
+          }}
+          step={payuStep}
+          errorMsg={payuError}
+          timeoutOccurred={payuTimeout}
+        />
         </AnimatePresence>
       </main>
     </Shell>
