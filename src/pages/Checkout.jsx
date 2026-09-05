@@ -159,10 +159,10 @@ export function Checkout() {
 
   const activeTotals = buyNowTotals || cartTotals;
 
-  // Effective checkout lines: Fallback to flagship reference product (14 Mukhi Rudraksha) if cart is empty
+  // Effective checkout lines: Return empty array if cart is empty
   const effectiveLines = useMemo(() => {
     if (activeLines && activeLines.length > 0) return activeLines;
-    return [{ id: "14", qty: 1 }];
+    return [];
   }, [activeLines]);
 
   // Authoritative pricing calculations matching exact user specifications
@@ -178,19 +178,15 @@ export function Checkout() {
         totalSavings: activeTotals.totalSavings ?? cartTotalSavings
       };
     }
-    // High-fidelity reference pricing for Original 14 Mukhi Rudraksha
-    const mrp = 59000;
-    const prodDiscount = 22050;
-    const cDiscount = cartCouponDiscount || 0;
-    const fin = Math.max(0, mrp - prodDiscount - cDiscount);
+    // Zeroed pricing for empty cart
     return {
-      subtotal: mrp,
-      totalMrp: mrp,
-      productSavings: prodDiscount,
-      couponDiscount: cDiscount,
+      subtotal: 0,
+      totalMrp: 0,
+      productSavings: 0,
+      couponDiscount: 0,
       shipping: 0,
-      finalTotal: fin,
-      totalSavings: prodDiscount + cDiscount
+      finalTotal: 0,
+      totalSavings: 0
     };
   }, [activeLines, activeTotals, cartSubtotal, cartTotalMrp, cartProductSavings, cartCouponDiscount, cartShippingFee, cartFinalTotal, cartTotalSavings]);
 
