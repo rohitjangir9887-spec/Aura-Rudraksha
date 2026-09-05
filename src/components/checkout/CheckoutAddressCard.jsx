@@ -429,6 +429,30 @@ export function CheckoutAddressCard({
             {errors.address && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.address}</div>}
           </div>
 
+          {/* Row 3.5: Landmark */}
+          <div style={{ marginBottom: "12px", width: "100%", boxSizing: "border-box" }}>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
+              Landmark <span style={{ color: "#9ca3af", fontWeight: "400" }}>(Optional)</span>
+            </label>
+            <input 
+              id="input-landmark"
+              placeholder="E.g. Near Apollo Hospital"
+              value={formData.landmark || ""}
+              onChange={(e) => onInputChange("landmark", e.target.value)}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "9px 10px",
+                borderRadius: "8px",
+                border: "1px solid #d4c5b9",
+                background: "#ffffff",
+                fontSize: "12.5px",
+                color: "#2b170d",
+                outline: "none"
+              }}
+            />
+          </div>
+
           {/* Row 4: Pincode, City, State */}
           <div className="checkout-form-row-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: pinLookupError ? "6px" : "14px", width: "100%", boxSizing: "border-box" }}>
             <div style={{ minWidth: 0 }}>
@@ -533,42 +557,6 @@ export function CheckoutAddressCard({
           {pinLookupError && (
             <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "14px", marginTop: "-4px", padding: "4px 8px", background: "#fef2f2", borderRadius: "4px", border: "1px solid #fecaca" }}>
               {pinLookupError}
-            </div>
-          )}
-
-          {postOffices.length > 1 && (
-            <div style={{ marginBottom: "14px", width: "100%", boxSizing: "border-box" }}>
-              <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
-                Select your area / Locality <span style={{ color: "#dc2626" }}>*</span>
-              </label>
-              <select
-                value={selectedPostOffice || ""}
-                onChange={(e) => {
-                  const officeName = e.target.value;
-                  setSelectedPostOffice(officeName);
-                  const office = postOffices.find(o => o.Name === officeName);
-                  if (office) {
-                    onInputChange("city", office.District || office.Region || "");
-                    onInputChange("state", office.State || "");
-                    onInputChange("locality", office.Name);
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "9px 10px",
-                  borderRadius: "8px",
-                  border: "1px solid #86efac",
-                  background: "#f0fdf4",
-                  fontSize: "12.5px",
-                  color: "#2b170d",
-                  outline: "none"
-                }}
-              >
-                {postOffices.map((office, idx) => (
-                  <option key={idx} value={office.Name}>{office.Name}</option>
-                ))}
-              </select>
             </div>
           )}
 
