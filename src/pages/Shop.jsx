@@ -420,7 +420,7 @@ export function Shop() {
           ) : (
             <motion.div 
               key={chip + filter + q}
-              className="shop-products-grid"
+              className="shop-products-grid reveal-stagger"
               initial="hidden"
               animate="show"
               variants={{

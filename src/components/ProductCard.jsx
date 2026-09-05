@@ -229,10 +229,12 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           onClick={handleAddToCart}
           disabled={isOutOfStock}
           id={`add-to-cart-btn-${p.id}`}
+          style={added ? { background: "#10b981", color: "white", borderColor: "#10b981", transform: "scale(1.02)", transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)" } : { transition: "all 0.2s ease" }}
         >
           {added ? (
             <>
-              <Check size={14} strokeWidth={2.6} /> Added ✓
+              <Check size={14} strokeWidth={2.6} style={{ animation: "aura-scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />
+              <span style={{ animation: "aura-scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both" }}>Added ✓</span>
             </>
           ) : isOutOfStock ? (
             "Out of Stock"
