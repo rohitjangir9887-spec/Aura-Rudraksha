@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "server": "node server/server.js",
     "lint": "vite build --mode production",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node scripts/sentinel-security-tests.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
