@@ -521,26 +521,28 @@ export async function handlePayuCallback(req, res) {
         { new: false }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-        let stockConflict = false;
+        const bulkOps = [];
         for (const item of order.snapshotItems) {
           if (item.id) {
             const qty = Math.max(1, item.qty || item.quantity || 1);
-            const updatedProd = await Product.findOneAndUpdate(
-              { id: item.id, stock: { $gte: qty } },
-              { $inc: { stock: -qty } },
-              { new: true }
-            );
-            if (!updatedProd) {
-              stockConflict = true;
-              console.warn(`Stock conflict on product '${item.id}' for order '${orderId}'`);
-            }
+            bulkOps.push({
+              updateOne: {
+                filter: { id: item.id, stock: { $gte: qty } },
+                update: { $inc: { stock: -qty } }
+              }
+            });
           }
         }
-        if (stockConflict) {
-          await Order.updateOne(
-            { _id: order._id },
-            { $set: { notes: (order.notes ? order.notes + " | " : "") + "INVENTORY_CONFLICT: Stock was insufficient during payment completion" } }
-          );
+        if (bulkOps.length > 0) {
+          const bulkRes = await Product.bulkWrite(bulkOps);
+          const matchedCount = bulkRes?.matchedCount ?? bulkRes?.nMatched ?? 0;
+          if (matchedCount < bulkOps.length) {
+            console.warn(`Stock conflict on order '${orderId}': matched ${matchedCount} of ${bulkOps.length} items`);
+            await Order.updateOne(
+              { _id: order._id },
+              { $set: { notes: (order.notes ? order.notes + " | " : "") + "INVENTORY_CONFLICT: Stock was insufficient during payment completion" } }
+            );
+          }
         }
       }
 

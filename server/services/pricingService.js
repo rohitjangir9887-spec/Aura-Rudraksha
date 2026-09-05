@@ -18,6 +18,13 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 export const FREE_SHIPPING_THRESHOLD = 0;
 export const STANDARD_SHIPPING_FEE = 0;
 
+// In-memory cache for STORE_SETTINGS
+let settingsCache = {
+  data: null,
+  timestamp: 0
+};
+const SETTINGS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Format date for user-friendly display (e.g., 27 Aug 2026)
  */
@@ -240,7 +247,16 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
 
   if (isDbConnected()) {
     try {
-      const dbSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+      const now = Date.now();
+      let dbSettings = settingsCache.data;
+      if (!dbSettings || now - settingsCache.timestamp > SETTINGS_CACHE_TTL) {
+        dbSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+        settingsCache = {
+          data: dbSettings,
+          timestamp: now
+        };
+      }
+
       if (dbSettings) {
         storeStandardShippingFee = Number(dbSettings.standardShippingFee ?? 0);
         storeFreeShippingThreshold = Number(dbSettings.freeShippingThreshold ?? 0);
