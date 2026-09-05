@@ -1495,7 +1495,7 @@ body {
 
 /* Fix Review Image Bottom */
 .review-img-bottom {
-    margin-top: 15px;
+    margin-top: auto;
     border-radius: 10px;
     overflow: hidden;
     height: 120px;
