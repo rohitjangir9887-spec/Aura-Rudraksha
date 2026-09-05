@@ -2,28 +2,31 @@
  * Centralized Route Constants & Helper Utilities for Aura Rudraksha
  */
 
-export function getSafeReturnPath(fromPath, defaultFallback = "/account") {
-  if (!fromPath || typeof fromPath !== "string") return defaultFallback;
-  const trimmed = fromPath.trim();
+export const getSafeReturnPath = (fromPath, defaultFallback = "/account") => {
+  if (!fromPath || typeof fromPath !== "string") {
+    return defaultFallback;
+  }
+
+  const trimmedPath = fromPath.trim();
 
   // Must start with '/' and NOT with '//' or '/\'
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//") || trimmed.startsWith("/\\")) {
+  if (!trimmedPath.startsWith("/") || trimmedPath.startsWith("//") || trimmedPath.startsWith("/\\")) {
     return defaultFallback;
   }
 
   // Reject malicious schemes (javascript:, data:, vbscript:)
-  if (/^(javascript|data|vbscript):/i.test(trimmed)) {
+  if (/^(javascript|data|vbscript):/i.test(trimmedPath)) {
     return defaultFallback;
   }
 
   // Prevent returning to login / admin login pages in a loop
-  const cleanPath = trimmed.toLowerCase();
+  const cleanPath = trimmedPath.toLowerCase();
   if (cleanPath.startsWith("/login") || cleanPath.startsWith("/admin/login")) {
     return defaultFallback;
   }
 
-  return trimmed;
-}
+  return trimmedPath;
+};
 
 export const routes = {
   home: () => "/",

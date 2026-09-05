@@ -689,14 +689,24 @@ body {
 /* FIX FEATURE BAR SWIPE - FORCE SINGLE ROW ON MOBILE */
 @media(max-width: 900px) {
     .feature-bar {
-        overflow-x: visible !important;
-        justify-content: space-between !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        justify-content: flex-start !important;
         padding: 15px 5px !important;
         width: 96% !important;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .feature-bar::-webkit-scrollbar {
+        display: none;
     }
     .feature-bar > div {
-        min-width: 0 !important;
-        flex: 1 !important;
+        min-width: 120px !important;
+        flex: 0 0 auto !important;
+        scroll-snap-align: start;
         padding: 0 !important;
         gap: 6px !important;
     }
@@ -723,7 +733,7 @@ body {
 .hero img {
     width: 100% !important;
     height: auto !important;
-    object-fit: contain !important;
+    object-fit: cover !important;
     display: block !important;
 }
 
@@ -1485,7 +1495,7 @@ body {
 
 /* Fix Review Image Bottom */
 .review-img-bottom {
-    margin-top: 15px;
+    margin-top: auto;
     border-radius: 10px;
     overflow: hidden;
     height: 120px;
@@ -1574,7 +1584,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-o
 }
 
 /* Fix Text Size for Selected Offer Heading */
-div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > h2:nth-of-type(1) {
+.popular-collection-section .section-heading h2, .home-deals-section .section-heading h2, .aura-home-hero-offer-section h2 {
     font-size: clamp(18px, 2.5vw, 25px) !important;
     word-break: break-word;
     line-height: 1.2;
