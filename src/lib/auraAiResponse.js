@@ -76,7 +76,7 @@ export function sanitizeCustomerText(raw) {
   if (!text) return "";
 
   // 1. Remove Code fences & JSON blobs
-  text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  text = text.replace(/```[\s\S]*?```/g, "");
 
   // 2. Filter any accidental admin email or internal route leakages
   text = text.replace(/rohitjangir\d*@gmail\.com/gi, "aurarudrakshaofficial@gmail.com");
