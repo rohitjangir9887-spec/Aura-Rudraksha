@@ -490,7 +490,7 @@ export async function handlePayuCallback(req, res) {
           })
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (updatedOrder) {
@@ -528,7 +528,7 @@ export async function handlePayuCallback(req, res) {
             const updatedProd = await Product.findOneAndUpdate(
               { id: item.id, stock: { $gte: qty } },
               { $inc: { stock: -qty } },
-              { new: true }
+              { returnDocument: "after" }
             );
             if (!updatedProd) {
               stockConflict = true;
@@ -733,7 +733,7 @@ export async function handlePayuWebhook(req, res) {
           })
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (updatedOrder) {
@@ -874,7 +874,7 @@ export async function verifyPaymentStatus(req, res, next) {
                 })
               }
             },
-            { new: true }
+            { returnDocument: "after" }
           );
 
           if (updatedOrder) {
@@ -1170,7 +1170,7 @@ export async function processPayuRefund(req, res, next) {
       {
         $set: { isRefunding: true }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!lockedOrder) {
