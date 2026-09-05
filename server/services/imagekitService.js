@@ -3,10 +3,20 @@ import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 
+// Global cache for ImageKit credentials to avoid DB lookups
+let cachedImagekitCredentials = null;
+let lastImagekitCacheTime = 0;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+
 /**
  * Get ImageKit credentials prioritizing env vars, with fallback to MongoDB STORE_SETTINGS
  */
 export async function getImagekitCredentials() {
+  const now = Date.now();
+  if (cachedImagekitCredentials && now - lastImagekitCacheTime < CACHE_TTL_MS) {
+    return cachedImagekitCredentials;
+  }
+
   let publicKey = (process.env.IMAGEKIT_PUBLIC_KEY || "").trim();
   let privateKey = (process.env.IMAGEKIT_PRIVATE_KEY || "").trim();
   let urlEndpoint = (process.env.IMAGEKIT_URL_ENDPOINT || "").trim();
@@ -33,7 +43,12 @@ export async function getImagekitCredentials() {
     urlEndpoint = urlEndpoint.slice(0, -1);
   }
 
-  return { publicKey, privateKey, urlEndpoint };
+  const result = { publicKey, privateKey, urlEndpoint };
+
+  cachedImagekitCredentials = result;
+  lastImagekitCacheTime = now;
+
+  return result;
 }
 
 /**
@@ -58,6 +73,10 @@ export async function saveImagekitCredentials({ publicKey, privateKey, urlEndpoi
     if (updateFields.imagekitPrivateKey !== undefined) inMemoryStore.settings.imagekitPrivateKey = updateFields.imagekitPrivateKey;
     if (updateFields.imagekitUrlEndpoint !== undefined) inMemoryStore.settings.imagekitUrlEndpoint = updateFields.imagekitUrlEndpoint;
   }
+
+  // Invalidate cache
+  cachedImagekitCredentials = null;
+  lastImagekitCacheTime = 0;
 
   return true;
 }
