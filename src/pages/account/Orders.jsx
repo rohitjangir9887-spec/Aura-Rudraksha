@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Shell } from "../../components/Shell";
-import { db } from "../../lib/db";
+import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
 import { 
   ChevronLeft, Package, CreditCard, ChevronRight, 
@@ -46,11 +46,12 @@ export function Orders() {
   useEffect(() => {
     const user = authClient.getUser();
     setCurrentUser(user);
-    const hasCache = (db.getCachedMyOrders() || []).length > 0;
+    const initialCached = db.getCachedMyOrders();
+    const hasCache = Array.isArray(initialCached) && initialCached.length > 0;
     loadOrders(user, hasCache);
 
     let lastUid = user?.uid || user?.authUserId || user?.email || null;
-    const unsubscribe = authClient.onAuthStateChanged((u) => {
+    const unsubscribeAuth = authClient.onAuthStateChanged((u) => {
       const currentUid = u?.uid || u?.authUserId || u?.email || null;
       if (currentUid !== lastUid) {
         lastUid = currentUid;
@@ -59,33 +60,47 @@ export function Orders() {
         loadOrders(u, hasCachedOrders);
       }
     });
-    return () => unsubscribe();
+
+    // Real-time store update listener for instant admin/checkout updates
+    const unsubscribeStore = onStoreUpdate(() => {
+      const currentU = authClient.getUser();
+      loadOrders(currentU, true);
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeStore();
+    };
   }, []);
 
   async function loadOrders(user = null, isBackground = false) {
-    if (!isBackground) {
+    const authUser = user || authClient.getUser();
+    if (!authUser || authUser.isAnonymous) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    const currentCached = db.getCachedMyOrders();
+    const hasCachedData = Array.isArray(currentCached) && currentCached.length > 0;
+
+    // Only show loading indicator if we don't have any cached orders yet
+    if (!isBackground && !hasCachedData && orders.length === 0) {
       setLoading(true);
     }
+
     setLoadError("");
     try {
-      const authUser = user || authClient.getUser();
-      if (!authUser || authUser.isAnonymous) {
-        // Not logged in - strictly 0 orders to show
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-
       const res = await db.getMyOrders();
       if (res?.success && Array.isArray(res.data)) {
         const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
         setOrders(sorted);
-      } else if (!isBackground) {
+      } else if (!isBackground && !hasCachedData) {
         setOrders([]);
       }
     } catch (err) {
       console.error("Error loading orders:", err);
-      if (!isBackground) setOrders([]);
+      if (!isBackground && !hasCachedData) setOrders([]);
     } finally {
       setLoading(false);
     }

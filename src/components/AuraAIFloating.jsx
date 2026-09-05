@@ -292,11 +292,10 @@ export function AuraAIFloating() {
   }, [isOpen, orderModalProduct, setIsOpen]);
 
   const path = location.pathname || "";
-  const hideOnRoute =
-    path.startsWith("/admin") ||
-    path === "/aura-ai";
+  // Show floating Aura AI trigger strictly on Home UI (hide on cart, checkout, shop, product, policies, admin, etc.)
+  const isHomePage = path === "/" || path === "";
 
-  if (settings.enabled === false || settings.showFloatingButton === false || hideOnRoute) {
+  if (settings.enabled === false || settings.showFloatingButton === false || !isHomePage) {
     return null;
   }
 

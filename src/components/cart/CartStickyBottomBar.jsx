@@ -15,16 +15,16 @@ export function CartStickyBottomBar({
       className="cart-mobile-sticky-bar"
       style={{
         position: "fixed",
-        bottom: 0,
+        bottom: "calc(56px + env(safe-area-inset-bottom, 0px))",
         left: 0,
         right: 0,
         background: "#ffffff",
         borderTop: "1.5px solid #ebd9c8",
-        padding: "10px 16px calc(10px + env(safe-area-inset-bottom, 0px))",
+        padding: "10px 16px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        zIndex: 10005,
+        zIndex: 10000,
         boxShadow: "0 -4px 20px rgba(43,23,13,0.09)",
         boxSizing: "border-box"
       }}

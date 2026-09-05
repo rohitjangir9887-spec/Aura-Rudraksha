@@ -292,26 +292,22 @@ export async function initiatePayuPayment(req, res, next) {
     // Save order in MongoDB
     await Order.create(orderPayload);
 
-    // Record Payment Transaction Ledger
-    try {
-      await PaymentTransaction.create({
-        transactionId: txnid,
-        orderId,
-        orderNumber: orderId,
-        authUserId,
-        provider: "payu",
-        amount: totals.finalTotal,
-        currency: "INR",
-        status: "PENDING",
-        initiatedAt: new Date(),
-        metadata: {
-          customerEmail: email,
-          customerName: firstname
-        }
-      });
-    } catch (txnErr) {
-      console.warn("Could not save PaymentTransaction record:", txnErr.message);
-    }
+    // Record Payment Transaction Ledger (non-blocking)
+    PaymentTransaction.create({
+      transactionId: txnid,
+      orderId,
+      orderNumber: orderId,
+      authUserId,
+      provider: "payu",
+      amount: totals.finalTotal,
+      currency: "INR",
+      status: "PENDING",
+      initiatedAt: new Date(),
+      metadata: {
+        customerEmail: email,
+        customerName: firstname
+      }
+    }).catch(txnErr => console.warn("Could not save PaymentTransaction record:", txnErr.message));
 
     // Authoritative Callback URLs for PayU
     const appBaseUrl = resolveAppBaseUrl(req);
@@ -525,26 +521,28 @@ export async function handlePayuCallback(req, res) {
         { new: false }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-        let stockConflict = false;
+        const bulkOps = [];
         for (const item of order.snapshotItems) {
           if (item.id) {
             const qty = Math.max(1, item.qty || item.quantity || 1);
-            const updatedProd = await Product.findOneAndUpdate(
-              { id: item.id, stock: { $gte: qty } },
-              { $inc: { stock: -qty } },
-              { new: true }
-            );
-            if (!updatedProd) {
-              stockConflict = true;
-              console.warn(`Stock conflict on product '${item.id}' for order '${orderId}'`);
-            }
+            bulkOps.push({
+              updateOne: {
+                filter: { id: item.id, stock: { $gte: qty } },
+                update: { $inc: { stock: -qty } }
+              }
+            });
           }
         }
-        if (stockConflict) {
-          await Order.updateOne(
-            { _id: order._id },
-            { $set: { notes: (order.notes ? order.notes + " | " : "") + "INVENTORY_CONFLICT: Stock was insufficient during payment completion" } }
-          );
+        if (bulkOps.length > 0) {
+          const bulkRes = await Product.bulkWrite(bulkOps);
+          const matchedCount = bulkRes?.matchedCount ?? bulkRes?.nMatched ?? 0;
+          if (matchedCount < bulkOps.length) {
+            console.warn(`Stock conflict on order '${orderId}': matched ${matchedCount} of ${bulkOps.length} items`);
+            await Order.updateOne(
+              { _id: order._id },
+              { $set: { notes: (order.notes ? order.notes + " | " : "") + "INVENTORY_CONFLICT: Stock was insufficient during payment completion" } }
+            );
+          }
         }
       }
 
@@ -748,11 +746,20 @@ export async function handlePayuWebhook(req, res) {
         { new: false }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+        const bulkOps = [];
         for (const item of order.snapshotItems) {
           if (item.id) {
             const qty = Math.max(1, item.qty || item.quantity || 1);
-            await Product.findOneAndUpdate({ id: item.id, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+            bulkOps.push({
+              updateOne: {
+                filter: { id: item.id, stock: { $gte: qty } },
+                update: { $inc: { stock: -qty } }
+              }
+            });
           }
+        }
+        if (bulkOps.length > 0) {
+          await Product.bulkWrite(bulkOps);
         }
       }
 
@@ -824,16 +831,17 @@ export async function verifyPaymentStatus(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // IDOR Security Check: Allow if authenticated user owns the order, OR admin,
-    // OR if client presents the matching PayU txnid generated for this order,
-    // OR if guest order.
+    // Strict Ownership Check:
+    // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
+    // Transaction ID alone is NOT an authorization credential.
+    // For guest orders, require a secure server-issued guestToken match.
+    const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const matchesTxnid = reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)));
-    const isGuestOrder = !order.authUserId || order.authUserId === "guest";
+    const isGuestOwner = (!order.authUserId || order.authUserId === "guest") && Boolean(order.guestToken) && reqGuestToken === order.guestToken;
 
-    if (!isAdmin && !isOwner && !matchesTxnid && !isGuestOrder) {
+    if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
@@ -878,11 +886,20 @@ export async function verifyPaymentStatus(req, res, next) {
               { new: false }
             );
             if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+              const bulkOps = [];
               for (const item of order.snapshotItems) {
                 if (item.id) {
                   const qty = Math.max(1, item.qty || item.quantity || 1);
-                  await Product.findOneAndUpdate({ id: item.id, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+                  bulkOps.push({
+                    updateOne: {
+                      filter: { id: item.id, stock: { $gte: qty } },
+                      update: { $inc: { stock: -qty } }
+                    }
+                  });
                 }
+              }
+              if (bulkOps.length > 0) {
+                await Product.bulkWrite(bulkOps);
               }
             }
 
@@ -951,14 +968,17 @@ export async function retryPayuPayment(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Check ownership: Authenticated owner, Admin, or matching transaction reference, or guest order
+    // Strict Ownership Check:
+    // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
+    // Transaction ID alone is NOT an authorization credential.
+    // For guest orders, require a secure server-issued guestToken match.
+    const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || req.body?.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const matchesTxnid = reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)));
-    const isGuestOrder = !order.authUserId || order.authUserId === "guest";
+    const isGuestOwner = (!order.authUserId || order.authUserId === "guest") && Boolean(order.guestToken) && reqGuestToken === order.guestToken;
 
-    if (!isAdmin && !isOwner && !matchesTxnid && !isGuestOrder) {
+    if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
@@ -972,15 +992,20 @@ export async function retryPayuPayment(req, res, next) {
 
     // Verify item stock availability before allowing retry payment
     if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
-      for (const item of order.snapshotItems) {
-        if (item.id) {
-          const product = await Product.findOne({ id: item.id });
-          const qty = Math.max(1, item.qty || item.quantity || 1);
-          if (product && product.stock !== undefined && product.stock < qty) {
-            return res.status(400).json({
-              success: false,
-              message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
-            });
+      const itemIds = order.snapshotItems.map(i => i.id).filter(Boolean);
+      if (itemIds.length > 0) {
+        const dbProducts = await Product.find({ id: { $in: itemIds } }).lean();
+        const productMap = new Map(dbProducts.map(p => [p.id, p]));
+        for (const item of order.snapshotItems) {
+          if (item.id) {
+            const product = productMap.get(item.id);
+            const qty = Math.max(1, item.qty || item.quantity || 1);
+            if (product && product.stock !== undefined && product.stock < qty) {
+              return res.status(400).json({
+                success: false,
+                message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
+              });
+            }
           }
         }
       }
@@ -1201,11 +1226,20 @@ export async function processPayuRefund(req, res, next) {
 
     // Restock inventory only on full refund
     if (isFullRefund && order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+      const bulkOps = [];
       for (const item of order.snapshotItems) {
         if (item.id) {
           const qty = Math.max(1, item.qty || item.quantity || 1);
-          await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: qty } });
+          bulkOps.push({
+            updateOne: {
+              filter: { id: item.id },
+              update: { $inc: { stock: qty } }
+            }
+          });
         }
+      }
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
       }
       order.inventoryDeducted = false;
     }
@@ -1316,11 +1350,20 @@ export async function cancelUnpaidOrder(req, res, next) {
 
     // If stock was somehow deducted earlier, restore it
     if (order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
+      const bulkOps = [];
       for (const item of order.snapshotItems) {
         if (item.id) {
           const qty = Math.max(1, item.qty || item.quantity || 1);
-          await Product.findOneAndUpdate({ id: item.id }, { $inc: { stock: qty } });
+          bulkOps.push({
+            updateOne: {
+              filter: { id: item.id },
+              update: { $inc: { stock: qty } }
+            }
+          });
         }
+      }
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
       }
       order.inventoryDeducted = false;
     }

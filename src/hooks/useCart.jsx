@@ -49,13 +49,8 @@ function readStoredCart(user) {
 }
 
 function readStoredCoupon(user) {
-  try {
-    const key = getUserCouponStorageKey(user);
-    const raw = localStorage.getItem(key);
-    return raw ? String(raw).trim().toUpperCase() : "";
-  } catch {
-    return "";
-  }
+  // Do not auto-apply coupons on load; coupons should only be applied when user explicitly applies them
+  return "";
 }
 
 const defaultTotals = {

@@ -212,17 +212,17 @@ export async function updateCustomer(req, res, next) {
 export async function getCustomerMe(req, res, next) {
   try {
     const authUserId = req.user.authUserId;
-    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com"];
+    const allowedEmails = [];
     if (process.env.INITIAL_ADMIN_EMAIL) {
       allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
     }
-    const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "+919672996531").trim();
+    const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "").trim();
     const userEmail = (req.user.email || "").trim().toLowerCase();
     const cleanUserPhone = (req.user.phone || "").replace(/[^0-9]/g, "");
     const cleanAdminPhone = initialAdminPhone.replace(/[^0-9]/g, "");
     const isInitialAdmin = Boolean(
-      (userEmail && allowedEmails.includes(userEmail)) ||
-      (cleanUserPhone && (cleanUserPhone === cleanAdminPhone || cleanUserPhone.endsWith("9672996531")))
+      (userEmail && allowedEmails.length > 0 && allowedEmails.includes(userEmail)) ||
+      (cleanUserPhone && cleanAdminPhone && cleanUserPhone === cleanAdminPhone)
     );
     const now = new Date().toISOString();
 
