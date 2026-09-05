@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Package, 
-  Tag, 
   ShieldCheck, 
-  CheckCircle2, 
   X, 
-  ChevronRight, 
-  CreditCard, 
-  Truck, 
   Sparkles, 
-  MapPin, 
-  User, 
-  Phone, 
-  Plus, 
-  Minus,
   AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
-import { emitToast } from "../context/ToastContext";
+import { ProductDetails } from "./aura-ai-order-modal/ProductDetails";
+import { CouponSection } from "./aura-ai-order-modal/CouponSection";
+import { DeliveryForm } from "./aura-ai-order-modal/DeliveryForm";
+import { PaymentMethod } from "./aura-ai-order-modal/PaymentMethod";
+import { OrderSummary } from "./aura-ai-order-modal/OrderSummary";
+import { SuccessView } from "./aura-ai-order-modal/SuccessView";
 
 export function AuraAIChatOrderModal({ 
   product, 
@@ -32,7 +26,7 @@ export function AuraAIChatOrderModal({
   const [couponCode, setCouponCode] = useState(prefilledCoupon || "");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("PAYU"); // "PAYU" (UPI, Cards, NetBanking)
+  const [paymentMethod, setPaymentMethod] = useState("PAYU");
   
   // Delivery details
   const [name, setName] = useState("");
@@ -66,7 +60,6 @@ export function AuraAIChatOrderModal({
     if (u) {
       if (u.displayName) setName(u.displayName);
       if (u.email && !phone) {
-        // try to fetch profile phone
         db.getCustomerMe().then(res => {
           if (res?.success && res.data) {
             if (res.data.name) setName(res.data.name);
@@ -257,7 +250,6 @@ export function AuraAIChatOrderModal({
       }
     } catch (err) {
       console.error("Aura AI Chat Order Payment Error:", err);
-      // If initiation fails, gracefully route to standard checkout
       window.location.href = "/checkout?buyNow=1";
     } finally {
       setSubmitting(false);
@@ -293,248 +285,61 @@ export function AuraAIChatOrderModal({
           {/* Body */}
           <div className="aura-ai-order-modal-body">
             {orderComplete ? (
-              <div className="aura-ai-order-success-view">
-                <div className="aura-ai-order-success-icon">
-                  <CheckCircle2 size={44} />
-                </div>
-                <h3>Order Confirmed with Blessings! 🙏</h3>
-                <p className="aura-ai-order-id-tag">
-                  Order ID: <b>#{orderComplete.id || orderComplete.orderId}</b>
-                </p>
-                <div className="aura-ai-order-success-box">
-                  <div className="aura-ai-order-success-item">
-                    <span>Item:</span>
-                    <strong>{product.name} (x{qty})</strong>
-                  </div>
-                  <div className="aura-ai-order-success-item">
-                    <span>Total Amount:</span>
-                    <strong className="aura-ai-gold-text">₹{finalAmount.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div className="aura-ai-order-success-item">
-                    <span>Payment:</span>
-                    <span>PayU Hosted (UPI / Cards / NetBanking)</span>
-                  </div>
-                  <div className="aura-ai-order-success-item">
-                    <span>Delivery to:</span>
-                    <span>{address}, {city} - {pincode}</span>
-                  </div>
-                </div>
-
-                <div className="aura-ai-order-badge-row">
-                  <span><ShieldCheck size={12} /> Lab Certified</span>
-                  <span><Sparkles size={12} /> Vedic Energized</span>
-                  <span><Truck size={12} /> Dispatches in 24h</span>
-                </div>
-
-                <button 
-                  onClick={onClose} 
-                  className="aura-ai-order-btn-primary"
-                  style={{ marginTop: 14 }}
-                >
-                  Continue Chatting with Aura AI
-                </button>
-              </div>
+              <SuccessView
+                orderComplete={orderComplete}
+                product={product}
+                qty={qty}
+                finalAmount={finalAmount}
+                address={address}
+                city={city}
+                pincode={pincode}
+                onClose={onClose}
+              />
             ) : (
-              <form onSubmit={handlePlaceOrder}>
-                {/* Product Summary Row */}
-                <div className="aura-ai-order-prod-row">
-                  <div className="aura-ai-order-prod-thumb">
-                    <img 
-                      src={product.image || product.img || product.images?.[0] || "/images/product-5mukhi.jpg"} 
-                      alt={product.name} 
-                      loading="lazy"
-                      decoding="async"
-                      onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
-                    />
-                  </div>
-                  <div className="aura-ai-order-prod-meta">
-                    <h4>{product.name}</h4>
-                    <div className="aura-ai-order-prod-price-line">
-                      <span className="aura-ai-order-cur-price">₹{unitPrice.toLocaleString('en-IN')}</span>
-                      {unitMrp > unitPrice && (
-                        <span className="aura-ai-order-mrp-price">₹{unitMrp.toLocaleString('en-IN')}</span>
-                      )}
-                      <span className="aura-ai-order-free-ship">Free Sacred Packaging</span>
-                    </div>
-                  </div>
+              <form onSubmit={handlePlaceOrder} className="aura-ai-order-form">
 
-                  {/* Qty Stepper */}
-                  <div className="aura-ai-order-qty-stepper">
-                    <button 
-                      type="button" 
-                      onClick={() => setQty(Math.max(1, qty - 1))}
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus size={12} />
-                    </button>
-                    <span>{qty}</span>
-                    <button 
-                      type="button" 
-                      onClick={() => setQty(Math.min(10, qty + 1))}
-                      aria-label="Increase quantity"
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                </div>
+                {/* Product Summary Row */}
+                <ProductDetails
+                  product={product}
+                  unitPrice={unitPrice}
+                  unitMrp={unitMrp}
+                  qty={qty}
+                  setQty={setQty}
+                />
 
                 {/* Coupons Section */}
-                <div className="aura-ai-order-section">
-                  <div className="aura-ai-order-coupon-wrap">
-                    <div className="aura-ai-order-coupon-input">
-                      <Tag size={14} className="aura-ai-order-tag" />
-                      <input 
-                        type="text" 
-                        placeholder="Have a coupon code?" 
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => applyCoupon(couponCode)}
-                        className="aura-ai-order-apply-btn"
-                      >
-                        {appliedCoupon ? "Update" : "Apply"}
-                      </button>
-                    </div>
-
-                    {appliedCoupon && (
-                      <div className="aura-ai-order-applied-chip">
-                        <span>✓ <b>{appliedCoupon.code}</b> applied (-₹{discountAmount})</span>
-                        <button type="button" onClick={() => { setAppliedCoupon(null); setCouponCode(""); }}>
-                          <X size={12} />
-                        </button>
-                      </div>
-                    )}
-                    {couponError && (
-                      <div className="aura-ai-order-coupon-err">
-                        <AlertCircle size={12} /> {couponError}
-                      </div>
-                    )}
-
-                    {/* Quick coupon suggestions if none applied */}
-                    {!appliedCoupon && availableCoupons.length > 0 && (
-                      <div className="aura-ai-order-quick-coupons">
-                        <span className="aura-ai-order-suggest-label">Suggestions:</span>
-                        {availableCoupons.slice(0, 2).map((c, ci) => (
-                          <button 
-                            key={ci}
-                            type="button"
-                            onClick={() => applyCoupon(c.code)}
-                            className="aura-ai-order-coupon-chip"
-                          >
-                            {c.code} ({c.type === "percentage" ? `${c.discount}% OFF` : `₹${c.discount} OFF`})
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <CouponSection
+                  couponCode={couponCode}
+                  setCouponCode={setCouponCode}
+                  applyCoupon={applyCoupon}
+                  appliedCoupon={appliedCoupon}
+                  setAppliedCoupon={setAppliedCoupon}
+                  discountAmount={discountAmount}
+                  couponError={couponError}
+                  availableCoupons={availableCoupons}
+                />
 
                 {/* Delivery Information */}
-                <div className="aura-ai-order-section">
-                  <div className="aura-ai-order-section-title">
-                    <MapPin size={13} /> Delivery Details
-                  </div>
-                  <div className="aura-ai-order-grid-2">
-                    <div className="aura-ai-order-field">
-                      <input 
-                        type="text" 
-                        required 
-                        placeholder="Full Name *" 
-                        value={name} 
-                        onChange={(e) => setName(e.target.value)} 
-                      />
-                    </div>
-                    <div className="aura-ai-order-field">
-                      <input 
-                        type="tel" 
-                        required 
-                        placeholder="10-digit Mobile *" 
-                        value={phone} 
-                        onChange={(e) => setPhone(e.target.value)} 
-                      />
-                    </div>
-                  </div>
-                  <div className="aura-ai-order-field" style={{ marginTop: 6 }}>
-                    <input 
-                      type="text" 
-                      required 
-                      placeholder="House / Flat / Street Address *" 
-                      value={address} 
-                      onChange={(e) => setAddress(e.target.value)} 
-                    />
-                  </div>
-                  <div className="aura-ai-order-grid-2" style={{ marginTop: 6 }}>
-                    <div className="aura-ai-order-field">
-                      <input 
-                        type="text" 
-                        placeholder="City / Town" 
-                        value={city} 
-                        onChange={(e) => setCity(e.target.value)} 
-                      />
-                    </div>
-                    <div className="aura-ai-order-field">
-                      <input 
-                        type="text" 
-                        required 
-                        placeholder="PIN Code *" 
-                        value={pincode} 
-                        onChange={(e) => setPincode(e.target.value)} 
-                      />
-                    </div>
-                  </div>
-                </div>
+                <DeliveryForm
+                  name={name} setName={setName}
+                  phone={phone} setPhone={setPhone}
+                  address={address} setAddress={setAddress}
+                  city={city} setCity={setCity}
+                  pincode={pincode} setPincode={setPincode}
+                />
 
                 {/* Payment Method */}
-                <div className="aura-ai-order-section">
-                  <div className="aura-ai-order-section-title">
-                    <CreditCard size={13} /> Secure Payment Gateway
-                  </div>
-                  <div style={{
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    border: "1.5px solid #d4a373",
-                    background: "#fff9f2",
-                    fontSize: "12px",
-                    color: "#4a3528"
-                  }}>
-                    <div style={{ fontWeight: "700", color: "#2b170d", display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                      <ShieldCheck size={14} color="#166534" /> PayU Hosted Checkout (UPI / Cards / NetBanking)
-                    </div>
-                    <div style={{ fontSize: "11px", color: "#7c3114" }}>
-                      Instant confirmation via GPay, PhonePe, Paytm, RuPay, Visa, Net Banking.
-                    </div>
-                  </div>
-                </div>
+                <PaymentMethod />
 
                 {/* Price Breakdown */}
-                <div className="aura-ai-order-summary-box">
-                  <div className="aura-ai-order-summary-row">
-                    <span>Item Total ({qty} item{qty > 1 ? "s" : ""})</span>
-                    <span>₹{subtotal.toLocaleString('en-IN')}</span>
-                  </div>
-                  {mrpSavings > 0 && (
-                    <div className="aura-ai-order-summary-row aura-ai-green">
-                      <span>MRP Savings</span>
-                      <span>-₹{mrpSavings.toLocaleString('en-IN')}</span>
-                    </div>
-                  )}
-                  {discountAmount > 0 && (
-                    <div className="aura-ai-order-summary-row aura-ai-green">
-                      <span>Coupon Discount ({appliedCoupon?.code})</span>
-                      <span>-₹{discountAmount.toLocaleString('en-IN')}</span>
-                    </div>
-                  )}
-                  <div className="aura-ai-order-summary-row">
-                    <span>Sacred Packaging & Energization</span>
-                    <span className="aura-ai-green">FREE</span>
-                  </div>
-                  <div className="aura-ai-order-summary-total">
-                    <span>To Pay</span>
-                    <strong>₹{finalAmount.toLocaleString('en-IN')}</strong>
-                  </div>
-                </div>
+                <OrderSummary
+                  qty={qty}
+                  subtotal={subtotal}
+                  mrpSavings={mrpSavings}
+                  discountAmount={discountAmount}
+                  appliedCoupon={appliedCoupon}
+                  finalAmount={finalAmount}
+                />
 
                 {errorMsg && (
                   <div className="aura-ai-order-error-banner">
