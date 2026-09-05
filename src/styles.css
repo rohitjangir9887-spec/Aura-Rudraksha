@@ -10389,8 +10389,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-floating-btn-wrap {
   position: fixed;
   bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  right: 16px;
-  left: auto;
+  left: 16px;
+  right: auto;
   z-index: 9990;
   display: flex;
   align-items: center;
@@ -10404,8 +10404,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (min-width: 1024px) {
   .aura-ai-floating-btn-wrap {
     bottom: 24px;
-    right: 24px;
-    left: auto;
+    left: 24px;
+    right: auto;
   }
 }
 
@@ -10455,8 +10455,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-dismissed-toast {
   position: fixed;
   bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  right: 16px;
-  left: auto;
+  left: 16px;
+  right: auto;
   z-index: 9995;
   background: rgba(31, 15, 6, 0.94);
   backdrop-filter: blur(8px);
@@ -10517,8 +10517,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (min-width: 1024px) {
   .aura-ai-dismissed-toast {
     bottom: 24px;
-    right: 24px;
-    left: auto;
+    left: 24px;
+    right: auto;
   }
 }
 
@@ -16213,10 +16213,11 @@ button:active, .primary-btn:active, .outline-btn:active {
 @media (max-width: 899px) {
   .cart-mobile-sticky-bar {
     display: flex !important;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   #aura-cart-page {
-    padding-bottom: 90px !important;
+    padding-bottom: 150px !important;
   }
 }
 

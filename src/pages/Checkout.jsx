@@ -901,12 +901,6 @@ export function Checkout() {
           boxSizing: "border-box"
         }}
       >
-        {/* Top Active Promotional Offer with Countdown & Click-to-Apply */}
-        <CheckoutTopOffer 
-          activeOffer={activeOffer} 
-          onApplyCoupon={handleApplyCoupon} 
-        />
-
         {/* Top Header & Navigation Actions */}
         <motion.div 
           className="checkout-header-actions"

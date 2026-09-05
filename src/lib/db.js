@@ -1,5 +1,6 @@
 import { products as defaultProducts } from "../data/index.js";
 import { authClient } from "./authClient.js";
+import { preloadImages } from "./imageUtils.js";
 
 // Event Broadcasters for real-time React UI updates
 export const emitStoreUpdate = (type, payload) => {
@@ -392,6 +393,7 @@ export async function revalidateProducts(force = false) {
         }));
 
         storeCache.products = normalized;
+        preloadImages(normalized);
         lastProductFetchTime = Date.now();
         try {
           localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
@@ -854,6 +856,7 @@ export const db = {
     const user = authClient.getUser();
     if (!user || user.isAnonymous) return [];
     if (Array.isArray(storeCache.myOrders) && storeCache.myOrders.length > 0) return storeCache.myOrders;
+    
     const cacheKey = db.getUserScopedKey("aura_cached_my_orders");
     if (cacheKey && typeof window !== "undefined") {
       try {
@@ -862,11 +865,52 @@ export const db = {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
             storeCache.myOrders = parsed;
+            preloadImages(parsed);
             return parsed;
           }
         }
       } catch (_) {}
     }
+
+    const userEmail = (user.email || "").trim().toLowerCase();
+    if (userEmail) {
+      if (Array.isArray(storeCache.orders) && storeCache.orders.length > 0) {
+        const matched = storeCache.orders.filter(o =>
+          (o.customerEmail || "").toLowerCase() === userEmail ||
+          (o.email || "").toLowerCase() === userEmail ||
+          (o.shippingAddress?.email || "").toLowerCase() === userEmail ||
+          (o.userEmail || "").toLowerCase() === userEmail
+        );
+        if (matched.length > 0) {
+          storeCache.myOrders = matched;
+          preloadImages(matched);
+          return matched;
+        }
+      }
+
+      if (typeof window !== "undefined") {
+        try {
+          const rawAll = localStorage.getItem("aura_orders_cache");
+          if (rawAll) {
+            const parsedAll = JSON.parse(rawAll);
+            if (Array.isArray(parsedAll)) {
+              const matched = parsedAll.filter(o =>
+                (o.customerEmail || "").toLowerCase() === userEmail ||
+                (o.email || "").toLowerCase() === userEmail ||
+                (o.shippingAddress?.email || "").toLowerCase() === userEmail ||
+                (o.userEmail || "").toLowerCase() === userEmail
+              );
+              if (matched.length > 0) {
+                storeCache.myOrders = matched;
+                preloadImages(matched);
+                return matched;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     return [];
   },
 
@@ -887,8 +931,12 @@ export const db = {
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
         if (cacheKey && typeof window !== "undefined") {
-          try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch (_) {}
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(res.data));
+            localStorage.setItem(`${cacheKey}_time`, String(Date.now()));
+          } catch (_) {}
         }
+        preloadImages(res.data);
         return res;
       }
     } catch (_) {}
@@ -906,6 +954,7 @@ export const db = {
         (o.userEmail || "").toLowerCase() === userEmail
       );
     }
+    preloadImages(userOrders);
     return { success: true, data: userOrders };
   },
 
@@ -1025,8 +1074,21 @@ export const db = {
     } else {
       storeCache.orders.unshift(savedData);
     }
+
+    if (!Array.isArray(storeCache.myOrders)) storeCache.myOrders = [];
+    const myIdx = storeCache.myOrders.findIndex(x => String(x.id) === String(id));
+    if (myIdx >= 0) {
+      storeCache.myOrders[myIdx] = { ...storeCache.myOrders[myIdx], ...savedData };
+    } else {
+      storeCache.myOrders.unshift(savedData);
+    }
+
     try {
       localStorage.setItem("aura_orders_cache", JSON.stringify(storeCache.orders.slice(0, 50)));
+      const myCacheKey = db.getUserScopedKey("aura_cached_my_orders");
+      if (myCacheKey && typeof window !== "undefined") {
+        localStorage.setItem(myCacheKey, JSON.stringify(storeCache.myOrders.slice(0, 50)));
+      }
     } catch (_) {}
     emitStoreUpdate("order:saved", savedData);
     return savedData;
