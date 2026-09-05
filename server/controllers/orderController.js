@@ -179,8 +179,12 @@ export async function createOrder(req, res, next) {
 
     // Check stock for all items
     if (isDbConnected()) {
+      const itemIds = totals.items.map(item => item.id);
+      const dbProducts = await Product.find({ id: { $in: itemIds } });
+      const productMap = new Map(dbProducts.map(p => [String(p.id), p]));
+
       for (const item of totals.items) {
-        const product = await Product.findOne({ id: item.id });
+        const product = productMap.get(String(item.id));
         const pStatus = (product?.status || "Published").toLowerCase();
         if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
           recentOrderSubmissions.delete(submissionKey);
