@@ -25,7 +25,7 @@ import {
 import { Shell } from "../../components/Shell";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { motion } from "framer-motion";
-import { db } from "../../lib/db";
+import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
 import { useWishlist } from "../../hooks/useWishlist";
 import { emitToast } from "../../context/ToastContext";
@@ -73,7 +73,7 @@ export function Account() {
     const initialUser = authClient.getUser();
     if (!initialUser || initialUser.isAnonymous) return false;
     const cachedProfile = db.getCachedCustomerMe();
-    return !cachedProfile;
+    return !(cachedProfile && (cachedProfile.name || cachedProfile.email || cachedProfile.joined));
   });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -114,15 +114,25 @@ export function Account() {
             : (googleName || meRes.data.name || "");
           const resolvedAvatar = meRes.data.avatar || googleAvatar || "";
 
-          setProfile({
+          const updatedProfile = {
             ...meRes.data,
             name: resolvedName,
             avatar: resolvedAvatar
-          });
+          };
+          setProfile(updatedProfile);
           setUserEmail(meRes.data.email || u?.email || "");
           if (Array.isArray(meRes.data.addresses)) {
             setAddressesCount(meRes.data.addresses.length);
           }
+
+          // Cache with 5-hour TTL timestamp
+          try {
+            const cacheKey = db.getUserScopedKey("aura_cached_me");
+            if (cacheKey && typeof window !== "undefined") {
+              localStorage.setItem(cacheKey, JSON.stringify(updatedProfile));
+              localStorage.setItem(`${cacheKey}_ttl`, String(Date.now() + 5 * 60 * 60 * 1000));
+            }
+          } catch (_) {}
         } else if (u?.email) {
           setUserEmail(u.email);
           setProfile({
@@ -156,7 +166,7 @@ export function Account() {
     }
 
     let lastUid = initialUser?.uid || initialUser?.authUserId || initialUser?.email || null;
-    const unsubscribe = authClient.onAuthStateChanged((u) => {
+    const unsubscribeAuth = authClient.onAuthStateChanged((u) => {
       const currentUid = u?.uid || u?.authUserId || u?.email || null;
       if (currentUid !== lastUid) {
         lastUid = currentUid;
@@ -173,7 +183,18 @@ export function Account() {
       }
     });
 
-    return () => unsubscribe();
+    // Listen to real-time admin changes & background updates
+    const unsubscribeStore = onStoreUpdate(() => {
+      const currentU = authClient.getUser();
+      if (currentU && !currentU.isAnonymous) {
+        loadAccountData(currentU);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeStore();
+    };
   }, []);
 
   // Determine provider name

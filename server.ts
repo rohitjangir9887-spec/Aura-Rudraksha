@@ -25,8 +25,11 @@ async function startServer() {
     app.use("/api", (req, res) => {
       res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
     });
-    // SPA fallback for all non-API GETs
-    app.get(/^\/.*/, (req, res) => {
+    // SPA fallback for all non-API requests (handles GET, POST, HEAD, etc.)
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

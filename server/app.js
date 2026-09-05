@@ -238,15 +238,15 @@ export function createApp() {
   app.all(["/payu-callback", "/payment/callback", "/checkout/callback", "/api/payment/payu-callback"], requireDb, handlePayuCallback);
 
   // Prevent HTTP 405 Method Not Allowed when PayU or external gateways POST directly to SPA client routes
-  app.all(["/checkout", /^\/checkout\/.*/, "/account/orders", /^\/account\/orders\/.*/], (req, res, next) => {
-    if (req.method === "POST" || req.method === "PUT") {
-      // If POST contains PayU callback parameters, handle payment callback authoritatively
-      if (req.body && (req.body.mihpayid || req.body.txnid || req.body.status || req.body.hash || req.body.udf1)) {
-        return handlePayuCallback(req, res);
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api")) {
+      if (req.method === "POST" || req.method === "PUT") {
+        if (req.body && (req.body.mihpayid || req.body.txnid || req.body.status || req.body.hash || req.body.udf1 || req.body.amount || req.body.key)) {
+          return handlePayuCallback(req, res);
+        }
+        const targetUrl = req.originalUrl || req.url || "/checkout";
+        return res.redirect(303, targetUrl);
       }
-      // Otherwise convert POST to clean 303 See Other GET redirect
-      const targetUrl = req.originalUrl || req.url || "/checkout";
-      return res.redirect(303, targetUrl);
     }
     next();
   });

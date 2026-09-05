@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
@@ -38,6 +38,7 @@ import { CheckoutStickyFooter } from "../components/checkout/CheckoutStickyFoote
 import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
 import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
+import { PayuRedirectModal } from "../components/checkout/PayuRedirectModal";
 
 export function Checkout() {
   const [searchParams] = useSearchParams();
@@ -89,6 +90,7 @@ export function Checkout() {
     phone: "",
     email: "",
     address: "",
+    locality: "",
     pincode: "",
     city: "",
     state: ""
@@ -111,6 +113,12 @@ export function Checkout() {
   const [verificationError, setVerificationError] = useState("");
   const [isUserDataLoading, setIsUserDataLoading] = useState(() => Boolean(authClient.getUser() && !authClient.getUser().isAnonymous));
   const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || {});
+
+  // PayU Redirect Modal State
+  const [payuModalOpen, setPayuModalOpen] = useState(false);
+  const [payuTimeout, setPayuTimeout] = useState(false);
+  const [payuError, setPayuError] = useState(null);
+  const isRedirectingRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -190,7 +198,7 @@ export function Checkout() {
   const totalMrp = effectiveTotals.totalMrp;
   const productSavings = effectiveTotals.productSavings;
   const couponDiscount = effectiveTotals.couponDiscount;
-  const shippingFee = effectiveTotals.shipping;
+  const shippingFee = subtotal === 0 ? 0 : effectiveTotals.shipping;
   const finalTotal = effectiveTotals.finalTotal;
   const totalSavings = effectiveTotals.totalSavings;
 
@@ -212,6 +220,7 @@ export function Checkout() {
     };
 
     const handleBeforeUnload = (e) => {
+      if (isRedirectingRef.current) return;
       e.preventDefault();
       e.returnValue = "Your payment is in progress. Are you sure you want to leave?";
       return e.returnValue;
@@ -230,15 +239,25 @@ export function Checkout() {
     setShowLeaveModal(true);
   };
 
-  // Handle Return from PayU Success (Authoritatively verified server-side)
+  // Handle Return from PayU Success (Authoritatively verified server-side with strict timeout)
   const verifyOrderPayment = useCallback(async () => {
     if (!successParam) return;
     setVerifyingPayment(true);
     setVerificationError("");
+
+    let timeoutFired = false;
+    const timeoutId = setTimeout(() => {
+      timeoutFired = true;
+      setVerifyingPayment(false);
+      setVerificationError("Verification timed out. If money was deducted, your payment will automatically sync shortly or you can check your order status.");
+    }, 12000);
+
     try {
       // Live server-to-server check with PayU
       const res = await db.verifyPayment(successParam, txnidParam);
-      if (res?.success && res.data && res.data.paymentStatus === "Paid") {
+      if (timeoutFired) return;
+
+      if (res?.success && res.data && (res.data.paymentStatus === "Paid" || res.data.status === "Confirmed" || res.data.orderStatus === "Confirmed")) {
         setConfirmedOrder(res.data);
         if (buyNowLines) {
           try { sessionStorage.removeItem("aura_buy_now_intent"); } catch (_) {}
@@ -251,9 +270,14 @@ export function Checkout() {
         setVerificationError(res?.message || "Payment could not be verified by the server. If money was deducted, our automated reconciliation will confirm your order or refund it.");
       }
     } catch (err) {
-      setVerificationError(err.message || "Failed to verify order payment status with server.");
+      if (!timeoutFired) {
+        setVerificationError(err.message || "Failed to verify order payment status with server.");
+      }
     } finally {
-      setVerifyingPayment(false);
+      clearTimeout(timeoutId);
+      if (!timeoutFired) {
+        setVerifyingPayment(false);
+      }
     }
   }, [successParam, txnidParam, clear, buyNowLines]);
 
@@ -465,6 +489,7 @@ export function Checkout() {
 
   // Helper to submit standard POST form to PayU Hosted Checkout URL
   const postToPayuGateway = (paymentUrl, params) => {
+    isRedirectingRef.current = true;
     const form = document.createElement("form");
     form.method = "POST";
     form.action = paymentUrl;
@@ -485,8 +510,15 @@ export function Checkout() {
   // Live PayU Hosted Checkout Submission Flow
   const executeOrderSubmission = async () => {
     setLoading(true);
+    setPayuModalOpen(true);
+    setPayuTimeout(false);
+    setPayuError(null);
 
-    const { firstName, lastName, phone, email, address, pincode, city, state } = formData;
+    const timeoutTimer = setTimeout(() => {
+      setPayuTimeout(true);
+    }, 15000);
+
+    const { firstName, lastName, phone, email, address, locality, pincode, city, state } = formData;
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPhone = phone.trim();
 
@@ -496,6 +528,7 @@ export function Checkout() {
       phone: cleanPhone,
       email: cleanEmail,
       address: address.trim(),
+      locality: (locality || "").trim(),
       pincode: pincode.trim(),
       city: city.trim(),
       state: state.trim()
@@ -548,22 +581,29 @@ export function Checkout() {
 
     try {
       const res = await db.initiatePayment(paymentPayload);
+      clearTimeout(timeoutTimer);
+
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        emitToast("Redirecting to PayU Secure Gateway...", "info");
-        // Automatically submit hidden form to PayU Hosted Checkout
+        // Automatically and immediately redirect to PayU
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not initialize PayU payment gateway");
       }
     } catch (err) {
+      clearTimeout(timeoutTimer);
+      setPayuError(err.message || "Payment gateway connection failed. Please verify your details and try again.");
       setLoading(false);
-      emitToast(err.message || "Payment initiation failed. Please verify your details and retry.", "error");
     }
   };
 
   const handlePlaceOrder = async (e) => {
     if (e) e.preventDefault();
     if (loading) return;
+
+    if (effectiveLines.length === 0 || subtotal === 0) {
+      emitToast("Your cart is empty.", "warning");
+      return;
+    }
 
     if (!validateForm()) {
       emitToast("Please fill in all required shipping details correctly.", "warning");
@@ -595,17 +635,27 @@ export function Checkout() {
   // Retry Payment on failed order
   const handleRetryPayment = async (orderId) => {
     setRetrying(true);
+    setPayuModalOpen(true);
+    setPayuTimeout(false);
+    setPayuError(null);
+
+    const timeoutTimer = setTimeout(() => {
+      setPayuTimeout(true);
+    }, 15000);
+
     try {
       const res = await db.retryPayment(orderId, txnidParam);
+      clearTimeout(timeoutTimer);
+
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        emitToast("Connecting to PayU for payment retry...", "info");
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not generate retry payment attempt");
       }
     } catch (err) {
+      clearTimeout(timeoutTimer);
+      setPayuError(err.message || "Failed to retry payment. Please try again or create a fresh order.");
       setRetrying(false);
-      emitToast(err.message || "Failed to retry payment. Please try again or create a fresh order.", "error");
     }
   };
 
@@ -886,12 +936,6 @@ export function Checkout() {
           boxSizing: "border-box"
         }}
       >
-        {/* Top Active Promotional Offer with Countdown & Click-to-Apply */}
-        <CheckoutTopOffer 
-          activeOffer={activeOffer} 
-          onApplyCoupon={handleApplyCoupon} 
-        />
-
         {/* Top Header & Navigation Actions */}
         <motion.div 
           className="checkout-header-actions"
@@ -1000,7 +1044,7 @@ export function Checkout() {
             finalTotal={finalTotal}
             loading={loading}
             onPayNow={handlePlaceOrder}
-            disabled={effectiveLines.length === 0}
+            disabled={effectiveLines.length === 0 || subtotal === 0}
             totalSavings={totalSavings}
           />
         </div>
@@ -1032,61 +1076,21 @@ export function Checkout() {
         />
 
         {/* Full-Screen PayU Gateway Transition Loading Overlay */}
-        <AnimatePresence>
-          {loading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 20000,
-                background: "rgba(18, 10, 6, 0.88)",
-                backdropFilter: "blur(6px)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "24px",
-                color: "#fff",
-                textAlign: "center"
-              }}
-            >
-              <div style={{
-                background: "#2b170d",
-                border: "1px solid #7a320c",
-                borderRadius: "20px",
-                padding: "32px 28px",
-                maxWidth: "420px",
-                width: "100%",
-                boxShadow: "0 20px 40px rgba(0,0,0,0.5)"
-              }}>
-                <div style={{
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "50%",
-                  background: "#7a320c",
-                  display: "grid",
-                  placeItems: "center",
-                  margin: "0 auto 20px",
-                  color: "#fbf5ef"
-                }}>
-                  <Loader2 size={32} className="spin" />
-                </div>
-                <h3 style={{ fontSize: "19px", color: "#fbf5ef", marginBottom: "8px", fontFamily: "Cormorant Garamond, serif" }}>
-                  Connecting to PayU Gateway...
-                </h3>
-                <p style={{ fontSize: "13px", color: "#dcd1c6", lineHeight: 1.5, marginBottom: "20px" }}>
-                  Redirecting to 256-Bit SSL Encrypted PayU Payment Portal. Please do not refresh or press back.
-                </p>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#166534", color: "#f0fdf4", padding: "6px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "700" }}>
-                  <ShieldCheck size={14} /> PayU 256-Bit SSL Secured
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <PayuRedirectModal
+          isOpen={payuModalOpen}
+          onClose={() => {
+            setPayuModalOpen(false);
+            setLoading(false);
+            setRetrying(false);
+            setPayuTimeout(false);
+            setPayuError(null);
+          }}
+          onRetry={() => {
+            executeOrderSubmission();
+          }}
+          errorMsg={payuError}
+          timeoutOccurred={payuTimeout}
+        />
       </main>
     </Shell>
   );

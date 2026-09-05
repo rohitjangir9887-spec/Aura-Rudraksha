@@ -23,6 +23,7 @@ import { CartStickyBottomBar } from "../components/cart/CartStickyBottomBar";
 import { CartEmptyState } from "../components/cart/CartEmptyState";
 
 export function Cart() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   
@@ -41,6 +42,24 @@ export function Cart() {
     const unsub = onStoreUpdate(() => loadProducts());
     return () => unsub();
   }, []);
+
+  // Ensure browser or mobile back gesture from Cart page navigates to Home UI ("/") instead of closing site
+  useEffect(() => {
+    window.history.pushState({ page: "cart" }, "", window.location.href);
+
+    const handlePopState = () => {
+      navigate("/", { replace: true });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [navigate]);
+
+  const handleGoBackHome = () => {
+    navigate("/");
+  };
 
   const { 
     cart, 
@@ -66,7 +85,6 @@ export function Cart() {
   } = useCart();
 
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const navigate = useNavigate();
 
   const items = lines.reduce((acc, line) => {
     acc[line.id] = (acc[line.id] || 0) + line.qty;
@@ -157,7 +175,7 @@ export function Cart() {
           <button 
             type="button"
             className="back-btn" 
-            onClick={() => navigate('/shop')}
+            onClick={handleGoBackHome}
             style={{
               display: "inline-flex",
               alignItems: "center",

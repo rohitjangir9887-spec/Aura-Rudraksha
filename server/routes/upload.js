@@ -107,7 +107,7 @@ router.post("/provider", requireAdmin, async (req, res) => {
 import { logAuditEvent } from "../services/auditService.js";
 import crypto from "crypto";
 
-const pendingOauthStates = new Map();
+export const pendingOauthStates = new Map();
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of pendingOauthStates.entries()) {
@@ -126,7 +126,7 @@ function escapeHtml(str) {
   }[m]));
 }
 
-function getOauthSecret() {
+export function getOauthSecret() {
   const secret = process.env.PCLOUD_OAUTH_SECRET || process.env.JWT_SECRET || process.env.ADMIN_SETUP_SECRET;
   if (!secret && process.env.NODE_ENV === "production") {
     throw new Error("PCLOUD_OAUTH_SECRET or JWT_SECRET is required in production for secure OAuth state.");
@@ -134,7 +134,7 @@ function getOauthSecret() {
   return secret || "aura_oauth_secret_salt_dev";
 }
 
-function generateOauthState(userId) {
+export function generateOauthState(userId) {
   const nonce = crypto.randomBytes(16).toString("hex");
   const timestamp = Date.now();
   const secret = getOauthSecret();
@@ -144,7 +144,7 @@ function generateOauthState(userId) {
   return state;
 }
 
-function verifyOauthState(state) {
+export function verifyOauthState(state) {
   if (!state || typeof state !== "string") return false;
   const parts = state.split(".");
   if (parts.length !== 3) return false;
@@ -1037,5 +1037,4 @@ router.post("/", async (req, res) => {
   });
 });
 
-export { verifyOauthState };
 export default router;
