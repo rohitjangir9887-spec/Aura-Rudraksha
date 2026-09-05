@@ -25,7 +25,7 @@ import {
 import { Shell } from "../../components/Shell";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { motion } from "framer-motion";
-import { db } from "../../lib/db";
+import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
 import { useWishlist } from "../../hooks/useWishlist";
 import { emitToast } from "../../context/ToastContext";
@@ -184,7 +184,7 @@ export function Account() {
     });
 
     // Listen to real-time admin changes & background updates
-    const unsubscribeStore = db.onStoreUpdate(() => {
+    const unsubscribeStore = onStoreUpdate(() => {
       const currentU = authClient.getUser();
       if (currentU && !currentU.isAnonymous) {
         loadAccountData(currentU);

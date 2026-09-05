@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Shell } from "../../components/Shell";
-import { db } from "../../lib/db";
+import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
 import { 
   ChevronLeft, Package, CreditCard, ChevronRight, 
@@ -62,7 +62,7 @@ export function Orders() {
     });
 
     // Real-time store update listener for instant admin/checkout updates
-    const unsubscribeStore = db.onStoreUpdate(() => {
+    const unsubscribeStore = onStoreUpdate(() => {
       const currentU = authClient.getUser();
       loadOrders(currentU, true);
     });

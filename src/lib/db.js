@@ -625,6 +625,9 @@ if (typeof window !== "undefined" && !isInitialized) {
 // UNIFIED DATABASE OBJECT CONNECTED TO MONGODB API
 // ----------------------------------------------------
 export const db = {
+  onStoreUpdate: (callback) => onStoreUpdate(callback),
+  emitStoreUpdate: (type, payload) => emitStoreUpdate(type, payload),
+
   // Check Database Health
   checkDbHealth: async () => {
     const res = await apiRequest("/health");
