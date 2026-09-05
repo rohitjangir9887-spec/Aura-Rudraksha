@@ -1037,4 +1037,5 @@ router.post("/", async (req, res) => {
   });
 });
 
+export { verifyOauthState };
 export default router;

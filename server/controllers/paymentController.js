@@ -313,6 +313,7 @@ export async function initiatePayuPayment(req, res, next) {
     const appBaseUrl = resolveAppBaseUrl(req);
     const surl = `${appBaseUrl}/api/payment/payu-callback`;
     const furl = `${appBaseUrl}/api/payment/payu-callback`;
+    const curl = `${appBaseUrl}/api/payment/payu-cancel`;
 
     // Generate SHA-512 Hash strictly on backend
     const hash = generatePayuPaymentHash({
@@ -349,6 +350,7 @@ export async function initiatePayuPayment(req, res, next) {
           phone,
           surl,
           furl,
+          curl,
           hash,
           udf1: orderId,
           udf2: authUserId,
@@ -617,6 +619,43 @@ export async function handlePayuCallback(req, res) {
  * Handles background server notifications from PayU asynchronously.
  * Fully idempotent: prevents duplicate stock deductions or duplicate transitions.
  */
+
+
+/**
+ * Handle PayU Cancel Callback (curl)
+ * POST /api/payment/payu-cancel
+ */
+export async function handlePayuCancel(req, res) {
+  const clientBaseUrl = resolveAppBaseUrl(req);
+  try {
+    const params = extractPayuParams(req);
+    const orderId = String(params.udf1 || params.orderId || "").trim();
+    const txnid = String(params.txnid || "").trim();
+
+    if (orderId && isDbConnected()) {
+      const { Order } = require("../models/Order.js");
+      const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+      if (order && order.paymentStatus !== "Paid") {
+        const attempts = order.paymentAttempts || [];
+        const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
+        if (attemptIdx >= 0) {
+          attempts[attemptIdx].status = "cancelled";
+          attempts[attemptIdx].error = "User cancelled payment";
+          attempts[attemptIdx].updatedAt = new Date().toISOString();
+        }
+        order.paymentStatus = "Cancelled";
+        order.paymentAttempts = attempts;
+        await order.save();
+      }
+    }
+
+    return res.redirect(303, `${clientBaseUrl}/checkout?cancelled=${orderId}&txnid=${txnid}`);
+  } catch (err) {
+    console.error("Error in handlePayuCancel:", err);
+    return res.redirect(303, `${clientBaseUrl}/checkout?cancelled=unknown`);
+  }
+}
+
 export async function handlePayuWebhook(req, res) {
   try {
     if (!isDbConnected()) {
@@ -1029,6 +1068,7 @@ export async function retryPayuPayment(req, res, next) {
     const appBaseUrl = resolveAppBaseUrl(req);
     const surl = `${appBaseUrl}/api/payment/payu-callback`;
     const furl = `${appBaseUrl}/api/payment/payu-callback`;
+    const curl = `${appBaseUrl}/api/payment/payu-cancel`;
 
     // Append to payment attempts
     const attempts = order.paymentAttempts || [];
@@ -1075,6 +1115,7 @@ export async function retryPayuPayment(req, res, next) {
           phone,
           surl,
           furl,
+          curl,
           hash,
           udf1: order.orderNumber || order.id,
           udf2: authUserId,

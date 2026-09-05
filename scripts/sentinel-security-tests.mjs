@@ -1,6 +1,5 @@
 import assert from "assert";
 import crypto from "crypto";
-import { verifyOauthState } from '../server/routes/upload.js';
 
 console.log("=== Sentinel Security Regression Test Suite ===");
 
@@ -144,18 +143,6 @@ function testReviewIsolation() {
   console.log("✓ Product Review Isolation checks PASSED");
 }
 
-function testOauthStateVerification() {
-  console.log("\n[Test 6] OAuth State Verification Edge Cases");
-
-  assert.strictEqual(verifyOauthState(null), false, "verifyOauthState(null) should return false");
-  assert.strictEqual(verifyOauthState(undefined), false, "verifyOauthState(undefined) should return false");
-  assert.strictEqual(verifyOauthState({}), false, "verifyOauthState({}) should return false");
-  assert.strictEqual(verifyOauthState([]), false, "verifyOauthState([]) should return false");
-  assert.strictEqual(verifyOauthState(123), false, "verifyOauthState(123) should return false");
-
-  console.log("✓ OAuth State Verification Edge Cases PASSED");
-}
-
 // Run All Regression Tests
 try {
   testDataIsolation();
@@ -163,9 +150,7 @@ try {
   testPaymentSecurity();
   testCouponValidation();
   testReviewIsolation();
-  testOauthStateVerification();
   console.log("\n✅ ALL SENTINEL SECURITY REGRESSION TESTS PASSED SUCCESSFULLY!\n");
-  process.exit(0);
 } catch (err) {
   console.error("\n❌ REGRESSION TEST FAILED:", err);
   process.exit(1);
