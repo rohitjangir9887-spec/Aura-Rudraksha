@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
@@ -117,6 +117,7 @@ export function Checkout() {
   const [payuModalOpen, setPayuModalOpen] = useState(false);
   const [payuTimeout, setPayuTimeout] = useState(false);
   const [payuError, setPayuError] = useState(null);
+  const isRedirectingRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -218,6 +219,7 @@ export function Checkout() {
     };
 
     const handleBeforeUnload = (e) => {
+      if (isRedirectingRef.current) return;
       e.preventDefault();
       e.returnValue = "Your payment is in progress. Are you sure you want to leave?";
       return e.returnValue;
@@ -486,6 +488,7 @@ export function Checkout() {
 
   // Helper to submit standard POST form to PayU Hosted Checkout URL
   const postToPayuGateway = (paymentUrl, params) => {
+    isRedirectingRef.current = true;
     const form = document.createElement("form");
     form.method = "POST";
     form.action = paymentUrl;
