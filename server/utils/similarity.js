@@ -62,7 +62,10 @@ export function getNGrams(normalizedStr, n = 3) {
 
 // Compute Jaccard similarity coefficient between two Sets (0.0 to 1.0)
 export function jaccardSimilarity(setA, setB) {
-  if (!setA.size || !setB.size) return 0;
+  if (!setA || !setB) return 0;
+  if (setA.size === 0 && setB.size === 0) return 1;
+  if (setA.size === 0 || setB.size === 0) return 0;
+
   let intersectionCount = 0;
   for (const item of setA) {
     if (setB.has(item)) {
