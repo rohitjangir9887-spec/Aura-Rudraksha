@@ -13,7 +13,7 @@ import {
   createUserWithEmailAndPassword,
   signInAnonymously
 } from "firebase/auth";
-import firebaseAppletConfig from "../../firebase-applet-config.json" with { type: "json" };
+import firebaseAppletConfig from "../../firebase-applet-config.json";
 
 const firebaseConfig = {
   projectId: firebaseAppletConfig.projectId || "aura-rudraksha-afde8",
@@ -41,7 +41,7 @@ try {
 // resolves import.meta.env.DEV to `false` in production builds, so this can
 // never be true in a shipped production bundle regardless of runtime env
 // misconfiguration.
-const DEV_DEMO_AUTH_ENABLED = !!(import.meta.env && import.meta.env.DEV);
+const DEV_DEMO_AUTH_ENABLED = !!import.meta.env.DEV;
 
 function readDemoUser() {
   if (!DEV_DEMO_AUTH_ENABLED) return null;
