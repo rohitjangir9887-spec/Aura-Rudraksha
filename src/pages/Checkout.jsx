@@ -90,6 +90,7 @@ export function Checkout() {
     phone: "",
     email: "",
     address: "",
+    locality: "",
     pincode: "",
     city: "",
     state: ""
@@ -517,7 +518,7 @@ export function Checkout() {
       setPayuTimeout(true);
     }, 15000);
 
-    const { firstName, lastName, phone, email, address, pincode, city, state } = formData;
+    const { firstName, lastName, phone, email, address, locality, pincode, city, state } = formData;
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPhone = phone.trim();
 
@@ -527,6 +528,7 @@ export function Checkout() {
       phone: cleanPhone,
       email: cleanEmail,
       address: address.trim(),
+      locality: (locality || "").trim(),
       pincode: pincode.trim(),
       city: city.trim(),
       state: state.trim()

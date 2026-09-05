@@ -14,6 +14,91 @@ export function CheckoutAddressCard({
   isLoading = false,
   errors = {}
 }) {
+  const [isLookingUp, setIsLookingUp] = React.useState(false);
+  const [pinLookupError, setPinLookupError] = React.useState(null);
+  const [postOffices, setPostOffices] = React.useState([]);
+  const [selectedPostOffice, setSelectedPostOffice] = React.useState(null);
+  const pinCache = React.useRef({});
+  
+  // Track the pincode that we currently have successfully autofilled for
+  const [autoFilledPin, setAutoFilledPin] = React.useState("");
+
+  React.useEffect(() => {
+    const pin = formData.pincode;
+    if (!pin || pin.length !== 6) {
+      // Don't lookup if not exactly 6 digits
+      return;
+    }
+
+    if (pin === autoFilledPin) {
+      return; // Already processed this pin
+    }
+
+    const lookup = async () => {
+      setIsLookingUp(true);
+      setPinLookupError(null);
+      
+      try {
+        if (pinCache.current[pin]) {
+          processLookupResult(pinCache.current[pin], pin);
+          return;
+        }
+
+        const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+        if (!res.ok) throw new Error("Network response was not ok");
+        const data = await res.json();
+        
+        pinCache.current[pin] = data;
+        processLookupResult(data, pin);
+
+      } catch (err) {
+        setPinLookupError("We couldn't connect. Please check your network and try again.");
+        setIsLookingUp(false);
+      }
+    };
+    
+    const timer = setTimeout(() => {
+      lookup();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.pincode, autoFilledPin]);
+
+  const processLookupResult = (data, pin) => {
+    setIsLookingUp(false);
+    if (data && data[0] && data[0].Status === "Success") {
+      const offices = data[0].PostOffice || [];
+      setPostOffices(offices);
+      setPinLookupError(null);
+      setAutoFilledPin(pin);
+      
+      if (offices.length > 0) {
+        let matchedOffice = null;
+        if (formData.locality) {
+          matchedOffice = offices.find(o => o.Name === formData.locality);
+        }
+        
+        const officeToUse = matchedOffice || offices[0];
+        setSelectedPostOffice(officeToUse.Name);
+        
+        const city = officeToUse.District || officeToUse.Region || "";
+        const state = officeToUse.State || "";
+        
+        // If this is a brand new lookup triggered by typing (indicated by empty city/state or no matched locality), we overwrite.
+        if (!formData.city || !matchedOffice) {
+          onInputChange("city", city);
+          onInputChange("state", state);
+          onInputChange("locality", officeToUse.Name);
+        }
+      }
+    } else {
+      setPostOffices([]);
+      setSelectedPostOffice(null);
+      setAutoFilledPin("");
+      setPinLookupError("We couldn't find this PIN code. Please check and try again.");
+    }
+  };
+
   if (isLoading) {
     return (
       <div 
@@ -345,34 +430,52 @@ export function CheckoutAddressCard({
           </div>
 
           {/* Row 4: Pincode, City, State */}
-          <div className="checkout-form-row-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "14px", width: "100%", boxSizing: "border-box" }}>
+          <div className="checkout-form-row-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: pinLookupError ? "6px" : "14px", width: "100%", boxSizing: "border-box" }}>
             <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
                 Pincode <span style={{ color: "#dc2626" }}>*</span>
               </label>
-              <input 
-                id="input-pincode"
-                placeholder="6 digits"
-                required
-                maxLength={6}
-                inputMode="numeric"
-                value={formData.pincode}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9]/g, "");
-                  onInputChange("pincode", val);
-                }}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "9px 10px",
-                  borderRadius: "8px",
-                  border: errors.pincode ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
-                  background: "#ffffff",
-                  fontSize: "12.5px",
-                  color: "#2b170d",
-                  outline: "none"
-                }}
-              />
+              <div style={{ position: "relative" }}>
+                <input 
+                  id="input-pincode"
+                  placeholder="6 digits"
+                  required
+                  maxLength={6}
+                  inputMode="numeric"
+                  value={formData.pincode}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    onInputChange("pincode", val);
+                    if (autoFilledPin && val !== autoFilledPin) {
+                      setAutoFilledPin("");
+                      setPostOffices([]);
+                      setSelectedPostOffice(null);
+                      onInputChange("city", "");
+                      onInputChange("state", "");
+                      onInputChange("locality", "");
+                      setPinLookupError(null);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "9px 10px",
+                    paddingRight: autoFilledPin === formData.pincode ? "28px" : "10px",
+                    borderRadius: "8px",
+                    border: errors.pincode ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
+                    background: "#ffffff",
+                    fontSize: "12.5px",
+                    color: "#2b170d",
+                    outline: "none"
+                  }}
+                />
+                {isLookingUp && (
+                  <div className="animate-spin" style={{ position: "absolute", right: "8px", top: "50%", marginTop: "-7px", width: "14px", height: "14px", border: "2px solid #e8dac9", borderTopColor: "#b85d25", borderRadius: "50%" }} />
+                )}
+                {!isLookingUp && autoFilledPin === formData.pincode && formData.pincode.length === 6 && (
+                  <Check size={14} color="#16a34a" style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }} />
+                )}
+              </div>
               {errors.pincode && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.pincode}</div>}
             </div>
 
@@ -391,8 +494,8 @@ export function CheckoutAddressCard({
                   boxSizing: "border-box",
                   padding: "9px 10px",
                   borderRadius: "8px",
-                  border: errors.city ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
-                  background: "#ffffff",
+                  border: errors.city ? "1.5px solid #dc2626" : (autoFilledPin === formData.pincode ? "1px solid #86efac" : "1px solid #d4c5b9"),
+                  background: autoFilledPin === formData.pincode ? "#f0fdf4" : "#ffffff",
                   fontSize: "12.5px",
                   color: "#2b170d",
                   outline: "none"
@@ -416,8 +519,8 @@ export function CheckoutAddressCard({
                   boxSizing: "border-box",
                   padding: "9px 10px",
                   borderRadius: "8px",
-                  border: errors.state ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
-                  background: "#ffffff",
+                  border: errors.state ? "1.5px solid #dc2626" : (autoFilledPin === formData.pincode ? "1px solid #86efac" : "1px solid #d4c5b9"),
+                  background: autoFilledPin === formData.pincode ? "#f0fdf4" : "#ffffff",
                   fontSize: "12.5px",
                   color: "#2b170d",
                   outline: "none"
@@ -426,6 +529,48 @@ export function CheckoutAddressCard({
               {errors.state && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.state}</div>}
             </div>
           </div>
+          
+          {pinLookupError && (
+            <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "14px", marginTop: "-4px", padding: "4px 8px", background: "#fef2f2", borderRadius: "4px", border: "1px solid #fecaca" }}>
+              {pinLookupError}
+            </div>
+          )}
+
+          {postOffices.length > 1 && (
+            <div style={{ marginBottom: "14px", width: "100%", boxSizing: "border-box" }}>
+              <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
+                Select your area / Locality <span style={{ color: "#dc2626" }}>*</span>
+              </label>
+              <select
+                value={selectedPostOffice || ""}
+                onChange={(e) => {
+                  const officeName = e.target.value;
+                  setSelectedPostOffice(officeName);
+                  const office = postOffices.find(o => o.Name === officeName);
+                  if (office) {
+                    onInputChange("city", office.District || office.Region || "");
+                    onInputChange("state", office.State || "");
+                    onInputChange("locality", office.Name);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "9px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid #86efac",
+                  background: "#f0fdf4",
+                  fontSize: "12.5px",
+                  color: "#2b170d",
+                  outline: "none"
+                }}
+              >
+                {postOffices.map((office, idx) => (
+                  <option key={idx} value={office.Name}>{office.Name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Save Address Checkbox */}
           <label 
