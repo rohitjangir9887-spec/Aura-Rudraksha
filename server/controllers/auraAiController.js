@@ -1215,32 +1215,45 @@ export async function getAuraAIAnalytics(req, res, next) {
     let revenueFromAI = 0;
     const qualifyingConvos = convos.filter(c => (c.addedToCart || []).length > 0);
     const seenOrderIds = new Set();
+
+    // Batch fetch all relevant orders to prevent N+1 queries
+    let allRelevantOrders = [];
+    if (qualifyingConvos.length > 0) {
+      const allUserIds = Array.from(new Set(qualifyingConvos.map(c => c.userId).filter(Boolean)));
+      const allUserEmails = Array.from(new Set(qualifyingConvos.map(c => c.userEmail).filter(Boolean)));
+
+      if (allUserIds.length > 0 || allUserEmails.length > 0) {
+        if (isDbConnected()) {
+          const bulkScope = [];
+          if (allUserIds.length > 0) bulkScope.push({ authUserId: { $in: allUserIds } });
+          if (allUserEmails.length > 0) bulkScope.push({ customerEmail: { $in: allUserEmails } });
+          allRelevantOrders = await Order.find({ $or: bulkScope, status: { $ne: "Cancelled" } }).lean();
+        } else {
+          allRelevantOrders = (inMemoryStore.orders || []).filter(o =>
+            o.status !== "Cancelled" &&
+            (allUserIds.includes(o.authUserId) || allUserIds.includes(o.customerAuthUserId) ||
+             allUserEmails.includes(o.customerEmail) || allUserEmails.includes(o.email))
+          );
+        }
+      }
+    }
+
     for (const c of qualifyingConvos) {
       const cartIds = (c.addedToCart || []).map(String);
       if (!cartIds.length) continue;
-      const scope = [];
-      if (c.userId) scope.push({ authUserId: c.userId });
-      if (c.userEmail) scope.push({ customerEmail: c.userEmail });
-      if (!scope.length) continue;
       
-      let userOrders = [];
-      if (isDbConnected()) {
-        userOrders = await Order.find({ $or: scope, status: { $ne: "Cancelled" } }).lean();
-      } else {
-        userOrders = (inMemoryStore.orders || []).filter(o => 
-          o.status !== "Cancelled" &&
-          ((c.userId && (o.authUserId === c.userId || o.customerAuthUserId === c.userId)) ||
-           (c.userEmail && (o.customerEmail === c.userEmail || o.email === c.userEmail)))
-        );
-      }
+      const userOrders = allRelevantOrders.filter(o =>
+        (c.userId && (o.authUserId === c.userId || o.customerAuthUserId === c.userId)) ||
+        (c.userEmail && (o.customerEmail === c.userEmail || o.email === c.userEmail))
+      );
 
       for (const o of userOrders) {
-        if (seenOrderIds.has(o.id)) continue;
+        if (seenOrderIds.has(o.id || o._id)) continue;
         const orderItemIds = (o.items || o.snapshotItems || [])
           .map(it => String(it?.id || it?.productId || ""))
           .filter(Boolean);
         if (orderItemIds.some(pid => cartIds.includes(pid))) {
-          seenOrderIds.add(o.id);
+          seenOrderIds.add(o.id || o._id);
           orderConversions += 1;
           revenueFromAI += Number(o.finalAmount || o.total || o.amount) || 0;
         }
