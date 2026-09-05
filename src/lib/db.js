@@ -546,20 +546,26 @@ export async function fetchHomeData(force = false) {
         }
       };
 
+      // Critical primary homepage resources load first
       await Promise.all([
         fetchProducts(),
         fetchActiveOffer(),
+        fetchBanners()
+      ]);
+
+      isHydrated = true;
+      if (hydrationResolver) hydrationResolver(true);
+
+      // Secondary non-critical resources load in background without blocking initial hydration
+      Promise.all([
         fetchOffers(),
-        fetchBanners(),
         fetchReviews(),
         fetchSettings(),
         fetchReviewSettings(),
         fetchCoupons()
-      ]);
-
-      localStorage.setItem("aura_last_fetch_time", String(Date.now()));
-      isHydrated = true;
-      if (hydrationResolver) hydrationResolver(true);
+      ]).then(() => {
+        localStorage.setItem("aura_last_fetch_time", String(Date.now()));
+      }).catch(() => {});
 
       emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
     } catch (err) {

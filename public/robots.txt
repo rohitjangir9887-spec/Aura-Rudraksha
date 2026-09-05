@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://aura-rudraksha.vercel.app/sitemap.xml

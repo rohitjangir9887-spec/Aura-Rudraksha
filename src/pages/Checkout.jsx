@@ -611,10 +611,8 @@ export function Checkout() {
         setPayuStep(3); // "Secure Payment"
         setPendingPayuData({ paymentUrl: res.data.paymentUrl, params: res.data.params });
         
-        setTimeout(() => {
-          setPayuStep(4); // "Redirecting"
-          postToPayuGateway(res.data.paymentUrl, res.data.params);
-        }, 250);
+        setPayuStep(4); // "Redirecting"
+        postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not initialize PayU payment gateway");
       }

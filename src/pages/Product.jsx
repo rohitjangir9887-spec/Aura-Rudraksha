@@ -103,6 +103,66 @@ export function Product() {
     return () => unsub();
   }, [product]);
 
+  // Inject Product JSON-LD Structured Data safely
+  useEffect(() => {
+    if (!product) return;
+
+    const scriptId = "product-jsonld-schema";
+    let scriptEl = document.getElementById(scriptId);
+    if (!scriptEl) {
+      scriptEl = document.createElement("script");
+      scriptEl.id = scriptId;
+      scriptEl.type = "application/ld+json";
+      document.head.appendChild(scriptEl);
+    }
+
+    const primaryImg = (product.images && product.images[0]) || product.img || "https://aura-rudraksha.vercel.app/images/product-5mukhi.jpg";
+    const prodPrice = Number(product.price) || 0;
+    const isAvailable = product.status !== "Out of Stock" && (product.stock === undefined || Number(product.stock) > 0);
+
+    const schemaData = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": product.name,
+      "image": primaryImg.startsWith("http") ? primaryImg : `https://aura-rudraksha.vercel.app${primaryImg}`,
+      "description": product.highlight || product.shortDesc || "Authentic Himalayan Rudraksha Bead, Government Lab Certified and Vedic Consecrated.",
+      "sku": String(product.id || product._id || ""),
+      "brand": {
+        "@type": "Brand",
+        "name": "Aura Rudraksha"
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": window.location.href,
+        "priceCurrency": "INR",
+        "price": prodPrice.toString(),
+        "itemCondition": "https://schema.org/NewCondition",
+        "availability": isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "seller": {
+          "@type": "Organization",
+          "name": "Aura Rudraksha"
+        }
+      }
+    };
+
+    if (reviewsCount > 0) {
+      schemaData.aggregateRating = {
+        "@type": "AggregateRating",
+        "ratingValue": averageRating,
+        "reviewCount": reviewsCount.toString()
+      };
+    }
+
+    scriptEl.textContent = JSON.stringify(schemaData);
+
+    return () => {
+      const el = document.getElementById(scriptId);
+      if (el) {
+        el.remove();
+      }
+    };
+  }, [product, reviewsCount, averageRating]);
+
   // Load and subscribe to database updates
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);

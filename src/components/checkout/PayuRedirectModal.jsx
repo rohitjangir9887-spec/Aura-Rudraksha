@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ShieldCheck, Lock, Zap, CheckCircle2, AlertCircle, 
@@ -14,10 +14,70 @@ export function PayuRedirectModal({
   timeoutOccurred = false
 }) {
   const [activeStep, setActiveStep] = useState(step);
+  const modalRef = useRef(null);
+  const previousActiveElement = useRef(null);
 
   useEffect(() => {
     setActiveStep(step);
   }, [step]);
+
+  // Handle focus management and keyboard traps
+  useEffect(() => {
+    if (isOpen) {
+      previousActiveElement.current = document.activeElement;
+
+      // Focus modal container on open
+      setTimeout(() => {
+        if (modalRef.current) {
+          modalRef.current.focus();
+        }
+      }, 50);
+
+      const handleKeyDown = (e) => {
+        if (e.key === "Escape") {
+          if (timeoutOccurred || errorMsg) {
+            onClose();
+          }
+          return;
+        }
+
+        // Trap focus inside modal
+        if (e.key === "Tab" && modalRef.current) {
+          const focusableElements = modalRef.current.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusableElements.length === 0) {
+            e.preventDefault();
+            modalRef.current.focus();
+            return;
+          }
+
+          const firstEl = focusableElements[0];
+          const lastEl = focusableElements[focusableElements.length - 1];
+
+          if (e.shiftKey) {
+            if (document.activeElement === firstEl || document.activeElement === modalRef.current) {
+              lastEl.focus();
+              e.preventDefault();
+            }
+          } else {
+            if (document.activeElement === lastEl) {
+              firstEl.focus();
+              e.preventDefault();
+            }
+          }
+        }
+      };
+
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        window.removeEventListener("keydown", handleKeyDown);
+        if (previousActiveElement.current && previousActiveElement.current.focus) {
+          previousActiveElement.current.focus();
+        }
+      };
+    }
+  }, [isOpen, timeoutOccurred, errorMsg, onClose]);
 
   if (!isOpen) return null;
 
@@ -43,11 +103,17 @@ export function PayuRedirectModal({
 
         {/* Centered Premium Modal Card */}
         <motion.div
+          ref={modalRef}
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="payu-redirect-modal-title"
+          aria-describedby="payu-redirect-modal-description"
           initial={{ opacity: 0, scale: 0.92, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 16 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-2xl shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto"
+          className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-2xl shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto focus:outline-none focus:ring-2 focus:ring-[#b85d25]"
         >
           {/* Subtle Spiritual Gold Ambient Glow */}
           <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-400/15 rounded-full blur-3xl pointer-events-none" />
@@ -90,10 +156,10 @@ export function PayuRedirectModal({
 
           {/* Main Status & Heading */}
           <div className="mb-6">
-            <h2 className="font-serif text-2xl font-bold text-[#2b170d] mb-1.5">
+            <h2 id="payu-redirect-modal-title" className="font-serif text-2xl font-bold text-[#2b170d] mb-1.5">
               {errorMsg ? "Payment Notice" : timeoutOccurred ? "Redirect Taking Longer" : "Connecting to PayU"}
             </h2>
-            <p className="text-xs sm:text-sm text-[#7a6a5d] leading-relaxed max-w-xs mx-auto">
+            <p id="payu-redirect-modal-description" className="text-xs sm:text-sm text-[#7a6a5d] leading-relaxed max-w-xs mx-auto">
               {errorMsg
                 ? errorMsg
                 : timeoutOccurred
