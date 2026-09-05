@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ShieldCheck, Lock, Zap, AlertCircle, 
@@ -12,28 +13,36 @@ export function PayuRedirectModal({
   errorMsg = null,
   timeoutOccurred = false
 }) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-        {/* Soft Blurred & Dimmed Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.25 }}
-          className="fixed inset-0 bg-[#2b170d]/50 backdrop-blur-md"
-        />
+      {isOpen && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          {/* Soft Blurred & Dimmed Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 bg-[#2b170d]/50 backdrop-blur-md"
+          />
 
-        {/* Centered Premium White Card */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 12 }}
-          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-2xl shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto"
-        >
+          {/* Centered Premium White Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-[24px] shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto"
+          >
           {/* Subtle Warm Antique-Gold Ambient Background Glow */}
           <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 bg-[#f3e5d8]/60 rounded-full blur-3xl pointer-events-none" />
 
@@ -138,7 +147,7 @@ export function PayuRedirectModal({
             </h2>
             <p className="text-xs sm:text-sm text-[#6b584c] leading-relaxed max-w-xs mx-auto">
               {errorMsg
-                ? errorMsg
+                ? "We couldn’t connect to the payment gateway. Your payment has not been completed."
                 : timeoutOccurred
                 ? "Connecting to PayU is taking longer than expected. You can retry or return to checkout."
                 : "Please wait while we securely redirect you to PayU’s payment gateway to complete your payment."}
@@ -217,6 +226,9 @@ export function PayuRedirectModal({
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 }

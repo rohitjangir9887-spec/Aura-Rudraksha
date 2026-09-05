@@ -1069,8 +1069,6 @@ export function Checkout() {
         />
 
         {/* Full-Screen PayU Gateway Transition Loading Overlay */}
-        <AnimatePresence>
-        {/* Centered Premium Aura Rudraksha PayU Redirect Modal */}
         <PayuRedirectModal
           isOpen={payuModalOpen}
           onClose={() => {
@@ -1086,7 +1084,6 @@ export function Checkout() {
           errorMsg={payuError}
           timeoutOccurred={payuTimeout}
         />
-        </AnimatePresence>
       </main>
     </Shell>
   );
