@@ -1,9 +1,13 @@
 import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 const isHmrDisabled = process.env.DISABLE_HMR === "true" || process.env.DISABLE_HMR === "1";
 
 export default defineConfig(({ mode }) => ({
   mode: mode || "production",
+  plugins: [
+    tailwindcss(),
+  ],
   define: {
     "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "development" : "production"),
   },

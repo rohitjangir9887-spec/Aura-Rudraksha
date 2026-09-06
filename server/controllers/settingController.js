@@ -17,7 +17,7 @@ const SETTING_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
-  enableProductShipping: "boolean",
+  enableProductShipping: "boolean", featuredProductId: "string", featuredProductEnabled: "boolean",
   pcloudAccessToken: "string", pcloudFolderId: "string",
   imagekitPublicKey: "string", imagekitPrivateKey: "string", imagekitUrlEndpoint: "string"
 };
@@ -76,6 +76,9 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   if (!settings || typeof settings !== "object") return {};
   const copy = JSON.parse(JSON.stringify(settings));
   
+  copy.featuredProductId = (copy.featuredProductId !== undefined && copy.featuredProductId !== null && copy.featuredProductId !== "") ? copy.featuredProductId : "14";
+  copy.featuredProductEnabled = copy.featuredProductEnabled !== undefined ? Boolean(copy.featuredProductEnabled) : true;
+
   if (!isAdmin) {
     delete copy.pcloudAccessToken;
     delete copy.pcloudFolderId;
@@ -127,6 +130,26 @@ export async function saveSettings(req, res, next) {
     }
     if (data.pcloudAccessToken && (data.pcloudAccessToken.includes("••••") || !data.pcloudAccessToken.trim())) {
       delete data.pcloudAccessToken;
+    }
+
+    // Validate featuredProductId if provided
+    if (data.featuredProductId && data.featuredProductId.trim()) {
+      const prodId = data.featuredProductId.trim();
+      let exists = false;
+      if (!isDbConnected()) {
+        exists = (inMemoryStore.products || []).some(p => String(p.id) === String(prodId) || String(p._id) === String(prodId));
+      } else {
+        const prod = await Product.findOne({
+          $or: [
+            { id: prodId },
+            { slug: prodId }
+          ]
+        }).lean();
+        if (prod) exists = true;
+      }
+      if (!exists) {
+        return res.status(400).json({ success: false, message: "Selected featured product does not exist in catalog" });
+      }
     }
 
     if (!isDbConnected()) {

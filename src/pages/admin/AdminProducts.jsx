@@ -9,6 +9,7 @@ import { authClient } from "../../lib/authClient";
 import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash } from "lucide-react";
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
+import { AdminFeaturedProductManager } from "../../components/admin/AdminFeaturedProductManager";
 
 export function AdminProducts() {
   const [searchParams] = useSearchParams();
@@ -1698,6 +1699,9 @@ export function AdminProducts() {
           <Plus size={16} /> Add Product
         </button>
       </div>
+
+      {/* 1. HOME FEATURED PRODUCT CONTROL */}
+      <AdminFeaturedProductManager products={products} onSettingsSaved={load} />
 
       {/* Showcase & Status Summary Cards */}
       <div style={{

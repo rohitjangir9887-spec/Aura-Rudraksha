@@ -44,10 +44,10 @@ export function Checkout() {
   const navigate = useNavigate();
 
   const handleBackNavigation = () => {
-    if (window.history && window.history.length > 2) {
+    if (window.history && window.history.length > 1) {
       navigate(-1);
     } else {
-      navigate("/cart");
+      navigate("/");
     }
   };
 

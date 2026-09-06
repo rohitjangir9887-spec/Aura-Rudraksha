@@ -103,6 +103,13 @@ export function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment-result" element={<PaymentResult />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Login initialMode="signup" />} />
+          <Route path="/sign-up" element={<Navigate to="/signup" replace />} />
+          <Route path="/register" element={<Navigate to="/signup" replace />} />
+          <Route path="/forgot-password" element={<Login initialMode="forgot" />} />
+          <Route path="/reset-password" element={<Login initialMode="reset-password" />} />
+          <Route path="/verify-email" element={<Login initialMode="verify-email" />} />
+          <Route path="/auth/action" element={<Login />} />
           <Route path="/account" element={<Account />} />
           <Route path="/account/profile" element={<Profile />} />
           <Route path="/account/orders" element={<Orders />} />

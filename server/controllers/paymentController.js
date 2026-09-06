@@ -18,6 +18,8 @@ import {
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
+import { sendRefundOtpEmail, maskEmail } from "../services/emailService.js";
+import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService.js";
 
 /**
  * Safely parse and normalize incoming PayU callback/webhook body
@@ -1271,18 +1273,18 @@ export async function retryPayuPayment(req, res, next) {
 }
 
 /**
- * 6. Admin Process PayU Live Refund (Full or Partial)
- * POST /api/payment/refund/:orderId
+ * 6a. Admin Request OTP for PayU Live Refund Authorization
+ * POST /api/payment/refund/request-otp/:orderId
  * (Admin Protected)
  */
-export async function processPayuRefund(req, res, next) {
+export async function requestRefundOtp(req, res, next) {
   try {
     if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
     const { orderId } = req.params;
-    const { refundAmount, reason, refundToken: clientRefundToken } = req.body || {};
+    const { refundAmount, reason } = req.body || {};
 
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
@@ -1316,6 +1318,132 @@ export async function processPayuRefund(req, res, next) {
     const currentRefundAmount = Number(refundAmount);
     if (isNaN(currentRefundAmount) || currentRefundAmount <= 0) {
       return res.status(400).json({ success: false, message: "Please specify a valid refund amount greater than zero." });
+    }
+
+    const orderTotal = Number(order.finalAmount || order.total || 0);
+    const alreadyRefunded = Number(order.amountRefunded || 0);
+    const maxRefundable = orderTotal - alreadyRefunded;
+
+    if (currentRefundAmount > maxRefundable + 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: `Requested refund of ₹${currentRefundAmount.toLocaleString('en-IN')} exceeds remaining refundable balance of ₹${maxRefundable.toLocaleString('en-IN')}.`
+      });
+    }
+
+    // Determine target admin recipient Gmail (current verified admin or configured admin)
+    const adminEmail = (req.user?.email && req.user.email.includes("@"))
+      ? req.user.email.trim().toLowerCase()
+      : (process.env.INITIAL_ADMIN_EMAIL || process.env.ADMIN_EMAIL || "rohitjangir9887@gmail.com").trim().toLowerCase();
+
+    // Generate cryptographically secure 6-digit OTP
+    const { otp, expiresInSeconds } = generateRefundOtp({
+      orderId: order.id,
+      adminEmail,
+      amount: currentRefundAmount,
+      reason
+    });
+
+    // Send email to admin Gmail
+    const emailResult = await sendRefundOtpEmail({
+      to: adminEmail,
+      otp,
+      orderId: order.orderNumber || order.id,
+      amount: currentRefundAmount,
+      reason,
+      customerName: order.customerName
+    });
+
+    return res.json({
+      success: true,
+      message: `6-digit security OTP sent to admin Gmail (${emailResult.targetEmail})`,
+      targetEmail: emailResult.targetEmail,
+      fullEmail: process.env.NODE_ENV !== "production" ? adminEmail : undefined,
+      expiresInSeconds
+    });
+  } catch (err) {
+    console.error("Refund OTP Request Error:", err?.message || err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to generate refund verification code"
+    });
+  }
+}
+
+/**
+ * 6b. Admin Process PayU Live Refund (Full or Partial) with OTP Authorization
+ * POST /api/payment/refund/:orderId
+ * (Admin Protected)
+ */
+export async function processPayuRefund(req, res, next) {
+  try {
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database unavailable" });
+    }
+
+    const { orderId } = req.params;
+    const { refundAmount, reason, otp, refundToken: clientRefundToken } = req.body || {};
+
+    // 1. Mandatory Admin OTP Verification
+    if (!otp || String(otp).trim().length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin security verification required: Please enter the 6-digit OTP sent to your Gmail."
+      });
+    }
+
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (order.paymentStatus !== "Paid" && order.paymentStatus !== "Partially Refunded") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot refund order with payment status '${order.paymentStatus}'. Only 'Paid' or 'Partially Refunded' orders can be refunded.`
+      });
+    }
+
+    const currentRefundAmount = Number(refundAmount);
+    if (isNaN(currentRefundAmount) || currentRefundAmount <= 0) {
+      return res.status(400).json({ success: false, message: "Please specify a valid refund amount greater than zero." });
+    }
+
+    // Determine admin email for verification
+    const adminEmail = (req.user?.email && req.user.email.includes("@"))
+      ? req.user.email.trim().toLowerCase()
+      : (process.env.INITIAL_ADMIN_EMAIL || process.env.ADMIN_EMAIL || "rohitjangir9887@gmail.com").trim().toLowerCase();
+
+    // Verify submitted OTP
+    const otpValidation = verifyRefundOtp({
+      orderId: order.id,
+      adminEmail,
+      otp: String(otp).trim(),
+      amount: currentRefundAmount
+    });
+
+    if (!otpValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: otpValidation.message || "Invalid or expired OTP"
+      });
+    }
+
+    let payuMihpayid = order.mihpayid;
+    if (!payuMihpayid && order.txnid) {
+      const verifyRes = await verifyPayuPaymentServerSide(order.txnid);
+      if (verifyRes.mihpayid) {
+        payuMihpayid = verifyRes.mihpayid;
+        order.mihpayid = verifyRes.mihpayid;
+        await order.save();
+      }
+    }
+
+    if (!payuMihpayid) {
+      return res.status(400).json({
+        success: false,
+        message: "No PayU Payment ID (mihpayid) found for this order. Verification required before refund."
+      });
     }
 
     const orderTotal = Number(order.finalAmount || order.total || 0);

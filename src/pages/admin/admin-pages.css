@@ -541,3 +541,382 @@
 
 /* Prevent table rows from splitting awkwardly */
 .admin-table tr { break-inside: avoid; }
+
+/* ==========================================================================
+   Admin Orders Dashboard - Advanced Filters, Stats & PayU Sync Styles
+   ========================================================================== */
+.admin-orders-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.admin-orders-stat-card {
+  background: #ffffff;
+  border: 1px solid #ebdccb;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(43,23,13,0.02);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-orders-stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #a54d2b;
+}
+
+.admin-orders-stat-card.stat-paid::before { background: #16a34a; }
+.admin-orders-stat-card.stat-pending::before { background: #d97706; }
+.admin-orders-stat-card.stat-refunded::before { background: #dc2626; }
+.admin-orders-stat-card.stat-today::before { background: #6366f1; }
+
+.admin-stat-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #806f62;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2b170d;
+}
+
+.admin-stat-sub {
+  font-size: 11px;
+  color: #9c8a7d;
+}
+
+/* Filters Card */
+.admin-orders-filter-card {
+  background: #ffffff;
+  border: 1px solid #ebdccb;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(43,23,13,0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-orders-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-search-wrapper {
+  flex: 1 1 280px;
+  position: relative;
+}
+
+.admin-search-wrapper input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid #dcd1c6;
+  border-radius: 8px;
+  font-size: 13.5px;
+  background: #fff;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.admin-search-wrapper input:focus {
+  border-color: #a54d2b;
+  box-shadow: 0 0 0 3px rgba(165,77,43,0.1);
+}
+
+.admin-search-wrapper svg.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9c8a7d;
+}
+
+.admin-search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9c8a7d;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.admin-filter-select-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-filter-select-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #665a51;
+  white-space: nowrap;
+}
+
+.admin-filter-select {
+  padding: 9px 12px;
+  border: 1px solid #dcd1c6;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #2b170d;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  max-width: 220px;
+}
+
+.admin-filter-select:focus {
+  border-color: #a54d2b;
+}
+
+/* Date Pills Group */
+.admin-date-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-date-pill {
+  padding: 6px 12px;
+  background: #fbf8f4;
+  border: 1px solid #ebdccb;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #665a51;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-date-pill:hover {
+  background: #f5ece2;
+  color: #2b170d;
+}
+
+.admin-date-pill.active {
+  background: #a54d2b;
+  color: #ffffff;
+  border-color: #a54d2b;
+}
+
+/* PayU Status Tag */
+.payu-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.payu-status-tag.success {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.payu-status-tag.pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.payu-status-tag.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.payu-status-tag.refunded {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+/* Direct Action Buttons */
+.payu-verify-action-btn {
+  background: #fdfaf7;
+  border: 1px solid #ebdccb;
+  color: #a54d2b;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.payu-verify-action-btn:hover {
+  background: #a54d2b;
+  color: #ffffff;
+  border-color: #a54d2b;
+}
+
+.payu-verify-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .admin-orders-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-filter-select {
+    max-width: 100%;
+    width: 100%;
+  }
+  .admin-filter-select-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* PayU Refund OTP Security Styles */
+.admin-refund-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 10, 5, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.admin-refund-modal-card {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  border: 1px solid #ebdccb;
+  position: relative;
+  animation: adminModalFadeIn 0.2s ease-out;
+}
+
+@keyframes adminModalFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.admin-security-banner {
+  background: #fdf8f4;
+  border: 1px solid #f1ded0;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.admin-security-banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fde8e8;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-otp-input-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.admin-otp-code-input {
+  width: 100%;
+  max-width: 260px;
+  text-align: center;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 2px solid #a54d2b;
+  background: #fffdfb;
+  color: #a54d2b;
+  outline: none;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(165, 77, 43, 0.08);
+}
+
+.admin-otp-code-input:focus {
+  border-color: #7a3217;
+  box-shadow: 0 0 0 4px rgba(165, 77, 43, 0.15);
+}
+
+.admin-otp-timer-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: #665a51;
+}
+
+.admin-otp-resend-btn {
+  background: none;
+  border: none;
+  color: #a54d2b;
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.admin-otp-resend-btn:disabled {
+  color: #a89f97;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+

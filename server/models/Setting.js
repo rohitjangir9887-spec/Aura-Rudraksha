@@ -25,7 +25,9 @@ const settingSchema = new mongoose.Schema(
     shopCategories: { type: Array, default: [] }, // Admin-managed shop categories
     standardShippingFee: { type: Number, default: 50 }, // Default FREE shipping (₹0)
     freeShippingThreshold: { type: Number, default: 499 }, // Default FREE shipping on all order amounts (₹0)
-    enableProductShipping: { type: Boolean, default: true } // Product-specific shipping rules toggle
+    enableProductShipping: { type: Boolean, default: true }, // Product-specific shipping rules toggle
+    featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
+    featuredProductEnabled: { type: Boolean, default: true } // Toggle for featured product section on Home
   },
   { timestamps: true }
 );

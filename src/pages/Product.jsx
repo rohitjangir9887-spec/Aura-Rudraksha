@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { 
-  Star, Share2, AlertCircle, ChevronRight, Sparkles, ArrowRight, Loader2
+  Star, Share2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Loader2
 } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
@@ -251,27 +251,61 @@ export function Product() {
 
   const suggestedProducts = allProducts.filter(x => String(x.id) !== String(p.id)).slice(0, 4);
 
+  const handleBack = () => {
+    if (window.history && window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/");
+    }
+  };
+
   return (
     <Shell>
       <div className="aura-pdp-container">
-        {/* 1. Breadcrumb Navigation Bar */}
+        {/* 1. Breadcrumb Navigation Bar with Back Button */}
         <div className="aura-pdp-breadcrumb-bar">
           <div className="aura-breadcrumb-inner">
-            <nav className="aura-breadcrumb-links" aria-label="Breadcrumb">
-              <Link to="/">Home</Link>
-              <span className="aura-bc-sep">/</span>
-              <Link to="/shop">Shop Catalog</Link>
-              {p.category && (
-                <>
-                  <span className="aura-bc-sep">/</span>
-                  <Link to={`/shop?category=${encodeURIComponent(p.category)}`}>
-                    {p.category}
-                  </Link>
-                </>
-              )}
-              <span className="aura-bc-sep">/</span>
-              <span className="aura-bc-current">{p.name}</span>
-            </nav>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={handleBack}
+                className="aura-pdp-back-btn"
+                aria-label="Go back"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  border: "1px solid #ebdccb",
+                  background: "#fffdfa",
+                  color: "#6b594d",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <ChevronLeft size={14} />
+                <span>Back</span>
+              </button>
+
+              <nav className="aura-breadcrumb-links" aria-label="Breadcrumb">
+                <Link to="/">Home</Link>
+                <span className="aura-bc-sep">/</span>
+                <Link to="/shop">Shop</Link>
+                {p.category && (
+                  <>
+                    <span className="aura-bc-sep">/</span>
+                    <Link to={`/shop?category=${encodeURIComponent(p.category)}`}>
+                      {p.category}
+                    </Link>
+                  </>
+                )}
+                <span className="aura-bc-sep">/</span>
+                <span className="aura-bc-current">{p.name}</span>
+              </nav>
+            </div>
 
             <button
               type="button"

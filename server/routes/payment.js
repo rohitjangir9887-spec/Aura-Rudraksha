@@ -6,6 +6,7 @@ import {
   handlePayuWebhook,
   verifyPaymentStatus,
   retryPayuPayment,
+  requestRefundOtp,
   processPayuRefund,
   cancelUnpaidOrder,
   syncPayuOrder
@@ -66,7 +67,8 @@ router.all("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentSt
 // 5. Retry Payment on an existing pending/failed order
 router.all("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
 
-// 6. Admin Process PayU Live Refund
+// 6. Admin Process PayU Live Refund with OTP Verification
+router.all("/refund/request-otp/:orderId", requireAdmin, paymentRefundLimit, requestRefundOtp);
 router.all("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
 router.all("/sync-payu/:orderId", requireAdmin, syncPayuOrder);
 

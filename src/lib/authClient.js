@@ -11,7 +11,15 @@ import {
   signInWithPhoneNumber,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInAnonymously
+  signInAnonymously,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+  applyActionCode,
+  checkActionCode,
+  updateProfile,
+  reload
 } from "firebase/auth";
 import firebaseAppletConfig from "../../firebase-applet-config.json" with { type: "json" };
 
@@ -263,6 +271,65 @@ export const authClient = {
     return demoUser;
   },
 
+  sendVerificationEmail: async (user) => {
+    const targetUser = user || auth.currentUser;
+    if (!targetUser) throw new Error("No authenticated user found to verify.");
+    return await sendEmailVerification(targetUser);
+  },
+
+  reloadCurrentUser: async () => {
+    if (auth.currentUser) {
+      await reload(auth.currentUser);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: auth.currentUser }));
+      }
+      return auth.currentUser;
+    }
+    return null;
+  },
+
+  updateUserProfile: async (profileData) => {
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, profileData);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: auth.currentUser }));
+      }
+      return auth.currentUser;
+    }
+    return null;
+  },
+
+  sendPasswordReset: async (email) => {
+    return await sendPasswordResetEmail(auth, email);
+  },
+
+  verifyResetCode: async (code) => {
+    return await verifyPasswordResetCode(auth, code);
+  },
+
+  confirmPasswordReset: async (code, newPassword) => {
+    return await confirmPasswordReset(auth, code, newPassword);
+  },
+
+  applyActionCode: async (code) => {
+    return await applyActionCode(auth, code);
+  },
+
+  checkActionCode: async (code) => {
+    return await checkActionCode(auth, code);
+  },
+
+  maskEmail: (email) => {
+    if (!email || typeof email !== "string" || !email.includes("@")) return email || "";
+    const [local, domain] = email.split("@");
+    if (local.length <= 2) {
+      return `${local[0] || "*"}***@${domain}`;
+    }
+    const visiblePrefix = local.slice(0, 2);
+    const visibleSuffix = local.length > 4 ? local.slice(-1) : "";
+    return `${visiblePrefix}****${visibleSuffix}@${domain}`;
+  },
+
   formatAuthError: (err) => {
     if (!err) return "Authentication failed";
     const code = err.code || "";
@@ -279,16 +346,37 @@ export const authClient = {
       return "The Google login popup was blocked by the browser. Please allow popups for this site or open the page in a new browser tab.";
     }
     if (code === "auth/network-request-failed" || msg.includes("network-request-failed")) {
-      return "Network error. If you are in the iframe preview, please open the app in a new tab or check your connection.";
+      return "Unable to connect right now. Please check your internet connection and try again.";
     }
     if (code === "auth/popup-closed-by-user") {
       return "Sign-in popup was closed before completing.";
     }
-    if (code === "auth/wrong-password" || code === "auth/user-not-found" || code === "auth/invalid-credential") {
-      return "Invalid credentials. Please verify your email/phone and password and try again.";
+    if (code === "auth/wrong-password" || code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") {
+      return "Email or password is incorrect. Please check your credentials and try again.";
     }
     if (code === "auth/email-already-in-use") {
-      return "An account already exists with this email address. Please sign in instead.";
+      return "An account already exists with this email address. Please sign in or reset your password.";
+    }
+    if (code === "auth/weak-password") {
+      return "Please choose a stronger password (at least 8 characters).";
+    }
+    if (code === "auth/invalid-email") {
+      return "Please enter a valid email address.";
+    }
+    if (code === "auth/user-disabled") {
+      return "This account has been disabled. Please contact Aura Rudraksha support.";
+    }
+    if (code === "auth/too-many-requests") {
+      return "Too many attempts. Please wait a few moments before trying again.";
+    }
+    if (code === "auth/expired-action-code") {
+      return "This link has expired. Please request a new verification or password reset email.";
+    }
+    if (code === "auth/invalid-action-code") {
+      return "This link is invalid or has already been used.";
+    }
+    if (code === "auth/requires-recent-login") {
+      return "Please sign in again to complete this sensitive action.";
     }
     if (code === "auth/invalid-phone-number") {
       return "Please enter a valid phone number with country code (e.g. +91 98765 43210).";
@@ -296,7 +384,7 @@ export const authClient = {
     if (code === "auth/quota-exceeded" || msg.includes("quota-exceeded")) {
       return "SMS quota exceeded. Please try Email login or Google Sign-In.";
     }
-    return msg || "Authentication failed";
+    return msg || "Authentication failed. Please try again.";
   }
 };
 

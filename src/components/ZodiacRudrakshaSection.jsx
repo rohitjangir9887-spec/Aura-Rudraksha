@@ -4,6 +4,7 @@ import { ArrowRight, ChevronRight, ChevronLeft, Sparkles, Compass, HelpCircle } 
 import { ZODIAC_SIGNS } from "../data/zodiac";
 import { db, onStoreUpdate } from "../lib/db";
 import { PanditjiSection } from "./PanditjiSection";
+import { HomeFeaturedProductAd } from "./HomeFeaturedProductAd";
 
 export function ZodiacRudrakshaSection() {
   const [zodiacList, setZodiacList] = useState(() => {
@@ -167,6 +168,9 @@ export function ZodiacRudrakshaSection() {
           <span>Swipe to explore all 12 Rashis</span>
           <ArrowRight size={13} className="aura-zodiac-hint-arrow" />
         </div>
+
+        {/* 3.5 FEATURED PRODUCT AD (ADMIN CONFIGURABLE) */}
+        <HomeFeaturedProductAd />
 
         {/* 4. PERSONALIZED RECOMMENDATION CTA BANNER */}
         <div className="aura-zodiac-recommendation-card">

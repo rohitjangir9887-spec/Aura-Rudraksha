@@ -627,6 +627,8 @@ export const defaultSettings = {
   standardShippingFee: 0,
   freeShippingThreshold: 0,
   enableProductShipping: true,
+  featuredProductId: "14",
+  featuredProductEnabled: true,
   storageProvider: "puter",
   instagramUrl: "https://instagram.com/aurarudraksha",
   facebookUrl: "https://facebook.com/aurarudraksha",

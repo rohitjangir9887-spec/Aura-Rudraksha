@@ -276,6 +276,8 @@ const storeCache = {
     standardShippingFee: 0,
     freeShippingThreshold: 0,
     enableProductShipping: true,
+    featuredProductId: "14",
+    featuredProductEnabled: true,
     instagramUrl: "https://instagram.com/aurarudraksha",
     facebookUrl: "https://facebook.com/aurarudraksha",
     youtubeUrl: "https://youtube.com/@aurarudraksha"
@@ -1117,10 +1119,21 @@ export const db = {
     return res;
   },
 
-  processRefund: async (orderId, { refundAmount, reason }) => {
-    const res = await apiRequest(`/payment/refund/${orderId}`, {
+  requestRefundOtp: async (orderId, { refundAmount, reason }) => {
+    const res = await apiRequest(`/payment/refund/request-otp/${orderId}`, {
       method: "POST",
       body: JSON.stringify({ refundAmount, reason })
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to send refund OTP to admin Gmail.");
+    }
+    return res;
+  },
+
+  processRefund: async (orderId, { refundAmount, reason, otp, refundToken }) => {
+    const res = await apiRequest(`/payment/refund/${orderId}`, {
+      method: "POST",
+      body: JSON.stringify({ refundAmount, reason, otp, refundToken })
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to process PayU refund.");
