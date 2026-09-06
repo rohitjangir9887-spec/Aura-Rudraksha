@@ -912,6 +912,7 @@ export const db = {
     }
 
     try {
+      if (Array.isArray(storeCache.myOrders) && storeCache.myOrders.length > 0) { apiRequest("/orders/my", { timeoutMs: 15000 }).then(r => { if(r?.success && Array.isArray(r.data)) { storeCache.myOrders = r.data; preloadImages(r.data); emitStoreUpdate("my-orders:synced", storeCache.myOrders); } }).catch(() => {}); return { success: true, data: storeCache.myOrders }; }
       const res = await apiRequest("/orders/my", { timeoutMs: 15000 });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
@@ -2474,6 +2475,10 @@ export const db = {
     storeCache.wishlist = [];
   }
 };
+
+if (typeof window !== "undefined") {
+  window.addEventListener("aura:clear-cache", () => db.clearUserCache());
+}
 
 authClient.onAuthStateChanged(() => {
   db.clearUserCache();

@@ -85,7 +85,7 @@ export async function setUserMemory({ userId, guestSessionId, memoryKey, memoryV
           id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
         }
       },
-      { upsert: true, new: true, returnDocument: "after" }
+      { upsert: true, returnDocument: "after" }
     ).lean();
     return updated;
   } catch (err) {

@@ -506,7 +506,7 @@ export async function handlePayuCallback(req, res) {
           })
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (updatedOrder) {
@@ -534,7 +534,7 @@ export async function handlePayuCallback(req, res) {
       const stockClaim = await Order.findOneAndUpdate(
         { _id: order._id, inventoryDeducted: { $ne: true } },
         { $set: { inventoryDeducted: true } },
-        { new: false }
+        { returnDocument: "before" }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
         const bulkOps = [];
@@ -567,7 +567,7 @@ export async function handlePayuCallback(req, res) {
         const couponClaim = await Order.findOneAndUpdate(
           { _id: order._id, couponUsedRecorded: { $ne: true } },
           { $set: { couponUsedRecorded: true } },
-          { new: false }
+          { returnDocument: "before" }
         );
         if (couponClaim && !couponClaim.couponUsedRecorded) {
           await Coupon.findOneAndUpdate(
@@ -838,7 +838,7 @@ export async function handlePayuWebhook(req, res) {
           })
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (updatedOrder) {
@@ -846,7 +846,7 @@ export async function handlePayuWebhook(req, res) {
       const stockClaim = await Order.findOneAndUpdate(
         { _id: order._id, inventoryDeducted: { $ne: true } },
         { $set: { inventoryDeducted: true } },
-        { new: false }
+        { returnDocument: "before" }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
         const bulkOps = [];
@@ -870,7 +870,7 @@ export async function handlePayuWebhook(req, res) {
         const couponClaim = await Order.findOneAndUpdate(
           { _id: order._id, couponUsedRecorded: { $ne: true } },
           { $set: { couponUsedRecorded: true } },
-          { new: false }
+          { returnDocument: "before" }
         );
         if (couponClaim && !couponClaim.couponUsedRecorded) {
           await Coupon.findOneAndUpdate(
@@ -981,14 +981,14 @@ export async function verifyPaymentStatus(req, res, next) {
                 })
               }
             },
-            { new: true }
+            { returnDocument: "after" }
           );
 
           if (updatedOrder) {
             const stockClaim = await Order.findOneAndUpdate(
               { _id: order._id, inventoryDeducted: { $ne: true } },
               { $set: { inventoryDeducted: true } },
-              { new: false }
+              { returnDocument: "before" }
             );
             if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
               const bulkOps = [];
@@ -1012,7 +1012,7 @@ export async function verifyPaymentStatus(req, res, next) {
               const couponClaim = await Order.findOneAndUpdate(
                 { _id: order._id, couponUsedRecorded: { $ne: true } },
                 { $set: { couponUsedRecorded: true } },
-                { new: false }
+                { returnDocument: "before" }
               );
               if (couponClaim && !couponClaim.couponUsedRecorded) {
                 await Coupon.findOneAndUpdate({ code: order.couponCode.toUpperCase() }, { $inc: { usage: 1 } });
@@ -1480,7 +1480,7 @@ export async function processPayuRefund(req, res, next) {
       {
         $set: { isRefunding: true }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!lockedOrder) {

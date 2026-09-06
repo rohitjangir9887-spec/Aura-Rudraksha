@@ -48,7 +48,7 @@ function normalizeProductStatus(rawStatus, defaultStatus = "Draft") {
 
 export async function getProducts(req, res, next) {
   try {
-    const isAdmin = await checkIsAdmin(req);
+    const isAdmin = req.user && req.user.isAdmin;
 
     if (!isDbConnected()) {
       let products = [...inMemoryStore.products];
@@ -121,7 +121,7 @@ export async function getProductById(req, res, next) {
       if (!product) {
         return res.status(404).json({ success: false, message: "Product not found" });
       }
-      const isAdmin = await checkIsAdmin(req);
+      const isAdmin = req.user && req.user.isAdmin;
       if (!isAdmin) {
         const currentStatus = (product.status || "Published").toLowerCase();
         if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
@@ -145,7 +145,7 @@ export async function getProductById(req, res, next) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    const isAdmin = await checkIsAdmin(req);
+    const isAdmin = req.user && req.user.isAdmin;
     if (!isAdmin) {
       const currentStatus = (product.status || "Published").toLowerCase();
       if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
