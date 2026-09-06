@@ -3,6 +3,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createApp } from "./server/app.js";
 import { connectDB } from "./server/config/db.js";
+import { reconcileAllOrders } from "./server/services/orderReconciliationService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -50,9 +51,12 @@ async function startServer() {
   });
 
   // Attempt database connection in background
-  connectDB().catch((err) => {
-    console.warn("MongoDB initial connection attempt completed with notice:", err?.message || err);
-  });
+  connectDB()
+    .then(() => reconcileAllOrders())
+    .catch((err) => {
+      console.warn("MongoDB initial connection attempt completed with notice:", err?.message || err);
+      reconcileAllOrders();
+    });
 }
 
 startServer();

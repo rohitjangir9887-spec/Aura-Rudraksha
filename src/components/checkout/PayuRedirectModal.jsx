@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ShieldCheck, Lock, Zap, AlertCircle, 
-  RefreshCw, ArrowLeft, CheckCircle2
+  RefreshCw, ArrowLeft, CheckCircle2,
+  CreditCard, Smartphone, Wallet, Landmark
 } from "lucide-react";
 
 export function PayuRedirectModal({ 
@@ -144,51 +145,44 @@ export function PayuRedirectModal({
               </motion.div>
 
               {/* Surrounding Payment Badges */}
-              {/* GPay Badge (Top Right) */}
+              {/* UPI Badge (Top Right) */}
               <motion.div
                 animate={errorMsg ? {} : { y: [-2, 3, -2] }}
                 transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
-                className="absolute -top-1 -right-2 px-2 py-1 rounded-lg bg-white border border-[#e8dac9] shadow-xs text-[10px] font-bold text-[#4285F4] flex items-center gap-0.5"
+                className="absolute -top-1 -right-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
               >
-                <span className="text-[#34A853]">G</span>Pay
+                <Smartphone className="w-3.5 h-3.5 text-[#097939]" />
+                <span className="text-[10px] font-bold text-[#2b170d]">UPI</span>
               </motion.div>
 
-              {/* PhonePe Badge (Top Left) */}
+              {/* Cards Badge (Top Left) */}
               <motion.div
                 animate={errorMsg ? {} : { y: [2, -2, 2] }}
                 transition={{ repeat: Infinity, duration: 2.7, ease: "easeInOut" }}
-                className="absolute -top-1 -left-2 px-2 py-1 rounded-lg bg-white border border-[#e8dac9] shadow-xs text-[10px] font-bold text-[#5f259f]"
+                className="absolute -top-1 -left-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
               >
-                PhonePe
+                <CreditCard className="w-3.5 h-3.5 text-[#1a1f71]" />
+                <span className="text-[10px] font-bold text-[#2b170d]">Cards</span>
               </motion.div>
 
-              {/* Paytm Badge (Bottom Left) */}
+              {/* Wallets Badge (Bottom Left) */}
               <motion.div
                 animate={errorMsg ? {} : { y: [-1, 2, -1] }}
                 transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
-                className="absolute -bottom-1 -left-2 px-2 py-1 rounded-lg bg-white border border-[#e8dac9] shadow-xs text-[10px] font-bold text-[#00baf2]"
+                className="absolute -bottom-1 -left-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
               >
-                Paytm
+                <Wallet className="w-3.5 h-3.5 text-[#5f259f]" />
+                <span className="text-[10px] font-bold text-[#2b170d]">Wallets</span>
               </motion.div>
 
-              {/* UPI Badge (Bottom Right) */}
+              {/* Banking Badge (Bottom Right) */}
               <motion.div
                 animate={errorMsg ? {} : { y: [2, -1, 2] }}
                 transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
-                className="absolute -bottom-1 -right-2 px-2 py-1 rounded-lg bg-white border border-[#e8dac9] shadow-xs text-[10px] font-bold text-[#7a421d]"
+                className="absolute -bottom-1 -right-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
               >
-                UPI
-              </motion.div>
-
-              {/* Card Badge (Bottom Center) */}
-              <motion.div
-                animate={errorMsg ? {} : { y: [-2, 1, -2] }}
-                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-white border border-[#e8dac9] shadow-2xs text-[9px] font-bold text-[#2b170d] flex items-center gap-1"
-              >
-                <span>Cards</span>
-                <span className="text-amber-600">•</span>
-                <span className="italic text-[#1a1f71]">VISA</span>
+                <Landmark className="w-3.5 h-3.5 text-[#b88a58]" />
+                <span className="text-[10px] font-bold text-[#2b170d]">Banking</span>
               </motion.div>
             </div>
           </div>

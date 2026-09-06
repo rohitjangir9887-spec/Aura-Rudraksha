@@ -153,7 +153,8 @@ export function AdminOrders() {
         payload.cancelledAt = new Date().toISOString();
         payload.cancelReason = "Cancelled by Admin";
         payload.cancelledBy = "Admin";
-        payload.paymentStatus = "Refunded";
+        // Do NOT fake paymentStatus as "Refunded" on cancel!
+        // Backend handles payment status & refund status based on actual PayU verification & refund actions.
       }
       try {
         const res = await db.updateOrder(id, payload);
