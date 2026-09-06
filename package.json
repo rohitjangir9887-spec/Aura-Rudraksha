@@ -10,7 +10,7 @@
     "server": "node server/server.js",
     "lint": "vite build --mode production",
     "preview": "vite preview",
-    "test": "node --test src/**/*.test.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",

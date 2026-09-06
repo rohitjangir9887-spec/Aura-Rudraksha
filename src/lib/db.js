@@ -28,7 +28,7 @@ export const onStoreUpdate = (callback) => {
 // Defaults to same-origin "/api" (works when Express serves the built frontend).
 // For split deployments (Cloudflare Pages frontend + separate Node backend),
 // set VITE_API_BASE_URL="https://api.yourdomain.com/api" at build time.
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+const API_BASE = (((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env.VITE_API_BASE_URL : undefined) || "/api").replace(/\/$/, "");
 
 // Request Deduplication Map for in-flight GET requests
 const pendingGetRequests = new Map();
