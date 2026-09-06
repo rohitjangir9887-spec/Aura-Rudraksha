@@ -5,7 +5,7 @@
 export const ADMIN_BASE_PATH = "/admin";
 export const ADMIN_LOGIN_PATH = "/admin/login";
 
-export const getSafeReturnPath = (fromPath, defaultFallback = ADMIN_BASE_PATH) => {
+export const getSafeReturnPath = (fromPath, defaultFallback = "/account") => {
   if (!fromPath || typeof fromPath !== "string") {
     return defaultFallback;
   }
