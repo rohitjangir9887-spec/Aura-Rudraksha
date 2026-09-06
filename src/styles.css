@@ -1586,38 +1586,149 @@ body {
     transform: scale(1.05);
 }
 
-/* Header Brand Logo Styles */
+/* Header Brand Logo & Desktop Layout Alignment */
+@media (min-width: 901px) {
+  .header {
+    display: grid !important;
+    grid-template-columns: 1fr auto 1fr !important;
+    align-items: center !important;
+    gap: 16px !important;
+    padding: 0 32px !important;
+    height: 70px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .header-left {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 18px !important;
+    min-width: 0 !important;
+    flex: none !important;
+  }
+
+  .desktop-nav {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    flex-wrap: nowrap !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .desktop-nav a {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #2a160d !important;
+    white-space: nowrap !important;
+    text-decoration: none !important;
+    transition: color 0.2s ease !important;
+  }
+
+  .desktop-nav a:hover {
+    color: var(--copper, #b85d25) !important;
+  }
+
+  .header-center {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 16px !important;
+    flex: none !important;
+    min-width: auto !important;
+  }
+
+  .brand {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-decoration: none !important;
+    min-width: auto !important;
+  }
+
+  div#root:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2) > a:nth-of-type(1) > img:nth-of-type(1),
+  .brand-logo-img {
+    height: 48px !important;
+    max-height: 48px !important;
+    width: auto !important;
+    max-width: 230px !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto !important;
+    transition: transform 0.25s ease !important;
+  }
+
+  .header-right {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+    flex: none !important;
+  }
+
+  .desktop-search {
+    display: flex !important;
+    align-items: center !important;
+    width: 170px !important;
+    max-width: 180px !important;
+    min-width: 120px !important;
+    height: 36px !important;
+    padding: 0 10px !important;
+    gap: 6px !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--line, #e8dac9) !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+
+  .desktop-search input {
+    border: 0 !important;
+    outline: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 12px !important;
+    background: transparent !important;
+  }
+
+  .mobile-search,
+  .mobile-menu {
+    display: none !important;
+  }
+}
+
 .header-center {
-  flex: 1 1 auto !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  min-width: 0 !important;
-  padding: 0 8px !important;
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  padding: 0 8px;
 }
 
 .brand {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  text-decoration: none !important;
-  min-width: auto !important;
-  max-width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  min-width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 div#root:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2) > a:nth-of-type(1) > img:nth-of-type(1),
 .brand-logo-img {
-  height: 52px !important;
-  max-height: 52px !important;
-  width: auto !important;
-  max-width: 320px !important;
-  object-fit: contain !important;
-  display: block !important;
-  margin: 0 auto !important;
-  padding: 0 !important;
-  transition: transform 0.25s ease, filter 0.25s ease !important;
+  height: 52px;
+  max-height: 52px;
+  width: auto;
+  max-width: 320px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  padding: 0;
+  transition: transform 0.25s ease, filter 0.25s ease;
 }
 
 div#root:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2) > a:nth-of-type(1):hover > img:nth-of-type(1),
