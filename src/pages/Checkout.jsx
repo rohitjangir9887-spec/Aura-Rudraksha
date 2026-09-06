@@ -211,43 +211,37 @@ export function Checkout() {
     
     if (pendingTxnid && pendingOrderId && !hasCallbackParam && !confirmedOrder) {
       // User pressed back from PayU or refreshed during active payment
-      setPaymentState("PENDING");
-      if (!isStatusPolling) {
-        setIsStatusPolling(true);
-        // Clean up session storage immediately so a refresh clears it out after we handle it
-        sessionStorage.removeItem("aura_pending_txnid");
-        sessionStorage.removeItem("aura_pending_orderId");
-        
-        // Start checking backend
-        checkPendingStatus(pendingTxnid, pendingOrderId);
+      if (!showLeaveModal) {
+          setShowLeaveModal(true);
       }
     }
   }, [searchParams, confirmedOrder, pendingTxnid, pendingOrderId]);
 
-  const checkPendingStatus = async (txnid, orderId) => {
-    try {
-      const res = await db.verifyPayment(orderId, txnid);
-      if (res?.success && res.data) {
-        if (res.data.paymentStatus === "Paid" || res.data.status === "Confirmed") {
-          setConfirmedOrder(res.data);
-          setPaymentState("SUCCESS");
-          if (!buyNowLines) clear(); // clear cart only on success
-        } else if (res.data.paymentStatus === "Failed") {
-          setPaymentState("FAILED");
-          navigate(`/checkout?failed=${orderId}&txnid=${txnid}&reason=Payment failed or was cancelled.`, { replace: true });
-        } else if (res.data.paymentStatus === "Cancelled") {
-          setPaymentState("CANCELLED");
-          navigate(`/checkout?cancelled=${orderId}&txnid=${txnid}`, { replace: true });
-        } else {
-          // Keep polling while PENDING
-          setTimeout(() => checkPendingStatus(txnid, orderId), 4000);
-        }
-      } else {
-         setTimeout(() => checkPendingStatus(txnid, orderId), 4000);
-      }
-    } catch (e) {
-      setTimeout(() => checkPendingStatus(txnid, orderId), 5000);
+  const handleCancelPaymentAction = async () => {
+    setShowLeaveModal(false);
+    setPaymentState("CANCELLED");
+    
+    // Clean up session storage so a refresh clears it out
+    sessionStorage.removeItem("aura_pending_txnid");
+    sessionStorage.removeItem("aura_pending_orderId");
+    
+    // Optionally inform backend to mark this txnid as userCancelled
+    if (pendingOrderId && pendingTxnid) {
+        try {
+            await db.markPaymentCancelled(pendingOrderId, pendingTxnid);
+        } catch (_) {}
     }
+    
+    navigate(`/checkout?cancelled=${pendingOrderId}&txnid=${pendingTxnid}`, { replace: true });
+  };
+
+  const handleContinuePaymentAction = () => {
+      setShowLeaveModal(false);
+      // Wait for PayU backend webhook or manual retry
+      // Clear session so it doesn't prompt again on refresh
+      sessionStorage.removeItem("aura_pending_txnid");
+      sessionStorage.removeItem("aura_pending_orderId");
+      navigate(`/account/orders`, { replace: true });
   };
 
   // Safe popstate/beforeunload strictly for unresolved transactions
@@ -1314,15 +1308,12 @@ export function Checkout() {
         {/* Leave Confirmation Modal during Active Checkout */}
         <ConfirmModal
           isOpen={showLeaveModal}
-          onClose={() => setShowLeaveModal(false)}
-          onConfirm={() => {
-            setShowLeaveModal(false);
-            navigate("/cart");
-          }}
-          title="Are you sure you want to leave?"
-          message="Your payment is in progress. Cancel payment and return to cart?"
-          confirmText="Cancel Payment"
-          cancelText="Stay"
+          onClose={handleContinuePaymentAction}
+          onConfirm={handleCancelPaymentAction}
+          title="Cancel Payment?"
+          message="Your payment has not been completed. Do you want to cancel this payment attempt?"
+          confirmText="Yes, Cancel Payment"
+          cancelText="Continue Payment"
           type="warning"
         />
 
