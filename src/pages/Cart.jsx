@@ -266,11 +266,13 @@ export function Cart() {
               }}
             >
               {/* 1. Free Shipping Milestone Meter */}
-              <CartFreeShippingMeter
-                subtotal={subtotal}
-                freeShippingThreshold={freeShippingThreshold}
-                isFreeShipping={isFreeShipping}
-              />
+              {freeShippingThreshold > 0 && (
+                <CartFreeShippingMeter
+                  subtotal={subtotal}
+                  freeShippingThreshold={freeShippingThreshold}
+                  isFreeShipping={isFreeShipping}
+                />
+              )}
 
               {/* 2. Items List */}
               <div

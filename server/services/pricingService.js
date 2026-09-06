@@ -283,13 +283,13 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   // Base shipping fee determination:
   // If freeShippingThreshold is 0, OR subtotal >= threshold, base store shipping is FREE (0).
   // Otherwise base store shipping is storeStandardShippingFee.
-  const isBaseFreeShipping = subtotal === 0 || storeFreeShippingThreshold === 0 || subtotal >= storeFreeShippingThreshold;
-  const baseShippingFee = isBaseFreeShipping ? 0 : storeStandardShippingFee;
+  const isBaseFreeShipping = true; // Disabled base store shipping as per request
+  const baseShippingFee = 0;
 
-  // Combined shipping
-  const shipping = baseShippingFee + productShippingFees;
+  // Combined shipping (strictly product-based now)
+  const shipping = productShippingFees;
   const isFreeShipping = (shipping === 0);
-  const shippingDiscount = (isBaseFreeShipping && storeStandardShippingFee > 0) ? storeStandardShippingFee : 0;
+  const shippingDiscount = 0;
 
   // 3. Authoritative Coupon Validation & Discount
   let appliedCoupon = null;

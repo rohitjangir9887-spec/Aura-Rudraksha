@@ -209,7 +209,7 @@ section("C. Final e-commerce flow (server-authoritative)");
     customerEmail: USER_B, customerName: "User B", phone: "+91 9000000002",
     lines: [{ id: "cheap", qty: 1 }]
   }, userBToken);
-  check("Non-free shipping applied (₹50, subtotal 200 < 499)", oLow.json?.data?.shipping === 50 && oLow.json?.data?.finalAmount === 250, `shipping=${oLow.json?.data?.shipping} final=${oLow.json?.data?.finalAmount}`);
+  check("Product-based shipping applied (₹0 by default on normal items)", oLow.json?.data?.shipping === 0 && oLow.json?.data?.finalAmount === 200, `shipping=${oLow.json?.data?.shipping} final=${oLow.json?.data?.finalAmount}`);
 
   // coupons: create + validate + apply
   await api("POST", "/api/coupons", { code: "P3COUP", discount: 100, type: "fixed", minAmount: 500, limit: 10 }, adminToken);
