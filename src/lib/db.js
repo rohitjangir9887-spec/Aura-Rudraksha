@@ -2396,9 +2396,45 @@ export const db = {
   },
 
   normalizeOrder: (o) => {
+    if (!o) return o;
     if (!o.snapshotItems || !Array.isArray(o.snapshotItems) || o.snapshotItems.length === 0) {
       o.snapshotItems = db.normalizeOrderItems(o);
     }
+    o.id = o.id || o.orderId || o.orderNumber;
+    o.orderId = o.orderId || o.id;
+    o.orderNumber = o.orderNumber || o.id;
+
+    // Synchronize Order Status
+    const isCancelled = o.status === "Cancelled" || o.orderStatus === "Cancelled" || Boolean(o.cancelledAt);
+    if (isCancelled) {
+      o.status = "Cancelled";
+      o.orderStatus = "Cancelled";
+      o.cancelledBy = o.cancelledBy || "Seller";
+      o.cancelReason = o.cancelReason || "Order cancelled";
+    } else {
+      o.status = o.status || o.orderStatus || "Confirmed";
+      o.orderStatus = o.status;
+    }
+
+    // Synchronize Payment and Refund Status
+    const amtRefunded = Number(o.amountRefunded || 0);
+    const totalAmt = Number(o.finalAmount || o.total || o.amount || 0);
+
+    if (amtRefunded > 0 && amtRefunded >= (totalAmt - 0.01)) {
+      o.refundStatus = "Refunded";
+      o.paymentStatus = o.paymentStatus === "Paid" ? "Paid" : "Refunded";
+    } else if (amtRefunded > 0) {
+      o.refundStatus = "Partially Refunded";
+      o.paymentStatus = "Partially Refunded";
+    } else if (o.paymentStatus === "Refund Pending") {
+      o.refundStatus = "Refund Pending";
+    } else if (isCancelled && (!o.paymentStatus || ["Pending", "Failed", "Not Received", "Unpaid"].includes(o.paymentStatus))) {
+      o.paymentStatus = "Not Received";
+      o.refundStatus = "None";
+    } else {
+      o.refundStatus = o.refundStatus || "None";
+    }
+
     return o;
   },
 

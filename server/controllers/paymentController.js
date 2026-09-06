@@ -1249,11 +1249,15 @@ export async function processPayuRefund(req, res, next) {
 
     // Record Refund details in Order
     order.amountRefunded = newAmountRefunded;
-    order.paymentStatus = isFullRefund ? "Refunded" : "Partially Refunded";
+    order.paymentStatus = "Paid";
+    order.refundStatus = isFullRefund ? "Refunded" : "Partially Refunded";
     
     if (isFullRefund) {
       order.status = "Cancelled";
       order.orderStatus = "Cancelled";
+      order.cancelledBy = order.cancelledBy || "Seller";
+      order.cancelReason = reason || "Order cancelled & refund issued via PayU";
+      order.cancelledAt = order.cancelledAt || new Date().toISOString();
     }
 
     const refundEntry = {

@@ -193,21 +193,28 @@ export function TrackOrder() {
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "6px",
-                      background: orderResult.status === "Delivered" ? "#edfbf0" : "#fcf4ed",
-                      border: `1px solid ${orderResult.status === "Delivered" ? "#b7ebc5" : "#ebdccb"}`,
-                      color: orderResult.status === "Delivered" ? "#16a34a" : "#a54d2b",
+                      background: orderResult.status === "Cancelled" ? "#fee2e2" : (orderResult.status === "Delivered" ? "#edfbf0" : "#fcf4ed"),
+                      border: `1px solid ${orderResult.status === "Cancelled" ? "#fca5a5" : (orderResult.status === "Delivered" ? "#b7ebc5" : "#ebdccb")}`,
+                      color: orderResult.status === "Cancelled" ? "#991b1b" : (orderResult.status === "Delivered" ? "#16a34a" : "#a54d2b"),
                       padding: "6px 14px",
                       borderRadius: "20px",
                       fontSize: "12.5px",
                       fontWeight: 700
                     }}>
-                      <Clock size={14} /> Status: {orderResult.status || "In Transit"}
+                      <Clock size={14} /> Status: {orderResult.status === "Cancelled" ? `Order Cancelled${orderResult.cancelledBy ? ` by ${orderResult.cancelledBy}` : ''}` : (orderResult.status || "In Transit")}
                     </span>
-                    {orderResult.estimatedDelivery && (
+                    {orderResult.status === "Cancelled" ? (
+                      <span style={{ display: "block", fontSize: "12px", color: "#991b1b", marginTop: "4px", fontWeight: 600 }}>
+                        {orderResult.refundStatus === "Refunded" || orderResult.amountRefunded > 0 
+                          ? `Payment: Paid • Refunded ₹${Number(orderResult.amountRefunded || orderResult.finalAmount || orderResult.total || 0).toLocaleString('en-IN')}`
+                          : "Payment Not Received (No Refund)"
+                        }
+                      </span>
+                    ) : orderResult.estimatedDelivery ? (
                       <span style={{ display: "block", fontSize: "12px", color: "#7d6d62", marginTop: "4px" }}>
                         Est. Delivery: <strong>{orderResult.estimatedDelivery}</strong>
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 

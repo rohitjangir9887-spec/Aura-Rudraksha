@@ -34,7 +34,11 @@ const orderSchema = new mongoose.Schema(
     paymentAttempts: { type: Array, default: [] },
     refundDetails: { type: mongoose.Schema.Types.Mixed, default: null },
     refundHistory: { type: Array, default: [] },
-    orderStatus: { type: String, default: "Pending" }, // "Pending" until paid, then "Confirmed"
+    refundStatus: { type: String, default: "None", index: true }, // "None", "Refund Pending", "Partially Refunded", "Refunded"
+    cancelledBy: { type: String, default: "" }, // "Seller", "Customer", "System"
+    cancelReason: { type: String, default: "" },
+    cancelledAt: { type: String, default: "" },
+    orderStatus: { type: String, default: "Pending", index: true }, // "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"
     status: { type: String, default: "Pending" },
     address: { type: String, default: "" },
     shippingAddress: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -92,6 +96,25 @@ orderSchema.pre("save", function () {
   }
   if (!this.customerPhone && this.phone) {
     this.customerPhone = this.phone;
+  }
+
+  // Invariant Enforcement
+  const isCancelled = this.status === "Cancelled" || this.orderStatus === "Cancelled" || Boolean(this.cancelledAt);
+  if (isCancelled) {
+    this.status = "Cancelled";
+    this.orderStatus = "Cancelled";
+    if (!this.cancelledBy) this.cancelledBy = "Seller";
+  }
+
+  const amtRefunded = Number(this.amountRefunded || 0);
+  const totalAmt = Number(this.finalAmount || this.total || this.amount || 0);
+  if (amtRefunded > 0 && amtRefunded >= (totalAmt - 0.01)) {
+    this.refundStatus = "Refunded";
+  } else if (amtRefunded > 0) {
+    this.refundStatus = "Partially Refunded";
+  } else if (isCancelled && (!this.paymentStatus || ["Pending", "Failed", "Not Received", "Unpaid"].includes(this.paymentStatus))) {
+    this.paymentStatus = "Not Received";
+    this.refundStatus = "None";
   }
 });
 
