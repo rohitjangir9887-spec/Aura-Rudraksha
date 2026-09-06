@@ -15,7 +15,6 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 import { 
   searchRelevantCatalogProducts, 
   extractMukhiNumber, 
-  buildAuthenticVedicResponse, 
   VEDIC_BEADS_KNOWLEDGE 
 } from "../services/vedicKnowledgeService.js";
 import { getUserMemories, extractAndUpdateMemories } from "../services/memoryService.js";
@@ -69,12 +68,8 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // Production AI provider configuration: NVIDIA NIM
-const PRIMARY_NIM_MODEL = "meta/llama-3.3-70b-instruct";
-const BACKUP_NIM_MODELS = [
-  "nvidia/llama-3.1-nemotron-70b-instruct",
-  "meta/llama3-70b-instruct",
-  "mistralai/mistral-7b-instruct-v0.2"
-];
+const PRIMARY_NIM_MODEL = "nemotron-3-super-120b-a12b";
+const BACKUP_NIM_MODELS = ["nemotron-3-super-120b-a12b"];
 
 function getNvidiaClient() {
   const apiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
@@ -629,6 +624,12 @@ ${isPanditji ? `TONE & PERSONA (AI PANDITJI MODE):
 - Always include traditional Dharan Vidhi (wearing day, auspicious muhurat, Beej Mantra, Gangajal & raw milk purification, and daily Nitya Niyama).` : `TONE & PERSONA (STANDARD MODE):
 - Warm, polite, knowledgeable, concise, and helpful. Answer customer queries directly.`}
 
+SALES & CONVERSION FOCUS (INDEPENDENT THINKING):
+- You are an expert sales representative and spiritual guide combined. Think independently and creatively to guide the user towards making a purchase (सेल्स बढ़ाने मे योगदान दें).
+- Proactively suggest related products, explain the profound spiritual and material benefits of the items, and highlight active discounts/coupons to create urgency.
+- Subtly encourage the user to add items to their cart and proceed to checkout, framing the purchase as a positive spiritual investment.
+- If a user asks a general question, answer it beautifully but always tie it back to how our authentic Rudraksha beads can help them achieve their goals.
+
 HONESTY & SOURCE OF TRUTH:
 - NEVER invent prices, stock availability, discount coupons, customer orders, or delivery dates.
 - For product catalog details, stock, shipping, coupons, and customer orders, rely strictly on live function tool data or RAG context.
@@ -700,7 +701,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
 
         // Generate content with function calling capabilities
         let response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "nemotron-3-super-120b-a12b",
           config: {
             systemInstruction: systemPrompt,
             tools: toolsConfig,
@@ -747,7 +748,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
           });
 
           response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "nemotron-3-super-120b-a12b",
             config: {
               systemInstruction: systemPrompt,
               tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
@@ -823,17 +824,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
         }
       }
 
-      fullRawContent = buildAuthenticVedicResponse({
-        message,
-        userIntent: intent,
-        products: finalProducts,
-        coupons: finalCoupons,
-        userIsAuthenticated,
-        verifiedName,
-        customerOrders,
-        supportPhone: storeSettings.supportPhone,
-        supportEmail: storeSettings.supportEmail
-      });
+      fullRawContent = `🙏 **Namaste! Main Aura AI hoon.**\n\nKshama karein, is samay main temporary connection issue face kar raha hoon (AI API disconnected). Kripya thodi der baad prayas karein, ya directly hamare products browse karein.`;
     }
 
     const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(fullRawContent));
@@ -1442,7 +1433,7 @@ export async function getAuraAIAnalytics(req, res, next) {
 
 export async function generateProductDescription(req, res, next) {
   try {
-    const { name, category, price, mrp, stock, language, details } = req.body;
+    const { name, category, language, details } = req.body;
     if (!name) return res.status(400).json({ success: false, message: "Product name is required" });
 
     const targetLanguage = language || "English";
@@ -1461,127 +1452,7 @@ export async function generateProductDescription(req, res, next) {
 
     const suggestedCategory = category && category !== "Rudraksha" ? category : inferCategoryFromTitle(cleanName);
 
-    const generateAuthenticFallbackHtml = (prodName, prodCat, lang) => {
-      const isHindi = lang === "Hindi";
-      const isHinglish = lang === "Hinglish";
-
-      if (isHindi) {
-        return `<h2>✨ About the Product</h2>
-<p>पवित्र <strong>${cleanName}</strong> हिमालय के पावन क्षेत्रों से प्राप्त एक दिव्य आध्यात्मिक साधन है। यह नकारात्मक ऊर्जाओं को नष्ट करने, मन को शांत करने और सकारात्मकता का संचार करने में सहायक होता है।</p>
-
-<h2>📿 Product Highlights</h2>
-<ul>
-  <li><strong>100% प्राकृतिक:</strong> प्राकृतिक रूप से निर्मित गहरी एवं स्पष्ट रेखाएं।</li>
-  <li><strong>गंगाजल अभिषेक:</strong> प्रेषण से पूर्व गंगाजल से शुद्ध एवं सिद्ध किया गया।</li>
-  <li><strong>आध्यात्मिक ऊर्जा:</strong> पूजा, ध्यान और नित्य धारण के लिए अत्यंत शुभ।</li>
-  <li><strong>पूर्ण शुद्धता:</strong> किसी भी कृत्रिम रंग, रसायन या पॉलिश से रहित।</li>
-</ul>
-
-<h2>🌿 Spiritual Significance</h2>
-<p>शास्त्रों के अनुसार, यह दिव्य उत्पाद हमारे ऊर्जा केंद्रों (चक्रों) को संतुलित करता है और धारण करने वाले के चारों ओर सकारात्मकता का सुरक्षा कवच (Aura) प्रदान करता है।</p>
-
-<h2>🙏 Suitable For</h2>
-<p>यह विद्यार्थियों, गृहस्थों, आध्यात्मिक साधकों और पेशेवरों के लिए अत्यंत लाभदायक है, जो जीवन में मानसिक शांति, ध्यान, एकाग्रता और दिव्य सुरक्षा चाहते हैं।</p>
-
-<h2>🕉️ How to Wear & Care</h2>
-<p>शुभ सोमवार को प्रातः स्नान के पश्चात पूर्व या उत्तर दिशा की ओर मुख करके <strong>"ॐ नमः शिवाय"</strong> मंत्र का 108 बार जाप करते हुए धारण करें। महीने में एक बार शुद्ध जल से धोएं और हल्का चंदन का तेल लगाएं।</p>`;
-      }
-
-      if (isHinglish) {
-        return `<h2>✨ About the Product</h2>
-<p>Pavitra <strong>${cleanName}</strong> ek authentic aur spiritually energized sacred spiritual product hai. Yeh Himalayan high-altitude regions se ethically collect kiya jata hai aur iska primary purpose mind ko calm karna aur energy level ko elevate karna hai.</p>
-
-<h2>📿 Product Highlights</h2>
-<ul>
-  <li><strong>100% Original:</strong> Naturally crafted high vibration spiritual item.</li>
-  <li><strong>Vedic Consecration:</strong> Dispatch se pehle Ganga Jal aur sacred mantras se energize kiya jata hai.</li>
-  <li><strong>Daily Sadhana:</strong> Pooja, meditation aur daily wear ke liye highly recommended.</li>
-  <li><strong>Pure Form:</strong> No artificial colors, polish, or synthetic chemicals used.</li>
-</ul>
-
-<h2>🌿 Spiritual Significance</h2>
-<p>Vedic tradition ke mutabik, yeh item wearer ke chakra energy ko balance karta hai aur aspas ke negative vibrations ko dur rakh kar ek positive Aura create karta hai.</p>
-
-<h2>🙏 Suitable For</h2>
-<p>Yeh students, professionals, spiritual seekers aur devotees sabhi ke liye suitable hai jo stressful life mein focus, emotional balance aur dynamic protection chahte hain.</p>
-
-<h2>🕉️ How to Wear & Care</h2>
-<p>Kisi bhi Monday morning ko naha kar East ya North direction face karke <strong>"Om Namah Shivaya"</strong> beej mantra ka 108 baar chant karke pehnein/sthapit karein. Month mein ek baar gentle water se wash karein.</p>`;
-      }
-
-      return `<h2>✨ About the Product</h2>
-<p>The sacred <strong>${cleanName}</strong> is a genuine, high-vibration spiritual instrument ethically gathered from pristine Himalayan heights. Worn worldwide to invite divine peace, shield against negative energies, and align the wearer's subtle energy centers.</p>
-
-<h2>📿 Product Highlights</h2>
-<ul>
-  <li><strong>100% Genuine Origin:</strong> Features naturally formed high-vibration spiritual craftsmanship.</li>
-  <li><strong>Vedic Consecration:</strong> Consecrated with holy Ganga Jal and Vedic mantras before shipping.</li>
-  <li><strong>Spiritual Sadhana:</strong> Ideal for meditation, mindfulness, and promoting inner peace.</li>
-  <li><strong>Ethical Preservation:</strong> Unaltered, pure, and free of synthetic polishes or chemical treatments.</li>
-</ul>
-
-<h2>🌿 Spiritual Significance</h2>
-<p>In Vedic heritage, sacred spiritual items serve as an emotional grounding shield, helping harmonize personal bio-frequencies and expanding inner spiritual consciousness.</p>
-
-<h2>🙏 Suitable For</h2>
-<p>Highly beneficial for spiritual seekers, meditators, students, and professionals seeking clarity of thought, stress reduction, and positive aura protection.</p>
-
-<h2>🕉️ How to Wear & Care</h2>
-<p>Wear or place on any auspicious morning facing East or North. Chant the sacred mantra <strong>"Om Namah Shivaya"</strong> 108 times. Cleanse monthly with pure water and condition gently with sandalwood oil.</p>`;
-    };
-
-    // 1. Primary AI Model: Google Gemini (@google/genai)
-    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-    if (geminiApiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-        const geminiPrompt = `Generate a rich, deeply engaging, and authentic Vedic product description in clean HTML for:
-Product Name: "${cleanName}"
-Category: "${suggestedCategory}"
-Language: "${targetLanguage}"
-Additional Details: "${details || 'Authentic Nepal Rudraksha, sacred and energized'}"
-
-Structure the HTML response using these exact section headings with <h2> tags:
-<h2>✨ About the Product</h2>
-<h2>📿 Product Highlights</h2>
-<h2>🌿 Spiritual Significance</h2>
-<h2>🙏 Suitable For</h2>
-<h2>🕉️ How to Wear & Care</h2>
-
-Guidelines:
-- In "About the Product", provide a compelling 2-3 sentence overview of this sacred item.
-- In "Product Highlights", provide an unordered list (<ul>/<li>) with 4-5 key bullet points (natural Nepal origin, Vedic lab testing, Ganga Jal energization, comfortable wear).
-- In "Spiritual Significance", describe the ruling deity (Lord Shiva, Ganesha, Laxmi, etc.), ruling planet/chakra, and spiritual merits.
-- In "Suitable For", explain who benefits most (students, professionals, business owners, spiritual seekers, health/peace seekers).
-- In "How to Wear & Care", provide auspicious day (e.g. Monday), Beej Mantra (e.g. Om Namah Shivaya or specific Mukhi mantra), and cleaning/oiling tips.
-- Output ONLY pure clean HTML body without any markdown formatting or \`\`\` code fences.`;
-
-        const geminiRes = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          config: {
-            temperature: 0.7,
-            maxOutputTokens: 1200
-          },
-          contents: [{ role: "user", parts: [{ text: geminiPrompt }] }]
-        });
-
-        const geminiText = (geminiRes.text || "").replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
-        if (geminiText && geminiText.includes("<h2>")) {
-          return res.json({
-            success: true,
-            description: geminiText,
-            category: suggestedCategory,
-            highlight: "100% Consecrated • Authentic Nepal Bead",
-            badge: "Best Seller",
-            tags: [suggestedCategory, "Authentic", "Consecrated"]
-          });
-        }
-      } catch (geminiErr) {
-        console.warn("Gemini description generation notice:", geminiErr?.message || geminiErr);
-      }
-    }
-
-    // 2. Secondary AI Model: NVIDIA NIM
+    // AI Model Integration (nemotron-3-super-120b-a12b)
     const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
     if (nvidiaApiKey) {
       try {
@@ -1593,8 +1464,11 @@ Guidelines:
             "Accept": "application/json"
           },
           body: JSON.stringify({
-            model: "meta/llama-3.1-70b-instruct",
+            model: "nemotron-3-super-120b-a12b",
             messages: [{
+              role: "system",
+              content: "You are an expert sales representative and spiritual guide combined. Think independently and creatively to guide the user towards making a purchase. Write persuasive product descriptions."
+            }, {
               role: "user",
               content: `Generate a professional, highly readable product description in clean HTML for ${cleanName} (${suggestedCategory}) in ${targetLanguage}.
 Use the following structured headings exactly (enclosed in h2):
@@ -1606,16 +1480,14 @@ Use the following structured headings exactly (enclosed in h2):
 
 Output ONLY the pure HTML body itself, no markdown code fences.`
             }],
-            temperature: 0.35,
-            max_tokens: 1000,
-            chat_template_kwargs: { enable_thinking: false },
-            reasoning_effort: "none"
+            temperature: 0.7,
+            max_tokens: 1000
           })
         });
 
         if (nimRes.ok) {
           const nimData = await nimRes.json();
-          let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
+          let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```(?:html)?s*/i, "").replace(/s*```$/i, "").trim();
           if (cleanHtml && cleanHtml.includes("<h2>")) {
             return res.json({ 
               success: true, 
@@ -1632,18 +1504,11 @@ Output ONLY the pure HTML body itself, no markdown code fences.`
       }
     }
 
-    // 3. Fallback
-    const fallbackDesc = generateAuthenticFallbackHtml(cleanName, suggestedCategory, targetLanguage);
-    return res.json({ 
-      success: true, 
-      description: fallbackDesc,
-      category: suggestedCategory,
-      highlight: "100% Original & Consecrated with Ganga Jal",
-      badge: "Best Seller",
-      tags: [suggestedCategory, "Authentic", "Consecrated"]
-    });
+    // No Mock Fallback! Throw error if AI fails to enforce AI-only usage
+    throw new Error("AI Description Generation Failed - Mock Data is Disabled.");
+
   } catch (error) {
     console.error("Aura AI Description Generation Error:", error);
-    return res.status(500).json({ success: false, message: "AI description could not be generated. Please try again." });
+    return res.status(500).json({ success: false, message: "AI description could not be generated. Please check AI API configuration." });
   }
 }
