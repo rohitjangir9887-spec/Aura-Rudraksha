@@ -304,6 +304,9 @@ export const authClient = {
     try {
       localStorage.removeItem("aura_demo_user");
       localStorage.removeItem("aura_ai_last_auth_uid");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aura:clear-cache"));
+      }
     } catch (_) {}
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: null }));

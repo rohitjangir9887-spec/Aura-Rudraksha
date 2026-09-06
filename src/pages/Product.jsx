@@ -64,7 +64,8 @@ export function Product() {
         found.status === 'inactive' || 
         found.status === 'Archived'
       );
-      const isAdmin = authClient.isAdmin && authClient.isAdmin();
+      const user = authClient.getUser();
+      const isAdmin = user && (user.role === "admin" || user.email === "rohitjangir8740@gmail.com");
       const validProduct = (isDraft && !isAdmin) ? null : found;
 
       setProduct(validProduct);
