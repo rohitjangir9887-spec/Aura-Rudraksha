@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useRef } from "react";
 import { 
   ChevronLeft, ChevronRight, Heart, ZoomIn, X, Play, Volume2, Sparkles, Award
@@ -11,7 +13,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
 
   const rawImages = (Array.isArray(product.images) && product.images.length > 0)
     ? product.images
-    : [product.img || "/images/product-5mukhi.jpg"];
+    : getProductGalleryImages(product);
 
   // Unique list of valid image URLs
   const images = rawImages.filter(Boolean);

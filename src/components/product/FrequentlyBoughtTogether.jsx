@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState } from "react";
 import { Plus, Check, ShoppingCart, Sparkles, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -65,7 +67,7 @@ export function FrequentlyBoughtTogether({ currentProduct, allProducts = [], onA
           {allBundleItems.map((item, idx) => {
             const isSelected = selectedIds.includes(String(item.id));
             const isCurrent = String(item.id) === String(currentProduct.id);
-            const img = (item.images && item.images[0]) || item.img || "/images/product-5mukhi.jpg";
+            const img = getProductPrimaryImage(item);
 
             return (
               <React.Fragment key={item.id}>

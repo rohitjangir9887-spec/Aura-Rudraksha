@@ -1,3 +1,5 @@
+import { getProductPrimaryImage } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React from "react";
 import { Link } from "react-router-dom";
 import { money } from "../../data";
@@ -50,7 +52,7 @@ export function ProductReviewCard({
           savings,
           discountPct,
           qty: line.qty,
-          img: p.img || (p.images && p.images[0]) || "/images/product-1mukhi.jpg",
+          img: getProductPrimaryImage(p),
           badge: p.badge || "Sacred Lab Certified Bead",
           origin: "Nepal (Himalayan Origin)",
           labCertified: true

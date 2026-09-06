@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -156,7 +158,7 @@ export function PanditjiResult({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <img
-              src={result.matchedProduct.img || "/images/product-5mukhi.jpg"}
+              src={getProductPrimaryImage(result.matchedProduct)}
               alt={result.matchedProduct.name}
               style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', border: '1px solid #ebdccb', flexShrink: 0 }}
             />

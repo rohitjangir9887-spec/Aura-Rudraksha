@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect } from "react";
 import { 
   ShieldCheck, 
@@ -178,7 +180,7 @@ export function AuraAIChatOrderModal({
             name: product.name,
             price: unitPrice,
             qty: qty,
-            img: product.image || product.img || product.images?.[0] || ""
+            img: getProductPrimaryImage(product)
           }
         ],
         couponCode: appliedCoupon ? appliedCoupon.code : "",

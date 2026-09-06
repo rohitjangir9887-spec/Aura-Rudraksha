@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "./imageUtils";
+import { getProductRoute } from "./routes";
 import { products as defaultProducts } from "../data/index.js";
 import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
@@ -154,7 +156,7 @@ const storeCache = {
     homeBadge: p.homeBadge || p.badge || "",
     mrp: p.mrp || p.comparePrice || p.price,
     comparePrice: p.comparePrice || p.mrp || p.price,
-    images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+    images: getProductGalleryImages(p)
   })),
   orders: [],
   customers: [],
@@ -392,7 +394,7 @@ export async function revalidateProducts(force = false) {
           homeBadge: p.homeBadge || p.badge || "",
           mrp: p.mrp || p.comparePrice || p.price,
           comparePrice: p.comparePrice || p.mrp || p.price,
-          images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+          images: getProductGalleryImages(p)
         }));
 
         storeCache.products = normalized;
@@ -669,7 +671,7 @@ export const db = {
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
         ? p.images
-        : [p.img || "/images/product-5mukhi.jpg"]
+        : getProductGalleryImages(p)
     }));
   },
 
@@ -689,7 +691,7 @@ export const db = {
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
         ? p.images
-        : [p.img || "/images/product-5mukhi.jpg"]
+        : getProductGalleryImages(p)
     };
   },
 
@@ -709,7 +711,7 @@ export const db = {
         id: String(p.id || p._id),
         mrp: p.mrp || p.comparePrice || p.price,
         comparePrice: p.comparePrice || p.mrp || p.price,
-        images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+        images: getProductGalleryImages(p)
       };
       const idx = storeCache.products.findIndex(x =>
         String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
@@ -741,8 +743,8 @@ export const db = {
 
   saveProduct: async (p) => {
     const id = p.id ? String(p.id) : (p._id ? String(p._id) : Date.now().toString());
-    const imgs = (Array.isArray(p.images) && p.images.length > 0) ? p.images : (p.img ? [p.img] : ["/images/product-5mukhi.jpg"]);
-    const primaryImg = p.img || imgs[0];
+    const imgs = getProductGalleryImages(p);
+    const primaryImg = getProductPrimaryImage(p);
 
     const rawStatus = p.status || "Draft";
     const normalizedStatus = (rawStatus === "Published" || rawStatus === "Active" || rawStatus === "published") ? "Published" : "Draft";
@@ -807,7 +809,7 @@ export const db = {
       zodiac: Array.isArray(savedData.zodiac) ? savedData.zodiac : (finalProduct.zodiac || []),
       mrp: savedData.mrp || savedData.comparePrice || savedData.price,
       comparePrice: savedData.comparePrice || savedData.mrp || savedData.price,
-      images: (Array.isArray(savedData.images) && savedData.images.length > 0) ? savedData.images : [savedData.img || "/images/product-5mukhi.jpg"]
+      images: getProductGalleryImages(savedData)
     };
 
     if (currentIdx >= 0) {
@@ -837,7 +839,7 @@ export const db = {
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
         ? p.images
-        : [p.img || "/images/product-5mukhi.jpg"]
+        : getProductGalleryImages(p)
     }));
     const filtered = options.includeDrafts ? all : all.filter(isPublicProduct);
     return searchAndRankProducts(filtered, query);
@@ -1769,7 +1771,7 @@ export const db = {
         mrp,
         quantity: l.qty,
         qty: l.qty,
-        img: p ? (p.img || (p.images && p.images[0])) : null
+        img: p ? getProductPrimaryImage(p) : null
       });
     });
 
@@ -1985,7 +1987,7 @@ export const db = {
         source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
+        img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
@@ -2023,7 +2025,7 @@ export const db = {
         source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
+        img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
@@ -2365,7 +2367,7 @@ export const db = {
         
         const name = p ? p.name : (typeof it === 'object' && it.name ? it.name : "Rudraksha Bead");
         const price = p ? p.price : (typeof it === 'object' && (it.price || it.unitPrice) ? Number(it.price || it.unitPrice) : 999);
-        const img = p ? (p.img || (p.images && p.images[0])) : (typeof it === 'object' ? db.getOrderItemImage(it) : "/images/product-5mukhi.jpg");
+        const img = p ? getProductPrimaryImage(p) : (typeof it === "object" ? db.getOrderItemImage(it) : "/images/product-5mukhi.jpg");
 
         if (!map[strId]) {
           map[strId] = {

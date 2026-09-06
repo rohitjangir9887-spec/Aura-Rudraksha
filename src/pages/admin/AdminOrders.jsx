@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
@@ -1004,7 +1006,7 @@ export function AdminOrders() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {parsedItems.map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                <img src={item.img || '/images/product-5mukhi.jpg'} alt={item.name} style={{ width: 50, height: 50, borderRadius: 8, objectFit: 'contain', border: '1px solid #e8e0d8', background: '#faf7f2' }} />
+                <img src={getProductPrimaryImage(item)} alt={item.name} style={{ width: 50, height: 50, borderRadius: 8, objectFit: 'contain', border: '1px solid #e8e0d8', background: '#faf7f2' }} />
                 <div style={{ flex: 1 }}>
                   <h4 style={{ margin: '0 0 4px', fontSize: '14px', color: '#2b170d' }}>{item.name}</h4>
                   <div style={{ fontSize: '12px', color: '#806f62' }}>₹{Number(item.price || 0).toLocaleString()} × {item.qty || 1}</div>

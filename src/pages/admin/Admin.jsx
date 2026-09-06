@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { motion } from "framer-motion";
@@ -1470,7 +1472,7 @@ export function Admin() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img src={p.img || '/images/product-5mukhi.jpg'} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
+                      <img src={getProductPrimaryImage(p)} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
                       <div>
                         <span style={{ fontSize: '13px', fontWeight: '600', display: 'block', color: '#2b170d' }}>{p.name}</span>
                         <small style={{ color: '#806f62', fontSize: '11px' }}>Stock: {p.stock}</small>

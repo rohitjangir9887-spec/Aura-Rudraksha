@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { 
@@ -670,7 +672,7 @@ export function AuraAIPage() {
                                   ? Math.round(((realMrp - Number(p.price)) / realMrp) * 100)
                                   : 0;
                                 const oos = Number(p.stock) <= 0;
-                                const realImg = p.image || p.img || (Array.isArray(p.images) && p.images[0]) || "/images/product-5mukhi.jpg";
+                                const realImg = getProductPrimaryImage(p);
 
                                 return (
                                   <div key={p.id} className="aura-ai-full-prod-card">
@@ -712,7 +714,7 @@ export function AuraAIPage() {
                                         {p.highlight ? p.highlight.substring(0, 85) + "..." : "Authentic 100% natural Rudraksha, energised with sacred Vedic mantras."}
                                       </p>
                                       <div className="aura-ai-full-prod-btns">
-                                        <Link to={`/product/${p.id}`} className="aura-ai-btn-secondary">
+                                        <Link to={getProductRoute(p)} className="aura-ai-btn-secondary">
                                           <Eye size={12} /> Details
                                         </Link>
                                         <button
@@ -1010,7 +1012,7 @@ export function AuraAIPage() {
               <h4 className="aura-ai-card-title">Featured Sacred Items</h4>
               <div className="aura-ai-sidebar-prods">
                 {featuredProducts.slice(0, 4).map(p => {
-                  const realImg = p.image || p.img || (Array.isArray(p.images) && p.images[0]) || "/images/product-5mukhi.jpg";
+                  const realImg = getProductPrimaryImage(p);
                   return (
                   <div key={p.id} className="aura-ai-sidebar-prod-row">
                     <img

@@ -328,3 +328,41 @@ export async function getImagekitMediaStatus() {
   } catch (_) {}
   return { connected: false, status: "Not Configured", message: "ImageKit credentials not configured." };
 }
+
+/**
+ * Standardize product primary image extraction.
+ * Prefers product.images[0], gracefully falls back to product.img, product.image,
+ * or a default placeholder.
+ */
+export const getProductPrimaryImage = (product) => {
+  if (!product) return "/images/product-5mukhi.jpg";
+  if (Array.isArray(product.images) && product.images.length > 0 && product.images[0]) {
+    return product.images[0];
+  }
+  if (product.img && typeof product.img === "string") {
+    return product.img;
+  }
+  if (product.image && typeof product.image === "string") {
+    return product.image;
+  }
+  return "/images/product-5mukhi.jpg";
+};
+
+/**
+ * Standardize product gallery images extraction.
+ * Returns an array of images. Prefers product.images, falls back to product.img,
+ * or returns an array with the default placeholder.
+ */
+export const getProductGalleryImages = (product) => {
+  if (!product) return ["/images/product-5mukhi.jpg"];
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    return product.images;
+  }
+  if (product.img && typeof product.img === "string") {
+    return [product.img];
+  }
+  if (product.image && typeof product.image === "string") {
+    return [product.image];
+  }
+  return ["/images/product-5mukhi.jpg"];
+};

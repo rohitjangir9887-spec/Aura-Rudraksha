@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shell } from "../components/Shell";
@@ -485,7 +487,7 @@ export function Checkout() {
         mrp: p.mrp || p.comparePrice || p.price,
         quantity: line.qty || 1,
         qty: line.qty || 1,
-        img: p.img || (p.images && p.images[0]) || "/images/product-1mukhi.jpg"
+        img: getProductPrimaryImage(p)
       };
     });
 

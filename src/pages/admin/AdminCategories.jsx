@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
@@ -314,7 +316,7 @@ export function AdminCategories() {
               ) : (
                 products.map((p) => {
                   const isSelected = selectedProductIds.has(p.id);
-                  const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+                  const displayImg = getProductPrimaryImage(p);
                   return (
                     <div 
                       key={p.id} 

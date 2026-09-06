@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate, isPublicProduct } from "../../lib/db";
@@ -43,7 +45,7 @@ export function AdminZodiac() {
           ...z,
           productName: product.name,
           link: `/product/${product.id}`,
-          image: product.img || (product.images && product.images[0]) || z.image
+          image: getProductPrimaryImage(product) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(product) : z.image
         };
       }
       return z;
