@@ -159,7 +159,7 @@ export async function getImagekitAuthParams() {
     throw new Error("ImageKit server configuration is missing. Add IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY, and IMAGEKIT_URL_ENDPOINT.");
   }
 
-  const token = crypto.randomUUID ? crypto.randomUUID() : `ik_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const token = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
   const expire = Math.floor(Date.now() / 1000) + 1800; // 30 minutes expiry
   const signature = crypto.createHmac("sha1", privateKey).update(token + String(expire)).digest("hex");
 

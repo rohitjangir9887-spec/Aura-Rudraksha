@@ -86,7 +86,7 @@ export const auraChatStore = {
     try {
       let gid = localStorage.getItem("aura_ai_guest_session_id");
       if (!gid || typeof gid !== "string" || !gid.startsWith("guest_")) {
-        gid = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        gid = "guest_" + Date.now() + "_" + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10));
         localStorage.setItem("aura_ai_guest_session_id", gid);
       }
       return gid;
@@ -97,7 +97,7 @@ export const auraChatStore = {
 
   resetGuestSession() {
     try {
-      const newGid = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      const newGid = "guest_" + Date.now() + "_" + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10));
       localStorage.setItem("aura_ai_guest_session_id", newGid);
       return newGid;
     } catch (_) {
@@ -199,7 +199,7 @@ export const auraChatStore = {
     // Account changed or logged out (user1 -> user2, user1 -> guest, guest -> user1)
     // Always clear local chats to guarantee 100% data isolation!
     this.clearLocalChats();
-    const newConvId = "conv_" + (currentUid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+    const newConvId = "conv_" + (currentUid !== "guest" ? "u_" : "g_") + Date.now() + "_" + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10)).substring(0,8);
     this.setConversationId(newConvId);
     this.resetGuestSession();
     const initMsgs = [this.getDefaultInitialMessage(mode)];
@@ -220,7 +220,7 @@ export const auraChatStore = {
     const current = this.getMessages(mode);
     const withTimestamp = {
       ...msg,
-      id: msg.id || "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+      id: msg.id || "msg_" + Date.now() + "_" + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10)).substring(0,8),
       timestamp: msg.timestamp || new Date().toISOString()
     };
     const updated = [...current, withTimestamp];
@@ -245,7 +245,7 @@ export const auraChatStore = {
 
   // Start a new chat session for active mode
   startNewSession(mode = "standard") {
-    const newConvId = "conv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+    const newConvId = "conv_" + Date.now() + "_" + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10)).substring(0,8);
     try {
       localStorage.setItem(STORAGE_KEY_CONV_ID, newConvId);
     } catch (_) {}
@@ -294,7 +294,7 @@ export const auraChatStore = {
       const userKey = `aura_ai_active_conv_${uid}`;
       let cid = localStorage.getItem(userKey) || localStorage.getItem(STORAGE_KEY_CONV_ID);
       if (!cid) {
-        cid = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        cid = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10)).substring(0,8);
         localStorage.setItem(userKey, cid);
         localStorage.setItem(STORAGE_KEY_CONV_ID, cid);
       }

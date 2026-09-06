@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
@@ -58,7 +59,7 @@ export async function saveCustomer(req, res, next) {
     const phone = (data.phone || "").trim();
     const now = new Date().toISOString();
 
-    const id = req.body.id || ("CUS-" + Math.floor(1000 + Math.random() * 9000));
+    const id = req.body.id || ("CUS-" + crypto.randomInt(1000, 10000));
     const customerPayload = {
       ...data,
       id,
@@ -158,7 +159,7 @@ export async function recordCustomerOrder({ authUserId, email, phone, name, addr
         isDefault: true
       }] : [];
       const created = await Customer.create({
-        id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+        id: "CUS-" + crypto.randomInt(1000, 10000),
         authUserId: authUserId || undefined,
         name: cleanName,
         email: cleanEmail,
@@ -233,7 +234,7 @@ export async function getCustomerMe(req, res, next) {
       let customer = inMemoryStore.customers.find(c => c.authUserId === authUserId);
       if (!customer) {
         customer = {
-          id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+          id: "CUS-" + crypto.randomInt(1000, 10000),
           authUserId,
           role: isInitialAdmin ? "admin" : (req.user.role || "customer"),
           name: googleName || (req.user.email ? req.user.email.split("@")[0] : "Customer"),
@@ -316,7 +317,7 @@ export async function getCustomerMe(req, res, next) {
     }
 
     // 3. Create new Customer record securely keyed by verified authUserId with automatic Gmail / Google name
-    const id = "CUS-" + Math.floor(1000 + Math.random() * 9000);
+    const id = "CUS-" + crypto.randomInt(1000, 10000);
     const resolvedName = googleName || (req.user.email ? req.user.email.split("@")[0] : "Customer");
     const newCust = await Customer.create({
       id,
@@ -346,7 +347,7 @@ export async function updateCustomerMe(req, res, next) {
     if (!isDbConnected()) {
       let customer = inMemoryStore.customers.find(c => c.authUserId === authUserId);
       if (!customer) {
-        customer = { id: "CUS-" + Math.floor(1000 + Math.random() * 9000), authUserId, name: name || "Customer" };
+        customer = { id: "CUS-" + crypto.randomInt(1000, 10000), authUserId, name: name || "Customer" };
         inMemoryStore.customers.push(customer);
       }
       if (name !== undefined) customer.name = String(name).trim();
@@ -395,14 +396,14 @@ export async function getAddresses(req, res, next) {
 export async function addAddress(req, res, next) {
   try {
     const address = req.body;
-    const addrId = address.id || ("ADDR-" + Math.floor(1000 + Math.random() * 9000));
+    const addrId = address.id || ("ADDR-" + crypto.randomInt(1000, 10000));
     const newAddress = { ...address, id: addrId };
 
     if (!isDbConnected()) {
       let customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
       if (!customer) {
         customer = {
-          id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+          id: "CUS-" + crypto.randomInt(1000, 10000),
           authUserId: req.user.authUserId,
           name: req.user.username || "Customer",
           email: req.user.email || "",
@@ -421,7 +422,7 @@ export async function addAddress(req, res, next) {
     if (!customer) {
       const now = new Date().toISOString();
       const newCust = await Customer.create({
-        id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+        id: "CUS-" + crypto.randomInt(1000, 10000),
         authUserId: req.user.authUserId,
         name: req.user.username || "Customer",
         email: req.user.email || "",
@@ -526,7 +527,7 @@ export async function addWishlist(req, res, next) {
       let customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
       if (!customer) {
         customer = {
-          id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+          id: "CUS-" + crypto.randomInt(1000, 10000),
           authUserId: req.user.authUserId,
           wishlist: [String(productId)]
         };

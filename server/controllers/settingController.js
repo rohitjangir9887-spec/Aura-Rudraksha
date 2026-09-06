@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Setting, Ticket, Analytics } from "../models/Setting.js";
 import { Product } from "../models/Product.js";
 import { Review } from "../models/Review.js";
@@ -294,7 +295,7 @@ export async function createTicket(req, res, next) {
     const authUserId = authenticatedUser ? (authenticatedUser.authUserId || authenticatedUser.uid || "") : "";
     const userEmail = authenticatedUser?.email ? authenticatedUser.email.toLowerCase().trim() : (data.email || "").toLowerCase().trim();
 
-    const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
+    const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomInt(1000, 10000);
     const payload = {
       ...data,
       id,
