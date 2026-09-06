@@ -180,11 +180,15 @@ export async function getCoupons(req, res, next) {
 
     const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
     const now = Date.now();
+    const expiredIds = [];
     for (const c of coupons) {
       if (c.status === "Active" && c.expiry && new Date(c.expiry).getTime() < now) {
-        await Coupon.updateOne({ _id: c._id }, { $set: { status: "Expired" } });
+        expiredIds.push(c._id);
         c.status = "Expired";
       }
+    }
+    if (expiredIds.length > 0) {
+      await Coupon.updateMany({ _id: { $in: expiredIds } }, { $set: { status: "Expired" } });
     }
     if (isAdmin) {
       return res.json({ success: true, data: coupons, count: coupons.length });
