@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { auraAiClient } from "../../lib/auraAiClient";
+import { emitToast } from "../../context/ToastContext";
 import { db, isPublicProduct } from "../../lib/db";
 
 export function AdminAI() {
@@ -85,7 +86,7 @@ export function AdminAI() {
         setTimeout(() => setSavedSuccess(false), 3000);
       }
     } catch (err) {
-      alert("Failed to save settings: " + err.message);
+      emitToast("Failed to save settings: " + err.message, "error");
     } finally {
       setSavingSettings(false);
     }

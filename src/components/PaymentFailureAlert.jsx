@@ -3,6 +3,7 @@ import { AlertTriangle, AlertCircle, Clock, X, RefreshCw, ExternalLink, MessageC
 import { Link, useNavigate } from "react-router-dom";
 import { authClient } from "../lib/authClient";
 import { db } from "../lib/db";
+import { emitToast } from "../context/ToastContext";
 
 export function PaymentFailureAlert() {
   const [alertData, setAlertData] = useState(null);
@@ -118,11 +119,11 @@ export function PaymentFailureAlert() {
 
         form.submit();
       } else {
-        alert(res?.message || "Unable to connect to PayU Gateway.");
+        emitToast(res?.message || "Unable to connect to PayU Gateway.", "error");
       }
     } catch (err) {
       console.error(err);
-      alert(err?.message || "Failed to initiate payment retry.");
+      emitToast(err?.message || "Failed to initiate payment retry.", "error");
     } finally {
       setIsRetrying(false);
     }

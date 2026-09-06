@@ -1,5 +1,6 @@
 import React from "react";
 import { Check, Heart, Trash2, Plus, Minus } from "lucide-react";
+import { emitToast } from "../../../context/ToastContext";
 
 export function MobileProductCard({
   qty,
@@ -314,7 +315,7 @@ export function MobileProductCard({
 
           <button
             type="button"
-            onClick={() => alert("Item removed from cart")}
+            onClick={() => emitToast("Item removed from cart", "info")}
             style={{
               display: "flex",
               alignItems: "center",

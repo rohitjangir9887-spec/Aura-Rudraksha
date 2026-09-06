@@ -113,7 +113,13 @@ export function Home() {
     }
   }, [location.hash]);
 
-  const activeBanners = (banners && banners.length > 0) ? banners : db.getBanners();
+  const rawBanners = (banners && banners.length > 0) ? banners : db.getBanners();
+  const activeBanners = (Array.isArray(rawBanners) ? rawBanners : [])
+    .map(b => (typeof b === "string" ? b : (b?.url || b?.image || b?.src || "")))
+    .filter(Boolean);
+  if (activeBanners.length === 0) {
+    activeBanners.push("/images/product-5mukhi.jpg");
+  }
   const [loadedBanners, setLoadedBanners] = useState({});
 
   // Preload all hero banner images into browser cache

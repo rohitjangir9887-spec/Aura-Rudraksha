@@ -29,6 +29,7 @@ import { parseAuraAiPayload, customerSafeAiText } from "../lib/auraAiResponse";
 import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/auraChatStore";
 import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
+import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 
@@ -76,7 +77,7 @@ export function AuraAIFloating() {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Voice recognition is not supported in this browser. Please type your message.");
+      emitToast("Voice recognition is not supported in this browser. Please type your message.", "info");
       return;
     }
 
@@ -447,15 +448,15 @@ export function AuraAIFloating() {
   const handleBirthFormSubmit = (e) => {
     e.preventDefault();
     if (!birthForm.name.trim()) {
-      alert("कृपया अपना नाम दर्ज करें (Please enter your name)");
+      emitToast("कृपया अपना नाम दर्ज करें (Please enter your name)", "warning");
       return;
     }
     if (!birthForm.dob) {
-      alert("कृपया जन्म तिथि (Date of Birth) चुनें");
+      emitToast("कृपया जन्म तिथि (Date of Birth) चुनें", "warning");
       return;
     }
     if (!birthForm.place.trim()) {
-      alert("कृपया जन्म स्थान (Birth Place) दर्ज करें");
+      emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
       return;
     }
 

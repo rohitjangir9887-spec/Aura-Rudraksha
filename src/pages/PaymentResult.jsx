@@ -4,6 +4,7 @@ import { Shell } from "../components/Shell";
 import { AlertCircle, ShieldCheck, Truck, RefreshCw, Loader2 } from "lucide-react";
 import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
+import { emitToast } from "../context/ToastContext";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
 
 export function PaymentResult() {
@@ -80,12 +81,12 @@ export function PaymentResult() {
         window.history.replaceState(null, "", "/account/orders");
         form.submit();
       } else {
-        alert(res?.message || "Payment retry failed.");
+        emitToast(res?.message || "Payment retry failed.", "error");
         setRetrying(false);
       }
     } catch (err) {
       console.error(err);
-      alert("An error occurred while retrying the payment.");
+      emitToast("An error occurred while retrying the payment.", "error");
       setRetrying(false);
     }
   };

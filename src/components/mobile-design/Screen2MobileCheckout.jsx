@@ -13,6 +13,7 @@ import {
   Plus
 } from "lucide-react";
 import { MobileHeader } from "./MobileHeader";
+import { emitToast } from "../../context/ToastContext";
 
 /**
  * Screen 2 — Mobile Checkout
@@ -198,7 +199,7 @@ export function Screen2MobileCheckout({
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               type="button"
-              onClick={() => alert("Edit address form modal")}
+              onClick={() => emitToast("Edit address form modal", "info")}
               style={{
                 flex: 1,
                 padding: "8px 10px",

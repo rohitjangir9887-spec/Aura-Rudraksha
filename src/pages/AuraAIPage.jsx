@@ -32,6 +32,7 @@ import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/au
 import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
 import { db } from "../lib/db";
+import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 
@@ -375,7 +376,7 @@ export function AuraAIPage() {
   // Voice to text using browser Speech Recognition
   const toggleVoice = () => {
     if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-      alert("Voice recognition is not supported in this browser. Please type your message.");
+      emitToast("Voice recognition is not supported in this browser. Please type your message.", "info");
       return;
     }
 

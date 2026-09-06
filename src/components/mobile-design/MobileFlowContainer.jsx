@@ -15,6 +15,7 @@ import { Screen3MobilePaymentMethod } from "./Screen3MobilePaymentMethod";
 import { Screen4MobileUpiPayment } from "./Screen4MobileUpiPayment";
 import { Screen5MobilePaymentSuccess } from "./Screen5MobilePaymentSuccess";
 import { MobileDeviceFrame } from "./MobileDeviceFrame";
+import { emitToast } from "../../context/ToastContext";
 
 /**
  * MobileFlowContainer
@@ -52,7 +53,7 @@ export function MobileFlowContainer() {
           <Screen1MobileCart
             onProceed={() => setCurrentScreen(2)}
             onOpenMenu={() => setShowMenuAlert(true)}
-            onOpenSearch={() => alert("Search rudraksha collections")}
+            onOpenSearch={() => emitToast("Search rudraksha collections", "info")}
           />
         );
       case 2:
@@ -80,7 +81,7 @@ export function MobileFlowContainer() {
       case 5:
         return (
           <Screen5MobilePaymentSuccess
-            onViewOrder={() => alert("Navigating to detailed order tracking page #AUR-88942")}
+            onViewOrder={() => emitToast("Navigating to detailed order tracking page #AUR-88942", "info")}
             onContinueShopping={() => setCurrentScreen(1)}
             onTabChange={(tab) => {
               if (tab === "home" || tab === "shop") setCurrentScreen(1);
