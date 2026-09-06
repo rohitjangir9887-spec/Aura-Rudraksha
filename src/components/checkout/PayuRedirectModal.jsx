@@ -164,9 +164,6 @@ export function PayuRedirectModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
-            onClick={() => {
-              if (isTerminalOrError && onClose) onClose();
-            }}
             style={{
               position: "fixed",
               top: 0,
@@ -179,7 +176,7 @@ export function PayuRedirectModal({
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
               zIndex: 1,
-              cursor: isTerminalOrError ? "pointer" : "default"
+              cursor: "default"
             }}
           />
 
@@ -214,37 +211,6 @@ export function PayuRedirectModal({
               outline: "none"
             }}
           >
-            {/* Top Close Button (Visible on all or terminal states) */}
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                style={{
-                  position: "absolute",
-                  top: "14px",
-                  right: "14px",
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  background: "#f5ece2",
-                  border: "1px solid #ebdccb",
-                  color: "#6b584c",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  padding: 0,
-                  transition: "background 0.2s, transform 0.1s",
-                  zIndex: 10
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#ebdccb"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "#f5ece2"; }}
-              >
-                <X size={16} />
-              </button>
-            )}
-
             {/* Brand Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "14px" }}>
               <img 
@@ -548,7 +514,7 @@ export function PayuRedirectModal({
                     onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
                   >
                     <ArrowLeft size={14} />
-                    <span>Back to Checkout</span>
+                    <span>{orderId ? "View My Orders" : "Back to Checkout"}</span>
                   </button>
                 )}
               </div>

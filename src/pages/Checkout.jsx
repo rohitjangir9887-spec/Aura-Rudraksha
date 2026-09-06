@@ -1051,11 +1051,11 @@ export function Checkout() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/cart")}
+                onClick={() => navigate("/account/orders")}
                 className="outline-btn"
                 style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", border: "1px solid #d1d5db", borderRadius: "10px" }}
               >
-                Back to Cart
+                View My Orders
               </button>
             </div>
           </div>
@@ -1163,11 +1163,11 @@ export function Checkout() {
 
               <button
                 type="button"
-                onClick={() => navigate("/cart")}
+                onClick={() => navigate("/account/orders")}
                 className="outline-btn"
                 style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
               >
-                Back to Cart
+                View My Orders
               </button>
             </div>
           </div>
@@ -1333,17 +1333,24 @@ export function Checkout() {
           amount={finalTotal}
           orderId={pendingOrderId || failedParam || cancelledParam}
           onClose={() => {
-            setPayuModalOpen(false);
-            setLoading(false);
-            setRetrying(false);
-            setPaymentState("IDLE");
-            setPayuTimeout(false);
-            setPayuError(null);
-            isSubmittingRef.current = false;
+            const hasOrderId = pendingOrderId || failedParam || cancelledParam;
+            if (hasOrderId) {
+              navigate(`/account/orders`);
+            } else {
+              setPayuModalOpen(false);
+              setLoading(false);
+              setRetrying(false);
+              setPaymentState("IDLE");
+              setPayuTimeout(false);
+              setPayuError(null);
+              isSubmittingRef.current = false;
+            }
           }}
           onRetry={() => {
             if (failedParam || cancelledParam) {
               handleRetryPayment(failedParam || cancelledParam);
+            } else if (pendingOrderId) {
+              handleRetryPayment(pendingOrderId);
             } else {
               executeOrderSubmission();
             }
