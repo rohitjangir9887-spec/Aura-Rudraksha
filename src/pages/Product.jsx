@@ -14,7 +14,6 @@ import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
 
 // Dedicated Modular PDP Components
-import { ProductTopTrustStrip } from "../components/product/ProductTopTrustStrip";
 import { ProductGallery } from "../components/product/ProductGallery";
 import { ProductTrustBadges } from "../components/product/ProductTrustBadges";
 import { ProductPricing } from "../components/product/ProductPricing";
@@ -22,8 +21,6 @@ import { ProductOfferCard } from "../components/product/ProductOfferCard";
 import { ProductVariantSelector } from "../components/product/ProductVariantSelector";
 import { ProductDeliveryChecker } from "../components/product/ProductDeliveryChecker";
 import { ProductPurchaseActions } from "../components/product/ProductPurchaseActions";
-import { ProductTrustRow } from "../components/product/ProductTrustRow";
-import { ProductCertification } from "../components/product/ProductCertification";
 import { ProductInfoTabs } from "../components/product/ProductInfoTabs";
 import { FrequentlyBoughtTogether } from "../components/product/FrequentlyBoughtTogether";
 import { MobileStickyPurchaseBar } from "../components/product/MobileStickyPurchaseBar";
@@ -220,7 +217,6 @@ export function Product() {
   if (loading) {
     return (
       <Shell>
-        <ProductTopTrustStrip />
         <div className="aura-pdp-container" style={{ padding: "60px 16px", textAlign: "center" }}>
           <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
             <Loader2 size={32} className="animate-spin" color="#c88a3d" />
@@ -237,7 +233,6 @@ export function Product() {
   if (!product && !loading) {
     return (
       <Shell>
-        <ProductTopTrustStrip />
         <main className="aura-pdp-container" style={{ textAlign: "center", padding: "80px 16px" }}>
           <AlertCircle size={48} color="#8c2b10" style={{ margin: "0 auto 16px" }} />
           <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: "30px", color: "#2a160d" }}>
@@ -258,11 +253,8 @@ export function Product() {
 
   return (
     <Shell>
-      {/* 1. Top Spiritual Trust Strip */}
-      <ProductTopTrustStrip />
-
       <div className="aura-pdp-container">
-        {/* 2. Breadcrumb Navigation Bar */}
+        {/* 1. Breadcrumb Navigation Bar */}
         <div className="aura-pdp-breadcrumb-bar">
           <div className="aura-breadcrumb-inner">
             <nav className="aura-breadcrumb-links" aria-label="Breadcrumb">
@@ -293,7 +285,7 @@ export function Product() {
           </div>
         </div>
 
-        {/* 3. Main Product 2-Column Section */}
+        {/* 2. Main Product 2-Column Section */}
         <div className="aura-pdp-main-section">
           <div className="aura-pdp-grid">
             {/* LEFT COLUMN: Gallery */}
@@ -368,12 +360,6 @@ export function Product() {
                 onSelectSize={setSelectedSize}
               />
 
-              {/* Indian Pincode Delivery Checker */}
-              <ProductDeliveryChecker
-                freeShippingThreshold={shipThreshold}
-                productShippingFee={p.shippingFee || 0}
-              />
-
               {/* Quantity Selector, CTA Action Buttons & Secure Payment Guarantee */}
               <div ref={ctaSectionRef}>
                 <ProductPurchaseActions
@@ -388,30 +374,30 @@ export function Product() {
                   added={added}
                 />
               </div>
+
+              {/* Indian Pincode Delivery & Saved Address Checker (Placed under Buy Now) */}
+              <ProductDeliveryChecker
+                freeShippingThreshold={shipThreshold}
+                productShippingFee={p.shippingFee || 0}
+              />
             </div>
           </div>
 
-          {/* 4. 5-Pillar Trust Feature Assurance Row */}
-          <ProductTrustRow freeShippingThreshold={shipThreshold} />
-
-          {/* 5. Government Recognized Lab Certification Card */}
-          <ProductCertification product={p} />
-
-          {/* 6. Product Information Tabs (Desktop Tabs & Mobile Accordions) */}
+          {/* Product Information Tabs (Desktop Tabs & Mobile Accordions) */}
           <ProductInfoTabs
             product={p}
             reviewsCount={reviewsCount}
             averageRating={averageRating}
           />
 
-          {/* 7. Frequently Bought Together Bundle */}
+          {/* Frequently Bought Together Bundle */}
           <FrequentlyBoughtTogether
             currentProduct={p}
             allProducts={allProducts}
             onAddBundle={handleAddBundle}
           />
 
-          {/* 8. Devotee Customer Reviews Section */}
+          {/* Devotee Customer Reviews Section */}
           <div id="reviews-section" style={{ marginTop: "40px" }}>
             <ProductReviews product={p} />
           </div>

@@ -752,10 +752,130 @@
   background: #ffffff;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 12px;
-  padding: 14px;
+  padding: 13px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.aura-delivery-checker-card.saved-address-view {
+  background: linear-gradient(135deg, #ffffff 0%, #fdfbf7 100%);
+  border: 1px solid rgba(200, 138, 61, 0.35);
+}
+
+.aura-saved-addr-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.aura-saved-addr-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+}
+
+.aura-saved-pin-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #2a160d;
+  color: #eed9b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.aura-saved-addr-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aura-saved-addr-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.aura-saved-addr-label {
+  font-size: 11.5px;
+  color: var(--aura-text-muted);
+  font-weight: 500;
+}
+
+.aura-saved-addr-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aura-brown-dark);
+}
+
+.aura-saved-addr-pin-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--aura-bg-cream);
+  color: var(--aura-brown-dark);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--aura-border-subtle);
+}
+
+.aura-saved-addr-sub {
+  font-size: 11.5px;
+  color: var(--aura-text-muted);
+  line-height: 1.35;
+}
+
+.aura-saved-addr-change-btn {
+  background: none;
+  border: 1px solid var(--aura-border-subtle);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--aura-brown-dark);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.aura-saved-addr-change-btn:hover {
+  background: var(--aura-bg-cream);
+  border-color: var(--aura-gold-bright);
+}
+
+.aura-use-saved-btn {
+  background: none;
+  border: none;
+  color: var(--aura-gold-bright);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.aura-saved-addr-estimate {
+  background: var(--aura-green-bg);
+  border: 1px solid var(--aura-green-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--aura-green-dark);
+}
+
+.aura-free-tag {
+  font-weight: 700;
+  color: var(--aura-green-dark);
 }
 
 .aura-delivery-header {
@@ -1917,22 +2037,26 @@
 }
 
 /* Mobile Sticky Purchase Bar */
+#aura-mobile-sticky-purchase-bar,
 .aura-mobile-sticky-purchase-bar {
   display: none;
   position: fixed;
   left: 0;
   right: 0;
-  /* Above the mobile bottom navigation (58px) and respects safe area */
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-  z-index: 990;
+  /* Above the mobile bottom navigation (68px) and respects safe area */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 9998 !important;
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--aura-border-subtle);
-  box-shadow: 0 -4px 20px rgba(42, 22, 13, 0.12);
+  box-shadow: 0 -4px 20px rgba(42, 22, 13, 0.14);
   padding: 8px 12px;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
+  #aura-mobile-sticky-purchase-bar,
   .aura-mobile-sticky-purchase-bar {
     display: block;
   }
