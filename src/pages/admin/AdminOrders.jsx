@@ -121,7 +121,7 @@ export function AdminOrders() {
         if (o.paymentAttempts[i].mihpayid) return o.paymentAttempts[i].mihpayid;
       }
     }
-    return o.txnid || null;
+    return null;
   };
 
   useEffect(() => {

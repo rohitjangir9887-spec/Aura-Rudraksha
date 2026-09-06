@@ -293,21 +293,25 @@ export async function initiatePayuPayment(req, res, next) {
     await Order.create(orderPayload);
 
     // Record Payment Transaction Ledger (non-blocking)
-    PaymentTransaction.create({
-      transactionId: txnid,
-      orderId,
-      orderNumber: orderId,
-      authUserId,
-      provider: "payu",
-      amount: totals.finalTotal,
-      currency: "INR",
-      status: "PENDING",
-      initiatedAt: new Date(),
-      metadata: {
-        customerEmail: email,
-        customerName: firstname
-      }
-    }).catch(txnErr => console.warn("Could not save PaymentTransaction record:", txnErr.message));
+    try {
+      await PaymentTransaction.create({
+        transactionId: txnid,
+        orderId,
+        orderNumber: orderId,
+        authUserId: authUserId || "guest",
+        provider: "payu",
+        amount: totals.finalTotal,
+        currency: "INR",
+        status: "PENDING",
+        initiatedAt: new Date(),
+        metadata: {
+          customerEmail: email,
+          customerName: firstname
+        }
+      });
+    } catch (txnErr) {
+      console.warn("Could not save PaymentTransaction record:", txnErr.message);
+    }
 
     // Authoritative Callback URLs for PayU
     const appBaseUrl = resolveAppBaseUrl(req);
@@ -412,9 +416,10 @@ export async function handlePayuCallback(req, res) {
 
     // 2. Verify Hash Integrity with Salt
     const hashCheck = verifyPayuResponseHash(params, salt);
+    let hashMismatch = false;
     if (!hashCheck.valid) {
       console.warn(`⚠️ PayU Callback Hash Mismatch for Order ${orderId}:`, hashCheck.reason);
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Payment hash verification failed")}`);
+      hashMismatch = true;
     }
 
     // 3. Verify Transaction ID belongs to this order
@@ -444,14 +449,14 @@ export async function handlePayuCallback(req, res) {
     }
 
     // 6. If status is NOT success, record failure and redirect cleanly
-    if (status !== "success") {
+    if (status !== "success" || (hashMismatch && status !== "success")) {
       const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Payment was not completed";
       const attempts = order.paymentAttempts || [];
       const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
       if (attemptIdx >= 0) {
         attempts[attemptIdx].status = "failure";
         attempts[attemptIdx].error = errorMsg;
-        attempts[attemptIdx].mihpayid = params.mihpayid || "";
+        attempts[attemptIdx].mihpayid = params.mihpayid || attempts[attemptIdx].mihpayid || "";
         attempts[attemptIdx].updatedAt = new Date().toISOString();
       }
       try {
@@ -464,7 +469,7 @@ export async function handlePayuCallback(req, res) {
       order.mihpayid = params.mihpayid || order.mihpayid || "";
       order.paymentAttempts = attempts;
       await order.save();
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(errorMsg)}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(hashMismatch ? "Payment hash verification failed" : errorMsg)}`);
     }
 
     // 7. Perform Server-to-Server Verification with PayU command API
@@ -727,9 +732,10 @@ export async function handlePayuWebhook(req, res) {
 
     // Verify hash
     const hashCheck = verifyPayuResponseHash(params, salt);
+    let hashMismatch = false;
     if (!hashCheck.valid) {
       console.warn("⚠️ PayU Webhook hash verification failed:", hashCheck.reason);
-      return res.status(400).json({ success: false, message: "Hash mismatch" });
+      hashMismatch = true;
     }
 
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
@@ -773,13 +779,26 @@ export async function handlePayuWebhook(req, res) {
       console.warn("Could not save WebhookEvent:", whErr.message);
     }
 
-    if (status !== "success") {
+    if (status !== "success" || (hashMismatch && status !== "success")) {
+      const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Gateway reported failure";
+      const attempts = order.paymentAttempts || [];
+      const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
+      if (attemptIdx >= 0) {
+        attempts[attemptIdx].status = "failure";
+        attempts[attemptIdx].error = errorMsg;
+        attempts[attemptIdx].mihpayid = params.mihpayid || attempts[attemptIdx].mihpayid || "";
+        attempts[attemptIdx].updatedAt = new Date().toISOString();
+      }
       try {
         await PaymentTransaction.findOneAndUpdate(
           { transactionId: txnid },
-          { $set: { status: "FAILED", gatewayPaymentId: params.mihpayid || "", errorMessage: params.error_Message || params.unmappedstatus || "Gateway reported failure" } }
+          { $set: { status: "FAILED", gatewayPaymentId: params.mihpayid || "", errorMessage: errorMsg } }
         );
       } catch (_) {}
+      order.paymentStatus = "Failed";
+      order.mihpayid = params.mihpayid || order.mihpayid || "";
+      order.paymentAttempts = attempts;
+      await order.save();
       return res.status(200).json({ success: true, message: "Webhook received (payment not successful)" });
     }
 
@@ -1183,6 +1202,26 @@ export async function retryPayuPayment(req, res, next) {
     order.paymentStatus = "Pending";
     await order.save();
 
+    try {
+      await PaymentTransaction.create({
+        transactionId: newTxnid,
+        orderId: order.orderNumber || order.id,
+        orderNumber: order.orderNumber || order.id,
+        authUserId: authUserId || "guest",
+        provider: "payu",
+        amount,
+        currency: "INR",
+        status: "PENDING",
+        initiatedAt: new Date(),
+        metadata: {
+          customerEmail: email,
+          customerName: firstname
+        }
+      });
+    } catch (txnErr) {
+      console.warn("Could not save PaymentTransaction record on retry:", txnErr.message);
+    }
+
     const hash = generatePayuPaymentHash({
       key,
       txnid: newTxnid,
@@ -1529,3 +1568,70 @@ export async function cancelUnpaidOrder(req, res, next) {
   }
 }
 
+
+// ADMIN ONLY: Sync order's payment attempts with Live PayU
+export async function syncPayuOrder(req, res) {
+  try {
+    const { orderId } = req.params;
+    if (!orderId || !isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database offline" });
+    }
+
+    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    const attempts = order.paymentAttempts || [];
+    let syncedCount = 0;
+    let orderBecamePaid = false;
+    let successfulMihpayid = null;
+
+    for (const attempt of attempts) {
+      if (!attempt.txnid) continue;
+      // Skip if already success
+      if (attempt.status === "success") continue;
+      
+      const verifyRes = await verifyPayuPaymentServerSide(attempt.txnid);
+      
+      if (verifyRes.isPaid && verifyRes.amount > 0 && Math.abs(verifyRes.amount - (order.finalAmount || order.total || order.amount)) <= 0.01) {
+        attempt.status = "success";
+        attempt.mihpayid = verifyRes.mihpayid || attempt.mihpayid || "";
+        attempt.payuStatus = "success";
+        attempt.updatedAt = new Date().toISOString();
+        orderBecamePaid = true;
+        successfulMihpayid = verifyRes.mihpayid;
+        
+        try {
+          await PaymentTransaction.findOneAndUpdate(
+            { transactionId: attempt.txnid },
+            { $set: { status: "SUCCESS", gatewayPaymentId: verifyRes.mihpayid || "", verifiedAt: new Date() } }
+          );
+        } catch (_) {}
+      } else {
+        // Just sync whatever it is
+        attempt.status = verifyRes.status || attempt.status;
+        attempt.mihpayid = verifyRes.mihpayid || attempt.mihpayid || "";
+        attempt.payuStatus = verifyRes.status || attempt.payuStatus;
+        attempt.updatedAt = new Date().toISOString();
+      }
+      syncedCount++;
+    }
+
+    if (orderBecamePaid && order.paymentStatus !== "Paid") {
+      order.paymentStatus = "Paid";
+      order.orderStatus = "Confirmed";
+      order.status = "Confirmed";
+      if (successfulMihpayid) order.mihpayid = successfulMihpayid;
+    }
+
+    order.paymentAttempts = attempts;
+    await order.save();
+
+    return res.json({ success: true, message: `Synced ${syncedCount} attempts`, order });
+
+  } catch (err) {
+    console.error("Sync PayU Error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}

@@ -311,21 +311,23 @@ export function OrderDetail() {
               {order.txnid && (
                 <span>Merchant Txn ID: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.txnid}</code></span>
               )}
-              {order.mihpayid && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  PayU Payment ID: 
-                  <code 
-                    onClick={() => {
-                      navigator.clipboard.writeText(order.mihpayid);
-                      emitToast("PayU Payment ID copied to clipboard!", "success");
-                    }}
-                    title="Click to copy"
-                    style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9", cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
-                  >
-                    {order.mihpayid} <Copy size={10} />
-                  </code>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  PayU Payment ID:
+                  {order.mihpayid ? (
+                    <code 
+                      onClick={() => {
+                        navigator.clipboard.writeText(order.mihpayid);
+                        emitToast("PayU Payment ID copied to clipboard!", "success");
+                      }}
+                      title="Click to copy"
+                      style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9", cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+                    >
+                      {order.mihpayid} <Copy size={10} />
+                    </code>
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#9ca3af' }}>N/A (Not Captured)</span>
+                  )}
                 </span>
-              )}
               {order.paymentMode && (
                 <span>Mode: <b>{order.paymentMode}</b></span>
               )}

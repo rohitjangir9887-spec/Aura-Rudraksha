@@ -7,7 +7,8 @@ import {
   verifyPaymentStatus,
   retryPayuPayment,
   processPayuRefund,
-  cancelUnpaidOrder
+  cancelUnpaidOrder,
+  syncPayuOrder
 } from "../controllers/paymentController.js";
 import { requireAuth, optionalAuth, requireAdmin } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -67,6 +68,7 @@ router.all("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayme
 
 // 6. Admin Process PayU Live Refund
 router.all("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
+router.all("/sync-payu/:orderId", requireAdmin, syncPayuOrder);
 
 // 7. Customer Cancel Unpaid Order
 router.all("/cancel/:orderId", requireAuth, paymentInitiateLimit, cancelUnpaidOrder);

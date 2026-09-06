@@ -3,9 +3,11 @@ import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { AlertCircle, ShieldCheck, Truck, RefreshCw, Loader2 } from "lucide-react";
 import { db } from "../lib/db";
+import { useCart } from "../hooks/useCart";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
 
 export function PaymentResult() {
+  const { clear } = useCart();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const status = searchParams.get("status") || "processing";
@@ -35,6 +37,7 @@ export function PaymentResult() {
           
           // Auto-redirect for SUCCESS after a delay
           if (res.data.paymentStatus === "Paid" && (status === "success" || status === "processing")) {
+            clear(); // Clear cart only on confirmed success
             setTimeout(() => {
                navigate(`/account/orders/${orderId}`, { replace: true });
             }, 6000);

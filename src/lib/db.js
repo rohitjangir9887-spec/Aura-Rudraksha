@@ -1140,6 +1140,11 @@ export const db = {
     }
     return res;
   },
+  syncPayuOrder: async (orderId) => {
+    const res = await apiRequest(`/payment/sync-payu/${orderId}`, { method: "POST" });
+    if (!res?.success) throw new Error(res?.message || "Failed to sync PayU status.");
+    return res;
+  },
 
   processRefund: async (orderId, { refundAmount, reason }) => {
     const res = await apiRequest(`/payment/refund/${orderId}`, {
