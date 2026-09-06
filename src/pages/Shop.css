@@ -426,7 +426,7 @@
 }
 
 .aura-shop-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px) scale(1.01);
   box-shadow: 0 8px 24px rgba(43, 23, 13, 0.09);
   border-color: #d1bda9;
 }

@@ -14029,10 +14029,12 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .fade-in-up-d1 { animation: fadeUpIn 0.45s ease-out 0.08s both; }
 .fade-in-up-d2 { animation: fadeUpIn 0.45s ease-out 0.16s both; }
 
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
+
 /* Gentle button hovers (only where missing - existing styles untouched) */
 .primary-btn { transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
 .primary-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(165, 77, 43, 0.25); }
-.primary-btn:active { transform: translateY(0); }
+.primary-btn:active { transform: scale(0.96) translateY(1px); }
 
 /* Images inside cards should never overflow their frames */
 .product-card img, .aura-shop-card img { max-width: 100%; }

@@ -469,6 +469,19 @@ export function Product() {
   return (
     <Shell>
       <div className="product-page-root">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: p.name,
+          image: (Array.isArray(p.images) && p.images.length > 0) ? p.images[0] : p.img,
+          description: plainTextDesc || p.name,
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "INR",
+            price: p.price,
+            availability: isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock"
+          }
+        })}} />
         {/* Top Breadcrumb (Desktop) & Simple Back Button (Mobile) */}
         <div className="container product-breadcrumb-bar">
           <div className="desktop-breadcrumbs">
