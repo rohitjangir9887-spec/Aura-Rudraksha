@@ -71,12 +71,12 @@ export async function getMyOrders(req, res, next) {
     await reconcileAllOrders();
     if (!isDbConnected()) {
       const myOrders = (inMemoryStore.orders || [])
-        .filter(o => o.authUserId === authUserId || o.customerEmail === authUserId || o.id === "AURA-260906-000003")
+        .filter(o => o.authUserId === authUserId || o.customerEmail === authUserId)
         .map(o => normalizeOrderState(o));
       return res.json({ success: true, data: myOrders, count: myOrders.length });
     }
     const rawOrders = await Order.find({ 
-      $or: [{ authUserId }, { customerEmail: authUserId }, { id: "AURA-260906-000003" }] 
+      $or: [{ authUserId }, { customerEmail: authUserId }]
     }).sort({ createdAt: -1 }).lean();
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
     return res.json({ success: true, data: orders, count: orders.length });
@@ -98,7 +98,7 @@ export async function getOrderById(req, res, next) {
       order = normalizeOrderState(order);
       const { isInitialAdmin } = isAdminUser(req.user);
       const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
-      if (!isAdmin && order.authUserId !== authUserId && order.id !== "AURA-260906-000003") {
+      if (!isAdmin && order.authUserId !== authUserId) {
         return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
       }
       return res.json({ success: true, data: order });
@@ -118,7 +118,7 @@ export async function getOrderById(req, res, next) {
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
     
-    if (!isAdmin && order.authUserId !== authUserId && order.id !== "AURA-260906-000003") {
+    if (!isAdmin && order.authUserId !== authUserId) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
     }
 
