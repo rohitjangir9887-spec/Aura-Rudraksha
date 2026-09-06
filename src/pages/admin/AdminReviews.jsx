@@ -395,8 +395,8 @@ export function AdminReviews() {
     setGenerationStep(1);
 
     const stepTimer = setInterval(() => {
-      setGenerationStep(prev => (prev < 3 ? prev + 1 : prev));
-    }, 800);
+      setGenerationStep(prev => (prev < 7 ? prev + 1 : prev));
+    }, 1200);
 
     try {
       const selProd = products.find(p => String(p.id) === String(aiGenForm.productId));
@@ -415,7 +415,7 @@ export function AdminReviews() {
     } catch (err) {
       clearInterval(stepTimer);
       console.error("AI Review Generation Error:", err);
-      emitToast(err.message || "Failed to generate review drafts.", "error");
+      emitToast(err.message === "Not enough unique evidence available for additional drafts." ? err.message : (err.message || "Failed to generate review drafts."), "error");
     } finally {
       setIsGeneratingDrafts(false);
     }
@@ -1128,16 +1128,20 @@ export function AdminReviews() {
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
                 <RefreshCw size={20} className="aura-spin" color="#d97706" />
                 <div>
-                  <strong style={{ fontSize: "15px", color: "#7a320c" }}>Generating Natural Conversational Reviews...</strong>
+                  <strong style={{ fontSize: "15px", color: "#7a320c" }}>{generationStep >= 7 ? "Draft ready." : "Generating Evidence-Grounded Reviews..."}</strong>
                   <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#806f62" }}>
-                    {generationStep === 1 && "Step 1/3: Reading product features & key attributes..."}
-                    {generationStep === 2 && "Step 2/3: Drafting 1–4 line conversational observations & fictional personas..."}
-                    {generationStep === 3 && "Step 3/3: Applying rating range and formatting outputs..."}
+                    {generationStep === 1 && "Preparing product data..."}
+                    {generationStep === 2 && "Researching available sources..."}
+                    {generationStep === 3 && "Analyzing existing reviews..."}
+                    {generationStep === 4 && "Checking duplicate wording..."}
+                    {generationStep === 5 && "Generating draft..."}
+                    {generationStep === 6 && "Validating draft..."}
+                    {generationStep >= 7 && "Draft ready."}
                   </p>
                 </div>
               </div>
               <div style={{ width: "100%", height: "6px", background: "#eadecd", borderRadius: "3px", overflow: "hidden" }}>
-                <div style={{ width: `${(generationStep / 3) * 100}%`, height: "100%", background: "#d97706", transition: "width 0.4s ease" }} />
+                <div style={{ width: `${(generationStep / 7) * 100}%`, height: "100%", background: "#d97706", transition: "width 0.4s ease" }} />
               </div>
             </div>
           )}

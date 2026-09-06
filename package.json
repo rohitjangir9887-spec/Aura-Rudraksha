@@ -33,7 +33,7 @@
     "framer-motion": "^13.1.0",
     "lucide-react": "^0.468.0",
     "mongoose": "^9.9.3",
-    "openai": "^7.5.0",
+    "openai": "^7.10.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.1.1",
@@ -43,5 +43,21 @@
   "devDependencies": {
     "mongodb-memory-server": "^11.2.0",
     "vitest": "^5.0.0"
-  }
+  },
+  "description": "A standalone React/Vite implementation inspired by the supplied Aura Rudraksha reference boards.",
+  "main": "bench.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rohitjangir9887-spec/Aura-Rudraksha.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rohitjangir9887-spec/Aura-Rudraksha/issues"
+  },
+  "homepage": "https://github.com/rohitjangir9887-spec/Aura-Rudraksha#readme"
 }
