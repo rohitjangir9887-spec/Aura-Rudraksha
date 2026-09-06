@@ -451,7 +451,11 @@ export async function handlePayuCallback(req, res) {
     }
 
     // 6. If status is NOT success, record failure and redirect cleanly
-    if (status !== "success" || (hashMismatch && status !== "success")) {
+    const nonTerminalStates = ["pending", "processing", "initiated", "unknown", "auth_in_progress", "in progress", "bounced"];
+    const isFailed = status === "failure" || status === "failed" || status === "cancelled" || status === "bounced" || status === "usercancelled";
+
+    // Only strictly mark as Failed if status is terminal failure
+    if (!hashCheck.valid || (status !== "success" && isFailed)) {
       const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Payment was not completed";
       const attempts = order.paymentAttempts || [];
       const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
@@ -647,9 +651,17 @@ export async function handlePayuCancel(req, res) {
     const txnid = String(params.txnid || "").trim();
     const mihpayid = String(params.mihpayid || "").trim();
     
+    // Hash verification for cancel callback
+    const { salt, expectedKey } = getPayuConfig();
+    const hashCheck = verifyPayuResponseHash(params, salt);
+    if (!hashCheck.valid) {
+      console.warn("⚠️ PayU Cancel Callback Hash Verification Failed:", hashCheck.reason);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Invalid request signature")}`);
+    }
+
     if (orderId && isDbConnected()) {
       const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
-      if (order && order.paymentStatus !== "Paid") {
+      if (order && order.paymentStatus !== "Paid" && order.paymentStatus !== "Refunded") {
         const attempts = order.paymentAttempts || [];
         const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
         if (attemptIdx >= 0) {
@@ -661,22 +673,9 @@ export async function handlePayuCancel(req, res) {
           attempts[attemptIdx].error = params.error_Message || params.error || "User cancelled payment";
           attempts[attemptIdx].unmappedstatus = params.unmappedstatus || attempts[attemptIdx].unmappedstatus;
           attempts[attemptIdx].updatedAt = new Date().toISOString();
-        } else {
-          // If attempt wasn't logged during initiation for some reason
-          attempts.push({
-            txnid: txnid,
-            mihpayid: mihpayid || null,
-            status: "cancelled",
-            payuStatus: params.status || "userCancelled",
-            paymentMode: params.mode || "PayU Gateway",
-            bankRefNum: params.bank_ref_num || null,
-            error: params.error_Message || params.error || "User cancelled payment",
-            unmappedstatus: params.unmappedstatus || "userCancelled",
-            amount: parseFloat(params.amount) || order.finalAmount || order.amount,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
         }
+
+        // Update order status if not paid
         order.paymentStatus = "Cancelled";
         order.payuStatus = params.status || "userCancelled";
         if (mihpayid) order.mihpayid = mihpayid;
@@ -685,15 +684,14 @@ export async function handlePayuCancel(req, res) {
         order.paymentAttempts = attempts;
         await order.save();
         
-        // Also update PaymentTransaction if it exists
+        // Update PaymentTransaction cleanly
         const pTxn = await PaymentTransaction.findOne({ orderId, transactionId: txnid });
         if (pTxn) {
-           pTxn.status = "Failed";
+           pTxn.status = "FAILED";
            pTxn.gatewayPaymentId = mihpayid || pTxn.gatewayPaymentId;
-           pTxn.gatewayStatus = params.status || "userCancelled";
-           pTxn.gatewayMessage = params.error_Message || params.error || "User cancelled payment";
-           pTxn.mode = params.mode || pTxn.mode;
            pTxn.bankRefNum = params.bank_ref_num || pTxn.bankRefNum;
+           pTxn.paymentMode = params.mode || pTxn.paymentMode;
+           pTxn.errorMessage = params.error_Message || params.error || "User cancelled payment";
            await pTxn.save();
         }
       }
@@ -781,7 +779,11 @@ export async function handlePayuWebhook(req, res) {
       console.warn("Could not save WebhookEvent:", whErr.message);
     }
 
-    if (status !== "success" || (hashMismatch && status !== "success")) {
+    const nonTerminalStates = ["pending", "processing", "initiated", "unknown", "auth_in_progress", "in progress", "bounced"];
+    const isFailed = status === "failure" || status === "failed" || status === "cancelled" || status === "bounced" || status === "usercancelled";
+
+    // Only strictly mark as Failed if status is terminal failure
+    if (!hashCheck.valid || (status !== "success" && isFailed)) {
       const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Gateway reported failure";
       const attempts = order.paymentAttempts || [];
       const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
