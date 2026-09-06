@@ -549,13 +549,15 @@ export async function fetchHomeData(force = false) {
       await Promise.all([
         fetchProducts(),
         fetchActiveOffer(),
-        fetchOffers(),
         fetchBanners(),
+        fetchSettings()
+      ]);
+      Promise.all([
+        fetchOffers(),
         fetchReviews(),
-        fetchSettings(),
         fetchReviewSettings(),
         fetchCoupons()
-      ]);
+      ]).catch(console.warn);
 
       localStorage.setItem("aura_last_fetch_time", String(Date.now()));
       isHydrated = true;
