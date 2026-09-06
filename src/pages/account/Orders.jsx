@@ -6,9 +6,8 @@ import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
 import { 
   ChevronLeft, Package, CreditCard, ChevronRight, 
-  Sparkles, Search, Truck, LogIn, Clock, ShieldCheck, 
-  ExternalLink, ArrowRight, HelpCircle, RefreshCw, Loader2,
-  CheckCircle2, AlertTriangle, XCircle, RotateCcw, MessageCircle
+  Search, Truck, LogIn, Clock, ArrowRight, RefreshCw, Loader2,
+  CheckCircle2, XCircle, RotateCcw, MessageCircle, AlertCircle
 } from "lucide-react";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
 import { emitToast } from "../../context/ToastContext";
@@ -17,63 +16,162 @@ export function getOrderProducts(o) {
   return db.normalizeOrderItems(o);
 }
 
+function OrdersSkeleton() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
+      <div style={{
+        background: "#ffffff",
+        border: "1px solid #ebdccb",
+        borderRadius: 12,
+        padding: "16px",
+        height: 52,
+        animation: "pulse 1.6s infinite ease-in-out"
+      }} />
+      <div style={{
+        background: "#ffffff",
+        border: "1px solid #ebdccb",
+        borderRadius: 12,
+        padding: "18px",
+        height: 80,
+        animation: "pulse 1.6s infinite ease-in-out"
+      }} />
+      {[1, 2, 3].map((idx) => (
+        <div 
+          key={idx} 
+          style={{
+            background: "#ffffff",
+            border: "1px solid #eee1cf",
+            borderRadius: 14,
+            overflow: "hidden",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+            animation: "pulse 1.6s infinite ease-in-out"
+          }}
+        >
+          <div style={{
+            padding: "14px 20px",
+            background: "#fdfbf7",
+            borderBottom: "1px solid #eee1cf",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ width: 140, height: 18, background: "#f4ece5", borderRadius: 4 }} />
+              <div style={{ width: 90, height: 14, background: "#f8f4ef", borderRadius: 4 }} />
+            </div>
+            <div style={{ width: 80, height: 20, background: "#f4ece5", borderRadius: 4 }} />
+          </div>
+          <div style={{ padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, background: "#f4ece5", borderRadius: 8 }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ width: 220, height: 16, background: "#f4ece5", borderRadius: 4 }} />
+                <div style={{ width: 130, height: 12, background: "#f8f4ef", borderRadius: 4 }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ width: 80, height: 34, background: "#f4ece5", borderRadius: 6 }} />
+              <div style={{ width: 90, height: 34, background: "#f4ece5", borderRadius: 6 }} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Orders() {
   const [currentUser, setCurrentUser] = useState(() => authClient.getUser());
-  const [orders, setOrders] = useState(() => {
-    const cached = db.getCachedMyOrders();
-    if (Array.isArray(cached) && cached.length > 0) {
-      return [...cached].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
-    }
-    return [];
-  });
-  const [loading, setLoading] = useState(() => {
-    const user = authClient.getUser();
-    if (!user || user.isAnonymous) return false;
-    const cached = db.getCachedMyOrders();
-    return !(Array.isArray(cached) && cached.length > 0);
-  });
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [retryingOrderId, setRetryingOrderId] = useState(null);
-  
-  // Quick track input for guests
   const [trackInput, setTrackInput] = useState("");
   
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    const user = authClient.getUser();
-    setCurrentUser(user);
-    const initialCached = db.getCachedMyOrders();
-    const hasCache = Array.isArray(initialCached) && initialCached.length > 0;
-    loadOrders(user, hasCache);
+    // 1. Trap Browser Back to always navigate to Home ("/")
+    window.history.pushState({ auraOrderView: true }, "", window.location.href);
 
-    let lastUid = user?.uid || user?.authUserId || user?.email || null;
+    const handlePopState = () => {
+      navigate("/", { replace: true });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    let isMounted = true;
+
+    async function initAuthAndOrders() {
+      setLoading(true);
+      setLoadError("");
+      
+      let user = authClient.getUser();
+      if (!user) {
+        user = await authClient.getCurrentUserAsync();
+      }
+      if (!isMounted) return;
+      setCurrentUser(user);
+
+      if (!user || user.isAnonymous) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await db.getMyOrders();
+        if (!isMounted) return;
+        if (res?.success && Array.isArray(res.data)) {
+          const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+          setOrders(sorted);
+          setLoadError("");
+        } else {
+          setOrders([]);
+          setLoadError(res?.message || "Failed to load your orders from server.");
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setOrders([]);
+        setLoadError("Network error while loading your orders.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    initAuthAndOrders();
+
     const unsubscribeAuth = authClient.onAuthStateChanged((u) => {
-      const currentUid = u?.uid || u?.authUserId || u?.email || null;
-      if (currentUid !== lastUid) {
-        lastUid = currentUid;
-        setCurrentUser(u);
-        const hasCachedOrders = (db.getCachedMyOrders() || []).length > 0;
-        loadOrders(u, hasCachedOrders);
+      if (!isMounted) return;
+      setCurrentUser(u);
+      if (u && !u.isAnonymous) {
+        loadOrders(u);
+      } else {
+        setOrders([]);
+        setLoading(false);
       }
     });
 
-    // Real-time store update listener for instant admin/checkout updates
     const unsubscribeStore = onStoreUpdate(() => {
-      const currentU = authClient.getUser();
-      loadOrders(currentU, true);
+      if (!isMounted) return;
+      const u = authClient.getUser();
+      if (u && !u.isAnonymous) {
+        loadOrders(u);
+      }
     });
 
     return () => {
+      isMounted = false;
+      window.removeEventListener("popstate", handlePopState);
       unsubscribeAuth();
       unsubscribeStore();
     };
-  }, []);
+  }, [navigate]);
 
-  async function loadOrders(user = null, isBackground = false) {
+  async function loadOrders(user = null) {
     const authUser = user || authClient.getUser();
     if (!authUser || authUser.isAnonymous) {
       setOrders([]);
@@ -81,34 +179,22 @@ export function Orders() {
       return;
     }
 
-    const currentCached = db.getCachedMyOrders();
-    const hasCachedData = Array.isArray(currentCached) && currentCached.length > 0;
-    
-    // Only show loading indicator if we don't have any cached orders yet
-    if (!isBackground && !hasCachedData && orders.length === 0) {
-      setLoading(true);
-    }
-    
+    setLoading(true);
     setLoadError("");
     try {
       const res = await db.getMyOrders();
       if (res?.success && Array.isArray(res.data)) {
         const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
         setOrders(sorted);
-      } else if (!isBackground && !hasCachedData) {
+        setLoadError("");
+      } else {
         setOrders([]);
-        if (res && res.message) {
-          setLoadError(res.message);
-        } else {
-          setLoadError("Failed to load orders. Please try again.");
-        }
+        setLoadError(res?.message || "Failed to load orders. Please try again.");
       }
     } catch (err) {
       console.error("Error loading orders:", err);
-      if (!isBackground && !hasCachedData) {
-        setOrders([]);
-        setLoadError("Failed to load orders. Please try again.");
-      }
+      setOrders([]);
+      setLoadError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -170,8 +256,9 @@ export function Orders() {
         {/* Navigation & Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
           <button 
+            type="button"
             className="back-btn" 
-            onClick={() => navigate("/account")} 
+            onClick={() => navigate("/", { replace: true })} 
             style={{
               background: 'none', 
               border: 'none', 
@@ -185,7 +272,7 @@ export function Orders() {
               padding: '6px 0'
             }}
           >
-            <ChevronLeft size={16} /> Back to Account
+            <ChevronLeft size={16} /> Back to Home
           </button>
 
           <Link
@@ -217,8 +304,11 @@ export function Orders() {
           </p>
         </div>
 
-        {/* Guest / Non-logged in State */}
-        {!currentUser || currentUser.isAnonymous ? (
+        {/* 1. SKELETON LOADING STATE: Shown while initial or background auth/API request is pending */}
+        {loading ? (
+          <OrdersSkeleton />
+        ) : !currentUser || currentUser.isAnonymous ? (
+          /* 2. GUEST / NON-LOGGED IN STATE */
           <div style={{
             background: '#fff',
             border: '1px solid #eee1cf',
@@ -308,8 +398,9 @@ export function Orders() {
             </div>
           </div>
         ) : (
+          /* 3. LOGGED-IN STATE */
           <>
-            {/* Quick Order Lookup Form for logged in users */}
+            {/* Quick Order Lookup Form */}
             <div style={{
               background: '#fff',
               border: '1px solid #eee1cf',
@@ -325,7 +416,10 @@ export function Orders() {
                     type="text"
                     placeholder="Search by Order ID or item name..."
                     value={trackInput}
-                    onChange={(e) => setTrackInput(e.target.value)}
+                    onChange={(e) => {
+                      setTrackInput(e.target.value);
+                      setSearchQuery(e.target.value);
+                    }}
                     style={{
                       width: '100%',
                       padding: '9px 12px 9px 36px',
@@ -351,22 +445,33 @@ export function Orders() {
               <AuraAISupportAssistant defaultTopic="orders" compact={true} />
             </div>
 
-            {/* Orders List / State Handling */}
-            {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '10px 0' }}>
-                {[1, 2, 3].map(i => (
-                  <div key={i} style={{ height: 130, borderRadius: 12, background: '#f5ede3', animation: 'pulse 1.5s infinite' }} />
-                ))}
-              </div>
-            ) : loadError ? (
-              <div className="empty" style={{ textAlign: 'center', padding: '60px 20px', background: '#fffdf9', borderRadius: 12, border: '1px solid #eee1cf' }}>
-                <Package size={48} style={{ color: '#d9c6b3', marginBottom: 15 }} />
-                <p style={{ fontSize: 14, color: '#806f62', marginBottom: 18 }}>{loadError}</p>
-                <button onClick={() => loadOrders(currentUser)} style={{ padding: '12px 25px', borderRadius: 8, border: 'none', background: '#a54d2b', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Try Again
+            {/* 4. ERROR STATE */}
+            {loadError ? (
+              <div className="empty" style={{ textAlign: 'center', padding: '60px 20px', background: '#fffdf9', borderRadius: 12, border: '1px solid #fecaca' }}>
+                <AlertCircle size={44} style={{ color: '#dc2626', marginBottom: 15 }} />
+                <h3 style={{ fontSize: 18, color: '#991b1b', marginBottom: 6, fontWeight: 700 }}>Unable to Load Orders</h3>
+                <p style={{ fontSize: 13, color: '#806f62', marginBottom: 20, maxWidth: 440, margin: '0 auto 20px' }}>{loadError}</p>
+                <button 
+                  onClick={() => loadOrders(currentUser)} 
+                  style={{ 
+                    padding: '10px 24px', 
+                    borderRadius: 8, 
+                    border: 'none', 
+                    background: '#a54d2b', 
+                    color: '#fff', 
+                    fontSize: 13, 
+                    fontWeight: 600, 
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <RefreshCw size={14} /> Try Again
                 </button>
               </div>
             ) : orders.length === 0 ? (
+              /* 5. AUTHENTIC ZERO ORDERS EMPTY STATE */
               <div className="empty" style={{ textAlign: 'center', padding: '60px 20px', background: '#fffdf9', borderRadius: 12, border: '1px solid #eee1cf' }}>
                 <div style={{
                   width: 64,
@@ -380,11 +485,11 @@ export function Orders() {
                 }}>
                   <Package size={32} />
                 </div>
-                <h3 style={{ fontSize: 20, color: '#2b170d', marginBottom: 8, fontFamily: 'Cormorant Garamond, serif' }}>
+                <h3 style={{ fontSize: 22, color: '#2b170d', marginBottom: 8, fontFamily: 'Cormorant Garamond, serif' }}>
                   No Orders Placed Yet
                 </h3>
-                <p style={{ fontSize: 13, color: '#806f62', maxWidth: 420, margin: '0 auto 24px', lineHeight: 1.5 }}>
-                  You have not placed any orders yet with your account. Explore our authentic Nepal and Indonesian Rudraksha collection.
+                <p style={{ fontSize: 13.5, color: '#806f62', maxWidth: 440, margin: '0 auto 24px', lineHeight: 1.6 }}>
+                  You have not placed any orders yet with your account. Explore our authentic Nepal and Indonesian Rudraksha collection with Vedic consecration.
                 </p>
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                   <Link to="/shop" className="primary-btn" style={{ padding: '12px 24px', borderRadius: 8, textDecoration: 'none', fontSize: 13 }}>
@@ -396,8 +501,9 @@ export function Orders() {
                 </div>
               </div>
             ) : (
+              /* 6. REAL ORDERS LIST */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Filter Tabs if multiple orders */}
+                {/* Filter Tabs */}
                 {orders.length > 2 && (
                   <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                     {["all", "Processing", "Shipped", "Delivered", "Cancelled"].map(st => (
@@ -425,7 +531,7 @@ export function Orders() {
                   </div>
                 )}
 
-                {filteredOrders.map((o, idx) => {
+                {filteredOrders.map((o) => {
                   const parsedItems = getOrderProducts(o);
                   const totalItems = parsedItems.reduce((acc, curr) => acc + (curr.qty || curr.quantity || 1), 0);
                   const uniqueProducts = parsedItems.length;

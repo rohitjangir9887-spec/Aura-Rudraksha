@@ -61,50 +61,146 @@ export function OrderDetail() {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [isNotFound, setIsNotFound] = useState(false);
 
   useEffect(() => {
-    loadOrder();
+    // 1. Trap Browser Back to always navigate to Home ("/")
+    window.history.pushState({ auraOrderDetailView: true }, "", window.location.href);
+
+    const handlePopState = () => {
+      navigate("/", { replace: true });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    let isMounted = true;
+
+    async function fetchOrder() {
+      setLoading(true);
+      setLoadError("");
+      setIsNotFound(false);
+      try {
+        const res = await db.getOrder(id);
+        if (!isMounted) return;
+        if (res?.success && res.data) {
+          const normalized = db.normalizeOrder(res.data);
+          setOrder(normalized);
+          setEditAddressForm(normalized.address || "");
+        } else if (res?.notFound || res?.status === 404) {
+          setIsNotFound(true);
+          setOrder(null);
+        } else {
+          setLoadError(res?.message || "Failed to load order details.");
+          setOrder(null);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("Error loading order details:", err);
+        setLoadError("Network connection error. Please check your internet.");
+        setOrder(null);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    fetchOrder();
+
     const unsubscribe = authClient.onAuthStateChanged(() => {
-      loadOrder();
+      if (isMounted) fetchOrder();
     });
-    return () => unsubscribe();
-  }, [id]);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("popstate", handlePopState);
+      unsubscribe();
+    };
+  }, [id, navigate]);
   
   async function loadOrder() {
     setLoading(true);
     setLoadError("");
+    setIsNotFound(false);
     try {
       const res = await db.getOrder(id);
       if (res?.success && res.data) {
         const normalized = db.normalizeOrder(res.data);
         setOrder(normalized);
         setEditAddressForm(normalized.address || "");
+      } else if (res?.notFound || res?.status === 404) {
+        setIsNotFound(true);
+        setOrder(null);
       } else {
-        setLoadError(res?.message || "Order not found");
+        setLoadError(res?.message || "Failed to load order details.");
+        setOrder(null);
       }
     } catch (err) {
       console.error("Error loading order details:", err);
-      setLoadError("Could not load order details");
+      setLoadError("Network connection error. Please check your internet.");
+      setOrder(null);
     } finally {
       setLoading(false);
     }
   }
 
-    
-
   if (loading) {
     return (
       <Shell>
         <main className="page" style={{ maxWidth: 850, margin: "0 auto", padding: "40px 16px 80px" }}>
-          <div style={{ height: 32, width: 140, background: '#f4ece5', borderRadius: 8, marginBottom: 20 }} />
-          <div style={{ height: 200, background: '#f8f4ef', borderRadius: 12, marginBottom: 20 }} />
-          <div style={{ height: 160, background: '#f8f4ef', borderRadius: 12 }} />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 20 }}>
+            <div style={{ height: 28, width: 120, background: '#f4ece5', borderRadius: 6, animation: 'pulse 1.5s infinite' }} />
+          </div>
+          <div style={{ height: 90, background: '#ffffff', border: '1px solid #eee1cf', borderRadius: 14, marginBottom: 20, animation: 'pulse 1.5s infinite' }} />
+          <div style={{ height: 220, background: '#ffffff', border: '1px solid #eee1cf', borderRadius: 14, marginBottom: 20, animation: 'pulse 1.5s infinite' }} />
+          <div style={{ height: 180, background: '#ffffff', border: '1px solid #eee1cf', borderRadius: 14, animation: 'pulse 1.5s infinite' }} />
         </main>
       </Shell>
     );
   }
 
-  if (!order || loadError) {
+  if (loadError) {
+    return (
+      <Shell>
+        <main className="page" style={{ maxWidth: 600, margin: "60px auto 100px", padding: "0 16px", textAlign: "center" }}>
+          <div style={{
+            background: "#fff",
+            border: "1px solid #fecaca",
+            borderRadius: 16,
+            padding: "40px 24px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.03)"
+          }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              background: "#fee2e2",
+              display: "grid",
+              placeItems: "center",
+              margin: "0 auto 16px",
+              color: "#dc2626"
+            }}>
+              <AlertCircle size={28} />
+            </div>
+            <h2 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 26, color: "#991b1b", marginBottom: 8 }}>
+              Unable to Load Order
+            </h2>
+            <p style={{ fontSize: 13, color: "#806f62", marginBottom: 24, lineHeight: 1.6 }}>
+              {loadError}
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={loadOrder} className="primary-btn" style={{ padding: "10px 20px", fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <RefreshCw size={14} /> Try Again
+              </button>
+              <button onClick={() => navigate("/", { replace: true })} className="outline-btn" style={{ padding: "10px 20px", fontSize: 13, background: "#fff" }}>
+                Back to Home
+              </button>
+            </div>
+          </div>
+        </main>
+      </Shell>
+    );
+  }
+
+  if (isNotFound || !order) {
     return (
       <Shell>
         <main className="page" style={{ maxWidth: 600, margin: "60px auto 100px", padding: "0 16px", textAlign: "center" }}>
@@ -231,9 +327,42 @@ export function OrderDetail() {
     <Shell>
       <main className="page" style={{ maxWidth: 850, margin: '0 auto', paddingBottom: 80 }}>
         
-        <Link className="back-btn" to="/account/orders" style={{marginBottom: 20, display: 'inline-flex', gap: 5, alignItems: 'center', textDecoration: 'none', color: '#a54d2b', fontSize: 13, fontWeight: 600}}>
-          <ChevronLeft size={16}/> Back to Orders
-        </Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <button 
+            type="button" 
+            className="back-btn" 
+            onClick={() => navigate("/", { replace: true })} 
+            style={{
+              background: 'none', 
+              border: 'none', 
+              cursor: 'pointer',
+              display: 'inline-flex', 
+              gap: 5, 
+              alignItems: 'center', 
+              color: '#a54d2b', 
+              fontSize: 13, 
+              fontWeight: 600,
+              padding: 0
+            }}
+          >
+            <ChevronLeft size={16}/> Back to Home
+          </button>
+
+          <Link 
+            to="/account/orders" 
+            style={{ 
+              display: 'inline-flex', 
+              gap: 5, 
+              alignItems: 'center', 
+              textDecoration: 'none', 
+              color: '#806f62', 
+              fontSize: 12.5, 
+              fontWeight: 600 
+            }}
+          >
+            View All Orders <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+          </Link>
+        </div>
         
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 15, marginBottom: 25}}>
           <div  >

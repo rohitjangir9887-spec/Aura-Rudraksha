@@ -860,126 +860,60 @@ export const db = {
   getCachedMyOrders: () => {
     const user = authClient.getUser();
     if (!user || user.isAnonymous) return [];
-    if (Array.isArray(storeCache.myOrders) && storeCache.myOrders.length > 0) return storeCache.myOrders;
-    
-    const cacheKey = db.getUserScopedKey("aura_cached_my_orders");
-    if (cacheKey && typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(cacheKey);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            storeCache.myOrders = parsed;
-            preloadImages(parsed);
-            return parsed;
-          }
-        }
-      } catch (_) {}
-    }
-
-    const userEmail = (user.email || "").trim().toLowerCase();
-    if (userEmail) {
-      if (Array.isArray(storeCache.orders) && storeCache.orders.length > 0) {
-        const matched = storeCache.orders.filter(o =>
-          (o.customerEmail || "").toLowerCase() === userEmail ||
-          (o.email || "").toLowerCase() === userEmail ||
-          (o.shippingAddress?.email || "").toLowerCase() === userEmail ||
-          (o.userEmail || "").toLowerCase() === userEmail
-        );
-        if (matched.length > 0) {
-          storeCache.myOrders = matched;
-          preloadImages(matched);
-          return matched;
-        }
-      }
-
-      if (typeof window !== "undefined") {
-        try {
-          const rawAll = localStorage.getItem("aura_orders_cache");
-          if (rawAll) {
-            const parsedAll = JSON.parse(rawAll);
-            if (Array.isArray(parsedAll)) {
-              const matched = parsedAll.filter(o =>
-                (o.customerEmail || "").toLowerCase() === userEmail ||
-                (o.email || "").toLowerCase() === userEmail ||
-                (o.shippingAddress?.email || "").toLowerCase() === userEmail ||
-                (o.userEmail || "").toLowerCase() === userEmail
-              );
-              if (matched.length > 0) {
-                storeCache.myOrders = matched;
-                preloadImages(matched);
-                return matched;
-              }
-            }
-          }
-        } catch (_) {}
-      }
-    }
-
+    if (Array.isArray(storeCache.myOrders)) return storeCache.myOrders;
     return [];
   },
 
   getMyOrders: async () => {
     const user = authClient.getUser();
-    const userEmail = (user?.email || "").trim().toLowerCase();
     
     // Strict privacy: If user is not logged in, return empty orders list
     if (!user || user.isAnonymous) {
       return { success: true, data: [] };
     }
 
-    const cacheKey = db.getUserScopedKey("aura_cached_my_orders");
-    const cached = db.getCachedMyOrders();
-
     try {
       const res = await apiRequest("/orders/my", { timeoutMs: 15000 });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
-        if (cacheKey && typeof window !== "undefined") {
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify(res.data));
-            localStorage.setItem(`${cacheKey}_time`, String(Date.now()));
-          } catch (_) {}
-        }
         preloadImages(res.data);
         return res;
       }
-    } catch (_) {}
-
-    if (cached && cached.length > 0) {
-      return { success: true, data: cached };
+      return { 
+        success: false, 
+        message: res?.message || "Failed to fetch orders from server", 
+        data: [] 
+      };
+    } catch (err) {
+      console.error("[DB] getMyOrders API error:", err);
+      return { 
+        success: false, 
+        message: err?.message || "Network error while loading your orders", 
+        data: [] 
+      };
     }
-
-    let userOrders = [];
-    if (userEmail) {
-      userOrders = storeCache.orders.filter(o =>
-        (o.customerEmail || "").toLowerCase() === userEmail ||
-        (o.email || "").toLowerCase() === userEmail ||
-        (o.shippingAddress?.email || "").toLowerCase() === userEmail ||
-        (o.userEmail || "").toLowerCase() === userEmail
-      );
-    }
-    preloadImages(userOrders);
-    return { success: true, data: userOrders };
   },
 
   getOrder: async (id) => {
-    const strId = String(id).trim().toUpperCase();
+    if (!id) return { success: false, notFound: true, message: "Order ID is required" };
     try {
-      const res = await apiRequest(`/orders/${id}`);
+      const res = await apiRequest(`/orders/${id}`, { timeoutMs: 15000 });
       if (res?.success && res.data) {
         return res;
       }
-    } catch (_) {}
-
-    const order = storeCache.orders.find(o =>
-      String(o.id).toUpperCase() === strId ||
-      String(o.orderId).toUpperCase() === strId
-    );
-    if (order) {
-      return { success: true, data: order };
+      return {
+        success: false,
+        notFound: res?.status === 404 || (res?.message && res.message.toLowerCase().includes("not found")),
+        message: res?.message || "Order not found"
+      };
+    } catch (err) {
+      console.error("[DB] getOrder API error:", err);
+      return {
+        success: false,
+        notFound: false,
+        message: err?.message || "Network error while loading order details"
+      };
     }
-    return { success: false, message: "Order not found" };
   },
 
   trackOrder: async (queryOrOrderId, phone = "") => {

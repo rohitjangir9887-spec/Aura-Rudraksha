@@ -68,16 +68,38 @@ export async function getOrders(req, res, next) {
 export async function getMyOrders(req, res, next) {
   try {
     const authUserId = req.user.authUserId;
+    const userEmail = (req.user.email || "").trim().toLowerCase();
+    const userPhone = (req.user.phone || "").trim();
+
     await reconcileAllOrders();
+
+    const queryFilters = [{ authUserId }];
+    if (userEmail) {
+      queryFilters.push({ customerEmail: userEmail });
+      queryFilters.push({ email: userEmail });
+      queryFilters.push({ "shippingAddress.email": userEmail });
+    }
+    if (userPhone) {
+      queryFilters.push({ customerPhone: userPhone });
+      queryFilters.push({ phone: userPhone });
+      queryFilters.push({ "shippingAddress.phone": userPhone });
+    }
+
     if (!isDbConnected()) {
       const myOrders = (inMemoryStore.orders || [])
-        .filter(o => o.authUserId === authUserId || o.customerEmail === authUserId || o.id === "AURA-260906-000003")
+        .filter(o => {
+          if (o.authUserId === authUserId) return true;
+          const oEmail = (o.customerEmail || o.email || o.shippingAddress?.email || "").toLowerCase();
+          if (userEmail && oEmail === userEmail) return true;
+          const oPhone = o.customerPhone || o.phone || o.shippingAddress?.phone || "";
+          if (userPhone && oPhone === userPhone) return true;
+          return false;
+        })
         .map(o => normalizeOrderState(o));
       return res.json({ success: true, data: myOrders, count: myOrders.length });
     }
-    const rawOrders = await Order.find({ 
-      $or: [{ authUserId }, { customerEmail: authUserId }, { id: "AURA-260906-000003" }] 
-    }).sort({ createdAt: -1 }).lean();
+
+    const rawOrders = await Order.find({ $or: queryFilters }).sort({ createdAt: -1 }).lean();
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
     return res.json({ success: true, data: orders, count: orders.length });
   } catch (err) {
@@ -89,36 +111,40 @@ export async function getOrderById(req, res, next) {
   try {
     const { id } = req.params;
     const authUserId = req.user.authUserId;
+    const userEmail = (req.user.email || "").trim().toLowerCase();
+    const userPhone = (req.user.phone || "").trim();
 
+    let order = null;
     if (!isDbConnected()) {
-      let order = (inMemoryStore.orders || []).find(o => String(o.id) === String(id) || String(o.orderId) === String(id) || String(o.orderNumber) === String(id));
+      order = (inMemoryStore.orders || []).find(o => String(o.id) === String(id) || String(o.orderId) === String(id) || String(o.orderNumber) === String(id));
       if (!order) {
         return res.status(404).json({ success: false, message: "Order not found" });
       }
       order = normalizeOrderState(order);
-      const { isInitialAdmin } = isAdminUser(req.user);
-      const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
-      if (!isAdmin && order.authUserId !== authUserId && order.id !== "AURA-260906-000003") {
-        return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
+    } else {
+      order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] }).lean();
+      if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
+        order = await Order.findById(id).lean();
       }
-      return res.json({ success: true, data: order });
+      if (!order) {
+        return res.status(404).json({ success: false, message: "Order not found" });
+      }
+      order = normalizeOrderState(order);
     }
-
-    let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] }).lean();
-    if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
-      order = await Order.findById(id).lean();
-    }
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-
-    order = normalizeOrderState(order);
 
     // Authorization check
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
     
-    if (!isAdmin && order.authUserId !== authUserId && order.id !== "AURA-260906-000003") {
+    const oEmail = (order.customerEmail || order.email || order.shippingAddress?.email || "").toLowerCase();
+    const oPhone = order.customerPhone || order.phone || order.shippingAddress?.phone || "";
+    const isOwner = (
+      order.authUserId === authUserId ||
+      (userEmail && oEmail === userEmail) ||
+      (userPhone && oPhone === userPhone)
+    );
+
+    if (!isAdmin && !isOwner) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
     }
 
