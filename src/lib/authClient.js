@@ -23,7 +23,7 @@ import {
 } from "firebase/auth";
 import firebaseAppletConfig from "../../firebase-applet-config.json" with { type: "json" };
 
-const firebaseConfig = {
+export const firebaseConfig = {
   projectId: firebaseAppletConfig.projectId || "aura-rudraksha-afde8",
   appId: firebaseAppletConfig.appId || "1:880463555671:web:420dc50315ebd1b6334712",
   apiKey: firebaseAppletConfig.apiKey || "AIzaSyB16eNoKyJWnq081O227FyuWC58wTo7Jqo",
@@ -42,6 +42,82 @@ try {
   });
 } catch (e) {
   console.warn("[Auth] Local persistence call error:", e?.message || e);
+}
+
+// Canonical production origin for Aura Rudraksha
+export const CANONICAL_APP_ORIGIN = "https://aura-rudraksha.vercel.app";
+
+/**
+ * Returns the active or canonical application origin.
+ * Ensures localhost / loopback IPs are never emitted in production action links.
+ */
+export function getAppOrigin() {
+  if (typeof window !== "undefined" && window.location && window.location.origin) {
+    const origin = window.location.origin;
+    if (
+      !origin.includes("localhost") && 
+      !origin.includes("127.0.0.1") && 
+      !origin.includes("0.0.0.0") &&
+      origin.startsWith("http")
+    ) {
+      return origin;
+    }
+  }
+  return CANONICAL_APP_ORIGIN;
+}
+
+/**
+ * Normalizes email by stripping zero-width / control characters, trimming whitespace,
+ * and converting to lowercase without corrupting valid Gmail addresses or domains.
+ */
+export function normalizeAuthEmail(email) {
+  if (!email || typeof email !== "string") return "";
+  // Strip zero-width, non-breaking, and Unicode control characters
+  return email
+    .replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Standard RFC-compliant email syntax validation.
+ */
+export function isValidAuthEmail(email) {
+  const normalized = normalizeAuthEmail(email);
+  if (!normalized || normalized.length < 5 || normalized.length > 254) return false;
+  
+  const emailRegex = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+  if (!emailRegex.test(normalized)) return false;
+
+  const parts = normalized.split("@");
+  if (parts.length !== 2) return false;
+  const domain = parts[1];
+  if (!domain || !domain.includes(".")) return false;
+  if (domain.startsWith(".") || domain.endsWith(".") || domain.includes("..")) return false;
+
+  return true;
+}
+
+/**
+ * Production ActionCodeSettings for password reset.
+ */
+export function getPasswordResetActionSettings() {
+  const origin = getAppOrigin();
+  return {
+    url: `${origin}/login?mode=resetPassword`,
+    handleCodeInApp: false
+  };
+}
+
+/**
+ * Production ActionCodeSettings for email verification.
+ */
+export function getEmailVerificationActionSettings() {
+  const origin = getAppOrigin();
+  return {
+    url: `${origin}/login?mode=verifyEmail`,
+    handleCodeInApp: false
+  };
 }
 
 // The demo/guest session is a development-only convenience so the UI is
@@ -135,13 +211,19 @@ export const authClient = {
   },
 
   signInWithEmail: async (email, password) => {
+    const normalized = normalizeAuthEmail(email);
+    if (!normalized || !isValidAuthEmail(normalized)) {
+      const err = new Error("Please enter a valid email address.");
+      err.code = "auth/invalid-email";
+      throw err;
+    }
     try {
       localStorage.removeItem("aura_demo_user");
     } catch (_) {}
     try {
       await setPersistence(auth, browserLocalPersistence);
     } catch (_) {}
-    const result = await signInWithEmailAndPassword(auth, email, password);
+    const result = await signInWithEmailAndPassword(auth, normalized, password);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
     }
@@ -149,13 +231,19 @@ export const authClient = {
   },
 
   signUpWithEmail: async (email, password) => {
+    const normalized = normalizeAuthEmail(email);
+    if (!normalized || !isValidAuthEmail(normalized)) {
+      const err = new Error("Please enter a valid email address.");
+      err.code = "auth/invalid-email";
+      throw err;
+    }
     try {
       localStorage.removeItem("aura_demo_user");
     } catch (_) {}
     try {
       await setPersistence(auth, browserLocalPersistence);
     } catch (_) {}
-    const result = await createUserWithEmailAndPassword(auth, email, password);
+    const result = await createUserWithEmailAndPassword(auth, normalized, password);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
     }
@@ -273,8 +361,32 @@ export const authClient = {
 
   sendVerificationEmail: async (user) => {
     const targetUser = user || auth.currentUser;
-    if (!targetUser) throw new Error("No authenticated user found to verify.");
-    return await sendEmailVerification(targetUser);
+    if (!targetUser) {
+      throw new Error("No authenticated user found to verify.");
+    }
+
+    // Authoritative email from Firebase User object
+    const authoritativeEmail = targetUser.email ? normalizeAuthEmail(targetUser.email) : "";
+    if (!authoritativeEmail) {
+      throw new Error("User has no email address associated with their account.");
+    }
+
+    const actionCodeSettings = getEmailVerificationActionSettings();
+
+    // Safe dev diagnostic (never logs tokens, passwords, or credentials)
+    if (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV) {
+      console.log(`[Auth Diagnostic] sendVerificationEmail -> target: ${authClient.maskEmail(authoritativeEmail)}, project: ${firebaseConfig.projectId}, origin: ${getAppOrigin()}`);
+    }
+
+    try {
+      return await sendEmailVerification(targetUser, actionCodeSettings);
+    } catch (err) {
+      if (err?.code === "auth/unauthorized-continue-uri" || err?.code === "auth/invalid-continue-uri") {
+        console.warn("[Auth] ActionCodeSettings continue URI warning, retrying with standard Firebase URL:", err?.message);
+        return await sendEmailVerification(targetUser);
+      }
+      throw err;
+    }
   },
 
   reloadCurrentUser: async () => {
@@ -300,7 +412,29 @@ export const authClient = {
   },
 
   sendPasswordReset: async (email) => {
-    return await sendPasswordResetEmail(auth, email);
+    const normalizedEmail = normalizeAuthEmail(email);
+    if (!normalizedEmail || !isValidAuthEmail(normalizedEmail)) {
+      const err = new Error("Please enter a valid email address.");
+      err.code = "auth/invalid-email";
+      throw err;
+    }
+
+    const actionCodeSettings = getPasswordResetActionSettings();
+
+    // Safe dev diagnostic (never logs tokens, passwords, or credentials)
+    if (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV) {
+      console.log(`[Auth Diagnostic] sendPasswordReset -> target: ${authClient.maskEmail(normalizedEmail)}, project: ${firebaseConfig.projectId}, origin: ${getAppOrigin()}`);
+    }
+
+    try {
+      return await sendPasswordResetEmail(auth, normalizedEmail, actionCodeSettings);
+    } catch (err) {
+      if (err?.code === "auth/unauthorized-continue-uri" || err?.code === "auth/invalid-continue-uri") {
+        console.warn("[Auth] ActionCodeSettings continue URI warning, retrying with standard Firebase URL:", err?.message);
+        return await sendPasswordResetEmail(auth, normalizedEmail);
+      }
+      throw err;
+    }
   },
 
   verifyResetCode: async (code) => {
@@ -321,7 +455,10 @@ export const authClient = {
 
   maskEmail: (email) => {
     if (!email || typeof email !== "string" || !email.includes("@")) return email || "";
-    const [local, domain] = email.split("@");
+    const clean = normalizeAuthEmail(email);
+    const parts = clean.split("@");
+    if (parts.length !== 2) return clean;
+    const [local, domain] = parts;
     if (local.length <= 2) {
       return `${local[0] || "*"}***@${domain}`;
     }

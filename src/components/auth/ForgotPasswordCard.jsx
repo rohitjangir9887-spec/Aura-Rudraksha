@@ -52,7 +52,7 @@ export function ForgotPasswordCard({
             Check your email
           </h2>
           <p className="text-[13px] text-[#735e50] mt-1">
-            We've sent a password reset link to:
+            We've sent a secure password reset link to:
           </p>
           <div className="inline-block mt-2 px-3.5 py-1.5 bg-[#f5ede3] border border-[#e2d2c1] rounded-full text-[13px] font-semibold text-[#3d2516] tracking-wide">
             {masked}
@@ -60,7 +60,7 @@ export function ForgotPasswordCard({
         </div>
 
         <p className="text-[12.5px] text-[#786355] max-w-sm mx-auto leading-relaxed">
-          Open the link in the email to set a new password. If you don't see it within a minute, please check your spam folder.
+          Open the email and follow the link to create a new password. If you don't see it within a few minutes, check your Spam or Promotions folder.
         </p>
 
         <div className="space-y-2.5 pt-2">

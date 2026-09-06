@@ -36,7 +36,7 @@ export function Login({ initialMode = "signin" }) {
     if (urlMode === "resetPassword" || (urlMode === "action" && oobCode) || initialMode === "reset-password") {
       return "reset-password";
     }
-    if (urlMode === "verifyEmail" && oobCode) {
+    if ((urlMode === "verifyEmail" || urlMode === "verify-email" || urlMode === "action-verify") && oobCode) {
       return "action-verify";
     }
     if (urlMode === "signup" || initialMode === "signup") return "signup";
@@ -79,7 +79,7 @@ export function Login({ initialMode = "signin" }) {
   // Handle Firebase action link for automatic email verification if visited via link
   useEffect(() => {
     async function handleEmailVerificationAction() {
-      if (urlMode === "verifyEmail" && oobCode) {
+      if ((urlMode === "verifyEmail" || urlMode === "verify-email" || urlMode === "action-verify") && oobCode) {
         try {
           setLoading(true);
           await authClient.applyActionCode(oobCode);
@@ -304,20 +304,28 @@ export function Login({ initialMode = "signin" }) {
   // 6. Forgot Password Submit
   const handleForgotPassword = async (e) => {
     if (e?.preventDefault) e.preventDefault();
-    if (!email.trim()) {
+    const rawEmail = String(email || "").trim();
+    if (!rawEmail) {
       setError("Please enter your email address.");
       return;
     }
     try {
       setLoading(true);
       setError("");
-      await authClient.sendPasswordReset(email.trim());
+      await authClient.sendPasswordReset(rawEmail);
       setForgotSent(true);
-      emitToast("Password reset link sent to your email!", "success");
+      emitToast("If an Aura account exists for this email, a reset link has been sent.", "success");
     } catch (err) {
       console.error("Forgot password error:", err);
-      // Generic protection or mapped friendly error
-      setError(authClient.formatAuthError(err));
+      if (err?.code === "auth/user-not-found") {
+        // Prevent email enumeration: preserve generic success experience
+        setForgotSent(true);
+        emitToast("If an Aura account exists for this email, a reset link has been sent.", "success");
+      } else if (err?.code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else {
+        setError(authClient.formatAuthError(err));
+      }
     } finally {
       setLoading(false);
     }

@@ -61,7 +61,7 @@ export function VerifyEmailCard({
       </div>
 
       <p className="text-[12.5px] text-[#786355] max-w-sm mx-auto leading-relaxed">
-        Please check your inbox (and spam folder) and click the link to activate your Aura Rudraksha account.
+        Open the link in the email to activate your Aura Rudraksha account. If you don't see it within a few minutes, check your Spam or Promotions folder.
       </p>
 
       {/* Inline Verification Notice / Error */}
