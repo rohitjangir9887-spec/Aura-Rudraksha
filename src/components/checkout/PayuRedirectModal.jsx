@@ -1,54 +1,74 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { 
-  ShieldCheck, Lock, Zap, AlertCircle, 
+  ShieldCheck, Lock, Zap, AlertCircle, AlertTriangle,
   RefreshCw, ArrowLeft, CheckCircle2,
-  CreditCard, Smartphone, Wallet, Landmark
+  CreditCard, Smartphone, Wallet, Landmark,
+  X, ExternalLink, Clock
 } from "lucide-react";
 
+/**
+ * PayuRedirectModal - Premium Mobile-First Centered Payment Gateway Modal
+ * 
+ * Supports all states inside the SAME modal:
+ * - CONNECTING / INITIATING: "Connecting to PayU Securely..."
+ * - REDIRECTING: "Redirecting to PayU..."
+ * - PENDING: "Payment Processing"
+ * - FAILED: "Payment Failed"
+ * - CANCELLED: "Payment Cancelled"
+ * - SUCCESS: "Payment Verified & Paid"
+ */
 export function PayuRedirectModal({ 
   isOpen, 
   onClose, 
   onRetry, 
+  state = "CONNECTING", // CONNECTING, REDIRECTING, PENDING, FAILED, CANCELLED, SUCCESS
   errorMsg = null,
-  timeoutOccurred = false
+  timeoutOccurred = false,
+  amount = null,
+  orderId = null
 }) {
   const shouldReduceMotion = useReducedMotion();
-  const [mounted, setMounted] = useState(false);
-  const modalRef = React.useRef(null);
+  const [mounted, setMounted] = React.useState(false);
+  const modalRef = useRef(null);
 
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
+  // Prevent background body scroll while modal is active
   useEffect(() => {
-    let previouslyFocusedElement = null;
-
     if (isOpen) {
-      previouslyFocusedElement = document.activeElement;
-      modalRef.current?.focus();
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
     }
+  }, [isOpen]);
 
-    return () => {
-      if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
-        try {
-          previouslyFocusedElement.focus();
-        } catch(e) {}
-      }
-    };
+  // Focus management
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      modalRef.current.focus();
+    }
   }, [isOpen]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Escape") {
-      // Intentionally do nothing on Escape to prevent cancelling in-flight payment
-      e.preventDefault();
+      // Allow escape only on failure/cancel/timeout states, not during in-flight redirect
+      if (isTerminalOrError && onClose) {
+        onClose();
+      } else {
+        e.preventDefault();
+      }
       return;
     }
 
     // Focus Trap
-    if (e.key === 'Tab' && modalRef.current) {
+    if (e.key === "Tab" && modalRef.current) {
       const focusableElements = modalRef.current.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
@@ -71,213 +91,521 @@ export function PayuRedirectModal({
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted || typeof document === "undefined") return null;
+
+  // Determine current active display state
+  const isFailed = state === "FAILED" || Boolean(errorMsg) || timeoutOccurred;
+  const isCancelled = state === "CANCELLED";
+  const isPending = state === "PENDING";
+  const isRedirecting = state === "REDIRECTING";
+  const isSuccess = state === "SUCCESS";
+  const isConnecting = !isFailed && !isCancelled && !isPending && !isRedirecting && !isSuccess;
+  const isTerminalOrError = isFailed || isCancelled || timeoutOccurred;
+
+  // Title & Subtitle Mapping
+  let title = "Connecting to PayU Securely…";
+  let subtitle = "Please wait while we prepare your secure payment.";
+  let badgeTheme = "connecting";
+
+  if (isFailed) {
+    title = timeoutOccurred ? "Connection Taking Longer" : "Payment Failed";
+    subtitle = errorMsg 
+      ? errorMsg 
+      : timeoutOccurred 
+      ? "Connecting to PayU took longer than expected. Please retry or choose another method." 
+      : "Your payment could not be completed. Your order is safely saved.";
+    badgeTheme = "failed";
+  } else if (isCancelled) {
+    title = "Payment Cancelled";
+    subtitle = "The payment session was cancelled. You can retry whenever you're ready.";
+    badgeTheme = "cancelled";
+  } else if (isPending) {
+    title = "Payment Processing";
+    subtitle = "Your payment is being verified. Please do not start another payment.";
+    badgeTheme = "pending";
+  } else if (isRedirecting) {
+    title = "Redirecting to PayU…";
+    subtitle = "Taking you to the secure payment page.";
+    badgeTheme = "redirecting";
+  } else if (isSuccess) {
+    title = "Payment Verified & Paid";
+    subtitle = "Your transaction has been securely confirmed.";
+    badgeTheme = "success";
+  }
 
   const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <div
-          className="fixed inset-0 z-[999999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+          id="payu-redirect-modal-overlay"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px 12px",
+            boxSizing: "border-box",
+            margin: 0,
+            overflowX: "hidden",
+            overflowY: "auto"
+          }}
           onKeyDown={handleKeyDown}
         >
-          {/* Soft Blurred & Dimmed Backdrop */}
+          {/* Soft Dimmed & Blurred Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: shouldReduceMotion ? 0 : 0.25 }}
-            style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(43, 23, 13, 0.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+            onClick={() => {
+              if (isTerminalOrError && onClose) onClose();
+            }}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100%",
+              height: "100%",
+              backgroundColor: "rgba(35, 18, 9, 0.72)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              zIndex: 1,
+              cursor: isTerminalOrError ? "pointer" : "default"
+            }}
           />
 
-          {/* Centered Premium White Card */}
+          {/* Centered Premium Ivory Card */}
           <motion.div
             ref={modalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="payu-modal-title"
             tabIndex="-1"
-            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            initial={{ opacity: 0, scale: 0.92, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 12 }}
-            transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
-            style={{ position: "relative", width: "100%", maxWidth: "400px", backgroundColor: "#fffdf9", border: "1px solid #e8dac9", borderRadius: "24px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "32px 24px", textAlign: "center", overflow: "hidden", zIndex: 10, margin: "auto", outline: "none", boxSizing: "border-box" }}
+            exit={{ opacity: 0, scale: 0.92, y: 12 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              position: "relative",
+              zIndex: 2,
+              width: "100%",
+              maxWidth: "380px",
+              maxHeight: "calc(100vh - 32px)",
+              overflowY: "auto",
+              overflowX: "hidden",
+              backgroundColor: "#fffdf9",
+              background: "linear-gradient(180deg, #fffdfa 0%, #faf4ed 100%)",
+              border: "1.5px solid #e8dac9",
+              borderRadius: "20px",
+              boxShadow: "0 25px 50px -12px rgba(43, 23, 13, 0.35), 0 0 0 1px rgba(232, 218, 201, 0.6)",
+              padding: "24px 20px 20px 20px",
+              textAlign: "center",
+              boxSizing: "border-box",
+              margin: "auto",
+              outline: "none"
+            }}
           >
-          {/* Subtle Warm Antique-Gold Ambient Background Glow */}
-          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 bg-[#f3e5d8]/60 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Top Security & Payment Illustration Section */}
-          <div style={{ position: "relative", marginBottom: "24px", paddingTop: "8px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            {/* Surrounding Payment Badges Orbit Ring */}
-            <div className="relative w-36 h-36 flex items-center justify-center">
-              {/* Pulsing Back Ring */}
-              <motion.div
-                animate={{ scale: [0.95, 1.05, 0.95], opacity: [0.4, 0.7, 0.4] }}
-                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px solid rgba(217, 184, 150, 0.4)", backgroundColor: "rgba(250, 242, 232, 0.5)" }}
-              />
-
-              {/* Gentle Rotating Accent Arc */}
-              {!errorMsg && (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                  style={{ position: "absolute", inset: "4px", borderRadius: "50%", border: "2px solid transparent", borderTopColor: "#b85d25", borderRightColor: "rgba(217, 119, 6, 0.3)" }}
-                />
-              )}
-
-              {/* Center Security Emblem Card */}
-              <motion.div
-                animate={errorMsg ? {} : { y: [-2, 2, -2] }}
-                transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                className="relative z-10 w-20 h-20 rounded-2xl bg-gradient-to-b from-white to-[#faf5ef] border border-[#e8dac9] shadow-md flex items-center justify-center text-[#b85d25]"
-              >
-                {errorMsg ? (
-                  <AlertCircle style={{ width: "36px", height: "36px", color: "#d97706" }} />
-                ) : (
-                  <div className="relative flex items-center justify-center">
-                    <ShieldCheck style={{ width: "36px", height: "36px", color: "#b85d25" }} />
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                      style={{ position: "absolute", top: "-4px", right: "-4px", width: "12px", height: "12px", backgroundColor: "#10b981", borderRadius: "50%", border: "2px solid #ffffff" }}
-                    />
-                  </div>
-                )}
-              </motion.div>
-
-              {/* Surrounding Payment Badges */}
-              {/* UPI Badge (Top Right) */}
-              <motion.div
-                animate={errorMsg ? {} : { y: [-2, 3, -2] }}
-                transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
-                className="absolute -top-1 -right-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-[#097939]" />
-                <span className="text-[10px] font-bold text-[#2b170d]">UPI</span>
-              </motion.div>
-
-              {/* Cards Badge (Top Left) */}
-              <motion.div
-                animate={errorMsg ? {} : { y: [2, -2, 2] }}
-                transition={{ repeat: Infinity, duration: 2.7, ease: "easeInOut" }}
-                className="absolute -top-1 -left-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
-              >
-                <CreditCard className="w-3.5 h-3.5 text-[#1a1f71]" />
-                <span className="text-[10px] font-bold text-[#2b170d]">Cards</span>
-              </motion.div>
-
-              {/* Wallets Badge (Bottom Left) */}
-              <motion.div
-                animate={errorMsg ? {} : { y: [-1, 2, -1] }}
-                transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
-                className="absolute -bottom-1 -left-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
-              >
-                <Wallet className="w-3.5 h-3.5 text-[#5f259f]" />
-                <span className="text-[10px] font-bold text-[#2b170d]">Wallets</span>
-              </motion.div>
-
-              {/* Banking Badge (Bottom Right) */}
-              <motion.div
-                animate={errorMsg ? {} : { y: [2, -1, 2] }}
-                transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
-                className="absolute -bottom-1 -right-2 px-2 py-1.5 rounded-lg bg-white border border-[#e8dac9] shadow-xs flex items-center gap-1"
-              >
-                <Landmark className="w-3.5 h-3.5 text-[#b88a58]" />
-                <span className="text-[10px] font-bold text-[#2b170d]">Banking</span>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Main Headings */}
-          <div className="mb-5">
-            <h2 id="payu-modal-title" className="font-serif text-2xl font-bold text-[#2b170d] mb-1.5 tracking-tight">
-              {errorMsg
-                ? "Payment Connection Issue"
-                : timeoutOccurred
-                ? "Redirect Taking Longer"
-                : "Redirecting to PayU…"}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#6b584c] leading-relaxed max-w-xs mx-auto">
-              {errorMsg
-                ? "We couldn’t connect to the payment gateway. Your payment has not been completed."
-                : timeoutOccurred
-                ? "Connecting to PayU is taking longer than expected. You can retry or return to checkout."
-                : "Please wait while we securely redirect you to PayU’s payment gateway to complete your payment."}
-            </p>
-          </div>
-
-          {/* Subtle Animated Progress Bar */}
-          {!errorMsg && (
-            <div className="mb-5 max-w-xs mx-auto">
-              <div className="w-full h-1.5 bg-[#f2e7dc] rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-[#b85d25] via-[#d97706] to-[#15803d]"
-                  animate={{
-                    x: ["-100%", "100%"]
-                  }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 1.5,
-                    ease: "easeInOut"
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Error / Timeout Actions */}
-          {(errorMsg || timeoutOccurred) && (
-            <div className="mb-6 space-y-2.5">
-              <button
-                type="button"
-                onClick={onRetry}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#b85d25] to-[#7a421d] text-white font-semibold text-sm shadow-md hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Try Again</span>
-              </button>
+            {/* Top Close Button (Visible on all or terminal states) */}
+            {onClose && (
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 px-4 rounded-xl border border-[#e8dac9] bg-white text-[#4a2c11] font-medium text-xs hover:bg-[#faf5ef] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                aria-label="Close"
+                style={{
+                  position: "absolute",
+                  top: "14px",
+                  right: "14px",
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  background: "#f5ece2",
+                  border: "1px solid #ebdccb",
+                  color: "#6b584c",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  padding: 0,
+                  transition: "background 0.2s, transform 0.1s",
+                  zIndex: 10
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#ebdccb"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#f5ece2"; }}
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Checkout</span>
+                <X size={16} />
               </button>
-            </div>
-          )}
+            )}
 
-          {/* Three Small Trust Indicators */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-5 py-3 px-2 rounded-xl bg-[#faf5ef] border border-[#f0e2d3] text-center">
-            <div className="flex flex-col items-center justify-center gap-1 p-1">
-              <Lock className="w-4 h-4 text-[#b85d25]" />
-              <span className="text-[10px] font-semibold text-[#2b170d] leading-tight">
-                256-Bit SSL Secured
+            {/* Brand Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "14px" }}>
+              <img 
+                src="https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png"
+                alt="Aura Rudraksha"
+                referrerPolicy="no-referrer"
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+                style={{ height: "20px", objectFit: "contain" }}
+              />
+              <span style={{ 
+                fontFamily: '"Cormorant Garamond", Georgia, serif', 
+                fontSize: "13px", 
+                fontWeight: "700", 
+                letterSpacing: "1px", 
+                color: "#8b4d24",
+                textTransform: "uppercase"
+              }}>
+                Aura Sacred Checkout
               </span>
             </div>
-            <div className="flex flex-col items-center justify-center gap-1 p-1 border-x border-[#e8dac9]">
-              <ShieldCheck className="w-4 h-4 text-[#15803d]" />
-              <span className="text-[10px] font-semibold text-[#2b170d] leading-tight">
-                Safe & Secure Payments
-              </span>
-            </div>
-            <div className="flex flex-col items-center justify-center gap-1 p-1">
-              <Zap className="w-4 h-4 text-[#d97706]" />
-              <span className="text-[10px] font-semibold text-[#2b170d] leading-tight">
-                Fast & Reliable
-              </span>
-            </div>
-          </div>
 
-          {/* Soft Green Security Information Box */}
-          <div className="p-3 rounded-xl bg-[#f0fdf4] border border-[#bbf7d0] text-left flex items-start gap-2.5 text-[#15803d]">
-            <CheckCircle2 className="w-4 h-4 text-[#15803d] shrink-0 mt-0.5" />
-            <p className="text-[11px] leading-snug font-medium text-[#166534]">
-              You will be automatically redirected… Please do not refresh or close this page.
-            </p>
-          </div>
-        </motion.div>
-      </div>
+            {/* Center Animated Icon Ring */}
+            <div style={{ position: "relative", width: "88px", height: "88px", margin: "0 auto 16px auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {/* Pulsing Back Ring */}
+              <motion.div
+                animate={shouldReduceMotion ? {} : { scale: [0.96, 1.06, 0.96], opacity: [0.4, 0.7, 0.4] }}
+                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  border: isFailed 
+                    ? "1.5px solid rgba(220, 38, 38, 0.3)" 
+                    : isCancelled 
+                    ? "1.5px solid rgba(217, 119, 6, 0.3)"
+                    : isPending
+                    ? "1.5px solid rgba(217, 119, 6, 0.4)"
+                    : isSuccess
+                    ? "1.5px solid rgba(22, 163, 74, 0.4)"
+                    : "1.5px solid rgba(184, 93, 37, 0.3)",
+                  backgroundColor: isFailed
+                    ? "rgba(254, 242, 242, 0.6)"
+                    : isCancelled || isPending
+                    ? "rgba(254, 243, 199, 0.5)"
+                    : isSuccess
+                    ? "rgba(220, 252, 231, 0.6)"
+                    : "rgba(250, 242, 232, 0.6)"
+                }}
+              />
+
+              {/* Rotating Accent Arc for active states */}
+              {(isConnecting || isRedirecting || isPending) && !shouldReduceMotion && (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: isRedirecting ? 1.5 : 3, ease: "linear" }}
+                  style={{
+                    position: "absolute",
+                    inset: "3px",
+                    borderRadius: "50%",
+                    border: "2px solid transparent",
+                    borderTopColor: isPending ? "#d97706" : "#b85d25",
+                    borderRightColor: isPending ? "rgba(217, 119, 6, 0.3)" : "rgba(217, 119, 6, 0.4)"
+                  }}
+                />
+              )}
+
+              {/* Central Emblem Badge */}
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 2,
+                  width: "56px",
+                  height: "56px",
+                  borderRadius: "16px",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e8dac9",
+                  boxShadow: "0 4px 12px rgba(43, 23, 13, 0.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                {isFailed ? (
+                  <AlertCircle size={28} color="#dc2626" />
+                ) : isCancelled ? (
+                  <AlertTriangle size={28} color="#d97706" />
+                ) : isPending ? (
+                  <Clock size={28} color="#d97706" />
+                ) : isSuccess ? (
+                  <CheckCircle2 size={28} color="#16a34a" />
+                ) : isRedirecting ? (
+                  <ExternalLink size={26} color="#b85d25" />
+                ) : (
+                  <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <ShieldCheck size={28} color="#b85d25" />
+                    <motion.div
+                      animate={{ scale: [1, 1.25, 1], opacity: [0.7, 1, 0.7] }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      style={{
+                        position: "absolute",
+                        top: "-2px",
+                        right: "-2px",
+                        width: "9px",
+                        height: "9px",
+                        backgroundColor: "#10b981",
+                        borderRadius: "50%",
+                        border: "1.5px solid #ffffff"
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Main Headings */}
+            <div style={{ marginBottom: "14px" }}>
+              <h2
+                id="payu-modal-title"
+                style={{
+                  fontFamily: '"Cormorant Garamond", Georgia, serif',
+                  fontSize: "22px",
+                  fontWeight: "700",
+                  color: isFailed ? "#991b1b" : isCancelled ? "#92400e" : isSuccess ? "#166534" : "#2b170d",
+                  margin: "0 0 6px 0",
+                  lineHeight: "1.25",
+                  letterSpacing: "-0.2px"
+                }}
+              >
+                {title}
+              </h2>
+              <p
+                style={{
+                  fontSize: "12.5px",
+                  color: "#6b584c",
+                  lineHeight: "1.5",
+                  margin: "0 auto",
+                  maxWidth: "320px"
+                }}
+              >
+                {subtitle}
+              </p>
+            </div>
+
+            {/* Optional Amount Pill */}
+            {amount && amount > 0 && !isFailed && !isCancelled && (
+              <div style={{ marginBottom: "14px" }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "#f5ece2",
+                    border: "1px solid #ebdccb",
+                    padding: "4px 12px",
+                    borderRadius: "100px",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    color: "#7a3717"
+                  }}
+                >
+                  <span>Payable Amount:</span>
+                  <span style={{ color: "#2b170d", fontSize: "13px" }}>₹{Number(amount).toLocaleString("en-IN")}</span>
+                </span>
+              </div>
+            )}
+
+            {/* Optional Order ID Pill for Pending/Failed/Cancelled */}
+            {orderId && (isFailed || isCancelled || isPending) && (
+              <div style={{ marginBottom: "14px" }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    background: "#faf5ef",
+                    border: "1px solid #ebdccb",
+                    padding: "3px 10px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    color: "#6b584c"
+                  }}
+                >
+                  Order #{orderId}
+                </span>
+              </div>
+            )}
+
+            {/* Animated Progress Bar (for Connecting and Redirecting states) */}
+            {(isConnecting || isRedirecting || isPending) && (
+              <div style={{ marginBottom: "16px", maxWidth: "260px", margin: "0 auto 16px auto" }}>
+                <div style={{ width: "100%", height: "5px", backgroundColor: "#f0e4d7", borderRadius: "100px", overflow: "hidden" }}>
+                  <motion.div
+                    style={{
+                      height: "100%",
+                      width: "45%",
+                      background: "linear-gradient(90deg, #b85d25 0%, #d97706 50%, #166534 100%)",
+                      borderRadius: "100px"
+                    }}
+                    animate={shouldReduceMotion ? {} : {
+                      x: ["-100%", "250%"]
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: isRedirecting ? 1.2 : 1.8,
+                      ease: "easeInOut"
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Supported Payment Channels Grid (Clean, Responsive, No Leaking) */}
+            {(isConnecting || isRedirecting) && (
+              <div
+                style={{
+                  background: "#fdfbf8",
+                  border: "1px solid #f0e4d7",
+                  borderRadius: "12px",
+                  padding: "10px 8px",
+                  marginBottom: "14px",
+                  boxSizing: "border-box"
+                }}
+              >
+                <div style={{ fontSize: "10px", fontWeight: "700", color: "#806f62", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                  Supported Payment Modes
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px" }}>
+                  <div style={{ background: "#ffffff", border: "1px solid #ebdccb", borderRadius: "8px", padding: "6px 2px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                    <Smartphone size={14} color="#097939" />
+                    <span style={{ fontSize: "9.5px", fontWeight: "700", color: "#2b170d" }}>UPI</span>
+                  </div>
+                  <div style={{ background: "#ffffff", border: "1px solid #ebdccb", borderRadius: "8px", padding: "6px 2px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                    <CreditCard size={14} color="#1a1f71" />
+                    <span style={{ fontSize: "9.5px", fontWeight: "700", color: "#2b170d" }}>Cards</span>
+                  </div>
+                  <div style={{ background: "#ffffff", border: "1px solid #ebdccb", borderRadius: "8px", padding: "6px 2px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                    <Landmark size={14} color="#b88a58" />
+                    <span style={{ fontSize: "9.5px", fontWeight: "700", color: "#2b170d" }}>Banking</span>
+                  </div>
+                  <div style={{ background: "#ffffff", border: "1px solid #ebdccb", borderRadius: "8px", padding: "6px 2px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                    <Wallet size={14} color="#5f259f" />
+                    <span style={{ fontSize: "9.5px", fontWeight: "700", color: "#2b170d" }}>Wallets</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error / Timeout / Cancelled / Pending Action Buttons */}
+            {(isFailed || isCancelled || isPending) && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    style={{
+                      width: "100%",
+                      padding: "11px 16px",
+                      borderRadius: "12px",
+                      background: "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+                      color: "#ffffff",
+                      fontWeight: "700",
+                      fontSize: "13.5px",
+                      border: "none",
+                      boxShadow: "0 4px 12px rgba(165, 77, 43, 0.25)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      cursor: "pointer",
+                      transition: "transform 0.1s, filter 0.2s"
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.06)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+                  >
+                    <RefreshCw size={15} />
+                    <span>Retry Payment</span>
+                  </button>
+                )}
+                {onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    style={{
+                      width: "100%",
+                      padding: "9px 16px",
+                      borderRadius: "12px",
+                      background: "#ffffff",
+                      border: "1px solid #e8dac9",
+                      color: "#4a2d1b",
+                      fontWeight: "600",
+                      fontSize: "12.5px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      cursor: "pointer",
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#faf5ef"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
+                  >
+                    <ArrowLeft size={14} />
+                    <span>Back to Checkout</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Trust Badges Strip (3 Columns) */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "4px",
+                padding: "8px 6px",
+                borderRadius: "10px",
+                backgroundColor: "#faf5ef",
+                border: "1px solid #f0e2d3",
+                marginBottom: "12px",
+                fontSize: "9.5px",
+                color: "#2b170d",
+                fontWeight: "600"
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                <Lock size={13} color="#b85d25" />
+                <span>256-Bit SSL</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", borderLeft: "1px solid #ebdccb", borderRight: "1px solid #ebdccb" }}>
+                <ShieldCheck size={13} color="#166534" />
+                <span>100% Secure</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                <Zap size={13} color="#d97706" />
+                <span>Instant PayU</span>
+              </div>
+            </div>
+
+            {/* Soft Green Security Disclaimer */}
+            <div
+              style={{
+                padding: "8px 10px",
+                borderRadius: "10px",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                textAlign: "left"
+              }}
+            >
+              <CheckCircle2 size={13} color="#166534" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: "10.5px", color: "#166534", fontWeight: "500", lineHeight: "1.3" }}>
+                {isFailed || isCancelled 
+                  ? "Your order and cart details are safely preserved."
+                  : "Please do not refresh or press back while connecting."}
+              </span>
+            </div>
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

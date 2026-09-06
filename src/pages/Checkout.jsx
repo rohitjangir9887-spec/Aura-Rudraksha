@@ -681,6 +681,7 @@ export function Checkout() {
       clearTimeout(timeoutTimer);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        setPaymentState("REDIRECTING");
         // Automatically and immediately redirect to PayU
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
@@ -689,7 +690,7 @@ export function Checkout() {
     } catch (err) {
       clearTimeout(timeoutTimer);
       setPayuError(err.message || "Payment gateway connection failed. Please verify your details and try again.");
-      setPaymentState("IDLE");
+      setPaymentState("FAILED");
       setLoading(false);
       isSubmittingRef.current = false;
     }
@@ -745,6 +746,7 @@ export function Checkout() {
 
     const timeoutTimer = setTimeout(() => {
       setPayuTimeout(true);
+      setPaymentState("FAILED");
     }, 15000);
 
     try {
@@ -752,6 +754,7 @@ export function Checkout() {
       clearTimeout(timeoutTimer);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        setPaymentState("REDIRECTING");
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not generate retry payment attempt");
@@ -759,7 +762,7 @@ export function Checkout() {
     } catch (err) {
       clearTimeout(timeoutTimer);
       setPayuError(err.message || "Failed to retry payment. Please try again or create a fresh order.");
-      setPaymentState("IDLE");
+      setPaymentState("FAILED");
       setRetrying(false);
     }
   };
@@ -1326,15 +1329,24 @@ export function Checkout() {
         {/* Full-Screen PayU Gateway Transition Loading Overlay */}
         <PayuRedirectModal
           isOpen={payuModalOpen}
+          state={paymentState}
+          amount={finalTotal}
+          orderId={pendingOrderId || failedParam || cancelledParam}
           onClose={() => {
             setPayuModalOpen(false);
             setLoading(false);
             setRetrying(false);
+            setPaymentState("IDLE");
             setPayuTimeout(false);
             setPayuError(null);
+            isSubmittingRef.current = false;
           }}
           onRetry={() => {
-            executeOrderSubmission();
+            if (failedParam || cancelledParam) {
+              handleRetryPayment(failedParam || cancelledParam);
+            } else {
+              executeOrderSubmission();
+            }
           }}
           errorMsg={payuError}
           timeoutOccurred={payuTimeout}
