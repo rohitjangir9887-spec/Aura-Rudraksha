@@ -348,11 +348,15 @@ export async function deleteProduct(req, res, next) {
             ]
           });
 
-          for (const media of mediaItems) {
-            if (media.provider === "pcloud" && media.fileId) {
-              await deleteFromPcloud(media.fileId).catch(() => {});
-            }
-            await Media.deleteOne({ _id: media._id }).catch(() => {});
+          const pcloudDeletions = mediaItems
+            .filter(media => media.provider === "pcloud" && media.fileId)
+            .map(media => deleteFromPcloud(media.fileId).catch(() => {}));
+
+          await Promise.all(pcloudDeletions);
+
+          const mediaIds = mediaItems.map(media => media._id);
+          if (mediaIds.length > 0) {
+            await Media.deleteMany({ _id: { $in: mediaIds } }).catch(() => {});
           }
         } catch (_) {}
       }
