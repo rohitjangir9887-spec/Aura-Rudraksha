@@ -142,7 +142,7 @@ export function PaymentFailureAlert() {
   const titleText = isFailed ? "Payment Failed" : isCancelled ? "Payment Cancelled" : "Payment Processing";
 
   return (
-    <div className="w-full px-3 my-3 box-border flex justify-center">
+    <div className="w-full px-3 my-3 box-border flex justify-center md:hidden">
       <div 
         style={{
           background: bannerBg,
