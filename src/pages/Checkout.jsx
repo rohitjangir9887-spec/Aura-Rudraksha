@@ -282,13 +282,41 @@ export function Checkout() {
     };
   }, [paymentState]);
 
+  // Handle Back Button on Terminal Screens (Success/Failed/Cancelled)
+  useEffect(() => {
+    const hasCallbackParam = successParam || failedParam || cancelledParam;
+    if (!hasCallbackParam) return;
+
+    const handleTerminalPopState = (e) => {
+      // User pressed back on a terminal screen.
+      // Redirect to home or orders depending on the state, replacing the history entry.
+      if (successParam) {
+        navigate("/account/orders", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
+    };
+
+    try {
+      window.history.pushState({ terminalScreen: true }, "", window.location.href);
+    } catch (_) {}
+
+    window.addEventListener("popstate", handleTerminalPopState);
+    return () => {
+      window.removeEventListener("popstate", handleTerminalPopState);
+    };
+  }, [successParam, failedParam, cancelledParam, navigate]);
+
   const handleBackNavigation = () => {
     setShowLeaveModal(true);
   };
 
+  const isVerifyingRef = useRef(false);
+
   // Handle Return from PayU Success (Authoritatively verified server-side with strict timeout)
   const verifyOrderPayment = useCallback(async () => {
-    if (!successParam) return;
+    if (!successParam || isVerifyingRef.current) return;
+    isVerifyingRef.current = true;
     setVerifyingPayment(true);
     setVerificationError("");
 
@@ -303,6 +331,7 @@ export function Checkout() {
       // Live server-to-server check with PayU
       const res = await db.verifyPayment(successParam, txnidParam);
       if (timeoutFired) return;
+      clearTimeout(timeoutId);
 
       if (res?.success && res.data && (res.data.paymentStatus === "Paid" || res.data.status === "Confirmed" || res.data.orderStatus === "Confirmed")) {
         setConfirmedOrder(res.data);
@@ -311,22 +340,36 @@ export function Checkout() {
         } else {
           clear(); // Clear cart only when server confirms Paid for normal cart checkout
         }
+        setVerifyingPayment(false);
+        // Clear consumed payment query parameters to prevent reopening on refresh
+        window.history.replaceState({ checkoutActive: false }, "", window.location.pathname);
       } else if (res?.data?.paymentStatus === "Pending") {
         setVerificationError("Payment is currently awaiting confirmation from PayU. If your account was debited, your order will automatically update to Confirmed shortly.");
       } else {
-        setVerificationError(res?.message || "Payment could not be verified by the server. If money was deducted, our automated reconciliation will confirm your order or refund it.");
+        // If PayU says userCancelled/failed, show the correct Cancelled/Failed state, never Paid
+        if (res?.data?.paymentStatus === "Cancelled") {
+            setPaymentState("CANCELLED");
+            navigate(`/checkout?cancelled=${successParam}&txnid=${txnidParam}`, { replace: true });
+        } else if (res?.data?.paymentStatus === "Failed" || res?.data?.paymentStatus === "Bounced" || res?.data?.paymentStatus === "Dropped") {
+            setPaymentState("FAILED");
+            navigate(`/checkout?failed=${successParam}&txnid=${txnidParam}&reason=Payment failed or was cancelled.`, { replace: true });
+        } else {
+            setVerificationError(res?.message || "Payment could not be verified by the server. If money was deducted, our automated reconciliation will confirm your order or refund it.");
+            setVerifyingPayment(false);
+        }
       }
     } catch (err) {
       if (!timeoutFired) {
-        setVerificationError(err.message || "Failed to verify order payment status with server.");
+        clearTimeout(timeoutId);
+        setVerifyingPayment(false);
+        setVerificationError("Network error while verifying payment. Please check your connection.");
       }
     } finally {
-      clearTimeout(timeoutId);
-      if (!timeoutFired) {
-        setVerifyingPayment(false);
+      if (!timeoutFired && !confirmedOrder) {
+        isVerifyingRef.current = false;
       }
     }
-  }, [successParam, txnidParam, clear, buyNowLines]);
+  }, [successParam, txnidParam, clear, buyNowLines, confirmedOrder, navigate]);
 
   useEffect(() => {
     if (successParam) {
