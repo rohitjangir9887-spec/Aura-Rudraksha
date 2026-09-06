@@ -15,6 +15,7 @@ import {
   verifyPayuPaymentServerSide,
   refundPayuTransaction
 } from "../services/payuService.js";
+import { sendPaymentSuccessSms } from "../services/smsService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
@@ -612,6 +613,12 @@ export async function handlePayuCallback(req, res) {
       }
     }
 
+    // Trigger Automatic Customer SMS (asynchronously and non-blocking)
+    // Runs after authoritative server-side payment verification
+    sendPaymentSuccessSms({ orderId: order.orderNumber || order.id || order.orderId }).catch(smsErr => {
+      console.warn("Non-blocking SMS trigger error on PayU callback:", smsErr?.message || smsErr);
+    });
+
     return res.redirect(303, `${clientBaseUrl}/checkout?success=${orderId}&txnid=${txnid}`);
   } catch (err) {
     console.error("Critical error in handlePayuCallback:", err?.message || err);
@@ -849,6 +856,12 @@ export async function handlePayuWebhook(req, res) {
       } catch (_) {}
     }
 
+    // Trigger Automatic Customer SMS (asynchronously and non-blocking)
+    // Runs after authoritative server-side payment verification
+    sendPaymentSuccessSms({ orderId: order.orderNumber || order.id || order.orderId }).catch(smsErr => {
+      console.warn("Non-blocking SMS trigger error on PayU webhook:", smsErr?.message || smsErr);
+    });
+
     return res.status(200).json({ success: true, message: "Webhook processed successfully" });
   } catch (err) {
     console.error("PayU Webhook error:", err);
@@ -960,6 +973,11 @@ export async function verifyPaymentStatus(req, res, next) {
               }
             }
           }
+
+          // Trigger Automatic Customer SMS if payment newly verified
+          sendPaymentSuccessSms({ orderId: order.orderNumber || order.id || order.orderId }).catch(smsErr => {
+            console.warn("Non-blocking SMS trigger error on verify payment:", smsErr?.message || smsErr);
+          });
         }
       }
     }

@@ -34,6 +34,13 @@ const orderSchema = new mongoose.Schema(
     paymentAttempts: { type: Array, default: [] },
     refundDetails: { type: mongoose.Schema.Types.Mixed, default: null },
     refundHistory: { type: Array, default: [] },
+    paymentSuccessSmsStatus: { type: String, default: "PENDING" },
+    paymentSuccessSmsSentAt: { type: Date },
+    paymentSuccessSmsAttemptedAt: { type: Date },
+    paymentSuccessSmsMessageId: { type: String, default: "" },
+    paymentSuccessSmsError: { type: String, default: "" },
+    paymentSuccessSmsMessage: { type: String, default: "" },
+    paymentSuccessSmsNormalizedPhone: { type: String, default: "" },
     orderStatus: { type: String, default: "Pending" }, // "Pending" until paid, then "Confirmed"
     status: { type: String, default: "Pending" },
     address: { type: String, default: "" },
@@ -66,6 +73,7 @@ orderSchema.index({ txnid: 1 });
 orderSchema.index({ mihpayid: 1 });
 orderSchema.index({ authUserId: 1 });
 orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ paymentSuccessSmsStatus: 1 });
 orderSchema.index({ "paymentAttempts.txnid": 1 });
 
 orderSchema.pre("save", function () {

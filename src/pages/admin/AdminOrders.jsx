@@ -398,6 +398,16 @@ export function AdminOrders() {
                   <b>{viewing.paymentMode}</b>
                 </div>
               )}
+              {viewing.paymentSuccessSmsStatus && (
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span>Customer Payment SMS</span>
+                  <b style={{
+                    color: viewing.paymentSuccessSmsStatus === 'SENT' ? '#1d9450' : (viewing.paymentSuccessSmsStatus === 'FAILED' ? '#991b1b' : '#d97706')
+                  }}>
+                    {viewing.paymentSuccessSmsStatus === 'SENT' ? 'Sent ✓' : (viewing.paymentSuccessSmsStatus === 'FAILED' ? 'Failed ✕' : (viewing.paymentSuccessSmsStatus === 'SKIPPED' ? 'Skipped' : viewing.paymentSuccessSmsStatus))}
+                  </b>
+                </div>
+              )}
               {viewing.amountRefunded > 0 && (
                 <div style={{display: 'flex', justifyContent: 'space-between', color: '#991b1b', fontWeight: 600}}>
                   <span>Amount Refunded</span>
