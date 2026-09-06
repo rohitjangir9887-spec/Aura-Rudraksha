@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ShieldCheck, Lock, Zap, AlertCircle, 
-  RefreshCw, ArrowLeft, CheckCircle2
-} , CreditCard, Smartphone, Wallet, Landmark
+  RefreshCw, ArrowLeft, CheckCircle2,
+  CreditCard, Smartphone, Wallet, Landmark
 } from "lucide-react";
 
 export function PayuRedirectModal({ 

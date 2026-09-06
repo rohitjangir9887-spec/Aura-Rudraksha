@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { 
   ChevronLeft, Check, Package, MapPin, CreditCard, RotateCcw, 
   X, Edit3, MessageCircle, AlertCircle, Truck, ExternalLink, 
@@ -410,7 +411,7 @@ export function OrderDetail() {
                     
                     
                   >
-                    <span 
+                    <motion.span 
                       whileHover={{ scale: 1.15 }}
                       animate={active ? { scale: [1, 1.1, 1], boxShadow: ["0 0 0 0px rgba(165,77,43,0.3)", "0 0 0 8px rgba(165,77,43,0)", "0 0 0 0px rgba(165,77,43,0)"] } : {}}
                       transition={active ? { repeat: Infinity, duration: 2 } : {}}
@@ -421,7 +422,7 @@ export function OrderDetail() {
                       }}
                     >
                       {passed ? "✓" : i+1}
-                    </span>
+                    </motion.span>
                     <b style={{color: active ? '#2b170d' : '#a29286', fontSize: 11, fontWeight: active ? '700' : '600'}}>{x}</b>
                   </div>
                 );

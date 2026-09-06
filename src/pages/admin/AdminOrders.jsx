@@ -429,25 +429,64 @@ export function AdminOrders() {
                 </div>
               ))}
               {Array.isArray(viewing.paymentAttempts) && viewing.paymentAttempts.length > 0 && (
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px', marginTop: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                    Payment Attempts History ({viewing.paymentAttempts.length}):
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px', marginTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Payment Attempts History ({viewing.paymentAttempts.length})</span>
+                    <span style={{ fontSize: 10, fontWeight: 500, color: '#64748b' }}>Authoritative Log</span>
                   </div>
-                  {viewing.paymentAttempts.map((att, idx) => (
-                    <div key={idx} style={{ fontSize: 11, color: '#475569', borderTop: idx > 0 ? '1px dashed #cbd5e1' : 'none', paddingTop: idx > 0 ? 4 : 0, marginTop: idx > 0 ? 4 : 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <code style={{ fontFamily: 'monospace', fontSize: 10 }}>{att.txnid}</code>
-                        <span style={{ fontWeight: 600, color: att.status === 'success' ? '#166534' : att.status === 'failure' ? '#991b1b' : '#d97706' }}>
-                          {att.status || 'initiated'}
-                        </span>
+                  {viewing.paymentAttempts.map((att, idx) => {
+                    const payuId = att.mihpayid || (att.txnid === viewing.txnid ? viewing.mihpayid : null);
+                    const pStatus = att.payuStatus || att.status || 'Initiated';
+                    const isSuccess = pStatus.toLowerCase().includes('success') || att.status === 'success';
+                    const isBouncedOrFailed = pStatus.toLowerCase().includes('bounc') || pStatus.toLowerCase().includes('fail') || att.status === 'failure';
+                    const mode = att.paymentMode || (att.txnid === viewing.txnid ? viewing.paymentMode : null);
+                    const bankRef = att.bankRefNum || (att.txnid === viewing.txnid ? viewing.bankRefNum : null);
+
+                    return (
+                      <div key={idx} style={{ fontSize: 11, color: '#334155', borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? 8 : 0, marginTop: idx > 0 ? 8 : 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                          <div style={{ fontSize: 10, color: '#64748b' }}>
+                            Attempt #{idx + 1} • {att.createdAt ? new Date(att.createdAt).toLocaleString('en-IN') : ''}
+                          </div>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: isSuccess ? '#dcfce7' : isBouncedOrFailed ? '#fee2e2' : '#fef3c7',
+                            color: isSuccess ? '#166534' : isBouncedOrFailed ? '#991b1b' : '#92400e'
+                          }}>
+                            {pStatus}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px', marginTop: 4, background: '#fff', padding: '6px 8px', borderRadius: 6, border: '1px solid #f1f5f9' }}>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Merchant Txn ID</div>
+                            <code style={{ fontFamily: 'monospace', fontSize: 10, color: '#0f172a' }}>{att.txnid}</code>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>PayU Payment ID</div>
+                            <code style={{ fontFamily: 'monospace', fontSize: 10, color: payuId ? '#0369a1' : '#94a3b8' }}>{payuId || 'N/A (Not Captured)'}</code>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Amount & Mode</div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: '#1e293b' }}>
+                              ₹{Number(att.amount || viewing.finalAmount || 0).toLocaleString('en-IN')} {mode ? `• ${mode}` : ''}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Bank Reference</div>
+                            <div style={{ fontSize: 10, color: '#475569' }}>{bankRef || 'N/A'}</div>
+                          </div>
+                        </div>
+                        {att.error && (
+                          <div style={{ fontSize: 10, color: '#b91c1c', marginTop: 4, padding: '4px 6px', background: '#fef2f2', borderRadius: 4 }}>
+                            <strong>Error:</strong> {att.error}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: 10, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>₹{Number(att.amount || viewing.finalAmount || 0).toLocaleString()}</span>
-                        <span>{att.createdAt ? new Date(att.createdAt).toLocaleString() : ''}</span>
-                      </div>
-                      {att.error && <div style={{ fontSize: 10, color: '#991b1b' }}>Err: {att.error}</div>}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               <hr style={{border: 0, borderTop: '1px solid #f0ebe4', margin: '10px 0'}} />

@@ -903,7 +903,7 @@ export async function verifyPaymentStatus(req, res, next) {
         const verifyRes = await verifyPayuPaymentServerSide(order.txnid);
         const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
 
-        if (verifyRes.isPaid && Math.abs(verifyRes.amount - expectedAmount) < 0.01) {
+        if (verifyRes.success && verifyRes.isPaid && Math.abs(verifyRes.amount - expectedAmount) < 0.01) {
           const updatedOrder = await Order.findOneAndUpdate(
             { _id: order._id, paymentStatus: { $ne: "Paid" } },
             {
@@ -914,6 +914,8 @@ export async function verifyPaymentStatus(req, res, next) {
                 mihpayid: verifyRes.mihpayid || order.mihpayid,
                 bankRefNum: verifyRes.bankRefNum || order.bankRefNum,
                 paymentMode: verifyRes.mode || order.paymentMode,
+                payuStatus: "Success",
+                unmappedstatus: verifyRes.unmappedStatus || "captured",
                 paymentDetails: sanitizePaymentDetails({
                   ...order.paymentDetails,
                   ...verifyRes.txnDetails,
@@ -960,6 +962,61 @@ export async function verifyPaymentStatus(req, res, next) {
               }
             }
           }
+        } else if (verifyRes.success) {
+          // PayU returned non-paid response (bounced, failed, usercancelled, dropped, etc.)
+          const rawStatus = (verifyRes.status || "").toLowerCase();
+          const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
+          let newPayuStatus = verifyRes.status || verifyRes.unmappedStatus || "Failed";
+          if (rawStatus === "bounced" || unmapped === "bounced") newPayuStatus = "Bounced";
+          else if (rawStatus === "usercancelled" || unmapped === "usercancelled") newPayuStatus = "userCancelled";
+          else if (rawStatus === "dropped" || unmapped === "dropped") newPayuStatus = "Dropped";
+          else if (rawStatus === "failed" || rawStatus === "failure" || unmapped === "failed") newPayuStatus = "Failed";
+
+          let newPaymentStatus = "Failed";
+          if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
+            newPaymentStatus = "Cancelled";
+          } else if (rawStatus === "pending" || rawStatus === "initiated" || unmapped === "initiated") {
+            newPaymentStatus = "Pending";
+          }
+
+          const attempts = order.paymentAttempts || [];
+          const attemptIdx = attempts.findIndex(a => a.txnid === order.txnid);
+          if (attemptIdx >= 0) {
+            attempts[attemptIdx].mihpayid = verifyRes.mihpayid || attempts[attemptIdx].mihpayid || "";
+            attempts[attemptIdx].payuStatus = newPayuStatus;
+            attempts[attemptIdx].unmappedstatus = verifyRes.unmappedStatus || "";
+            attempts[attemptIdx].paymentStatus = newPaymentStatus;
+            attempts[attemptIdx].bankRefNum = verifyRes.bankRefNum || attempts[attemptIdx].bankRefNum || "";
+            attempts[attemptIdx].paymentMode = verifyRes.mode || attempts[attemptIdx].paymentMode || "";
+            attempts[attemptIdx].updatedAt = new Date().toISOString();
+          } else if (order.txnid) {
+            attempts.push({
+              txnid: order.txnid,
+              mihpayid: verifyRes.mihpayid || "",
+              payuStatus: newPayuStatus,
+              unmappedstatus: verifyRes.unmappedStatus || "",
+              paymentStatus: newPaymentStatus,
+              paymentMode: verifyRes.mode || "",
+              bankRefNum: verifyRes.bankRefNum || "",
+              amount: expectedAmount,
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          await Order.updateOne(
+            { _id: order._id },
+            {
+              $set: {
+                paymentStatus: order.paymentStatus === "Paid" ? "Paid" : newPaymentStatus,
+                payuStatus: newPayuStatus,
+                unmappedstatus: verifyRes.unmappedStatus || "",
+                mihpayid: verifyRes.mihpayid || order.mihpayid || "",
+                bankRefNum: verifyRes.bankRefNum || order.bankRefNum || "",
+                paymentMode: verifyRes.mode || order.paymentMode || "",
+                paymentAttempts: attempts
+              }
+            }
+          );
         }
       }
     }
