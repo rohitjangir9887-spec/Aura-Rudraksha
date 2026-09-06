@@ -429,9 +429,10 @@ export function OrderDetail() {
               {parsedItems.map((item, i) => {
                 const productExists = db.getProduct(item.id);
                 const itemTotal = (item.price || 0) * (item.qty || 1);
-                
-                const cardContent = (
-                  <div style={{
+                const isDelivered = order.status === "Delivered";
+
+                return (
+                  <div key={i} style={{
                     display: 'flex', 
                     gap: 16, 
                     padding: '20px', 
@@ -440,21 +441,43 @@ export function OrderDetail() {
                     background: '#fff',
                     transition: 'background 0.2s'
                   }}>
-                    <div style={{width: 75, height: 75, borderRadius: 10, background: '#fdfbf7', border: '1px solid #eee1cf', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center'}}>
-                      <img src={item.img || db.getOrderItemImage(item)} alt={item.name} loading="lazy" decoding="async" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
-                    </div>
+                    <Link to={productExists ? `/product/${item.id}` : '#'} style={{ display: 'block', textDecoration: 'none', cursor: productExists ? 'pointer' : 'default' }}>
+                      <div style={{width: 75, height: 75, borderRadius: 10, background: '#fdfbf7', border: '1px solid #eee1cf', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center'}}>
+                        <img src={item.img || db.getOrderItemImage(item)} alt={item.name} loading="lazy" decoding="async" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
+                      </div>
+                    </Link>
                     <div style={{flex: 1}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10}}>
-                        <h3 style={{margin: '0 0 4px', fontSize: 16, color: '#2b170d', fontFamily: 'Cormorant Garamond, serif', fontWeight: 600}}>{item.name}</h3>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap'}}>
+                        <Link to={productExists ? `/product/${item.id}` : '#'} style={{ textDecoration: 'none', color: 'inherit', cursor: productExists ? 'pointer' : 'default' }}>
+                          <h3 style={{margin: '0 0 4px', fontSize: 16, color: '#2b170d', fontFamily: 'Cormorant Garamond, serif', fontWeight: 600}}>{item.name}</h3>
+                        </Link>
                         {!productExists && (
                           <span style={{fontSize: 10, background: '#f4ece5', color: '#806f62', padding: '3px 8px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4}}>
                             <AlertCircle size={10} /> Product no longer available
                           </span>
                         )}
+                        {isDelivered && productExists && (
+                          <Link to={`/product/${item.id}#write-review`} style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: '#fcf4ed',
+                            border: '1px solid #ebdccb',
+                            color: '#a54d2b',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            textDecoration: 'none',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <MessageCircle size={14} /> Write a Review
+                          </Link>
+                        )}
                       </div>
                       <p style={{margin: '0 0 8px', fontSize: 12, color: '#806f62'}}>Quantity: <b>{item.qty}</b></p>
                       
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10}}>
                         <span style={{fontSize: 12, color: '#736257'}}>
                           Unit Price: ₹{(item.price || 0).toLocaleString('en-IN')} {item.qty > 1 ? `× ${item.qty}` : ''}
                         </span>
@@ -463,16 +486,6 @@ export function OrderDetail() {
                         </strong>
                       </div>
                     </div>
-                  </div>
-                );
-
-                return productExists ? (
-                  <Link key={i} to={`/product/${item.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                    {cardContent}
-                  </Link>
-                ) : (
-                  <div key={i}>
-                    {cardContent}
                   </div>
                 );
               })}

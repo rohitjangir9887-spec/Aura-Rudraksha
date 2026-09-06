@@ -7,7 +7,7 @@ import {
   ChevronLeft, Package, CreditCard, ChevronRight, 
   Sparkles, Search, Truck, LogIn, Clock, ShieldCheck, 
   ExternalLink, ArrowRight, HelpCircle, RefreshCw, Loader2,
-  CheckCircle2, AlertTriangle, XCircle, RotateCcw
+  CheckCircle2, AlertTriangle, XCircle, RotateCcw, MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
@@ -97,10 +97,18 @@ export function Orders() {
         setOrders(sorted);
       } else if (!isBackground && !hasCachedData) {
         setOrders([]);
+        if (res && res.message) {
+          setLoadError(res.message);
+        } else {
+          setLoadError("Failed to load orders. Please try again.");
+        }
       }
     } catch (err) {
       console.error("Error loading orders:", err);
-      if (!isBackground && !hasCachedData) setOrders([]);
+      if (!isBackground && !hasCachedData) {
+        setOrders([]);
+        setLoadError("Failed to load orders. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -691,6 +699,28 @@ export function Orders() {
                                 }}
                               >
                                 <Truck size={13} /> Track
+                              </Link>
+                            )}
+
+                            {isDelivered && parsedItems.length > 0 && (
+                              <Link
+                                to={`/product/${parsedItems[0].id}#write-review`}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '8px 14px',
+                                  background: '#fff',
+                                  border: '1px solid #ebdccb',
+                                  color: '#a54d2b',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                <MessageCircle size={13} /> Review
                               </Link>
                             )}
 

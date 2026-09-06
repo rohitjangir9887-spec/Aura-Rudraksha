@@ -20,7 +20,18 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: '1h', // Cache static assets for 1 hour
+      setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+          // Do not cache HTML files to ensure always fresh
+          res.setHeader('Cache-Control', 'no-cache');
+        } else if (/\.(jpg|jpeg|png|gif|svg|webp|ico|css|js|woff2?)$/i.test(path)) {
+          // Cache images and other static assets
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+      }
+    }));
     // Unknown API routes return 404 JSON instead of SPA HTML
     app.use("/api", (req, res) => {
       res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
