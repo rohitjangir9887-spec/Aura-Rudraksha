@@ -365,7 +365,7 @@ export function Profile() {
           </Link>
         </div>
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <motion.div   >
           
           {/* 1. Profile Hero Card */}
           <div style={{
@@ -494,8 +494,8 @@ export function Profile() {
             {isEditing ? (
               <motion.form 
                 key="edit-form"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
+                
+                
                 exit={{ opacity: 0, height: 0 }}
                 onSubmit={handleSaveProfile} 
                 style={{
@@ -926,10 +926,10 @@ export function Profile() {
             backdropFilter: "blur(3px)"
           }}>
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              
+              
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ duration: 0.2 }}
+              
               style={{
                 background: "#fffdf9",
                 border: "1px solid #e8dac9",

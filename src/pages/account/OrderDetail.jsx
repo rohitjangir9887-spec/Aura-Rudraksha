@@ -8,7 +8,6 @@ import {
 import { Shell } from "../../components/Shell";
 import { db } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
-import { motion, AnimatePresence } from "framer-motion";
 import { emitToast } from "../../context/ToastContext";
 import { useCart } from "../../hooks/useCart";
 import { OrderSummaryCard } from "../../components/checkout/OrderSummaryCard";
@@ -236,12 +235,12 @@ export function OrderDetail() {
         </Link>
         
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 15, marginBottom: 25}}>
-          <motion.div initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}}>
+          <div  >
             <h1 style={{fontFamily: 'Cormorant Garamond, serif', fontSize: 30, margin: '0 0 5px', color: '#2b170d'}}>
               Order <span style={{fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', fontSize: '24px', fontWeight: 700, fontVariantNumeric: 'tabular-nums'}}>{order.id}</span>
             </h1>
             <p style={{color: '#806f62', fontSize: 13}}>Placed on {new Date(order.date).toLocaleDateString('en-IN', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
-          </motion.div>
+          </div>
           
           <div style={{display: 'flex', gap: 10}}>
             {isCancelled ? (
@@ -263,10 +262,10 @@ export function OrderDetail() {
         )}
         
         {/* PayU Payment Details & Retry Banner */}
-        <motion.div 
-          initial={{opacity: 0, y: 10}} 
-          animate={{opacity: 1, y: 0}} 
-          transition={{delay: 0.12}}
+        <div 
+           
+           
+          
           style={{
             background: order.paymentStatus === "Paid" ? "#f2f8f3" : (order.paymentStatus === "Failed" ? "#fef2f2" : "#fdf8f4"),
             border: `1.5px solid ${order.paymentStatus === "Paid" ? "#cbe6d2" : (order.paymentStatus === "Failed" ? "#fecaca" : "#ebdccb")}`,
@@ -309,10 +308,22 @@ export function OrderDetail() {
             <div style={{ fontSize: "12px", color: "#665a51", display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "4px" }}>
               <span>Method: <b>PayU Hosted Checkout</b></span>
               {order.txnid && (
-                <span>PayU Txn ID: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.txnid}</code></span>
+                <span>Merchant Txn ID: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.txnid}</code></span>
               )}
               {order.mihpayid && (
-                <span>PayU Ref: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.mihpayid}</code></span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  PayU Payment ID: 
+                  <code 
+                    onClick={() => {
+                      navigator.clipboard.writeText(order.mihpayid);
+                      emitToast("PayU Payment ID copied to clipboard!", "success");
+                    }}
+                    title="Click to copy"
+                    style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9", cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+                  >
+                    {order.mihpayid} <Copy size={10} />
+                  </code>
+                </span>
               )}
               {order.paymentMode && (
                 <span>Mode: <b>{order.paymentMode}</b></span>
@@ -375,10 +386,10 @@ export function OrderDetail() {
               )}
             </button>
           )}
-        </motion.div>
+        </div>
 
         {!isCancelled && (
-          <motion.div className="timeline-container" initial={{opacity: 0, y: 12}} animate={{opacity: 1, y: 0}} transition={{delay: 0.1}} style={{
+          <div className="timeline-container"    style={{
             background: '#fffdf9',
             border: '1px solid #eee1cf',
             borderRadius: 15,
@@ -392,14 +403,14 @@ export function OrderDetail() {
                 const passed = currentStatusIdx >= i;
                 const active = currentStatusIdx === i;
                 return (
-                  <motion.div 
+                  <div 
                     className={passed ? "active" : ""} 
                     key={x} 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: (currentStatusIdx === -1 && i > 0) ? 0.4 : 1 }}
-                    transition={{ delay: 0.15 + i * 0.08 }}
+                    
+                    
+                    
                   >
-                    <motion.span 
+                    <span 
                       whileHover={{ scale: 1.15 }}
                       animate={active ? { scale: [1, 1.1, 1], boxShadow: ["0 0 0 0px rgba(165,77,43,0.3)", "0 0 0 8px rgba(165,77,43,0)", "0 0 0 0px rgba(165,77,43,0)"] } : {}}
                       transition={active ? { repeat: Infinity, duration: 2 } : {}}
@@ -410,18 +421,18 @@ export function OrderDetail() {
                       }}
                     >
                       {passed ? "✓" : i+1}
-                    </motion.span>
+                    </span>
                     <b style={{color: active ? '#2b170d' : '#a29286', fontSize: 11, fontWeight: active ? '700' : '600'}}>{x}</b>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Order Items */}
         <div style={{display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 30}}>
-          <motion.div style={{background: '#fff', border: '1px solid #eee1cf', borderRadius: 15, overflow: 'hidden'}} initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{delay: 0.15}}>
+          <div style={{background: '#fff', border: '1px solid #eee1cf', borderRadius: 15, overflow: 'hidden'}}   >
             <h2 style={{fontSize: 18, fontFamily: 'Cormorant Garamond, serif', padding: '18px 20px', margin: 0, borderBottom: '1px solid #eee1cf', background: '#fdfbf7', color: '#2b170d'}}>
               Order Items ({parsedItems.reduce((acc, curr) => acc + curr.qty, 0)} items)
             </h2>
@@ -490,12 +501,12 @@ export function OrderDetail() {
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         </div>
 
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20}}>
           {/* Order Summary */}
-          <motion.div initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{delay: 0.2}}>
+          <div   >
             <OrderSummaryCard 
               lines={parsedItems}
               cartItemCount={parsedItems.reduce((acc, curr) => acc + curr.qty, 0)}
@@ -509,10 +520,10 @@ export function OrderDetail() {
               isReceipt={true}
               order={order}
             />
-          </motion.div>
+          </div>
 
           {/* Shipping Info */}
-          <motion.div style={{background: '#fffdf9', border: '1px solid #eee1cf', borderRadius: 15, padding: '20px'}} initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{delay: 0.25}}>
+          <div style={{background: '#fffdf9', border: '1px solid #eee1cf', borderRadius: 15, padding: '20px'}}   >
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15}}>
               <h2 style={{fontSize: 18, fontFamily: 'Cormorant Garamond, serif', margin: 0, color: '#2b170d'}}>Shipping Details</h2>
               {canEditAddress && (
@@ -692,11 +703,11 @@ export function OrderDetail() {
                 </div>
               );
             })()}
-          </motion.div>
+          </div>
         </div>
 
         {/* Action Buttons */}
-        <motion.div style={{display: 'flex', gap: 12, marginTop: 30, flexWrap: 'wrap'}} initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{delay: 0.3}}>
+        <div style={{display: 'flex', gap: 12, marginTop: 30, flexWrap: 'wrap'}}   >
           <button 
             onClick={handleReorder}
             className="primary-btn" 
@@ -721,18 +732,17 @@ export function OrderDetail() {
           >
             <MessageCircle size={16} color="#20a95a" /> Contact Support
           </a>
-        </motion.div>
+        </div>
         
       </main>
 
       {/* Cancel Order Modal */}
-      <AnimatePresence>
         {cancelModal && (
           <div className="lightbox-overlay" style={{display: 'grid', placeItems: 'center', padding: 20, zIndex: 1000}}>
-            <motion.div 
-              initial={{scale: 0.95, opacity: 0}} 
-              animate={{scale: 1, opacity: 1}} 
-              exit={{scale: 0.95, opacity: 0}}
+            <div 
+               
+               
+              
               style={{background: '#fff', padding: 30, borderRadius: 16, width: '100%', maxWidth: 450, position: 'relative'}}
             >
               <button onClick={() => setCancelModal(false)} style={{position: 'absolute', right: 15, top: 15, background: 'none', border: 'none', cursor: 'pointer', color: '#806f62'}}>
@@ -774,19 +784,17 @@ export function OrderDetail() {
                   Cancel Order
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
 
       {/* Edit Address Modal */}
-      <AnimatePresence>
         {editAddressModal && (
           <div className="lightbox-overlay" style={{display: 'grid', placeItems: 'center', padding: 20, zIndex: 1000}}>
-            <motion.div 
-              initial={{scale: 0.95, opacity: 0}} 
-              animate={{scale: 1, opacity: 1}} 
-              exit={{scale: 0.95, opacity: 0}}
+            <div 
+               
+               
+              
               style={{background: '#fff', padding: 30, borderRadius: 16, width: '100%', maxWidth: 450, position: 'relative'}}
             >
               <button onClick={() => setEditAddressModal(false)} style={{position: 'absolute', right: 15, top: 15, background: 'none', border: 'none', cursor: 'pointer', color: '#806f62'}}>
@@ -804,10 +812,9 @@ export function OrderDetail() {
               <button onClick={handleUpdateAddress} className="primary-btn" style={{width: '100%', padding: 14}}>
                 Save Changes
               </button>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
       
     </Shell>
   );

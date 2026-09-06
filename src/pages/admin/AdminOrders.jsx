@@ -122,7 +122,9 @@ export function AdminOrders() {
         o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         o.customerEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (o.trackingNumber || o.trackingId || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (o.courierName || o.carrier || o.courier || "").toLowerCase().includes(searchTerm.toLowerCase())
+        (o.courierName || o.carrier || o.courier || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.txnid || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.mihpayid || "").toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     if (statusFilter !== "All") {
@@ -371,14 +373,23 @@ export function AdminOrders() {
               </div>
               {viewing.txnid && (
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span>PayU Txn ID</span>
+                  <span>Merchant Txn ID</span>
                   <code style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4 }}>{viewing.txnid}</code>
                 </div>
               )}
               {viewing.mihpayid && (
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span>PayU Reference</span>
-                  <code style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4 }}>{viewing.mihpayid}</code>
+                  <span>PayU Payment ID</span>
+                  <code 
+                    onClick={() => {
+                      navigator.clipboard.writeText(viewing.mihpayid);
+                      emitToast("PayU Payment ID copied to clipboard!", "success");
+                    }}
+                    style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    title="Click to copy"
+                  >
+                    {viewing.mihpayid} <Copy size={10} />
+                  </code>
                 </div>
               )}
               {viewing.paymentMode && (
@@ -763,13 +774,13 @@ export function AdminOrders() {
                 </div>
                 {viewing.txnid && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span>PayU Txn ID:</span>
+                    <span>Merchant Txn ID:</span>
                     <code style={{ fontFamily: 'monospace' }}>{viewing.txnid}</code>
                   </div>
                 )}
                 {viewing.mihpayid && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>PayU Reference:</span>
+                    <span>PayU Payment ID:</span>
                     <code style={{ fontFamily: 'monospace' }}>{viewing.mihpayid}</code>
                   </div>
                 )}
@@ -893,7 +904,7 @@ export function AdminOrders() {
           <Search size={18} />
           <input 
             type="text" 
-            placeholder="Search by Order ID, customer name, AWB or courier..." 
+            placeholder="Search by Order ID, name, AWB, PayU ID..." 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -946,9 +957,27 @@ export function AdminOrders() {
                     <td><small>{new Date(o.date || o.createdAt).toLocaleDateString()}</small></td>
                     <td><b>₹{(o.finalAmount || o.amount || 0).toLocaleString()}</b></td>
                     <td>
-                      <span className={`admin-badge ${o.paymentStatus === 'Paid' || o.paymentStatus === 'Refunded' ? 'success' : 'warning'}`}>
-                        {o.paymentStatus || 'Pending'}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className={`admin-badge ${o.paymentStatus === 'Paid' || o.paymentStatus === 'Refunded' ? 'success' : 'warning'}`} style={{ width: 'fit-content' }}>
+                          {o.paymentStatus || 'Pending'}
+                        </span>
+                        {o.mihpayid && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#806f62' }}>
+                            <span>PayU:</span>
+                            <code 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(o.mihpayid);
+                                emitToast("PayU ID copied!", "success");
+                              }}
+                              title="Copy PayU ID"
+                              style={{ fontFamily: 'monospace', cursor: 'pointer', background: '#f5f0eb', padding: '1px 4px', borderRadius: 2 }}
+                            >
+                              {o.mihpayid}
+                            </code>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td>
                       {hasTracking ? (
@@ -1084,6 +1113,28 @@ export function AdminOrders() {
                   <div>
                     <small style={{ color: '#806f62', display: 'block', fontSize: '11px' }}>Order Amount</small>
                     <span style={{ fontSize: '16px', fontWeight: '700', color: '#2b170d' }}>₹{(o.finalAmount || o.amount || 0).toLocaleString()}</span>
+                    
+                    <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span className={`admin-badge ${o.paymentStatus === 'Paid' || o.paymentStatus === 'Refunded' ? 'success' : 'warning'}`} style={{ width: 'fit-content', padding: '2px 6px', fontSize: 10 }}>
+                        {o.paymentStatus || 'Pending'}
+                      </span>
+                      {o.mihpayid && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#806f62', marginTop: 2 }}>
+                          <span>PayU:</span>
+                          <code 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(o.mihpayid);
+                              emitToast("PayU ID copied!", "success");
+                            }}
+                            title="Copy PayU ID"
+                            style={{ fontFamily: 'monospace', cursor: 'pointer', background: '#f5f0eb', padding: '1px 4px', borderRadius: 2 }}
+                          >
+                            {o.mihpayid}
+                          </code>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="mobile-card-actions">
                     <button className="admin-btn secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => openOrderDetails(o)}>

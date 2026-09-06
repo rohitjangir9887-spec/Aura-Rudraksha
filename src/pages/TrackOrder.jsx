@@ -8,7 +8,6 @@ import {
   ExternalLink, Copy, CheckCheck
 } from "lucide-react";
 import { db } from "../lib/db";
-import { motion, AnimatePresence } from "framer-motion";
 import { emitToast } from "../context/ToastContext";
 
 export function TrackOrder() {
@@ -165,13 +164,12 @@ export function TrackOrder() {
           </div>
 
           {/* Results Container */}
-          <AnimatePresence mode="wait">
             {searched && orderResult && (
-              <motion.div
+              <div
                 key="found"
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -14 }}
+                
+                
+                
                 style={{
                   background: "#ffffff",
                   borderRadius: "16px",
@@ -383,14 +381,14 @@ export function TrackOrder() {
                     </div>
                   </div>
                 )}
-              </motion.div>
+              </div>
             )}
 
             {searched && !orderResult && (
-              <motion.div
+              <div
                 key="notfound"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                
+                
                 style={{
                   background: "#ffffff",
                   borderRadius: "14px",
@@ -428,9 +426,8 @@ export function TrackOrder() {
                     <MessageCircle size={15} /> WhatsApp Support
                   </a>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
           {/* Assistance Box */}
           <div style={{

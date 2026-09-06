@@ -1,95 +1,62 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/pages/admin/AdminProducts.jsx', 'utf8');
+let code = fs.readFileSync('server/controllers/paymentController.js', 'utf8');
 
-// 1. Add description to default state
-code = code.replace(
-  /category: "Rudraksha",\s*status: "Active",/,
-  `category: "Rudraksha",\n        description: "",\n        status: "Active",`
-);
-
-// 2. Import Sparkles if not present
-if (!code.includes('Sparkles')) {
-  code = code.replace(/Star, X, Check } from "lucide-react";/, `Star, X, Check, Sparkles } from "lucide-react";`);
-}
-
-// 3. Add AI generate function
-const generateFn = `  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
-
-  const handleGenerateDescription = async () => {
-    if (!editing?.name) {
-      emitToast("Please enter a product name first", "error");
-      return;
-    }
-    setIsGeneratingDesc(true);
-    try {
-      const res = await fetch("/api/aura-ai/generate-description", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + localStorage.getItem("aura_token")
-        },
-        body: JSON.stringify({ name: editing.name, category: editing.category })
-      });
-      const data = await res.json();
-      if (data.success && data.description) {
-        setEditing({ ...editing, description: data.description });
-        emitToast("Description generated successfully ✨", "success");
-      } else {
-        emitToast(data.message || "Failed to generate description", "error");
+const target = `    if (status !== "success") {
+      const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Payment was not completed";
+      const attempts = order.paymentAttempts || [];
+      const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
+      if (attemptIdx >= 0) {
+        attempts[attemptIdx].status = "failure";
+        attempts[attemptIdx].error = errorMsg;
+        attempts[attemptIdx].updatedAt = new Date().toISOString();
       }
-    } catch (err) {
-      emitToast("Error connecting to Aura AI", "error");
-    } finally {
-      setIsGeneratingDesc(false);
-    }
-  };
+      order.paymentStatus = "Failed";
+      order.paymentAttempts = attempts;
+      await order.save();
+      return res.redirect(303, \`\${clientBaseUrl}/checkout?failed=\${orderId}&txnid=\${txnid}&reason=\${encodeURIComponent(errorMsg)}\`);
+    }`;
 
-`;
+const replacement = `    if (status !== "success") {
+      const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Payment was not completed";
+      const attempts = order.paymentAttempts || [];
+      const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
+      if (attemptIdx >= 0) {
+        attempts[attemptIdx].status = "failure";
+        attempts[attemptIdx].error = errorMsg;
+        attempts[attemptIdx].mihpayid = params.mihpayid || "";
+        attempts[attemptIdx].updatedAt = new Date().toISOString();
+      }
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          { $set: { status: "FAILED", errorMessage: errorMsg, gatewayPaymentId: params.mihpayid || "" } }
+        );
+      } catch (_) {}
+      order.paymentStatus = "Failed";
+      order.mihpayid = params.mihpayid || order.mihpayid || "";
+      order.paymentAttempts = attempts;
+      await order.save();
+      return res.redirect(303, \`\${clientBaseUrl}/checkout?failed=\${orderId}&txnid=\${txnid}&reason=\${encodeURIComponent(errorMsg)}\`);
+    }`;
 
-code = code.replace(/const handleEdit = \(p\) => {/, generateFn + 'const handleEdit = (p) => {');
+code = code.replace(target, replacement);
 
-// 4. Add the finalProduct update to include description
-code = code.replace(
-  /category: editing.category \|\| "Rudraksha",/,
-  `category: editing.category || "Rudraksha",\n      description: editing.description || "",`
-);
+const target2 = `    if (status !== "success") {
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          { $set: { status: "FAILED", errorMessage: params.error_Message || params.unmappedstatus || "Gateway reported failure" } }
+        );
+      } catch (_) {}`;
 
-// 5. Add the Description UI
-const descUI = `          <div className="admin-form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-              <label style={{ marginBottom: 0 }}>Product Description *</label>
-              <button 
-                type="button" 
-                onClick={handleGenerateDescription}
-                disabled={isGeneratingDesc}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  background: 'linear-gradient(135deg, #a54d2b, #d97706)',
-                  color: '#fff', border: 'none', borderRadius: '6px',
-                  padding: '6px 12px', fontSize: '12px', fontWeight: '600',
-                  cursor: isGeneratingDesc ? 'not-allowed' : 'pointer',
-                  opacity: isGeneratingDesc ? 0.7 : 1
-                }}
-              >
-                <Sparkles size={14} />
-                {isGeneratingDesc ? "Generating..." : "Aura AI Write"}
-              </button>
-            </div>
-            <textarea 
-              rows="5"
-              value={editing.description || ""} 
-              onChange={e => setEditing({...editing, description: e.target.value})}
-              placeholder="Detailed description of the product... You can use **bold** text."
-              style={{ width: '100%', padding: '12px', border: '1px solid #ebdccb', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' }}
-            />
-          </div>
+const replacement2 = `    if (status !== "success") {
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          { $set: { status: "FAILED", gatewayPaymentId: params.mihpayid || "", errorMessage: params.error_Message || params.unmappedstatus || "Gateway reported failure" } }
+        );
+      } catch (_) {}`;
 
-`;
+code = code.replace(target2, replacement2);
 
-code = code.replace(
-  /<div className="admin-form-row">\s*<div className="admin-form-group">\s*<label>Status \*<\/label>/,
-  descUI + '          <div className="admin-form-row">\n            <div className="admin-form-group">\n              <label>Status *</label>'
-);
-
-fs.writeFileSync('src/pages/admin/AdminProducts.jsx', code);
-console.log("Patched AdminProducts.jsx");
+fs.writeFileSync('server/controllers/paymentController.js', code);

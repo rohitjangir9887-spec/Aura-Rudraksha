@@ -174,7 +174,7 @@ export function AdminProducts() {
     }
   };
 
-  const handleEdit = (p) => {
+const handleEdit = (p) => {
     setFormError("");
     setUrlInput("");
     if (p) {
@@ -389,7 +389,7 @@ export function AdminProducts() {
       img: primaryImg,
       images: currentImages.length > 0 ? currentImages : [primaryImg],
       category: editing.category || "Rudraksha",
-      description: editing.description || "",
+        description: editing.description || "",
       status: finalStatus,
       showOnHome: editing.showOnHome !== false,
       isPopular: !!editing.isPopular,

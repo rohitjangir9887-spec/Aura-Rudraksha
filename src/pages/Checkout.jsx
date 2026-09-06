@@ -20,7 +20,6 @@ import {
   RefreshCw,
   Zap
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
 // Modular Checkout Components
@@ -726,10 +725,10 @@ export function Checkout() {
     return (
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "600px", margin: "0 auto", textAlign: "center", paddingTop: "60px" }}>
-          <motion.div 
+          <div 
             className="card" 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            
+            
             style={{ padding: "40px 24px", background: "#fffdf9", border: "1.5px solid #e8dac9", borderRadius: "16px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)" }}
           >
             <div className="spinner" style={{ width: "40px", height: "40px", border: "3px solid #f5ece2", borderTopColor: "#b85d25", borderRadius: "50%", margin: "0 auto 20px", animation: "spin 1s linear infinite" }} />
@@ -773,7 +772,7 @@ export function Checkout() {
                 <RefreshCw size={16} /> Check Status
               </button>
             </div>
-          </motion.div>
+          </div>
         </main>
       </Shell>
     );
@@ -846,11 +845,11 @@ export function Checkout() {
     return (
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto" }}>
-          <motion.div 
+          <div 
             id="order-success-view"
             className="success"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+            
+            
             style={{ textAlign: "center", padding: "40px 16px" }}
           >
             {/* Framer Motion Order Success Celebration Animation */}
@@ -925,7 +924,7 @@ export function Checkout() {
                 Continue Exploring
               </Link>
             </div>
-          </motion.div>
+          </div>
         </main>
       </Shell>
     );
@@ -937,10 +936,10 @@ export function Checkout() {
     return (
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
-          <motion.div 
+          <div 
             className="card"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+            
+            
             style={{ 
               background: "#fffdf9", 
               border: "1.5px solid #fecaca", 
@@ -1011,7 +1010,7 @@ export function Checkout() {
                 Back to Cart
               </button>
             </div>
-          </motion.div>
+          </div>
         </main>
       </Shell>
     );
@@ -1022,11 +1021,11 @@ export function Checkout() {
     return (
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
-          <motion.div 
+          <div 
             id="order-failed-view"
             className="card"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+            
+            
             style={{ 
               background: "#fffdf9", 
               border: "1.5px solid #fecaca", 
@@ -1123,7 +1122,7 @@ export function Checkout() {
                 Back to Cart
               </button>
             </div>
-          </motion.div>
+          </div>
         </main>
       </Shell>
     );
@@ -1143,10 +1142,10 @@ export function Checkout() {
         }}
       >
         {/* Top Header & Navigation Actions */}
-        <motion.div 
+        <div 
           className="checkout-header-actions"
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
+          
+          
           style={{
             display: "flex",
             alignItems: "center",
@@ -1193,7 +1192,7 @@ export function Checkout() {
           >
             <ShieldCheck size={14} /> 256-Bit SSL Secured
           </div>
-        </motion.div>
+        </div>
 
         {/* Compact Vertical Checkout Flow: Address -> Products -> Price Details -> Payment */}
         <div 
@@ -1256,7 +1255,6 @@ export function Checkout() {
         </div>
 
         {/* In-Page Guest Authentication Modal */}
-        <AnimatePresence>
           {authModalOpen && (
             <CheckoutAuthModal 
               isOpen={authModalOpen}
@@ -1264,7 +1262,6 @@ export function Checkout() {
               onSuccess={handleAuthSuccess}
             />
           )}
-        </AnimatePresence>
 
         {/* Leave Confirmation Modal during Active Checkout */}
         <ConfirmModal

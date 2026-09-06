@@ -1,24 +1,37 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/pages/Product.jsx', 'utf8');
+let code = fs.readFileSync('server/controllers/paymentController.js', 'utf8');
 
-const parseMarkup = `
-  const renderDescription = (text) => {
-    if (!text) return null;
-    let html = text.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
-    html = html.replace(/\\n/g, '<br/>');
-    return <div dangerouslySetInnerHTML={{ __html: html }} style={{ lineHeight: '1.6', color: '#4a3b32', fontSize: '14px' }} />;
-  };
-`;
-
+// Replace the handlePayuCallback failure block
 code = code.replace(
-  /const highlightText = /,
-  parseMarkup + '\n  const highlightText = '
+  /if \(status !== "success"\) \{[\s\S]*?return res\.redirect\(303, \`\$\{clientBaseUrl\}\/checkout\?failed=\$\{orderId\}&txnid=\$\{txnid\}&reason=\$\{encodeURIComponent\(errorMsg\)\}\`\);\n\s*\}/,
+  `if (status !== "success") {
+      const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Payment was not completed";
+      const attempts = order.paymentAttempts || [];
+      const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
+      if (attemptIdx >= 0) {
+        attempts[attemptIdx].status = "failure";
+        attempts[attemptIdx].error = errorMsg;
+        attempts[attemptIdx].mihpayid = params.mihpayid || "";
+        attempts[attemptIdx].updatedAt = new Date().toISOString();
+      }
+      try {
+        await PaymentTransaction.findOneAndUpdate(
+          { transactionId: txnid },
+          { $set: { status: "FAILED", errorMessage: errorMsg, gatewayPaymentId: params.mihpayid || "" } }
+        );
+      } catch (_) {}
+      order.paymentStatus = "Failed";
+      order.mihpayid = params.mihpayid || order.mihpayid || "";
+      order.paymentAttempts = attempts;
+      await order.save();
+      return res.redirect(303, \`\${clientBaseUrl}/checkout?failed=\${orderId}&txnid=\${txnid}&reason=\${encodeURIComponent(errorMsg)}\`);
+    }`
 );
 
+// Replace the webhook failure block
 code = code.replace(
-  /<p>\s*\{p.description \|\| `The \$\{p.name\} is a revered spiritual seed ethically harvested from authentic trees. Worn by seekers, devotees, and meditators worldwide to cultivate inner tranquility, clarity of focus, and protective spiritual energy.`\}\s*<\/p>/,
-  `{p.description ? renderDescription(p.description) : <p>The {p.name} is a revered spiritual seed ethically harvested from authentic trees. Worn by seekers, devotees, and meditators worldwide to cultivate inner tranquility, clarity of focus, and protective spiritual energy.</p>}`
+  /\{ \$set: \{ status: "FAILED", errorMessage: params\.error_Message \|\| params\.unmappedstatus \|\| "Gateway reported failure" \} \}/,
+  `{ $set: { status: "FAILED", gatewayPaymentId: params.mihpayid || "", errorMessage: params.error_Message || params.unmappedstatus || "Gateway reported failure" } }`
 );
 
-fs.writeFileSync('src/pages/Product.jsx', code);
-console.log("Patched Product.jsx");
+fs.writeFileSync('server/controllers/paymentController.js', code);

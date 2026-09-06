@@ -9,7 +9,6 @@ import {
   ExternalLink, ArrowRight, HelpCircle, RefreshCw, Loader2,
   CheckCircle2, AlertTriangle, XCircle, RotateCcw, MessageCircle
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
 import { emitToast } from "../../context/ToastContext";
 
@@ -401,7 +400,7 @@ export function Orders() {
                 {orders.length > 2 && (
                   <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                     {["all", "Processing", "Shipped", "Delivered", "Cancelled"].map(st => (
-                      <motion.button
+                      <button
                         key={st}
                         onClick={() => setStatusFilter(st)}
                         whileHover={{ scale: 1.05 }}
@@ -420,7 +419,7 @@ export function Orders() {
                         }}
                       >
                         {st === "all" ? "All Orders" : st}
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -440,12 +439,12 @@ export function Orders() {
                   const isRetrying = retryingOrderId === (o.orderNumber || o.id);
 
                   return (
-                    <motion.div 
+                    <div 
                       onClick={() => navigate(`/account/orders/${o.orderNumber || o.id}`)} 
                       key={o.orderNumber || o.id} 
-                      initial={{ opacity: 0, y: 16 }} 
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: idx * 0.05 }}
+                       
+                      
+                      
                       whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(184, 93, 37, 0.12)', borderColor: '#a54d2b' }}
                       whileTap={{ scale: 0.992 }}
                       style={{ 
@@ -746,7 +745,7 @@ export function Orders() {
                           
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>

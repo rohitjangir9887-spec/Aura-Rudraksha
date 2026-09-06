@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Sparkles
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { OrderSummaryCard } from "../components/checkout/OrderSummaryCard";
 import { CartItemCard } from "../components/cart/CartItemCard";
 import { CartFreeShippingMeter } from "../components/cart/CartFreeShippingMeter";
@@ -159,10 +158,10 @@ export function Cart() {
         }}
       >
         {/* Top Header & Breadcrumb Navigation */}
-        <motion.div 
+        <div 
           className="cart-header-actions"
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
+          
+          
           style={{
             display: "flex",
             alignItems: "center",
@@ -210,7 +209,7 @@ export function Cart() {
           >
             <ShieldCheck size={14} /> 100% Original & Lab-Certified
           </div>
-        </motion.div>
+        </div>
 
         {/* Page Title with Item Count */}
         <div style={{ marginBottom: "14px" }}>
@@ -236,10 +235,10 @@ export function Cart() {
         {isEmpty ? (
           <CartEmptyState />
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, staggerChildren: 0.1 }}
+          <div
+            
+            
+            
             id="cart-main-responsive-grid"
             style={{
               display: "grid",
@@ -251,10 +250,10 @@ export function Cart() {
             }}
           >
             {/* Left Column: Free Shipping Progress + Cart Items + Recommendations + Trust */}
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4 }}
+            <div
+              
+              
+              
               className="cart-left-column"
               style={{
                 display: "flex",
@@ -289,11 +288,11 @@ export function Cart() {
                   if (!p) return null;
 
                   return (
-                    <motion.div
+                    <div
                       key={id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
+                      
+                      
+                      
                     >
                     <CartItemCard
                       key={id}
@@ -306,7 +305,7 @@ export function Cart() {
                       onToggleWishlist={toggleWishlist}
                       isWishlisted={isWishlisted(p.id || p._id)}
                     />
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
@@ -325,13 +324,13 @@ export function Cart() {
                   title="Frequently Bought Together"
                 />
               )}
-            </motion.div>
+            </div>
 
             {/* Right Column: Order Summary & Instant Checkout CTA (Sticky on Desktop) */}
-            <motion.div
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4 }}
+            <div
+              
+              
+              
               className="cart-right-column"
               style={{
                 minWidth: 0,
@@ -361,8 +360,8 @@ export function Cart() {
                 ctaText="Proceed to Checkout"
                 isCheckoutPage={false}
               />
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
 
         {/* Mobile Floating Sticky Checkout Bar */}

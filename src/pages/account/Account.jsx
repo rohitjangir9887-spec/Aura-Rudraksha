@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { Shell } from "../../components/Shell";
 import { ConfirmModal } from "../../components/ConfirmModal";
-import { motion } from "framer-motion";
 import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
 import { useWishlist } from "../../hooks/useWishlist";
@@ -245,10 +244,10 @@ export function Account() {
     return (
       <Shell>
         <main className="page" style={{ maxWidth: 680, margin: "0 auto", paddingBottom: "80px", paddingTop: "20px" }}>
-          <motion.div 
-            initial={{ opacity: 0, y: 15 }} 
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+          <div 
+             
+            
+            
             style={{ 
               background: "#fffdf9", 
               border: "1px solid #e8dac9", 
@@ -340,7 +339,7 @@ export function Account() {
                 </Link>
               </div>
             </div>
-          </motion.div>
+          </div>
         </main>
       </Shell>
     );
@@ -356,9 +355,9 @@ export function Account() {
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           
           {/* 1. Customer Identity Card */}
-          <motion.div 
-            initial={{ opacity: 0, y: 12 }} 
-            animate={{ opacity: 1, y: 0 }}
+          <div 
+             
+            
             style={{
               background: "linear-gradient(135deg, #fffdf9 0%, #fbf4ea 100%)",
               border: "1px solid #e8dac9",
@@ -542,18 +541,18 @@ export function Account() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Aura AI Help & Order Assistance Experience */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}>
+          <div   >
             <AuraAISupportAssistant compact={false} />
-          </motion.div>
+          </div>
 
           {/* 2. Account Shortcuts Navigation List */}
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             
             {/* My Orders */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <div   >
               <Link 
                 to="/account/orders" 
                 id="link-my-orders"
@@ -606,10 +605,10 @@ export function Account() {
                 </div>
                 <ChevronRight size={20} color="#b8a89b" />
               </Link>
-            </motion.div>
+            </div>
 
             {/* Wishlist */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <div   >
               <Link 
                 to="/wishlist" 
                 id="link-wishlist"
@@ -661,10 +660,10 @@ export function Account() {
                 </div>
                 <ChevronRight size={20} color="#b8a89b" />
               </Link>
-            </motion.div>
+            </div>
 
             {/* Saved Addresses */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <div   >
               <Link 
                 to="/account/profile" 
                 id="link-addresses"
@@ -702,10 +701,10 @@ export function Account() {
                 </div>
                 <ChevronRight size={20} color="#b8a89b" />
               </Link>
-            </motion.div>
+            </div>
 
             {/* Account & Security */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <div   >
               <div 
                 style={{
                   background: "#fffdf9",
@@ -742,10 +741,10 @@ export function Account() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* Customer Support & Policies */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <div   >
               <Link 
                 to="/shipping-policy" 
                 id="link-support"
@@ -783,11 +782,11 @@ export function Account() {
                 </div>
                 <ChevronRight size={20} color="#b8a89b" />
               </Link>
-            </motion.div>
+            </div>
 
             {/* Admin Dashboard (ONLY when verified server-side role is admin) */}
             {isServerAdmin && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <div   >
                 <Link 
                   to="/admin" 
                   id="link-admin-panel"
@@ -838,11 +837,11 @@ export function Account() {
                   </div>
                   <ChevronRight size={20} color="#a54d2b" />
                 </Link>
-              </motion.div>
+              </div>
             )}
 
             {/* Logout Button */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+            <div   >
               <button 
                 type="button"
                 id="btn-account-logout"
@@ -882,7 +881,7 @@ export function Account() {
                 </div>
                 <ChevronRight size={18} color="#c62828" />
               </button>
-            </motion.div>
+            </div>
 
           </div>
         </div>
