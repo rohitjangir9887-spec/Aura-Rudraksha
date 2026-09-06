@@ -219,12 +219,12 @@ export function AuraAIChatOrderModal({
 
       const payRes = await db.initiatePayment(paymentIntentPayload);
 
-      if (payRes?.success && payRes.data?.payuUrl && payRes.data?.params) {
+      if (payRes?.success && payRes.data?.paymentUrl && payRes.data?.params) {
         // Redirect/submit to PayU gateway form
-        const { payuUrl, params } = payRes.data;
+        const { paymentUrl, params } = payRes.data;
         const form = document.createElement("form");
         form.method = "POST";
-        form.action = payuUrl;
+        form.action = paymentUrl;
         form.style.display = "none";
 
         Object.entries(params).forEach(([k, v]) => {

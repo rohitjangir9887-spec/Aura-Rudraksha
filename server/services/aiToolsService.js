@@ -188,7 +188,7 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
             name: p.name,
             price: Number(p.price),
             mrp: Number(p.mrp || p.comparePrice || Math.round(p.price * 1.35)),
-            inStock: p.inStock !== false && Number(p.stock || 10) > 0,
+            inStock: p.inStock !== false && (p.stock !== undefined ? Number(p.stock) : 0) > 0,
             rating: p.rating || 4.9,
             image: (p.images && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg",
             category: p.category || "Rudraksha",
@@ -211,13 +211,16 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
           return { error: "Product not found in current store inventory." };
         }
 
+        const actualStock = p.stock !== undefined ? Number(p.stock) : 0;
+        const actualInStock = p.inStock !== false && actualStock > 0;
+
         return {
           id: String(p.id || p._id),
           name: p.name,
           price: Number(p.price),
           mrp: Number(p.mrp || p.comparePrice || Math.round(p.price * 1.35)),
-          inStock: p.inStock !== false && Number(p.stock || 10) > 0,
-          stockCount: Number(p.stock || 15),
+          inStock: actualInStock,
+          stockCount: actualStock,
           rating: p.rating || 4.9,
           reviewsCount: p.reviews || 24,
           labCertificateIncluded: true,
@@ -246,7 +249,7 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
           const found = await Product.findOne(query).lean();
           if (found) {
             name = found.name;
-            stock = Number(found.stock || 15);
+            stock = found.stock !== undefined ? Number(found.stock) : 0;
             inStock = found.inStock !== false && stock > 0;
           }
         }
@@ -324,22 +327,47 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
       }
 
       case "getShippingInfo": {
-        return {
+        let shippingInfo = {
           freeShipping: true,
           timeline: "3 to 5 business days across India",
           dispatchTime: "Same day dispatch for orders placed before 2 PM",
           courierPartners: ["BlueDart Express", "Delhivery", "India Post SpeedPost"],
           packaging: "Tamper-proof protective spiritual velvet box with Lab Test Report"
         };
+        if (isDbConnected()) {
+          try {
+            const mongoose = (await import("mongoose")).default;
+            const SettingModel = mongoose.model("Setting");
+            const ss = await SettingModel.findOne({ id: "STORE_SETTINGS" }).lean();
+            if (ss) {
+               if (ss.shippingPolicy) shippingInfo.policy = ss.shippingPolicy;
+               shippingInfo.standardShippingFee = ss.standardShippingFee;
+               shippingInfo.freeShippingThreshold = ss.freeShippingThreshold;
+               shippingInfo.freeShipping = ss.standardShippingFee === 0;
+            }
+          } catch(e) {}
+        }
+        return shippingInfo;
       }
 
       case "getReturnPolicy": {
-        return {
+        let returnInfo = {
           returnWindow: "7 Days Easy Replacement & Refund",
           conditions: "Full refund or exchange if damaged, defective, or incorrect item received",
           authenticityGuarantee: "100% Original Nepali Origin with Official Government-Approved Gemological Lab Test Certificate",
           process: "Contact Aura Support via AI Chat or email support@aurarudraksha.com"
         };
+        if (isDbConnected()) {
+           try {
+             const mongoose = (await import("mongoose")).default;
+             const SettingModel = mongoose.model("Setting");
+             const ss = await SettingModel.findOne({ id: "STORE_SETTINGS" }).lean();
+             if (ss && ss.returnPolicy) {
+                returnInfo.policy = ss.returnPolicy;
+             }
+           } catch(e) {}
+        }
+        return returnInfo;
       }
 
       case "getOrderStatus": {
@@ -347,12 +375,8 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
 
         if (!isDbConnected()) {
           return {
-            orderId: orderId || "AURA-260904-000123",
-            status: "In Transit",
-            estimatedDelivery: "3-4 Days",
-            courier: "BlueDart Express",
-            trackingId: "BD98231049IN",
-            note: "Demo order status."
+            found: false,
+            message: "Database connection unavailable. Cannot fetch order status."
           };
         }
 
@@ -360,16 +384,24 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         let userCondition = {};
         if (authenticatedUserId && authenticatedUserId !== "guest") {
           userCondition = { $or: [{ authUserId: authenticatedUserId }, { userId: authenticatedUserId }] };
-        } else if (email || userEmail) {
-          const targetEmail = (email || userEmail).toLowerCase().trim();
-          userCondition = { $or: [{ customerEmail: targetEmail }, { email: targetEmail }] };
-        } else if (phone || userPhone) {
-          const targetPhone = (phone || userPhone).trim();
-          userCondition = { $or: [{ customerPhone: targetPhone }, { phone: targetPhone }] };
         } else {
-          return {
-            error: "Authentication required to fetch order details. Please log in or provide your order ID with registered email/phone."
-          };
+          // Guest lookup: MUST provide orderId AND (email OR phone)
+          if (!orderId) {
+            return {
+              error: "Order ID is required to track an order as a guest."
+            };
+          }
+          if (email || userEmail) {
+            const targetEmail = (email || userEmail).toLowerCase().trim();
+            userCondition = { $or: [{ customerEmail: targetEmail }, { email: targetEmail }] };
+          } else if (phone || userPhone) {
+            const targetPhone = (phone || userPhone).trim();
+            userCondition = { $or: [{ customerPhone: targetPhone }, { phone: targetPhone }] };
+          } else {
+            return {
+              error: "Authentication required to fetch order details. Please log in or provide your registered email/phone."
+            };
+          }
         }
 
         let query = { ...userCondition };

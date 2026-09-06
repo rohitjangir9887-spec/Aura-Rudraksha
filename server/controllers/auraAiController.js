@@ -99,6 +99,7 @@ function formatProductForResponse(p) {
   const comparePrice = Number(p.comparePrice || p.mrp || Math.round(price * 1.35));
   const mrp = Number(p.mrp || comparePrice || Math.round(price * 1.35));
   const discount = p.discount || p.discountPercent || (comparePrice > price ? Math.round(((comparePrice - price) / comparePrice) * 100) : 0);
+  const stock = p.stock !== undefined ? Number(p.stock) : 0;
   
   return {
     id: String(p.id || p._id),
@@ -116,8 +117,8 @@ function formatProductForResponse(p) {
     rating: Number(p.rating) || 4.9,
     reviews: Number(p.reviews || p.reviewsCount || p.reviewCount) || 24,
     reviewsCount: Number(p.reviews || p.reviewsCount || p.reviewCount) || 24,
-    stock: Number(p.stock) > 0 ? Number(p.stock) : 50,
-    inStock: p.inStock !== false,
+    stock: stock,
+    inStock: p.inStock !== false && stock > 0,
     badge: p.badge || (discount >= 30 ? "Best Seller" : "Popular"),
     highlight: p.highlight || ""
   };
@@ -503,7 +504,7 @@ export async function chatAuraAI(req, res, next) {
     }
 
     
-    let storeSettings = { supportPhone: "+91 98765 00001", supportEmail: "care@aurarudraksha-test.com" };
+    let storeSettings = { supportPhone: "+91 9672996531", supportEmail: "aurarudrakshaofficial@gmail.com" };
     if (isDbConnected()) {
       try {
         const mongoose = (await import("mongoose")).default;
@@ -605,6 +606,10 @@ export async function chatAuraAI(req, res, next) {
       intent === "CHECKOUT" ||
       /(offer|discount|coupon|code|deal|chhoot|bachat|promo)/i.test(message)
     );
+    let coupons = [];
+    if (isDbConnected()) {
+      try { coupons = await Coupon.find({ status: "Active" }).lean(); } catch(e) {}
+    }
     const finalCoupons = isCouponAppropriate ? coupons.slice(0, 1) : [];
 
     const quickReplies = generateDynamicQuickReplies({ userMessage: message, intent, targetMukhi });
@@ -695,7 +700,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
 
         // Generate content with function calling capabilities
         let response = await ai.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-2.5-flash",
           config: {
             systemInstruction: systemPrompt,
             tools: toolsConfig,
@@ -742,7 +747,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
           });
 
           response = await ai.models.generateContent({
-            model: "gemini-3.6-flash",
+            model: "gemini-2.5-flash",
             config: {
               systemInstruction: systemPrompt,
               tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
@@ -1552,7 +1557,7 @@ Guidelines:
 - Output ONLY pure clean HTML body without any markdown formatting or \`\`\` code fences.`;
 
         const geminiRes = await ai.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-2.5-flash",
           config: {
             temperature: 0.7,
             maxOutputTokens: 1200

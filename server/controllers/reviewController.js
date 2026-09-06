@@ -725,7 +725,7 @@ Seed/Entropy: ${randomEntropy}.
 Ensure 100% variety in customer names, locations, and review sentences. Output pure JSON array only.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-2.5-flash",
           config: {
             systemInstruction: systemPrompt,
             responseMimeType: "application/json",
@@ -1029,7 +1029,7 @@ CRITICAL MANDATES:
         const userPrompt = `Polish this customer review for grammar, spelling, and professional readability while strictly preserving its original meaning:\n"${originalTextToPolish}"`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-2.5-flash",
           config: {
             systemInstruction: systemPrompt,
             temperature: 0.2,
