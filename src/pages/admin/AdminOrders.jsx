@@ -261,6 +261,17 @@ export function AdminOrders() {
 
   const statuses = ["Pending", "Confirmed", "Processing", "Shipped", "Out for Delivery", "Delivered", "Cancelled"];
 
+  const ALLOWED_ORDER_TRANSITIONS = {
+    "Payment Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+    "Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+    "Confirmed": ["Processing", "Shipped", "Cancelled"],
+    "Processing": ["Shipped", "Cancelled"],
+    "Shipped": ["Out for Delivery", "Delivered", "Cancelled"],
+    "Out for Delivery": ["Delivered", "Cancelled"],
+    "Delivered": [],
+    "Cancelled": []
+  };
+
   if (loading) return <AdminLayout><div className="admin-loading">Loading store orders...</div></AdminLayout>;
 
   if (viewing) {
@@ -284,7 +295,21 @@ export function AdminOrders() {
               onChange={(e) => handleUpdateStatus(viewing.id, e.target.value)}
               style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #dcd1c6', fontWeight: 600, background: '#fff', fontSize: 13 }}
             >
-              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+              {statuses.map(s => {
+      const ALLOWED_ORDER_TRANSITIONS = {
+        "Payment Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+        "Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+        "Confirmed": ["Processing", "Shipped", "Cancelled"],
+        "Processing": ["Shipped", "Cancelled"],
+        "Shipped": ["Out for Delivery", "Delivered", "Cancelled"],
+        "Out for Delivery": ["Delivered", "Cancelled"],
+        "Delivered": [],
+        "Cancelled": []
+      };
+      const currentStatus = viewing.status || "Pending";
+      const isValid = s === currentStatus || (ALLOWED_ORDER_TRANSITIONS[currentStatus] || []).includes(s);
+      return <option key={s} value={s} disabled={!isValid}>{s}</option>;
+    })}
             </select>
           </div>
         </div>
@@ -967,7 +992,21 @@ export function AdminOrders() {
                           outline: 'none'
                         }}
                       >
-                        {statuses.map(st => <option key={st} value={st}>{st}</option>)}
+                        {statuses.map(st => {
+      const ALLOWED_ORDER_TRANSITIONS = {
+        "Payment Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+        "Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+        "Confirmed": ["Processing", "Shipped", "Cancelled"],
+        "Processing": ["Shipped", "Cancelled"],
+        "Shipped": ["Out for Delivery", "Delivered", "Cancelled"],
+        "Out for Delivery": ["Delivered", "Cancelled"],
+        "Delivered": [],
+        "Cancelled": []
+      };
+      const currentStatus = o.status || "Pending";
+      const isValid = st === currentStatus || (ALLOWED_ORDER_TRANSITIONS[currentStatus] || []).includes(st);
+      return <option key={st} value={st} disabled={!isValid}>{st}</option>;
+    })}
                       </select>
                     </td>
                     <td>
@@ -1009,7 +1048,21 @@ export function AdminOrders() {
                       outline: 'none'
                     }}
                   >
-                    {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                    {statuses.map(s => {
+      const ALLOWED_ORDER_TRANSITIONS = {
+        "Payment Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+        "Pending": ["Confirmed", "Processing", "Shipped", "Cancelled"],
+        "Confirmed": ["Processing", "Shipped", "Cancelled"],
+        "Processing": ["Shipped", "Cancelled"],
+        "Shipped": ["Out for Delivery", "Delivered", "Cancelled"],
+        "Out for Delivery": ["Delivered", "Cancelled"],
+        "Delivered": [],
+        "Cancelled": []
+      };
+      const currentStatus = o.status || "Pending";
+      const isValid = s === currentStatus || (ALLOWED_ORDER_TRANSITIONS[currentStatus] || []).includes(s);
+      return <option key={s} value={s} disabled={!isValid}>{s}</option>;
+    })}
                   </select>
                 </div>
 

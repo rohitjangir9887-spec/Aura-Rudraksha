@@ -236,7 +236,10 @@ export function Cart() {
         {isEmpty ? (
           <CartEmptyState />
         ) : (
-          <div
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, staggerChildren: 0.1 }}
             id="cart-main-responsive-grid"
             style={{
               display: "grid",
@@ -248,7 +251,10 @@ export function Cart() {
             }}
           >
             {/* Left Column: Free Shipping Progress + Cart Items + Recommendations + Trust */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4 }}
               className="cart-left-column"
               style={{
                 display: "flex",
@@ -281,6 +287,12 @@ export function Cart() {
                   if (!p) return null;
 
                   return (
+                    <motion.div
+                      key={id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
                     <CartItemCard
                       key={id}
                       id={id}
@@ -292,6 +304,7 @@ export function Cart() {
                       onToggleWishlist={toggleWishlist}
                       isWishlisted={isWishlisted(p.id || p._id)}
                     />
+                    </motion.div>
                   );
                 })}
               </div>
@@ -310,10 +323,13 @@ export function Cart() {
                   title="Frequently Bought Together"
                 />
               )}
-            </div>
+            </motion.div>
 
             {/* Right Column: Order Summary & Instant Checkout CTA (Sticky on Desktop) */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4 }}
               className="cart-right-column"
               style={{
                 minWidth: 0,
@@ -343,8 +359,8 @@ export function Cart() {
                 ctaText="Proceed to Checkout"
                 isCheckoutPage={false}
               />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
 
         {/* Mobile Floating Sticky Checkout Bar */}

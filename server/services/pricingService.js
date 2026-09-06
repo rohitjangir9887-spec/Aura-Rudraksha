@@ -241,8 +241,8 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   const productSavings = Math.max(0, totalMrp - subtotal);
 
   // 2. Authoritative Shipping Calculation (Dynamically fetched from Store Settings & Product Overrides)
-  let storeStandardShippingFee = 0;
-  let storeFreeShippingThreshold = 0;
+  let storeStandardShippingFee = 50;
+  let storeFreeShippingThreshold = 499;
   let enableProductShipping = true;
 
   if (isDbConnected()) {
@@ -258,14 +258,14 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       }
 
       if (dbSettings) {
-        storeStandardShippingFee = Number(dbSettings.standardShippingFee ?? 0);
-        storeFreeShippingThreshold = Number(dbSettings.freeShippingThreshold ?? 0);
+        storeStandardShippingFee = Number(dbSettings.standardShippingFee ?? 50);
+        storeFreeShippingThreshold = Number(dbSettings.freeShippingThreshold ?? 499);
         enableProductShipping = dbSettings.enableProductShipping !== false;
       }
     } catch (_) {}
   } else if (inMemoryStore.settings) {
-    storeStandardShippingFee = Number(inMemoryStore.settings.standardShippingFee ?? 0);
-    storeFreeShippingThreshold = Number(inMemoryStore.settings.freeShippingThreshold ?? 0);
+    storeStandardShippingFee = Number(inMemoryStore.settings.standardShippingFee ?? 50);
+    storeFreeShippingThreshold = Number(inMemoryStore.settings.freeShippingThreshold ?? 499);
     enableProductShipping = inMemoryStore.settings.enableProductShipping !== false;
   }
 

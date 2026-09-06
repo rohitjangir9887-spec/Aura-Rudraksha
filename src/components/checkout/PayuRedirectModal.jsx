@@ -14,18 +14,70 @@ export function PayuRedirectModal({
   timeoutOccurred = false
 }) {
   const [mounted, setMounted] = useState(false);
+  const modalRef = React.useRef(null);
 
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
+  useEffect(() => {
+    let previouslyFocusedElement = null;
+
+    if (isOpen) {
+      previouslyFocusedElement = document.activeElement;
+      modalRef.current?.focus();
+    }
+
+    return () => {
+      if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
+        try {
+          previouslyFocusedElement.focus();
+        } catch(e) {}
+      }
+    };
+  }, [isOpen]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Escape") {
+      // Intentionally do nothing on Escape to prevent cancelling in-flight payment
+      e.preventDefault();
+      return;
+    }
+
+    // Focus Trap
+    if (e.key === 'Tab' && modalRef.current) {
+      const focusableElements = modalRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement || document.activeElement === modalRef.current) {
+          lastElement.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement.focus();
+          e.preventDefault();
+        }
+      }
+    }
+  };
+
   if (!mounted) return null;
 
   const modalContent = (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div
+          className="fixed inset-0 z-[999999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+          onKeyDown={handleKeyDown}
+        >
           {/* Soft Blurred & Dimmed Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -37,11 +89,16 @@ export function PayuRedirectModal({
 
           {/* Centered Premium White Card */}
           <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payu-modal-title"
+            tabIndex="-1"
             initial={{ opacity: 0, scale: 0.94, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 12 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-[24px] shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto"
+            className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-[24px] shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto focus:outline-none"
           >
           {/* Subtle Warm Antique-Gold Ambient Background Glow */}
           <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 bg-[#f3e5d8]/60 rounded-full blur-3xl pointer-events-none" />
@@ -138,7 +195,7 @@ export function PayuRedirectModal({
 
           {/* Main Headings */}
           <div className="mb-5">
-            <h2 className="font-serif text-2xl font-bold text-[#2b170d] mb-1.5 tracking-tight">
+            <h2 id="payu-modal-title" className="font-serif text-2xl font-bold text-[#2b170d] mb-1.5 tracking-tight">
               {errorMsg
                 ? "Payment Connection Issue"
                 : timeoutOccurred

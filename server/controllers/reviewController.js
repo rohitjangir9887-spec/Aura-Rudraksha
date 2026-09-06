@@ -798,7 +798,7 @@ Generate the drafts as a valid JSON array according to the system instructions. 
           try {
             const ai = new GoogleGenAI({ apiKey: geminiApiKey });
             const response = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
+              model: "gemini-3.6-flash",
               config: {
                 systemInstruction: systemPrompt,
                 responseMimeType: "application/json",
@@ -1109,7 +1109,7 @@ CRITICAL MANDATES:
         const userPrompt = `Polish this customer review for grammar, spelling, and professional readability while strictly preserving its original meaning:\n"${originalTextToPolish}"`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           config: {
             systemInstruction: systemPrompt,
             temperature: 0.2,

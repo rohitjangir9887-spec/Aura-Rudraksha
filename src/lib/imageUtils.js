@@ -94,6 +94,19 @@ export async function uploadMedia(file, onProgress) {
   if (onProgress) onProgress(40, "Uploading media...");
 
   // Try Puter JS cloud storage if available
+  if (typeof window !== "undefined" && !window.puter) {
+    if (!window.__puterLoaderPromise) {
+      window.__puterLoaderPromise = new Promise((resolve) => {
+        const script = document.createElement("script");
+        script.src = "https://js.puter.com/v2/";
+        script.onload = () => resolve();
+        script.onerror = () => resolve();
+        document.head.appendChild(script);
+      });
+    }
+    await window.__puterLoaderPromise;
+  }
+
   if (typeof window !== "undefined" && window.puter && window.puter.fs) {
     try {
       const ext = file.name ? file.name.split(".").pop() : "jpg";

@@ -458,6 +458,10 @@ export async function verifyConversationOwnership(conv, req) {
 export async function chatAuraAI(req, res, next) {
   try {
     const { message, conversationId = "guest", userEmail, userName, mode = "standard", history = [] } = req.body;
+
+    if (conversationId && typeof conversationId !== "string") {
+      return res.status(400).json({ success: false, message: "Invalid conversationId" });
+    }
     
     if (!message) {
       return res.status(400).json({ success: false, message: "Message is required" });
@@ -491,12 +495,52 @@ export async function chatAuraAI(req, res, next) {
     let effectiveName = "Devotee";
     let effectiveGuestSessionId = clientGuestSessionId || ("guest_" + crypto.randomBytes(16).toString("hex"));
 
+
+    let settings = inMemoryStore.aiSettings || { enabled: true };
+    if (isDbConnected()) {
+      const existing = await AuraAISetting.findOne({ id: "AURA_AI_SETTINGS" }).lean();
+      if (existing) settings = existing;
+    }
+
+
+    let storeSettings = { supportPhone: "+91 98765 00001", supportEmail: "care@aurarudraksha-test.com" };
+    if (isDbConnected()) {
+      try {
+        const mongoose = (await import("mongoose")).default;
+        const SettingModel = mongoose.model("Setting");
+        const ss = await SettingModel.findOne({ id: "STORE_SETTINGS" }).lean();
+        if (ss) {
+          if (ss.supportPhone) storeSettings.supportPhone = ss.supportPhone;
+          if (ss.supportEmail) storeSettings.supportEmail = ss.supportEmail;
+        }
+      } catch(e) {}
+    }
+
+    if (settings.enabled === false) {
+      const restingMessage = `🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka Vedic shopping aur spiritual guide.**\nMain aapki sacred rudraksha choose karne mein help karne ke liye abhi rest kar rahi hoon. Kripya hamare support se sampark karein:\n\n📞 **Phone/WhatsApp:** ${storeSettings.supportPhone}\n✉️ **Email:** ${storeSettings.supportEmail}\n\nHum jald hi wapas aayenge. Om Namah Shivaya! 🕉️`;
+      return res.json({
+        success: true,
+        data: {
+          text: restingMessage,
+          products: [],
+          coupons: [],
+          quickReplies: [],
+          requiresHuman: false,
+          conversationId: targetConversationId,
+          guestSessionId: effectiveGuestSessionId
+        }
+      });
+    }
+
+    const isHumanEscalation = /(human support|customer care|talk to human|call someone|contact details|phone number)/i.test(message);
+
     if (userIsAuthenticated) {
       effectiveUserId = verifiedUserId;
       effectiveEmail = verifiedEmail;
       effectiveName = verifiedName;
       effectiveGuestSessionId = "";
     }
+
 
     let existingConv = null;
     if (isDbConnected()) {
@@ -600,7 +644,25 @@ Authenticated: ${userIsAuthenticated ? verifiedName : "Guest"}
 Intent: ${intent}
 Target Mukhi/Bead: ${targetMukhi || "General"}`;
 
+
+    if (isHumanEscalation) {
+      const restingMessage = `🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka Vedic shopping aur spiritual guide.**\nMain aapki sacred rudraksha choose karne mein help kar sakta hoon. Yadi aapko kisi vishesh sahayata ya manushya (human) support ki aavashyakta hai, to kripya hamare support se sampark karein:\n\n📞 **Phone/WhatsApp:** ${storeSettings.supportPhone}\n✉️ **Email:** ${storeSettings.supportEmail}\n\nHum jald hi wapas aayenge. Om Namah Shivaya! 🕉️`;
+      return res.json({
+        success: true,
+        data: {
+          text: restingMessage,
+          products: [],
+          coupons: [],
+          quickReplies: [],
+          requiresHuman: true,
+          conversationId: targetConversationId,
+          guestSessionId: effectiveGuestSessionId
+        }
+      });
+    }
+
     let fullRawContent = "";
+
     let generatedViaLLM = false;
     let triggeredAction = null;
 
@@ -633,7 +695,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
 
         // Generate content with function calling capabilities
         let response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           config: {
             systemInstruction: systemPrompt,
             tools: toolsConfig,
@@ -680,7 +742,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
           });
 
           response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.6-flash",
             config: {
               systemInstruction: systemPrompt,
               tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
@@ -763,7 +825,9 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
         coupons: finalCoupons,
         userIsAuthenticated,
         verifiedName,
-        customerOrders
+        customerOrders,
+        supportPhone: storeSettings.supportPhone,
+        supportEmail: storeSettings.supportEmail
       });
     }
 
@@ -818,7 +882,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
             products: finalProducts,
             coupons: finalCoupons,
             quickReplies,
-            requiresHuman: false,
+            requiresHuman: isHumanEscalation,
             timestamp: new Date().toISOString()
           };
 
@@ -863,7 +927,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
           products: finalProducts, 
           coupons: finalCoupons, 
           quickReplies,
-          requiresHuman: false,
+          requiresHuman: isHumanEscalation,
           action: triggeredAction,
           conversationId: targetConversationId,
           guestSessionId: effectiveGuestSessionId
@@ -889,7 +953,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
           products: finalProducts,
           coupons: finalCoupons,
           quickReplies,
-          requiresHuman: false,
+          requiresHuman: isHumanEscalation,
           timestamp: new Date().toISOString()
         };
 
@@ -934,7 +998,7 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
         products: finalProducts,
         coupons: finalCoupons,
         quickReplies,
-        requiresHuman: false,
+        requiresHuman: isHumanEscalation,
         action: triggeredAction,
         conversationId: targetConversationId,
         guestSessionId: effectiveGuestSessionId
@@ -1488,7 +1552,7 @@ Guidelines:
 - Output ONLY pure clean HTML body without any markdown formatting or \`\`\` code fences.`;
 
         const geminiRes = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           config: {
             temperature: 0.7,
             maxOutputTokens: 1200

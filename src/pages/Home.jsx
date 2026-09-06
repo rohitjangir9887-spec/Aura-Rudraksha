@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { ShieldCheck, PackageCheck, BadgeCheck, Flower2 } from "lucide-react";
 import { Shell } from "../components/Shell";
@@ -212,26 +213,25 @@ export function Home() {
     
 
 
-    <div className="feature-bar fade-in-up">
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5 }} className="feature-bar fade-in-up">
       <div><div className="icon-wrapper"><BadgeCheck strokeWidth={1.5}/></div><b>100% Authentic</b><span>Lab Certified</span></div>
       <div><div className="icon-wrapper"><Flower2 strokeWidth={1.5}/></div><b>Positive Energy</b><span>Energized Beads</span></div>
       <div><div className="icon-wrapper"><ShieldCheck strokeWidth={1.5}/></div><b>Premium Quality</b><span>Nepal Origin</span></div>
       <div><div className="icon-wrapper"><PackageCheck strokeWidth={1.5}/></div><b>Free Shipping</b><span>{shippingThreshold > 0 ? `On Orders ₹${shippingThreshold}+` : "On All Orders"}</span></div>
-    </div>
-
+    </motion.div>
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
-    <ShopByCategory />
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5 }}><ShopByCategory /></motion.div>
 
     {/* HOME PRODUCT SHOWCASE / POPULAR SECTION (Admin Configurable) */}
-    <HomeProductShowcase products={products} isLoading={isLoading} />
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5 }}><HomeProductShowcase products={products} isLoading={isLoading} /></motion.div>
 
     {/* THE AURA EDITORIAL: ASYMMETRIC SACRED DISCOVERY SECTION */}
-    <WhyAuraSection />
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5 }}><WhyAuraSection /></motion.div>
 
     {/* ALL PRODUCTS SECTION */}
-    <AllProductsSection products={products} isLoading={isLoading} />
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5 }}><AllProductsSection products={products} isLoading={isLoading} /></motion.div>
 
     {/* THE AURA RASHI GUIDE: SHOP BY ZODIAC SIGN SECTION */}
-    <ZodiacRudrakshaSection />
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5 }}><ZodiacRudrakshaSection /></motion.div>
   </Shell>
 }

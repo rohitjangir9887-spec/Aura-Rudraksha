@@ -1,8 +1,8 @@
-import { authClient } from "./authClient";
-import { parseAuraAiPayload, customerSafeAiText } from "./auraAiResponse";
-import { auraChatStore } from "./auraChatStore";
+import { authClient } from "./authClient.js";
+import { parseAuraAiPayload, customerSafeAiText } from "./auraAiResponse.js";
+import { auraChatStore } from "./auraChatStore.js";
 
-const API_BASE = ((import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "")) + "/aura-ai";
+const API_BASE = ((((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env.VITE_API_BASE_URL : undefined) || "/api").replace(/\/$/, "")) + "/aura-ai";
 
 let activeStreamAbortController = null;
 
