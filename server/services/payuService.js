@@ -231,7 +231,8 @@ export async function verifyPayuPaymentServerSide(txnid) {
     let data;
     try {
       data = JSON.parse(rawText);
-    } catch (_) {
+    } catch (err) {
+      console.warn("PayU JSON Parse Error:", err.message);
       return {
         success: false,
         isPaid: false,
@@ -320,7 +321,8 @@ export async function refundPayuTransaction({ mihpayid, txnid, amount, token }) 
   let data;
   try {
     data = JSON.parse(rawText);
-  } catch (_) {
+  } catch (err) {
+    console.warn("PayU JSON Parse Error:", err.message);
     throw new Error("Invalid response received from PayU refund server");
   }
 

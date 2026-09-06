@@ -464,7 +464,7 @@ export async function handlePayuCallback(req, res) {
           { transactionId: txnid },
           { $set: { status: "FAILED", errorMessage: errorMsg, gatewayPaymentId: params.mihpayid || "" } }
         );
-      } catch (_) {}
+      } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
       order.paymentStatus = "Failed";
       order.mihpayid = params.mihpayid || order.mihpayid || "";
       order.paymentAttempts = attempts;
@@ -794,7 +794,7 @@ export async function handlePayuWebhook(req, res) {
           { transactionId: txnid },
           { $set: { status: "FAILED", gatewayPaymentId: params.mihpayid || "", errorMessage: errorMsg } }
         );
-      } catch (_) {}
+      } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
       order.paymentStatus = "Failed";
       order.mihpayid = params.mihpayid || order.mihpayid || "";
       order.paymentAttempts = attempts;
@@ -810,7 +810,7 @@ export async function handlePayuWebhook(req, res) {
           { transactionId: txnid },
           { $set: { status: "FAILED", errorMessage: "Server-side verification mismatch" } }
         );
-      } catch (_) {}
+      } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
       return res.status(400).json({ success: false, message: "Server-side payment verification failed" });
     }
 
@@ -901,7 +901,7 @@ export async function handlePayuWebhook(req, res) {
           }
         );
         await WebhookEvent.findOneAndUpdate({ eventId }, { $set: { processingStatus: "PROCESSED", processedAt: new Date() } });
-      } catch (_) {}
+      } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
     }
 
     return res.status(200).json({ success: true, message: "Webhook processed successfully" });
@@ -1444,7 +1444,7 @@ export async function processPayuRefund(req, res, next) {
           }
         }
       );
-    } catch (_) {}
+    } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
 
     // Audit log refund event
     await logAuditEvent({
@@ -1607,7 +1607,7 @@ export async function syncPayuOrder(req, res) {
             { transactionId: attempt.txnid },
             { $set: { status: "SUCCESS", gatewayPaymentId: verifyRes.mihpayid || "", verifiedAt: new Date() } }
           );
-        } catch (_) {}
+        } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
       } else {
         // Just sync whatever it is
         attempt.status = verifyRes.status || attempt.status;
