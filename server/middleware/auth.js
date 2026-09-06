@@ -66,22 +66,18 @@ if (!getApps().length) {
 // ---------------------------------------------------------------------------
 export function devFallbackAllowed() {
   const nodeEnv = (process.env.NODE_ENV || "").trim().toLowerCase();
-  const vercelEnv = (process.env.VERCEL_ENV || "").trim().toLowerCase();
-  const isVercel = Boolean(process.env.VERCEL && process.env.VERCEL !== "0");
 
-  // Production or cloud deployment environments must NEVER allow fallback under any circumstances
+  // NEVER allow fallback in production or preview environments
   if (
     nodeEnv === "production" ||
-    vercelEnv === "production" ||
-    vercelEnv === "preview" ||
-    (isVercel && nodeEnv !== "development")
+    process.env.VERCEL_ENV === "production" ||
+    process.env.VERCEL_ENV === "preview"
   ) {
     return false;
   }
 
-  // Development auth fallback can ONLY activate when:
-  // NODE_ENV !== "production" AND ALLOW_DEV_AUTH_FALLBACK === "true"
-  return nodeEnv !== "production" && process.env.ALLOW_DEV_AUTH_FALLBACK === "true";
+  // Explicitly require test mode for fallback
+  return nodeEnv === "test" && process.env.ALLOW_DEV_AUTH_FALLBACK === "true";
 }
 
 function applyDevFallbackUser(req) {

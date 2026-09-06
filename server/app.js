@@ -79,7 +79,14 @@ export function createApp() {
       )
     );
 
-    const isAllowed = Boolean(origin && (allowedOrigins.includes(origin) || isSameOrigin));
+    // Secure CORS Allowlist Check
+    // Explicitly reject wildcard patterns and force exact matches against configured origins
+    const isAllowed = Boolean(
+      origin &&
+      origin !== "*" &&
+      origin !== "null" &&
+      (allowedOrigins.includes(origin) || isSameOrigin)
+    );
 
     if (origin && isAllowed) {
       res.setHeader("Access-Control-Allow-Origin", origin);

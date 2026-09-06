@@ -615,7 +615,7 @@ function buildDiverseFallbackDrafts({
     }
 
     drafts.push({
-      id: `DRAFT-${Date.now()}-${i + 1}-${Math.random().toString(36).substr(2, 5)}`,
+      id: `DRAFT-${Date.now()}-${i + 1}-${crypto.randomBytes(3).toString("hex")}`,
       title: title || `${prodName} Review`,
       text: textBody,
       rating: r,
@@ -702,7 +702,7 @@ export async function generateReviewDrafts(req, res, next) {
     if (geminiApiKey) {
       try {
         const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-        const randomEntropy = Date.now() + "-" + Math.random().toString(36).substring(2, 7);
+        const randomEntropy = crypto.randomUUID();
         const systemPrompt = `You are an authentic Indian customer review generator for Aura Rudraksha.
 Generate realistic, completely distinct customer reviews for e-commerce products.
 
@@ -756,7 +756,7 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
             const relativeDate = RELATIVE_DATES[Math.floor(Math.random() * RELATIVE_DATES.length)];
 
             return {
-              id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 5)}`,
+              id: `DRAFT-${Date.now()}-${idx + 1}-${crypto.randomBytes(3).toString("hex")}`,
               title: item.title || `${resolvedProductName} Review`,
               text: (item.text || item.body || "").trim(),
               rating: Number(item.rating) || 5,
@@ -1132,7 +1132,7 @@ export async function bulkSaveReviews(req, res, next) {
         continue;
       }
 
-      const id = r.id && !r.id.startsWith("DRAFT-") ? r.id : `REV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const id = r.id && !r.id.startsWith("DRAFT-") ? r.id : `REV-${Date.now()}-${crypto.randomInt(1000, 10000)}`;
       const images = validateReviewImages(Array.isArray(r.images) ? r.images : (r.img ? [r.img] : []));
       const devoteeName = (r.name && r.name !== "AI DRAFT" && r.name.trim()) 
         ? r.name.trim() 

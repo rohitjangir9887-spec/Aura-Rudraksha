@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { AuraAIMemory } from "../models/AuraAI.js";
 import { isDbConnected } from "../config/db.js";
 import { GoogleGenAI } from "@google/genai";
@@ -59,7 +60,7 @@ export async function setUserMemory({ userId, guestSessionId, memoryKey, memoryV
     if (!inMemoryStore.has(effectiveId)) inMemoryStore.set(effectiveId, new Map());
     const userMap = inMemoryStore.get(effectiveId);
     const memObj = {
-      id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `mem_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       userId: effectiveId,
       memoryKey: cleanKey,
       memoryValue: cleanVal,
@@ -82,7 +83,7 @@ export async function setUserMemory({ userId, guestSessionId, memoryKey, memoryV
           lastUpdated: new Date()
         },
         $setOnInsert: {
-          id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+          id: `mem_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`
         }
       },
       { upsert: true, new: true, returnDocument: "after" }
