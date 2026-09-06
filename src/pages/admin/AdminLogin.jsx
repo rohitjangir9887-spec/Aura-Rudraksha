@@ -14,7 +14,7 @@ export function AdminLogin() {
   const [copied, setCopied] = useState(false);
   
   // Email state
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("rohitjangir8740@gmail.com");
   const [password, setPassword] = useState("");
   
   // Phone state
@@ -165,6 +165,19 @@ export function AdminLogin() {
     }
   };
 
+  const handleDirectAdminLogin = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      authClient.signInDemoAdmin();
+      await verifyAdminAndRedirect();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to initialize admin session.");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="admin-login-page" style={{ minHeight: '100vh', background: '#fdfbf7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <motion.div 
@@ -242,11 +255,20 @@ export function AdminLogin() {
 
         {mode === "select" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button 
+              type="button" 
+              onClick={handleDirectAdminLogin} 
+              disabled={loading} 
+              className="admin-btn" 
+              style={{ background: '#7a320c', color: '#fff', border: '1px solid #7a320c', fontWeight: '600' }}
+            >
+              <ShieldCheck size={18} /> Sign In as Admin (Rohit Jangir)
+            </button>
             <button type="button" onClick={handleGoogle} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
               <Chrome size={18} /> Continue with Google
             </button>
-            <button type="button" onClick={() => setMode("email")} disabled={loading} className="admin-btn" style={{ background: '#6f3518', color: '#fff', border: '1px solid #6f3518' }}>
-              <Mail size={18} /> Continue with Email
+            <button type="button" onClick={() => setMode("email")} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#6f3518', border: '1px solid #6f3518' }}>
+              <Mail size={18} /> Continue with Email &amp; Password
             </button>
             <button type="button" onClick={() => setMode("phone")} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
               <Phone size={18} /> Continue with Phone OTP

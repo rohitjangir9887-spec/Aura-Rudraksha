@@ -121,7 +121,7 @@ export function HeroImages() {
 
   return (
     <AdminLayout>
-      <Link to="/aura-control-8740/banners" className="admin-back-link">
+      <Link to="/admin/banners" className="admin-back-link">
         <ArrowLeft size={16} /> Back to Home Content
       </Link>
 

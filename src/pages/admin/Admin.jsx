@@ -496,10 +496,10 @@ export function Admin() {
   const connected = dbStatus === "connected";
 
   const quickActions = [
-    { title: "Add Product", path: "/aura-control-8740/products?add=1", icon: <Plus size={18} />, bg: "#fdf0e8", color: "#a54d2b" },
-    { title: "Orders", path: "/aura-control-8740/orders", icon: <ShoppingBag size={18} />, bg: "#eef7f2", color: "#1d9450" },
-    { title: "Home Banners", path: "/aura-control-8740/banners", icon: <Megaphone size={18} />, bg: "#f0f4ff", color: "#2563eb" },
-    { title: "Coupons", path: "/aura-control-8740/coupons", icon: <TicketPercent size={18} />, bg: "#fff8e1", color: "#d97706" },
+    { title: "Add Product", path: "/admin/products?add=1", icon: <Plus size={18} />, bg: "#fdf0e8", color: "#a54d2b" },
+    { title: "Orders", path: "/admin/orders", icon: <ShoppingBag size={18} />, bg: "#eef7f2", color: "#1d9450" },
+    { title: "Home Banners", path: "/admin/banners", icon: <Megaphone size={18} />, bg: "#f0f4ff", color: "#2563eb" },
+    { title: "Coupons", path: "/admin/coupons", icon: <TicketPercent size={18} />, bg: "#fff8e1", color: "#d97706" },
   ];
 
   const statItems = [
@@ -1404,7 +1404,7 @@ export function Admin() {
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottom: '1px solid #f0ebe4' }}>
               <h2 style={{ fontSize: '16px', margin: 0, color: '#2b170d' }}>Recent Orders</h2>
-              <Link to="/aura-control-8740/orders" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <Link to="/admin/orders" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
                 View All <ChevronRight size={14} />
               </Link>
             </div>
@@ -1445,7 +1445,7 @@ export function Admin() {
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottom: '1px solid #f0ebe4' }}>
               <h2 style={{ fontSize: '16px', margin: 0, color: '#2b170d' }}>Products List</h2>
-              <Link to="/aura-control-8740/products" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <Link to="/admin/products" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
                 Manage <ChevronRight size={14} />
               </Link>
             </div>

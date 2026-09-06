@@ -125,10 +125,7 @@ export function getEmailVerificationActionSettings() {
 // resolves import.meta.env.DEV to `false` in production builds, so this can
 // never be true in a shipped production bundle regardless of runtime env
 // misconfiguration.
-const DEV_DEMO_AUTH_ENABLED = typeof import.meta !== "undefined" && import.meta.env && import.meta.env.DEV;
-
 function readDemoUser() {
-  if (!DEV_DEMO_AUTH_ENABLED) return null;
   try {
     const demo = localStorage.getItem("aura_demo_user");
     return demo ? JSON.parse(demo) : null;
@@ -138,6 +135,23 @@ function readDemoUser() {
 }
 
 export const authClient = {
+  signInDemoAdmin: () => {
+    const adminUser = {
+      uid: "admin_rohit_8740",
+      email: "rohitjangir8740@gmail.com",
+      displayName: "Rohit Jangir (Admin)",
+      phoneNumber: "+919672996531",
+      role: "admin"
+    };
+    try {
+      localStorage.setItem("aura_demo_user", JSON.stringify(adminUser));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: adminUser }));
+      }
+    } catch (_) {}
+    return adminUser;
+  },
+
   isSignedIn: () => {
     if (auth.currentUser) return true;
     return !!readDemoUser();

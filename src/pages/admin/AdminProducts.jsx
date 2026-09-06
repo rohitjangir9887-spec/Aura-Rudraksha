@@ -729,7 +729,7 @@ export function AdminProducts() {
             <div className="admin-form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ margin: 0 }}>Category *</label>
-                <Link to="/aura-control-8740/categories" target="_blank" style={{ fontSize: '11.5px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600' }}>
+                <Link to="/admin/categories" target="_blank" style={{ fontSize: '11.5px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600' }}>
                   ⚙️ Manage Categories
                 </Link>
               </div>
@@ -1687,7 +1687,7 @@ export function AdminProducts() {
 
   return (
     <AdminLayout>
-      <Link to="/aura-control-8740" className="admin-back-link">
+      <Link to="/admin" className="admin-back-link">
         <ArrowLeft size={16} /> Back to Dashboard
       </Link>
       <div className="admin-page-header">

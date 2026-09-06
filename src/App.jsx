@@ -167,9 +167,10 @@ export function App() {
             <Route path="zodiac" element={<AdminZodiac />} />
           </Route>
 
-          {/* Legacy /admin Redirects: Instantly redirect to secure login, never mounting Admin UI */}
-          <Route path="/admin" element={<Navigate to={ADMIN_LOGIN_PATH} replace />} />
-          <Route path="/admin/*" element={<Navigate to={ADMIN_LOGIN_PATH} replace />} />
+          {/* Legacy /aura-control-8740 Redirects: Alias to /admin */}
+          <Route path="/aura-control-8740" element={<Navigate to="/admin" replace />} />
+          <Route path="/aura-control-8740/login" element={<Navigate to="/admin/login" replace />} />
+          <Route path="/aura-control-8740/*" element={<Navigate to="/admin" replace />} />
 
           {/* Catch-all 404 Route */}
           <Route path="*" element={<NotFound />} />

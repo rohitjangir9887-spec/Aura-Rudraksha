@@ -2,8 +2,8 @@
  * Centralized Route Constants & Helper Utilities for Aura Rudraksha
  */
 
-export const ADMIN_BASE_PATH = "/aura-control-8740";
-export const ADMIN_LOGIN_PATH = "/aura-control-8740/login";
+export const ADMIN_BASE_PATH = "/admin";
+export const ADMIN_LOGIN_PATH = "/admin/login";
 
 export const getSafeReturnPath = (fromPath, defaultFallback = ADMIN_BASE_PATH) => {
   if (!fromPath || typeof fromPath !== "string") {

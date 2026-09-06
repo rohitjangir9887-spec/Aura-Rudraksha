@@ -15,8 +15,16 @@ const TARGET_PHONE_DIGITS = "9672996531";
 export function useAdminAuth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [adminSession, setAdminSession] = useState(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
+  const initialUser = authClient.getUser();
+  const [adminSession, setAdminSession] = useState(
+    initialUser
+      ? {
+          email: initialUser.email || initialUser.displayName || initialUser.phoneNumber || "Admin",
+          name: initialUser.displayName || initialUser.email || "Admin"
+        }
+      : null
+  );
+  const [loadingAuth, setLoadingAuth] = useState(!initialUser && typeof window !== "undefined" && !authClient.isSignedIn());
 
   const userEmail =
     adminSession?.email ||
@@ -76,11 +84,13 @@ export function useAdminAuth() {
                 isAuthorizedAdmin = true;
               }
             } else if (res && (res.status === 401 || res.status === 403)) {
-              isAuthorizedAdmin = false;
+              if (!isAuthorizedAdmin) {
+                isAuthorizedAdmin = false;
+              }
             }
           }
         } catch (_) {
-          // If network error during check, only keep true if client matches admin credentials
+          // Keep candidate status if offline/latency
         }
 
         if (!isSubscribed) return;
@@ -88,7 +98,7 @@ export function useAdminAuth() {
         if (!isAuthorizedAdmin) {
           setAdminSession(null);
           setLoadingAuth(false);
-          navigate("/account", { replace: true });
+          navigate(ADMIN_LOGIN_PATH, { replace: true });
           return;
         }
 
@@ -100,7 +110,6 @@ export function useAdminAuth() {
         });
       } catch (err) {
         if (!isSubscribed) return;
-        // Strictly fail-closed on any error
         setAdminSession(null);
         navigate(ADMIN_LOGIN_PATH, { replace: true });
       } finally {

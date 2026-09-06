@@ -1287,7 +1287,7 @@ export function AdminOrders() {
 
   return (
     <AdminLayout>
-      <Link to="/aura-control-8740" className="admin-back-link">
+      <Link to="/admin" className="admin-back-link">
         <ArrowLeft size={16} /> Back to Dashboard
       </Link>
       <div className="admin-page-header">

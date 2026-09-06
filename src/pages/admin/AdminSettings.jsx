@@ -287,7 +287,7 @@ export function AdminSettings() {
                 Live overview of all customer tickets and their current status.
               </p>
             </div>
-            <Link to="/aura-control-8740/support" className="admin-btn secondary" style={{ textDecoration: "none", fontSize: "12px", padding: "6px 12px" }}>
+            <Link to="/admin/support" className="admin-btn secondary" style={{ textDecoration: "none", fontSize: "12px", padding: "6px 12px" }}>
               Go to Full Support Portal <ArrowRight size={13} />
             </Link>
           </div>
@@ -475,7 +475,7 @@ export function AdminSettings() {
               Approve/reject submissions, reply officially as Aura team, toggle photo galleries, and customize review card styling.
             </p>
           </div>
-          <Link to="/aura-control-8740/reviews" className="admin-btn" style={{ textDecoration: "none" }}>
+          <Link to="/admin/reviews" className="admin-btn" style={{ textDecoration: "none" }}>
             <span>Manage Reviews</span> <ArrowRight size={14} />
           </Link>
         </div>
