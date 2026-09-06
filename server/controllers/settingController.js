@@ -435,18 +435,26 @@ export async function seedDatabase(req, res, next) {
     let seeded = { products: 0, reviews: 0, coupons: 0, banners: 0, orders: 0, customers: 0 };
 
     // Insert-only seeding: check existence before creating so existing records are NEVER modified.
-    const seedInsertOnly = async (Model, items) => {
+    const seedInsertOnly = async (Model, items, extraFields = {}) => {
       const before = await Model.countDocuments();
-      for (const item of items) {
-        if (!item || !item.id) continue;
-        const exists = await Model.exists({ id: String(item.id) });
-        if (!exists) {
+      const bulkOps = items
+        .filter((item) => item && item.id)
+        .map((item) => {
           const { _id, createdAt, updatedAt, ...cleanItem } = item;
-          try {
-            await Model.create(cleanItem);
-          } catch (err) {
-            console.warn(`Seed create notice for ${item.id}:`, err?.message);
-          }
+          return {
+            updateOne: {
+              filter: { id: String(item.id) },
+              update: { $setOnInsert: { ...cleanItem, ...extraFields } },
+              upsert: true
+            }
+          };
+        });
+
+      if (bulkOps.length > 0) {
+        try {
+          await Model.bulkWrite(bulkOps, { ordered: false });
+        } catch (err) {
+          console.warn(`Bulk seed notice for ${Model.modelName}:`, err?.message);
         }
       }
       const after = await Model.countDocuments();
@@ -460,28 +468,13 @@ export async function seedDatabase(req, res, next) {
     seeded.banners = await seedInsertOnly(Banner, defaultBanners);
 
     // Reviews seeding
-    const reviewsBefore = await Review.countDocuments();
-    for (const r of defaultReviews) {
-      if (!r || !r.id) continue;
-      const exists = await Review.exists({ id: String(r.id) });
-      if (!exists) {
-        const { _id, createdAt, updatedAt, ...cleanReview } = r;
-        try {
-          await Review.create({
-            ...cleanReview,
-            source: "customer",
-            status: "Approved",
-            isSample: true,
-            isAiGenerated: true,
-            sampleLabel: "Sample Review"
-          });
-        } catch (err) {
-          console.warn(`Seed review notice for ${r.id}:`, err?.message);
-        }
-      }
-    }
-    const reviewsAfter = await Review.countDocuments();
-    seeded.reviews = Math.max(0, reviewsAfter - reviewsBefore);
+    seeded.reviews = await seedInsertOnly(Review, defaultReviews, {
+      source: "customer",
+      status: "Approved",
+      isSample: true,
+      isAiGenerated: true,
+      sampleLabel: "Sample Review"
+    });
 
     // Active Offer
     await ActiveOffer.findOneAndUpdate(
