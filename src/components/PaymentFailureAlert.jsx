@@ -114,10 +114,7 @@ export function PaymentFailureAlert() {
         });
         document.body.appendChild(form);
 
-        if (res.data.params.txnid && res.data.params.udf1) {
-          sessionStorage.setItem("aura_pending_txnid", res.data.params.txnid);
-          sessionStorage.setItem("aura_pending_orderId", res.data.params.udf1);
-        }
+        window.history.replaceState(null, "", `/payment-result?status=processing&orderId=${res.data.params.udf1}&txnid=${res.data.params.txnid}`);
 
         form.submit();
       } else {

@@ -379,14 +379,14 @@ export async function handlePayuCallback(req, res) {
 
   try {
     if (!isDbConnected()) {
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=db_offline&reason=${encodeURIComponent("Payment service temporarily unavailable. Please try again.")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=db_offline&reason=${encodeURIComponent("Payment service temporarily unavailable. Please try again.")}`);
     }
 
     const params = extractPayuParams(req);
     const { key: expectedKey, salt, isConfigured } = getPayuConfig();
 
     if (!isConfigured) {
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=unconfigured&reason=${encodeURIComponent("Payment gateway service is unavailable.")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=unconfigured&reason=${encodeURIComponent("Payment gateway service is unavailable.")}`);
     }
 
     const orderId = String(params.udf1 || params.orderId || "").trim();
@@ -395,52 +395,52 @@ export async function handlePayuCallback(req, res) {
 
     if (!orderId || !txnid || !params.hash) {
       console.error("PayU Callback Error: Missing orderId, txnid, or hash");
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId || "unknown"}&reason=${encodeURIComponent("Invalid payment response payload")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId || "unknown"}&reason=${encodeURIComponent("Invalid payment response payload")}`);
     }
 
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       console.error(`PayU Callback Error: Order '${orderId}' not found in MongoDB`);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Order record not found")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Order record not found")}`);
     }
 
     // 1. Verify Merchant Key
     if (params.key !== expectedKey) {
       console.error(`⚠️ PayU Callback Merchant Key Mismatch: received '${params.key}', expected '${expectedKey}'`);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Merchant key mismatch")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Merchant key mismatch")}`);
     }
 
     // 2. Verify Hash Integrity with Salt
     const hashCheck = verifyPayuResponseHash(params, salt);
     if (!hashCheck.valid) {
       console.warn(`⚠️ PayU Callback Hash Mismatch for Order ${orderId}:`, hashCheck.reason);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Payment hash verification failed")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Payment hash verification failed")}`);
     }
 
     // 3. Verify Transaction ID belongs to this order
     const belongsToOrder = order.txnid === txnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === txnid));
     if (!belongsToOrder) {
       console.error(`⚠️ Transaction ID ${txnid} does not belong to Order ${orderId}`);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Transaction ID mismatch")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Transaction ID mismatch")}`);
     }
 
     // 4. Verify User Ownership if udf2 is provided
     if (params.udf2 && order.authUserId && order.authUserId !== "guest" && String(params.udf2).trim() !== String(order.authUserId).trim()) {
       console.error(`⚠️ User mismatch on PayU Callback for Order ${orderId}`);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("User authorization mismatch")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("User authorization mismatch")}`);
     }
 
     // 5. Verify Amount Consistency
     const callbackAmount = parseFloat(params.amount);
     if (params.amount === undefined || params.amount === null || params.amount === "" || isNaN(callbackAmount) || !isFinite(callbackAmount) || callbackAmount <= 0) {
       console.error(`⚠️ PayU Callback Invalid Amount: '${params.amount}'`);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Invalid transaction amount")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Invalid transaction amount")}`);
     }
 
     const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
     if (Math.abs(callbackAmount - expectedAmount) > 0.01) {
       console.error(`⚠️ PayU Callback Amount Mismatch: expected ${expectedAmount}, received ${callbackAmount}`);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Transaction amount mismatch")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Transaction amount mismatch")}`);
     }
 
     // 6. If status is NOT success, record failure and redirect cleanly
@@ -464,7 +464,7 @@ export async function handlePayuCallback(req, res) {
       order.mihpayid = params.mihpayid || order.mihpayid || "";
       order.paymentAttempts = attempts;
       await order.save();
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(errorMsg)}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(errorMsg)}`);
     }
 
     // 7. Perform Server-to-Server Verification with PayU command API
@@ -474,7 +474,7 @@ export async function handlePayuCallback(req, res) {
 
     if (!isVerified || (verifyRes.amount > 0 && Math.abs(verifyRes.amount - expectedAmount) > 0.01)) {
       console.error(`⚠️ PayU Server-to-Server Verification Failed for txnid ${txnid}:`, verifyRes.message);
-      return res.redirect(303, `${clientBaseUrl}/checkout?failed=${orderId}&reason=${encodeURIComponent("Server-side payment verification failed")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Server-side payment verification failed")}`);
     }
 
     // 8. ATOMIC STATE TRANSITION: Only transition if paymentStatus is NOT already "Paid"
@@ -612,10 +612,10 @@ export async function handlePayuCallback(req, res) {
       }
     }
 
-    return res.redirect(303, `${clientBaseUrl}/checkout?success=${orderId}&txnid=${txnid}`);
+    return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid}`);
   } catch (err) {
     console.error("Critical error in handlePayuCallback:", err?.message || err);
-    return res.redirect(303, `${clientBaseUrl}/checkout?failed=error&reason=${encodeURIComponent("An error occurred while processing your payment.")}`);
+    return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=error&reason=${encodeURIComponent("An error occurred while processing your payment.")}`);
   }
 }
 
@@ -679,7 +679,7 @@ export async function handlePayuCancel(req, res) {
         await order.save();
         
         // Also update PaymentTransaction if it exists
-        const pTxn = await PaymentTransaction.findOne({ orderId, merchantTransactionId: txnid });
+        const pTxn = await PaymentTransaction.findOne({ orderId, transactionId: txnid });
         if (pTxn) {
            pTxn.status = "Failed";
            pTxn.gatewayPaymentId = mihpayid || pTxn.gatewayPaymentId;
@@ -692,10 +692,10 @@ export async function handlePayuCancel(req, res) {
       }
     }
     
-    return res.redirect(303, `${clientBaseUrl}/checkout?cancelled=${orderId}&txnid=${txnid}`);
+    return res.redirect(303, `${clientBaseUrl}/payment-result?status=cancelled&orderId=${orderId}&txnid=${txnid}`);
   } catch (err) {
     console.error("Error in handlePayuCancel:", err);
-    return res.redirect(303, `${clientBaseUrl}/checkout?cancelled=unknown`);
+    return res.redirect(303, `${clientBaseUrl}/payment-result?status=cancelled&orderId=unknown`);
   }
 }
 
