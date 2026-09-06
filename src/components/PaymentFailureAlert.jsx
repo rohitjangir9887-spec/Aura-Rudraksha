@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AlertTriangle, AlertCircle, Clock, X, RefreshCw, ExternalLink, MessageCircle, Package, ShieldAlert } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { authClient } from "../lib/authClient";
 import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
@@ -139,8 +140,9 @@ export function PaymentFailureAlert() {
   const statusColor = isFailed ? "#991b1b" : isCancelled ? "#854d0e" : "#0369a1";
   const titleText = isFailed ? "Payment Failed" : isCancelled ? "Payment Cancelled" : "Payment Processing";
 
-  return (
-    <div className="w-full px-3 my-3 box-border flex justify-center md:hidden">
+    // Using createPortal to ensure this is rendered at the top level, never below footer
+  const modalContent = (
+    <div className="w-full px-3 my-3 box-border flex justify-center md:hidden" style={{ position: 'fixed', bottom: '80px', left: 0, right: 0, zIndex: 99999 }}>
       <div 
         style={{
           background: bannerBg,
@@ -345,4 +347,6 @@ export function PaymentFailureAlert() {
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
 }
