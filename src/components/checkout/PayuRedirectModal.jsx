@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { 
   ShieldCheck, Lock, Zap, AlertCircle, 
   RefreshCw, ArrowLeft, CheckCircle2,
@@ -14,6 +14,7 @@ export function PayuRedirectModal({
   errorMsg = null,
   timeoutOccurred = false
 }) {
+  const shouldReduceMotion = useReducedMotion();
   const [mounted, setMounted] = useState(false);
   const modalRef = React.useRef(null);
 
@@ -84,8 +85,8 @@ export function PayuRedirectModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 bg-[#2b170d]/50 backdrop-blur-md"
+            transition={{ duration: shouldReduceMotion ? 0 : 0.25 }}
+            style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(43, 23, 13, 0.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
           />
 
           {/* Centered Premium White Card */}
@@ -98,21 +99,21 @@ export function PayuRedirectModal({
             initial={{ opacity: 0, scale: 0.94, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 12 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md bg-[#fffdf9] border border-[#e8dac9] rounded-[24px] shadow-2xl p-6 sm:p-8 text-center overflow-hidden z-10 my-auto focus:outline-none"
+            transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
+            style={{ position: "relative", width: "100%", maxWidth: "400px", backgroundColor: "#fffdf9", border: "1px solid #e8dac9", borderRadius: "24px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "32px 24px", textAlign: "center", overflow: "hidden", zIndex: 10, margin: "auto", outline: "none", boxSizing: "border-box" }}
           >
           {/* Subtle Warm Antique-Gold Ambient Background Glow */}
           <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 bg-[#f3e5d8]/60 rounded-full blur-3xl pointer-events-none" />
 
           {/* Top Security & Payment Illustration Section */}
-          <div className="relative mb-6 pt-2 flex flex-col items-center justify-center">
+          <div style={{ position: "relative", marginBottom: "24px", paddingTop: "8px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
             {/* Surrounding Payment Badges Orbit Ring */}
             <div className="relative w-36 h-36 flex items-center justify-center">
               {/* Pulsing Back Ring */}
               <motion.div
                 animate={{ scale: [0.95, 1.05, 0.95], opacity: [0.4, 0.7, 0.4] }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                className="absolute inset-0 rounded-full border border-[#d9b896]/40 bg-[#faf2e8]/50"
+                style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px solid rgba(217, 184, 150, 0.4)", backgroundColor: "rgba(250, 242, 232, 0.5)" }}
               />
 
               {/* Gentle Rotating Accent Arc */}
@@ -120,7 +121,7 @@ export function PayuRedirectModal({
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                  className="absolute inset-1 rounded-full border-2 border-transparent border-t-[#b85d25] border-r-[#d97706]/30"
+                  style={{ position: "absolute", inset: "4px", borderRadius: "50%", border: "2px solid transparent", borderTopColor: "#b85d25", borderRightColor: "rgba(217, 119, 6, 0.3)" }}
                 />
               )}
 
@@ -131,14 +132,14 @@ export function PayuRedirectModal({
                 className="relative z-10 w-20 h-20 rounded-2xl bg-gradient-to-b from-white to-[#faf5ef] border border-[#e8dac9] shadow-md flex items-center justify-center text-[#b85d25]"
               >
                 {errorMsg ? (
-                  <AlertCircle className="w-10 h-10 text-amber-600" />
+                  <AlertCircle style={{ width: "36px", height: "36px", color: "#d97706" }} />
                 ) : (
                   <div className="relative flex items-center justify-center">
-                    <ShieldCheck className="w-10 h-10 text-[#b85d25]" />
+                    <ShieldCheck style={{ width: "36px", height: "36px", color: "#b85d25" }} />
                     <motion.div
                       animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
                       transition={{ repeat: Infinity, duration: 2 }}
-                      className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white"
+                      style={{ position: "absolute", top: "-4px", right: "-4px", width: "12px", height: "12px", backgroundColor: "#10b981", borderRadius: "50%", border: "2px solid #ffffff" }}
                     />
                   </div>
                 )}

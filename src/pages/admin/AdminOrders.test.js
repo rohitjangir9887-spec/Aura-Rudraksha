@@ -1,5 +1,4 @@
-import { test } from 'vitest';
-import assert from 'node:assert';
+import { test, assert } from "vitest";
 
 test('valid and invalid transitions', () => {
     const ALLOWED_ORDER_TRANSITIONS = {

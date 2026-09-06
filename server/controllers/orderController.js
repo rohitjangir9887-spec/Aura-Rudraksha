@@ -71,12 +71,12 @@ export async function getMyOrders(req, res, next) {
     await reconcileAllOrders();
     if (!isDbConnected()) {
       const myOrders = (inMemoryStore.orders || [])
-        .filter(o => o.authUserId === authUserId || o.customerEmail === authUserId || o.id === "AURA-260906-000003")
+        .filter(o => o.authUserId === authUserId || (o.customerEmail && o.customerEmail === authUserId))
         .map(o => normalizeOrderState(o));
       return res.json({ success: true, data: myOrders, count: myOrders.length });
     }
     const rawOrders = await Order.find({
-      $or: [{ authUserId }, { customerEmail: authUserId }, { id: "AURA-260906-000003" }]
+      $or: [{ authUserId }, { customerEmail: authUserId }]
     }).sort({ createdAt: -1 }).lean();
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
     return res.json({ success: true, data: orders, count: orders.length });
@@ -98,7 +98,7 @@ export async function getOrderById(req, res, next) {
       order = normalizeOrderState(order);
       const { isInitialAdmin } = isAdminUser(req.user);
       const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
-      if (!isAdmin && order.authUserId !== authUserId && order.id !== "AURA-260906-000003") {
+      if (!isAdmin && order.authUserId !== authUserId && order.customerEmail !== authUserId) {
         return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
       }
       return res.json({ success: true, data: order });
@@ -118,7 +118,7 @@ export async function getOrderById(req, res, next) {
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
     
-    if (!isAdmin && order.authUserId !== authUserId && order.id !== "AURA-260906-000003") {
+    if (!isAdmin && order.authUserId !== authUserId && order.customerEmail !== authUserId) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
     }
 
@@ -679,32 +679,174 @@ export async function trackOrderPublic(req, res, next) {
   }
 }
 
+import { verifyPayuPaymentServerSide } from "../services/payuService.js";
+
 export async function getPaymentFailureAlert(req, res, next) {
   try {
-    const authUserId = req.user.authUserId;
-    if (!isDbConnected()) {
+    const authUserId = req.user?.authUserId;
+    const userEmail = req.user?.email;
+
+    if (!authUserId && !userEmail) {
       return res.json({ success: true, hasNotification: false });
     }
 
-    // Find the latest order by createdAt
-    const latestOrder = await Order.findOne({ authUserId }).sort({ createdAt: -1 }).lean();
+    if (!isDbConnected()) {
+      const myOrders = (inMemoryStore.orders || [])
+        .filter(o => (authUserId && o.authUserId === authUserId) || (userEmail && o.customerEmail === userEmail))
+        .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+
+      if (!myOrders || myOrders.length === 0) {
+        return res.json({ success: true, hasNotification: false });
+      }
+
+      const latestOrder = myOrders[0];
+      if (latestOrder.paymentStatus === "Paid" || latestOrder.paymentStatus === "Refunded" || latestOrder.status === "Confirmed") {
+        return res.json({ success: true, hasNotification: false });
+      }
+
+      const pStatus = latestOrder.paymentStatus || "Pending";
+      let notificationType = "Failed";
+      if (pStatus === "Cancelled" || latestOrder.status === "Cancelled") {
+        notificationType = "Cancelled";
+      } else if (pStatus === "Pending" || pStatus === "Initiated") {
+        notificationType = "Pending";
+      }
+
+      const failedAtStr = latestOrder.updatedAt || latestOrder.createdAt || latestOrder.date || new Date().toISOString();
+      const failedAt = new Date(failedAtStr);
+      const expiresAt = new Date(failedAt.getTime() + 2 * 60 * 60 * 1000);
+
+      if (new Date() > expiresAt) {
+        return res.json({ success: true, hasNotification: false });
+      }
+
+      const items = latestOrder.items || latestOrder.snapshotItems || [];
+      const firstItem = items[0] || {};
+
+      return res.json({
+        success: true,
+        hasNotification: true,
+        data: {
+          orderId: latestOrder._id || latestOrder.id,
+          orderNumber: latestOrder.orderNumber || latestOrder.id,
+          amount: Number(latestOrder.finalAmount || latestOrder.total || latestOrder.amount || 0),
+          productName: firstItem.name || "Aura Sacred Items",
+          productImage: firstItem.image || firstItem.imageUrl || firstItem.primaryImage || "",
+          itemsCount: items.length || 1,
+          transactionId: latestOrder.txnid || "",
+          payuPaymentId: latestOrder.mihpayid || "",
+          payuStatus: latestOrder.payuStatus || pStatus,
+          paymentStatus: notificationType,
+          failedAt: failedAt.toISOString(),
+          expiresAt: expiresAt.toISOString()
+        }
+      });
+    }
+
+    // Find latest order for authenticated customer
+    const query = {
+      $or: [
+        ...(authUserId ? [{ authUserId }] : []),
+        ...(userEmail ? [{ customerEmail: userEmail.trim().toLowerCase() }] : [])
+      ]
+    };
+
+    let latestOrder = await Order.findOne(query).sort({ createdAt: -1 }).lean();
     if (!latestOrder) {
       return res.json({ success: true, hasNotification: false });
     }
 
-    if (latestOrder.paymentStatus !== "Failed" && latestOrder.paymentStatus !== "Cancelled") {
-      // If the latest order is Paid or Pending, no failure alert
+    // On-demand reconciliation for pending orders with a transaction ID
+    if (latestOrder.txnid && (latestOrder.paymentStatus === "Pending" || latestOrder.paymentStatus === "Initiated")) {
+      try {
+        const verifyRes = await verifyPayuPaymentServerSide(latestOrder.txnid);
+        if (verifyRes.success && verifyRes.isPaid) {
+          await Order.updateOne(
+            { _id: latestOrder._id },
+            {
+              $set: {
+                paymentStatus: "Paid",
+                status: "Confirmed",
+                orderStatus: "Confirmed",
+                payuStatus: "Success",
+                unmappedstatus: verifyRes.unmappedStatus || "captured",
+                mihpayid: verifyRes.mihpayid || latestOrder.mihpayid,
+                bankRefNum: verifyRes.bankRefNum || latestOrder.bankRefNum,
+                paymentMode: verifyRes.mode || latestOrder.paymentMode
+              }
+            }
+          );
+          latestOrder.paymentStatus = "Paid";
+          latestOrder.status = "Confirmed";
+          latestOrder.mihpayid = verifyRes.mihpayid || latestOrder.mihpayid;
+          latestOrder.payuStatus = "Success";
+        } else if (verifyRes.success) {
+          const rawStatus = (verifyRes.status || "").toLowerCase();
+          const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
+          let newPayuStatus = verifyRes.status || verifyRes.unmappedStatus || "Failed";
+          if (rawStatus === "bounced" || unmapped === "bounced") newPayuStatus = "Bounced";
+          else if (rawStatus === "usercancelled" || unmapped === "usercancelled") newPayuStatus = "userCancelled";
+          else if (rawStatus === "dropped" || unmapped === "dropped") newPayuStatus = "Dropped";
+
+          let newPaymentStatus = "Failed";
+          if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
+            newPaymentStatus = "Cancelled";
+          } else if (rawStatus === "pending" || rawStatus === "initiated") {
+            newPaymentStatus = "Pending";
+          }
+
+          if (newPaymentStatus !== latestOrder.paymentStatus || newPayuStatus !== latestOrder.payuStatus) {
+            await Order.updateOne(
+              { _id: latestOrder._id },
+              {
+                $set: {
+                  paymentStatus: newPaymentStatus,
+                  payuStatus: newPayuStatus,
+                  unmappedstatus: verifyRes.unmappedStatus || "",
+                  mihpayid: verifyRes.mihpayid || latestOrder.mihpayid || "",
+                  bankRefNum: verifyRes.bankRefNum || latestOrder.bankRefNum || "",
+                  paymentMode: verifyRes.mode || latestOrder.paymentMode || ""
+                }
+              }
+            );
+            latestOrder.paymentStatus = newPaymentStatus;
+            latestOrder.payuStatus = newPayuStatus;
+            latestOrder.mihpayid = verifyRes.mihpayid || latestOrder.mihpayid || "";
+          }
+        }
+      } catch (e) {
+        // Continue with current DB state if external API call fails
+      }
+    }
+
+    // If order is Paid or Refunded or Confirmed, do NOT show payment alert
+    if (latestOrder.paymentStatus === "Paid" || latestOrder.paymentStatus === "Refunded" || latestOrder.status === "Confirmed") {
       return res.json({ success: true, hasNotification: false });
     }
 
-    // Get the timestamp of the latest failed attempt, or order updatedAt
-    let failedAtStr = latestOrder.updatedAt;
-    if (latestOrder.paymentAttempts && latestOrder.paymentAttempts.length > 0) {
+    // Determine notification type
+    const pStatus = latestOrder.paymentStatus || "Pending";
+    const oStatus = latestOrder.status || latestOrder.orderStatus;
+    const payuSt = (latestOrder.payuStatus || "").toLowerCase();
+
+    let notificationType = "Failed";
+    if (pStatus === "Cancelled" || oStatus === "Cancelled" || payuSt === "usercancelled") {
+      notificationType = "Cancelled";
+    } else if (pStatus === "Pending" || pStatus === "Initiated" || payuSt === "initiated" || payuSt === "pending") {
+      notificationType = "Pending";
+    } else if (pStatus === "Failed" || payuSt === "bounced" || payuSt === "failed" || payuSt === "dropped") {
+      notificationType = "Failed";
+    }
+
+    // Check 2-hour expiration relative to latest attempt timestamp or order update time
+    let failedAtStr = latestOrder.updatedAt || latestOrder.createdAt || latestOrder.date || new Date().toISOString();
+    if (Array.isArray(latestOrder.paymentAttempts) && latestOrder.paymentAttempts.length > 0) {
       const latestAttempt = latestOrder.paymentAttempts[latestOrder.paymentAttempts.length - 1];
-      if (latestAttempt && latestAttempt.updatedAt) {
-        failedAtStr = latestAttempt.updatedAt;
+      if (latestAttempt && (latestAttempt.updatedAt || latestAttempt.createdAt)) {
+        failedAtStr = latestAttempt.updatedAt || latestAttempt.createdAt;
       }
     }
+
     const failedAt = new Date(failedAtStr);
     const expiresAt = new Date(failedAt.getTime() + 2 * 60 * 60 * 1000); // 2 hours
 
@@ -712,7 +854,9 @@ export async function getPaymentFailureAlert(req, res, next) {
       return res.json({ success: true, hasNotification: false });
     }
 
-    const firstItem = (latestOrder.items || latestOrder.snapshotItems || [])[0];
+    const items = latestOrder.items || latestOrder.snapshotItems || [];
+    const firstItem = items[0] || {};
+    const productImage = firstItem.image || firstItem.imageUrl || firstItem.primaryImage || "";
 
     return res.json({
       success: true,
@@ -720,13 +864,16 @@ export async function getPaymentFailureAlert(req, res, next) {
       data: {
         orderId: latestOrder._id,
         orderNumber: latestOrder.orderNumber || latestOrder.id,
-        amount: latestOrder.finalAmount || latestOrder.total || latestOrder.amount || 0,
-        productName: firstItem ? firstItem.name : "Products",
-        transactionId: latestOrder.txnid,
+        amount: Number(latestOrder.finalAmount || latestOrder.total || latestOrder.amount || 0),
+        productName: firstItem.name || "Aura Sacred Product",
+        productImage,
+        itemsCount: items.length || 1,
+        transactionId: latestOrder.txnid || "",
         payuPaymentId: latestOrder.mihpayid || "",
-        paymentStatus: latestOrder.paymentStatus,
+        payuStatus: latestOrder.payuStatus || latestOrder.unmappedstatus || notificationType,
+        paymentStatus: notificationType, // "Failed", "Cancelled", "Pending"
         failedAt: failedAt.toISOString(),
-        expiresAt: expiresAt.toISOString(),
+        expiresAt: expiresAt.toISOString()
       }
     });
 

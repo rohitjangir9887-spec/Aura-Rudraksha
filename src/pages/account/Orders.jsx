@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Shell } from "../../components/Shell";
 import { db, onStoreUpdate } from "../../lib/db";
 import { authClient } from "../../lib/authClient";
@@ -400,7 +401,7 @@ export function Orders() {
                 {orders.length > 2 && (
                   <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                     {["all", "Processing", "Shipped", "Delivered", "Cancelled"].map(st => (
-                      <button
+                      <motion.button
                         key={st}
                         onClick={() => setStatusFilter(st)}
                         whileHover={{ scale: 1.05 }}
@@ -419,7 +420,7 @@ export function Orders() {
                         }}
                       >
                         {st === "all" ? "All Orders" : st}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 )}
@@ -439,12 +440,9 @@ export function Orders() {
                   const isRetrying = retryingOrderId === (o.orderNumber || o.id);
 
                   return (
-                    <div 
+                    <motion.div
                       onClick={() => navigate(`/account/orders/${o.orderNumber || o.id}`)} 
                       key={o.orderNumber || o.id} 
-                       
-                      
-                      
                       whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(184, 93, 37, 0.12)', borderColor: '#a54d2b' }}
                       whileTap={{ scale: 0.992 }}
                       style={{ 
@@ -745,7 +743,7 @@ export function Orders() {
                           
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>

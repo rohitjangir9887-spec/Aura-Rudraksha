@@ -6,82 +6,8 @@ import { ORDER_STATES, PAYMENT_STATES, REFUND_STATES } from "./stateMachineServi
 
 /**
  * Single Authoritative Order & Payment Reconciliation Engine
- * Guarantees MongoDB & inMemoryStore synchronization, state consistency,
- * and handles order #AURA-260906-000003 reconciliation.
+ * Guarantees MongoDB & inMemoryStore synchronization and state consistency.
  */
-
-export const RECONCILED_ORDER_3 = {
-  id: "AURA-260906-000003",
-  orderId: "AURA-260906-000003",
-  orderNumber: "AURA-260906-000003",
-  authUserId: "rohitjangir9887@gmail.com",
-  customerId: "rohitjangir9887@gmail.com",
-  customerName: "Rohit Jangir",
-  customerEmail: "rohitjangir9887@gmail.com",
-  customerPhone: "+91 9887000000",
-  phone: "+91 9887000000",
-  firstName: "Rohit",
-  lastName: "Jangir",
-  items: [
-    {
-      id: "11",
-      name: "11 Mukhi Rudraksha (Nepali)",
-      price: 6490,
-      qty: 1,
-      quantity: 1,
-      img: "/images/product-11mukhi.jpg"
-    }
-  ],
-  snapshotItems: [
-    {
-      id: "11",
-      name: "11 Mukhi Rudraksha (Nepali)",
-      price: 6490,
-      qty: 1,
-      quantity: 1,
-      img: "/images/product-11mukhi.jpg"
-    }
-  ],
-  subtotal: 6490,
-  discount: 0,
-  shipping: 0,
-  amount: 6490,
-  total: 6490,
-  finalAmount: 6490,
-  amountRefunded: 6490,
-  paymentMethod: "PayU Hosted Checkout",
-  paymentStatus: PAYMENT_STATES.PAID,
-  refundStatus: REFUND_STATES.REFUNDED,
-  orderStatus: ORDER_STATES.CANCELLED,
-  status: ORDER_STATES.CANCELLED,
-  txnid: "TXN_AURA260906000003",
-  mihpayid: "403993715528",
-  bankRefNum: "BANK_REF_AURA260906000003",
-  paymentMode: "UPI / NetBanking",
-  cancelledBy: "Seller",
-  cancelReason: "Order cancelled by seller & full refund issued via PayU",
-  cancelledAt: "2026-09-06T00:00:00.000Z",
-  date: "2026-09-06T00:00:00.000Z",
-  createdAt: "2026-09-06T00:00:00.000Z",
-  refundDetails: {
-    refundId: "REF_AURA260906000003",
-    refundToken: "REF_AURA260906000003",
-    amount: 6490,
-    status: "Success",
-    reason: "Order cancelled by seller & full refund issued via PayU",
-    date: "2026-09-06T00:00:00.000Z"
-  },
-  refundHistory: [
-    {
-      refundId: "REF_AURA260906000003",
-      refundToken: "REF_AURA260906000003",
-      amount: 6490,
-      status: "Success",
-      reason: "Order cancelled by seller & full refund issued via PayU",
-      date: "2026-09-06T00:00:00.000Z"
-    }
-  ]
-};
 
 /**
  * Normalizes an order object in-memory to strictly satisfy business rules
@@ -137,41 +63,12 @@ export async function reconcileAllOrders() {
   try {
     // 1. Update inMemoryStore and defaultOrders
     if (Array.isArray(inMemoryStore.orders)) {
-      const idx3 = inMemoryStore.orders.findIndex(o =>
-        String(o.id).toUpperCase().includes("260906-000003") ||
-        String(o.orderNumber).toUpperCase().includes("260906-000003") ||
-        String(o.orderId).toUpperCase().includes("260906-000003")
-      );
-      if (idx3 >= 0) {
-        inMemoryStore.orders[idx3] = RECONCILED_ORDER_3;
-      } else {
-        inMemoryStore.orders.unshift(RECONCILED_ORDER_3);
-      }
-
       // Normalize all orders in memory
       inMemoryStore.orders = inMemoryStore.orders.map(o => normalizeOrderState(o));
     }
 
-    if (Array.isArray(defaultOrders)) {
-      const idx3Def = defaultOrders.findIndex(o =>
-        String(o.id).toUpperCase().includes("260906-000003")
-      );
-      if (idx3Def >= 0) {
-        defaultOrders[idx3Def] = RECONCILED_ORDER_3;
-      } else {
-        defaultOrders.unshift(RECONCILED_ORDER_3);
-      }
-    }
-
     // 2. If DB is connected, reconcile in MongoDB
     if (isDbConnected()) {
-      // Upsert order #AURA-260906-000003
-      await Order.findOneAndUpdate(
-        { $or: [{ id: "AURA-260906-000003" }, { orderId: "AURA-260906-000003" }, { orderNumber: "AURA-260906-000003" }] },
-        { $set: RECONCILED_ORDER_3 },
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-
       // Reconcile any inconsistent cancelled orders in MongoDB
       const inconsistentCancelled = await Order.find({
         $or: [

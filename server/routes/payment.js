@@ -52,6 +52,9 @@ router.all("/initiate", requireAuth, paymentInitiateLimit, initiatePayuPayment);
 // DO NOT rate-limit PayU customer redirect callback
 router.all("/payu-callback", handlePayuCallback);
 
+// 2b. PayU Cancel Redirect Callback
+router.all("/payu-cancel", handlePayuCancel);
+
 // 3. PayU Background Server Webhook
 // DO NOT rate-limit PayU server webhook
 router.all("/payu-webhook", handlePayuWebhook);

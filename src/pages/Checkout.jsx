@@ -331,8 +331,10 @@ export function Checkout() {
   useEffect(() => {
     if (successParam) {
       verifyOrderPayment();
+    } else if (!pendingTxnid && !pendingOrderId && paymentState !== "PENDING") {
+      setConfirmedOrder(null);
     }
-  }, [successParam, verifyOrderPayment]);
+  }, [successParam, pendingTxnid, pendingOrderId, paymentState, verifyOrderPayment]);
 
   // Sync store data & customer profile
   useEffect(() => {
@@ -837,7 +839,7 @@ export function Checkout() {
   }
 
   // SUCCESS SCREEN (Authoritatively confirmed Paid by PayU server)
-  if (confirmedOrder && confirmedOrder.paymentStatus === "Paid") {
+  if (confirmedOrder && confirmedOrder.paymentStatus === "Paid" && successParam) {
     const orderData = confirmedOrder;
     const orderNum = orderData.orderNumber || orderData.id || orderData.orderId || successParam;
     const finalTxnid = orderData.txnid || txnidParam || "Verified";
