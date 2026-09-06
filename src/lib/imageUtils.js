@@ -85,9 +85,24 @@ export async function compressImage(file, maxWidth = 1200, quality = 0.8) {
 /**
  * Upload single media file based on active storage provider (ImageKit / pCloud / Puter / Fallback)
  */
+
 export async function uploadMedia(file, onProgress) {
   if (!file) return null;
   
+  const isImage = file.type.startsWith("image/");
+  const isVideo = file.type.startsWith("video/");
+
+  if (!isImage && !isVideo) {
+      throw new Error("Only image and video files are permitted.");
+  }
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const invalidExts = ['exe', 'sh', 'bat', 'cmd', 'msi', 'js', 'py', 'php'];
+  if (invalidExts.includes(ext)) {
+      throw new Error("Invalid file extension.");
+  }
+
+
   if (onProgress) onProgress(10, "Compressing image...");
   const compressed = await compressImage(file);
 
@@ -99,51 +114,92 @@ export async function uploadMedia(file, onProgress) {
     if (pRes && pRes.provider) provider = pRes.provider;
   } catch (_) {}
 
+
   // ImageKit Upload
   if (provider === "imagekit") {
     try {
-      if (onProgress) onProgress(50, "Uploading to ImageKit Storage...");
-      const base64Data = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(compressed);
-      });
+      if (onProgress) onProgress(40, "Fetching ImageKit credentials...");
 
-      let token = "";
+      let authToken = "";
       try {
         const { authClient } = await import("./authClient.js");
-        token = await authClient.getToken();
+        authToken = await authClient.getToken();
       } catch (_) {}
-      if (!token && typeof window !== "undefined") {
-        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      if (!authToken && typeof window !== "undefined") {
+        authToken = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
       }
 
-      const res = await fetch("/api/upload/imagekit/upload", {
+      const authRes = await fetch("/api/upload/imagekit/auth", {
+        headers: {
+          "Authorization": authToken ? `Bearer ${authToken}` : ""
+        }
+      });
+      const authData = await authRes.json();
+
+      if (!authData.success) {
+        throw new Error(authData.message || "Failed to fetch ImageKit auth params");
+      }
+
+      if (onProgress) onProgress(60, "Uploading directly to ImageKit Storage...");
+
+      const formData = new FormData();
+      formData.append("file", compressed);
+      formData.append("fileName", file.name || `aura_${Date.now()}.${compressed.type.split("/")[1] || "jpg"}`);
+      formData.append("publicKey", authData.publicKey);
+      formData.append("signature", authData.signature);
+      formData.append("expire", authData.expire);
+      formData.append("token", authData.token);
+      formData.append("useUniqueFileName", "true");
+      formData.append("folder", "/products"); // Can be customized later
+
+      const uploadRes = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(`ImageKit upload failed: ${errText}`);
+      }
+
+      const uploadData = await uploadRes.json();
+
+      if (onProgress) onProgress(90, "Registering media in database...");
+
+      // Register in MongoDB
+      const registerRes = await fetch("/api/upload/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : ""
+          "Authorization": authToken ? `Bearer ${authToken}` : ""
         },
         body: JSON.stringify({
-          fileData: base64Data,
-          filename: file.name || `aura_${Date.now()}.jpg`,
-          type: file.type || "image/jpeg",
-          sizeBytes: compressed.size || file.size
+          url: uploadData.url,
+          readURL: uploadData.url,
+          fileId: uploadData.fileId,
+          filename: uploadData.name,
+          provider: "imagekit",
+          sizeBytes: uploadData.size || compressed.size || file.size,
+          type: compressed.type || file.type || "image/jpeg",
+          thumbnailUrl: uploadData.thumbnailUrl || uploadData.url,
+          mimeType: compressed.type || file.type || "image/jpeg",
+          mediaType: (compressed.type || file.type || "image/jpeg").startsWith("video/") ? "video" : "image",
+          width: uploadData.width,
+          height: uploadData.height,
+          folder: "/products"
         })
       });
 
-      const data = await res.json();
-      if (data.success && (data.url || data.readURL)) {
-        if (onProgress) onProgress(100, "ImageKit upload complete");
-        return data.url || data.readURL;
-      }
+      const registerData = await registerRes.json();
+
+      if (onProgress) onProgress(100, "ImageKit upload complete");
+      return uploadData.url;
+
     } catch (ikErr) {
       console.warn("ImageKit upload error, falling back:", ikErr);
     }
   }
-
-  // pCloud Upload
+// pCloud Upload
   if (provider === "pcloud") {
     try {
       if (onProgress) onProgress(50, "Uploading to pCloud Storage...");
