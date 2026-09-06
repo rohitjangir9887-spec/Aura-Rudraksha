@@ -274,21 +274,13 @@ export function createApp() {
       ));
 
     if (isDbErr) {
-      console.warn('[AI Studio] Database offline/unavailable:', err.message);
+      console.warn('[Database Error Handler] Database offline/unavailable:', err.message);
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      if (req.method === 'GET') {
-        const path = req.path || "";
-        const isPlural = path.endsWith('s') || path.endsWith('s/');
-        return res.json({
-          success: true,
-          data: isPlural ? [] : null,
-          message: 'Database offline — returning graceful fallback'
-        });
-      }
       return res.status(503).json({
         success: false,
         error: 'Database unavailable',
-        message: 'Database is temporarily unavailable. Please try again shortly.'
+        message: 'Database is temporarily unavailable. Please try again shortly.',
+        databaseUnavailable: true
       });
     }
     next(err);

@@ -788,7 +788,7 @@ export function Account() {
             {isServerAdmin && (
               <div   >
                 <Link 
-                  to="/admin" 
+                  to="/aura-control-8740" 
                   id="link-admin-panel"
                   style={{
                     display: "flex",

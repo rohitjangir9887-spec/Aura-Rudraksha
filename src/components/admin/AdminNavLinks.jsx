@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Store, LogOut } from "lucide-react";
 import { getMenuItems } from "./adminConfig";
+import { ADMIN_BASE_PATH } from "../../lib/routes";
 
 export function AdminNavLinks({ counts, onLogout }) {
   const location = useLocation();
@@ -14,61 +15,74 @@ export function AdminNavLinks({ counts, onLogout }) {
         <span className="live-status-pill"><span className="pulse-dot"></span> Live</span>
       </div>
       <div className="nav-links">
-        {menuItems.map(item => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path)) ? 'active' : ''}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {item.icon} {item.label}
-            </span>
-            {item.count > 0 && (
-              <span style={{
-                background: '#d64b2e',
-                color: '#fff',
-                fontSize: '11px',
-                fontWeight: '700',
-                padding: '2px 7px',
-                borderRadius: '10px',
-                minWidth: '20px',
-                textAlign: 'center',
-                boxShadow: '0 2px 6px rgba(214,75,46,0.3)'
-              }}>
-                {item.count}
+        {menuItems.map(item => {
+          const isActive =
+            location.pathname === item.path ||
+            (item.path !== ADMIN_BASE_PATH && location.pathname.startsWith(item.path));
+
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={isActive ? "active" : ""}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                {item.icon} {item.label}
               </span>
-            )}
-            {item.count === 0 && (item.path === '/admin/support' || item.path === '/admin/orders') && (
-              <span style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: '#cbd5e1'
-              }} />
-            )}
-          </Link>
-        ))}
+              {item.count > 0 && (
+                <span
+                  style={{
+                    background: "#d64b2e",
+                    color: "#fff",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    padding: "2px 7px",
+                    borderRadius: "10px",
+                    minWidth: "20px",
+                    textAlign: "center",
+                    boxShadow: "0 2px 6px rgba(214,75,46,0.3)"
+                  }}
+                >
+                  {item.count}
+                </span>
+              )}
+              {item.count === 0 && (item.path.endsWith("/support") || item.path.endsWith("/orders")) && (
+                <span
+                  style={{
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: "#cbd5e1"
+                  }}
+                />
+              )}
+            </Link>
+          );
+        })}
         <Link to="/" className="store-link-btn" target="_blank">
-          <Store size={18}/> View Customer Store
+          <Store size={18} /> View Customer Store
         </Link>
         <button
           onClick={onLogout}
           style={{
-            background: 'none',
-            border: 'none',
-            color: '#c62828',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 16px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            marginTop: '15px'
+            background: "none",
+            border: "none",
+            color: "#c62828",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "10px 14px",
+            width: "100%",
+            fontSize: "13px",
+            fontWeight: "600",
+            cursor: "pointer",
+            marginTop: "16px",
+            borderRadius: "8px",
+            textAlign: "left"
           }}
         >
-          <LogOut size={18} /> Admin Logout
+          <LogOut size={18} /> Sign Out
         </button>
       </div>
     </>

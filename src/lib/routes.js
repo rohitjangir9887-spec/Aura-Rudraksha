@@ -2,7 +2,10 @@
  * Centralized Route Constants & Helper Utilities for Aura Rudraksha
  */
 
-export const getSafeReturnPath = (fromPath, defaultFallback = "/account") => {
+export const ADMIN_BASE_PATH = "/aura-control-8740";
+export const ADMIN_LOGIN_PATH = "/aura-control-8740/login";
+
+export const getSafeReturnPath = (fromPath, defaultFallback = ADMIN_BASE_PATH) => {
   if (!fromPath || typeof fromPath !== "string") {
     return defaultFallback;
   }
@@ -21,7 +24,12 @@ export const getSafeReturnPath = (fromPath, defaultFallback = "/account") => {
 
   // Prevent returning to login / admin login pages in a loop
   const cleanPath = trimmedPath.toLowerCase();
-  if (cleanPath.startsWith("/login") || cleanPath.startsWith("/admin/login")) {
+  if (
+    cleanPath.startsWith("/login") ||
+    cleanPath.startsWith("/admin/login") ||
+    cleanPath.startsWith(ADMIN_LOGIN_PATH.toLowerCase()) ||
+    cleanPath === "/admin"
+  ) {
     return defaultFallback;
   }
 
@@ -55,19 +63,22 @@ export const routes = {
   cancellation: () => "/cancellation",
   securePayment: () => "/secure-payment",
 
-  // Admin Routes
-  admin: () => "/admin",
-  adminLogin: () => "/admin/login",
-  adminProducts: () => "/admin/products",
-  adminOrders: () => "/admin/orders",
-  adminOffers: () => "/admin/offers",
-  adminCustomers: () => "/admin/customers",
-  adminReviews: () => "/admin/reviews",
-  adminBanners: () => "/admin/banners",
-  adminCategories: () => "/admin/categories",
-  adminCoupons: () => "/admin/coupons",
-  adminAnalytics: () => "/admin/analytics",
-  adminSupport: () => "/admin/support",
-  adminSettings: () => "/admin/settings",
-  adminZodiac: () => "/admin/zodiac"
+  // Admin Routes (New Secure URL)
+  admin: () => ADMIN_BASE_PATH,
+  adminLogin: () => ADMIN_LOGIN_PATH,
+  adminAi: () => `${ADMIN_BASE_PATH}/ai`,
+  adminProducts: () => `${ADMIN_BASE_PATH}/products`,
+  adminOrders: () => `${ADMIN_BASE_PATH}/orders`,
+  adminOffers: () => `${ADMIN_BASE_PATH}/offers`,
+  adminCustomers: () => `${ADMIN_BASE_PATH}/customers`,
+  adminReviews: () => `${ADMIN_BASE_PATH}/reviews`,
+  adminBanners: () => `${ADMIN_BASE_PATH}/banners`,
+  adminHero: () => `${ADMIN_BASE_PATH}/banners/hero`,
+  adminPromotions: () => `${ADMIN_BASE_PATH}/banners/promotions`,
+  adminCategories: () => `${ADMIN_BASE_PATH}/categories`,
+  adminCoupons: () => `${ADMIN_BASE_PATH}/coupons`,
+  adminAnalytics: () => `${ADMIN_BASE_PATH}/analytics`,
+  adminSupport: () => `${ADMIN_BASE_PATH}/support`,
+  adminSettings: () => `${ADMIN_BASE_PATH}/settings`,
+  adminZodiac: () => `${ADMIN_BASE_PATH}/zodiac`
 };

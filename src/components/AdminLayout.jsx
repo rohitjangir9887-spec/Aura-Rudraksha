@@ -7,12 +7,13 @@ import { useAdminAuth } from "../hooks/useAdminAuth";
 import { useAdminMetrics } from "../hooks/useAdminMetrics";
 import { getMenuItems, getBottomTabs } from "./admin/adminConfig";
 import { AdminNavLinks } from "./admin/AdminNavLinks";
+import { ADMIN_BASE_PATH } from "../lib/routes";
 
-export function AdminLayout({children}) {
+export function AdminLayout({ children }) {
   const location = useLocation();
   const { loadingAuth, userEmail, handleLogout } = useAdminAuth();
   const counts = useAdminMetrics();
-  
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -22,10 +23,51 @@ export function AdminLayout({children}) {
   const menuItems = getMenuItems(counts);
   const bottomTabs = getBottomTabs(counts);
 
-  const currentItem = menuItems.find(i => i.path === location.pathname || (i.path !== '/admin' && location.pathname.startsWith(i.path)));
+  const currentItem = menuItems.find(
+    (i) =>
+      i.path === location.pathname ||
+      (i.path !== ADMIN_BASE_PATH && location.pathname.startsWith(i.path))
+  );
   const pageTitle = currentItem?.label || "Admin";
 
-  if (loadingAuth) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Verifying Admin Privileges...</div>;
+  if (loadingAuth) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#fdfbf7",
+          fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              border: "3px solid #ebd8c5",
+              borderTopColor: "#a54d2b",
+              animation: "auraAdminSpin 0.8s linear infinite"
+            }}
+          />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "16px", color: "#2b170d", fontWeight: 700 }}>Aura Admin</div>
+            <div style={{ fontSize: "13px", color: "#806f62", marginTop: "4px" }}>
+              Verifying secure access...
+            </div>
+          </div>
+          <style>{`
+            @keyframes auraAdminSpin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-wrapper">
@@ -42,10 +84,31 @@ export function AdminLayout({children}) {
         </div>
 
         <div className="mobile-header-actions">
-          <Link to="/" className="mobile-store-icon" title="Return to Customer Store Home" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color: '#7a320c', background: '#fdf5ef', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e8dac9' }}>
+          <Link
+            to="/"
+            className="mobile-store-icon"
+            title="Return to Customer Store Home"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "12px",
+              fontWeight: "600",
+              color: "#7a320c",
+              background: "#fdf5ef",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #e8dac9"
+            }}
+          >
             <Store size={16} /> Home
           </Link>
-          <button onClick={handleLogout} className="mobile-store-icon" title="Logout" style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer' }}>
+          <button
+            onClick={handleLogout}
+            className="mobile-store-icon"
+            title="Logout"
+            style={{ background: "none", border: "none", color: "#c62828", cursor: "pointer" }}
+          >
             <LogOut size={18} />
           </button>
         </div>
@@ -55,14 +118,14 @@ export function AdminLayout({children}) {
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
-            <motion.div 
+            <motion.div
               className="admin-mobile-overlay"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileMenuOpen(false)}
             />
-            <motion.div 
+            <motion.div
               className="admin-mobile-drawer"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
@@ -71,7 +134,9 @@ export function AdminLayout({children}) {
             >
               <div className="drawer-header">
                 <div className="drawer-title">Admin Navigation</div>
-                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close Menu"><X size={22} /></button>
+                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close Menu">
+                  <X size={22} />
+                </button>
               </div>
               <aside className="mobile-aside">
                 <AdminNavLinks counts={counts} onLogout={handleLogout} />
@@ -91,13 +156,36 @@ export function AdminLayout({children}) {
         <div className="admin-top-bar">
           <div className="page-title">{pageTitle}</div>
           <div className="admin-user-info">
-            <Link to="/" className="view-store-pill" target="_blank"><Store size={14} /> Store Preview</Link>
-            <span style={{ fontSize: '12px', color: '#555', background: '#f5f5f5', padding: '4px 10px', borderRadius: '20px', border: '1px solid #e0e0e0' }}>
-              Signed in as: <b style={{ color: '#2b170d' }}>{userEmail}</b>
+            <Link to="/" className="view-store-pill" target="_blank">
+              <Store size={14} /> Store Preview
+            </Link>
+            <span
+              style={{
+                fontSize: "12px",
+                color: "#555",
+                background: "#f5f5f5",
+                padding: "4px 10px",
+                borderRadius: "20px",
+                border: "1px solid #e0e0e0"
+              }}
+            >
+              Signed in as: <b style={{ color: "#2b170d" }}>{userEmail}</b>
             </span>
-            <button 
+            <button
               onClick={handleLogout}
-              style={{ background: '#ffebee', color: '#c62828', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{
+                background: "#ffebee",
+                color: "#c62828",
+                border: "none",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}
               title="Sign Out of Admin"
             >
               <LogOut size={14} /> Logout
@@ -105,7 +193,7 @@ export function AdminLayout({children}) {
           </div>
         </div>
 
-        <motion.div 
+        <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -118,21 +206,23 @@ export function AdminLayout({children}) {
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="admin-mobile-bottom-nav">
-        {bottomTabs.map(tab => {
-          const isActive = location.pathname === tab.path || (tab.path !== '/admin' && location.pathname.startsWith(tab.path));
+        {bottomTabs.map((tab) => {
+          const isActive =
+            location.pathname === tab.path ||
+            (tab.path !== ADMIN_BASE_PATH && location.pathname.startsWith(tab.path));
           return (
-            <Link 
-              key={tab.path} 
-              to={tab.path} 
-              className={`bottom-tab ${isActive ? 'active' : ''}`}
+            <Link
+              key={tab.path}
+              to={tab.path}
+              className={`bottom-tab ${isActive ? "active" : ""}`}
             >
               {tab.icon}
               <span>{tab.label}</span>
             </Link>
           );
         })}
-        <button 
-          className={`bottom-tab ${mobileMenuOpen ? 'active' : ''}`}
+        <button
+          className={`bottom-tab ${mobileMenuOpen ? "active" : ""}`}
           onClick={() => setMobileMenuOpen(true)}
         >
           <MoreHorizontal size={20} />

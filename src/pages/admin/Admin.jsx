@@ -439,54 +439,40 @@ export function Admin() {
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
 
-  useEffect(() => {
-    // Auto-restore and check active provider, Puter Cloud, pCloud & ImageKit status
-    fetchActiveProvider();
-    checkPcloud();
-    checkImagekit();
-    checkPuter();
-    const unsubPuter = subscribePuterStatus((info) => {
-      if (mountedRef.current && info) {
-        setMediaInfo(info);
-        if (info.connected) {
-          fetch("/api/upload/stats")
-            .then(res => res.json())
-            .then(mediaStatsRes => {
-              if (mountedRef.current && mediaStatsRes.success) {
-                setMediaStats({
-                  serverStorage: mediaStatsRes.serverStorage || "Puter Cloud Storage",
-                  imagesCount: mediaStatsRes.imagesCount ?? 0,
-                  videosCount: mediaStatsRes.videosCount ?? 0,
-                  totalCount: mediaStatsRes.totalCount ?? 0,
-                  totalSizeBytes: mediaStatsRes.totalSizeBytes ?? 0,
-                  lastUpload: mediaStatsRes.lastUpload || null,
-                  lastSyncTime: new Date().toLocaleTimeString()
-                });
-              }
-            })
-            .catch(() => {});
-        }
-      }
-    });
-    return () => unsubPuter();
-  }, [checkPuter, checkImagekit]);
-
-  useEffect(() => {
+    // Initial synchronized load
     refreshDashboard();
     fetchActiveProvider();
     checkPcloud();
     checkImagekit();
-    db.checkDbHealth().then(h => setDbStatus(h.connected ? "connected" : "disconnected")).catch(() => setDbStatus("disconnected"));
-    const unsub = onStoreUpdate(() => {
-      refreshDashboard();
-    });
-    return () => unsub();
-  }, [refreshDashboard, fetchActiveProvider, checkPcloud, checkImagekit]);
+    checkPuter();
 
-  useEffect(() => {
+    db.checkDbHealth()
+      .then(h => {
+        if (mountedRef.current) {
+          setDbStatus(h.connected ? "connected" : "disconnected");
+        }
+      })
+      .catch(() => {
+        if (mountedRef.current) setDbStatus("disconnected");
+      });
+
+    const unsubPuter = subscribePuterStatus((info) => {
+      if (mountedRef.current && info) {
+        setMediaInfo(info);
+      }
+    });
+
+    let debounceTimer = null;
+    const unsubStore = onStoreUpdate(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (mountedRef.current) {
+          refreshDashboard();
+        }
+      }, 300);
+    });
+
     const handleMessage = (event) => {
       if (event.data && event.data.type === "pcloud:connected") {
         emitToast("pCloud Storage connected via OAuth!", "success");
@@ -497,16 +483,23 @@ export function Admin() {
       }
     };
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [checkPcloud, refreshDashboard]);
+
+    return () => {
+      mountedRef.current = false;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (typeof unsubPuter === "function") unsubPuter();
+      if (typeof unsubStore === "function") unsubStore();
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [refreshDashboard, fetchActiveProvider, checkPcloud, checkImagekit, checkPuter]);
 
   const connected = dbStatus === "connected";
 
   const quickActions = [
-    { title: "Add Product", path: "/admin/products?add=1", icon: <Plus size={18} />, bg: "#fdf0e8", color: "#a54d2b" },
-    { title: "Orders", path: "/admin/orders", icon: <ShoppingBag size={18} />, bg: "#eef7f2", color: "#1d9450" },
-    { title: "Home Banners", path: "/admin/banners", icon: <Megaphone size={18} />, bg: "#f0f4ff", color: "#2563eb" },
-    { title: "Coupons", path: "/admin/coupons", icon: <TicketPercent size={18} />, bg: "#fff8e1", color: "#d97706" },
+    { title: "Add Product", path: "/aura-control-8740/products?add=1", icon: <Plus size={18} />, bg: "#fdf0e8", color: "#a54d2b" },
+    { title: "Orders", path: "/aura-control-8740/orders", icon: <ShoppingBag size={18} />, bg: "#eef7f2", color: "#1d9450" },
+    { title: "Home Banners", path: "/aura-control-8740/banners", icon: <Megaphone size={18} />, bg: "#f0f4ff", color: "#2563eb" },
+    { title: "Coupons", path: "/aura-control-8740/coupons", icon: <TicketPercent size={18} />, bg: "#fff8e1", color: "#d97706" },
   ];
 
   const statItems = [
@@ -1411,7 +1404,7 @@ export function Admin() {
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottom: '1px solid #f0ebe4' }}>
               <h2 style={{ fontSize: '16px', margin: 0, color: '#2b170d' }}>Recent Orders</h2>
-              <Link to="/admin/orders" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <Link to="/aura-control-8740/orders" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
                 View All <ChevronRight size={14} />
               </Link>
             </div>
@@ -1452,7 +1445,7 @@ export function Admin() {
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottom: '1px solid #f0ebe4' }}>
               <h2 style={{ fontSize: '16px', margin: 0, color: '#2b170d' }}>Products List</h2>
-              <Link to="/admin/products" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <Link to="/aura-control-8740/products" style={{ fontSize: '12px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
                 Manage <ChevronRight size={14} />
               </Link>
             </div>

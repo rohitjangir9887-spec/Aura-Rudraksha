@@ -165,7 +165,7 @@ export function AdminCategories() {
 
   return (
     <AdminLayout>
-      <Link to="/admin/banners" className="admin-back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#a54d2b', fontSize: '13px', textDecoration: 'none', marginBottom: '20px', fontWeight: '600' }}>
+      <Link to="/aura-control-8740/banners" className="admin-back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#a54d2b', fontSize: '13px', textDecoration: 'none', marginBottom: '20px', fontWeight: '600' }}>
         <ArrowLeft size={16} /> Back to Home Content
       </Link>
       

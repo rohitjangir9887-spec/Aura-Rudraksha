@@ -230,7 +230,7 @@ export function AdminCoupons() {
 
   return (
     <AdminLayout>
-      <Link to="/admin" className="admin-back-link">
+      <Link to="/aura-control-8740" className="admin-back-link">
         <ArrowLeft size={16} /> Back to Dashboard
       </Link>
 

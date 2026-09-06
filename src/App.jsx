@@ -5,6 +5,9 @@ import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
 import { AuraAIFloating } from "./components/AuraAIFloating";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { AdminGuard } from "./components/admin/AdminGuard";
+import { AdminErrorBoundary } from "./components/admin/AdminErrorBoundary";
+import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "./lib/routes";
 
 // ---------------------------------------------------------------------------
 // Code splitting: Customer secondary pages & Admin pages are lazy-loaded so
@@ -58,25 +61,23 @@ function PageLoader() {
         placeItems: "center",
         background: "#fdfbf7"
       }}
-      aria-busy="true"
-      aria-label="Loading"
     >
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
-        <div
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: "50%",
-            border: "3px solid #eadecd",
-            borderTopColor: "#a54d2b",
-            animation: "aura-spin 0.9s linear infinite"
-          }}
-        />
-        <span style={{ fontSize: "12px", color: "#806f62", fontWeight: 600, letterSpacing: "0.5px" }}>
-          Aura Rudraksha
-        </span>
-        <style>{`@keyframes aura-spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
+      <div
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: "50%",
+          border: "3px solid #ebd8c5",
+          borderTopColor: "#a54d2b",
+          animation: "auraPageSpin 0.75s linear infinite"
+        }}
+      />
+      <style>{`
+        @keyframes auraPageSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -91,32 +92,25 @@ export function App() {
     <>
       <ScrollToTop />
       <ErrorBoundary>
-        <Suspense fallback={<PageLoader />}>
-          <PageTransition>
-          <Routes>
-            {/* Canonical Customer Routes */}
+      <Suspense fallback={<PageLoader />}>
+        <PageTransition>
+        <Routes>
+          {/* Customer Storefront Routes */}
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/product/:id" element={<Product />} />
+          <Route path="/product/:id/view" element={<Product />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
-          <Route path="/payment-result" element={<PaymentResult />} />
+          <Route path="/payment/result" element={<PaymentResult />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Login initialMode="signup" />} />
-          <Route path="/sign-up" element={<Navigate to="/signup" replace />} />
-          <Route path="/register" element={<Navigate to="/signup" replace />} />
-          <Route path="/forgot-password" element={<Login initialMode="forgot" />} />
-          <Route path="/reset-password" element={<Login initialMode="reset-password" />} />
-          <Route path="/verify-email" element={<Login initialMode="verify-email" />} />
-          <Route path="/auth/action" element={<Login />} />
+
+          {/* Customer Account Routes */}
           <Route path="/account" element={<Account />} />
           <Route path="/account/profile" element={<Profile />} />
           <Route path="/account/orders" element={<Orders />} />
           <Route path="/account/orders/:id" element={<OrderDetail />} />
-
-          {/* Compatibility Redirects for Legacy Routes */}
-          <Route path="/orders" element={<Navigate to="/account/orders" replace />} />
           <Route path="/my-orders" element={<Navigate to="/account/orders" replace />} />
           <Route path="/orders/:id" element={<OrderParamRedirect />} />
           <Route path="/order/:id" element={<OrderParamRedirect />} />
@@ -136,24 +130,46 @@ export function App() {
           <Route path="/aura-ai" element={<AuraAIPage />} />
           <Route path="/mobile-design" element={<MobileDesignPage />} />
 
-          {/* Isolated Admin Routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/admin/ai" element={<AdminAI />} />
-          <Route path="/admin/products" element={<AdminProducts />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
-          <Route path="/admin/customers" element={<AdminCustomers />} />
-          <Route path="/admin/reviews" element={<AdminReviews />} />
-          <Route path="/admin/banners" element={<AdminBanners />} />
-          <Route path="/admin/banners/hero" element={<HeroImages />} />
-          <Route path="/admin/banners/promotions" element={<AdminPromotions />} />
-          <Route path="/admin/categories" element={<AdminCategories />} />
-          <Route path="/admin/offers" element={<AdminOffers />} />
-          <Route path="/admin/coupons" element={<AdminCoupons />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/support" element={<AdminSupport />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/admin/zodiac" element={<AdminZodiac />} />
+          {/* Admin Login Route */}
+          <Route
+            path={ADMIN_LOGIN_PATH}
+            element={
+              <AdminErrorBoundary>
+                <AdminLogin />
+              </AdminErrorBoundary>
+            }
+          />
+
+          {/* Secure Isolated Admin Route Tree Protected by AdminGuard & AdminErrorBoundary */}
+          <Route
+            path={ADMIN_BASE_PATH}
+            element={
+              <AdminErrorBoundary>
+                <AdminGuard />
+              </AdminErrorBoundary>
+            }
+          >
+            <Route index element={<Admin />} />
+            <Route path="ai" element={<AdminAI />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="customers" element={<AdminCustomers />} />
+            <Route path="reviews" element={<AdminReviews />} />
+            <Route path="banners" element={<AdminBanners />} />
+            <Route path="banners/hero" element={<HeroImages />} />
+            <Route path="banners/promotions" element={<AdminPromotions />} />
+            <Route path="categories" element={<AdminCategories />} />
+            <Route path="offers" element={<AdminOffers />} />
+            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="support" element={<AdminSupport />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="zodiac" element={<AdminZodiac />} />
+          </Route>
+
+          {/* Legacy /admin Redirects: Instantly redirect to secure login, never mounting Admin UI */}
+          <Route path="/admin" element={<Navigate to={ADMIN_LOGIN_PATH} replace />} />
+          <Route path="/admin/*" element={<Navigate to={ADMIN_LOGIN_PATH} replace />} />
 
           {/* Catch-all 404 Route */}
           <Route path="*" element={<NotFound />} />
@@ -167,3 +183,4 @@ export function App() {
     </>
   );
 }
+export default App;
