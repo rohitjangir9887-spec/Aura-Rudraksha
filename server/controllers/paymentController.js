@@ -638,21 +638,57 @@ export async function handlePayuCancel(req, res) {
     const params = extractPayuParams(req);
     const orderId = String(params.udf1 || params.orderId || "").trim();
     const txnid = String(params.txnid || "").trim();
+    const mihpayid = String(params.mihpayid || "").trim();
     
     if (orderId && isDbConnected()) {
-      const { Order } = require("../models/Order.js");
       const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
       if (order && order.paymentStatus !== "Paid") {
         const attempts = order.paymentAttempts || [];
         const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
         if (attemptIdx >= 0) {
           attempts[attemptIdx].status = "cancelled";
-          attempts[attemptIdx].error = "User cancelled payment";
+          attempts[attemptIdx].payuStatus = params.status || "userCancelled";
+          attempts[attemptIdx].mihpayid = mihpayid || attempts[attemptIdx].mihpayid;
+          attempts[attemptIdx].paymentMode = params.mode || attempts[attemptIdx].paymentMode;
+          attempts[attemptIdx].bankRefNum = params.bank_ref_num || attempts[attemptIdx].bankRefNum;
+          attempts[attemptIdx].error = params.error_Message || params.error || "User cancelled payment";
+          attempts[attemptIdx].unmappedstatus = params.unmappedstatus || attempts[attemptIdx].unmappedstatus;
           attempts[attemptIdx].updatedAt = new Date().toISOString();
+        } else {
+          // If attempt wasn't logged during initiation for some reason
+          attempts.push({
+            txnid: txnid,
+            mihpayid: mihpayid || null,
+            status: "cancelled",
+            payuStatus: params.status || "userCancelled",
+            paymentMode: params.mode || "PayU Gateway",
+            bankRefNum: params.bank_ref_num || null,
+            error: params.error_Message || params.error || "User cancelled payment",
+            unmappedstatus: params.unmappedstatus || "userCancelled",
+            amount: parseFloat(params.amount) || order.finalAmount || order.amount,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
         }
         order.paymentStatus = "Cancelled";
+        order.payuStatus = params.status || "userCancelled";
+        if (mihpayid) order.mihpayid = mihpayid;
+        order.unmappedstatus = params.unmappedstatus || "userCancelled";
+        order.bankRefNum = params.bank_ref_num || order.bankRefNum;
         order.paymentAttempts = attempts;
         await order.save();
+        
+        // Also update PaymentTransaction if it exists
+        const pTxn = await PaymentTransaction.findOne({ orderId, merchantTransactionId: txnid });
+        if (pTxn) {
+           pTxn.status = "Failed";
+           pTxn.gatewayPaymentId = mihpayid || pTxn.gatewayPaymentId;
+           pTxn.gatewayStatus = params.status || "userCancelled";
+           pTxn.gatewayMessage = params.error_Message || params.error || "User cancelled payment";
+           pTxn.mode = params.mode || pTxn.mode;
+           pTxn.bankRefNum = params.bank_ref_num || pTxn.bankRefNum;
+           await pTxn.save();
+        }
       }
     }
     
