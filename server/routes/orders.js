@@ -5,6 +5,7 @@ import {
   createOrder,
   updateOrder,
   getMyOrders,
+  getPaymentFailureAlert,
   trackOrderPublic
 } from "../controllers/orderController.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
@@ -28,6 +29,9 @@ router.post("/track", trackOrderPublic);
 
 router.route("/my")
   .get(requireAuth, getMyOrders);
+
+router.route("/my/payment-alert")
+  .get(requireAuth, getPaymentFailureAlert);
 
 router.route("/")
   .get(requireAdmin, getOrders)

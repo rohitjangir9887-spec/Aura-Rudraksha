@@ -12,6 +12,7 @@ import { PanditjiBioSection } from "../components/PanditjiBioSection";
 import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
+import { PaymentFailureAlert } from "../components/PaymentFailureAlert";
 
 export function Home() {
   const [hero, setHero] = useState(0);
@@ -219,6 +220,7 @@ export function Home() {
       <div><div className="icon-wrapper"><ShieldCheck strokeWidth={1.5}/></div><b>Premium Quality</b><span>Nepal Origin</span></div>
       <div><div className="icon-wrapper"><PackageCheck strokeWidth={1.5}/></div><b>Free Shipping</b><span>{shippingThreshold > 0 ? `On Orders ₹${shippingThreshold}+` : "On All Orders"}</span></div>
     </motion.div>
+    <PaymentFailureAlert />
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <motion.div    ><ShopByCategory /></motion.div>
 
