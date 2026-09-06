@@ -25,6 +25,7 @@ const mediaSchema = new mongoose.Schema(
 mediaSchema.index({ readURL: 1 }, { unique: true });
 mediaSchema.index({ path: 1 }, { unique: true, sparse: true });
 mediaSchema.index({ puterFileId: 1 }, { unique: true, sparse: true });
+mediaSchema.index({ fileId: 1, provider: 1 });
 mediaSchema.index({ createdAt: -1 });
 
 export const Media = mongoose.models.Media || mongoose.model("Media", mediaSchema);

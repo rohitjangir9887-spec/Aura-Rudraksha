@@ -78,7 +78,7 @@ function getNvidiaClient() {
     return new OpenAI({
       baseURL: "https://integrate.api.nvidia.com/v1",
       apiKey,
-      timeout: 15000
+      timeout: 20000
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM Client:", err?.message || err);
