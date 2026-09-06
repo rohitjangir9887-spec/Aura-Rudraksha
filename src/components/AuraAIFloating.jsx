@@ -23,7 +23,8 @@ import {
   Mic,
   MicOff
 } from "lucide-react";
-import { motion, AnimatePresence, useDragControls } from "framer-motion";
+import { motion, AnimatePresence, useDragControls, useReducedMotion } from "framer-motion";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { auraAiClient } from "../lib/auraAiClient";
 import { parseAuraAiPayload, customerSafeAiText } from "../lib/auraAiResponse";
 import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/auraChatStore";
@@ -34,6 +35,7 @@ import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 
 export function AuraAIFloating() {
+  const shouldReduceMotion = useReducedMotion();
   const [isOpenState, setIsOpenState] = useState(() => auraChatStore.isFloatingOpen());
   const [isFullWindow, setIsFullWindow] = useState(false);
   const [isDismissed, setIsDismissed] = useState(() => auraChatStore.isFloatingDismissed());
@@ -657,6 +659,7 @@ export function AuraAIFloating() {
       <AnimatePresence>
         {isOpen && (
           <>
+          <ErrorBoundary isolate>
             {/* Backdrop overlay */}
             <motion.div
               className={`aura-ai-floating-backdrop ${isFullWindow ? "aura-ai-backdrop-full" : ""}`}
@@ -1266,9 +1269,9 @@ export function AuraAIFloating() {
                     </div>
                     <div className="flex flex-col gap-1 items-start" style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
                       <div className="aura-ai-typing-bubble">
-                        <span className="dot" />
-                        <span className="dot" />
-                        <span className="dot" />
+                        <motion.span className="dot" animate={shouldReduceMotion ? {} : { opacity: [0.2, 1, 0.2], y: [0, -3, 0] }} transition={{ duration: 1.4, repeat: Infinity, delay: 0 }} />
+                        <motion.span className="dot" animate={shouldReduceMotion ? {} : { opacity: [0.2, 1, 0.2], y: [0, -3, 0] }} transition={{ duration: 1.4, repeat: Infinity, delay: 0.2 }} />
+                        <motion.span className="dot" animate={shouldReduceMotion ? {} : { opacity: [0.2, 1, 0.2], y: [0, -3, 0] }} transition={{ duration: 1.4, repeat: Infinity, delay: 0.4 }} />
                       </div>
                       <span className="aura-ai-status-text" style={{ fontSize: "10.5px", color: "#8c2b10", fontStyle: "italic", fontWeight: "500", paddingLeft: "4px" }}>
                         {statusText} {elapsedTime > 0 ? `(${elapsedTime}s)` : ""}
@@ -1367,6 +1370,7 @@ export function AuraAIFloating() {
               </div>
             </motion.div>
           </div>
+          </ErrorBoundary>
           </>
         )}
       </AnimatePresence>

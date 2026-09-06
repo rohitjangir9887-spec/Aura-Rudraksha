@@ -1,7 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { ErrorBoundary } from "../ErrorBoundary";
 import { Trash2, Heart, ShieldCheck, Plus, Minus } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { money } from "../../data";
 
 export function CartItemCard({
@@ -17,6 +18,7 @@ export function CartItemCard({
   if (!product) return null;
 
   const stockLimit = product.stock !== undefined ? Number(product.stock) : (product.status === "Out of Stock" ? 0 : 99);
+  const shouldReduceMotion = useReducedMotion();
   const hasDiscount = product.mrp > product.price;
   const discountAmount = hasDiscount ? product.mrp - product.price : 0;
   const discountPercent = hasDiscount ? Math.round((discountAmount / product.mrp) * 100) : 0;
@@ -25,12 +27,13 @@ export function CartItemCard({
   const imageSrc = product.img || (product.images && product.images[0]) || "/images/product-5mukhi.jpg";
 
   return (
+    <ErrorBoundary isolate>
     <motion.div
       id={`cart-item-card-${id}`}
       className="cart-item-card"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.05 * index, duration: 0.2 }}
+      transition={{ delay: 0.05 * index, duration: shouldReduceMotion ? 0 : 0.2 }}
       style={{
         background: "#ffffff",
         border: "1.5px solid #ebd9c8",
@@ -271,6 +274,7 @@ export function CartItemCard({
           {/* Move to Wishlist */}
           <button
             type="button"
+            className="aura-card-wish-btn"
             onClick={() => onToggleWishlist(product.id || product._id, product.name)}
             style={{
               background: "none",
@@ -292,5 +296,6 @@ export function CartItemCard({
         </div>
       </div>
     </motion.div>
+    </ErrorBoundary>
   );
 }

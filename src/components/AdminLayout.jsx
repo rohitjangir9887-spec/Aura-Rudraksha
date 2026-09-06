@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Store, MoreHorizontal, LogOut } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 import { useAdminAuth } from "../hooks/useAdminAuth";
 import { useAdminMetrics } from "../hooks/useAdminMetrics";
@@ -11,6 +11,7 @@ import { ADMIN_BASE_PATH } from "../lib/routes";
 
 export function AdminLayout({ children }) {
   const location = useLocation();
+  const shouldReduceMotion = useReducedMotion();
   const { loadingAuth, userEmail, handleLogout } = useAdminAuth();
   const counts = useAdminMetrics();
 
@@ -123,6 +124,7 @@ export function AdminLayout({ children }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
               onClick={() => setMobileMenuOpen(false)}
             />
             <motion.div
@@ -130,7 +132,7 @@ export function AdminLayout({ children }) {
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              transition={{ type: "spring", damping: 25, stiffness: 220, duration: shouldReduceMotion ? 0 : undefined }}
             >
               <div className="drawer-header">
                 <div className="drawer-title">Admin Navigation</div>

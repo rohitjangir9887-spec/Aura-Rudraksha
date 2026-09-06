@@ -41,7 +41,7 @@ export function PaymentResult() {
             clear(); // Clear cart only on confirmed success
             setTimeout(() => {
                navigate(`/account/orders/${orderId}`, { replace: true });
-            }, 6000);
+            }, 1200);
           }
         }
       } catch (err) {

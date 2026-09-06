@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck } from "lucide-react";
 import { money, pct } from "../data";
 import { useWishlist } from "../hooks/useWishlist";
@@ -29,13 +30,13 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
 
   const productId = String(p?.id || p?._id || p?.slug || "");
-  const isSaved = isWishlisted(productId);
+  const isSaved = productId ? isWishlisted(productId) : false;
   const images = (Array.isArray(p?.images) && p.images.length > 0) 
     ? p.images 
     : [p?.img || "/images/product-5mukhi.jpg"];
   const displayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
-  const discount = pct(p);
-  const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
+  const discount = p ? pct(p) : 0;
+
 
   const handleCardClick = () => {
     if (productId) navigate(`/product/${productId}`);
@@ -70,9 +71,11 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
 
   // Dynamic offer display text
   const offerTitle = offer?.title || "Special Offer";
+
   const offerCode = offer?.couponCode || "";
 
   return (
+    <ErrorBoundary isolate>
     <div 
       className="aura-shop-card" 
       onClick={handleCardClick}
@@ -244,6 +247,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
         </button>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
 
