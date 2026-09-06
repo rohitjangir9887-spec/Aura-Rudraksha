@@ -74,6 +74,14 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     const unsub = onStoreUpdate(() => {
       loadData();
     });
+
+    if (window.location.hash === "#write-review") {
+      setIsWriteModalOpen(true);
+      setTimeout(() => {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      }, 500);
+    }
+
     return () => unsub();
   }, [productId]);
 

@@ -932,7 +932,7 @@ export const db = {
     const cached = db.getCachedMyOrders();
 
     try {
-      const res = await apiRequest("/orders/my", { timeoutMs: 6000 });
+      const res = await apiRequest("/orders/my", { timeoutMs: 15000 });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
         if (cacheKey && typeof window !== "undefined") {

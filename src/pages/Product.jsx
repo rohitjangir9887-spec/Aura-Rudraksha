@@ -137,7 +137,14 @@ export function Product() {
   };
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    if (window.location.hash !== "#write-review") {
+      window.scrollTo(0, 0);
+    } else {
+      setTimeout(() => {
+        const el = document.getElementById("reviews-section");
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 300);
+    }
     db.logVisit();
     db.logProductView();
     loadData(false);
