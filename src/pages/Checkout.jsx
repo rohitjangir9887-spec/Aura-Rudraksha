@@ -43,6 +43,14 @@ export function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  const handleBackNavigation = () => {
+    if (window.history && window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate("/cart");
+    }
+  };
+
 
   const [products, setProducts] = useState(() => db.getProducts());
   const [activeOffer, setActiveOffer] = useState(() => db.getActiveOffer());

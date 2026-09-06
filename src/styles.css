@@ -16299,12 +16299,21 @@ button:active, .primary-btn:active, .outline-btn:active {
 @media (max-width: 899px) {
   .cart-mobile-sticky-bar {
     display: flex !important;
-    bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 9998 !important;
   }
 
   #aura-cart-page {
-    padding-bottom: 150px !important;
+    padding-bottom: 160px !important;
   }
+}
+
+#cart-recommendations-section img {
+  object-fit: contain !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block !important;
+  margin: auto !important;
 }
 
 @media (max-width: 480px) {

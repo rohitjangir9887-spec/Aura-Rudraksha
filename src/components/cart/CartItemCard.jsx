@@ -57,14 +57,25 @@ export function CartItemCard({
           background: "#faf6f0",
           border: "1px solid #ebdccb",
           flexShrink: 0,
-          display: "block",
-          position: "relative"
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          padding: "3px",
+          boxSizing: "border-box"
         }}
       >
         <img
           src={imageSrc}
           alt={product.name}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            width: "auto",
+            height: "auto",
+            objectFit: "contain",
+            display: "block"
+          }}
           loading="lazy"
           decoding="async"
           onError={(e) => {

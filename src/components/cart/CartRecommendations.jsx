@@ -94,13 +94,25 @@ export function CartRecommendations({
                     overflow: "hidden",
                     background: "#faf6f0",
                     border: "1px solid #ebdccb",
-                    marginBottom: "8px"
+                    marginBottom: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "4px",
+                    boxSizing: "border-box"
                   }}
                 >
                   <img
                     src={imageSrc}
                     alt={p.name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      width: "auto",
+                      height: "auto",
+                      objectFit: "contain",
+                      display: "block"
+                    }}
                     loading="lazy"
                     onError={(e) => {
                       if (!e.target.src.includes("product-5mukhi.jpg")) {
