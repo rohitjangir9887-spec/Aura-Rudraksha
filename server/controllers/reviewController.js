@@ -489,7 +489,8 @@ function extractKeyFeaturesList(descriptionText) {
 // ----------------------------------------------------------------------
 // NATURAL CONVERSATIONAL DRAFT GENERATOR WITH DIVERSE TEMPLATES & UNIQUE NAMES
 // ----------------------------------------------------------------------
-function buildDiverseFallbackDrafts({ 
+function buildDiverseFallbackDrafts({
+
   productName, 
   productId = "all",
   productDescription = "",
@@ -578,19 +579,19 @@ function buildDiverseFallbackDrafts({
       const op = openersHindi[Math.floor(Math.random() * openersHindi.length)];
       const bd = bodiesHindi[(i + Math.floor(Math.random() * bodiesHindi.length)) % bodiesHindi.length];
       const cl = closersHindi[Math.floor(Math.random() * closersHindi.length)];
-      textBody = `${op}${bd} ${cl}`;
+      textBody = `AI DRAFT — HUMAN REVIEW REQUIRED - ${op}${bd} ${cl}`;
       title = ["100% शुद्ध एवं प्रामाणिक", "अद्भुत सात्विक ऊर्जा", "स्पष्ट मुखी रेखाएं", "उत्कृष्ट पैकेजिंग", "पूर्णतः संतुष्ट ग्राहक"][i % 5];
     } else if (currentLang === "Hinglish") {
       const op = openersHinglish[Math.floor(Math.random() * openersHinglish.length)];
       const bd = bodiesHinglish[(i + Math.floor(Math.random() * bodiesHinglish.length)) % bodiesHinglish.length];
       const cl = closersHinglish[Math.floor(Math.random() * closersHinglish.length)];
-      textBody = `${op}${bd} ${cl}`;
+      textBody = `AI DRAFT — HUMAN REVIEW REQUIRED - ${op}${bd} ${cl}`;
       title = ["100% Genuine Quality", "Deep Mukhi Lines", "Fast Express Delivery", "Peaceful Meditation", "Worth Every Rupee"][i % 5];
     } else {
       const op = openersEnglish[Math.floor(Math.random() * openersEnglish.length)];
       const bd = bodiesEnglish[(i + Math.floor(Math.random() * bodiesEnglish.length)) % bodiesEnglish.length];
       const cl = closersEnglish[Math.floor(Math.random() * closersEnglish.length)];
-      textBody = `${op}${bd} ${cl}`;
+      textBody = `AI DRAFT — HUMAN REVIEW REQUIRED - ${op}${bd} ${cl}`;
       title = ["Verified Authentic Nepal Bead", "Deep Calming Energy", "Pristine Sacred Packaging", "Natural & Pure Finish", "Exquisite Craftsmanship"][i % 5];
     }
 
@@ -698,12 +699,14 @@ export async function generateReviewDrafts(req, res, next) {
     let rawDrafts = [];
 
     // Primary AI Generator: Gemini API (@google/genai)
-    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-    if (geminiApiKey) {
+    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    if (nvidiaApiKey) {
       try {
-        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
         const randomEntropy = Date.now() + "-" + Math.random().toString(36).substring(2, 7);
         const systemPrompt = `You are an authentic Indian customer review generator for Aura Rudraksha.
+
+CRITICAL POLICY:
+AI-generated text MUST be clearly marked. EVERY generated review MUST start with exactly: "AI DRAFT — HUMAN REVIEW REQUIRED". Do not silence this.
 Generate realistic, completely distinct customer reviews for e-commerce products.
 
 CRITICAL MANDATES:
@@ -722,35 +725,52 @@ Key Features / Details: "${productDetails || 'High quality genuine Rudraksha bea
 Rating Mode: "${effectiveRatingMode}".
 Language: "${effectiveLanguage}".
 Seed/Entropy: ${randomEntropy}.
+Use structured diversity: experience angle, product attribute, tone, length, language, sentence structure, title structure.
 Ensure 100% variety in customer names, locations, and review sentences. Output pure JSON array only.`;
 
-        const response = await ai.models.generateContent({
-          model: "nemotron-3-super-120b-a12b",
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: "application/json",
-            temperature: 0.95,
-            maxOutputTokens: 2500
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
           },
-          contents: [{ role: "user", parts: [{ text: userPrompt }] }]
+          body: JSON.stringify({
+            model: "nvidia/nemotron-3-super-120b-a12b",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
+            temperature: 0.95,
+            max_tokens: 2500
+          })
         });
+
+        let response = { text: "" };
+        if (nimRes.ok) {
+          const nimData = await nimRes.json();
+          response.text = nimData.choices?.[0]?.message?.content || "";
+        }
 
         const content = response.text || "";
         const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
         const parsed = JSON.parse(cleaned);
 
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const usedNamesInGemini = new Set();
+          const usedNamesInNim = new Set();
 
           rawDrafts = parsed.map((item, idx) => {
+            if (!item.text?.startsWith("AI DRAFT — HUMAN REVIEW REQUIRED")) {
+              item.text = `AI DRAFT — HUMAN REVIEW REQUIRED - ${item.text || ""}`;
+            }
             let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2)
               ? item.name.trim()
               : "";
 
-            if (!assignedName || usedNamesInGemini.has(assignedName)) {
-              assignedName = generateUniqueDevoteeName(usedNamesInGemini);
+            if (!assignedName || usedNamesInNim.has(assignedName)) {
+              assignedName = generateUniqueDevoteeName(usedNamesInNim);
             }
-            usedNamesInGemini.add(assignedName);
+            usedNamesInNim.add(assignedName);
 
             const assignedCity = item.city || INDIAN_DEVOTEE_CITIES[Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length)];
             const relativeDate = RELATIVE_DATES[Math.floor(Math.random() * RELATIVE_DATES.length)];
@@ -778,29 +798,19 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
             };
           });
 
-          console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via Gemini 2.5 Flash`);
+          console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via NVIDIA NIM`);
         }
       } catch (err) {
-        console.warn("[Aura AI Reviews] Gemini generation notice:", err?.message || err);
+        console.warn("[Aura AI Reviews] NVIDIA NIM generation notice:", err?.message || err);
       }
     }
 
     // High quality combinatorial fallback with authentic Indian names & locations
     if (!rawDrafts || rawDrafts.length < requestedCount) {
-      const existingNames = new Set(rawDrafts.map(d => d.name));
-      const fallbackList = buildDiverseFallbackDrafts({
-        productName: resolvedProductName,
-        productId: targetProductId,
-        productDescription,
-        keyFeatures,
-        language: effectiveLanguage,
-        reviewLength,
-        count: requestedCount - rawDrafts.length,
-        ratingMix: effectiveRatingMode,
-        ratingRange: effectiveRatingMode,
-        existingNames
-      });
-      rawDrafts = [...rawDrafts, ...fallbackList];
+      // User strictly requested: DO NOT fabricate fake customer reviews. Return error if AI unavailable.
+      if (rawDrafts.length === 0) {
+          return res.status(503).json({ success: false, message: "Unable to generate new drafts right now." });
+      }
     }
 
     rawDrafts = rawDrafts.slice(0, requestedCount);
@@ -817,41 +827,56 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
     for (let i = 0; i < rawDrafts.length; i++) {
       let finalDraft = { ...rawDrafts[i] };
 
+      // Check draft against both existing corpus and same batch. runningBatchCorpus contains both.
       // Ensure author name is unique in the batch
       if (usedBatchNames.has(finalDraft.name)) {
         finalDraft.name = generateUniqueDevoteeName(usedBatchNames);
       }
       usedBatchNames.add(finalDraft.name);
 
-      let finalSimResult = evaluateDraftSimilarity(finalDraft.text, runningBatchCorpus);
+      let finalSimResult = evaluateDraftSimilarity(finalDraft.text, runningBatchCorpus, { duplicateThreshold: 70, duplicateSemanticThreshold: 80, similarThreshold: 35, similarSemanticThreshold: 50 });
 
-      // If duplicate detected in batch or existing corpus, replace with fresh unique fallback draft
+
       if (finalSimResult.similarityStatus === "Duplicate" || finalSimResult.similarityStatus === "Similar") {
-        const existingNames = new Set([...usedBatchNames, ...existingCorpus.map(c => c.name)]);
-        const variation = buildDiverseFallbackDrafts({
-          productName: resolvedProductName,
-          productId: targetProductId,
-          productDescription,
-          keyFeatures,
-          language: effectiveLanguage,
-          reviewLength,
-          count: 1,
-          ratingMix: effectiveRatingMode,
-          ratingRange: effectiveRatingMode,
-          existingNames
-        })[0];
-
-        if (variation && variation.text !== finalDraft.text) {
-          finalDraft = {
-            ...finalDraft,
-            text: variation.text,
-            title: variation.title,
-            name: variation.name || finalDraft.name
-          };
-          usedBatchNames.add(finalDraft.name);
-          finalSimResult = evaluateDraftSimilarity(finalDraft.text, runningBatchCorpus);
+        if (nvidiaApiKey) {
+          try {
+             let anglePrompt = finalSimResult.similarityStatus === "Similar" ? "Use a completely different experience angle and sentence structure." : "Regenerate entirely.";
+             const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+               method: "POST",
+               headers: {
+                 "Content-Type": "application/json",
+                 "Authorization": `Bearer ${nvidiaApiKey}`,
+                 "Accept": "application/json"
+               },
+               body: JSON.stringify({
+                 model: "nvidia/nemotron-3-super-120b-a12b",
+                 messages: [
+                   { role: "system", content: "You are an authentic Indian customer review generator for Aura Rudraksha.\nCRITICAL POLICY:\nAI-generated text MUST be clearly marked. EVERY generated review MUST start with exactly: 'AI DRAFT — HUMAN REVIEW REQUIRED'. Do not silence this.\nReturn ONLY a valid JSON object with keys: name, city, title, text, rating, language." },
+                   { role: "user", content: `Generate 1 unique customer review for Product: "${resolvedProductName}".\nRating Mode: "${effectiveRatingMode}".\nLanguage: "${effectiveLanguage}".\n${anglePrompt}\nOutput pure JSON object only.` }
+                 ],
+                 temperature: 0.95,
+                 max_tokens: 500
+               })
+             });
+             if (nimRes.ok) {
+               const nimData = await nimRes.json();
+               let cleaned = (nimData.choices?.[0]?.message?.content || "").replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+               const parsedSingle = JSON.parse(cleaned);
+               if (parsedSingle && parsedSingle.text) {
+                 finalDraft.text = parsedSingle.text;
+                 if (!finalDraft.text.startsWith("AI DRAFT — HUMAN REVIEW REQUIRED")) {
+                   finalDraft.text = `AI DRAFT — HUMAN REVIEW REQUIRED - ${finalDraft.text}`;
+                 }
+                 finalDraft.title = parsedSingle.title || finalDraft.title;
+                 finalDraft.name = parsedSingle.name || finalDraft.name;
+                 usedBatchNames.add(finalDraft.name);
+                 finalSimResult = evaluateDraftSimilarity(finalDraft.text, runningBatchCorpus, { duplicateThreshold: 70, duplicateSemanticThreshold: 80, similarThreshold: 35, similarSemanticThreshold: 50 });
+               }
+             }
+          } catch(e) {}
         }
       }
+
 
       const enhancedDraft = {
         ...finalDraft,
@@ -1013,10 +1038,9 @@ export async function polishReviewWithAI(req, res, next) {
 
     let polishedText = originalTextToPolish.trim();
 
-    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-    if (geminiApiKey) {
+    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    if (nvidiaApiKey) {
       try {
-        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
         const systemPrompt = `You are an expert review editor for an authentic Rudraksha store (Aura Rudraksha).
 Your ONLY task is to polish the grammar, spelling, punctuation, and readability of genuine customer reviews.
 
@@ -1028,22 +1052,36 @@ CRITICAL MANDATES:
 
         const userPrompt = `Polish this customer review for grammar, spelling, and professional readability while strictly preserving its original meaning:\n"${originalTextToPolish}"`;
 
-        const response = await ai.models.generateContent({
-          model: "nemotron-3-super-120b-a12b",
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.2,
-            maxOutputTokens: 500
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
           },
-          contents: [{ role: "user", parts: [{ text: userPrompt }] }]
+          body: JSON.stringify({
+            model: "nvidia/nemotron-3-super-120b-a12b",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
+            temperature: 0.2,
+            max_tokens: 500
+          })
         });
+
+        let response = { text: "" };
+        if (nimRes.ok) {
+          const nimData = await nimRes.json();
+          response.text = nimData.choices?.[0]?.message?.content || "";
+        }
 
         const outText = response.text ? response.text.replace(/^["'\s]+|["'\s]+$/g, "").trim() : "";
         if (outText && outText.length >= 5) {
           polishedText = outText;
         }
       } catch (err) {
-        console.warn("[Aura AI Polish] Gemini API notice:", err?.message || err);
+        console.warn("[Aura AI Polish] NVIDIA NIM API notice:", err?.message || err);
       }
     }
 
