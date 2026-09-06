@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { useWishlist } from "../hooks/useWishlist";
@@ -283,16 +284,19 @@ export function Cart() {
                   width: "100%"
                 }}
               >
+                <AnimatePresence>
                 {Object.entries(items).map(([id, qty], index) => {
                   const p = products.find((x) => String(x.id) === String(id));
                   if (!p) return null;
 
                   return (
-                    <div
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
                       key={id}
-                      
-                      
-                      
                     >
                     <CartItemCard
                       key={id}
@@ -305,9 +309,10 @@ export function Cart() {
                       onToggleWishlist={toggleWishlist}
                       isWishlisted={isWishlisted(p.id || p._id)}
                     />
-                    </div>
+                    </motion.div>
                   );
                 })}
+                </AnimatePresence>
               </div>
 
               {/* 3. Temple Consecration & Lab Guarantee Trust Banner */}

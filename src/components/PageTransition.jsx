@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 export function PageTransition({ children }) {
   const location = useLocation();
+  const shouldReduceMotion = useReducedMotion();
   const [loadingBar, setLoadingBar] = useState(false);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export function PageTransition({ children }) {
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
         style={{ width: "100%" }}
       >
         {children}
