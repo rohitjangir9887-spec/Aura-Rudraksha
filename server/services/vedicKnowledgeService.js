@@ -680,7 +680,7 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
  * 🛍️ Aura Rudraksha mein availability:
  * Available / Currently unavailable
  */
-export function buildAuthenticVedicResponse({ message, userIntent, products = [], coupons = [], userIsAuthenticated = false, verifiedName = "", customerOrders = [], supportPhone = "${supportPhone}", supportEmail = "${supportEmail}" }) {
+export function buildAuthenticVedicResponse({ message, userIntent, products = [], coupons = [], userIsAuthenticated = false, verifiedName = "", customerOrders = [], supportPhone = "+91 98765 00001", supportEmail = "care@aurarudraksha-test.com" }) {
   const msgLower = (message || "").toLowerCase().trim();
   const mukhi = extractMukhiNumber(msgLower);
 
@@ -816,8 +816,8 @@ export function buildAuthenticVedicResponse({ message, userIntent, products = []
   if (msgLower.includes("human") || msgLower.includes("support") || msgLower.includes("contact") || msgLower.includes("helpdesk") || msgLower.includes("customer care")) {
     let resp = "🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka Vedic shopping aur spiritual guide.**\n\n";
     resp += "Main aapki sacred rudraksha choose karne mein help kar sakta hoon. Yadi aapko kisi vishesh sahayata ya manushya (human) support ki aavashyakta hai, to kripya hamare support se sampark karein:\n\n";
-    resp += "📞 **Phone/WhatsApp:** +91 98765 00001\n";
-    resp += "✉️ **Email:** care@aurarudraksha-test.com\n\n";
+    resp += `📞 **Phone/WhatsApp:** ${supportPhone}\n`;
+    resp += `✉️ **Email:** ${supportEmail}\n\n`;
     resp += "Hum jald hi wapas aayenge. Om Namah Shivaya! 🕉️";
     return resp;
   }
