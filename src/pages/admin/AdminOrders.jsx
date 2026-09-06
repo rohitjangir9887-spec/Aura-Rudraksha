@@ -114,6 +114,16 @@ export function AdminOrders() {
     return () => unsub();
   }, []);
 
+  const getPayuRef = (o) => {
+    if (o.mihpayid) return o.mihpayid;
+    if (o.paymentAttempts && o.paymentAttempts.length > 0) {
+      for (let i = o.paymentAttempts.length - 1; i >= 0; i--) {
+        if (o.paymentAttempts[i].mihpayid) return o.paymentAttempts[i].mihpayid;
+      }
+    }
+    return o.txnid || null;
+  };
+
   useEffect(() => {
     let result = orders;
     if (searchTerm) {
@@ -124,7 +134,7 @@ export function AdminOrders() {
         (o.trackingNumber || o.trackingId || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         (o.courierName || o.carrier || o.courier || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         (o.txnid || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (o.mihpayid || "").toLowerCase().includes(searchTerm.toLowerCase())
+        (getPayuRef(o) || "").toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     if (statusFilter !== "All") {
@@ -378,18 +388,18 @@ export function AdminOrders() {
                   <code style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4 }}>{viewing.txnid}</code>
                 </div>
               )}
-              {viewing.mihpayid && (
+              {getPayuRef(viewing) && (
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
                   <span>PayU Payment ID</span>
                   <code 
                     onClick={() => {
-                      navigator.clipboard.writeText(viewing.mihpayid);
+                      navigator.clipboard.writeText(getPayuRef(viewing));
                       emitToast("PayU Payment ID copied to clipboard!", "success");
                     }}
                     style={{ fontFamily: 'monospace', fontSize: 11, background: '#f5f0eb', padding: '1px 5px', borderRadius: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                     title="Click to copy"
                   >
-                    {viewing.mihpayid} <Copy size={10} />
+                    {getPayuRef(viewing)} <Copy size={10} />
                   </code>
                 </div>
               )}
@@ -433,7 +443,7 @@ export function AdminOrders() {
                   ? viewing.paymentAttempts
                   : [{
                       txnid: viewing.txnid || viewing.id,
-                      mihpayid: viewing.mihpayid || null,
+                      mihpayid: getPayuRef(viewing) || null,
                       payuStatus: viewing.payuStatus || viewing.paymentStatus || 'Initiated',
                       paymentStatus: viewing.paymentStatus || 'Pending',
                       paymentMode: viewing.paymentMode || 'PayU Gateway',
@@ -449,7 +459,7 @@ export function AdminOrders() {
                       <span style={{ fontSize: 10, fontWeight: 500, color: '#64748b' }}>Authoritative Log</span>
                     </div>
                     {attempts.map((att, idx) => {
-                      const payuId = att.mihpayid || (att.txnid === viewing.txnid ? viewing.mihpayid : null);
+                      const payuId = att.mihpayid || (att.txnid === viewing.txnid ? getPayuRef(viewing) : null);
                       const pStatus = att.payuStatus || att.status || 'Initiated';
                       const paymentState = att.paymentStatus || viewing.paymentStatus || 'Pending';
                       const isSuccess = pStatus.toLowerCase().includes('success') || att.status === 'success' || paymentState === 'Paid';
@@ -846,10 +856,10 @@ export function AdminOrders() {
                     <code style={{ fontFamily: 'monospace' }}>{viewing.txnid}</code>
                   </div>
                 )}
-                {viewing.mihpayid && (
+                {getPayuRef(viewing) && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>PayU Payment ID:</span>
-                    <code style={{ fontFamily: 'monospace' }}>{viewing.mihpayid}</code>
+                    <code style={{ fontFamily: 'monospace' }}>{getPayuRef(viewing)}</code>
                   </div>
                 )}
               </div>
@@ -1029,19 +1039,19 @@ export function AdminOrders() {
                         <span className={`admin-badge ${o.paymentStatus === 'Paid' || o.paymentStatus === 'Refunded' ? 'success' : 'warning'}`} style={{ width: 'fit-content' }}>
                           {o.paymentStatus || 'Pending'}
                         </span>
-                        {o.mihpayid && (
+                        {getPayuRef(o) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#806f62' }}>
                             <span>PayU:</span>
                             <code 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigator.clipboard.writeText(o.mihpayid);
+                                navigator.clipboard.writeText(getPayuRef(o));
                                 emitToast("PayU ID copied!", "success");
                               }}
                               title="Copy PayU ID"
                               style={{ fontFamily: 'monospace', cursor: 'pointer', background: '#f5f0eb', padding: '1px 4px', borderRadius: 2 }}
                             >
-                              {o.mihpayid}
+                              {getPayuRef(o)}
                             </code>
                           </div>
                         )}
@@ -1186,19 +1196,19 @@ export function AdminOrders() {
                       <span className={`admin-badge ${o.paymentStatus === 'Paid' || o.paymentStatus === 'Refunded' ? 'success' : 'warning'}`} style={{ width: 'fit-content', padding: '2px 6px', fontSize: 10 }}>
                         {o.paymentStatus || 'Pending'}
                       </span>
-                      {o.mihpayid && (
+                      {getPayuRef(o) && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#806f62', marginTop: 2 }}>
                           <span>PayU:</span>
                           <code 
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigator.clipboard.writeText(o.mihpayid);
+                              navigator.clipboard.writeText(getPayuRef(o));
                               emitToast("PayU ID copied!", "success");
                             }}
                             title="Copy PayU ID"
                             style={{ fontFamily: 'monospace', cursor: 'pointer', background: '#f5f0eb', padding: '1px 4px', borderRadius: 2 }}
                           >
-                            {o.mihpayid}
+                            {getPayuRef(o)}
                           </code>
                         </div>
                       )}
