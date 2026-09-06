@@ -6,7 +6,7 @@ import { compressImage, uploadMedia, uploadMediaBatch } from "../../lib/imageUti
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
-import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles } from "lucide-react";
+import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash } from "lucide-react";
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
 
@@ -25,6 +25,14 @@ export function AdminProducts() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState("");
 
+  // Search Keywords & Vedic SEO States
+  const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false);
+  const [aiKeywordLanguage, setAiKeywordLanguage] = useState("English & Hindi");
+  const [keywordInput, setKeywordInput] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [zodiacInput, setZodiacInput] = useState("");
+  const [generatingKeywordId, setGeneratingKeywordId] = useState(null);
+
   useEffect(() => {
     load();
     const unsub = onStoreUpdate(() => {
@@ -42,7 +50,17 @@ export function AdminProducts() {
   useEffect(() => {
     let result = products;
     if (searchTerm) {
-      result = result.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const q = searchTerm.toLowerCase().trim();
+      result = result.filter(p => 
+        (p.name && p.name.toLowerCase().includes(q)) || 
+        (p.category && p.category.toLowerCase().includes(q)) ||
+        (p.subCategory && p.subCategory.toLowerCase().includes(q)) ||
+        (p.mukhi && p.mukhi.toLowerCase().includes(q)) ||
+        (p.origin && p.origin.toLowerCase().includes(q)) ||
+        (Array.isArray(p.keywords) && p.keywords.some(k => k.toLowerCase().includes(q))) ||
+        (Array.isArray(p.searchKeywords) && p.searchKeywords.some(k => k.toLowerCase().includes(q))) ||
+        (Array.isArray(p.tags) && p.tags.some(t => t.toLowerCase().includes(q)))
+      );
     }
     if (selectedCategory !== "All") {
       result = result.filter(p => p.category === selectedCategory);
@@ -174,14 +192,189 @@ export function AdminProducts() {
     }
   };
 
-const handleEdit = (p) => {
+  const handleGenerateAiKeywords = async (productToProcess = null) => {
+    const targetProduct = productToProcess || editing;
+    if (!targetProduct?.name) {
+      emitToast("Please enter a product name first", "error");
+      return;
+    }
+    const isDirectItem = !!productToProcess;
+    if (isDirectItem) {
+      setGeneratingKeywordId(productToProcess.id);
+    } else {
+      setIsGeneratingKeywords(true);
+    }
+
+    try {
+      const res = await fetch("/api/aura-ai/generate-keywords", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + (await authClient.getToken())
+        },
+        body: JSON.stringify({
+          name: targetProduct.name,
+          category: targetProduct.category || "Rudraksha",
+          description: targetProduct.description || "",
+          mukhi: targetProduct.mukhi || "",
+          origin: targetProduct.origin || "Nepal",
+          price: targetProduct.price || 999,
+          language: aiKeywordLanguage,
+          details: targetProduct.highlight || ""
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const { keywords, tags, subCategory, mukhi, rulingPlanet, deity, origin, zodiac, highlight } = data.data;
+        if (isDirectItem) {
+          const currentKw = Array.isArray(productToProcess.keywords) ? productToProcess.keywords : [];
+          const currentTags = Array.isArray(productToProcess.tags) ? productToProcess.tags : [];
+          const currentZodiac = Array.isArray(productToProcess.zodiac) ? productToProcess.zodiac : [];
+          const merged = {
+            ...productToProcess,
+            keywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
+            searchKeywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
+            tags: Array.from(new Set([...currentTags, ...(tags || [])])),
+            subCategory: productToProcess.subCategory || subCategory || "",
+            mukhi: productToProcess.mukhi || mukhi || "",
+            rulingPlanet: productToProcess.rulingPlanet || rulingPlanet || "",
+            deity: productToProcess.deity || deity || "",
+            origin: productToProcess.origin || origin || "Nepal",
+            zodiac: Array.from(new Set([...currentZodiac, ...(zodiac || [])]))
+          };
+          await db.saveProduct(merged);
+          emitToast(`✨ Generated ${keywords.length} AI keywords & tags for "${productToProcess.name}"!`, "success");
+          load();
+        } else {
+          setEditing(prev => {
+            if (!prev) return prev;
+            const currentKw = Array.isArray(prev.keywords) ? prev.keywords : (Array.isArray(prev.searchKeywords) ? prev.searchKeywords : []);
+            const currentTags = Array.isArray(prev.tags) ? prev.tags : [];
+            const currentZodiac = Array.isArray(prev.zodiac) ? prev.zodiac : [];
+            return {
+              ...prev,
+              keywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
+              searchKeywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
+              tags: Array.from(new Set([...currentTags, ...(tags || [])])),
+              subCategory: prev.subCategory || subCategory || prev.category || "Rudraksha",
+              mukhi: prev.mukhi || mukhi || "",
+              rulingPlanet: prev.rulingPlanet || rulingPlanet || "",
+              deity: prev.deity || deity || "",
+              origin: prev.origin || origin || "Nepal",
+              zodiac: Array.from(new Set([...currentZodiac, ...(zodiac || [])])),
+              highlight: prev.highlight || highlight || ""
+            };
+          });
+          emitToast(`✨ Generated ${keywords.length} AI search keywords and Vedic tags!`, "success");
+        }
+      } else {
+        emitToast(data.message || "Failed to generate keywords. Please try again.", "error");
+      }
+    } catch (err) {
+      emitToast("Error generating AI keywords. Please try again.", "error");
+    } finally {
+      setIsGeneratingKeywords(false);
+      setGeneratingKeywordId(null);
+    }
+  };
+
+  const handleAddKeyword = (kw) => {
+    const raw = (kw !== undefined ? kw : keywordInput);
+    if (!raw) return;
+    const parts = String(raw).split(/[,|\n]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
+    if (parts.length === 0) return;
+
+    setEditing(prev => {
+      if (!prev) return prev;
+      const current = Array.isArray(prev.keywords) ? [...prev.keywords] : [];
+      parts.forEach(p => {
+        if (!current.includes(p)) current.push(p);
+      });
+      return { ...prev, keywords: current, searchKeywords: current };
+    });
+    setKeywordInput("");
+  };
+
+  const handleRemoveKeyword = (indexToRemove) => {
+    setEditing(prev => {
+      if (!prev) return prev;
+      const current = Array.isArray(prev.keywords) ? [...prev.keywords] : [];
+      current.splice(indexToRemove, 1);
+      return { ...prev, keywords: current, searchKeywords: current };
+    });
+  };
+
+  const handleClearKeywords = () => {
+    setEditing(prev => (prev ? { ...prev, keywords: [], searchKeywords: [] } : prev));
+    emitToast("Keywords cleared", "info");
+  };
+
+  const handleAddTag = (tg) => {
+    const raw = (tg !== undefined ? tg : tagInput);
+    if (!raw) return;
+    const parts = String(raw).split(/[,|\n]+/).map(t => t.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+
+    setEditing(prev => {
+      if (!prev) return prev;
+      const current = Array.isArray(prev.tags) ? [...prev.tags] : [];
+      parts.forEach(p => {
+        if (!current.includes(p)) current.push(p);
+      });
+      return { ...prev, tags: current };
+    });
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (indexToRemove) => {
+    setEditing(prev => {
+      if (!prev) return prev;
+      const current = Array.isArray(prev.tags) ? [...prev.tags] : [];
+      current.splice(indexToRemove, 1);
+      return { ...prev, tags: current };
+    });
+  };
+
+  const handleToggleZodiac = (z) => {
+    const sign = String(z).trim();
+    if (!sign) return;
+    setEditing(prev => {
+      if (!prev) return prev;
+      const current = Array.isArray(prev.zodiac) ? [...prev.zodiac] : [];
+      const idx = current.indexOf(sign);
+      if (idx >= 0) {
+        current.splice(idx, 1);
+      } else {
+        current.push(sign);
+      }
+      return { ...prev, zodiac: current };
+    });
+  };
+
+  const handleEdit = (p) => {
     setFormError("");
     setUrlInput("");
+    setKeywordInput("");
+    setTagInput("");
+    setZodiacInput("");
     if (p) {
       const imgs = (p.images && p.images.length > 0) ? [...p.images] : (p.img ? [p.img] : []);
       const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
+      const existingKw = Array.isArray(p.keywords) ? p.keywords : (Array.isArray(p.searchKeywords) ? p.searchKeywords : []);
+      const existingTags = Array.isArray(p.tags) ? p.tags : [];
+      const existingZodiac = Array.isArray(p.zodiac) ? p.zodiac : [];
+
       setEditing({
         ...p,
+        keywords: existingKw,
+        searchKeywords: existingKw,
+        tags: existingTags,
+        subCategory: p.subCategory || "",
+        mukhi: p.mukhi || "",
+        rulingPlanet: p.rulingPlanet || "",
+        deity: p.deity || "",
+        origin: p.origin || "Nepal",
+        zodiac: existingZodiac,
         status: isDraft ? "Draft" : "Published",
         showOnHome: p.showOnHome !== false,
         isPopular: !!p.isPopular,
@@ -199,6 +392,15 @@ const handleEdit = (p) => {
         img: "",
         images: [],
         category: "Rudraksha",
+        subCategory: "",
+        keywords: [],
+        searchKeywords: [],
+        tags: ["Authentic", "Nepal Origin", "Lab Certified"],
+        mukhi: "",
+        rulingPlanet: "",
+        deity: "",
+        origin: "Nepal",
+        zodiac: [],
         description: "",
         status: "Draft", // Default new product status is Draft to prevent accidental public publishing
         showOnHome: true,
@@ -389,7 +591,18 @@ const handleEdit = (p) => {
       img: primaryImg,
       images: currentImages.length > 0 ? currentImages : [primaryImg],
       category: editing.category || "Rudraksha",
-        description: editing.description || "",
+      subCategory: (editing.subCategory || "").trim(),
+      keywords: Array.isArray(editing.keywords) ? editing.keywords : [],
+      searchKeywords: Array.isArray(editing.keywords) ? editing.keywords : [],
+      tags: Array.isArray(editing.tags) ? editing.tags : [],
+      mukhi: (editing.mukhi || "").trim(),
+      rulingPlanet: (editing.rulingPlanet || "").trim(),
+      deity: (editing.deity || "").trim(),
+      origin: (editing.origin || "Nepal").trim(),
+      zodiac: Array.isArray(editing.zodiac) ? editing.zodiac : [],
+      freeShipping: editing.freeShipping !== false,
+      shippingFee: Number(editing.shippingFee) || 0,
+      description: editing.description || "",
       status: finalStatus,
       showOnHome: editing.showOnHome !== false,
       isPopular: !!editing.isPopular,
@@ -677,6 +890,436 @@ const handleEdit = (p) => {
                   />
                   🔥 Mark as <b>Popular / Trending Pick</b>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          {/* 🔍 Search Keywords, Tags & Vedic SEO Metadata (सर्च कीवर्ड्स और वैदिक टैग्स) */}
+          <div style={{
+            background: 'linear-gradient(135deg, #fefaf6 0%, #fbf3eb 100%)',
+            border: '1.5px solid #dfcbb8',
+            borderRadius: '14px',
+            padding: '20px',
+            marginBottom: '22px',
+            boxShadow: '0 2px 10px rgba(126, 45, 18, 0.04)'
+          }}>
+            {/* Header & AI Action */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #ebdacf' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#4a1506', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800' }}>
+                  <Key size={18} style={{ color: '#b44b1c' }} />
+                  Search Keywords, Tags &amp; Vedic SEO (सर्च कीवर्ड्स और वैदिक टैग्स)
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#6d5a4d', lineHeight: '1.4' }}>
+                  Set multi-lingual search keywords (English, Hindi, Hinglish) so customers instantly find this product when searching names like <i>"5 mukhi"</i>, <i>"panchmukhi"</i>, <i>"पंचमुखी"</i>, <i>"lord shiva mala"</i>, <i>"wealth rudraksha"</i>, etc.
+                </p>
+              </div>
+
+              {/* AI Auto-Generator Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <select 
+                  value={aiKeywordLanguage}
+                  onChange={e => setAiKeywordLanguage(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    borderRadius: '8px',
+                    border: '1px solid #c9b19e',
+                    background: '#fff',
+                    color: '#3d2516'
+                  }}
+                  title="Language for AI Generated Keywords"
+                >
+                  <option value="English & Hindi">English &amp; Hindi (दोनों)</option>
+                  <option value="English">English Only</option>
+                  <option value="Hindi">Hindi (हिंदी देवनागरी)</option>
+                  <option value="Hinglish">Hinglish (Roman Hindi)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => handleGenerateAiKeywords()}
+                  disabled={isGeneratingKeywords || !editing.name}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'linear-gradient(135deg, #8a2f10, #c84d1b)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '7px 14px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: (isGeneratingKeywords || !editing.name) ? 'not-allowed' : 'pointer',
+                    opacity: (isGeneratingKeywords || !editing.name) ? 0.6 : 1,
+                    boxShadow: '0 2px 8px rgba(138, 47, 16, 0.25)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Sparkles size={14} className={isGeneratingKeywords ? "animate-spin" : ""} />
+                  {isGeneratingKeywords ? "Generating with Aura AI..." : "✨ Generate Keywords with Aura AI"}
+                </button>
+              </div>
+            </div>
+
+            {/* 1. Search Keywords (सर्च कीवर्ड्स) */}
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                <label style={{ margin: 0, fontWeight: '700', fontSize: '13px', color: '#2b170d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Search size={14} style={{ color: '#8a2f10' }} />
+                  Search Keywords (सर्च कीवर्ड्स) — <span style={{ fontWeight: '500', color: '#7a6a5e' }}>{editing.keywords?.length || 0} active</span>
+                </label>
+                {editing.keywords?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearKeywords}
+                    style={{ background: 'none', border: 'none', color: '#b91c1c', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                  >
+                    Clear All Keywords
+                  </button>
+                )}
+              </div>
+
+              {/* Keyword Chips */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px',
+                minHeight: '38px',
+                padding: '8px 10px',
+                background: '#fff',
+                border: '1px solid #d8c6b6',
+                borderRadius: '8px',
+                marginBottom: '8px'
+              }}>
+                {(!editing.keywords || editing.keywords.length === 0) ? (
+                  <span style={{ fontSize: '12px', color: '#9c8b7f', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>
+                    No search keywords added yet. Type below or click presets / generate with AI.
+                  </span>
+                ) : (
+                  editing.keywords.map((kw, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: '#fef3e7',
+                        border: '1px solid #fed7aa',
+                        color: '#9a3412',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        padding: '3px 8px',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveKeyword(idx)}
+                        style={{ background: 'none', border: 'none', color: '#9a3412', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', opacity: 0.7 }}
+                        title="Remove keyword"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+
+              {/* Keyword Input & Add */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={keywordInput}
+                  onChange={e => setKeywordInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      handleAddKeyword();
+                    }
+                  }}
+                  placeholder="Type keyword and press Enter or comma (e.g. 5 mukhi nepal, original shiv mala, blood pressure)..."
+                  style={{ flex: 1, padding: '8px 12px', fontSize: '13px', borderRadius: '6px', border: '1px solid #c9b8a8', background: '#fff' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddKeyword()}
+                  style={{
+                    padding: '8px 14px',
+                    background: '#6b270c',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  + Add Keyword
+                </button>
+              </div>
+
+              {/* Quick Preset Keywords */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', color: '#7a6a5e', fontWeight: '700' }}>⚡ Quick Add:</span>
+                {[
+                  "original nepal", "lab certified", "prana pratishtha", "100% genuine",
+                  "lord shiva", "vedic mala", "meditation focus", "health & peace",
+                  "financial growth", "panchmukhi", "gauri shankar", "सिद्ध रुद्राक्ष"
+                ].map((preset, pIdx) => (
+                  <button
+                    key={pIdx}
+                    type="button"
+                    onClick={() => handleAddKeyword(preset)}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #e0d1c3',
+                      borderRadius: '12px',
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      color: '#6b3c22',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Product Tags (प्रोडक्ट टैग्स) */}
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontWeight: '700', fontSize: '13px', color: '#2b170d', marginBottom: '6px' }}>
+                <Tag size={14} style={{ color: '#8a2f10', display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                Product Tags &amp; Badges (उत्पाद टैग्स)
+              </label>
+
+              {/* Tag Chips */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px',
+                minHeight: '34px',
+                padding: '6px 10px',
+                background: '#fff',
+                border: '1px solid #d8c6b6',
+                borderRadius: '8px',
+                marginBottom: '8px'
+              }}>
+                {(!editing.tags || editing.tags.length === 0) ? (
+                  <span style={{ fontSize: '12px', color: '#9c8b7f', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>
+                    No tags added.
+                  </span>
+                ) : (
+                  editing.tags.map((tg, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: '#ecfdf5',
+                        border: '1px solid #a7f3d0',
+                        color: '#065f46',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        padding: '3px 8px',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      🏷️ {tg}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(idx)}
+                        style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+
+              {/* Tag Input */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      handleAddTag();
+                    }
+                  }}
+                  placeholder="Add custom tag (e.g. Best Seller, Rare Collector, Puja Blessed)..."
+                  style={{ flex: 1, padding: '7px 12px', fontSize: '13px', borderRadius: '6px', border: '1px solid #c9b8a8', background: '#fff' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddTag()}
+                  style={{
+                    padding: '7px 14px',
+                    background: '#15803d',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  + Add Tag
+                </button>
+              </div>
+
+              {/* Preset Tags */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', color: '#7a6a5e', fontWeight: '700' }}>⚡ Common Tags:</span>
+                {["Best Seller", "Nepal Origin", "Lab Certified", "Prana Pratishtha", "Collector Edition", "Vedic Grade", "Authentic"].map((tgP, tIdx) => (
+                  <button
+                    key={tIdx}
+                    type="button"
+                    onClick={() => handleAddTag(tgP)}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #d1fae5',
+                      borderRadius: '12px',
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      color: '#047857',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    + {tgP}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Vedic & Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण) */}
+            <div>
+              <label style={{ display: 'block', fontWeight: '700', fontSize: '13px', color: '#2b170d', marginBottom: '10px' }}>
+                <Globe size={14} style={{ color: '#8a2f10', display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                Vedic &amp; Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण)
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                {/* Mukhi */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                    Mukhi (मुखी संख्या)
+                  </label>
+                  <input
+                    type="text"
+                    value={editing.mukhi || ""}
+                    onChange={e => setEditing({ ...editing, mukhi: e.target.value })}
+                    placeholder="e.g. 5 Mukhi, Gauri Shankar, Siddha Mala"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                  />
+                </div>
+
+                {/* Sub-Category / Collection */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                    Sub-Category / Collection
+                  </label>
+                  <input
+                    type="text"
+                    value={editing.subCategory || ""}
+                    onChange={e => setEditing({ ...editing, subCategory: e.target.value })}
+                    placeholder="e.g. 1 to 14 Mukhi Beads, Siddha Mala"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                  />
+                </div>
+
+                {/* Origin */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                    Origin (उत्पत्ति)
+                  </label>
+                  <select
+                    value={editing.origin || "Nepal"}
+                    onChange={e => setEditing({ ...editing, origin: e.target.value })}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                  >
+                    <option value="Nepal">Nepal (नेपाल)</option>
+                    <option value="Java / Indonesia">Java / Indonesia (इंडोनेशिया)</option>
+                    <option value="Haridwar">Haridwar (हरिद्वार)</option>
+                    <option value="Rameshwaram">Rameshwaram</option>
+                    <option value="Himalayan">Himalayan Groves</option>
+                  </select>
+                </div>
+
+                {/* Ruling Deity */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                    Ruling Deity (अधिष्ठाता देवता)
+                  </label>
+                  <input
+                    type="text"
+                    value={editing.deity || ""}
+                    onChange={e => setEditing({ ...editing, deity: e.target.value })}
+                    placeholder="e.g. Lord Shiva, Kalagni Rudra, Mahalakshmi"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                  />
+                </div>
+
+                {/* Ruling Planet */}
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                    Ruling Planet (स्वामी ग्रह)
+                  </label>
+                  <input
+                    type="text"
+                    value={editing.rulingPlanet || ""}
+                    onChange={e => setEditing({ ...editing, rulingPlanet: e.target.value })}
+                    placeholder="e.g. Jupiter (गुरु), Sun (सूर्य), Venus (शुक्र)"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                  />
+                </div>
+              </div>
+
+              {/* Zodiac / Rashis Chips */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '6px' }}>
+                  Suitable Zodiac Signs (उपयुक्त राशियां)
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {[
+                    "Aries (मेष)", "Taurus (वृषभ)", "Gemini (मिथुन)", "Cancer (कर्क)",
+                    "Leo (सिंह)", "Virgo (कन्या)", "Libra (तुला)", "Scorpio (वृश्चिक)",
+                    "Sagittarius (धनु)", "Capricorn (मकर)", "Aquarius (कुंभ)", "Pisces (मीन)",
+                    "All Rashis (सर्व राशि)"
+                  ].map((zSign, zIdx) => {
+                    const isSelected = Array.isArray(editing.zodiac) && editing.zodiac.includes(zSign);
+                    return (
+                      <button
+                        key={zIdx}
+                        type="button"
+                        onClick={() => handleToggleZodiac(zSign)}
+                        style={{
+                          padding: '4px 9px',
+                          borderRadius: '14px',
+                          fontSize: '11.5px',
+                          fontWeight: isSelected ? '700' : '500',
+                          border: isSelected ? '1.5px solid #b44b1c' : '1px solid #d6c6b8',
+                          background: isSelected ? '#fed7aa' : '#fff',
+                          color: isSelected ? '#7c2d12' : '#574336',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {isSelected ? "✓ " : ""}{zSign}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -1197,12 +1840,21 @@ const handleEdit = (p) => {
                       />
                       <div>
                         <span className="mobile-card-title">{p.name}</span>
-                        <div className="mobile-card-sub">{p.category || "Rudraksha"} • Stock: <b>{p.stock}</b></div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div className="mobile-card-sub">
+                          {p.category || "Rudraksha"} {p.mukhi ? `• ${p.mukhi}` : ''} • Stock: <b>{p.stock}</b>
+                        </div>
+                        <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                           {p.badge && (
                             <span style={{ fontSize: '10.5px', background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
                               {p.badge}
                             </span>
+                          )}
+                          {Array.isArray(p.keywords) && p.keywords.length > 0 ? (
+                            <span style={{ fontSize: '10.5px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
+                              🔍 {p.keywords.length} kws
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '10px', color: '#9ca3af' }}>No keywords</span>
                           )}
                           {imgCount > 1 && (
                             <span style={{ fontSize: '10.5px', color: '#a54d2b', fontWeight: '600' }}>
@@ -1268,7 +1920,29 @@ const handleEdit = (p) => {
                       <b>₹{p.price?.toLocaleString("en-IN")}</b>
                       {p.mrp > p.price && <del>₹{p.mrp?.toLocaleString("en-IN")}</del>}
                     </div>
-                    <div className="mobile-card-actions">
+                    <div className="mobile-card-actions" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateAiKeywords(p)}
+                        disabled={generatingKeywordId === p.id}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          borderRadius: '6px',
+                          border: '1px solid #fed7aa',
+                          background: '#fff7ed',
+                          color: '#c2410c',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer'
+                        }}
+                        title="Auto-generate search keywords with AI"
+                      >
+                        <Sparkles size={13} className={generatingKeywordId === p.id ? "animate-spin" : ""} />
+                        {generatingKeywordId === p.id ? "Generating..." : "AI SEO"}
+                      </button>
                       <button className="admin-btn secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleEdit(p)}>
                         <Edit size={14} /> Edit
                       </button>
@@ -1313,8 +1987,20 @@ const handleEdit = (p) => {
                           />
                           <div>
                             <strong>{p.name}</strong>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
                               <small>{p.reviews || 0} reviews • {p.images?.length || 1} images</small>
+                              {p.mukhi && (
+                                <span style={{ fontSize: '10px', background: '#f5ebe1', color: '#6d2812', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
+                                  {p.mukhi}
+                                </span>
+                              )}
+                              {Array.isArray(p.keywords) && p.keywords.length > 0 ? (
+                                <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }} title={p.keywords.join(', ')}>
+                                  🔍 {p.keywords.length} keywords
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '10px', color: '#9ca3af' }}>No keywords</span>
+                              )}
                               {p.badge && (
                                 <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: '4px', fontWeight: '700' }}>
                                   {p.badge}
@@ -1329,7 +2015,10 @@ const handleEdit = (p) => {
                           </div>
                         </div>
                       </td>
-                      <td>{p.category}</td>
+                      <td>
+                        <div><b>{p.category}</b></div>
+                        {p.subCategory && <div style={{ fontSize: '11px', color: '#7a6a5e' }}>{p.subCategory}</div>}
+                      </td>
                       <td>
                         <b>₹{p.price?.toLocaleString("en-IN")}</b>
                         {p.mrp > p.price && (
@@ -1427,6 +2116,15 @@ const handleEdit = (p) => {
                       </td>
                       <td>
                         <div className="admin-actions-cell">
+                          <button 
+                            className="admin-icon-btn" 
+                            onClick={() => handleGenerateAiKeywords(p)} 
+                            disabled={generatingKeywordId === p.id}
+                            title="Auto-generate search keywords with AI"
+                            style={{ color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa' }}
+                          >
+                            <Sparkles size={16} className={generatingKeywordId === p.id ? "animate-spin" : ""} />
+                          </button>
                           <button className="admin-icon-btn" onClick={() => handleEdit(p)} title="Edit Product">
                             <Edit size={16} />
                           </button>

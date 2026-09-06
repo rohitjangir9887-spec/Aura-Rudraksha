@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
-import { ShieldCheck, PackageCheck, BadgeCheck, Flower2 } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
@@ -13,6 +12,7 @@ import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { PaymentFailureAlert } from "../components/PaymentFailureAlert";
+import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
 
 export function Home() {
   const [hero, setHero] = useState(0);
@@ -214,12 +214,7 @@ export function Home() {
     
 
 
-    <motion.div     className="feature-bar fade-in-up">
-      <div><div className="icon-wrapper"><BadgeCheck strokeWidth={1.5}/></div><b>100% Authentic</b><span>Lab Certified</span></div>
-      <div><div className="icon-wrapper"><Flower2 strokeWidth={1.5}/></div><b>Positive Energy</b><span>Energized Beads</span></div>
-      <div><div className="icon-wrapper"><ShieldCheck strokeWidth={1.5}/></div><b>Premium Quality</b><span>Nepal Origin</span></div>
-      <div><div className="icon-wrapper"><PackageCheck strokeWidth={1.5}/></div><b>Free Shipping</b><span>{shippingThreshold > 0 ? `On Orders ₹${shippingThreshold}+` : "On All Orders"}</span></div>
-    </motion.div>
+    <AuraTrustFeatureBar />
     <PaymentFailureAlert />
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <motion.div    ><ShopByCategory /></motion.div>

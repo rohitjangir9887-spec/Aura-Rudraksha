@@ -8,7 +8,8 @@ import {
   deleteAuraAIConversation,
   trackAuraAIAction,
   getAuraAIAnalytics,
-  generateProductDescription
+  generateProductDescription,
+  generateProductKeywords
 } from "../controllers/auraAiController.js";
 import { optionalAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -17,6 +18,7 @@ const router = express.Router();
 // User & Public endpoints
 router.post("/chat", optionalAuth, chatAuraAI);
 router.post("/generate-description", requireAdmin, generateProductDescription);
+router.post("/generate-keywords", requireAdmin, generateProductKeywords);
 router.post("/track", optionalAuth, trackAuraAIAction);
 router.get("/settings", getAuraAISettings);
 router.get("/conversations", optionalAuth, getAuraAIConversations);

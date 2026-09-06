@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
+import { searchAndRankProducts } from "../lib/searchUtils";
 import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
@@ -186,20 +187,16 @@ export function Shop() {
     if (categoryParam) {
       next = next.filter(p => 
         (p?.category && p.category.toLowerCase().includes(categoryParam)) ||
+        (p?.subCategory && p.subCategory.toLowerCase().includes(categoryParam)) ||
         (p?.name && p.name.toLowerCase().includes(categoryParam))
       );
     }
     if (q) {
-      next = next.filter(p => 
-        (p?.name && p.name.toLowerCase().includes(q)) ||
-        (p?.category && p.category.toLowerCase().includes(q)) ||
-        (p?.highlight && p.highlight.toLowerCase().includes(q)) ||
-        (p?.tags && p.tags.some(t => t.toLowerCase().includes(q)))
-      );
+      next = searchAndRankProducts(next, q);
     }
-    if (chip === "mukhi") next = next.filter(p => /mukhi/i.test(p?.name || "") || (p?.category && /mukhi|rudraksha/i.test(p.category)));
-    if (chip === "gauri") next = next.filter(p => /gauri/i.test(p?.name || "") || (p?.category && /gauri/i.test(p.category)));
-    if (chip === "mala") next = next.filter(p => /mala/i.test(p?.name || "") || (p?.category && /mala/i.test(p.category)));
+    if (chip === "mukhi") next = next.filter(p => /mukhi/i.test(p?.name || "") || (p?.mukhi && p.mukhi.trim().length > 0) || (p?.category && /mukhi|rudraksha/i.test(p.category)));
+    if (chip === "gauri") next = next.filter(p => /gauri/i.test(p?.name || "") || (p?.mukhi && /gauri/i.test(p.mukhi)) || (p?.category && /gauri/i.test(p.category)));
+    if (chip === "mala") next = next.filter(p => /mala/i.test(p?.name || "") || (p?.subCategory && /mala/i.test(p.subCategory)) || (p?.category && /mala/i.test(p.category)));
     if (chip === "offers") {
       next = next.filter(p => 
         (p?.discountPercent && p.discountPercent > 0) || 

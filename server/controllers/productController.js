@@ -10,11 +10,12 @@ import { invalidateRagCache } from "../services/ragService.js";
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
   comparePrice: "number", mrp: "number", discount: "number", discountPercent: "number",
-  description: "richText", category: "string", images: "url[]", img: "url",
-  stock: "number", status: "string", tags: "string[]", highlight: "string",
-  badge: "string", homeBadge: "string", showOnHome: "bool", homeOrder: "number",
+  description: "richText", category: "string", subCategory: "string", images: "url[]", img: "url",
+  stock: "number", status: "string", tags: "string[]", keywords: "string[]", searchKeywords: "string[]",
+  highlight: "string", badge: "string", homeBadge: "string", showOnHome: "bool", homeOrder: "number",
   isPopular: "bool", rating: "number", reviews: "number", reviewCount: "number",
-  customOffer: "object", origin: "string"
+  customOffer: "object", origin: "string", mukhi: "string", rulingPlanet: "string", deity: "string",
+  zodiac: "string[]", metaTitle: "string", metaDescription: "string", freeShipping: "bool", shippingFee: "number"
 };
 
 /**
@@ -161,9 +162,25 @@ export async function getProductById(req, res, next) {
 
 import { logAuditEvent } from "../services/auditService.js";
 
+function normalizeArrayField(val) {
+  if (Array.isArray(val)) {
+    return val.map(s => String(s || "").trim()).filter(Boolean);
+  }
+  if (typeof val === "string" && val.trim()) {
+    return val.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 export async function createProduct(req, res, next) {
   try {
-    const data = pickFields(req.body, PRODUCT_FIELDS);
+    const rawBody = { ...req.body };
+    if (rawBody.tags !== undefined) rawBody.tags = normalizeArrayField(rawBody.tags);
+    if (rawBody.keywords !== undefined) rawBody.keywords = normalizeArrayField(rawBody.keywords);
+    if (rawBody.searchKeywords !== undefined) rawBody.searchKeywords = normalizeArrayField(rawBody.searchKeywords);
+    if (rawBody.zodiac !== undefined) rawBody.zodiac = normalizeArrayField(rawBody.zodiac);
+
+    const data = pickFields(rawBody, PRODUCT_FIELDS);
     if (!data.name || data.price === undefined) {
       return res.status(400).json({ success: false, message: "Name and Price are required" });
     }
@@ -175,6 +192,9 @@ export async function createProduct(req, res, next) {
       ...data,
       id,
       status: normalizedStatus,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      keywords: Array.isArray(data.keywords) ? data.keywords : (Array.isArray(data.searchKeywords) ? data.searchKeywords : []),
+      searchKeywords: Array.isArray(data.keywords) ? data.keywords : [],
       mrp: data.mrp || data.comparePrice || data.price,
       comparePrice: data.comparePrice || data.mrp || data.price,
       images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : []),
@@ -230,9 +250,20 @@ export async function createProduct(req, res, next) {
 export async function updateProduct(req, res, next) {
   try {
     const { id } = req.params;
-    const data = pickFields(req.body, PRODUCT_FIELDS);
+    const rawBody = { ...req.body };
+    if (rawBody.tags !== undefined) rawBody.tags = normalizeArrayField(rawBody.tags);
+    if (rawBody.keywords !== undefined) rawBody.keywords = normalizeArrayField(rawBody.keywords);
+    if (rawBody.searchKeywords !== undefined) rawBody.searchKeywords = normalizeArrayField(rawBody.searchKeywords);
+    if (rawBody.zodiac !== undefined) rawBody.zodiac = normalizeArrayField(rawBody.zodiac);
+
+    const data = pickFields(rawBody, PRODUCT_FIELDS);
 
     const updatePayload = { ...data, id: String(id) };
+    if (data.tags !== undefined) updatePayload.tags = Array.isArray(data.tags) ? data.tags : [];
+    if (data.keywords !== undefined) {
+      updatePayload.keywords = Array.isArray(data.keywords) ? data.keywords : [];
+      updatePayload.searchKeywords = updatePayload.keywords;
+    }
     if (data.status !== undefined) {
       updatePayload.status = normalizeProductStatus(data.status, "Published");
     }

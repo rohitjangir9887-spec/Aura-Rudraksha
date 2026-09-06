@@ -1512,3 +1512,151 @@ Output ONLY the pure HTML body itself, no markdown code fences.`
     return res.status(500).json({ success: false, message: "AI description could not be generated. Please check AI API configuration." });
   }
 }
+
+/**
+ * Generate Smart E-Commerce Search Keywords, Tags, Category & Vedic SEO using AI (nemotron-3-super-120b-a12b)
+ */
+export async function generateProductKeywords(req, res, next) {
+  try {
+    const { name, category, description, mukhi, origin, details, price, language } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: "Product name is required" });
+    }
+
+    const cleanName = name.trim();
+    const targetLang = language || "English & Hindi";
+
+    // Auto-infer Mukhi and category baseline
+    const mukhiNum = extractMukhiNumber(cleanName);
+    const inferredMukhi = mukhiNum ? `${mukhiNum} Mukhi` : (cleanName.toLowerCase().includes("gauri shankar") ? "Gauri Shankar" : (mukhi || ""));
+    const inferredOrigin = origin || (cleanName.toLowerCase().includes("indonesia") || cleanName.toLowerCase().includes("java") ? "Java / Indonesia" : "Nepal");
+
+    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    if (nvidiaApiKey) {
+      try {
+        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${nvidiaApiKey}`,
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            model: "nemotron-3-super-120b-a12b",
+            messages: [
+              {
+                role: "system",
+                content: `You are an elite e-commerce search algorithm architect and Vedic Rudraksha specialist. 
+Your mission is to generate comprehensive search keywords, phonetic terms, Hinglish synonyms, Hindi translations, tags, and astrological metadata to maximize conversion and ensure any search query finds this product.
+Think strategically about user search patterns:
+1. Exact mukhi / name queries (e.g. "5 mukhi", "5mukhi", "panch mukhi", "panchamukhi")
+2. Spelling variations and typos (e.g. "rudraksh", "rudraksha", "rudrakshya", "rudrakshm")
+3. Hindi devanagari queries (e.g. "पंचमुखी रुद्राक्ष", "असली नेपाली रुद्राक्ष", "शिव रुद्राक्ष")
+4. Benefit/Purpose-driven queries (e.g. "blood pressure bead", "peace of mind", "jupiter guru graha", "meditation mala", "shiva blessing")
+5. Origin & Quality keywords (e.g. "nepal origin", "lab certified with certificate", "x-ray tested", "haridwar consecrated")
+
+Always respond with a valid, clean JSON object ONLY without markdown code fences:
+{
+  "keywords": ["keyword 1", "keyword 2", ... 18-25 keywords],
+  "tags": ["Tag 1", "Tag 2", ... 6-10 tags],
+  "subCategory": "Subcategory name",
+  "mukhi": "e.g. 5 Mukhi",
+  "rulingPlanet": "e.g. Jupiter (Guru / बृहस्पति)",
+  "deity": "e.g. Kalagni Rudra / Lord Shiva",
+  "origin": "Nepal",
+  "zodiac": ["Sagittarius (धनु)", "Pisces (मीन)"],
+  "highlight": "Short 1-line certified highlight badge"
+}`
+              },
+              {
+                role: "user",
+                content: `Generate high-ranking search keywords and Vedic product metadata for:
+Product Name: "${cleanName}"
+Category: "${category || 'Rudraksha'}"
+Mukhi/Bead: "${inferredMukhi || 'N/A'}"
+Origin: "${inferredOrigin}"
+Price: ₹${price || 999}
+Details: ${details || description?.replace(/<[^>]*>/g, '').slice(0, 300) || 'Authentic Vedic Sacred Bead'}
+Language preference: ${targetLang}`
+              }
+            ],
+            temperature: 0.6,
+            max_tokens: 800
+          })
+        });
+
+        if (nimRes.ok) {
+          const nimData = await nimRes.json();
+          let rawText = (nimData.choices?.[0]?.message?.content || "").trim();
+          rawText = stripThinkingAndReasoning(rawText);
+          rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
+              return res.json({
+                success: true,
+                data: {
+                  keywords: parsed.keywords.map(k => String(k).trim()).filter(Boolean),
+                  tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => String(t).trim()).filter(Boolean) : ["Lab Certified", "Nepal Origin", "Authentic"],
+                  subCategory: parsed.subCategory || (inferredMukhi ? "Mukhi Rudraksha Beads" : (category || "Rudraksha")),
+                  mukhi: parsed.mukhi || inferredMukhi || "",
+                  rulingPlanet: parsed.rulingPlanet || "",
+                  deity: parsed.deity || "",
+                  origin: parsed.origin || inferredOrigin,
+                  zodiac: Array.isArray(parsed.zodiac) ? parsed.zodiac : [],
+                  highlight: parsed.highlight || "100% Authentic Nepal Consecrated Bead"
+                }
+              });
+            }
+          }
+        }
+      } catch (nimErr) {
+        console.warn("NVIDIA NIM keywords error:", nimErr?.message || nimErr);
+      }
+    }
+
+    // Direct deterministic fallback if API is unavailable
+    const generatedKeywords = [];
+    const generatedTags = ["Lab Certified", "Authentic", "Vedic Consecrated", inferredOrigin];
+    
+    // Split name words
+    const nameWords = cleanName.toLowerCase().split(/[\s-]+/).filter(w => w.length > 1);
+    generatedKeywords.push(cleanName.toLowerCase());
+    if (inferredMukhi) {
+      generatedKeywords.push(inferredMukhi.toLowerCase());
+      generatedKeywords.push(inferredMukhi.toLowerCase().replace(/\s+/g, ""));
+      const num = inferredMukhi.replace(/[^\d]/g, "");
+      if (num) {
+        const hindiMap = { "1": "ek", "2": "do", "3": "teen", "4": "char", "5": "panch", "6": "cheh", "7": "saat", "8": "aath", "9": "nau", "10": "das", "11": "gyarah", "12": "barah", "13": "terah", "14": "chaudah" };
+        const hindiWord = hindiMap[num] || "";
+        if (hindiWord) {
+          generatedKeywords.push(`${hindiWord} mukhi`);
+          generatedKeywords.push(`${hindiWord}mukhi`);
+          generatedKeywords.push(`${hindiWord} mukhi rudraksha`);
+        }
+      }
+    }
+    generatedKeywords.push("original rudraksha", "nepali rudraksha", "certified rudraksha online", "aura rudraksha", "vedic puja bead");
+
+    return res.json({
+      success: true,
+      data: {
+        keywords: Array.from(new Set(generatedKeywords)),
+        tags: generatedTags,
+        subCategory: inferredMukhi ? "Mukhi Rudraksha Beads" : (category || "Rudraksha"),
+        mukhi: inferredMukhi,
+        rulingPlanet: "",
+        deity: "Lord Shiva",
+        origin: inferredOrigin,
+        zodiac: [],
+        highlight: "100% Lab Certified Authentic Consecrated Bead"
+      }
+    });
+
+  } catch (error) {
+    console.error("Generate Product Keywords Error:", error);
+    return res.status(500).json({ success: false, message: "Could not generate keywords. Please try again." });
+  }
+}

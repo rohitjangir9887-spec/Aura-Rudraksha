@@ -1,6 +1,7 @@
 import { products as defaultProducts } from "../data/index.js";
 import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
+import { searchAndRankProducts } from "./searchUtils.js";
 
 // Event Broadcasters for real-time React UI updates
 export const emitStoreUpdate = (type, payload) => {
@@ -749,6 +750,19 @@ export const db = {
       id,
       img: primaryImg,
       images: imgs,
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      keywords: Array.isArray(p.keywords) ? p.keywords : (Array.isArray(p.searchKeywords) ? p.searchKeywords : []),
+      searchKeywords: Array.isArray(p.keywords) ? p.keywords : [],
+      subCategory: (p.subCategory || "").trim(),
+      mukhi: (p.mukhi || "").trim(),
+      rulingPlanet: (p.rulingPlanet || "").trim(),
+      deity: (p.deity || "").trim(),
+      origin: (p.origin || "Nepal").trim(),
+      zodiac: Array.isArray(p.zodiac) ? p.zodiac : [],
+      metaTitle: p.metaTitle || "",
+      metaDescription: p.metaDescription || "",
+      freeShipping: p.freeShipping !== false,
+      shippingFee: Number(p.shippingFee) || 0,
       mrp: Number(p.mrp) || Number(p.comparePrice) || Number(p.price) || 0,
       comparePrice: Number(p.comparePrice) || Number(p.mrp) || Number(p.price) || 0,
       price: Number(p.price) || 0,
@@ -780,6 +794,15 @@ export const db = {
     const normalizedSaved = {
       ...savedData,
       id: String(savedData.id || savedData._id || id),
+      tags: Array.isArray(savedData.tags) ? savedData.tags : (finalProduct.tags || []),
+      keywords: Array.isArray(savedData.keywords) ? savedData.keywords : (finalProduct.keywords || []),
+      searchKeywords: Array.isArray(savedData.keywords) ? savedData.keywords : (finalProduct.keywords || []),
+      subCategory: savedData.subCategory || finalProduct.subCategory || "",
+      mukhi: savedData.mukhi || finalProduct.mukhi || "",
+      rulingPlanet: savedData.rulingPlanet || finalProduct.rulingPlanet || "",
+      deity: savedData.deity || finalProduct.deity || "",
+      origin: savedData.origin || finalProduct.origin || "Nepal",
+      zodiac: Array.isArray(savedData.zodiac) ? savedData.zodiac : (finalProduct.zodiac || []),
       mrp: savedData.mrp || savedData.comparePrice || savedData.price,
       comparePrice: savedData.comparePrice || savedData.mrp || savedData.price,
       images: (Array.isArray(savedData.images) && savedData.images.length > 0) ? savedData.images : [savedData.img || "/images/product-5mukhi.jpg"]
@@ -802,6 +825,20 @@ export const db = {
     revalidateProducts(true).catch(() => {});
     fetchHomeData(true).catch(() => {}); // Force background sync across app
     return normalizedSaved;
+  },
+
+  searchProducts: (query, options = {}) => {
+    const all = storeCache.products.map(p => ({
+      ...p,
+      id: String(p.id || p._id),
+      mrp: p.mrp || p.comparePrice || p.price,
+      comparePrice: p.comparePrice || p.mrp || p.price,
+      images: (Array.isArray(p.images) && p.images.length > 0)
+        ? p.images
+        : [p.img || "/images/product-5mukhi.jpg"]
+    }));
+    const filtered = options.includeDrafts ? all : all.filter(isPublicProduct);
+    return searchAndRankProducts(filtered, query);
   },
 
   toggleProductHomeShowcase: async (id, showOnHome) => {
