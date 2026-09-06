@@ -289,7 +289,7 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
-const CACHE_FRESHNESS_LIMIT = 4000; // 4 seconds for fast background revalidation
+const CACHE_FRESHNESS_LIMIT = 0; // 4 seconds for fast background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
 
 let isInitialized = false;
@@ -359,7 +359,7 @@ export function loadCacheFromLocalStorage() {
   }
 }
 
-const PRODUCT_FRESHNESS_LIMIT = 3500; // Short 3.5s window for fast live sync
+const PRODUCT_FRESHNESS_LIMIT = 0; // Short 3.5s window for fast live sync
 let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
 let inFlightProductsPromise = null;
 
