@@ -778,7 +778,29 @@ router.post("/register", async (req, res) => {
     const finalFileId = (puterFileId || fileId || path || "").trim();
     const finalSizeBytes = Number(sizeBytes ?? size ?? 0);
     const finalFilename = filename || (finalReadURL.split('/').pop() || "media");
-    const finalType = type || "image/jpeg";
+        const finalType = type || "image/jpeg";
+
+    // SECURITY: MIME Type Allowlist
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedMimeTypes.includes(finalType)) {
+      return res.status(400).json({
+        success: false,
+        source: "api",
+        error: "Invalid File Type",
+        message: "Only raster images (JPEG, PNG, WebP, GIF) are permitted for security."
+      });
+    }
+
+    // SECURITY: Size Limit (4MB limit for untrusted origin images)
+    if (finalSizeBytes > 4 * 1024 * 1024) {
+       return res.status(400).json({
+        success: false,
+        source: "api",
+        error: "File Too Large",
+        message: "Image size must not exceed 4MB."
+      });
+    }
+
     const finalProvider = provider || "puter";
 
     // Deduplicate registration by puterFileId, path, or URL in MongoDB
@@ -932,6 +954,9 @@ router.post("/register-batch", async (req, res) => {
       const finalFilename = filename || (finalReadURL.split('/').pop() || "media");
       const finalType = type || "image/jpeg";
       const finalProvider = provider || "puter";
+      const allowedMimeTypesBatch = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+      if (!allowedMimeTypesBatch.includes(finalType)) continue;
+      if (finalSizeBytes > 4 * 1024 * 1024) continue;
 
       let existing = null;
       if (finalFileId) {

@@ -63,7 +63,16 @@ export async function createBanner(req, res, next) {
       });
     }
     const id = data.id || `BANNER-${Date.now()}`;
-    const payload = { ...data, id };
+        const payload = {
+      id,
+      image: img,
+      title: data.title || "",
+      subtitle: data.subtitle || "",
+      link: data.link || "/shop",
+      position: data.position || "hero",
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      sortOrder: data.sortOrder || 0
+    };
 
     if (!isDbConnected()) {
       inMemoryStore.banners.push(payload);
