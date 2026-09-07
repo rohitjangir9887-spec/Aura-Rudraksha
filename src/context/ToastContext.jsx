@@ -16,12 +16,24 @@ export function emitToast(message, type = "success") {
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const lastToastRef = React.useRef({ message: "", type: "", time: 0 });
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const addToast = useCallback((message, type = "success", duration = 3500) => {
+    if (!message) return null;
+    const now = Date.now();
+    if (
+      lastToastRef.current.message === message &&
+      lastToastRef.current.type === type &&
+      now - lastToastRef.current.time < 800
+    ) {
+      return null;
+    }
+    lastToastRef.current = { message, type, time: now };
+
     const id = Date.now() + Math.random().toString(36).substring(2, 6);
     setToasts((prev) => [...prev.slice(-4), { id, message, type }]); // Keep max 5 toasts
 

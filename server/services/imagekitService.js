@@ -91,18 +91,19 @@ export async function getImagekitStatus() {
     (process.env.IMAGEKIT_PRIVATE_KEY || "").trim() &&
     (process.env.IMAGEKIT_URL_ENDPOINT || "").trim()
   );
-  const source = isEnv ? "env" : "database";
+  const source = isEnv ? "environment" : (publicKey && privateKey && urlEndpoint ? "database" : "none");
 
   if (!publicKey || !privateKey || !urlEndpoint) {
     return {
       success: false,
       connected: false,
+      configured: false,
       status: "Not Configured",
       provider: "ImageKit",
-      message: "ImageKit configuration is missing. Provide IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY, and IMAGEKIT_URL_ENDPOINT environment variables or save credentials in Admin Settings.",
+      message: "ImageKit is not configured in the server environment. Add IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY and IMAGEKIT_URL_ENDPOINT in Vercel Production Environment Variables and redeploy.",
       hasConfig: false,
       isEnvConfigured: false,
-      source,
+      source: "none",
       publicKey: publicKey ? `${publicKey.slice(0, 8)}...` : "Not Set",
       urlEndpoint: urlEndpoint || "Not Set",
       quota: 0,
@@ -126,6 +127,7 @@ export async function getImagekitStatus() {
       return {
         success: true,
         connected: true,
+        configured: true,
         status: "Connected",
         provider: "ImageKit",
         publicKey: `${publicKey.slice(0, 10)}...`,
@@ -140,12 +142,14 @@ export async function getImagekitStatus() {
     }
 
     const errData = await res.json().catch(() => ({}));
+    const rawError = errData.message || `HTTP ${res.status}`;
     return {
       success: false,
       connected: false,
+      configured: true,
       status: "Auth Error",
       provider: "ImageKit",
-      message: errData.message || `ImageKit API Authentication Error (HTTP ${res.status}). Check keys.`,
+      message: `ImageKit configuration detected but connection failed: ${rawError}. Check Vercel Production Environment Variables and redeploy.`,
       hasConfig: true,
       isEnvConfigured: isEnv,
       source,
@@ -156,9 +160,10 @@ export async function getImagekitStatus() {
     return {
       success: false,
       connected: false,
+      configured: true,
       status: "Connection Failed",
       provider: "ImageKit",
-      message: `Failed to connect to ImageKit API: ${err.message || err}`,
+      message: `ImageKit configuration detected but connection failed: ${err.message || err}. Check Vercel Production Environment Variables and redeploy.`,
       hasConfig: true,
       isEnvConfigured: isEnv,
       source,

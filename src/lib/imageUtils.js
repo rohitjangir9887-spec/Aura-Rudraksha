@@ -156,12 +156,7 @@ export async function uploadMedia(file, onProgress) {
 
   if (onProgress) onProgress(30, "Determining active storage provider...");
 
-  let provider = "puter";
-  try {
-    const pRes = await fetch("/api/upload/provider").then(r => r.json()).catch(() => ({}));
-    if (pRes && pRes.provider) provider = pRes.provider;
-  } catch (_) {}
-
+  let provider = await getActiveStorageProvider();
 
   // ImageKit Upload
   if (provider === "imagekit") {
@@ -197,7 +192,7 @@ export async function uploadMedia(file, onProgress) {
       formData.append("expire", authData.expire);
       formData.append("token", authData.token);
       formData.append("useUniqueFileName", "true");
-      formData.append("folder", "/products"); // Can be customized later
+      formData.append("folder", "/products");
 
       const uploadRes = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
         method: "POST",
@@ -247,7 +242,8 @@ export async function uploadMedia(file, onProgress) {
       throw new Error(`ImageKit upload failed: ${ikErr.message || ikErr}`);
     }
   }
-// pCloud Upload
+
+  // pCloud Upload
   if (provider === "pcloud") {
     try {
       if (onProgress) onProgress(50, "Uploading to pCloud Storage...");
@@ -285,12 +281,14 @@ export async function uploadMedia(file, onProgress) {
         if (onProgress) onProgress(100, "pCloud upload complete");
         return data.url || data.readURL;
       }
+      throw new Error(data.message || "pCloud upload failed");
     } catch (pcErr) {
-      console.warn("pCloud upload error, falling back:", pcErr);
+      console.error("pCloud upload error:", pcErr);
+      throw new Error(`pCloud upload failed: ${pcErr.message || pcErr}`);
     }
   }
 
-  // Try Puter JS cloud storage
+  // Puter JS cloud storage
   if (typeof window !== "undefined" && !window.puter) {
     if (!window.__puterLoaderPromise) {
       window.__puterLoaderPromise = new Promise((resolve) => {
@@ -329,20 +327,14 @@ export async function uploadMedia(file, onProgress) {
         if (onProgress) onProgress(100, "Upload complete");
         return pubFile.url;
       }
+      throw new Error("Puter file write did not return a valid URL");
     } catch (e) {
-      console.warn("Puter upload fallback:", e);
+      console.error("Puter upload error:", e);
+      throw new Error(`Puter upload failed: ${e.message || e}`);
     }
   }
 
-  // Fallback to Data URL
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (onProgress) onProgress(100, "Complete");
-      resolve(reader.result);
-    };
-    reader.readAsDataURL(compressed);
-  });
+  throw new Error(`Storage provider '${provider}' is not available for upload.`);
 }
 
 /**
@@ -397,18 +389,40 @@ export function subscribePuterStatus(cb) {
 
 let activeProviderCache = "puter";
 
-export async function getActiveStorageProvider() {
+export async function getActiveStorageProvider(forceRefresh = false) {
   try {
-    const res = await fetch("/api/upload/provider").then(r => r.json()).catch(() => ({}));
-    if (res && res.provider) {
+    const res = await fetch("/api/upload/provider").then(r => r.json()).catch(() => null);
+    if (res && res.success && res.provider) {
       activeProviderCache = res.provider;
     }
   } catch (_) {}
   return activeProviderCache;
 }
 
-export function setActiveStorageProvider(provider) {
-  activeProviderCache = provider;
+export async function setActiveStorageProvider(provider) {
+  let token = "";
+  try {
+    token = await authClient.getToken();
+  } catch (_) {}
+  if (!token && typeof window !== "undefined") {
+    token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+  }
+
+  const res = await fetch("/api/upload/provider", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ""
+    },
+    body: JSON.stringify({ provider })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || "Failed to switch storage provider on server.");
+  }
+
+  activeProviderCache = data.provider || provider;
   return activeProviderCache;
 }
 

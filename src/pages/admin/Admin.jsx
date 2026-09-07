@@ -90,53 +90,11 @@ export function Admin() {
     isOpen: false,
     targetProvider: null
   });
+  const [isSwitchingProvider, setIsSwitchingProvider] = useState(false);
 
   const [pcloudTokenModalOpen, setPcloudTokenModalOpen] = useState(false);
   const [manualTokenInput, setManualTokenInput] = useState("");
   const [isSavingPcloudToken, setIsSavingPcloudToken] = useState(false);
-
-  const [imagekitCredsModalOpen, setImagekitCredsModalOpen] = useState(false);
-  const [imagekitForm, setImagekitForm] = useState({
-    publicKey: "",
-    privateKey: "",
-    urlEndpoint: ""
-  });
-  const [isSavingImagekitCreds, setIsSavingImagekitCreds] = useState(false);
-
-  const handleSaveImagekitCredentials = async () => {
-    if (!imagekitForm.publicKey.trim() || !imagekitForm.privateKey.trim() || !imagekitForm.urlEndpoint.trim()) {
-      emitToast("Please fill in Public Key, Private Key, and URL Endpoint.", "warning");
-      return;
-    }
-    setIsSavingImagekitCreds(true);
-    try {
-      let token = "";
-      try { token = await authClient.getToken(); } catch (_) {}
-      if (!token) {
-        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
-      }
-      const res = await fetch("/api/upload/imagekit/credentials", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(imagekitForm)
-      });
-      const data = await res.json();
-      if (data.success) {
-        emitToast("ImageKit credentials saved successfully!", "success");
-        setImagekitCredsModalOpen(false);
-        await checkImagekit();
-      } else {
-        emitToast(data.message || "Failed to save ImageKit credentials.", "error");
-      }
-    } catch (err) {
-      emitToast("ImageKit credentials error: " + err.message, "error");
-    } finally {
-      setIsSavingImagekitCreds(false);
-    }
-  };
 
   const handleSavePcloudToken = async () => {
     if (!manualTokenInput.trim()) {
@@ -306,7 +264,15 @@ export function Admin() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    if (!mediaInfo.connected) {
+    if (activeStorageProvider === "imagekit" && !imagekitInfo.connected) {
+      emitToast("ImageKit Storage is not connected. Please check server environment configuration.", "warning");
+      return;
+    }
+    if (activeStorageProvider === "pcloud" && !pcloudInfo.connected) {
+      emitToast("pCloud Storage is not connected. Please connect pCloud first.", "warning");
+      return;
+    }
+    if (activeStorageProvider === "puter" && !mediaInfo.connected) {
       emitToast("Puter Cloud not connected. Please connect Puter first.", "warning");
       return;
     }
@@ -1046,54 +1012,27 @@ export function Admin() {
                           Activate ImageKit
                         </button>
                       ) : (
-                        <button
-                          onClick={() => setImagekitCredsModalOpen(true)}
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            background: '#7c3aed',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '4px 12px',
-                            borderRadius: '5px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Configure ImageKit
-                        </button>
+                        <span style={{ fontSize: '10px', fontWeight: 700, background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '4px' }}>
+                          {imagekitInfo.status || 'Not Configured'}
+                        </span>
                       )}
                     </div>
                   </div>
 
                   <div style={{ fontSize: '11px', color: '#475569', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', marginTop: '2px' }}>
                     <div>Connection Status: <b style={{ color: imagekitInfo.connected ? '#16a34a' : '#dc2626' }}>{imagekitInfo.connected ? 'Connected' : (imagekitInfo.status || 'Not Configured')}</b></div>
-                    <div>Configuration Source: <b style={{ color: imagekitInfo.isEnvConfigured ? '#7c3aed' : '#334155' }}>{imagekitInfo.isEnvConfigured ? 'Vercel / Server ENV (process.env)' : (imagekitInfo.hasConfig ? 'MongoDB Database' : 'Not Set')}</b></div>
+                    <div>Configuration Source: <b style={{ color: imagekitInfo.isEnvConfigured ? '#7c3aed' : '#334155' }}>{imagekitInfo.isEnvConfigured ? 'Vercel / Server ENV (process.env)' : (imagekitInfo.hasConfig ? 'MongoDB Database' : 'Server Environment (Not Configured)')}</b></div>
                     <div>Public Key: <b>{imagekitInfo.publicKey ? `${imagekitInfo.publicKey.substring(0, 12)}...` : 'Not Configured'}</b></div>
                     <div>URL Endpoint: <b>{imagekitInfo.urlEndpoint || 'Not Configured'}</b></div>
+                    <div>CDN: <b style={{ color: imagekitInfo.connected ? '#16a34a' : '#64748b' }}>{imagekitInfo.connected ? 'Active (ik.imagekit.io)' : 'Inactive'}</b></div>
                     <div>ImageKit Media Count: <b>{imagekitInfo.mediaCount ?? 0} files</b></div>
                   </div>
 
                   <p style={{ fontSize: '11px', color: imagekitInfo.connected ? '#5b21b6' : '#b45309', margin: '2px 0 0 0', lineHeight: '1.4' }}>
-                    {imagekitInfo.message || (imagekitInfo.connected ? 'ImageKit connected and ready for uploads.' : 'ImageKit credentials not configured. Click Configure ImageKit below.')}
+                    {imagekitInfo.message || (imagekitInfo.connected ? 'ImageKit connected and ready for uploads (Primary CDN).' : 'ImageKit is not configured in the server environment. Add IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY and IMAGEKIT_URL_ENDPOINT in Vercel Production Environment Variables and redeploy.')}
                   </p>
 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => setImagekitCredsModalOpen(true)}
-                      style={{
-                        background: '#7c3aed',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '5px',
-                        padding: '6px 14px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ⚙️ {imagekitInfo.isEnvConfigured ? 'View / Override Credentials' : (imagekitInfo.connected ? 'Edit Credentials' : 'Configure Credentials')}
-                    </button>
-
                     <button
                       onClick={checkImagekit}
                       style={{
@@ -1492,176 +1431,37 @@ export function Admin() {
         isOpen={confirmProviderModal.isOpen}
         title="Switch Active Media Storage Provider?"
         message={`Are you sure you want to switch the active storage provider to ${confirmProviderModal.targetProvider === "imagekit" ? "ImageKit Storage" : (confirmProviderModal.targetProvider === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage")}?\n\n• All NEW product image/video uploads will automatically use ${confirmProviderModal.targetProvider === "imagekit" ? "ImageKit Storage" : (confirmProviderModal.targetProvider === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage")}.\n• Existing media stored on previous providers will NOT be deleted, moved, or modified.`}
-        confirmText={`Switch to ${confirmProviderModal.targetProvider === "imagekit" ? "ImageKit" : (confirmProviderModal.targetProvider === "pcloud" ? "pCloud" : "Puter")}`}
+        confirmText={isSwitchingProvider ? "Switching..." : `Switch to ${confirmProviderModal.targetProvider === "imagekit" ? "ImageKit" : (confirmProviderModal.targetProvider === "pcloud" ? "pCloud" : "Puter")}`}
         cancelText="Cancel"
         isDanger={false}
         onConfirm={async () => {
           const target = confirmProviderModal.targetProvider;
-          setConfirmProviderModal({ isOpen: false, targetProvider: null });
+          if (!target || isSwitchingProvider) return;
+          setIsSwitchingProvider(true);
           try {
-            await setActiveStorageProvider(target);
-            setActiveStorageProviderState(target);
-            emitToast(`Active storage provider switched to ${target === "imagekit" ? "ImageKit Storage" : (target === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage")}!`, "success");
-            await fetchActiveProvider();
-            await checkPcloud();
-            await checkImagekit();
-            await checkPuter(true);
+            const updated = await setActiveStorageProvider(target);
+            setActiveStorageProviderState(updated);
+            emitToast(`Active storage provider switched to ${updated === "imagekit" ? "ImageKit Storage" : (updated === "pcloud" ? "pCloud Storage" : "Puter Cloud Storage")}!`, "success");
+            setConfirmProviderModal({ isOpen: false, targetProvider: null });
+            await Promise.all([
+              fetchActiveProvider(),
+              checkPcloud(),
+              checkImagekit(),
+              checkPuter(true)
+            ]);
             refreshDashboard();
           } catch (err) {
             emitToast("Failed to switch storage provider: " + (err.message || err), "error");
+          } finally {
+            setIsSwitchingProvider(false);
           }
         }}
-        onClose={() => setConfirmProviderModal({ isOpen: false, targetProvider: null })}
+        onClose={() => {
+          if (!isSwitchingProvider) {
+            setConfirmProviderModal({ isOpen: false, targetProvider: null });
+          }
+        }}
       />
-
-      {/* ImageKit Credentials Modal */}
-      {imagekitCredsModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'grid',
-          placeItems: 'center',
-          zIndex: 9999,
-          padding: '20px'
-        }}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '520px',
-            width: '100%',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={18} color="#7c3aed" /> Configure ImageKit Storage API Credentials
-              </h3>
-              <button
-                onClick={() => setImagekitCredsModalOpen(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {imagekitInfo.isEnvConfigured && (
-              <div style={{ background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '8px', padding: '10px 12px', fontSize: '11px', color: '#5b21b6', lineHeight: '1.4' }}>
-                ℹ️ <b>Active Vercel / Server ENV Detected:</b> Your server is currently reading credentials from <code>IMAGEKIT_PUBLIC_KEY</code>, <code>IMAGEKIT_PRIVATE_KEY</code>, and <code>IMAGEKIT_URL_ENDPOINT</code>. Environment variables take precedence over values saved in the database.
-              </div>
-            )}
-
-            <p style={{ fontSize: '12px', color: '#475569', margin: 0, lineHeight: '1.5' }}>
-              Enter your ImageKit API credentials. These can be obtained from your ImageKit Dashboard under <b>Developer Options → API Keys</b>.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                  Public Key (e.g. public_...)
-                </label>
-                <input
-                  type="text"
-                  value={imagekitForm.publicKey}
-                  onChange={(e) => setImagekitForm(prev => ({ ...prev, publicKey: e.target.value }))}
-                  placeholder="public_..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '12px',
-                    fontFamily: 'monospace',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                  Private Key (e.g. private_...)
-                </label>
-                <input
-                  type="password"
-                  value={imagekitForm.privateKey}
-                  onChange={(e) => setImagekitForm(prev => ({ ...prev, privateKey: e.target.value }))}
-                  placeholder="private_..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '12px',
-                    fontFamily: 'monospace',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                  URL Endpoint (e.g. https://ik.imagekit.io/your_id)
-                </label>
-                <input
-                  type="text"
-                  value={imagekitForm.urlEndpoint}
-                  onChange={(e) => setImagekitForm(prev => ({ ...prev, urlEndpoint: e.target.value }))}
-                  placeholder="https://ik.imagekit.io/..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '12px',
-                    fontFamily: 'monospace',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-              <button
-                onClick={() => setImagekitCredsModalOpen(false)}
-                style={{
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '6px',
-                  padding: '8px 16px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveImagekitCredentials}
-                disabled={isSavingImagekitCreds}
-                style={{
-                  background: '#7c3aed',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 20px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                {isSavingImagekitCreds ? "Saving..." : "Save ImageKit Credentials"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Manual pCloud Token Modal */}
       {pcloudTokenModalOpen && (

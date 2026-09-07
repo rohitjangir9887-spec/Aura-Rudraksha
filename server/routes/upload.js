@@ -6,6 +6,9 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { getPcloudStatus, uploadToPcloud, deleteFromPcloud, exchangePcloudCode, savePcloudToken, clearPcloudToken, getPcloudApiHost } from "../services/pcloudService.js";
 import { getImagekitStatus, getImagekitAuthParams, uploadToImagekit, deleteFromImagekit, saveImagekitCredentials } from "../services/imagekitService.js";
+import { clearSettingsCache } from "../controllers/settingController.js";
+import { logAuditEvent } from "../services/auditService.js";
+import crypto from "crypto";
 
 const router = express.Router();
 
@@ -14,18 +17,41 @@ initMediaIndexes().catch(() => {});
 
 /**
  * GET /api/upload/provider
- * Returns currently active storage provider ("puter" | "pcloud" | "imagekit") from MongoDB / Memory
+ * Returns currently active storage provider ("puter" | "pcloud" | "imagekit") persisted in MongoDB STORE_SETTINGS
  */
 router.get("/provider", async (req, res) => {
   try {
-    let activeProvider = "puter";
+    let activeProvider = null;
+
     if (isDbConnected()) {
       const settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
       if (settings && settings.storageProvider) {
         activeProvider = settings.storageProvider;
+      } else {
+        // Initial setup default: If ImageKit ENV exists, prefer ImageKit, else Puter
+        const hasImagekitEnv = Boolean(
+          (process.env.IMAGEKIT_PUBLIC_KEY || "").trim() &&
+          (process.env.IMAGEKIT_PRIVATE_KEY || "").trim() &&
+          (process.env.IMAGEKIT_URL_ENDPOINT || "").trim()
+        );
+        activeProvider = hasImagekitEnv ? "imagekit" : "puter";
+
+        // Persist initial default to MongoDB so it is permanently authoritative
+        await Setting.findOneAndUpdate(
+          { id: "STORE_SETTINGS" },
+          { $set: { storageProvider: activeProvider } },
+          { upsert: true }
+        ).catch(() => {});
       }
     } else if (inMemoryStore.settings && inMemoryStore.settings.storageProvider) {
       activeProvider = inMemoryStore.settings.storageProvider;
+    } else {
+      const hasImagekitEnv = Boolean(
+        (process.env.IMAGEKIT_PUBLIC_KEY || "").trim() &&
+        (process.env.IMAGEKIT_PRIVATE_KEY || "").trim() &&
+        (process.env.IMAGEKIT_URL_ENDPOINT || "").trim()
+      );
+      activeProvider = hasImagekitEnv ? "imagekit" : "puter";
     }
 
     const validProviders = ["puter", "pcloud", "imagekit"];
@@ -38,7 +64,12 @@ router.get("/provider", async (req, res) => {
       provider: activeProvider
     });
   } catch (err) {
-    return res.json({ success: true, provider: "puter" });
+    console.error("[Storage Provider] Failed to read active provider:", err);
+    return res.status(503).json({
+      success: false,
+      code: "STORAGE_PROVIDER_UNAVAILABLE",
+      message: "Unable to read the persisted storage provider from database."
+    });
   }
 });
 
@@ -50,9 +81,15 @@ router.get("/provider", async (req, res) => {
 router.post("/provider", requireAdmin, async (req, res) => {
   try {
     const { provider } = req.body || {};
-    let targetProvider = "puter";
-    if (provider === "pcloud") targetProvider = "pcloud";
-    if (provider === "imagekit") targetProvider = "imagekit";
+    const validProviders = ["puter", "pcloud", "imagekit"];
+    if (!provider || !validProviders.includes(provider)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid storage provider. Must be one of: 'imagekit', 'pcloud', 'puter'."
+      });
+    }
+
+    const targetProvider = provider;
 
     if (targetProvider === "pcloud") {
       const pcloudStatus = await getPcloudStatus();
@@ -83,6 +120,18 @@ router.post("/provider", requireAdmin, async (req, res) => {
       inMemoryStore.settings.storageProvider = targetProvider;
     }
 
+    clearSettingsCache();
+
+    await logAuditEvent({
+      actor: req.user?.email || "admin",
+      actorRole: "admin",
+      action: "STORAGE_PROVIDER_SWITCHED",
+      entityType: "Storage",
+      entityId: targetProvider,
+      newState: { storageProvider: targetProvider },
+      req
+    }).catch(() => {});
+
     console.log(`[Storage Provider] Active storage provider switched to: ${targetProvider}`);
 
     const providerNames = {
@@ -103,9 +152,6 @@ router.post("/provider", requireAdmin, async (req, res) => {
     });
   }
 });
-
-import { logAuditEvent } from "../services/auditService.js";
-import crypto from "crypto";
 
 export const pendingOauthStates = new Map();
 setInterval(() => {

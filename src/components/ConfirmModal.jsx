@@ -111,8 +111,9 @@ export function ConfirmModal({
             <button
               type="button"
               onClick={() => {
-                onConfirm();
-                onClose();
+                if (typeof onConfirm === "function") {
+                  onConfirm();
+                }
               }}
               style={{
                 padding: "10px 18px",
