@@ -2,6 +2,8 @@
  * Image Pre-loader & Memory Cache Engine + Media Upload Utilities
  */
 
+import { authClient } from "./authClient.js";
+
 const imageCache = new Set();
 
 export function preloadImage(url) {
@@ -122,7 +124,6 @@ export async function uploadMedia(file, onProgress) {
 
       let authToken = "";
       try {
-        const { authClient } = await import("./authClient.js");
         authToken = await authClient.getToken();
       } catch (_) {}
       if (!authToken && typeof window !== "undefined") {
@@ -212,7 +213,6 @@ export async function uploadMedia(file, onProgress) {
 
       let token = "";
       try {
-        const { authClient } = await import("./authClient.js");
         token = await authClient.getToken();
       } catch (_) {}
       if (!token && typeof window !== "undefined") {
