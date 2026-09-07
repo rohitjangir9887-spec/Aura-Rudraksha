@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
@@ -246,7 +248,7 @@ export function AdminSettings() {
                         return (
                           <tr key={p.id} style={{ borderBottom: "1px solid #f0e6da" }}>
                             <td style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                              <img src={p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg"} alt={p.name} style={{ width: "28px", height: "28px", objectFit: "cover", borderRadius: "4px" }} />
+                              <img src={getProductPrimaryImage(p)} alt={p.name} style={{ width: "28px", height: "28px", objectFit: "cover", borderRadius: "4px" }} />
                               <span style={{ fontWeight: "600", color: "#2b170d" }}>{p.name}</span>
                             </td>
                             <td style={{ padding: "8px 12px" }}>₹{p.price?.toLocaleString("en-IN")}</td>

@@ -1,3 +1,5 @@
+import { getProductRoute } from "../../lib/routes";
+import { getProductPrimaryImage } from "../../lib/imageUtils";
 import React from "react";
 import { Link } from "react-router-dom";
 import { Trash2, Heart, ShieldCheck, Plus, Minus } from "lucide-react";
@@ -22,7 +24,7 @@ export function CartItemCard({
   const discountPercent = hasDiscount ? Math.round((discountAmount / product.mrp) * 100) : 0;
   const itemTotal = (product.price || 0) * qty;
 
-  const imageSrc = product.img || (product.images && product.images[0]) || "/images/product-5mukhi.jpg";
+  const imageSrc = getProductPrimaryImage(product);
 
   return (
     <motion.div
@@ -47,7 +49,7 @@ export function CartItemCard({
     >
       {/* Product Image Link */}
       <Link
-        to={`/product/${product.id || product._id || product.productId}`}
+        to={getProductRoute(product)}
         style={{
           width: "82px",
           height: "82px",
@@ -91,7 +93,7 @@ export function CartItemCard({
         {/* Title and Delete Button */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
           <Link
-            to={`/product/${product.id || product._id || product.productId}`}
+            to={getProductRoute(product)}
             style={{ textDecoration: "none", color: "#2b170d", flex: 1 }}
           >
             <h3

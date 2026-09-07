@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
@@ -101,7 +103,7 @@ export function Wishlist() {
                   }}
                 >
                   {products.slice(0, 4).map((p) => {
-                    const displayImage = p.img || (p.images && p.images.length > 0 ? p.images[0] : "") || "/images/product-5mukhi.jpg";
+                    const displayImage = getProductPrimaryImage(p);
                     const isAdded = !!addedIds[p.id];
                     return (
                       <div
@@ -117,7 +119,7 @@ export function Wishlist() {
                         }}
                       >
                         <div style={{ height: "180px", background: "#f5eee6", overflow: "hidden" }}>
-                          <Link to={`/product/${p.id || p._id || p.productId}`}>
+                          <Link to={getProductRoute(p)}>
                             <img
                               src={displayImage}
                               alt={p.name}
@@ -130,7 +132,7 @@ export function Wishlist() {
                         </div>
                         <div style={{ padding: "14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                           <div>
-                            <Link to={`/product/${p.id || p._id || p.productId}`} style={{ textDecoration: "none", color: "inherit" }}>
+                            <Link to={getProductRoute(p)} style={{ textDecoration: "none", color: "inherit" }}>
                               <h4 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "17px", color: "#2b170d", margin: "0 0 6px" }}>
                                 {p.name}
                               </h4>
@@ -179,7 +181,7 @@ export function Wishlist() {
             }}
           >
             {wishlistedProducts.map((p) => {
-              const displayImage = p.img || (p.images && p.images.length > 0 ? p.images[0] : "") || "/images/product-5mukhi.jpg";
+              const displayImage = getProductPrimaryImage(p);
               const isAdded = !!addedIds[p.id];
               const discount = pct(p);
 
@@ -198,7 +200,7 @@ export function Wishlist() {
                   }}
                 >
                   <div style={{ position: "relative", height: "220px", background: "#f5eee6", overflow: "hidden" }}>
-                    <Link to={`/product/${p.id || p._id || p.productId}`}>
+                    <Link to={getProductRoute(p)}>
                       <img
                         src={displayImage}
                         alt={p.name}
@@ -261,7 +263,7 @@ export function Wishlist() {
                       <span style={{ color: "#806f62" }}>({p.reviews || 0})</span>
                     </div>
 
-                    <Link to={`/product/${p.id || p._id || p.productId}`} style={{ textDecoration: "none" }}>
+                    <Link to={getProductRoute(p)} style={{ textDecoration: "none" }}>
                       <h3
                         style={{
                           fontFamily: "Cormorant Garamond, serif",
@@ -312,7 +314,7 @@ export function Wishlist() {
                         {isAdded ? "✓ Added" : "Add to Cart"}
                       </button>
                       <Link
-                        to={`/product/${p.id || p._id || p.productId}`}
+                        to={getProductRoute(p)}
                         className="outline-btn"
                         style={{ padding: "10px 12px", fontSize: "12px", display: "grid", placeItems: "center" }}
                         title="View Product Details"
