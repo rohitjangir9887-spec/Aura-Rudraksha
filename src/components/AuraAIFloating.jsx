@@ -148,9 +148,9 @@ export function AuraAIFloating() {
   const undoTimerRef = useRef(null);
   const dragAreaRef = useRef(null);
 
-  // Lock body scroll on mobile when chat window is open
+  // Lock body scroll only when full-window modal is open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isFullWindow) {
       const originalOverflow = document.body.style.overflow;
       const originalDocOverflow = document.documentElement.style.overflow;
       document.body.style.overflow = "hidden";
@@ -160,7 +160,7 @@ export function AuraAIFloating() {
         document.documentElement.style.overflow = originalDocOverflow;
       };
     }
-  }, [isOpen]);
+  }, [isOpen, isFullWindow]);
 
   // Load server settings
   useEffect(() => {
@@ -665,30 +665,24 @@ export function AuraAIFloating() {
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop overlay */}
-            <motion.div
-              className={`aura-ai-floating-backdrop ${isFullWindow ? "aura-ai-backdrop-full" : ""}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => {
-                if (isFullWindow) {
+            {/* Backdrop overlay - rendered for full-window mode to focus conversation */}
+            {isFullWindow && (
+              <motion.div
+                className="aura-ai-floating-backdrop aura-ai-backdrop-full"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => {
                   setIsFullWindow(false);
-                } else {
-                  setIsOpen(false);
-                }
-              }}
-              onPointerDown={(e) => {
-                if (e.target === e.currentTarget) {
-                  if (isFullWindow) {
+                }}
+                onPointerDown={(e) => {
+                  if (e.target === e.currentTarget) {
                     setIsFullWindow(false);
-                  } else {
-                    setIsOpen(false);
                   }
-                }
-              }}
-            />
+                }}
+              />
+            )}
             <div className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}>
             <motion.div
               id="aura-ai-floating-panel"
