@@ -45,6 +45,7 @@ export function Admin() {
 
   const [stats, setStats] = useState(getInitialStats);
   const [recentOrders, setRecentOrders] = useState(() => (db.getOrders() || []).slice(0, 5));
+  const pcloudOAuthWindowRef = useRef(null);
   const [mediaStats, setMediaStats] = useState({
     serverStorage: "Puter Cloud Storage",
     imagesCount: null,
@@ -201,7 +202,7 @@ export function Admin() {
       const res = await fetch("/api/upload/pcloud/connect");
       const data = await res.json();
       if (data.success && data.authUrl) {
-        window.open(data.authUrl, "pcloud_oauth", "width=600,height=700");
+        pcloudOAuthWindowRef.current = window.open(data.authUrl, "pcloud_oauth", "width=600,height=700");
       } else {
         emitToast(data.message || "OAuth client ID missing. Use 'Enter Access Token' to connect manually.", "warning");
         setPcloudTokenModalOpen(true);
@@ -488,11 +489,18 @@ export function Admin() {
 
   useEffect(() => {
     const handleMessage = (event) => {
-      if (event.data && event.data.type === "pcloud:connected") {
+      // Security enhancement: Verify the origin of the postMessage event
+      if (event.origin !== window.location.origin) return;
+      // Security enhancement: Validate source if we know the popup window
+      if (pcloudOAuthWindowRef.current && event.source !== pcloudOAuthWindowRef.current) return;
+      // Security enhancement: Verify shape of event.data before processing
+      if (!event.data || typeof event.data !== 'object') return;
+
+      if (event.data.type === "pcloud:connected") {
         emitToast("pCloud Storage connected via OAuth!", "success");
         checkPcloud();
         refreshDashboard();
-      } else if (event.data && event.data.type === "pcloud:error") {
+      } else if (event.data.type === "pcloud:error") {
         emitToast("pCloud OAuth error: " + (event.data.error || "Authorization refused"), "error");
       }
     };
