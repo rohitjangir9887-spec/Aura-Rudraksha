@@ -357,8 +357,7 @@ export async function updateProduct(req, res, next) {
       }
     }
 
-    await logAuditEvent({ {
-
+    await logAuditEvent({
       actor: req.user?.email || "admin",
       actorRole: "admin",
       action: "PRODUCT_UPDATED",
