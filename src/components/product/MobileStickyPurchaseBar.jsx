@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState } from "react";
 import { ShoppingCart, Zap, Check } from "lucide-react";
 import { money, pct } from "../../data";
@@ -22,7 +24,7 @@ export function MobileStickyPurchaseBar({
   const stockLimit = product.stock !== undefined ? Number(product.stock) : (product.status === "Out of Stock" ? 0 : 50);
   const isOutOfStock = stockLimit <= 0 || product.status === "Out of Stock";
 
-  const displayImg = (Array.isArray(product.images) && product.images[0]) || product.img || "/images/product-5mukhi.jpg";
+  const displayImg = getProductPrimaryImage(product);
   const mrp = Number(product.mrp) || Number(product.price) || 0;
   const price = Number(product.price) || 0;
   const discount = pct(product);

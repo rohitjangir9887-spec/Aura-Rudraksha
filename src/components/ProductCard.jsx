@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -33,7 +35,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const isSaved = productId ? isWishlisted(productId) : false;
   const images = (Array.isArray(p?.images) && p.images.length > 0) 
     ? p.images 
-    : [p?.img || "/images/product-5mukhi.jpg"];
+    : getProductGalleryImages(p);
   const displayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
   const discount = p ? pct(p) : 0;
 
@@ -186,7 +188,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           {/* Title */}
           <h3 className="aura-card-title">
             <Link 
-              to={`/product/${productId}`} 
+              to={getProductRoute({id: productId})}
               onClick={(e) => e.stopPropagation()}
               style={{ color: "inherit", textDecoration: "none" }}
             >

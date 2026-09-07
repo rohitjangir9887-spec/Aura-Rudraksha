@@ -1,3 +1,5 @@
+import { getProductPrimaryImage } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React from "react";
 import { Sparkles, Plus, Star } from "lucide-react";
 import { money } from "../../data";
@@ -32,7 +34,7 @@ export function CheckoutRecommendations({ products, cartIds, onAddToCart }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {recommended.map((item) => {
-          const itemImg = item.img || (item.images && item.images[0]) || "/images/product-5mukhi.jpg";
+          const itemImg = getProductPrimaryImage(item);
           const sellingPrice = Number(item.price) || 0;
           const mrpPrice = Number(item.mrp || item.comparePrice || 0);
           const hasDiscount = mrpPrice > sellingPrice;

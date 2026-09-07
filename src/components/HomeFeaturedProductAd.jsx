@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Sparkles, ShieldCheck, Zap } from "lucide-react";
@@ -53,9 +55,9 @@ export function HomeFeaturedProductAd() {
 
   const productImage = (Array.isArray(product.images) && product.images.length > 0 && product.images[0])
     ? product.images[0]
-    : (product.img || "/images/product-5mukhi.jpg");
+    : getProductPrimaryImage(product);
 
-  const productUrl = `/product/${product.slug || product.id || product._id}`;
+  const productUrl = getProductRoute(product);
 
   const getCleanSummary = () => {
     if (product.highlight && product.highlight.trim()) {

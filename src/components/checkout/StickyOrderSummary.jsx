@@ -1,3 +1,5 @@
+import { getProductPrimaryImage } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState } from "react";
 import { StickySummaryHeader } from "./StickySummaryHeader";
 import { StickySummaryItem } from "./StickySummaryItem";
@@ -45,7 +47,7 @@ export function StickyOrderSummary({
 
   const hasLines = lines && lines.length > 0;
   const firstItem = hasLines ? (products.find(p => String(p.id) === String(lines[0]?.id)) || referenceProduct) : referenceProduct;
-  const firstItemImg = firstItem.img || (firstItem.images && firstItem.images[0]) || "/images/product-1mukhi.jpg";
+  const firstItemImg = getProductPrimaryImage(firstItem);
   const firstItemName = firstItem.name || referenceProduct.name;
   const itemCount = hasLines ? lines.reduce((sum, l) => sum + (l.qty || 1), 0) : 1;
 

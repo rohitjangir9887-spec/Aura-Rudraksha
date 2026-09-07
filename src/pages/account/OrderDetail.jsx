@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -586,7 +588,7 @@ export function OrderDetail() {
                   }}>
                     <Link to={productExists ? `/product/${item.id}` : '#'} style={{ display: 'block', textDecoration: 'none', cursor: productExists ? 'pointer' : 'default' }}>
                       <div style={{width: 75, height: 75, borderRadius: 10, background: '#fdfbf7', border: '1px solid #eee1cf', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center'}}>
-                        <img src={item.img || db.getOrderItemImage(item)} alt={item.name} loading="lazy" decoding="async" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
+                        <img src={getProductPrimaryImage(item) || db.getOrderItemImage(item)} alt={item.name} loading="lazy" decoding="async" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
                       </div>
                     </Link>
                     <div style={{flex: 1}}>
@@ -600,7 +602,7 @@ export function OrderDetail() {
                           </span>
                         )}
                         {isDelivered && productExists && (
-                          <Link to={`/product/${item.id}#write-review`} style={{
+                          <Link to={`${getProductRoute(item)}#write-review`} style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 6,

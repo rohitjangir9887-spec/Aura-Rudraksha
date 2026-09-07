@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
@@ -1091,7 +1093,7 @@ export function AuraAIFloating() {
                                     ? Math.round(((realMrp - Number(p.price)) / realMrp) * 100)
                                     : 0;
                                   const oos = Number(p.stock) <= 0;
-                                  const realImg = p.image || (p.images && p.images[0]) || p.img || "/images/product-5mukhi.jpg";
+                                  const realImg = getProductPrimaryImage(p);
 
                                   return (
                                     <div key={p.id} className="aura-ai-prod-card-row">
@@ -1126,7 +1128,7 @@ export function AuraAIFloating() {
                                         </div>
                                         <div className="aura-ai-prod-actions">
                                           <Link
-                                            to={`/product/${p.id}`}
+                                            to={getProductRoute(p)}
                                             onClick={() => setIsOpen(false)}
                                             className="aura-ai-prod-btn-view"
                                           >

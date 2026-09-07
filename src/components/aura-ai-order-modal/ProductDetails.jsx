@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React from "react";
 import { Plus, Minus } from "lucide-react";
 
@@ -6,7 +8,7 @@ export function ProductDetails({ product, unitPrice, unitMrp, qty, setQty }) {
     <div className="aura-ai-order-prod-row">
       <div className="aura-ai-order-prod-thumb">
         <img
-          src={product.image || product.img || product.images?.[0] || "/images/product-5mukhi.jpg"}
+          src={getProductPrimaryImage(product)}
           alt={product.name}
           loading="lazy"
           decoding="async"

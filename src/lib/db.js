@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "./imageUtils";
+import { getProductRoute } from "./routes";
 import { products as defaultProducts } from "../data/index.js";
 import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
@@ -6,11 +8,13 @@ import { searchAndRankProducts } from "./searchUtils.js";
 // Event Broadcasters for real-time React UI updates
 export const emitStoreUpdate = (type, payload) => {
   if (typeof window !== "undefined") {
+    const detail = { type, payload, timestamp: Date.now() };
     window.dispatchEvent(
-      new CustomEvent("aura:store-updated", {
-        detail: { type, payload, timestamp: Date.now() }
-      })
+      new CustomEvent("aura:store-updated", { detail })
     );
+    try {
+      localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
+    } catch (e) {}
   }
 };
 
@@ -18,10 +22,8 @@ export const onStoreUpdate = (callback) => {
   if (typeof window === "undefined") return () => {};
   const handler = (event) => callback(event.detail || {});
   window.addEventListener("aura:store-updated", handler);
-  window.addEventListener("storage", handler);
   return () => {
     window.removeEventListener("aura:store-updated", handler);
-    window.removeEventListener("storage", handler);
   };
 };
 
@@ -30,6 +32,71 @@ export const onStoreUpdate = (callback) => {
 // For split deployments (Cloudflare Pages frontend + separate Node backend),
 // set VITE_API_BASE_URL="https://api.yourdomain.com/api" at build time.
 const API_BASE = (((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env.VITE_API_BASE_URL : undefined) || "/api").replace(/\/$/, "");
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === "aura_cross_tab_signal" && e.newValue) {
+      try {
+        const detail = JSON.parse(e.newValue);
+        const { type, payload } = detail;
+
+        // Synchronously update local cache if possible
+        if (type === "product:saved" && payload) {
+          const idx = storeCache.products.findIndex(x => String(x.id) === String(payload.id));
+          if (idx >= 0) storeCache.products[idx] = payload;
+          else storeCache.products.unshift(payload);
+        } else if (type === "product:deleted" && payload) {
+          storeCache.products = storeCache.products.filter(p => String(p.id) !== String(payload));
+        } else if (type === "active-offer:saved" && payload) {
+          storeCache.activeOffer = payload;
+        } else if (type === "offer:saved" && payload) {
+          const idx = storeCache.offers.findIndex(x => String(x.id) === String(payload.id));
+          if (idx >= 0) storeCache.offers[idx] = payload;
+          else storeCache.offers.unshift(payload);
+        } else if (type === "offer:deleted" && payload) {
+          storeCache.offers = storeCache.offers.filter(x => String(x.id) !== String(payload));
+        } else if (type === "settings:saved" && payload) {
+          storeCache.settings = payload;
+        }
+
+        // Trigger React updates
+        window.dispatchEvent(new CustomEvent("aura:store-updated", { detail }));
+
+        // Trigger background revalidation if tab is visible
+        if (document.visibilityState === "visible") {
+          if (type.startsWith("product")) {
+            revalidateProducts(true).catch(()=>{});
+          } else if (type.startsWith("active-offer") || type.startsWith("offer") || type.startsWith("banners") || type.startsWith("settings")) {
+            fetchHomeData(true).catch(()=>{});
+          }
+        } else {
+          // Invalidate freshness to force fetch on next visibility
+          if (type.startsWith("product")) {
+            lastProductFetchTime = 0;
+            localStorage.setItem("aura_last_product_fetch_time", "0");
+          } else {
+            localStorage.setItem("aura_last_fetch_time", "0");
+          }
+        }
+      } catch (err) {}
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      const pFetch = Number(localStorage.getItem("aura_last_product_fetch_time") || 0);
+      if (pFetch === 0 || Date.now() - pFetch > 300000) { // arbitrary freshness for visibility
+        revalidateProducts(true).catch(()=>{});
+      }
+      const hFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
+      if (hFetch === 0 || Date.now() - hFetch > 300000) {
+        fetchHomeData(true).catch(()=>{});
+      }
+    }
+  });
+}
+
+
 
 // Request Deduplication Map for in-flight GET requests
 const pendingGetRequests = new Map();
@@ -154,7 +221,7 @@ const storeCache = {
     homeBadge: p.homeBadge || p.badge || "",
     mrp: p.mrp || p.comparePrice || p.price,
     comparePrice: p.comparePrice || p.mrp || p.price,
-    images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+    images: getProductGalleryImages(p)
   })),
   orders: [],
   customers: [],
@@ -392,7 +459,7 @@ export async function revalidateProducts(force = false) {
           homeBadge: p.homeBadge || p.badge || "",
           mrp: p.mrp || p.comparePrice || p.price,
           comparePrice: p.comparePrice || p.mrp || p.price,
-          images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+          images: getProductGalleryImages(p)
         }));
 
         storeCache.products = normalized;
@@ -669,7 +736,7 @@ export const db = {
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
         ? p.images
-        : [p.img || "/images/product-5mukhi.jpg"]
+        : getProductGalleryImages(p)
     }));
   },
 
@@ -689,7 +756,7 @@ export const db = {
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
         ? p.images
-        : [p.img || "/images/product-5mukhi.jpg"]
+        : getProductGalleryImages(p)
     };
   },
 
@@ -709,7 +776,7 @@ export const db = {
         id: String(p.id || p._id),
         mrp: p.mrp || p.comparePrice || p.price,
         comparePrice: p.comparePrice || p.mrp || p.price,
-        images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || "/images/product-5mukhi.jpg"]
+        images: getProductGalleryImages(p)
       };
       const idx = storeCache.products.findIndex(x =>
         String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
@@ -741,8 +808,8 @@ export const db = {
 
   saveProduct: async (p) => {
     const id = p.id ? String(p.id) : (p._id ? String(p._id) : Date.now().toString());
-    const imgs = (Array.isArray(p.images) && p.images.length > 0) ? p.images : (p.img ? [p.img] : ["/images/product-5mukhi.jpg"]);
-    const primaryImg = p.img || imgs[0];
+    const imgs = getProductGalleryImages(p);
+    const primaryImg = getProductPrimaryImage(p);
 
     const rawStatus = p.status || "Draft";
     const normalizedStatus = (rawStatus === "Published" || rawStatus === "Active" || rawStatus === "published") ? "Published" : "Draft";
@@ -807,7 +874,7 @@ export const db = {
       zodiac: Array.isArray(savedData.zodiac) ? savedData.zodiac : (finalProduct.zodiac || []),
       mrp: savedData.mrp || savedData.comparePrice || savedData.price,
       comparePrice: savedData.comparePrice || savedData.mrp || savedData.price,
-      images: (Array.isArray(savedData.images) && savedData.images.length > 0) ? savedData.images : [savedData.img || "/images/product-5mukhi.jpg"]
+      images: getProductGalleryImages(savedData)
     };
 
     if (currentIdx >= 0) {
@@ -837,7 +904,7 @@ export const db = {
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
         ? p.images
-        : [p.img || "/images/product-5mukhi.jpg"]
+        : getProductGalleryImages(p)
     }));
     const filtered = options.includeDrafts ? all : all.filter(isPublicProduct);
     return searchAndRankProducts(filtered, query);
@@ -1769,7 +1836,7 @@ export const db = {
         mrp,
         quantity: l.qty,
         qty: l.qty,
-        img: p ? (p.img || (p.images && p.images[0])) : null
+        img: p ? getProductPrimaryImage(p) : null
       });
     });
 
@@ -1985,7 +2052,7 @@ export const db = {
         source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
+        img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
@@ -2023,7 +2090,7 @@ export const db = {
         source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        img: (Array.isArray(r.images) && r.images[0]) || r.img || null,
+        img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
@@ -2365,7 +2432,7 @@ export const db = {
         
         const name = p ? p.name : (typeof it === 'object' && it.name ? it.name : "Rudraksha Bead");
         const price = p ? p.price : (typeof it === 'object' && (it.price || it.unitPrice) ? Number(it.price || it.unitPrice) : 999);
-        const img = p ? (p.img || (p.images && p.images[0])) : (typeof it === 'object' ? db.getOrderItemImage(it) : "/images/product-5mukhi.jpg");
+        const img = p ? getProductPrimaryImage(p) : (typeof it === "object" ? db.getOrderItemImage(it) : "/images/product-5mukhi.jpg");
 
         if (!map[strId]) {
           map[strId] = {

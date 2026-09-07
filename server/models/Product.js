@@ -4,7 +4,7 @@ const productSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true },
-    slug: { type: String, trim: true },
+    slug: { type: String, trim: true, index: true },
     price: { type: Number, required: true, min: 0 },
     comparePrice: { type: Number, default: 0 },
     mrp: { type: Number, default: 0 },
