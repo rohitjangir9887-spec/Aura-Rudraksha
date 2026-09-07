@@ -13,7 +13,11 @@ export function AuraAIPill({ className = "" }) {
       e.preventDefault();
       auraChatStore.setFloatingDismissed(false);
       auraChatStore.setFloatingOpen(true);
-      window.dispatchEvent(new CustomEvent("aura_ai_trigger_chat", { detail: { mode: "standard" } }));
+      window.dispatchEvent(
+        new CustomEvent("aura_ai_trigger_chat", { 
+          detail: { mode: "standard", fullWindow: true } 
+        })
+      );
     }
   };
 

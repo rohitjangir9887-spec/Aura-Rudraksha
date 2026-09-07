@@ -250,6 +250,9 @@ export function AuraAIFloating() {
       } else if (prompt && (prompt.includes("पंडित") || prompt.includes("Pandit") || prompt.includes("kundli") || prompt.includes("कुंडली"))) {
         setMode("panditji");
       }
+      if (typeof e.detail?.fullWindow === "boolean") {
+        setIsFullWindow(e.detail.fullWindow);
+      }
       setIsDismissed(false);
       setIsOpen(true);
       if (prompt && prompt.trim()) {
@@ -593,7 +596,10 @@ export function AuraAIFloating() {
           >
             <button
               type="button"
-              onClick={() => setIsOpen(true)}
+              onClick={() => {
+                setIsFullWindow(false);
+                setIsOpen(true);
+              }}
               className="aura-ai-floating-btn"
               aria-label="Open Aura AI Shopping Guide"
               title="Chat with Aura AI"
