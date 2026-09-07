@@ -5,15 +5,14 @@ import {
   Sparkles, 
   Flame, 
   ArrowRight,
-  ArrowUpRight,
-  Play,
-  X
+  ArrowUpRight
 } from "lucide-react";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
 import { isPublicProduct } from "../lib/db";
+import { auraChatStore } from "../lib/auraChatStore";
 
-// Authentic Devotee Avatars for "Watch Our Story"
+// Authentic Devotee Avatars
 const DEVOTEE_AVATARS = [
   {
     name: "Aarav S.",
@@ -31,6 +30,132 @@ const DEVOTEE_AVATARS = [
     img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80"
   }
 ];
+
+// SVG Icon: Nepal Flag (for Authentic Nepal Bead badge)
+function NepalFlagIcon({ size = 16, className = "" }) {
+  return (
+    <svg 
+      width={size} 
+      height={Math.round(size * 1.2)} 
+      viewBox="0 0 18 22" 
+      fill="none" 
+      className={className} 
+      aria-label="Nepal Flag"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
+    >
+      <path d="M1 1V21H17L8.5 12.5H15.5L1 1Z" fill="#003893" />
+      <path d="M2.5 2.8V19.5H14.5L7 11.8H13L2.5 2.8Z" fill="#DC143C" />
+      <circle cx="5.2" cy="7.2" r="1.8" fill="#FFFFFF" />
+      <circle cx="5.2" cy="6.6" r="1.4" fill="#DC143C" />
+      <circle cx="5.2" cy="7.6" r="0.7" fill="#FFFFFF" />
+      <circle cx="5.5" cy="15.5" r="1.8" fill="#FFFFFF" />
+    </svg>
+  );
+}
+
+// Icon: AI Pandit Ji Avatar with Warm Golden Halo and Authentic Panditji Portrait
+function PanditJiAvatar({ size = 34 }) {
+  return (
+    <div 
+      className="pandit-avatar-glow"
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: "50%",
+        border: "1.5px solid #D4AF37",
+        background: "radial-gradient(circle at 50% 30%, #FFE9B8 0%, #D49B3E 70%, #7A4215 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.35)"
+      }}
+    >
+      <img
+        src="https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png"
+        alt="AI Pandit Ji"
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '50%',
+          objectFit: 'cover',
+          display: 'block'
+        }}
+        onError={(e) => {
+          e.currentTarget.style.display = 'none';
+          const fallback = e.currentTarget.parentElement.querySelector('svg');
+          if (fallback) fallback.style.display = 'block';
+        }}
+        referrerPolicy="no-referrer"
+        loading="eager"
+      />
+      <svg width={size - 2} height={size - 2} viewBox="0 0 40 40" fill="none" style={{ display: 'none' }}>
+        {/* Radiating Halo Rays */}
+        <circle cx="20" cy="16" r="14" fill="url(#haloGrad)" fillOpacity="0.45" />
+        <defs>
+          <radialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#FFF9E6" />
+            <stop offset="60%" stopColor="#F5CB87" />
+            <stop offset="100%" stopColor="#D49B3E" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* Halo outer rings */}
+        <circle cx="20" cy="16" r="11" stroke="#FDE68A" strokeWidth="0.8" strokeDasharray="2 1.5" opacity="0.7" />
+
+        {/* Shoulders & Saffron Shawl / Angavastram */}
+        <path d="M6 39C6 31 11 26 20 26C29 26 34 31 34 39H6Z" fill="#D96E14" />
+        <path d="M12 28C14 31 16 39 16 39H24C24 39 26 31 28 28C25 27 22 26.5 20 26.5C18 26.5 15 27 12 28Z" fill="#BA4C09" />
+        <path d="M15 30C15 30 17 38 18 39H22C23 38 25 30 25 30" stroke="#F6C56F" strokeWidth="1" strokeLinecap="round" />
+
+        {/* Rudraksha Beads Mala on Shawl */}
+        <circle cx="16" cy="33" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
+        <circle cx="18" cy="35" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
+        <circle cx="20" cy="36" r="1.3" fill="#8E3310" stroke="#FFDF9E" strokeWidth="0.5" />
+        <circle cx="22" cy="35" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
+        <circle cx="24" cy="33" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
+
+        {/* Neck & Chin */}
+        <rect x="17" y="21" width="6" height="6" rx="2" fill="#E8B084" />
+
+        {/* Head / Face */}
+        <circle cx="20" cy="16" r="7" fill="#F0C097" />
+
+        {/* Ears */}
+        <circle cx="13" cy="16.5" r="1.5" fill="#E8B084" />
+        <circle cx="27" cy="16.5" r="1.5" fill="#E8B084" />
+        <circle cx="13" cy="17.2" r="0.6" fill="#D4AF37" />
+        <circle cx="27" cy="17.2" r="0.6" fill="#D4AF37" />
+
+        {/* Hair / Bald Crown with grey-white side hair */}
+        <path d="M13 14C12.5 16 12.5 18 13.5 19.5" stroke="#F1F1F1" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M27 14C27.5 16 27.5 18 26.5 19.5" stroke="#F1F1F1" strokeWidth="1.6" strokeLinecap="round" />
+
+        {/* Saffron / Sandalwood Tripundra Tilak on Forehead */}
+        <path d="M18 12.5H22" stroke="#E67E22" strokeWidth="0.8" strokeLinecap="round" />
+        <path d="M18.2 13.5H21.8" stroke="#E67E22" strokeWidth="0.7" strokeLinecap="round" />
+        <circle cx="20" cy="13.2" r="0.6" fill="#C0392B" />
+
+        {/* Eyebrows */}
+        <path d="M16 14.8C16.8 14.4 17.8 14.5 18.2 15" stroke="#6D6059" strokeWidth="0.8" strokeLinecap="round" />
+        <path d="M21.8 15C22.2 14.5 23.2 14.4 24 14.8" stroke="#6D6059" strokeWidth="0.8" strokeLinecap="round" />
+
+        {/* Eyes (Serene, gentle, smiling) */}
+        <path d="M16.5 16.5C17 16.2 17.8 16.5 18 17" stroke="#3D2817" strokeWidth="0.9" strokeLinecap="round" />
+        <path d="M22 17C22.2 16.5 23 16.2 23.5 16.5" stroke="#3D2817" strokeWidth="0.9" strokeLinecap="round" />
+
+        {/* Nose */}
+        <path d="M20 15.5V18C20 18.3 19.6 18.6 19.3 18.6" stroke="#D3976C" strokeWidth="0.8" strokeLinecap="round" />
+
+        {/* White / Grey Beard and Moustache */}
+        <path d="M16.5 19C18 19.5 20 19 20 19C20 19 22 19.5 23.5 19C24 20.5 23.5 24 20 25C16.5 24 16 20.5 16.5 19Z" fill="#F8F8F8" />
+        <path d="M17.5 19.5C18.5 20.2 20 19.8 20 19.8C20 19.8 21.5 20.2 22.5 19.5" stroke="#DDD7D0" strokeWidth="0.7" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
 
 // SVG Icon: Mountain Peak with Rising Sun (100% Nepali Origin)
 function MountainSunIcon({ size = 26, className = "" }) {
@@ -170,7 +295,24 @@ function MandalaCornerWatermark() {
 export function HomeProductShowcase({ products = [], isLoading = false }) {
   const { add } = useCart();
   const [activeTab, setActiveTab] = useState("all");
-  const [showStoryModal, setShowStoryModal] = useState(false);
+
+  // Handler to open Aura AI Pandit Ji chat assistant
+  const handleOpenAiPandit = () => {
+    auraChatStore.setMode("panditji");
+    auraChatStore.setFloatingDismissed(false);
+    auraChatStore.setFloatingOpen(true);
+    try {
+      window.dispatchEvent(
+        new CustomEvent("aura_ai_trigger_chat", {
+          detail: {
+            mode: "panditji",
+            prompt: "प्रणाम पंडित जी! मुझे अपनी राशि एवं ग्रह शांति हेतु उचित रुद्राक्ष के बारे में मार्गदर्शन चाहिए।"
+          }
+        })
+      );
+      window.dispatchEvent(new CustomEvent("aura_ai_open_change", { detail: true }));
+    } catch (_) {}
+  };
 
   // Filter products that admin explicitly enabled for Home Page Showcase
   const homeProducts = useMemo(() => {
@@ -230,55 +372,116 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
     <section 
       id="sacred-vedic-collection-section"
       className="section popular-collection-section" 
-      style={{ paddingTop: '20px', paddingBottom: '45px' }}
+      style={{ paddingTop: '10px', paddingBottom: '45px' }}
     >
-      {/* 1. Header / Title Area */}
-      <div className="section-heading fade-in-up-d1" style={{ marginBottom: '18px', textAlign: 'center' }}>
-        <div style={{ maxWidth: '640px', margin: '0 auto', textAlign: 'center' }}>
-          {/* Small Decorative Vedic Divider */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-            <span style={{ height: '1px', width: '28px', background: 'linear-gradient(to right, transparent, #b85d25)' }} />
-            <span style={{ 
-              fontSize: '11px', 
-              fontWeight: '700', 
-              letterSpacing: '0.22em', 
-              color: '#b85d25', 
-              textTransform: 'uppercase',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              ✦ SACRED VEDIC COLLECTION ✦
-            </span>
-            <span style={{ height: '1px', width: '28px', background: 'linear-gradient(to left, transparent, #b85d25)' }} />
-          </div>
+      <style>{`
+        @keyframes panditPulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+          }
+          50% {
+            box-shadow: 0 0 0 3.5px rgba(212, 175, 55, 0.2), 0 0 10px rgba(245, 203, 135, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
+          }
+        }
+        .pandit-avatar-glow {
+          animation: panditPulseGlow 3s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .pandit-avatar-glow {
+            animation: none !important;
+          }
+        }
 
-          <h2 style={{ 
-            fontFamily: '"Cormorant Garamond", Georgia, serif', 
-            fontSize: 'clamp(24px, 3.8vw, 34px)', 
-            fontWeight: '700', 
-            color: '#2a160d', 
-            margin: '4px 0 8px',
-            lineHeight: 1.15
-          }}>
-            Popular Rudraksha &amp; Sacred Beads
-          </h2>
+        /* Mobile Responsive Enhancements */
+        .why-choose-card {
+          padding: 14px 12px 13px !important;
+          border-radius: 20px !important;
+        }
+        @media (min-width: 480px) {
+          .why-choose-card {
+            padding: 18px 16px 16px !important;
+            border-radius: 24px !important;
+          }
+        }
 
-          <p style={{ fontSize: '13.5px', color: '#7a6a5e', margin: '0 auto', maxWidth: '520px', lineHeight: 1.55 }}>
-            Hand-selected, authentic Nepali beads energized with Mount Kailash soil, holy Ganga Jal &amp; Vedic rituals.
-          </p>
-        </div>
-      </div>
+        .benefit-circle-wrap {
+          width: clamp(38px, 11vw, 50px) !important;
+          height: clamp(38px, 11vw, 50px) !important;
+        }
+        .benefit-title-text {
+          font-size: clamp(9.5px, 2.6vw, 11px) !important;
+          line-height: 1.2 !important;
+          margin-top: 5px !important;
+        }
 
-      {/* 2. Target Design Container: Warm Ivory Card with Benefits & Story Bar */}
+        .filter-btn-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 7px !important;
+        }
+        @media (min-width: 480px) {
+          .filter-btn-grid {
+            gap: 9px !important;
+          }
+        }
+
+        .filter-pill-btn {
+          height: 40px !important;
+          padding: 0 8px !important;
+        }
+        @media (min-width: 400px) {
+          .filter-pill-btn {
+            height: 44px !important;
+            padding: 0 10px !important;
+          }
+        }
+        @media (min-width: 600px) {
+          .filter-pill-btn {
+            height: 46px !important;
+            padding: 0 12px !important;
+          }
+        }
+
+        .filter-pill-text {
+          font-size: 11px !important;
+          letter-spacing: -0.01em !important;
+        }
+        @media (min-width: 380px) {
+          .filter-pill-text {
+            font-size: 11.5px !important;
+          }
+        }
+        @media (min-width: 500px) {
+          .filter-pill-text {
+            font-size: 12px !important;
+          }
+        }
+
+        .ai-pandit-bar-wrap {
+          padding: 6px 10px !important;
+          gap: 6px !important;
+        }
+        @media (max-width: 350px) {
+          .ai-pandit-bar-wrap {
+            padding: 5px 7px !important;
+            gap: 4px !important;
+          }
+          .ai-pandit-lotus-deco {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      {/* Target Design Container: Warm Ivory Card with Benefits & AI Pandit Ji Bar */}
       <div 
+        className="why-choose-card"
         style={{
           maxWidth: '920px',
-          margin: '0 auto 16px',
+          margin: '0 auto 14px',
           background: 'linear-gradient(180deg, #FAF7F2 0%, #F5ECE0 100%)',
           border: '1px solid #EADBCC',
-          borderRadius: '24px',
-          padding: '18px 16px 16px',
+          borderRadius: '20px',
+          padding: '14px 12px 13px',
           position: 'relative',
           overflow: 'hidden',
           boxShadow: '0 6px 24px rgba(90, 40, 16, 0.04)'
@@ -287,160 +490,169 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
         {/* Subtle Mandala Watermark in Top Right */}
         <MandalaCornerWatermark />
 
-        {/* Card Header: "Why Choose Us — 🪷 —" and Authentic Rudraksha Visual Accent */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+        {/* Card Header: "Why Choose Us — 🪷 —" and Authentic Nepal Bead Badge with Nepal Flag */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', position: 'relative', zIndex: 1, gap: '6px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, flexShrink: 1 }}>
             <h3 style={{
               fontFamily: '"Cormorant Garamond", Georgia, serif',
-              fontSize: '20px',
+              fontSize: 'clamp(17px, 4.4vw, 20px)',
               fontWeight: '700',
               color: '#2A160D',
               margin: 0,
               display: 'inline-flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              whiteSpace: 'nowrap'
             }}>
               Why Choose Us
             </h3>
-            <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '6px' }}>
-              <span style={{ width: '14px', height: '1px', background: '#D27C38', display: 'inline-block' }} />
+            <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '5px', flexShrink: 0 }}>
+              <span style={{ width: '10px', height: '1px', background: '#D27C38', display: 'inline-block' }} />
               <LotusFlourish />
-              <span style={{ width: '14px', height: '1px', background: '#D27C38', display: 'inline-block' }} />
+              <span style={{ width: '10px', height: '1px', background: '#D27C38', display: 'inline-block' }} />
             </span>
           </div>
 
-          {/* Genuine Nepali Rudraksha Visual Accent Badge */}
+          {/* Genuine Nepal Flag & Authentic Nepal Bead Badge */}
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(255,255,255,0.85)',
+            gap: '5px',
+            background: 'rgba(255,255,255,0.92)',
             border: '1px solid #EAD8C7',
             borderRadius: '20px',
-            padding: '2px 8px 2px 3px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            padding: '3px 8px 3px 5px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+            flexShrink: 0
           }}>
-            <img
-              src="/images/product-5mukhi.jpg"
-              alt="Authentic Nepal Consecrated Rudraksha"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-              style={{ width: '19px', height: '19px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #B85D25' }}
-            />
-            <span style={{ fontSize: '10.5px', fontWeight: '600', color: '#66341C' }}>
+            <NepalFlagIcon size={13} />
+            <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#3A1E11', whiteSpace: 'nowrap' }}>
               Authentic Nepal Bead
             </span>
           </div>
         </div>
 
-        {/* 3. Four Trust / Benefit Columns */}
+        {/* Four Trust / Benefit Columns */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '4px',
-          marginBottom: '14px',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gap: '2px',
+          marginBottom: '12px',
           position: 'relative',
           zIndex: 1
         }}>
           {/* Benefit 1: 100% Nepali Origin */}
-          <div style={{ textAlign: 'center', padding: '2px 1px', position: 'relative' }}>
-            <div style={{
-              width: '54px',
-              height: '54px',
-              margin: '0 auto',
-              borderRadius: '50%',
-              border: '1px solid #E8D5C0',
-              background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
-            }}>
-              <MountainSunIcon size={26} />
+          <div style={{ textAlign: 'center', padding: '1px', position: 'relative' }}>
+            <div 
+              className="benefit-circle-wrap"
+              style={{
+                width: '46px',
+                height: '46px',
+                margin: '0 auto',
+                borderRadius: '50%',
+                border: '1px solid #E8D5C0',
+                background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
+              }}
+            >
+              <MountainSunIcon size={22} />
             </div>
-            <div style={{ fontSize: '11px', fontWeight: '700', color: '#2A160D', lineHeight: '1.25', marginTop: '7px' }}>
+            <div className="benefit-title-text" style={{ fontSize: '10.5px', fontWeight: '700', color: '#2A160D', lineHeight: '1.2', marginTop: '5px' }}>
               100%<br />Nepali Origin
             </div>
             <span style={{ position: 'absolute', right: 0, top: '15%', height: '70%', width: '1px', background: '#EAE0D3' }} />
           </div>
 
           {/* Benefit 2: Govt Lab Certified */}
-          <div style={{ textAlign: 'center', padding: '2px 1px', position: 'relative' }}>
-            <div style={{
-              width: '54px',
-              height: '54px',
-              margin: '0 auto',
-              borderRadius: '50%',
-              border: '1px solid #E8D5C0',
-              background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
-            }}>
-              <LabCertifiedIcon size={26} />
+          <div style={{ textAlign: 'center', padding: '1px', position: 'relative' }}>
+            <div 
+              className="benefit-circle-wrap"
+              style={{
+                width: '46px',
+                height: '46px',
+                margin: '0 auto',
+                borderRadius: '50%',
+                border: '1px solid #E8D5C0',
+                background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
+              }}
+            >
+              <LabCertifiedIcon size={22} />
             </div>
-            <div style={{ fontSize: '11px', fontWeight: '700', color: '#2A160D', lineHeight: '1.25', marginTop: '7px' }}>
+            <div className="benefit-title-text" style={{ fontSize: '10.5px', fontWeight: '700', color: '#2A160D', lineHeight: '1.2', marginTop: '5px' }}>
               Govt Lab<br />Certified
             </div>
             <span style={{ position: 'absolute', right: 0, top: '15%', height: '70%', width: '1px', background: '#EAE0D3' }} />
           </div>
 
           {/* Benefit 3: Free Vedic Energization */}
-          <div style={{ textAlign: 'center', padding: '2px 1px', position: 'relative' }}>
-            <div style={{
-              width: '54px',
-              height: '54px',
-              margin: '0 auto',
-              borderRadius: '50%',
-              border: '1px solid #E8D5C0',
-              background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
-            }}>
-              <VedicEnergizationIcon size={26} />
+          <div style={{ textAlign: 'center', padding: '1px', position: 'relative' }}>
+            <div 
+              className="benefit-circle-wrap"
+              style={{
+                width: '46px',
+                height: '46px',
+                margin: '0 auto',
+                borderRadius: '50%',
+                border: '1px solid #E8D5C0',
+                background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
+              }}
+            >
+              <VedicEnergizationIcon size={22} />
             </div>
-            <div style={{ fontSize: '11px', fontWeight: '700', color: '#2A160D', lineHeight: '1.25', marginTop: '7px' }}>
+            <div className="benefit-title-text" style={{ fontSize: '10.5px', fontWeight: '700', color: '#2A160D', lineHeight: '1.2', marginTop: '5px' }}>
               Free Vedic<br />Energization
             </div>
             <span style={{ position: 'absolute', right: 0, top: '15%', height: '70%', width: '1px', background: '#EAE0D3' }} />
           </div>
 
           {/* Benefit 4: 7-Day Return */}
-          <div style={{ textAlign: 'center', padding: '2px 1px' }}>
-            <div style={{
-              width: '54px',
-              height: '54px',
-              margin: '0 auto',
-              borderRadius: '50%',
-              border: '1px solid #E8D5C0',
-              background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
-            }}>
-              <SevenDayReturnIcon size={26} />
+          <div style={{ textAlign: 'center', padding: '1px' }}>
+            <div 
+              className="benefit-circle-wrap"
+              style={{
+                width: '46px',
+                height: '46px',
+                margin: '0 auto',
+                borderRadius: '50%',
+                border: '1px solid #E8D5C0',
+                background: 'radial-gradient(circle at 35% 35%, #FFFFFF 30%, #F5EAE0 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(100, 50, 20, 0.04)'
+              }}
+            >
+              <SevenDayReturnIcon size={22} />
             </div>
-            <div style={{ fontSize: '11px', fontWeight: '700', color: '#2A160D', lineHeight: '1.25', marginTop: '7px' }}>
+            <div className="benefit-title-text" style={{ fontSize: '10.5px', fontWeight: '700', color: '#2A160D', lineHeight: '1.2', marginTop: '5px' }}>
               7-Day<br />Return
             </div>
           </div>
         </div>
 
-        {/* 4. "Watch Our Story" Bar */}
+        {/* Brown AI Pandit Ji Promotional Bar */}
         <div 
-          onClick={() => setShowStoryModal(true)}
+          onClick={handleOpenAiPandit}
           role="button"
           tabIndex={0}
-          aria-label="Watch Our Story: Authentic Nepali Consecration Journey"
-          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setShowStoryModal(true)}
+          aria-label="Chat with AI Pandit Ji - Vedic Astrologer & Spiritual Guide"
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleOpenAiPandit()}
+          className="ai-pandit-bar-wrap"
           style={{
             background: 'linear-gradient(135deg, #35170A 0%, #220D04 100%)',
             border: '1px solid #4D2612',
             borderRadius: '9999px',
-            padding: '8px 12px',
+            padding: '6px 10px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -449,45 +661,45 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
             transition: 'transform 0.18s ease, box-shadow 0.18s ease',
             userSelect: 'none',
             position: 'relative',
-            zIndex: 1
+            zIndex: 1,
+            gap: '6px'
           }}
         >
-          {/* Left: Circular Play Button + Watch Our Story + Arrow */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <div style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '50%',
-              border: '1.5px solid #D4AF37',
-              background: 'linear-gradient(135deg, #4A200E, #2B1106)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
-            }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="#FFFFFF">
-                <polygon points="6 3 20 12 6 21 6 3" />
-              </svg>
+          {/* Left: AI Pandit Ji Avatar + "Chat with AI Pandit Ji" + Arrow */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexShrink: 1 }}>
+            <PanditJiAvatar size={30} />
+
+            <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.18)', flexShrink: 0 }} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+              <span style={{
+                fontSize: '8.5px',
+                fontWeight: '500',
+                color: '#D5C2AF',
+                lineHeight: 1.1,
+                letterSpacing: '0.01em',
+                whiteSpace: 'nowrap'
+              }}>
+                Chat with
+              </span>
+              <span style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontSize: 'clamp(13px, 3.4vw, 15px)',
+                fontWeight: '700',
+                color: '#FAF4EB',
+                lineHeight: 1.15,
+                whiteSpace: 'nowrap'
+              }}>
+                AI Pandit Ji
+              </span>
             </div>
 
-            <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.18)', margin: '0 1px' }} />
-
-            <span style={{
-              fontFamily: '"Cormorant Garamond", Georgia, serif',
-              fontSize: '15px',
-              fontWeight: '600',
-              color: '#FAF4EB',
-              whiteSpace: 'nowrap'
-            }}>
-              Watch Our Story
-            </span>
-            <ArrowRight size={14} color="#E6C594" style={{ flexShrink: 0 }} />
+            <ArrowRight size={13} color="#E6C594" style={{ flexShrink: 0, marginLeft: '1px' }} />
           </div>
 
           {/* Right: Devotee Avatar Group + 10K+ Happy Devotees + Gold Lotus */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexShrink: 0, marginLeft: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               {DEVOTEE_AVATARS.map((devotee, idx) => (
                 <img
                   key={idx}
@@ -497,12 +709,12 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
                   referrerPolicy="no-referrer"
                   loading="lazy"
                   style={{
-                    width: '24px',
-                    height: '24px',
+                    width: '20px',
+                    height: '20px',
                     borderRadius: '50%',
                     objectFit: 'cover',
-                    border: '1.5px solid #240E05',
-                    marginLeft: idx > 0 ? '-7px' : '0',
+                    border: '1.2px solid #240E05',
+                    marginLeft: idx > 0 ? '-6px' : '0',
                     position: 'relative',
                     zIndex: 3 - idx
                   }}
@@ -510,18 +722,18 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
               ))}
             </div>
 
-            <div style={{ lineHeight: 1.15, textAlign: 'left' }}>
-              <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#FFFFFF' }}>
+            <div style={{ lineHeight: 1.15, textAlign: 'left', flexShrink: 0 }}>
+              <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#FFFFFF' }}>
                 10K+
               </div>
-              <div style={{ fontSize: '8.5px', fontWeight: '500', color: '#D5C2AF', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '8px', fontWeight: '500', color: '#D5C2AF', whiteSpace: 'nowrap' }}>
                 Happy Devotees
               </div>
             </div>
 
             {/* Far Right Subtle Lotus Outline */}
-            <div style={{ opacity: 0.85, marginLeft: '2px', display: 'flex', alignItems: 'center' }}>
-              <svg width="24" height="18" viewBox="0 0 32 24" fill="none" stroke="#D4AF37" strokeWidth="1.3">
+            <div className="ai-pandit-lotus-deco" style={{ opacity: 0.85, marginLeft: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <svg width="20" height="15" viewBox="0 0 32 24" fill="none" stroke="#D4AF37" strokeWidth="1.3">
                 <path d="M16 3C16 3 13 8 13 14C13 18 16 20 16 20C16 20 19 18 19 14C19 8 16 3 16 3Z" />
                 <path d="M13 9C10 11 6 13 6 17C6 19.5 8 20 10.5 20C13 20 14.5 17 14.5 17" />
                 <path d="M19 9C22 11 26 13 26 17C26 19.5 24 20 21.5 20C19 20 17.5 17 17.5 17" />
@@ -532,15 +744,16 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
         </div>
       </div>
 
-      {/* 5. Category Filters: 2x2 Clean Layout matching Reference */}
+      {/* Category Filters: 2x2 Clean Layout matching Reference */}
       {tabs.length > 0 && (
         <div 
+          className="filter-btn-grid"
           style={{
             maxWidth: '920px',
-            margin: '0 auto 20px',
+            margin: '0 auto 18px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '9px'
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '7px'
           }}
         >
           {tabs.map((tab) => {
@@ -552,14 +765,15 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 aria-pressed={isActive}
+                className="filter-pill-btn"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  height: '46px',
-                  padding: '0 12px',
+                  height: '42px',
+                  padding: '0 8px',
                   borderRadius: '9999px',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: isActive ? '700' : '600',
                   border: isActive ? '1px solid #9A3915' : '1px solid #EFE4D8',
                   background: isActive 
@@ -568,40 +782,43 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
                   color: isActive ? '#FFFFFF' : '#2E1A11',
                   cursor: 'pointer',
                   boxShadow: isActive 
-                    ? '0 4px 14px rgba(77, 22, 6, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2)' 
-                    : '0 2px 6px rgba(0, 0, 0, 0.03)',
+                    ? '0 4px 12px rgba(77, 22, 6, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2)' 
+                    : '0 2px 5px rgba(0, 0, 0, 0.03)',
                   transition: 'all 0.18s ease',
                   userSelect: 'none',
-                  outline: 'none'
+                  outline: 'none',
+                  minWidth: 0,
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
                   {Icon && (
                     <Icon 
-                      size={16} 
-                      color={isActive ? '#F5CB87' : '#C85A2A'} 
+                      size={15} 
+                      color={isActive ? '#F5CB87' : (tab.id === "popular" || tab.id === "mukhi" ? '#D84315' : '#8B3A1C')} 
                       style={{ flexShrink: 0 }} 
                     />
                   )}
-                  <span style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  <span className="filter-pill-text" style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', minWidth: 0 }}>
                     {tab.label}
                   </span>
                 </div>
 
                 {tab.count !== undefined && (
                   <span style={{
-                    fontSize: '11px',
+                    fontSize: '10px',
                     fontWeight: '700',
-                    width: '22px',
-                    height: '22px',
+                    width: '19px',
+                    height: '19px',
                     borderRadius: '50%',
-                    background: isActive ? 'rgba(48, 12, 2, 0.65)' : '#F5EDE4',
+                    background: isActive ? 'rgba(48, 12, 2, 0.7)' : '#F5EDE4',
                     color: isActive ? '#FFFFFF' : '#7E6252',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    marginLeft: '6px'
+                    marginLeft: '4px'
                   }}>
                     {tab.count}
                   </span>
@@ -612,7 +829,7 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
         </div>
       )}
 
-      {/* 6. Product Grid (Untouched functionality and props) */}
+      {/* Product Grid */}
       <div className="product-grid swipeable">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
@@ -639,7 +856,7 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
         )}
       </div>
 
-      {/* 7. Footer Explore Action Area (Untouched functionality) */}
+      {/* Footer Explore Action Area */}
       <div className="explore-more-container" style={{ marginTop: '36px', textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
           <Link 
@@ -679,176 +896,6 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
           </div>
         </div>
       </div>
-
-      {/* 8. Accessible "Watch Our Story" Consecration Modal */}
-      {showStoryModal && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 10050,
-            background: 'rgba(20, 8, 4, 0.78)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-          }}
-          onClick={() => setShowStoryModal(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="sacred-story-modal-title"
-        >
-          <div 
-            style={{
-              background: '#FAF6F0',
-              borderRadius: '24px',
-              border: '1px solid #EADBCC',
-              maxWidth: '520px',
-              width: '100%',
-              overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.32)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Top Header */}
-            <div style={{
-              background: 'linear-gradient(135deg, #35170A 0%, #220D04 100%)',
-              padding: '16px 20px',
-              color: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: '1px solid #4D2612'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  border: '1.5px solid #D4AF37',
-                  background: '#4A200E',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Play size={12} fill="#FFFFFF" color="#FFFFFF" />
-                </div>
-                <div>
-                  <h4 id="sacred-story-modal-title" style={{ fontFamily: '"Cormorant Garamond", Georgia, serif', fontSize: '18px', fontWeight: '700', margin: 0, color: '#FAF4EB' }}>
-                    The Sacred Consecration Story
-                  </h4>
-                  <span style={{ fontSize: '11px', color: '#D5C2AF' }}>
-                    Nepal Sacred Groves → Haridwar Ganga Aarti Consecration
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowStoryModal(false)}
-                aria-label="Close story modal"
-                style={{
-                  background: 'rgba(255,255,255,0.12)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#FFFFFF',
-                  cursor: 'pointer'
-                }}
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: '18px' }}>
-              {/* Consecration Visual Card */}
-              <div style={{
-                position: 'relative',
-                borderRadius: '16px',
-                overflow: 'hidden',
-                marginBottom: '16px',
-                background: '#2A160D',
-                border: '1px solid #E4D2BF'
-              }}>
-                <img 
-                  src="/images/product-5mukhi.jpg" 
-                  alt="Sacred Nepal Rudraksha Consecration" 
-                  referrerPolicy="no-referrer"
-                  style={{ width: '100%', height: '170px', objectFit: 'cover', opacity: 0.82 }} 
-                />
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(to top, rgba(30,10,3,0.94) 0%, rgba(30,10,3,0.4) 65%, transparent 100%)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'flex-end',
-                  padding: '14px'
-                }}>
-                  <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.15em', color: '#E5C088', textTransform: 'uppercase' }}>
-                    ✦ Authenticity &amp; Devotion Since 2012
-                  </span>
-                  <p style={{ fontSize: '12.5px', color: '#FFFFFF', margin: '4px 0 0', lineHeight: 1.45 }}>
-                    Every single bead is personally consecrated on the sacred banks of Mother Ganga in Haridwar with 108 Shiva Beej Mantras and sanctified with Mount Kailash soil.
-                  </p>
-                </div>
-              </div>
-
-              {/* 4 Sacred Steps */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-                <div style={{ background: '#FFFFFF', border: '1px solid #EFE4D8', borderRadius: '12px', padding: '9px 11px' }}>
-                  <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#B85D25', textTransform: 'uppercase' }}>1. 100% Nepali Origin</div>
-                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#2A160D', marginTop: '2px' }}>High-Altitude Groves</div>
-                  <div style={{ fontSize: '10.5px', color: '#7A6A5E', marginTop: '2px', lineHeight: 1.3 }}>Gathered ethically from Bhojpur &amp; Sankhuwasabha.</div>
-                </div>
-                <div style={{ background: '#FFFFFF', border: '1px solid #EFE4D8', borderRadius: '12px', padding: '9px 11px' }}>
-                  <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#B85D25', textTransform: 'uppercase' }}>2. Govt Lab Certified</div>
-                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#2A160D', marginTop: '2px' }}>Digital X-Ray Tested</div>
-                  <div style={{ fontSize: '10.5px', color: '#7A6A5E', marginTop: '2px', lineHeight: 1.3 }}>Every Mukhi chamber tested with verification report.</div>
-                </div>
-                <div style={{ background: '#FFFFFF', border: '1px solid #EFE4D8', borderRadius: '12px', padding: '9px 11px' }}>
-                  <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#B85D25', textTransform: 'uppercase' }}>3. Free Energization</div>
-                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#2A160D', marginTop: '2px' }}>Vedic Haridwar Puja</div>
-                  <div style={{ fontSize: '10.5px', color: '#7A6A5E', marginTop: '2px', lineHeight: 1.3 }}>Sanctified with holy Ganga Jal &amp; Kailash soil.</div>
-                </div>
-                <div style={{ background: '#FFFFFF', border: '1px solid #EFE4D8', borderRadius: '12px', padding: '9px 11px' }}>
-                  <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#B85D25', textTransform: 'uppercase' }}>4. 10K+ Devotees</div>
-                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#2A160D', marginTop: '2px' }}>Devotee Satisfaction</div>
-                  <div style={{ fontSize: '10.5px', color: '#7A6A5E', marginTop: '2px', lineHeight: 1.3 }}>Backed by our 7-Day peaceful return assurance.</div>
-                </div>
-              </div>
-
-              {/* Dismiss Action Button */}
-              <button
-                type="button"
-                onClick={() => setShowStoryModal(false)}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #78270B 0%, #A84118 100%)',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '9999px',
-                  padding: '11px 20px',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(120, 39, 11, 0.25)'
-                }}
-              >
-                Browse Sacred Beads
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

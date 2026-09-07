@@ -17,6 +17,7 @@ try {
 // In-memory dismissal & open states so floating window state persists smoothly across client navigation
 let isFloatingDismissedSession = false;
 let isFloatingOpenState = false;
+let currentActiveMode = "standard";
 
 // Clear any old permanent localStorage flag on load
 try {
@@ -325,6 +326,33 @@ export const auraChatStore = {
     isFloatingDismissedSession = !!dismissed;
     try {
       window.dispatchEvent(new CustomEvent("aura_ai_floating_dismiss_sync", { detail: isFloatingDismissedSession }));
+    } catch (_) {}
+  },
+
+  // Active Chat Mode (standard vs panditji)
+  getMode() {
+    return currentActiveMode;
+  },
+
+  setMode(mode = "standard") {
+    currentActiveMode = mode === "panditji" ? "panditji" : "standard";
+    try {
+      window.dispatchEvent(new CustomEvent("aura_ai_mode_change", { detail: currentActiveMode }));
+    } catch (_) {}
+  },
+
+  // Helper to trigger chat assistant in standard or panditji mode
+  triggerChat(prompt = "", mode = "standard") {
+    this.setMode(mode);
+    this.setFloatingDismissed(false);
+    this.setFloatingOpen(true);
+    try {
+      window.dispatchEvent(
+        new CustomEvent("aura_ai_trigger_chat", {
+          detail: { mode, prompt }
+        })
+      );
+      window.dispatchEvent(new CustomEvent("aura_ai_open_change", { detail: true }));
     } catch (_) {}
   }
 };
