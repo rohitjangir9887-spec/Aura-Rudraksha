@@ -69,6 +69,7 @@ export function AppliedCouponCard({ appliedCoupon, onRemoveCoupon }) {
         type="button"
         id="btn-remove-coupon"
         onClick={onRemoveCoupon}
+        aria-label={`Remove applied coupon \${appliedCoupon.code}`}
         style={{
           background: "#ffffff",
           border: "1px solid #d4c5b9",
