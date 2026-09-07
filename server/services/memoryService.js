@@ -1,6 +1,5 @@
 import { AuraAIMemory } from "../models/AuraAI.js";
 import { isDbConnected } from "../config/db.js";
-import { GoogleGenAI } from "@google/genai";
 
 // In-memory fallback map for non-DB environments: userId -> Map(memoryKey -> MemoryObj)
 const inMemoryStore = new Map();

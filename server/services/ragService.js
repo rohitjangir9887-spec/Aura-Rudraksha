@@ -4,7 +4,6 @@ import { Coupon } from "../models/Coupon.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { isDbConnected } from "../config/db.js";
-import { GoogleGenAI } from "@google/genai";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 
@@ -20,46 +19,6 @@ export function invalidateRagCache() {
   lastCacheTime = 0;
   ragCacheDocs = [];
   console.log("[RAG Service] Cache invalidated due to store update.");
-}
-
-/**
- * Generate text embedding using Gemini API (@google/genai)
- */
-async function generateEmbedding(text = "") {
-  if (!text || !process.env.GEMINI_API_KEY) return [];
-  try {
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
-    });
-    const res = await ai.models.embedContent({
-      model: "gemini-embedding-2-preview",
-      contents: text.slice(0, 2000)
-    });
-    return res.embedding?.values || [];
-  } catch (err) {
-    console.warn("[RAG Service] Gemini embedding notice:", err?.message);
-    return [];
-  }
-}
-
-/**
- * Calculate Cosine Similarity between two vector arrays
- */
-function cosineSimilarity(vecA, vecB) {
-  if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0 || vecA.length !== vecB.length) {
-    return 0;
-  }
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 /**

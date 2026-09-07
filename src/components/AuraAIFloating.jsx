@@ -305,14 +305,15 @@ export function AuraAIFloating() {
     return null;
   }
 
-  const handleSend = async (customText = null) => {
+  const handleSend = async (customText = null, customBirthDetails = null) => {
     const textToSend = customText || input;
-    if (!textToSend || !textToSend.trim() || loading) return;
+    if ((!textToSend || !textToSend.trim()) && !customBirthDetails) return;
+    if (loading) return;
 
     const userMsg = {
       id: "msg_" + Date.now(),
       sender: "user",
-      text: textToSend.trim(),
+      text: textToSend ? textToSend.trim() : `Kundali Request (${customBirthDetails?.dob})`,
       timestamp: new Date().toISOString()
     };
 
@@ -321,9 +322,9 @@ export function AuraAIFloating() {
     if (!customText) setInput("");
     
     // Reset and Start Live Status Tracking
-    setLastUserQuery(textToSend.trim());
+    setLastUserQuery(textToSend ? textToSend.trim() : "Kundali Request");
     setErrorOccurred(false);
-    setStatusText("Thinking...");
+    setStatusText(mode === "panditji" ? "गणित व नक्षत्र गणना..." : "Thinking...");
     setElapsedTime(0);
     setLoading(true);
 
@@ -343,13 +344,14 @@ export function AuraAIFloating() {
       const userName = currentUser?.displayName || "Devotee";
 
       await auraAiClient.sendMessageStream({
-        message: textToSend,
+        message: textToSend || "",
         conversationId,
         userEmail,
         userName,
         mode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
+        birthDetails: customBirthDetails,
         onStatus: (statusMsg) => {
           setStatusText(statusMsg);
         },
@@ -358,7 +360,7 @@ export function AuraAIFloating() {
             streamInitialized = true;
             setLoading(false);
           }
-          setStatusText("Writing answer...");
+          setStatusText(mode === "panditji" ? "वैदिक परामर्श लिखा जा रहा है..." : "Writing answer...");
           const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -372,6 +374,7 @@ export function AuraAIFloating() {
               orderInfo: partialData?.orderInfo || existing?.orderInfo || null,
               requiresHuman: Boolean(partialData?.requiresHuman || existing?.requiresHuman),
               quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : (existing?.quickReplies || []),
+              kundali: partialData?.kundali || existing?.kundali || null,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
             if (idx >= 0) {
@@ -390,6 +393,9 @@ export function AuraAIFloating() {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
+          if (finalData.showBirthForm) {
+            setShowBirthForm(true);
+          }
           const cleanText = customerSafeAiText(finalData.text);
           const aiMsg = {
             id: aiMsgId,
@@ -400,6 +406,7 @@ export function AuraAIFloating() {
             orderInfo: finalData.orderInfo || null,
             requiresHuman: finalData.requiresHuman || false,
             quickReplies: finalData.quickReplies || [],
+            kundali: finalData.kundali || null,
             timestamp: new Date().toISOString()
           };
           auraChatStore.upsertMessage(aiMsg, mode);
@@ -474,11 +481,17 @@ export function AuraAIFloating() {
       spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
     };
 
-    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि (DOB): ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim() || "अज्ञात / Default"}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का वैदिक विश्लेषण करके मुझे सर्वोत्तम रुद्राक्ष, बीज मंत्र, शुभ धारण मुहूर्त और पूजन विधि बताइए।`;
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim() || "12:00"}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
 
     setShowBirthForm(false);
     setMode("panditji");
-    handleSend(promptText);
+    handleSend(promptText, {
+      name: birthForm.name.trim(),
+      dob: birthForm.dob,
+      birthTime: birthForm.time.trim() || "12:00",
+      birthPlace: birthForm.place.trim(),
+      concern: birthForm.concern
+    });
   };
 
   // Start a new chat session with smooth fade-out and fade-in transition

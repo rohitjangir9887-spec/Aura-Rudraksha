@@ -216,7 +216,7 @@ export const auraAiClient = {
   },
 
   // Send chat message to Aura AI (Standard Promise)
-  async sendMessage({ message, conversationId, userEmail, userName, cartItems = [], history = [] }) {
+  async sendMessage({ message, conversationId, userEmail, userName, mode = "standard", cartItems = [], history = [], birthDetails = null }) {
     try {
       const token = await authClient.getToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
@@ -233,8 +233,10 @@ export const auraAiClient = {
           guestSessionId,
           userEmail,
           userName,
+          mode,
           cartItems,
-          history
+          history,
+          birthDetails
         })
       });
 
@@ -383,6 +385,39 @@ export const auraAiClient = {
         body: JSON.stringify({ conversationId, action, productId, guestSessionId })
       });
     } catch (_) {}
+  },
+
+  // Calculate Authentic Astronomical Kundali & Recommendations
+  async calculateKundali({ dob, birthTime, birthPlace, name, gender, concern }) {
+    try {
+      const token = await authClient.getToken();
+      const res = await fetch(`${API_BASE}/kundali`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ dob, birthTime, birthPlace, name, gender, concern })
+      });
+      return await res.json();
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  },
+
+  // Get Admin AI Advanced Intelligence Report
+  async getAdminIntelligence() {
+    try {
+      const token = await authClient.getToken();
+      const res = await fetch(`${API_BASE}/admin-intelligence`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (data.success && data.data) return data.data;
+    } catch (_) {}
+    return null;
   },
 
   // Get Analytics (Admin)

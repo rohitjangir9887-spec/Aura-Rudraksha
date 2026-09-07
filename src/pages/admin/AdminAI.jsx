@@ -52,6 +52,8 @@ export function AdminAI() {
   const [products, setProducts] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [searchConvo, setSearchConvo] = useState("");
+  const [executiveReport, setExecutiveReport] = useState(null);
+  const [loadingExecutive, setLoadingExecutive] = useState(false);
 
   const loadAll = () => {
     // Live data from MongoDB (admin endpoints)
@@ -61,11 +63,27 @@ export function AdminAI() {
     auraAiClient.getConversations().then(list => {
       setConversations(list || []);
     });
+    auraAiClient.getAdminIntelligence().then(rep => {
+      setExecutiveReport(rep || null);
+    });
     auraAiClient.getSettings().then(setSettingsSafe);
     Promise.all([db.fetchProducts(), db.fetchCoupons ? db.fetchCoupons() : Promise.resolve()]).then(() => {
       setProducts(db.getProducts());
       setCoupons(db.getCoupons ? db.getCoupons() : []);
     });
+  };
+
+  const handleRefreshExecutive = async () => {
+    setLoadingExecutive(true);
+    try {
+      const rep = await auraAiClient.getAdminIntelligence();
+      setExecutiveReport(rep || null);
+      emitToast("Executive AI Intelligence updated from live database.", "success");
+    } catch (_) {
+      emitToast("Could not refresh AI intelligence.", "error");
+    } finally {
+      setLoadingExecutive(false);
+    }
   };
 
   const setSettingsSafe = (s) => {
@@ -170,6 +188,12 @@ export function AdminAI() {
             onClick={() => setActiveTab("escalations")}
           >
             <Headphones size={16} /> Support Escalations ({escalations.length})
+          </button>
+          <button 
+            className={`admin-ai-tab ${activeTab === "intelligence" ? "active" : ""}`}
+            onClick={() => setActiveTab("intelligence")}
+          >
+            <Sparkles size={16} /> Executive AI Intelligence
           </button>
           <button 
             className={`admin-ai-tab ${activeTab === "settings" ? "active" : ""}`}
@@ -608,6 +632,135 @@ export function AdminAI() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: EXECUTIVE AI INTELLIGENCE */}
+        {activeTab === "intelligence" && (
+          <div className="admin-ai-tab-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#2d1810", margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Sparkles size={20} color="#b45309" /> NVIDIA Nemotron-3 Super Intelligence Engine
+                </h2>
+                <p style={{ margin: 0, fontSize: "13px", color: "#6b5e52" }}>
+                  Deep analytical insights, operational anomaly detection, inventory risks, and customer trends synthesized directly from live database metrics.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={loadingExecutive}
+                onClick={handleRefreshExecutive}
+                style={{
+                  background: "linear-gradient(135deg, #b45309 0%, #78350f 100%)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "9px 16px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: loadingExecutive ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 2px 8px rgba(180, 83, 9, 0.2)"
+                }}
+              >
+                <RotateCcw size={14} className={loadingExecutive ? "animate-spin" : ""} />
+                {loadingExecutive ? "Analyzing Live Database..." : "Re-Analyze Database"}
+              </button>
+            </div>
+
+            {/* Executive Summary Banner */}
+            <div style={{ background: "linear-gradient(135deg, #fffdfa 0%, #fef3e2 100%)", border: "1.5px solid #fed7aa", borderRadius: "14px", padding: "20px", marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                <div style={{ background: "#b45309", color: "#fff", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Executive Summary
+                </div>
+                <span style={{ fontSize: "12px", color: "#78350f", fontWeight: 500 }}>
+                  Model: nvidia/nemotron-3-super-120b-a12b
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: "14.5px", lineHeight: "1.6", color: "#451a03", fontWeight: 500 }}>
+                {executiveReport?.executiveIntelligence?.executiveSummary || "Analyzing real-time store metrics..."}
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px", marginBottom: "20px" }}>
+              {/* Anomalies & Alerts */}
+              <div className="admin-ai-panel-card" style={{ background: "#fff", border: "1px solid #ebd8c5", borderRadius: "12px", padding: "20px" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#2d1810", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <ShieldCheck size={18} color="#dc2626" /> Operational & Inventory Anomalies
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {(executiveReport?.executiveIntelligence?.anomalies || []).length === 0 ? (
+                    <p style={{ color: "#78350f", fontSize: "13px", margin: 0 }}>No operational anomalies detected in live records.</p>
+                  ) : (
+                    executiveReport.executiveIntelligence.anomalies.map((anom, idx) => (
+                      <div key={idx} style={{ background: anom.type === "warning" ? "#fef2f2" : "#f0fdf4", border: `1px solid ${anom.type === "warning" ? "#fecaca" : "#bbf7d0"}`, borderRadius: "8px", padding: "12px" }}>
+                        <div style={{ fontWeight: 600, fontSize: "13.5px", color: anom.type === "warning" ? "#991b1b" : "#166534", marginBottom: "4px" }}>
+                          {anom.title}
+                        </div>
+                        <div style={{ fontSize: "12.5px", color: anom.type === "warning" ? "#7f1d1d" : "#14532d", lineHeight: "1.5" }}>
+                          {anom.description}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Product Opportunities */}
+              <div className="admin-ai-panel-card" style={{ background: "#fff", border: "1px solid #ebd8c5", borderRadius: "12px", padding: "20px" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#2d1810", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <TrendingUp size={18} color="#059669" /> High-Value Product Opportunities
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {(executiveReport?.executiveIntelligence?.productOpportunities || []).map((opp, idx) => (
+                    <div key={idx} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px" }}>
+                      <div style={{ fontWeight: 600, fontSize: "13.5px", color: "#0f172a", marginBottom: "4px" }}>
+                        {opp.title}
+                      </div>
+                      <div style={{ fontSize: "12.5px", color: "#475569", lineHeight: "1.5" }}>
+                        {opp.detail}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Recommended Action Items */}
+            <div className="admin-ai-panel-card" style={{ background: "#fff", border: "1px solid #ebd8c5", borderRadius: "12px", padding: "20px" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#2d1810", margin: "0 0 6px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Sliders size={18} color="#b45309" /> Recommended Administrative Action Steps
+              </h3>
+              <p style={{ margin: "0 0 16px 0", fontSize: "12.5px", color: "#6b5e52" }}>
+                AI provides tactical recommendations. High-impact operations require authorized administrator approval.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {(executiveReport?.executiveIntelligence?.recommendedActions || []).map((act, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#faf8f5", border: "1px solid #ebd8c5", borderRadius: "8px", padding: "12px 16px", flexWrap: "wrap", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <span style={{ background: act.priority === "High" ? "#fee2e2" : "#fef3c7", color: act.priority === "High" ? "#b91c1c" : "#92400e", fontSize: "11px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px" }}>
+                        {act.priority} Priority
+                      </span>
+                      <span style={{ fontSize: "13.5px", fontWeight: 600, color: "#2d1810" }}>
+                        {act.action}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#78716c" }}>
+                        ({act.category})
+                      </span>
+                    </div>
+                    {act.requiresAdminApproval && (
+                      <span style={{ fontSize: "11.5px", color: "#b45309", fontWeight: 600, background: "#fff", border: "1px solid #fed7aa", padding: "4px 10px", borderRadius: "6px" }}>
+                        Manual Admin Confirmation Required
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
