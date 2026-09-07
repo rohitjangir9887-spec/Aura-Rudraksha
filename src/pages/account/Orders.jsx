@@ -84,8 +84,11 @@ function OrdersSkeleton() {
 
 export function Orders() {
   const [currentUser, setCurrentUser] = useState(() => authClient.getUser());
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => {
+    const cached = db.getCachedMyOrders();
+    return Array.isArray(cached) ? [...cached].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)) : [];
+  });
+  const [loading, setLoading] = useState(() => db.getCachedMyOrders().length === 0);
   const [loadError, setLoadError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -96,21 +99,9 @@ export function Orders() {
   const location = useLocation();
 
   useEffect(() => {
-    // 1. Trap Browser Back to always navigate to Home ("/")
-    window.history.pushState({ auraOrderView: true }, "", window.location.href);
-
-    const handlePopState = () => {
-      navigate("/", { replace: true });
-    };
-
-    window.addEventListener("popstate", handlePopState);
-
     let isMounted = true;
 
     async function initAuthAndOrders() {
-      setLoading(true);
-      setLoadError("");
-      
       let user = authClient.getUser();
       if (!user) {
         user = await authClient.getCurrentUserAsync();
@@ -131,14 +122,16 @@ export function Orders() {
           const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
           setOrders(sorted);
           setLoadError("");
-        } else {
+        } else if (orders.length === 0) {
           setOrders([]);
           setLoadError(res?.message || "Failed to load your orders from server.");
         }
       } catch (err) {
         if (!isMounted) return;
-        setOrders([]);
-        setLoadError("Network error while loading your orders.");
+        if (orders.length === 0) {
+          setOrders([]);
+          setLoadError("Network error while loading your orders.");
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -150,7 +143,7 @@ export function Orders() {
       if (!isMounted) return;
       setCurrentUser(u);
       if (u && !u.isAnonymous) {
-        loadOrders(u);
+        loadOrders(u, false);
       } else {
         setOrders([]);
         setLoading(false);
@@ -161,19 +154,18 @@ export function Orders() {
       if (!isMounted) return;
       const u = authClient.getUser();
       if (u && !u.isAnonymous) {
-        loadOrders(u);
+        loadOrders(u, false);
       }
     });
 
     return () => {
       isMounted = false;
-      window.removeEventListener("popstate", handlePopState);
       unsubscribeAuth();
       unsubscribeStore();
     };
   }, [navigate]);
 
-  async function loadOrders(user = null) {
+  async function loadOrders(user = null, showSpinner = false) {
     const authUser = user || authClient.getUser();
     if (!authUser || authUser.isAnonymous) {
       setOrders([]);
@@ -181,7 +173,9 @@ export function Orders() {
       return;
     }
 
-    setLoading(true);
+    if (showSpinner) {
+      setLoading(true);
+    }
     setLoadError("");
     try {
       const res = await db.getMyOrders();
@@ -189,14 +183,16 @@ export function Orders() {
         const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
         setOrders(sorted);
         setLoadError("");
-      } else {
+      } else if (orders.length === 0) {
         setOrders([]);
         setLoadError(res?.message || "Failed to load orders. Please try again.");
       }
     } catch (err) {
       console.error("Error loading orders:", err);
-      setOrders([]);
-      setLoadError("Network error. Please try again.");
+      if (orders.length === 0) {
+        setOrders([]);
+        setLoadError("Network error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

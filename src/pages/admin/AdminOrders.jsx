@@ -59,37 +59,32 @@ export function AdminOrders() {
   const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Refund Management & OTP Verification State
+  // Refund Management & 1-Minute Grace Timer State
   const [refundModal, setRefundModal] = useState(false);
-  const [refundStep, setRefundStep] = useState("details"); // "details" | "otp"
+  const [refundStep, setRefundStep] = useState("details"); // "details" | "timer"
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
-  const [refundOtp, setRefundOtp] = useState("");
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
-  const [otpTargetEmail, setOtpTargetEmail] = useState("");
-  const [otpCountdown, setOtpCountdown] = useState(300);
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [refundCountdown, setRefundCountdown] = useState(60); // 1-minute timer
+  const [timerActive, setTimerActive] = useState(false);
 
   useEffect(() => {
     let timer;
-    if (refundModal && refundStep === "otp" && otpCountdown > 0) {
+    if (refundModal && refundStep === "timer" && timerActive && refundCountdown > 0) {
       timer = setInterval(() => {
-        setOtpCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+        setRefundCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setTimerActive(false);
+            executeRefundDirect();
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [refundModal, refundStep, otpCountdown]);
-
-  useEffect(() => {
-    let resendTimer;
-    if (resendCooldown > 0) {
-      resendTimer = setInterval(() => {
-        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-    return () => clearInterval(resendTimer);
-  }, [resendCooldown]);
+  }, [refundModal, refundStep, timerActive, refundCountdown]);
 
   useEffect(() => {
     load();
@@ -370,12 +365,13 @@ export function AdminOrders() {
     const remaining = Math.max(0, total - already);
     setRefundAmount(String(remaining));
     setRefundReason("Customer Cancellation / Return");
-    setRefundOtp("");
     setRefundStep("details");
+    setRefundCountdown(60);
+    setTimerActive(false);
     setRefundModal(true);
   };
 
-  const handleRequestOtp = async () => {
+  const handleStartRefundTimer = () => {
     if (!viewing) return;
     const amt = parseFloat(refundAmount);
     if (isNaN(amt) || amt <= 0) {
@@ -390,58 +386,39 @@ export function AdminOrders() {
       return;
     }
 
-    setIsSendingOtp(true);
-    try {
-      const res = await db.requestRefundOtp(viewing.id, {
-        refundAmount: amt,
-        reason: refundReason || "Admin Initiated Refund"
-      });
-      if (res?.success) {
-        setOtpTargetEmail(res.targetEmail || res.fullEmail || "admin Gmail");
-        setOtpCountdown(res.expiresInSeconds || 300);
-        setResendCooldown(30);
-        setRefundStep("otp");
-        setRefundOtp("");
-        emitToast(res.message || "Security OTP sent to admin Gmail!", "success");
-      } else {
-        throw new Error(res?.message || "Failed to send OTP to admin Gmail");
-      }
-    } catch (err) {
-      emitToast(err.message || "Failed to generate security OTP", "error");
-    } finally {
-      setIsSendingOtp(false);
-    }
+    setRefundCountdown(60);
+    setTimerActive(true);
+    setRefundStep("timer");
+    emitToast("1-Minute Refund Grace Timer started! You can stop or execute immediately.", "info");
   };
 
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0 || isSendingOtp) return;
-    await handleRequestOtp();
+  const handleCancelRefundTimer = () => {
+    setTimerActive(false);
+    setRefundCountdown(60);
+    setRefundStep("details");
+    setRefundModal(false);
+    emitToast("Refund aborted! No money was refunded.", "info");
   };
 
-  const handleProcessRefund = async () => {
+  const executeRefundDirect = async () => {
     if (!viewing) return;
     const amt = parseFloat(refundAmount);
     if (isNaN(amt) || amt <= 0) {
       emitToast("Please enter a valid refund amount greater than 0", "error");
       return;
     }
-    if (!refundOtp || refundOtp.trim().length !== 6) {
-      emitToast("Please enter the 6-digit OTP code sent to your Gmail", "error");
-      return;
-    }
 
+    setTimerActive(false);
     setIsRefunding(true);
     try {
       const res = await db.processRefund(viewing.id, {
         refundAmount: amt,
-        reason: refundReason || "Admin Initiated Refund",
-        otp: refundOtp.trim()
+        reason: refundReason || "Admin Initiated Refund"
       });
       if (res?.success) {
         emitToast(`PayU Refund of ₹${amt.toLocaleString('en-IN')} processed successfully!`, "success");
         setRefundModal(false);
         setRefundStep("details");
-        setRefundOtp("");
         await load();
         if (res.data) {
           setViewing(db.normalizeOrder(res.data));
@@ -455,7 +432,7 @@ export function AdminOrders() {
             amountRefunded: updatedTotalRefunded,
             paymentStatus: isFull ? "Refunded" : "Partially Refunded",
             status: isFull ? "Cancelled" : prev.status,
-            refundDetails: res.refund || { amount: amt, status: "Success", reason: refundReason }
+            refundDetails: res.refund || { amount: amt, status: "Success", reason: refundReason, timestamp: new Date().toISOString() }
           } : null);
         }
       } else {
@@ -738,24 +715,36 @@ export function AdminOrders() {
               {Array.isArray(viewing.refundHistory) && viewing.refundHistory.length > 0 ? (
                 <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 8, padding: '10px', marginTop: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', marginBottom: 6 }}>
-                    PayU Refund History ({viewing.refundHistory.length}):
+                    PayU Refund Activity History ({viewing.refundHistory.length}):
                   </div>
                   {viewing.refundHistory.map((ref, idx) => (
-                    <div key={idx} style={{ fontSize: 11, color: '#7f1d1d', borderTop: idx > 0 ? '1px dashed #fecaca' : 'none', paddingTop: idx > 0 ? 4 : 0, marginTop: idx > 0 ? 4 : 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <b>₹{Number(ref.amount).toLocaleString()}</b>
-                        <span>{ref.date ? new Date(ref.date).toLocaleDateString() : 'Recent'}</span>
+                    <div key={idx} style={{ fontSize: 11, color: '#7f1d1d', borderTop: idx > 0 ? '1px dashed #fecaca' : 'none', paddingTop: idx > 0 ? 6 : 0, marginTop: idx > 0 ? 6 : 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <b style={{ color: '#991b1b', fontSize: 12 }}>₹{Number(ref.amount).toLocaleString('en-IN')}</b>
+                        <span style={{ fontSize: 10, color: '#78350f', background: '#fef3c7', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>
+                          {ref.date || ref.timestamp ? new Date(ref.date || ref.timestamp).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : 'Recent'}
+                        </span>
                       </div>
-                      <div style={{ fontSize: 10, color: '#991b1b' }}>
-                        ID: <code style={{ fontFamily: 'monospace' }}>{ref.refundId || ref.refundToken}</code> {ref.reason ? `• ${ref.reason}` : ''}
+                      <div style={{ fontSize: 10.5, color: '#4b5563', marginTop: 2 }}>
+                        {ref.reason ? `Reason: ${ref.reason}` : 'Admin Refund'}
                       </div>
+                      {(ref.refundId || ref.refundToken || ref.payuRefundId) && (
+                        <div style={{ fontSize: 9.5, color: '#6b7280', marginTop: 1 }}>
+                          Ref ID: <code style={{ fontFamily: 'monospace' }}>{ref.refundId || ref.refundToken || ref.payuRefundId}</code>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               ) : (viewing.refundDetails && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, padding: '6px 10px', marginTop: 6, fontSize: 11, color: '#991b1b' }}>
-                  <b>PayU Refund Processed:</b> ₹{viewing.refundDetails.refundAmount || viewing.refundDetails.amount || (viewing.finalAmount || viewing.amount)}
-                  {viewing.refundDetails.payuRefundId && <div>Refund ID: <code>{viewing.refundDetails.payuRefundId}</code></div>}
+                <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, padding: '8px 10px', marginTop: 6, fontSize: 11, color: '#991b1b' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <b>PayU Refund: ₹{Number(viewing.refundDetails.refundAmount || viewing.refundDetails.amount || (viewing.finalAmount || viewing.amount)).toLocaleString('en-IN')}</b>
+                    <span style={{ fontSize: 10, color: '#78350f', background: '#fef3c7', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>
+                      {viewing.refundDetails.timestamp || viewing.refundDetails.date ? new Date(viewing.refundDetails.timestamp || viewing.refundDetails.date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : 'Recent'}
+                    </span>
+                  </div>
+                  {viewing.refundDetails.payuRefundId && <div>Refund ID: <code style={{ fontFamily: 'monospace' }}>{viewing.refundDetails.payuRefundId}</code></div>}
                 </div>
               ))}
 
@@ -1124,20 +1113,18 @@ export function AdminOrders() {
                     />
                   </div>
 
-                  <div className="admin-security-banner">
-                    <div className="admin-security-banner-icon">
-                      <ShieldAlert size={20} />
-                    </div>
+                  <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '12px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Clock size={22} color="#a54d2b" style={{ flexShrink: 0 }} />
                     <div style={{ fontSize: 12.5, color: '#665a51', lineHeight: 1.5 }}>
-                      <b style={{ color: '#2b170d', display: 'block', marginBottom: 2 }}>Admin Gmail OTP Verification Required</b>
-                      For high financial security, authorizing a refund sends a 6-digit OTP to the admin Gmail address.
+                      <b style={{ color: '#2b170d', display: 'block', marginBottom: 2 }}>1-Minute Safety Grace Period</b>
+                      Initiating the refund starts a 60-second cancellation timer. You can stop or abort the refund anytime during this 1 minute.
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                     <button
                       type="button"
-                      disabled={isSendingOtp}
+                      disabled={isRefunding}
                       onClick={() => setRefundModal(false)}
                       style={{
                         background: '#f4ece5',
@@ -1154,8 +1141,8 @@ export function AdminOrders() {
                     </button>
                     <button
                       type="button"
-                      disabled={isSendingOtp}
-                      onClick={handleRequestOtp}
+                      disabled={isRefunding || !refundAmount || Number(refundAmount) <= 0}
+                      onClick={handleStartRefundTimer}
                       style={{
                         background: '#a54d2b',
                         color: '#fff',
@@ -1164,14 +1151,14 @@ export function AdminOrders() {
                         borderRadius: 8,
                         fontSize: 13,
                         fontWeight: 600,
-                        cursor: isSendingOtp ? 'wait' : 'pointer',
+                        cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 8
+                        gap: 8,
+                        boxShadow: '0 4px 12px rgba(165, 77, 43, 0.25)'
                       }}
                     >
-                      {isSendingOtp ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
-                      {isSendingOtp ? "Sending OTP to Gmail..." : "Send OTP to Admin Gmail"}
+                      <Clock size={16} /> Start 1-Minute Refund Timer
                     </button>
                   </div>
                 </>
@@ -1179,101 +1166,100 @@ export function AdminOrders() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <h3 style={{ margin: 0, fontSize: 18, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Lock size={20} color="#a54d2b" /> Enter Admin Gmail OTP
+                      <Clock size={20} color="#a54d2b" /> 1-Minute Refund Grace Timer
                     </h3>
                     <button 
                       type="button" 
-                      onClick={() => setRefundModal(false)}
+                      onClick={handleCancelRefundTimer}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#806f62' }}
                     >
                       <X size={18} />
                     </button>
                   </div>
 
-                  <p style={{ fontSize: 13, color: '#665a51', margin: '0 0 14px', lineHeight: 1.5 }}>
-                    A 6-digit authorization code has been dispatched to your administrator Gmail. Enter the code below to authorize PayU refund of <b>₹{Number(refundAmount).toLocaleString('en-IN')}</b> for Order <b>#{viewing.id}</b>.
-                  </p>
-
-                  <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Mail size={18} color="#a54d2b" style={{ flexShrink: 0 }} />
-                    <div style={{ fontSize: 12.5, color: '#2b170d' }}>
-                      Sent to: <b>{otpTargetEmail || "Admin Gmail"}</b>
-                    </div>
-                  </div>
-
-                  <div className="admin-otp-input-container">
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 8 }}>
-                      6-Digit Security OTP
-                    </label>
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      value={refundOtp}
-                      onChange={(e) => setRefundOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="••••••"
-                      className="admin-otp-code-input"
-                      autoFocus
-                    />
-                    <div className="admin-otp-timer-box">
-                      <span>
-                        {otpCountdown > 0 ? (
-                          <span>⏱ Expires in: <b style={{ color: '#a54d2b' }}>{Math.floor(otpCountdown / 60).toString().padStart(2, '0')}:{(otpCountdown % 60).toString().padStart(2, '0')}</b></span>
-                        ) : (
-                          <span style={{ color: '#dc2626', fontWeight: 600 }}>⚠️ OTP Expired</span>
-                        )}
+                  <div style={{ 
+                    background: '#fff9f5', 
+                    border: '1.5px solid #f2cfb8', 
+                    borderRadius: 12, 
+                    padding: '20px 16px', 
+                    textAlign: 'center',
+                    marginBottom: 20 
+                  }}>
+                    <div style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: '50%',
+                      background: refundCountdown <= 10 ? '#fee2e2' : '#fef3c7',
+                      border: `3px solid ${refundCountdown <= 10 ? '#dc2626' : '#d97706'}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 14px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+                    }}>
+                      <span style={{ fontSize: 26, fontWeight: 800, color: refundCountdown <= 10 ? '#dc2626' : '#b45309', lineHeight: 1 }}>
+                        {refundCountdown}
                       </span>
-                      <button
-                        type="button"
-                        disabled={resendCooldown > 0 || isSendingOtp}
-                        onClick={handleResendOtp}
-                        className="admin-otp-resend-btn"
-                      >
-                        {isSendingOtp ? "Sending..." : resendCooldown > 0 ? `Resend OTP (${resendCooldown}s)` : "Resend OTP"}
-                      </button>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#78350f', textTransform: 'uppercase', marginTop: 2 }}>
+                        seconds
+                      </span>
                     </div>
+
+                    <h4 style={{ margin: '0 0 6px', fontSize: 16, color: '#2b170d', fontWeight: 700 }}>
+                      Refund of ₹{Number(refundAmount).toLocaleString('en-IN')} Scheduled
+                    </h4>
+                    <p style={{ fontSize: 13, color: '#665a51', margin: '0 0 10px', lineHeight: 1.45 }}>
+                      Order <b>#{viewing.id}</b> • Reason: <i>{refundReason || "Admin Refund"}</i>
+                    </p>
+                    <p style={{ fontSize: 12, color: '#a54d2b', fontWeight: 600, margin: 0 }}>
+                      ⏱ Executing automatically when timer reaches 0s. You can cancel or execute instantly below.
+                    </p>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                     <button
                       type="button"
                       disabled={isRefunding}
-                      onClick={() => setRefundStep("details")}
+                      onClick={handleCancelRefundTimer}
                       style={{
-                        background: '#f4ece5',
-                        border: '1px solid #dcd1c6',
-                        padding: '10px 16px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        color: '#665a51'
-                      }}
-                    >
-                      ← Change Amount
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isRefunding || refundOtp.length !== 6 || otpCountdown === 0}
-                      onClick={handleProcessRefund}
-                      style={{
-                        background: refundOtp.length === 6 && otpCountdown > 0 ? '#991b1b' : '#d1d5db',
+                        background: '#dc2626',
                         color: '#fff',
                         border: 'none',
-                        padding: '10px 20px',
+                        padding: '11px 18px',
                         borderRadius: 8,
                         fontSize: 13,
-                        fontWeight: 600,
-                        cursor: isRefunding ? 'wait' : refundOtp.length === 6 && otpCountdown > 0 ? 'pointer' : 'not-allowed',
+                        fontWeight: 700,
+                        cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 8,
-                        boxShadow: refundOtp.length === 6 && otpCountdown > 0 ? '0 4px 12px rgba(153, 27, 27, 0.25)' : 'none'
+                        boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)'
+                      }}
+                    >
+                      <XCircle size={16} /> 🛑 Stop / Cancel Refund
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isRefunding}
+                      onClick={executeRefundDirect}
+                      style={{
+                        background: '#15803d',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '11px 20px',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: isRefunding ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)'
                       }}
                     >
                       {isRefunding ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-                      {isRefunding ? "Verifying & Refunding..." : "Verify OTP & Issue Refund"}
+                      {isRefunding ? "Processing PayU..." : "⚡ Execute Now"}
                     </button>
                   </div>
                 </>

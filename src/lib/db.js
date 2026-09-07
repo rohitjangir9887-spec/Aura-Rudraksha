@@ -966,7 +966,20 @@ export const db = {
   getCachedMyOrders: () => {
     const user = authClient.getUser();
     if (!user || user.isAnonymous) return [];
-    if (Array.isArray(storeCache.myOrders)) return storeCache.myOrders;
+    if (Array.isArray(storeCache.myOrders) && storeCache.myOrders.length > 0) return storeCache.myOrders;
+    const myCacheKey = db.getUserScopedKey("aura_cached_my_orders");
+    if (myCacheKey && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(myCacheKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            storeCache.myOrders = parsed;
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
     return [];
   },
 
@@ -982,8 +995,18 @@ export const db = {
       const res = await apiRequest("/orders/my", { timeoutMs: 15000 });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
+        const myCacheKey = db.getUserScopedKey("aura_cached_my_orders");
+        if (myCacheKey && typeof window !== "undefined") {
+          try {
+            localStorage.setItem(myCacheKey, JSON.stringify(res.data.slice(0, 60)));
+          } catch (_) {}
+        }
         preloadImages(res.data);
         return res;
+      }
+      const cached = db.getCachedMyOrders();
+      if (cached && cached.length > 0) {
+        return { success: true, data: cached };
       }
       return { 
         success: false, 
@@ -992,6 +1015,10 @@ export const db = {
       };
     } catch (err) {
       console.error("[DB] getMyOrders API error:", err);
+      const cached = db.getCachedMyOrders();
+      if (cached && cached.length > 0) {
+        return { success: true, data: cached };
+      }
       return { 
         success: false, 
         message: err?.message || "Network error while loading your orders", 

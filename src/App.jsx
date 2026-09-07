@@ -109,6 +109,9 @@ export function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/result" element={<PaymentResult />} />
+          <Route path="/payment-result" element={<PaymentResult />} />
+          <Route path="/payment_result" element={<PaymentResult />} />
+          <Route path="/payment-status" element={<PaymentResult />} />
           <Route path="/login" element={<Login />} />
 
           {/* Customer Account Routes */}
