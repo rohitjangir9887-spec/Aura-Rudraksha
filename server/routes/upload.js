@@ -520,102 +520,6 @@ router.post("/imagekit/credentials", requireAdmin, async (req, res) => {
  * POST /api/upload/imagekit/upload
  * Server-side proxy handler to upload media directly to ImageKit without exposing secrets
  */
-router.post("/imagekit/upload", requireAdmin, async (req, res) => {
-  try {
-    const { fileData, filename, type, sizeBytes, metadata, productId } = req.body || {};
-    if (!fileData) {
-      return res.status(400).json({
-        success: false,
-        message: "No file content provided for ImageKit upload"
-      });
-    }
-
-    let buffer;
-    let mimeType = type || "image/jpeg";
-
-    if (fileData.startsWith("data:")) {
-      const matches = fileData.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        mimeType = matches[1];
-        buffer = Buffer.from(matches[2], "base64");
-      } else {
-        return res.status(400).json({ success: false, message: "Invalid base64 data URL format" });
-      }
-    } else {
-      buffer = Buffer.from(fileData, "base64");
-    }
-
-    // Server-side validation
-    const isImage = mimeType.startsWith("image/");
-    const isVideo = mimeType.startsWith("video/");
-    if (!isImage && !isVideo) {
-      return res.status(400).json({ success: false, message: "Only image and video files are permitted." });
-    }
-
-    const maxSizeBytes = isVideo ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
-    if (buffer.length > maxSizeBytes) {
-      return res.status(400).json({ success: false, message: `File size exceeds limit (${isVideo ? '100MB' : '20MB'}).` });
-    }
-
-    const cleanFilename = filename || `upload-${Date.now()}.${mimeType.split("/")[1] || "jpg"}`;
-
-    const uploaded = await uploadToImagekit({
-      buffer,
-      filename: cleanFilename,
-      mimeType
-    });
-
-    const finalReadURL = uploaded.url;
-    const finalFileId = uploaded.fileId;
-    const finalSize = Number(uploaded.sizeBytes || sizeBytes || buffer.length);
-
-    let mediaRecord = null;
-    if (isDbConnected()) {
-      mediaRecord = new Media({
-        readURL: finalReadURL,
-        url: finalReadURL,
-        fileId: finalFileId,
-        puterFileId: finalFileId,
-        path: `/imagekit/${finalFileId}`,
-        filename: cleanFilename,
-        type: mimeType,
-        sizeBytes: finalSize,
-        size: finalSize,
-        metadata: { ...(metadata || {}), productId: productId || "" },
-        provider: "imagekit"
-      });
-      await mediaRecord.save().catch((err) => {
-        console.warn("[ImageKit Upload] Media record save notice:", err?.message || err);
-      });
-    } else {
-      mediaRecord = {
-        readURL: finalReadURL,
-        url: finalReadURL,
-        fileId: finalFileId,
-        filename: cleanFilename,
-        type: mimeType,
-        provider: "imagekit"
-      };
-    }
-
-    return res.json({
-      success: true,
-      url: finalReadURL,
-      readURL: finalReadURL,
-      fileId: finalFileId,
-      thumbnailUrl: uploaded.thumbnailUrl || finalReadURL,
-      provider: "imagekit",
-      media: mediaRecord,
-      message: "File successfully uploaded to ImageKit Storage and registered in MongoDB."
-    });
-  } catch (err) {
-    console.error("ImageKit Upload Endpoint Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: err.message || "ImageKit upload failed. Please check server authentication."
-    });
-  }
-});
 
 /**
  * DELETE /api/upload/media/:id
@@ -666,9 +570,11 @@ router.delete("/media/:id", requireAdmin, async (req, res) => {
     }
 
     if (!providerDeleteSuccess) {
+      media.reconciliationState = 'failed_delete';
+      await media.save();
       return res.status(500).json({
         success: false,
-        message: `Failed to delete media from ${providerName}. The database record was preserved.`
+        message: `Failed to delete media from ${providerName}. The database record was updated with failed_delete state.`
       });
     }
 
@@ -685,7 +591,6 @@ router.delete("/media/:id", requireAdmin, async (req, res) => {
     });
   }
 });
-
 /**
  * GET /api/upload/stats
  * Returns real counts of media stored in MongoDB
@@ -750,7 +655,7 @@ router.get("/stats", async (req, res) => {
  * Registers metadata for a file uploaded directly to Puter Cloud.
  * Fully idempotent with duplicate race condition handling.
  */
-router.post("/register", async (req, res) => {
+router.post("/register", requireAdmin, async (req, res) => {
   try {
     if (!isDbConnected()) {
       const finalReadURL = (req.body?.readURL || req.body?.url || "").trim();
@@ -763,7 +668,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const { url, readURL, puterFileId, fileId, path, filename, type, sizeBytes, size, metadata, provider } = req.body || {};
+    const { url, readURL, puterFileId, fileId, path, filename, type, sizeBytes, size, metadata, provider, thumbnailUrl, mimeType, mediaType, width, height, folder, uploadedBy } = req.body || {};
 
     const finalReadURL = (readURL || url || "").trim();
     if (!finalReadURL) {
@@ -779,6 +684,12 @@ router.post("/register", async (req, res) => {
     const finalSizeBytes = Number(sizeBytes ?? size ?? 0);
     const finalFilename = filename || (finalReadURL.split('/').pop() || "media");
     const finalType = type || "image/jpeg";
+    if (!finalType.startsWith('image/') && !finalType.startsWith('video/')) {
+        return res.status(400).json({
+            success: false,
+            message: "Only image and video files are permitted."
+        });
+    }
     const finalProvider = provider || "puter";
 
     // Deduplicate registration by puterFileId, path, or URL in MongoDB
@@ -819,6 +730,13 @@ router.post("/register", async (req, res) => {
       if (metadata && typeof metadata === "object") {
         existing.metadata = { ...(existing.metadata || {}), ...metadata };
       }
+      if (thumbnailUrl) existing.thumbnailUrl = thumbnailUrl;
+      if (mimeType) existing.mimeType = mimeType;
+      if (mediaType) existing.mediaType = mediaType;
+      if (width) existing.width = width;
+      if (height) existing.height = height;
+      if (folder) existing.folder = folder;
+      if (uploadedBy) existing.uploadedBy = uploadedBy;
       await existing.save();
 
       return res.json({
@@ -841,7 +759,14 @@ router.post("/register", async (req, res) => {
       sizeBytes: finalSizeBytes,
       size: finalSizeBytes,
       metadata: metadata || {},
-      provider: finalProvider
+      provider: finalProvider,
+      thumbnailUrl,
+      mimeType: mimeType || finalType,
+      mediaType,
+      width,
+      height,
+      folder,
+      uploadedBy
     });
 
     try {

@@ -1,15 +1,50 @@
 const fs = require('fs');
-let content = fs.readFileSync('src/lib/db.js', 'utf-8');
+const file = 'src/lib/db.js';
+let content = fs.readFileSync(file, 'utf8');
 
-if (!content.includes('syncPayuOrder:')) {
-  content = content.replace(
-    /retryPayment:\s*async\s*\(orderId,\s*txnid\s*=\s*""\)\s*=>\s*\{[\s\S]*?\},/m,
-    `$&
-  syncPayuOrder: async (orderId) => {
-    const res = await apiRequest(\`/payment/sync-payu/\${orderId}\`, { method: "POST" });
-    if (!res?.success) throw new Error(res?.message || "Failed to sync PayU status.");
-    return res;
-  },`
-  );
-  fs.writeFileSync('src/lib/db.js', content);
-}
+const oldEmit = `export const emitStoreUpdate = (type, payload) => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("aura:store-updated", {
+        detail: { type, payload, timestamp: Date.now() }
+      })
+    );
+  }
+};`;
+
+const newEmit = `export const emitStoreUpdate = (type, payload) => {
+  if (typeof window !== "undefined") {
+    const detail = { type, payload, timestamp: Date.now() };
+    window.dispatchEvent(
+      new CustomEvent("aura:store-updated", { detail })
+    );
+    try {
+      localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
+    } catch (e) {}
+  }
+};`;
+
+const oldOnUpdate = `export const onStoreUpdate = (callback) => {
+  if (typeof window === "undefined") return () => {};
+  const handler = (event) => callback(event.detail || {});
+  window.addEventListener("aura:store-updated", handler);
+  window.addEventListener("storage", handler);
+  return () => {
+    window.removeEventListener("aura:store-updated", handler);
+    window.removeEventListener("storage", handler);
+  };
+};`;
+
+const newOnUpdate = `export const onStoreUpdate = (callback) => {
+  if (typeof window === "undefined") return () => {};
+  const handler = (event) => callback(event.detail || {});
+  window.addEventListener("aura:store-updated", handler);
+  return () => {
+    window.removeEventListener("aura:store-updated", handler);
+  };
+};`;
+
+content = content.replace(oldEmit, newEmit);
+content = content.replace(oldOnUpdate, newOnUpdate);
+fs.writeFileSync(file, content);
+console.log('Done replacing emitStoreUpdate and onStoreUpdate');

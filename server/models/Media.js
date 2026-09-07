@@ -12,7 +12,16 @@ const mediaSchema = new mongoose.Schema(
     sizeBytes: { type: Number, default: 0 },
     size: { type: Number, default: 0 },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
-    provider: { type: String, required: true, default: "puter" }
+    provider: { type: String, required: true, default: "puter" },
+    // ImageKit extended metadata
+    thumbnailUrl: { type: String, trim: true },
+    mimeType: { type: String, trim: true },
+    mediaType: { type: String, trim: true, default: "image" },
+    width: { type: Number },
+    height: { type: Number },
+    folder: { type: String, trim: true },
+    uploadedBy: { type: String, trim: true },
+    reconciliationState: { type: String, default: 'synced', enum: ['synced', 'failed_delete'] }
   },
   {
     timestamps: true,
@@ -25,6 +34,7 @@ const mediaSchema = new mongoose.Schema(
 mediaSchema.index({ readURL: 1 }, { unique: true });
 mediaSchema.index({ path: 1 }, { unique: true, sparse: true });
 mediaSchema.index({ puterFileId: 1 }, { unique: true, sparse: true });
+mediaSchema.index({ fileId: 1, provider: 1 });
 mediaSchema.index({ createdAt: -1 });
 
 export const Media = mongoose.models.Media || mongoose.model("Media", mediaSchema);
