@@ -52,6 +52,7 @@ reviewSchema.virtual("customerName").get(function() { return this.name; });
 reviewSchema.virtual("content").get(function() { return this.text; });
 reviewSchema.virtual("photos").get(function() { return this.images; });
 reviewSchema.virtual("verifiedPurchase").get(function() { return this.verified; });
+reviewSchema.index({ productId: 1, status: 1 });
 
 reviewSchema.pre("save", function() {
   if (this.images && this.images.length > 0 && !this.img) {

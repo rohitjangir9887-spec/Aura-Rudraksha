@@ -318,7 +318,47 @@ export async function updateProduct(req, res, next) {
     }
     invalidateRagCache();
 
+    // Check for removed images to cleanup after successful product update
+    if (oldProduct && Array.isArray(oldProduct.images) && Array.isArray(updatePayload.images)) {
+      const removedImages = oldProduct.images.filter(img => !updatePayload.images.includes(img));
+      if (removedImages.length > 0) {
+        // Trigger async cleanup
+        import('../models/Media.js').then(({ Media }) => {
+          removedImages.forEach(async (imgUrl) => {
+             try {
+                // Determine provider based on url and delete
+                const media = await Media.findOne({ $or: [{ readURL: imgUrl }, { url: imgUrl }] });
+                if (media && media.provider === "imagekit" && media.fileId) {
+                   const { deleteFromImagekit } = await import('../services/imagekitService.js');
+                   const delRes = await deleteFromImagekit(media.fileId);
+                   if (!delRes.success && (!delRes.message || (!delRes.message.includes("404") && !delRes.message.includes("not found")))) {
+                       media.reconciliationState = 'failed_delete';
+                       await media.save();
+                   } else {
+                       await Media.deleteOne({ _id: media._id });
+                   }
+                } else if (media && media.provider === "pcloud" && media.fileId) {
+                   const { deleteFromPcloud } = await import('../services/pcloudService.js');
+                   const delRes = await deleteFromPcloud(media.fileId);
+                   if (!delRes.success && (!delRes.message || (!delRes.message.includes("404") && !delRes.message.includes("not found")))) {
+                       media.reconciliationState = 'failed_delete';
+                       await media.save();
+                   } else {
+                       await Media.deleteOne({ _id: media._id });
+                   }
+                } else if (media) {
+                   await Media.deleteOne({ _id: media._id });
+                }
+             } catch (cleanupErr) {
+                 console.warn("Image cleanup error:", cleanupErr);
+             }
+          });
+        }).catch(err => console.warn("Failed to load Media module for cleanup", err));
+      }
+    }
+
     await logAuditEvent({
+
       actor: req.user?.email || "admin",
       actorRole: "admin",
       action: "PRODUCT_UPDATED",

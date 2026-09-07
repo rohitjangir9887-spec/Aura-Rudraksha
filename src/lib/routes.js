@@ -82,3 +82,20 @@ export const routes = {
   adminSettings: () => `${ADMIN_BASE_PATH}/settings`,
   adminZodiac: () => `${ADMIN_BASE_PATH}/zodiac`
 };
+
+/**
+ * Standardize product ID extraction for routing.
+ * Checks slug, id, _id, productId to find the appropriate route identifier.
+ */
+export const getProductRouteId = (product) => {
+  if (!product) return "";
+  return product.slug || product.id || product._id || product.productId || "";
+};
+
+/**
+ * Standardize product route URL generation.
+ */
+export const getProductRoute = (product) => {
+  const id = getProductRouteId(product);
+  return id ? `/product/${id}` : "/shop";
+};

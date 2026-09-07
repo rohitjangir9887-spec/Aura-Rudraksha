@@ -103,13 +103,17 @@ export async function getImagekitStatus() {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const authHeader = `Basic ${Buffer.from(privateKey + ":").toString("base64")}`;
     const res = await fetch("https://api.imagekit.io/v1/files?limit=1", {
+      signal: controller.signal,
       headers: {
         Authorization: authHeader
       }
     });
 
+    clearTimeout(timeoutId);
     if (res.ok) {
       return {
         success: true,
@@ -183,6 +187,8 @@ export async function uploadToImagekit({ buffer, filename, mimeType, folder = "/
   }
 
   const cleanFilename = (filename || `upload-${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
   const authHeader = `Basic ${Buffer.from(privateKey + ":").toString("base64")}`;
 
   const base64File = `data:${mimeType || "image/jpeg"};base64,${buffer.toString("base64")}`;
@@ -195,12 +201,14 @@ export async function uploadToImagekit({ buffer, filename, mimeType, folder = "/
 
   const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
     method: "POST",
+      signal: controller.signal,
     headers: {
       Authorization: authHeader
     },
     body: formData
   });
 
+  clearTimeout(timeoutId);
   if (!res.ok) {
     const errTxt = await res.text().catch(() => "");
     throw new Error(`ImageKit upload HTTP ${res.status}: ${errTxt.slice(0, 150)}`);
@@ -235,14 +243,18 @@ export async function deleteFromImagekit(fileId) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const authHeader = `Basic ${Buffer.from(privateKey + ":").toString("base64")}`;
     const res = await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
       method: "DELETE",
+      signal: controller.signal,
       headers: {
         Authorization: authHeader
       }
     });
 
+    clearTimeout(timeoutId);
     if (res.status === 204 || res.ok) {
       return { success: true, message: "File deleted from ImageKit" };
     }

@@ -215,7 +215,7 @@ export async function verifyPayuPaymentServerSide(txnid) {
     postData.append("hash", hash);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const response = await fetch(commandUrl, {
       method: "POST",
@@ -305,7 +305,7 @@ export async function refundPayuTransaction({ mihpayid, txnid, amount, token }) 
   postData.append("hash", hash);
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   const response = await fetch(commandUrl, {
     method: "POST",

@@ -1,3 +1,5 @@
+import { getProductRoute } from "../../lib/routes";
+import { getProductPrimaryImage } from "../../lib/imageUtils";
 import React from "react";
 import { Link } from "react-router-dom";
 import { Plus, Sparkles, Check, ShieldCheck } from "lucide-react";
@@ -62,7 +64,7 @@ export function CartRecommendations({
       >
         {products.map((p) => {
           const hasDiscount = p.mrp > p.price;
-          const imageSrc = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+          const imageSrc = getProductPrimaryImage(p);
 
           return (
             <div
@@ -83,7 +85,7 @@ export function CartRecommendations({
               }}
             >
               <Link
-                to={`/product/${p.id || p._id || p.productId}`}
+                to={getProductRoute(p)}
                 style={{ textDecoration: "none", color: "inherit", display: "block" }}
               >
                 <div

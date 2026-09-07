@@ -1,3 +1,5 @@
+import { getProductPrimaryImage } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Plus, Minus, Trash2, ShieldCheck, Edit3 } from "lucide-react";
@@ -93,7 +95,7 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
           const p = products.find(x => String(x.id) === String(line.id));
           if (!p) return null;
 
-          const itemImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+          const itemImg = getProductPrimaryImage(p);
           const sellingPrice = Number(p.price) || 0;
           const mrpPrice = Number(p.mrp || p.comparePrice || 0);
           const hasDiscount = mrpPrice > sellingPrice;

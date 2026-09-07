@@ -111,7 +111,8 @@ function computeSemanticOverlap(normA, normB) {
  * Check a candidate review draft against a corpus of existing reviews & current batch.
  * Returns: { similarityStatus: 'Unique'|'Similar'|'Duplicate', similarityScore: number (0-100), semanticScore: number (0-100), matchedReview: string }
  */
-export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
+export function evaluateDraftSimilarity(candidateText, existingCorpus = [], options = {}) {
+  const { duplicateThreshold = 70, duplicateSemanticThreshold = 80, similarThreshold = 35, similarSemanticThreshold = 50 } = options;
   if (!candidateText || typeof candidateText !== "string") {
     return { similarityStatus: "Unique", similarityScore: 0, semanticScore: 0, matchedReview: null };
   }
@@ -142,9 +143,9 @@ export function evaluateDraftSimilarity(candidateText, existingCorpus = []) {
   const semanticPct = Math.min(100, Math.max(0, Math.round(maxSemantic * 100)));
 
   let status = "Unique";
-  if (scorePct >= 70 || semanticPct >= 80) {
+  if (scorePct >= duplicateThreshold || semanticPct >= duplicateSemanticThreshold) {
     status = "Duplicate";
-  } else if (scorePct >= 35 || semanticPct >= 50) {
+  } else if (scorePct >= similarThreshold || semanticPct >= similarSemanticThreshold) {
     status = "Similar";
   } else {
     status = "Unique";
