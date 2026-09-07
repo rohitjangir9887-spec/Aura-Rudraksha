@@ -1,15 +1,29 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { auraChatStore } from "../lib/auraChatStore";
 
 export function AuraAIPill({ className = "" }) {
+  const location = useLocation();
+  const isDedicatedAiPage = location.pathname === "/aura-ai";
+
+  const handleClick = (e) => {
+    if (!isDedicatedAiPage) {
+      e.preventDefault();
+      auraChatStore.setFloatingDismissed(false);
+      auraChatStore.setFloatingOpen(true);
+      window.dispatchEvent(new CustomEvent("aura_ai_trigger_chat", { detail: { mode: "standard" } }));
+    }
+  };
+
   return (
     <Link
       to="/aura-ai"
       id="aura-ai-header-pill"
       className={`aura-ai-pill-btn ${className}`}
       title="Open Aura AI Spiritual Shopping & Support Guide"
+      onClick={handleClick}
     >
       <motion.span
         className="aura-ai-pill-glow"

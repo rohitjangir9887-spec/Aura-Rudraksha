@@ -8,6 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AdminErrorBoundary } from "./components/admin/AdminErrorBoundary";
 import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "./lib/routes";
+import { initInstantRoutePrefetch } from "./lib/prefetchRoutes";
 
 // ---------------------------------------------------------------------------
 // Code splitting: Customer secondary pages & Admin pages are lazy-loaded so
@@ -88,6 +89,10 @@ function OrderParamRedirect() {
 }
 
 export function App() {
+  React.useEffect(() => {
+    initInstantRoutePrefetch();
+  }, []);
+
   return (
     <>
       <ScrollToTop />
