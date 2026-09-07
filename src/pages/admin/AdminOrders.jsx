@@ -11,7 +11,7 @@ import {
   Sparkles, Copy, Check, Calendar, AlertCircle, RefreshCcw,
   ShieldCheck, Loader2, Filter, DollarSign, RotateCcw,
   CheckCircle, XCircle, ArrowUpDown, ChevronDown,
-  Mail, Lock, Key, ShieldAlert
+  Mail, Lock, Key, ShieldAlert, Zap
 } from "lucide-react";
 import "./admin-pages.css";
 import { getOrderProducts } from "../account/Orders";
@@ -62,32 +62,11 @@ export function AdminOrders() {
   const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Refund Management & 1-Minute Grace Timer State
+  // Instant Refund Management State
   const [refundModal, setRefundModal] = useState(false);
-  const [refundStep, setRefundStep] = useState("details"); // "details" | "timer"
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [isRefunding, setIsRefunding] = useState(false);
-  const [refundCountdown, setRefundCountdown] = useState(60); // 1-minute timer
-  const [timerActive, setTimerActive] = useState(false);
-
-  useEffect(() => {
-    let timer;
-    if (refundModal && refundStep === "timer" && timerActive && refundCountdown > 0) {
-      timer = setInterval(() => {
-        setRefundCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setTimerActive(false);
-            executeRefundDirect();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [refundModal, refundStep, timerActive, refundCountdown]);
 
   useEffect(() => {
     load();
@@ -374,13 +353,10 @@ export function AdminOrders() {
     const remaining = Math.max(0, total - already);
     setRefundAmount(String(remaining));
     setRefundReason("Customer Cancellation / Return");
-    setRefundStep("details");
-    setRefundCountdown(60);
-    setTimerActive(false);
     setRefundModal(true);
   };
 
-  const handleStartRefundTimer = () => {
+  const handleExecuteInstantRefund = async () => {
     if (!viewing) return;
     const amt = parseFloat(refundAmount);
     if (isNaN(amt) || amt <= 0) {
@@ -395,45 +371,19 @@ export function AdminOrders() {
       return;
     }
 
-    setRefundCountdown(60);
-    setTimerActive(true);
-    setRefundStep("timer");
-    emitToast("1-Minute Refund Grace Timer started! You can stop or execute immediately.", "info");
-  };
-
-  const handleCancelRefundTimer = () => {
-    setTimerActive(false);
-    setRefundCountdown(60);
-    setRefundStep("details");
-    setRefundModal(false);
-    emitToast("Refund aborted! No money was refunded.", "info");
-  };
-
-  const executeRefundDirect = async () => {
-    if (!viewing) return;
-    const amt = parseFloat(refundAmount);
-    if (isNaN(amt) || amt <= 0) {
-      emitToast("Please enter a valid refund amount greater than 0", "error");
-      return;
-    }
-
-    setTimerActive(false);
     setIsRefunding(true);
     try {
       const res = await db.processRefund(viewing.id, {
         refundAmount: amt,
-        reason: refundReason || "Admin Initiated Refund"
+        reason: refundReason || "Admin Initiated Instant Refund"
       });
       if (res?.success) {
-        emitToast(`PayU Refund of ₹${amt.toLocaleString('en-IN')} processed successfully!`, "success");
+        emitToast(`Instant PayU Refund of ₹${amt.toLocaleString('en-IN')} processed successfully!`, "success");
         setRefundModal(false);
-        setRefundStep("details");
         await load();
         if (res.data) {
           setViewing(db.normalizeOrder(res.data));
         } else {
-          const total = Number(viewing.finalAmount || viewing.amount || 0);
-          const already = Number(viewing.amountRefunded || 0);
           const updatedTotalRefunded = already + amt;
           const isFull = updatedTotalRefunded >= (total - 0.01);
           setViewing(prev => prev ? {
@@ -662,7 +612,7 @@ export function AdminOrders() {
                     gap: 4
                   }}
                 >
-                  <RefreshCcw size={12} /> Issue PayU Refund
+                  <Zap size={12} /> Issue Instant Refund
                 </button>
               )}
             </div>
@@ -1015,264 +965,162 @@ export function AdminOrders() {
           </div>
         </div>
 
-        {/* PayU Refund Modal */}
+        {/* PayU Instant Refund Modal */}
         {refundModal && viewing && (
           <div className="admin-refund-modal-backdrop">
             <div className="admin-refund-modal-card">
-              
-              {refundStep === "details" ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <h3 style={{ margin: 0, fontSize: 18, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <ShieldCheck size={20} color="#a54d2b" /> Process PayU Live Refund
-                    </h3>
-                    <button 
-                      type="button" 
-                      onClick={() => setRefundModal(false)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#806f62' }}
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 18, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Zap size={20} color="#a54d2b" /> Process Instant Refund
+                </h3>
+                <button 
+                  type="button" 
+                  disabled={isRefunding}
+                  onClick={() => setRefundModal(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#806f62' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
-                  <p style={{ fontSize: 13, color: '#665a51', margin: '0 0 16px', lineHeight: 1.5 }}>
-                    Initiate a live server-to-server refund request to PayU for Order <b>#{viewing.id}</b>.
-                    The amount will be credited back to the customer's source account (UPI / Card / Netbanking).
-                  </p>
+              <p style={{ fontSize: 13, color: '#665a51', margin: '0 0 16px', lineHeight: 1.5 }}>
+                Initiate a live instant refund to PayU for Order <b>#{viewing.id}</b>.
+                The amount will be credited back directly to the customer's source payment account (UPI / Card / Netbanking).
+              </p>
 
-                  <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span>Order Total:</span>
-                      <b>₹{Number(viewing.finalAmount || viewing.amount || 0).toLocaleString('en-IN')}</b>
-                    </div>
-                    {Number(viewing.amountRefunded || 0) > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#991b1b' }}>
-                        <span>Already Refunded:</span>
-                        <b>-₹{Number(viewing.amountRefunded).toLocaleString('en-IN')}</b>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#166534', fontWeight: 700 }}>
-                      <span>Remaining Refundable:</span>
-                      <span>₹{Math.max(0, Number(viewing.finalAmount || viewing.amount || 0) - Number(viewing.amountRefunded || 0)).toLocaleString('en-IN')}</span>
-                    </div>
-                    {viewing.txnid && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span>Merchant Txn ID:</span>
-                        <code style={{ fontFamily: 'monospace' }}>{viewing.txnid}</code>
-                      </div>
-                    )}
-                    {getPayuRef(viewing) && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>PayU Payment ID:</span>
-                        <code style={{ fontFamily: 'monospace' }}>{getPayuRef(viewing)}</code>
-                      </div>
-                    )}
+              <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span>Order Total:</span>
+                  <b>₹{Number(viewing.finalAmount || viewing.amount || 0).toLocaleString('en-IN')}</b>
+                </div>
+                {Number(viewing.amountRefunded || 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#991b1b' }}>
+                    <span>Already Refunded:</span>
+                    <b>-₹{Number(viewing.amountRefunded).toLocaleString('en-IN')}</b>
                   </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#166534', fontWeight: 700 }}>
+                  <span>Remaining Refundable:</span>
+                  <span>₹{Math.max(0, Number(viewing.finalAmount || viewing.amount || 0) - Number(viewing.amountRefunded || 0)).toLocaleString('en-IN')}</span>
+                </div>
+                {viewing.txnid && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span>Merchant Txn ID:</span>
+                    <code style={{ fontFamily: 'monospace' }}>{viewing.txnid}</code>
+                  </div>
+                )}
+                {getPayuRef(viewing) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>PayU Payment ID:</span>
+                    <code style={{ fontFamily: 'monospace' }}>{getPayuRef(viewing)}</code>
+                  </div>
+                )}
+              </div>
 
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: '#2b170d' }}>
-                        Refund Amount (₹)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const rem = Math.max(0, Number(viewing.finalAmount || viewing.amount || 0) - Number(viewing.amountRefunded || 0));
-                          setRefundAmount(String(rem));
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#a54d2b', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
-                      >
-                        Max (Full Remaining)
-                      </button>
-                    </div>
-                    <input 
-                      type="number"
-                      step="any"
-                      value={refundAmount}
-                      onChange={(e) => setRefundAmount(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #dcd1c6',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#2b170d' }}>
+                    Refund Amount (₹)
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isRefunding}
+                    onClick={() => {
+                      const rem = Math.max(0, Number(viewing.finalAmount || viewing.amount || 0) - Number(viewing.amountRefunded || 0));
+                      setRefundAmount(String(rem));
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#a54d2b', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  >
+                    Max (Full Remaining)
+                  </button>
+                </div>
+                <input 
+                  type="number"
+                  step="any"
+                  disabled={isRefunding}
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #dcd1c6',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
 
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 6 }}>
-                      Reason for Refund
-                    </label>
-                    <input 
-                      type="text"
-                      value={refundReason}
-                      onChange={(e) => setRefundReason(e.target.value)}
-                      placeholder="e.g. Customer requested cancellation / damaged goods"
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #dcd1c6',
-                        fontSize: 13,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 6 }}>
+                  Reason for Refund
+                </label>
+                <input 
+                  type="text"
+                  disabled={isRefunding}
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="e.g. Customer requested cancellation / damaged goods"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #dcd1c6',
+                    fontSize: 13,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
 
-                  <div style={{ background: '#fdf8f4', border: '1px solid #ebdccb', borderRadius: 8, padding: '12px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Clock size={22} color="#a54d2b" style={{ flexShrink: 0 }} />
-                    <div style={{ fontSize: 12.5, color: '#665a51', lineHeight: 1.5 }}>
-                      <b style={{ color: '#2b170d', display: 'block', marginBottom: 2 }}>1-Minute Safety Grace Period</b>
-                      Initiating the refund starts a 60-second cancellation timer. You can stop or abort the refund anytime during this 1 minute.
-                    </div>
-                  </div>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Zap size={18} color="#15803d" style={{ flexShrink: 0 }} />
+                <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.45 }}>
+                  <b>Instant Execution:</b> The refund request will be processed immediately with PayU without any waiting timer or delay.
+                </div>
+              </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                    <button
-                      type="button"
-                      disabled={isRefunding}
-                      onClick={() => setRefundModal(false)}
-                      style={{
-                        background: '#f4ece5',
-                        border: '1px solid #dcd1c6',
-                        padding: '10px 18px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        color: '#665a51'
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isRefunding || !refundAmount || Number(refundAmount) <= 0}
-                      onClick={handleStartRefundTimer}
-                      style={{
-                        background: '#a54d2b',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '10px 20px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        boxShadow: '0 4px 12px rgba(165, 77, 43, 0.25)'
-                      }}
-                    >
-                      <Clock size={16} /> Start 1-Minute Refund Timer
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <h3 style={{ margin: 0, fontSize: 18, color: '#2b170d', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Clock size={20} color="#a54d2b" /> 1-Minute Refund Grace Timer
-                    </h3>
-                    <button 
-                      type="button" 
-                      onClick={handleCancelRefundTimer}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#806f62' }}
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  <div style={{ 
-                    background: '#fff9f5', 
-                    border: '1.5px solid #f2cfb8', 
-                    borderRadius: 12, 
-                    padding: '20px 16px', 
-                    textAlign: 'center',
-                    marginBottom: 20 
-                  }}>
-                    <div style={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: '50%',
-                      background: refundCountdown <= 10 ? '#fee2e2' : '#fef3c7',
-                      border: `3px solid ${refundCountdown <= 10 ? '#dc2626' : '#d97706'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 14px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
-                    }}>
-                      <span style={{ fontSize: 26, fontWeight: 800, color: refundCountdown <= 10 ? '#dc2626' : '#b45309', lineHeight: 1 }}>
-                        {refundCountdown}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#78350f', textTransform: 'uppercase', marginTop: 2 }}>
-                        seconds
-                      </span>
-                    </div>
-
-                    <h4 style={{ margin: '0 0 6px', fontSize: 16, color: '#2b170d', fontWeight: 700 }}>
-                      Refund of ₹{Number(refundAmount).toLocaleString('en-IN')} Scheduled
-                    </h4>
-                    <p style={{ fontSize: 13, color: '#665a51', margin: '0 0 10px', lineHeight: 1.45 }}>
-                      Order <b>#{viewing.id}</b> • Reason: <i>{refundReason || "Admin Refund"}</i>
-                    </p>
-                    <p style={{ fontSize: 12, color: '#a54d2b', fontWeight: 600, margin: 0 }}>
-                      ⏱ Executing automatically when timer reaches 0s. You can cancel or execute instantly below.
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                    <button
-                      type="button"
-                      disabled={isRefunding}
-                      onClick={handleCancelRefundTimer}
-                      style={{
-                        background: '#dc2626',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '11px 18px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)'
-                      }}
-                    >
-                      <XCircle size={16} /> 🛑 Stop / Cancel Refund
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isRefunding}
-                      onClick={executeRefundDirect}
-                      style={{
-                        background: '#15803d',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '11px 20px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: isRefunding ? 'wait' : 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)'
-                      }}
-                    >
-                      {isRefunding ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-                      {isRefunding ? "Processing PayU..." : "⚡ Execute Now"}
-                    </button>
-                  </div>
-                </>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={isRefunding}
+                  onClick={() => setRefundModal(false)}
+                  style={{
+                    background: '#f4ece5',
+                    border: '1px solid #dcd1c6',
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    color: '#665a51'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isRefunding || !refundAmount || Number(refundAmount) <= 0}
+                  onClick={handleExecuteInstantRefund}
+                  style={{
+                    background: '#15803d',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: isRefunding ? 'wait' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)'
+                  }}
+                >
+                  {isRefunding ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                  {isRefunding ? "Processing Refund..." : "⚡ Issue Instant Refund"}
+                </button>
+              </div>
 
             </div>
           </div>
