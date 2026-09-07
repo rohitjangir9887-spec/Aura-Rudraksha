@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { OrderSummaryCard } from "../components/checkout/OrderSummaryCard";
 import { CartItemCard } from "../components/cart/CartItemCard";
+import { resolveCartProduct } from "../lib/productResolver";
 import { CartFreeShippingMeter } from "../components/cart/CartFreeShippingMeter";
 import { CartRecommendations } from "../components/cart/CartRecommendations";
 import { CartTrustBanner } from "../components/cart/CartTrustBanner";
@@ -94,7 +95,7 @@ export function Cart() {
 
   const confirmRemove = () => {
     if (!deleteTargetId) return;
-    const p = products.find(x => String(x.id) === String(deleteTargetId));
+    const p = resolveCartProduct(products, deleteTargetId);
     remove(deleteTargetId);
     emitToast(`${p?.name || "Item"} removed from cart`, "info");
     setDeleteTargetId(null);
@@ -284,15 +285,12 @@ export function Cart() {
                 }}
               >
                 {Object.entries(items).map(([id, qty], index) => {
-                  const p = products.find((x) => String(x.id) === String(id));
+                  const p = resolveCartProduct(products, id);
                   if (!p) return null;
 
                   return (
                     <div
                       key={id}
-                      
-                      
-                      
                     >
                     <CartItemCard
                       key={id}
@@ -303,7 +301,7 @@ export function Cart() {
                       onUpdateQty={setQty}
                       onRequestDelete={(targetId) => setDeleteTargetId(targetId)}
                       onToggleWishlist={toggleWishlist}
-                      isWishlisted={isWishlisted(p.id || p._id)}
+                      isWishlisted={isWishlisted(p.productId || p.id || p._id)}
                     />
                     </div>
                   );

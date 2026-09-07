@@ -1,5 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
+import { resolveCartProduct } from "../lib/productResolver";
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
@@ -178,19 +179,21 @@ export function CartProvider({ children }) {
         const validItems = [];
 
         currentLines.forEach((l) => {
-          const p = prods.find(x => String(x.id) === String(l.id));
+          const p = resolveCartProduct(prods, l);
           const price = p ? Number(p.price) : 0;
           const mrp = p ? Number(p.mrp || p.comparePrice || price) : price;
           subtotal += price * l.qty;
           totalMrp += mrp * l.qty;
           validItems.push({
             id: l.id,
-            productId: l.id,
+            productId: p ? p.productId || p.id : l.id,
             name: p ? p.name : "Sacred Rudraksha Item",
             price,
             mrp,
             quantity: l.qty,
             qty: l.qty,
+            origin: p?.origin || (p?.isIndonesian ? "Java / Indonesia" : "Nepal"),
+            isIndonesian: !!p?.isIndonesian,
             img: p ? getProductPrimaryImage(p) : null
           });
         });
@@ -198,7 +201,7 @@ export function CartProvider({ children }) {
         const storeSettings = (db.getSettings ? db.getSettings() : {}) || {};
         let productShipping = 0;
         validItems.forEach(item => {
-          const p = db.getProducts().find(x => String(x.id) === String(item.id));
+          const p = resolveCartProduct(prods, item);
           if (p && p.freeShipping === false) {
             productShipping += (Number(p.shippingFee) || 0) * item.quantity;
           }

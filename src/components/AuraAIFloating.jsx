@@ -736,7 +736,7 @@ export function AuraAIFloating() {
         }} 
       />
 
-      {/* 1. Floating Action Button - Unified pill with integrated cancel icon */}
+      {/* 1. Floating Action Button - Modern, compact, sleek AI assistant trigger */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
@@ -756,13 +756,17 @@ export function AuraAIFloating() {
                 }}
                 className="aura-ai-floating-main-btn"
                 aria-label="Open Aura AI Shopping Guide"
-                title="Chat with Aura AI"
+                title="Chat with Aura AI (रुद्राक्ष व ज्योतिष सहायक)"
               >
                 <div className="aura-ai-floating-pulse" />
                 <div className="aura-ai-floating-icon">
-                  <Sparkles size={16} strokeWidth={2.2} className="aura-ai-sparkle-spin" />
+                  <Sparkles size={13} strokeWidth={2.4} className="aura-ai-sparkle-spin" />
+                  <span className="aura-ai-live-dot" title="Aura AI Online" />
                 </div>
-                <span className="aura-ai-floating-label">Aura AI</span>
+                <div className="aura-ai-label-group">
+                  <span className="aura-ai-floating-label">Aura AI</span>
+                  <span className="aura-ai-floating-sub">Ask AI</span>
+                </div>
               </button>
               <div className="aura-ai-floating-divider" />
               <button
@@ -773,10 +777,10 @@ export function AuraAIFloating() {
                   e.stopPropagation();
                   handleDismiss(e);
                 }}
-                title="Hide floating button / Band karein"
+                title="Hide floating button / बंद करें"
                 aria-label="Hide Aura AI floating button"
               >
-                <X size={16} strokeWidth={2.2} />
+                <X size={13} strokeWidth={2.2} />
               </button>
             </div>
           </motion.div>

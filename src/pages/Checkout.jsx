@@ -1,5 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
+import { resolveCartProduct } from "../lib/productResolver";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shell } from "../components/Shell";
@@ -470,7 +471,7 @@ export function Checkout() {
     const linesToProcess = (activeLines && activeLines.length > 0) ? activeLines : effectiveLines;
 
     const snapshotItems = linesToProcess.map(line => {
-      const p = products.find(x => String(x.id) === String(line.id)) || {
+      const p = resolveCartProduct(products, line) || {
         name: "Original 14 Mukhi Rudraksha (Nepali) — Lab Certified Chaudah Mukhi Rudraksha",
         price: 36950,
         mrp: 59000,
@@ -478,12 +479,14 @@ export function Checkout() {
       };
       return {
         id: line.id,
-        productId: line.id,
+        productId: p.productId || p.id || line.id,
         name: p.name,
         price: p.price,
         mrp: p.mrp || p.comparePrice || p.price,
         quantity: line.qty || 1,
         qty: line.qty || 1,
+        origin: p.origin || (p.isIndonesian ? "Java / Indonesia" : "Nepal"),
+        isIndonesian: !!p.isIndonesian,
         img: getProductPrimaryImage(p)
       };
     });

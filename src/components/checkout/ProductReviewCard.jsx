@@ -1,5 +1,6 @@
 import { getProductPrimaryImage } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
+import { resolveCartProduct } from "../../lib/productResolver";
 import React from "react";
 import { Link } from "react-router-dom";
 import { money } from "../../data";
@@ -32,7 +33,7 @@ export function ProductReviewCard({
 
   const displayItems = lines && lines.length > 0 
     ? lines.map(line => {
-        const p = products.find(x => String(x.id) === String(line.id));
+        const p = resolveCartProduct(products, line);
         if (!p) {
           return {
             ...referenceProduct,

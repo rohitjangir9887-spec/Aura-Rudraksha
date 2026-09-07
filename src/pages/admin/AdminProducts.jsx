@@ -758,6 +758,8 @@ export function AdminProducts() {
       homeOrder: Number(editing.homeOrder) || 0,
       homeBadge: (editing.homeBadge || editing.badge || "").trim(),
       badge: (editing.homeBadge || editing.badge || "").trim(),
+      totalSold: (editing.totalSold || "").trim(),
+      salesCount: Number(editing.salesCount) || (editing.totalSold ? parseInt(String(editing.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
       rating: Number(editing.rating) || 4.9,
       reviews: Number(editing.reviews) || 0
     };
@@ -875,6 +877,23 @@ export function AdminProducts() {
             </div>
 
             <div className="admin-form-group">
+              <label style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                🔥 Total Sales / Units Sold (कुल बिक्री संख्या)
+              </label>
+              <input 
+                type="text"
+                value={editing.totalSold || ""} 
+                onChange={e => setEditing({...editing, totalSold: e.target.value})}
+                placeholder="e.g. 540+ Sold or 1,280"
+              />
+              <span style={{ fontSize: '11px', color: '#7a6a5e', marginTop: '2px', display: 'block' }}>
+                ✨ Customer product page par price ke samne glowing animation ke sath dikhega (e.g. 540+ Sold)
+              </span>
+            </div>
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ margin: 0 }}>Category *</label>
                 <Link to="/admin/categories" target="_blank" style={{ fontSize: '11.5px', color: '#a54d2b', textDecoration: 'none', fontWeight: '600' }}>
@@ -906,6 +925,16 @@ export function AdminProducts() {
                   style={{ marginTop: '8px' }}
                 />
               )}
+            </div>
+
+            <div className="admin-form-group">
+              <label>Sub-Category / Collection</label>
+              <input 
+                type="text"
+                value={editing.subCategory || ""}
+                onChange={e => setEditing({...editing, subCategory: e.target.value})}
+                placeholder="e.g. Collector Beads, Siddh Mala, Daily Wear"
+              />
             </div>
           </div>
 

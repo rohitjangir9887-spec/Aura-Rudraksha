@@ -223,7 +223,10 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       continue;
     }
 
-    const isIndo = !!line.isIndonesian || (typeof line.variant === "string" && line.variant.toLowerCase().includes("indonesian"));
+    const isIndo = !!line.isIndonesian || 
+      String(line.id).endsWith("-indo") || 
+      String(line.id).includes("_indo") ||
+      (typeof line.variant === "string" && line.variant.toLowerCase().includes("indonesian"));
     const unitPrice = isIndo && Number(product.indonesianPrice) > 0 
       ? Number(product.indonesianPrice) 
       : (Number(product.price) || 0);

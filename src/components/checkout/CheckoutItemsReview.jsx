@@ -1,5 +1,6 @@
 import { getProductPrimaryImage } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
+import { resolveCartProduct } from "../../lib/productResolver";
 import React from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Plus, Minus, Trash2, ShieldCheck, Edit3 } from "lucide-react";
@@ -92,7 +93,7 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
       {/* Item List */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", boxSizing: "border-box" }}>
         {lines.map((line) => {
-          const p = products.find(x => String(x.id) === String(line.id));
+          const p = resolveCartProduct(products, line);
           if (!p) return null;
 
           const itemImg = getProductPrimaryImage(p);

@@ -136,6 +136,35 @@ export function CartItemCard({
 
         {/* Badges / Certification */}
         <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
+          {product.isIndonesian || String(id).endsWith("-indo") ? (
+            <span
+              style={{
+                fontSize: "10.5px",
+                color: "#1e40af",
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                padding: "1px 6px",
+                borderRadius: "4px",
+                fontWeight: "700"
+              }}
+            >
+              🇮🇩 Indonesian Origin
+            </span>
+          ) : (
+            <span
+              style={{
+                fontSize: "10.5px",
+                color: "#7c2d12",
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                padding: "1px 6px",
+                borderRadius: "4px",
+                fontWeight: "600"
+              }}
+            >
+              🇳🇵 Nepal Origin
+            </span>
+          )}
           <span
             style={{
               fontSize: "10.5px",

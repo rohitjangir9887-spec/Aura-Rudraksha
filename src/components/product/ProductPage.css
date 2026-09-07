@@ -541,6 +541,79 @@
   border: 1px solid #fecaca;
 }
 
+/* 🔥 Total Sales Social Proof Badge with Living Animation */
+.aura-sales-counter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #fff8f0 0%, #ffedd5 100%);
+  border: 1.5px solid #fed7aa;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.12);
+  margin-left: auto;
+  position: relative;
+  overflow: hidden;
+  animation: auraSalesPulse 2.8s infinite ease-in-out;
+  user-select: none;
+}
+
+.aura-sales-flame-icon {
+  font-size: 13.5px;
+  display: inline-block;
+  animation: auraFlameFlicker 1.8s infinite ease-in-out alternate;
+}
+
+.aura-sales-badge-text {
+  font-size: 12px;
+  font-weight: 800;
+  color: #9a3412;
+  letter-spacing: -0.1px;
+}
+
+.aura-sales-live-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  background: #ea580c;
+  box-shadow: 0 0 6px #ea580c;
+  display: inline-block;
+  animation: auraLiveBeacon 1.4s infinite ease-in-out;
+}
+
+@keyframes auraSalesPulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.12);
+    border-color: #fed7aa;
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.28), 0 0 12px rgba(251, 146, 60, 0.2);
+    border-color: #f97316;
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes auraFlameFlicker {
+  0% { transform: scale(1) rotate(-3deg); }
+  50% { transform: scale(1.18) rotate(4deg); }
+  100% { transform: scale(1.05) rotate(-2deg); }
+}
+
+@keyframes auraLiveBeacon {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.4);
+  }
+}
+
 .aura-savings-row {
   display: flex;
   align-items: center;
