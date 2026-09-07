@@ -23,7 +23,11 @@ import {
   MapPin,
   User,
   Mic,
-  MicOff
+  MicOff,
+  ArrowDown,
+  Notebook,
+  Plus,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -116,6 +120,81 @@ export function AuraAIFloating() {
     place: "",
     concern: "career"
   });
+
+  // Smart Scroll Lock & Jump to Bottom states
+  const isNearBottomRef = useRef(true);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+
+  const handleScroll = () => {
+    if (!bodyScrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = bodyScrollRef.current;
+    const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
+    const isNear = distanceToBottom <= 80;
+    isNearBottomRef.current = isNear;
+    setShowJumpToBottom(!isNear && scrollHeight > clientHeight + 100);
+  };
+
+  // Spiritual / Shopping Notepad states
+  const [showNotepad, setShowNotepad] = useState(false);
+  const [notesList, setNotesList] = useState([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [loadingNotes, setLoadingNotes] = useState(false);
+
+  const fetchNotes = useCallback(async () => {
+    setLoadingNotes(true);
+    try {
+      const guestSessionId = auraChatStore.getGuestSessionId();
+      const token = await authClient.getToken();
+      const API_BASE = (import.meta.env.VITE_API_BASE || "/api").replace(/\/+$/, "") + "/aura-ai";
+      const res = await fetch(`${API_BASE}/notes`, {
+        headers: {
+          "X-Guest-Session-ID": guestSessionId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.notes)) {
+        setNotesList(data.notes);
+      }
+    } catch (_) {}
+    setLoadingNotes(false);
+  }, []);
+
+  const handleAddNote = async () => {
+    if (!newNoteText.trim()) return;
+    try {
+      const guestSessionId = auraChatStore.getGuestSessionId();
+      const token = await authClient.getToken();
+      const API_BASE = (import.meta.env.VITE_API_BASE || "/api").replace(/\/+$/, "") + "/aura-ai";
+      await fetch(`${API_BASE}/notes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Guest-Session-ID": guestSessionId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ value: newNoteText.trim() })
+      });
+      setNewNoteText("");
+      fetchNotes();
+    } catch (_) {}
+  };
+
+  const handleDeleteNote = async (key) => {
+    try {
+      const guestSessionId = auraChatStore.getGuestSessionId();
+      const token = await authClient.getToken();
+      const API_BASE = (import.meta.env.VITE_API_BASE || "/api").replace(/\/+$/, "") + "/aura-ai";
+      await fetch(`${API_BASE}/notes/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+        headers: {
+          "X-Guest-Session-ID": guestSessionId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      fetchNotes();
+    } catch (_) {}
+  };
 
   // Aura AI Live Status and Stop/Retry State Variables
   const [statusText, setStatusText] = useState("Thinking...");
@@ -313,6 +392,10 @@ export function AuraAIFloating() {
     if ((!textToSend || !textToSend.trim()) && !customBirthDetails) return;
     if (loading) return;
 
+    // Reset scroll lock state on sending new user message
+    isNearBottomRef.current = true;
+    setShowJumpToBottom(false);
+
     const userMsg = {
       id: "msg_" + Date.now(),
       sender: "user",
@@ -323,7 +406,10 @@ export function AuraAIFloating() {
     const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
-    
+    if (bodyScrollRef.current) {
+      bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
+    }
+
     // Reset and Start Live Status Tracking
     setLastUserQuery(textToSend ? textToSend.trim() : "Kundali Request");
     setErrorOccurred(false);
@@ -345,6 +431,7 @@ export function AuraAIFloating() {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
+      const notesContext = notesList.map(n => `${n.memoryKey}: ${n.memoryValue}`).join("; ");
 
       await auraAiClient.sendMessageStream({
         message: textToSend || "",
@@ -355,6 +442,7 @@ export function AuraAIFloating() {
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
         birthDetails: customBirthDetails,
+        notesContext,
         onStatus: (statusMsg) => {
           setStatusText(statusMsg);
         },
@@ -387,7 +475,7 @@ export function AuraAIFloating() {
             }
             return [...prev, liveMsg];
           });
-          if (bodyScrollRef.current) {
+          if (isNearBottomRef.current && bodyScrollRef.current) {
             bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
           }
         },
@@ -397,7 +485,10 @@ export function AuraAIFloating() {
             timerRef.current = null;
           }
           if (finalData.showBirthForm) {
-            setShowBirthForm(true);
+            const existingDetails = auraChatStore.getVerifiedBirthDetails();
+            if (!existingDetails) {
+              setShowBirthForm(true);
+            }
           }
           const cleanText = customerSafeAiText(finalData.text);
           const aiMsg = {
@@ -423,7 +514,7 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
-          if (bodyScrollRef.current) {
+          if (isNearBottomRef.current && bodyScrollRef.current) {
             bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
           }
         },
@@ -490,15 +581,18 @@ export function AuraAIFloating() {
 
     const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
 
-    setShowBirthForm(false);
-    setMode("panditji");
-    handleSend(promptText, {
+    const verifiedDetails = {
       name: birthForm.name.trim(),
       dob: birthForm.dob,
       birthTime: birthForm.time.trim(),
       birthPlace: birthForm.place.trim(),
       concern: birthForm.concern
-    });
+    };
+    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
+
+    setShowBirthForm(false);
+    setMode("panditji");
+    handleSend(promptText, verifiedDetails);
   };
 
   // Start a new chat session with smooth fade-out and fade-in transition
@@ -1053,6 +1147,7 @@ export function AuraAIFloating() {
               {/* Messages Body with Date & Time dividers & Smooth Refresh Transitions */}
               <div 
                 ref={bodyScrollRef}
+                onScroll={handleScroll}
                 className={`aura-ai-body ${
                   refreshPhase === "fading-out" 
                     ? "aura-ai-refresh-fading-out" 
@@ -1441,8 +1536,178 @@ export function AuraAIFloating() {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* Smart Jump to Latest Button */}
+              {showJumpToBottom && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (bodyScrollRef.current) {
+                      bodyScrollRef.current.scrollTo({ top: bodyScrollRef.current.scrollHeight, behavior: "smooth" });
+                      isNearBottomRef.current = true;
+                      setShowJumpToBottom(false);
+                    }
+                  }}
+                  className="aura-ai-jump-bottom-btn"
+                  style={{
+                    position: "absolute",
+                    bottom: "85px",
+                    right: "16px",
+                    zIndex: 35,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "5px 12px",
+                    borderRadius: "20px",
+                    background: "linear-gradient(135deg, #a54d2b 0%, #7d3318 100%)",
+                    color: "#ffffff",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    boxShadow: "0 4px 12px rgba(125, 51, 24, 0.35)",
+                    border: "1px solid #ffd700",
+                    cursor: "pointer"
+                  }}
+                >
+                  <ArrowDown size={12} />
+                  <span>Jump to latest</span>
+                </button>
+              )}
+
               {/* Input Footer */}
               <div className="aura-ai-footer">
+                {/* In-Chat Compact Action Strip */}
+                <div className="aura-ai-action-strip">
+                  {mode === "panditji" ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowBirthForm(true)}
+                        className="aura-ai-strip-btn highlight"
+                        title="Verified Birth Details Form"
+                      >
+                        <Calendar size={11} />
+                        <span>📋 Birth Details</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🪐 Mujhe apni sampurna Kundali ki graha sthiti aur rashi vishleshan bataiye")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🪐 Full Kundali</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🌙 Meri Janma Rashi aur Nakshatra ka vishleshan karein")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🌙 Rashi & Nakshatra</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🕉️ Meri vartaman Vimshottari Mahadasha aur Antardasha bataiye")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🕉️ Dasha & Graha</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("📿 Meri Kundali ke anusar konsa Rudraksha dharan karna chahiye?")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>📿 Rudraksha Guide</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🧘 Rudraksha dharan karne ki shuddh Vedic Vidhi bataiye")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🧘 Dharan Vidhi</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchNotes();
+                          setShowNotepad(true);
+                        }}
+                        className="aura-ai-strip-btn"
+                        title="Open Spiritual Notepad"
+                      >
+                        <Notebook size={11} />
+                        <span>📝 Notes ({notesList.length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🛍️ Kundali ke anusar mere liye recommended Rudraksha products dikhaiye")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🛍️ Recommended Products</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("📦 Track my order")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>📦 Track Order</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("👤 Speak with customer support team")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>👤 Support</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🔎 Search store catalog")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🔎 Search Products</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("📦 Track my order")}
+                        className="aura-ai-strip-btn highlight"
+                      >
+                        <Package size={11} />
+                        <span>📦 Track Order</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🛒 Show my cart items")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🛒 Cart</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("🎟️ Aaj ke active coupons aur discount offers batao")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>🎟️ Offers & Coupons</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchNotes();
+                          setShowNotepad(true);
+                        }}
+                        className="aura-ai-strip-btn"
+                      >
+                        <Notebook size={11} />
+                        <span>📝 Notes ({notesList.length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSend("👤 Speak with customer support team")}
+                        className="aura-ai-strip-btn"
+                      >
+                        <span>👤 Support</span>
+                      </button>
+                    </>
+                  )}
+                </div>
                 <form 
                   onSubmit={e => {
                     e.preventDefault();
@@ -1545,6 +1810,104 @@ export function AuraAIFloating() {
           }}
         />
       )}
+
+      {/* Spiritual & Shopping Notepad Modal */}
+      <AnimatePresence>
+        {showNotepad && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 10 }}
+              className="w-full max-w-md bg-[#fdfaf5] border border-[#dfcfbc] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#8c2b10] to-[#5c1c0a] text-white">
+                <div className="flex items-center gap-2">
+                  <Notebook size={16} className="text-amber-300" />
+                  <h3 className="text-sm font-bold tracking-wide">
+                    {mode === "panditji" ? "📝 आध्यात्मिक डायरी (Vedic Notepad)" : "📝 Shopping Notes & Reminders"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowNotepad(false)}
+                  className="p-1 rounded-full hover:bg-white/10 transition-colors text-amber-100"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Add Note Input */}
+              <div className="p-3 bg-white border-b border-[#e5d2b8] flex gap-2">
+                <input
+                  type="text"
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddNote();
+                  }}
+                  placeholder={
+                    mode === "panditji"
+                      ? "उदा. 5 मुखी नेपाल रुद्राक्ष - धनु राशि..."
+                      : "Add a note or reminder for AI..."
+                  }
+                  className="flex-1 px-3 py-1.5 text-xs border border-[#dfcfbc] rounded-lg bg-[#fbf7ee] text-[#2b1408] outline-none focus:border-[#8c2b10]"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNote}
+                  className="px-3 py-1.5 bg-[#8c2b10] text-white text-xs font-semibold rounded-lg hover:bg-[#6a200a] transition-colors flex items-center gap-1"
+                >
+                  <Plus size={13} />
+                  <span>Save</span>
+                </button>
+              </div>
+
+              {/* Notes List */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[160px]">
+                {loadingNotes ? (
+                  <div className="text-center py-6 text-xs text-amber-800 animate-pulse">
+                    Loading saved notes...
+                  </div>
+                ) : notesList.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-amber-800/70">
+                    <p>No notes saved yet.</p>
+                    <p className="mt-1 text-[11px]">Save key preferences, Rudraksha recommendations, or reminders here!</p>
+                  </div>
+                ) : (
+                  notesList.map((note, idx) => (
+                    <div
+                      key={note.memoryKey || idx}
+                      className="flex items-start justify-between gap-2 p-2.5 bg-white border border-[#ebdccb] rounded-xl shadow-sm text-xs text-[#2b1408]"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium leading-relaxed">{note.memoryValue}</p>
+                        <span className="text-[10px] text-amber-800/60 font-mono">
+                          {note.category || "note"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteNote(note.memoryKey)}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Delete note"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Footer info */}
+              <div className="px-4 py-2 bg-[#f4ebd9] border-t border-[#e5d2b8] text-[11px] text-[#5c3014] text-center">
+                ✨ Saved notes are automatically referenced by AI Pandit Ji in future conversations.
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -83,6 +83,7 @@ export const auraAiClient = {
 
       const token = await authClient.getToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
+      const effectiveBirthDetails = birthDetails || (mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null);
 
       const res = await fetch(`${API_BASE}/chat?stream=true`, {
         method: "POST",
@@ -102,7 +103,7 @@ export const auraAiClient = {
           mode,
           cartItems,
           history,
-          birthDetails,
+          birthDetails: effectiveBirthDetails,
           notesContext,
           stream: true
         })

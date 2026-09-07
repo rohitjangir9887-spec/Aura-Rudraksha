@@ -78,6 +78,14 @@ export function sanitizeCustomerText(raw) {
   // 1. Remove Code fences & JSON blobs
   text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
+  // 1b. Replace raw HTML linebreaks with standard newlines
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+
+  // 1c. Replace masked date placeholders like 2024-XX-XX or XX-XX with "date not available"
+  text = text.replace(/\b\d{4}-XX-XX\b/gi, "(date not available)");
+  text = text.replace(/\bXX-XX-\d{4}\b/gi, "(date not available)");
+  text = text.replace(/\bXX-XX\b/gi, "(date not available)");
+
   // 2. Filter any accidental admin email or internal route leakages
   text = text.replace(/rohitjangir\d*@gmail\.com/gi, "aurarudrakshaofficial@gmail.com");
   text = text.replace(/MONGODB_[A-Z0-9_]+/gi, "");

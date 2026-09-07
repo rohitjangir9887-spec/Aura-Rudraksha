@@ -11,7 +11,10 @@ import {
   trackAuraAIAction,
   getAuraAIAnalytics,
   generateProductDescription,
-  generateProductKeywords
+  generateProductKeywords,
+  getUserNotesEndpoint,
+  setUserNoteEndpoint,
+  deleteUserNoteEndpoint
 } from "../controllers/auraAiController.js";
 import { optionalAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -20,6 +23,9 @@ const router = express.Router();
 // User & Public endpoints
 router.post("/chat", optionalAuth, chatAuraAI);
 router.post("/kundali", optionalAuth, calculateKundaliEndpoint);
+router.get("/notes", optionalAuth, getUserNotesEndpoint);
+router.post("/notes", optionalAuth, setUserNoteEndpoint);
+router.delete("/notes/:key", optionalAuth, deleteUserNoteEndpoint);
 router.post("/generate-description", requireAdmin, generateProductDescription);
 router.post("/generate-keywords", requireAdmin, generateProductKeywords);
 router.post("/track", optionalAuth, trackAuraAIAction);

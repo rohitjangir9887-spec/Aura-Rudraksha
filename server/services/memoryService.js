@@ -186,3 +186,26 @@ export async function extractAndUpdateMemories({ userId, guestSessionId, userMes
     });
   }
 }
+
+/**
+ * Delete a specific memory/note key for a user.
+ */
+export async function deleteUserMemory({ userId, guestSessionId, memoryKey }) {
+  const effectiveId = String(userId && userId !== "guest" ? userId : (guestSessionId || "")).trim();
+  if (!effectiveId || !memoryKey) return false;
+  const cleanKey = String(memoryKey).trim().toLowerCase().replace(/[^\w_-]/g, "_");
+
+  if (!isDbConnected()) {
+    const userMap = inMemoryStore.get(effectiveId);
+    if (!userMap) return false;
+    return userMap.delete(cleanKey);
+  }
+
+  try {
+    await AuraAIMemory.deleteOne({ userId: effectiveId, memoryKey: cleanKey });
+    return true;
+  } catch (err) {
+    console.warn("[MemoryService] Failed to delete memory:", err?.message);
+    return false;
+  }
+}

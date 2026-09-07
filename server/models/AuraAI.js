@@ -56,6 +56,8 @@ const auraAIConversationSchema = new mongoose.Schema(
     requiresHumanSupport: { type: Boolean, default: false },
     status: { type: String, default: "Active" }, // 'Active', 'Resolved', 'Escalated'
     sentiment: { type: String, default: "Positive" },
+    verifiedBirthDetails: { type: Object, default: null },
+    authoritativeKundali: { type: Object, default: null },
     lastMessageAt: { type: String, default: () => new Date().toISOString() }
   },
   { timestamps: true }

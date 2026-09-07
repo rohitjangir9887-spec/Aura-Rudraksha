@@ -123,11 +123,34 @@ export const auraChatStore = {
       const uid = this.getCurrentUserUid();
       localStorage.removeItem(`aura_ai_chat_standard_${uid}`);
       localStorage.removeItem(`aura_ai_chat_panditji_${uid}`);
+      localStorage.removeItem(`aura_ai_birth_details_${uid}`);
       localStorage.removeItem(`aura_ai_active_conv_${uid}`);
       localStorage.removeItem(STORAGE_KEY_MSGS_STANDARD);
       localStorage.removeItem(STORAGE_KEY_MSGS_PANDITJI);
       localStorage.removeItem(STORAGE_KEY_CONV_ID);
       localStorage.removeItem("aura_ai_unified_chat_history");
+    } catch (_) {}
+  },
+
+  getVerifiedBirthDetails() {
+    try {
+      const uid = this.getCurrentUserUid();
+      const raw = localStorage.getItem(`aura_ai_birth_details_${uid}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.dob && parsed.birthTime && parsed.birthPlace) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return null;
+  },
+
+  saveVerifiedBirthDetails(details) {
+    if (!details || !details.dob || !details.birthTime || !details.birthPlace) return;
+    try {
+      const uid = this.getCurrentUserUid();
+      localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(details));
     } catch (_) {}
   },
 

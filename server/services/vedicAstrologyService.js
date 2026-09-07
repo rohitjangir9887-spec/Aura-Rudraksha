@@ -492,13 +492,34 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
     antarElapsed += antarSpanYears;
   }
 
+  // Compute exact start and end dates for running Mahadasha and Antardasha
+  const msPerYear = 365.2422 * 24 * 3600 * 1000;
+  
+  // Mahadasha Start & End
+  const mahaStartMs = targetTimeMs - (dashaElapsed * msPerYear);
+  const mahaEndMs = mahaStartMs + (runningMahadasha.years * msPerYear);
+  
+  const mahaStartDate = new Date(mahaStartMs).toISOString().split("T")[0];
+  const mahaEndDate = new Date(mahaEndMs).toISOString().split("T")[0];
+
+  // Antardasha Start & End
+  const antarStartMs = mahaStartMs + (antarElapsed * msPerYear);
+  const antarEndMs = antarStartMs + ((runningMahadasha.years * runningAntardasha.years / 120) * msPerYear);
+  
+  const antarStartDate = new Date(antarStartMs).toISOString().split("T")[0];
+  const antarEndDate = new Date(antarEndMs).toISOString().split("T")[0];
+
   return {
     birthDashaLord: initialDasha.planet,
     birthDashaBalance: `${balanceYears.toFixed(1)} years of ${initialDasha.planet} Dasha`,
     currentMahadasha: runningMahadasha.planet,
     currentMahadashaHindi: runningMahadasha.planetHindi || runningMahadasha.planet,
+    mahadashaStartDate: mahaStartDate,
+    mahadashaEndDate: mahaEndDate,
     currentAntardasha: runningAntardasha.planet,
     currentAntardashaHindi: runningAntardasha.planetHindi || runningAntardasha.planet,
+    antardashaStartDate: antarStartDate,
+    antardashaEndDate: antarEndDate,
     recommendedDashaRudraksha: runningMahadasha.rudraksha
   };
 }

@@ -15,6 +15,14 @@ function sanitizeText(raw) {
   if (!raw || typeof raw !== "string") return "";
   let text = raw.trim();
 
+  // Replace raw HTML linebreaks with standard newlines
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+
+  // Replace masked date placeholders like 2024-XX-XX or XX-XX with "date not available"
+  text = text.replace(/\b\d{4}-XX-XX\b/gi, "(date not available)");
+  text = text.replace(/\bXX-XX-\d{4}\b/gi, "(date not available)");
+  text = text.replace(/\bXX-XX\b/gi, "(date not available)");
+
   // Strip code blocks and raw JSON
   text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
 

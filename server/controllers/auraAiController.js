@@ -18,7 +18,7 @@ import {
   VEDIC_BEADS_KNOWLEDGE 
 } from "../services/vedicKnowledgeService.js";
 import { calculateAuthenticKundali } from "../services/vedicAstrologyService.js";
-import { getUserMemories, extractAndUpdateMemories } from "../services/memoryService.js";
+import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
 import { retrieveRagContext } from "../services/ragService.js";
 
 const AI_SETTING_FIELDS = {
@@ -676,27 +676,50 @@ export async function chatAuraAI(req, res, next) {
       });
     }
 
-    // 3. Check for Kundali Calculation or Missing Birth Data in Pandit Ji Mode
+    // 3. Check for Kundali Calculation or Persisted Birth Data in Pandit Ji Mode
     let calculatedKundaliData = null;
     let shouldPromptBirthForm = false;
 
-    if (birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace) {
+    // Fetch existing conversation if present
+    let existingConvDoc = null;
+    if (isDbConnected()) {
+      try {
+        existingConvDoc = await AuraAIConversation.findOne({ $or: [{ id: targetConversationId }, { conversationId: targetConversationId }] }).lean();
+      } catch (_) {}
+    }
+
+    const hasNewBirthDetails = birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace;
+    const existingVerifiedBirthDetails = existingConvDoc?.verifiedBirthDetails || null;
+
+    let activeBirthDetails = null;
+    if (hasNewBirthDetails) {
+      activeBirthDetails = {
+        dob: birthDetails.dob,
+        birthTime: birthDetails.birthTime,
+        birthPlace: birthDetails.birthPlace,
+        name: birthDetails.name || verifiedName,
+        gender: birthDetails.gender || "",
+        concern: birthDetails.concern || "career"
+      };
+    } else if (existingVerifiedBirthDetails) {
+      activeBirthDetails = existingVerifiedBirthDetails;
+    }
+
+    if (activeBirthDetails) {
       try {
         calculatedKundaliData = calculateAuthenticKundali({
-          dob: birthDetails.dob,
-          birthTime: birthDetails.birthTime,
-          birthPlace: birthDetails.birthPlace,
-          name: birthDetails.name || verifiedName,
-          gender: birthDetails.gender || "",
-          concern: birthDetails.concern || "career"
+          dob: activeBirthDetails.dob,
+          birthTime: activeBirthDetails.birthTime,
+          birthPlace: activeBirthDetails.birthPlace,
+          name: activeBirthDetails.name || verifiedName,
+          gender: activeBirthDetails.gender || "",
+          concern: activeBirthDetails.concern || "career"
         });
       } catch (kErr) {
         console.warn("[Aura AI] Kundali calculation warning:", kErr?.message);
       }
     } else if (mode === "panditji" && (intent === "KUNDALI" || (message || "").toLowerCase().includes("kundli") || (message || "").toLowerCase().includes("kundali") || (message || "").toLowerCase().includes("horoscope") || (message || "").toLowerCase().includes("rashi"))) {
-      if (!birthDetails || !birthDetails.dob || !birthDetails.birthTime || !birthDetails.birthPlace) {
-        shouldPromptBirthForm = true;
-      }
+      shouldPromptBirthForm = true;
     }
 
     // 4. Fetch Live Catalog Products & RAG Context
@@ -779,16 +802,22 @@ ${urlAndCatalogRulesText}
 
 KUNDALI & ASTROLOGICAL FIDELITY:
 ${calculatedKundaliData ? `
-AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (DO NOT INVENT DIFFERENT PLANETARY POSITIONS):
-- Devotee: ${calculatedKundaliData.verifiedBirthData.name}
-- Birth: ${calculatedKundaliData.verifiedBirthData.dob} at ${calculatedKundaliData.verifiedBirthData.birthTime} (${calculatedKundaliData.verifiedBirthData.birthPlace})
+AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TIME/PLACE AGAIN):
+- Devotee Name: ${calculatedKundaliData.verifiedBirthData.name}
+- Verified DOB: ${calculatedKundaliData.verifiedBirthData.dob} | Time: ${calculatedKundaliData.verifiedBirthData.birthTime} | Place: ${calculatedKundaliData.verifiedBirthData.birthPlace}
 - Lagna (Ascendant): ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.lagna.degree} in Nakshatra ${calculatedKundaliData.astronomicalKundali.lagna.nakshatra} (Pada ${calculatedKundaliData.astronomicalKundali.lagna.pada}), Lord: ${calculatedKundaliData.astronomicalKundali.lagna.lord}
 - Chandra Rashi (Moon Sign): ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.chandraRashi.degree} in Nakshatra ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (Pada ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada}), Lord: ${calculatedKundaliData.astronomicalKundali.chandraRashi.lord}
 - Surya Rashi: ${calculatedKundaliData.astronomicalKundali.suryaRashi.rashiHindi}
 - Mulank: ${calculatedKundaliData.astronomicalKundali.mulank}
-- Running Vimshottari Mahadasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi})
+- Vimshottari Mahadasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaStartDate || 'date not available'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaEndDate || 'date not available'})
+- Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaStartDate || 'date not available'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaEndDate || 'date not available'})
 - Manglik Status: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote}
 - Primary Recommended Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => r.mukhi).join(", ")}
+
+STRICT FORMATTING & RE-PROMPTING RULES:
+1. NEVER ask for DOB, birth time, or birth place again. Verified birth details already exist above.
+2. NEVER output raw HTML tags like <br>. Use standard clean linebreaks (\n).
+3. NEVER output masked date placeholders like 2024-XX-XX or XX-XX. Use the exact calculated Mahadasha and Antardasha dates provided above.
 ` : `
 - If the user asks for personalized Kundali, Rashi, or Graha Dosha analysis without providing complete birth details (DOB, Time, Place), politely request their birth details and explain why exact time and place are required for authentic sidereal mathematics. Do not fabricate positions.
 `}
@@ -843,13 +872,15 @@ ${memoryContextText || "Guest shopper."}`;
       }
     }
 
-    if (calculatedKundaliData) {
+    if (message && message.trim()) {
+      nimMessages.push({ role: "user", content: String(message).trim() });
+    } else if (calculatedKundaliData) {
       nimMessages.push({
         role: "user",
         content: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
       });
     } else {
-      nimMessages.push({ role: "user", content: message || "Namaste" });
+      nimMessages.push({ role: "user", content: "Namaste" });
     }
 
     const dynamicQuickReplies = generateDynamicQuickReplies({
@@ -992,7 +1023,9 @@ ${memoryContextText || "Guest shopper."}`;
             $set: {
               updatedAt: new Date(),
               lastMessageText: safeFinalStreamedText.slice(0, 150),
-              productsRecommended: matchedProducts.map(p => p.id)
+              productsRecommended: matchedProducts.map(p => p.id),
+              ...(activeBirthDetails ? { verifiedBirthDetails: activeBirthDetails } : {}),
+              ...(calculatedKundaliData ? { authoritativeKundali: calculatedKundaliData } : {})
             }
           },
           { upsert: true }
@@ -1108,7 +1141,9 @@ ${memoryContextText || "Guest shopper."}`;
             $set: {
               updatedAt: new Date(),
               lastMessageText: safeFinalText.slice(0, 150),
-              productsRecommended: matchedProducts.map(p => p.id)
+              productsRecommended: matchedProducts.map(p => p.id),
+              ...(activeBirthDetails ? { verifiedBirthDetails: activeBirthDetails } : {}),
+              ...(calculatedKundaliData ? { authoritativeKundali: calculatedKundaliData } : {})
             }
           },
           { upsert: true }
@@ -1720,5 +1755,58 @@ export async function getAuraAIAnalytics(req, res, next) {
     });
   } catch (err) {
     next(err);
+  }
+}
+
+export async function getUserNotesEndpoint(req, res) {
+  try {
+    const userIsAuthenticated = Boolean(req.user && req.user.authUserId);
+    const userId = userIsAuthenticated ? req.user.authUserId : "guest";
+    const guestSessionId = req.headers["x-guest-session-id"] || req.query.guestSessionId || "";
+
+    const memories = await getUserMemories({ userId, guestSessionId });
+    return res.json({ success: true, notes: memories });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export async function setUserNoteEndpoint(req, res) {
+  try {
+    const userIsAuthenticated = Boolean(req.user && req.user.authUserId);
+    const userId = userIsAuthenticated ? req.user.authUserId : "guest";
+    const guestSessionId = req.headers["x-guest-session-id"] || req.body.guestSessionId || "";
+    const { key, value } = req.body || {};
+
+    if (!value) {
+      return res.status(400).json({ success: false, message: "Note content is required" });
+    }
+
+    const memoryKey = key || `note_${Date.now()}`;
+    const saved = await setUserMemory({
+      userId,
+      guestSessionId,
+      memoryKey,
+      memoryValue: value,
+      category: "user_note"
+    });
+
+    return res.json({ success: true, note: saved });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export async function deleteUserNoteEndpoint(req, res) {
+  try {
+    const userIsAuthenticated = Boolean(req.user && req.user.authUserId);
+    const userId = userIsAuthenticated ? req.user.authUserId : "guest";
+    const guestSessionId = req.headers["x-guest-session-id"] || req.query.guestSessionId || "";
+    const { key } = req.params;
+
+    const success = await deleteUserMemory({ userId, guestSessionId, memoryKey: key });
+    return res.json({ success });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 }

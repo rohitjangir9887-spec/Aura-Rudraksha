@@ -12434,6 +12434,50 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   transform: translateY(-1px);
 }
 
+/* In-Chat Compact Action Strip */
+.aura-ai-action-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 2px 6px 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.aura-ai-action-strip::-webkit-scrollbar {
+  display: none;
+}
+.aura-ai-strip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #5c3014;
+  background: #fbf7ee;
+  border: 1px solid #e5d2b8;
+  border-radius: 20px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.aura-ai-strip-btn:hover {
+  background: #8c2b10;
+  color: #ffffff;
+  border-color: #8c2b10;
+}
+.aura-ai-strip-btn.highlight {
+  background: #8c2b10;
+  color: #ffffff;
+  border-color: #8c2b10;
+  box-shadow: 0 1px 4px rgba(140, 43, 16, 0.25);
+}
+.aura-ai-strip-btn.highlight:hover {
+  background: #6a200a;
+}
+
 /* Footer Input */
 .aura-ai-footer {
   padding: 6px 8px;
