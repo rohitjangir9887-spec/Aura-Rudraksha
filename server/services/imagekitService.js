@@ -86,6 +86,12 @@ export async function saveImagekitCredentials({ publicKey, privateKey, urlEndpoi
  */
 export async function getImagekitStatus() {
   const { publicKey, privateKey, urlEndpoint } = await getImagekitCredentials();
+  const isEnv = Boolean(
+    (process.env.IMAGEKIT_PUBLIC_KEY || "").trim() &&
+    (process.env.IMAGEKIT_PRIVATE_KEY || "").trim() &&
+    (process.env.IMAGEKIT_URL_ENDPOINT || "").trim()
+  );
+  const source = isEnv ? "env" : "database";
 
   if (!publicKey || !privateKey || !urlEndpoint) {
     return {
@@ -95,6 +101,8 @@ export async function getImagekitStatus() {
       provider: "ImageKit",
       message: "ImageKit configuration is missing. Provide IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY, and IMAGEKIT_URL_ENDPOINT environment variables or save credentials in Admin Settings.",
       hasConfig: false,
+      isEnvConfigured: false,
+      source,
       publicKey: publicKey ? `${publicKey.slice(0, 8)}...` : "Not Set",
       urlEndpoint: urlEndpoint || "Not Set",
       quota: 0,
@@ -123,7 +131,11 @@ export async function getImagekitStatus() {
         publicKey: `${publicKey.slice(0, 10)}...`,
         urlEndpoint,
         hasConfig: true,
-        message: `ImageKit successfully connected (${urlEndpoint}).`
+        isEnvConfigured: isEnv,
+        source,
+        message: isEnv 
+          ? `ImageKit connected via Server Environment Variables (${urlEndpoint}).` 
+          : `ImageKit successfully connected (${urlEndpoint}).`
       };
     }
 
@@ -135,6 +147,8 @@ export async function getImagekitStatus() {
       provider: "ImageKit",
       message: errData.message || `ImageKit API Authentication Error (HTTP ${res.status}). Check keys.`,
       hasConfig: true,
+      isEnvConfigured: isEnv,
+      source,
       publicKey: `${publicKey.slice(0, 8)}...`,
       urlEndpoint
     };
@@ -146,6 +160,8 @@ export async function getImagekitStatus() {
       provider: "ImageKit",
       message: `Failed to connect to ImageKit API: ${err.message || err}`,
       hasConfig: true,
+      isEnvConfigured: isEnv,
+      source,
       publicKey: `${publicKey.slice(0, 8)}...`,
       urlEndpoint
     };

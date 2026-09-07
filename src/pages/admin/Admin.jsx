@@ -1066,7 +1066,8 @@ export function Admin() {
                   </div>
 
                   <div style={{ fontSize: '11px', color: '#475569', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', marginTop: '2px' }}>
-                    <div>Connection Status: <b>{imagekitInfo.connected ? 'Connected' : (imagekitInfo.status || 'Not Configured')}</b></div>
+                    <div>Connection Status: <b style={{ color: imagekitInfo.connected ? '#16a34a' : '#dc2626' }}>{imagekitInfo.connected ? 'Connected' : (imagekitInfo.status || 'Not Configured')}</b></div>
+                    <div>Configuration Source: <b style={{ color: imagekitInfo.isEnvConfigured ? '#7c3aed' : '#334155' }}>{imagekitInfo.isEnvConfigured ? 'Vercel / Server ENV (process.env)' : (imagekitInfo.hasConfig ? 'MongoDB Database' : 'Not Set')}</b></div>
                     <div>Public Key: <b>{imagekitInfo.publicKey ? `${imagekitInfo.publicKey.substring(0, 12)}...` : 'Not Configured'}</b></div>
                     <div>URL Endpoint: <b>{imagekitInfo.urlEndpoint || 'Not Configured'}</b></div>
                     <div>ImageKit Media Count: <b>{imagekitInfo.mediaCount ?? 0} files</b></div>
@@ -1090,7 +1091,7 @@ export function Admin() {
                         cursor: 'pointer'
                       }}
                     >
-                      ⚙️ {imagekitInfo.connected ? 'Edit Credentials' : 'Configure Credentials'}
+                      ⚙️ {imagekitInfo.isEnvConfigured ? 'View / Override Credentials' : (imagekitInfo.connected ? 'Edit Credentials' : 'Configure Credentials')}
                     </button>
 
                     <button
@@ -1549,6 +1550,12 @@ export function Admin() {
                 ✕
               </button>
             </div>
+
+            {imagekitInfo.isEnvConfigured && (
+              <div style={{ background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '8px', padding: '10px 12px', fontSize: '11px', color: '#5b21b6', lineHeight: '1.4' }}>
+                ℹ️ <b>Active Vercel / Server ENV Detected:</b> Your server is currently reading credentials from <code>IMAGEKIT_PUBLIC_KEY</code>, <code>IMAGEKIT_PRIVATE_KEY</code>, and <code>IMAGEKIT_URL_ENDPOINT</code>. Environment variables take precedence over values saved in the database.
+              </div>
+            )}
 
             <p style={{ fontSize: '12px', color: '#475569', margin: 0, lineHeight: '1.5' }}>
               Enter your ImageKit API credentials. These can be obtained from your ImageKit Dashboard under <b>Developer Options → API Keys</b>.

@@ -243,7 +243,8 @@ export async function uploadMedia(file, onProgress) {
       return uploadData.url;
 
     } catch (ikErr) {
-      console.warn("ImageKit upload error, falling back:", ikErr);
+      console.error("ImageKit upload error:", ikErr);
+      throw new Error(`ImageKit upload failed: ${ikErr.message || ikErr}`);
     }
   }
 // pCloud Upload
