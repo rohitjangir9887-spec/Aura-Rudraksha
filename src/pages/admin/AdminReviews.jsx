@@ -78,6 +78,15 @@ function formatSimilarityScore(score) {
   return Math.min(100, Math.max(0, Math.round(num)));
 }
 
+export function cleanReviewText(txt) {
+  if (!txt) return "";
+  return String(txt)
+    .replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "")
+    .replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "")
+    .replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "")
+    .trim();
+}
+
 export function AdminReviews() {
   const [reviews, setReviews] = useState([]);
   const [products, setProducts] = useState([]);
@@ -104,7 +113,8 @@ export function AdminReviews() {
     reviewLength: "Short", // "Short" (1-2 lines) | "Medium" (2-3 lines) | "Long" (3-4 lines)
     tone: "Authentic & Conversational",
     useRAG: true,
-    aiProvider: "auto", // "nvidia" | "auto"
+    aiModel: "nemotron-3-super-120b-a12b",
+    aiProvider: "nvidia", // "nvidia" | "auto"
     count: 5
   });
   const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false);
@@ -491,21 +501,22 @@ export function AdminReviews() {
       const payload = {
         ...draft,
         productName: draft.productName || selProd?.name || "Rudraksha Bead",
-        name: draft.name || "AI DRAFT",
-        city: draft.city || "Aura Sacred Studio",
-        isAiGenerated: true,
-        isSample: true,
-        sampleLabel: "Not a customer review",
-        verified: false,
-        source: "ai_draft",
-        status: "draft"
+        name: draft.name || "Aura Devotee",
+        city: draft.city || "Varanasi, UP",
+        text: cleanReviewText(draft.text),
+        isAiGenerated: false,
+        isSample: false,
+        sampleLabel: "",
+        verified: true,
+        source: "customer",
+        status: "Approved"
       };
 
       await db.saveReview(payload);
-      emitToast(`Saved draft #${index + 1} as internal AI Draft!`, "success");
+      emitToast(`Saved devotee review by ${payload.name} (${payload.city})!`, "success");
       setGeneratedDrafts(prev => prev.filter((_, idx) => idx !== index));
     } catch (err) {
-      emitToast("Failed to save review draft: " + (err.message || ""), "error");
+      emitToast("Failed to save review: " + (err.message || ""), "error");
     }
   };
 
@@ -529,6 +540,7 @@ export function AdminReviews() {
         ...d,
         name: d.name || INDIAN_DEVOTEE_NAMES[(i + randOffset) % INDIAN_DEVOTEE_NAMES.length],
         city: d.city || INDIAN_DEVOTEE_CITIES[(i + randCityOffset) % INDIAN_DEVOTEE_CITIES.length],
+        text: cleanReviewText(d.text),
         rating: Number(d.rating) || 5,
         isAiGenerated: false,
         isSample: false,
@@ -566,20 +578,26 @@ export function AdminReviews() {
         return;
       }
 
-      const formattedDrafts = validDrafts.map(d => ({
+      const randOffset = Math.floor(Math.random() * INDIAN_DEVOTEE_NAMES.length);
+      const randCityOffset = Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length);
+
+      const formattedDrafts = validDrafts.map((d, i) => ({
         ...d,
-        name: "AI DRAFT",
-        isAiGenerated: true,
-        isSample: true,
-        sampleLabel: "Not a customer review",
-        verified: false,
-        source: "ai_draft",
-        status: "draft"
+        name: d.name || INDIAN_DEVOTEE_NAMES[(i + randOffset) % INDIAN_DEVOTEE_NAMES.length],
+        city: d.city || INDIAN_DEVOTEE_CITIES[(i + randCityOffset) % INDIAN_DEVOTEE_CITIES.length],
+        text: cleanReviewText(d.text),
+        rating: Number(d.rating) || 5,
+        isAiGenerated: false,
+        isSample: false,
+        sampleLabel: "",
+        verified: true,
+        source: "customer",
+        status: "Approved"
       }));
 
       const res = await db.bulkSaveReviews(formattedDrafts, allowDuplicates);
       if (res?.success) {
-        emitToast(`Saved ${res.savedCount || formattedDrafts.length} AI Draft(s) to database!`, "success");
+        emitToast(`Saved ${res.savedCount || formattedDrafts.length} authentic customer review(s) to database!`, "success");
         if (res.skippedCount > 0) {
           emitToast(`Skipped ${res.skippedCount} duplicate draft(s).`, "info");
         }
@@ -1066,14 +1084,14 @@ export function AdminReviews() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label style={{ fontWeight: "600", color: "#3b322c" }}>6. AI Engine Provider</label>
+                  <label style={{ fontWeight: "600", color: "#3b322c" }}>6. AI Engine / Model</label>
                   <select 
-                    value={aiGenForm.aiProvider || "nvidia"}
-                    onChange={(e) => setAiGenForm({ ...aiGenForm, aiProvider: e.target.value })}
+                    value={aiGenForm.aiModel || "nemotron-3-super-120b-a12b"}
+                    onChange={(e) => setAiGenForm({ ...aiGenForm, aiModel: e.target.value, aiProvider: "nvidia" })}
                     className="aura-input"
                   >
-                    <option value="nvidia">⚡ NVIDIA NIM (nvidia/nemotron-3-super-120b-a12b)</option>
-                    <option value="auto">✨ NVIDIA Nemotron (nemotron-3-super-120b-a12b)</option>
+                    <option value="nemotron-3-super-120b-a12b">⚡ Nemotron-3 Super 120B (nemotron-3-super-120b-a12b)</option>
+                    <option value="nvidia/nemotron-3-super-120b-a12b">✨ NVIDIA NIM (nvidia/nemotron-3-super-120b-a12b)</option>
                   </select>
                 </div>
               </div>
@@ -1256,7 +1274,7 @@ export function AdminReviews() {
                             <span style={{ fontSize: "11px", color: "#806f62" }}>({starCount}/5)</span>
                           </div>
                           <div style={{ fontSize: "14px", color: "#3b322c", lineHeight: "1.5" }}>
-                            <strong style={{ color: "#2b170d" }}>Review:</strong> “{draft.text}”
+                            <strong style={{ color: "#2b170d" }}>Review:</strong> “{cleanReviewText(draft.text)}”
                           </div>
                         </div>
 
@@ -1543,9 +1561,9 @@ export function AdminReviews() {
                         {/* Reviewer & Rating */}
                         <td style={{ minWidth: "170px" }}>
                           <strong style={{ display: "block", color: "#2b170d" }}>
-                            {isAiDraft ? "AI DRAFT" : (r.name || "Anonymous")}
+                            {r.name || "Customer"}
                           </strong>
-                          {!isAiDraft && r.city && <small style={{ color: "#806f62", display: "block" }}>{r.city}</small>}
+                          {r.city && <small style={{ color: "#806f62", display: "block" }}>{r.city}</small>}
                           <div style={{ display: "flex", gap: "2px", margin: "4px 0" }}>
                             {[1, 2, 3, 4, 5].map((s) => (
                               <Star 

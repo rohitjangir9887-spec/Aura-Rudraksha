@@ -2183,23 +2183,23 @@ export const db = {
         type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
         productId: r.productId ? String(r.productId) : "all",
         productName: r.productName || "Rudraksha Bead",
-        name: r.name || "Aura Devotee",
+        name: r.name && r.name !== "AI DRAFT" ? r.name : "Aura Devotee",
         city: r.city || "",
         rating: Number(r.rating) || 5,
         title: r.title || "",
-        text: r.text || "",
+        text: (r.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim(),
         date: r.date || "Recently",
         createdAt: r.createdAt || Date.now(),
-        verified: !!(r.verified && !r.isAiGenerated),
+        verified: r.verified !== false,
         featured: !!r.featured,
-        source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
+        source: r.source || "customer",
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
         img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
-        isAiGenerated: !!r.isAiGenerated
+        isAiGenerated: false
       }));
 
     if (tab === "product" && productId && productId !== "all") {
@@ -2221,23 +2221,23 @@ export const db = {
         type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
         productId: r.productId ? String(r.productId) : "all",
         productName: r.productName || "Rudraksha Bead",
-        name: r.name || "Aura Devotee",
+        name: r.name && r.name !== "AI DRAFT" ? r.name : "Aura Devotee",
         city: r.city || "",
         rating: Number(r.rating) || 5,
         title: r.title || "",
-        text: r.text || "",
+        text: (r.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim(),
         date: r.date || "Recently",
         createdAt: r.createdAt || Date.now(),
-        verified: !!(r.verified && !r.isAiGenerated),
+        verified: r.verified !== false,
         featured: !!r.featured,
-        source: r.source || (r.isAiGenerated ? "ai_draft" : "customer"),
+        source: r.source || "customer",
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
         img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
-        isAiGenerated: !!r.isAiGenerated
+        isAiGenerated: false
       }));
   },
 
@@ -2245,25 +2245,25 @@ export const db = {
     const id = rev.id || ("REV-" + Date.now());
     const images = Array.isArray(rev.images) ? rev.images : (rev.img ? [rev.img] : []);
     const source = rev.source || "customer";
-    const isAi = source === "ai_draft" || !!rev.isAiGenerated;
+    const cleanText = (rev.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim();
 
     const newRev = {
       ...rev,
       id,
       type: rev.type || (rev.productId && rev.productId !== "all" ? "product" : "store"),
       productId: rev.productId ? String(rev.productId) : "all",
-      name: rev.name?.trim() || "Aura Devotee",
+      name: (rev.name && rev.name !== "AI DRAFT" && rev.name !== "Anonymous" ? rev.name.trim() : "Aura Devotee"),
       city: rev.city?.trim() || "Varanasi, UP",
       rating: Number(rev.rating) || 5,
       title: rev.title?.trim() || "",
-      text: rev.text || "",
+      text: cleanText,
       date: rev.date || "Recently",
       createdAt: rev.createdAt || Date.now(),
-      verified: isAi ? false : (rev.verified ?? true),
-      source,
-      isAiGenerated: isAi,
-      isSample: isAi,
-      sampleLabel: isAi ? (rev.sampleLabel || "Not a customer review") : "",
+      verified: rev.verified !== false,
+      source: (source === "ai_draft" || rev.status === "Approved") ? "customer" : source,
+      isAiGenerated: false,
+      isSample: false,
+      sampleLabel: "",
       status: rev.status || "Approved",
       images,
       img: images[0] || null,

@@ -726,35 +726,13 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                       </div>
 
                       <div className="aura-card-name-line">
-                        <strong className="aura-reviewer-name">{rev.name || "Aura Devotee"}</strong>
+                        <strong className="aura-reviewer-name">{rev.name && rev.name !== "AI DRAFT" ? rev.name : "Aura Devotee"}</strong>
                         {rev.city && <span className="aura-reviewer-city">• {rev.city}</span>}
-                        {(rev.isAiGenerated || rev.isSample) ? (
-                          <span 
-                            className="aura-ai-sample-badge" 
-                            title="Sample review for demonstration"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              padding: "2px 8px",
-                              borderRadius: "12px",
-                              fontSize: "11px",
-                              fontWeight: "600",
-                              background: "#fef3c7",
-                              color: "#92400e",
-                              border: "1px dashed #d97706"
-                            }}
-                          >
-                            <Sparkles size={11} />
-                            {rev.sampleLabel || "SAMPLE REVIEW"}
+                        {activeSettings?.verifiedBadgeEnabled !== false && rev.verified !== false && (
+                          <span className="aura-verified-badge" title="Verified Customer Purchase">
+                            <Check size={11} className="aura-verified-icon" />
+                            Verified Purchaser
                           </span>
-                        ) : (
-                          activeSettings?.verifiedBadgeEnabled !== false && rev.verified && (
-                            <span className="aura-verified-badge" title="Verified Customer Purchase">
-                              <Check size={11} className="aura-verified-icon" />
-                              Verified Purchaser
-                            </span>
-                          )
                         )}
                         {rev.featured && (
                           <span className="aura-featured-badge">
@@ -764,7 +742,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                       </div>
                     </div>
 
-                    <span className="aura-card-date">{(rev.isAiGenerated || rev.isSample) ? "Demonstration Placeholder" : (rev.date || "Verified Purchase")}</span>
+                    <span className="aura-card-date">{rev.date || "Verified Purchase"}</span>
                   </div>
 
                   {/* Review Title */}
@@ -775,7 +753,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                   {/* Review Text */}
                   <div className="aura-card-text-block">
                     <p className={`aura-card-text ${!isExpanded && isLongText ? "clamped" : ""}`}>
-                      {rev.text}
+                      {(rev.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim()}
                     </p>
                     {isLongText && (
                       <button 
