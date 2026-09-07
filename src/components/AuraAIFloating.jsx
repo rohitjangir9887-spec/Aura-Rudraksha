@@ -489,7 +489,6 @@ export function AuraAIFloating() {
           setStatusText(statusMsg);
         },
         onChunk: (delta, accumulated, partialData) => {
-          setErrorOccurred(false);
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
@@ -520,7 +519,6 @@ export function AuraAIFloating() {
           });
         },
         onDone: (finalData) => {
-          setErrorOccurred(false);
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;

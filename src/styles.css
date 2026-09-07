@@ -10855,7 +10855,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: linear-gradient(135deg, #2b1408 0%, #150903 100%);
   color: #fffdf9;
   border: 1.2px solid rgba(212, 175, 55, 0.55);
-  padding: 8px 16px 8px 12px;
+  padding: 8px 14px 8px 12px;
   min-height: 48px;
   min-width: 48px;
   border-radius: 999px;
@@ -10979,10 +10979,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-panel-compact {
-  width: min(325px, calc(100vw - 20px));
-  max-width: 325px;
-  height: min(440px, 64svh);
-  max-height: 64svh;
+  width: min(280px, calc(100vw - 24px));
+  max-width: 280px;
+  height: min(430px, 62svh);
+  max-height: 62svh;
   border-radius: 18px;
   box-shadow: 
     0 8px 24px rgba(43, 20, 8, 0.16),
@@ -10993,10 +10993,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 @media (min-width: 1024px) {
   .aura-ai-panel-compact {
-    width: 335px;
+    width: 285px;
     max-width: 85vw;
-    height: 450px;
-    max-height: 68vh;
+    height: 440px;
+    max-height: 66vh;
   }
 }
 
@@ -11431,9 +11431,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
   min-width: 0;
-  overflow: hidden;
 }
 
 .aura-ai-avatar {
@@ -11554,9 +11552,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .aura-ai-header-info {
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-width: 0;
-  overflow: hidden;
 }
 
 .aura-ai-title {
@@ -11567,8 +11563,6 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   font-weight: 700;
   color: #fffdf9;
   line-height: 1.2;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 .aura-ai-badge {
@@ -11582,7 +11576,6 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border-radius: 999px;
   border: 0.8px solid rgba(212, 175, 55, 0.4);
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .aura-ai-status {
@@ -11594,9 +11587,6 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   margin-top: 1px;
   line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .aura-ai-online-dot {
@@ -11605,16 +11595,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border-radius: 50%;
   background: #10b981;
   box-shadow: 0 0 5px #10b981;
-  flex-shrink: 0;
 }
 
 .aura-ai-header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 6px;
+  gap: 3px;
   flex-shrink: 0;
-  z-index: 2;
 }
 
 .aura-ai-btn-icon {

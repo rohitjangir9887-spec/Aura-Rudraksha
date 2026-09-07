@@ -3,6 +3,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Fail fast when MongoDB is offline rather than hanging requests indefinitely
+mongoose.set("bufferCommands", false);
+
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
 if (!cached) {

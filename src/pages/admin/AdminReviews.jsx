@@ -1072,8 +1072,8 @@ export function AdminReviews() {
                     onChange={(e) => setAiGenForm({ ...aiGenForm, aiProvider: e.target.value })}
                     className="aura-input"
                   >
-                    <option value="nvidia">⚡ NVIDIA NIM (Llama 3.3 70B & Nemotron 70B)</option>
-                    <option value="auto">✨ Auto (NVIDIA NIM Primary)</option>
+                    <option value="nvidia">⚡ NVIDIA NIM (nvidia/nemotron-3-super-120b-a12b)</option>
+                    <option value="auto">✨ NVIDIA Nemotron (nemotron-3-super-120b-a12b)</option>
                   </select>
                 </div>
               </div>
