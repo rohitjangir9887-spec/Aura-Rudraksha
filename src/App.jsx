@@ -62,7 +62,7 @@ const CategoryLanding = safeLazy(() => import("./pages/CategoryLanding").then(m 
 const RudrakshaGuide = safeLazy(() => import("./pages/RudrakshaGuide").then(m => ({ default: m.default })));
 const RudrakshaCalculator = safeLazy(() => import("./pages/RudrakshaCalculator").then(m => ({ default: m.default })));
 
-import { AuraAIFloating } from "./components/AuraAIFloating";
+const AuraAIFloating = safeLazy(() => import("./components/AuraAIFloating").then(m => ({ default: m.AuraAIFloating })));
 import { TopLoadingBar } from "./components/TopLoadingBar";
 
 const AdminLogin = safeLazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));

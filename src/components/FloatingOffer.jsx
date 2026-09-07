@@ -7,7 +7,7 @@ import { useActiveOffer } from "../hooks/useActiveOffer";
  * Scroll-based Floating Offer UI for Product Detail page
  */
 export function FloatingOffer({ product = null, hasStickyBar = false }) {
-  const { offer, isActive, timeLeft, copyCoupon } = useActiveOffer(product);
+  const { offer, isActive, timeLeft, copyCoupon } = useActiveOffer(product, { withTimer: true });
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);

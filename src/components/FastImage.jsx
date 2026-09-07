@@ -88,18 +88,6 @@ export function FastImage({
         }}
         {...props}
       />
-      <style>{`
-        @keyframes fastImageSkeletonShimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .fastImageSkeletonShimmer {
-            animation: none !important;
-            background: #eee2d3 !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

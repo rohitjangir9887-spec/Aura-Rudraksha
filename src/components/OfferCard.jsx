@@ -6,7 +6,7 @@ import { useActiveOffer } from "../hooks/useActiveOffer";
  * Premium Offer Card for Product Detail page near price & purchase buttons
  */
 export function OfferCard({ product = null }) {
-  const { offer, isActive, timeLeft, copyCoupon } = useActiveOffer(product);
+  const { offer, isActive, timeLeft, copyCoupon } = useActiveOffer(product, { withTimer: true });
   const [copied, setCopied] = useState(false);
 
   if (!isActive || offer.productPageEnabled === false) return null;

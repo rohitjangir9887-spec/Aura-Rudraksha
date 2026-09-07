@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   Star, Share2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Loader2
 } from "lucide-react";
@@ -35,8 +35,21 @@ export function Product() {
   const shipThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const { isWishlisted, toggleWishlist } = useWishlist();
 
-  // Core product state - check immediate synchronous cache to render instantly without lag
-  const initialProduct = React.useMemo(() => db.getProduct(id), [id]);
+  const location = useLocation();
+  const routeStateProduct = location.state?.product;
+
+  // Core product state - check location state and immediate synchronous cache to render instantly without lag
+  const initialProduct = React.useMemo(() => {
+    if (routeStateProduct) {
+      const match = 
+        String(routeStateProduct.id) === String(id) ||
+        String(routeStateProduct._id) === String(id) ||
+        String(routeStateProduct.slug) === String(id);
+      if (match) return routeStateProduct;
+    }
+    return db.getProduct(id);
+  }, [id, routeStateProduct]);
+
   const [product, setProduct] = useState(initialProduct);
   const [allProducts, setAllProducts] = useState(() => db.getProducts().filter(isPublicProduct));
   const [coupons, setCoupons] = useState(() => db.getCoupons().filter(c => c.status === "Active"));
@@ -63,7 +76,7 @@ export function Product() {
   // Load and subscribe to database updates
   const loadData = async (silent = false) => {
     // If we already have a product rendered, always remain silent (no layout flash)
-    const isSilent = silent || !!db.getProduct(id);
+    const isSilent = silent || !!initialProduct || !!db.getProduct(id);
     if (!isSilent) setLoading(true);
 
     try {

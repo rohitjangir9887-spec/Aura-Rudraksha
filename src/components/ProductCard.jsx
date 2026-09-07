@@ -45,7 +45,10 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots")) {
       return;
     }
-    if (productId) navigate(`/product/${productId}`);
+    if (productId) {
+      if (db.cacheProduct) db.cacheProduct(p);
+      navigate(`/product/${productId}`, { state: { product: p } });
+    }
   };
 
   const handleAddToCart = (e) => {
@@ -80,6 +83,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const offerCode = offer?.couponCode || "";
 
   const handlePreload = () => {
+    if (db.cacheProduct) db.cacheProduct(p);
     prefetchRoute("product");
     if (productId) {
       prefetchPath(`/product/${productId}`);
@@ -91,6 +95,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
       className="aura-shop-card" 
       onClick={handleCardClick}
       onPointerEnter={handlePreload}
+      onTouchStart={handlePreload}
       role="link"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter") handleCardClick(e); }}

@@ -4,7 +4,7 @@ import { useActiveOffer } from "../hooks/useActiveOffer";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function ShopOfferBanner() {
-  const { offer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer();
+  const { offer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer(null, { withTimer: true });
   const [copied, setCopied] = React.useState(false);
 
   // If disabled in admin, don't show

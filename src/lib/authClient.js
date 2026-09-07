@@ -156,19 +156,27 @@ export const authClient = {
     if (auth.currentUser) return true;
     return !!readDemoUser();
   },
+
+  hasCurrentUser: () => {
+    return Boolean(auth.currentUser || readDemoUser());
+  },
   
-  getToken: async (forceRefresh = false) => {
+  getToken: async (forceRefresh = false, waitForAuth = false) => {
     try {
-      if (!auth.currentUser && auth.authStateReady) {
-        await Promise.race([
-          auth.authStateReady(),
-          new Promise((resolve) => setTimeout(resolve, 1500))
-        ]);
-      }
       if (auth.currentUser) {
         return await auth.currentUser.getIdToken(forceRefresh);
       }
       if (readDemoUser()) return "demo-token-123";
+
+      if (waitForAuth && auth.authStateReady) {
+        await Promise.race([
+          auth.authStateReady(),
+          new Promise((resolve) => setTimeout(resolve, 1200))
+        ]);
+        if (auth.currentUser) {
+          return await auth.currentUser.getIdToken(forceRefresh);
+        }
+      }
     } catch (e) {
       console.error("Failed to get Firebase token", e);
     }

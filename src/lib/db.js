@@ -147,7 +147,13 @@ async function apiRequest(endpoint, options = {}) {
     const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || defaultTimeout);
 
     try {
-      const token = await authClient.getToken().catch(() => "");
+      let token = "";
+      if (options.requiresAuth) {
+        token = await authClient.getToken(false, true).catch(() => "");
+      } else if (authClient.hasCurrentUser && authClient.hasCurrentUser()) {
+        token = await authClient.getToken(false, false).catch(() => "");
+      }
+
       const res = await fetch(`${API_BASE}${endpoint}`, {
         signal: controller.signal,
         headers: {
@@ -715,21 +721,33 @@ async function hydrateFromBackend() {
   await fetchHomeData(true);
 }
 
-// Auto-trigger initial home data fetch on load
+// Auto-trigger initial home data fetch on load without blocking critical startup
 if (typeof window !== "undefined" && !isInitialized) {
   isInitialized = true;
   loadCacheFromLocalStorage();
-  fetchHomeData();
 
-  // Sync on tab focus / visibility change without global polling loop
-  window.addEventListener("focus", () => {
-    fetchHomeData();
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
+  // Defer background network synchronization until initial render & paints complete
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(() => {
+      fetchHomeData();
+    }, { timeout: 2000 });
+  } else {
+    setTimeout(() => {
+      fetchHomeData();
+    }, 600);
+  }
+
+  // Sync on tab focus / visibility change with throttling
+  let lastFocusSync = 0;
+  const triggerFocusSync = () => {
+    const now = Date.now();
+    if (now - lastFocusSync > 30000 && document.visibilityState === "visible") {
+      lastFocusSync = now;
       fetchHomeData();
     }
-  });
+  };
+  window.addEventListener("focus", triggerFocusSync);
+  document.addEventListener("visibilitychange", triggerFocusSync);
 }
 
 // ----------------------------------------------------
@@ -738,6 +756,22 @@ if (typeof window !== "undefined" && !isInitialized) {
 export const db = {
   onStoreUpdate: (callback) => onStoreUpdate(callback),
   emitStoreUpdate: (type, payload) => emitStoreUpdate(type, payload),
+
+  // Immediate in-memory cache seeder for instant PDP transitions
+  cacheProduct: (p) => {
+    if (!p) return;
+    const targetId = String(p.id || p._id || p.slug || "");
+    if (!targetId) return;
+    const idx = storeCache.products.findIndex(x => {
+      if (!x) return false;
+      return String(x.id) === targetId || String(x._id) === targetId || String(x.slug) === targetId;
+    });
+    if (idx >= 0) {
+      storeCache.products[idx] = { ...storeCache.products[idx], ...p };
+    } else {
+      storeCache.products.push(p);
+    }
+  },
 
   // Check Database Health
   checkDbHealth: async () => {

@@ -4,7 +4,7 @@ import { emitToast } from "../../context/ToastContext";
 import { useActiveOffer } from "../../hooks/useActiveOffer";
 
 export function CheckoutTopOffer({ activeOffer: propOffer, onApplyCoupon }) {
-  const { offer: hookOffer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer();
+  const { offer: hookOffer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer(null, { withTimer: true });
   const [copied, setCopied] = useState(false);
 
   // Use hook's live offer or fallback to prop

@@ -16873,7 +16873,12 @@ button,
 .mobile-nav a,
 .aura-ai-pill-btn,
 .primary-btn,
-.outline-btn {
+.outline-btn,
+.header button,
+.header a,
+.mobile-menu,
+.mobile-search,
+.brand {
   touch-action: manipulation !important;
   -webkit-tap-highlight-color: transparent !important;
 }
@@ -16892,6 +16897,18 @@ button,
 .mobile-nav a:active {
   transform: scale(0.92) !important;
   transition: transform 0.08s ease-out !important;
+}
+
+@keyframes fastImageSkeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fastImageSkeletonShimmer {
+    animation: none !important;
+    background: #eee2d3 !important;
+  }
 }
 
 

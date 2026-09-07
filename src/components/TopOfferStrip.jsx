@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useActiveOffer } from '../hooks/useActiveOffer';
 
 export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
-  const { offer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer();
+  const { offer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer(null, { withTimer: true });
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 

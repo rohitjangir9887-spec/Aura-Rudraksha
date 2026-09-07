@@ -165,23 +165,6 @@ export function Home() {
   }
   const [loadedBanners, setLoadedBanners] = useState({});
 
-  // Preload all hero banner images into browser cache
-  useEffect(() => {
-    if (!activeBanners || activeBanners.length === 0) return;
-    activeBanners.forEach((src, idx) => {
-      if (src && typeof window !== "undefined") {
-        const img = new Image();
-        img.src = src;
-        img.onload = () => {
-          setLoadedBanners(prev => ({ ...prev, [idx]: true }));
-        };
-        img.onerror = () => {
-          setLoadedBanners(prev => ({ ...prev, [idx]: true }));
-        };
-      }
-    });
-  }, [activeBanners]);
-
   useEffect(() => {
     if (activeBanners.length <= 1) return;
     const interval = setInterval(() => {

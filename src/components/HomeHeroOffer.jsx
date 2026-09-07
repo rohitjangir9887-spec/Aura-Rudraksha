@@ -9,7 +9,7 @@ import { useActiveOffer } from "../hooks/useActiveOffer";
  * and the synchronized Countdown Timer elegantly placed below.
  */
 export function HomeHeroOffer() {
-  const { offer, isActive, timeLeft, copyCoupon } = useActiveOffer();
+  const { offer, isActive, timeLeft, copyCoupon } = useActiveOffer(null, { withTimer: true });
   const [copied, setCopied] = useState(false);
 
   if (!isActive || offer?.heroEnabled === false) return null;

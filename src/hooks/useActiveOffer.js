@@ -97,7 +97,9 @@ function execCommandFallback(text) {
  * Custom hook to get the single central active offer with live countdown,
  * product-specific override support, category/product applicability checks, auto-expiry, and live updates.
  */
-export function useActiveOffer(product = null) {
+export function useActiveOffer(product = null, options = {}) {
+  const withTimer = options?.withTimer === true;
+
   const [offer, setOffer] = useState(() => {
     if (product && product.customOffer && product.customOffer.enabled) {
       return product.customOffer;
@@ -143,9 +145,9 @@ export function useActiveOffer(product = null) {
     return () => unsub();
   }, [refreshOffer]);
 
-  // Live 1000ms countdown timer that automatically halts when expired
+  // Live 1000ms countdown timer that automatically halts when expired (only run if withTimer is true)
   useEffect(() => {
-    if (!offer) return;
+    if (!withTimer || !offer) return;
     const expiry = getExpiryDate(offer);
     if (!expiry) {
       setTimeLeft({ days: "00", hours: "00", minutes: "00", seconds: "00", totalSeconds: 0, isExpired: false });
@@ -168,7 +170,7 @@ export function useActiveOffer(product = null) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [offer?.expiryDate, offer?.expiresAt, offer?.expiry]);
+  }, [withTimer, offer?.expiryDate, offer?.expiresAt, offer?.expiry]);
 
   // Determine active status:
   // Must be enabled, status === 'Active', started, NOT expired, and applicable to product
