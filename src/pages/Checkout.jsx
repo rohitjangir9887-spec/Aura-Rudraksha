@@ -428,7 +428,7 @@ export function Checkout() {
     });
 
     document.body.appendChild(form);
-    window.history.replaceState(null, "", `/payment-result?status=processing&orderId=${params.udf1}&txnid=${params.txnid}`);
+    window.history.replaceState({ auraSafeNav: true, page: "home" }, "", "/");
     form.submit();
   };
 

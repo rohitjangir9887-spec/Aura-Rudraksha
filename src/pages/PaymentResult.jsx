@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
-import { AlertCircle, ShieldCheck, Truck, RefreshCw, Loader2 } from "lucide-react";
+import { AlertCircle, ShieldCheck, RefreshCw, Loader2 } from "lucide-react";
 import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
@@ -32,16 +32,17 @@ export function PaymentResult() {
         return;
       }
       try {
-        const res = await db.verifyPayment(orderId, txnid);
+        let res = await db.verifyPayment(orderId, txnid);
+        // If query param indicated success but server state transition is mid-flight, retry once after a brief interval
+        if (res?.data?.paymentStatus !== "Paid" && status === "success") {
+          await new Promise((r) => setTimeout(r, 1500));
+          res = await db.verifyPayment(orderId, txnid);
+        }
+
         if (res?.success && res.data) {
           setOrder(res.data);
-          
-          // Auto-redirect for SUCCESS after a delay
-          if (res.data.paymentStatus === "Paid" && (status === "success" || status === "processing")) {
+          if (res.data.paymentStatus === "Paid") {
             clear(); // Clear cart only on confirmed success
-            setTimeout(() => {
-               navigate(`/account/orders/${orderId}`, { replace: true });
-            }, 6000);
           }
         }
       } catch (err) {
@@ -55,7 +56,41 @@ export function PaymentResult() {
        verifyAttempted.current = true;
        verify();
     }
-  }, [orderId, txnid, navigate, status]);
+  }, [orderId, txnid, clear, status]);
+
+  // Authoritative server-verified payment success
+  const isVerifiedSuccess = order?.paymentStatus === "Paid";
+
+  // After verified successful payment, configure the browser history stack:
+  // 1. Success page becomes the final safe destination in browser history.
+  // 2. Pressing Android / browser Back from the success page navigates to Aura Rudraksha Home ('/').
+  // 3. User never navigates back to PayU gateway, payment form, or intermediate URLs.
+  useEffect(() => {
+    if (!isVerifiedSuccess || !orderId) return;
+
+    const currentUrl = window.location.pathname + window.location.search;
+
+    // Only establish the history boundary once to avoid redundant stack entries
+    if (!window.history.state?.auraPaymentSuccess) {
+      window.history.replaceState({ auraSafeNav: true, page: "home" }, "", "/");
+      window.history.pushState(
+        { auraPaymentSuccess: true, orderId: order?.id || orderId },
+        "",
+        currentUrl
+      );
+    }
+
+    const handlePopState = () => {
+      // When Android or browser Back is pressed from the verified success screen,
+      // navigate safely to Aura Rudraksha Home UI.
+      navigate("/", { replace: true });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [isVerifiedSuccess, orderId, order?.id, navigate]);
 
   const handleRetry = async () => {
     if (!orderId) return;
@@ -102,9 +137,7 @@ export function PaymentResult() {
     );
   }
 
-  const isSuccess = order?.paymentStatus === "Paid" || status === "success";
-
-  if (isSuccess) {
+  if (isVerifiedSuccess) {
     const orderNum = order?.orderNumber || order?.id || orderId;
     const finalTxnid = order?.txnid || txnid || "Verified";
     return (

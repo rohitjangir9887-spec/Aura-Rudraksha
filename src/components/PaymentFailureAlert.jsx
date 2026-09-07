@@ -115,9 +115,7 @@ export function PaymentFailureAlert() {
           form.appendChild(input);
         });
         document.body.appendChild(form);
-
-        window.history.replaceState(null, "", `/payment-result?status=processing&orderId=${res.data.params.udf1}&txnid=${res.data.params.txnid}`);
-
+        window.history.replaceState({ auraSafeNav: true, page: "orders" }, "", "/account/orders");
         form.submit();
       } else {
         emitToast(res?.message || "Unable to connect to PayU Gateway.", "error");
