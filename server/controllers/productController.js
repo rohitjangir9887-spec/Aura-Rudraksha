@@ -13,6 +13,9 @@ const PRODUCT_FIELDS = {
   description: "richText", category: "string", subCategory: "string", images: "url[]", img: "url",
   stock: "number", status: "string", tags: "string[]", keywords: "string[]", searchKeywords: "string[]",
   highlight: "string", badge: "string", homeBadge: "string", showOnHome: "bool", homeOrder: "number",
+  displayOrder: "number", sortOrder: "number", productType: "string", isRudraksha: "bool",
+  material: "string", netWeight: "string", purity: "string", sanctification: "string",
+  usageGuide: "string", hasCertificate: "bool",
   isPopular: "bool", rating: "number", reviews: "number", reviewCount: "number",
   customOffer: "object", origin: "string", hasIndonesianVariant: "bool",
   indonesianTitle: "string", indonesianPrice: "number", indonesianMrp: "number",
@@ -531,4 +534,41 @@ export async function deleteProduct(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * Batch reorder products (for both Home and Shop displays)
+ */
+export async function reorderProducts(req, res, next) {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "Invalid items array for reordering" });
+    }
+
+    const updates = [];
+    for (const item of items) {
+      if (!item || !item.id) continue;
+      const cleanId = String(item.id).trim();
+      const updateData = {};
+      if (typeof item.sortOrder === "number") updateData.sortOrder = item.sortOrder;
+      if (typeof item.displayOrder === "number") updateData.displayOrder = item.displayOrder;
+      if (typeof item.homeOrder === "number") updateData.homeOrder = item.homeOrder;
+      if (typeof item.showOnHome === "boolean") updateData.showOnHome = item.showOnHome;
+
+      if (Object.keys(updateData).length > 0) {
+        updates.push(
+          Product.findOneAndUpdate({ id: cleanId }, { $set: updateData }, { new: true })
+        );
+      }
+    }
+
+    await Promise.all(updates);
+    invalidateRagCache();
+
+    return res.json({ success: true, message: "Product sequence updated successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
 

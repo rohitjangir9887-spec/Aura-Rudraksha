@@ -1,5 +1,6 @@
 import React from "react";
-import { Check, Sparkles, Globe, Award, ShieldCheck } from "lucide-react";
+import { Check, Sparkles, Globe, Award, ShieldCheck, Leaf } from "lucide-react";
+import { isRudrakshaProduct } from "../../lib/productHelper";
 
 export function ProductVariantSelector({ 
   product, 
@@ -12,7 +13,8 @@ export function ProductVariantSelector({
 }) {
   if (!product) return null;
 
-  const hasIndonesian = !!product.hasIndonesianVariant || (Number(product.indonesianPrice) > 0);
+  const isRudraksha = isRudrakshaProduct(product);
+  const hasIndonesian = isRudraksha && (!!product.hasIndonesianVariant || (Number(product.indonesianPrice) > 0));
   const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
   const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
 
@@ -21,7 +23,7 @@ export function ProductVariantSelector({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
-      {/* 1. Origin Selector (Nepal vs Indonesian) */}
+      {/* 1. Origin Selector (Nepal vs Indonesian) - ONLY for Rudraksha beads */}
       {hasIndonesian && (
         <div className="aura-origin-selector-container" style={{
           background: '#fffbf5',
@@ -129,7 +131,7 @@ export function ProductVariantSelector({
       {hasVariants && (
         <div className="aura-variant-selector-block">
           <label className="aura-variant-label">
-            Select Bead / Variant Option:
+            {isRudraksha ? "Select Bead / Option:" : "Select Pack / Quantity:"}
           </label>
           <div className="aura-variant-chips">
             {product.variants.map((v, idx) => {
@@ -152,11 +154,11 @@ export function ProductVariantSelector({
         </div>
       )}
 
-      {/* 3. Sizes if present */}
+      {/* 3. Sizes / Quantity if present */}
       {hasSizes && (
         <div className="aura-variant-selector-block">
           <label className="aura-variant-label">
-            Select Bead Dimension:
+            {isRudraksha ? "Select Bead Dimension:" : "Select Quantity / Size:"}
           </label>
           <div className="aura-variant-chips">
             {product.sizes.map((s, idx) => {
@@ -178,20 +180,24 @@ export function ProductVariantSelector({
         </div>
       )}
 
-      {/* Single Authentic Bead specification showcase */}
+      {/* Single Authentic Specification showcase */}
       {!hasVariants && !hasSizes && (
         <div className="aura-natural-spec-chip">
-          <div className="spec-icon-box">📿</div>
+          <div className="spec-icon-box">{isRudraksha ? "📿" : "🪔"}</div>
           <div className="spec-text-box">
             <span className="spec-title">
-              {selectedOrigin === "Indonesia" ? "AUTHENTIC JAVA / INDONESIAN BEAD SPECIFICATION" : "AUTHENTIC HIMALAYAN SEED SPECIFICATION"}
+              {isRudraksha 
+                ? (selectedOrigin === "Indonesia" ? "AUTHENTIC JAVA / INDONESIAN BEAD SPECIFICATION" : "AUTHENTIC HIMALAYAN SEED SPECIFICATION")
+                : "100% PURE & VEDIC SANCTIFIED SPECIFICATION"}
             </span>
             <span className="spec-desc">
               <strong>
-                {selectedOrigin === "Indonesia"
-                  ? (product.indonesianSize || "Small Java Bead (10–14 mm)")
-                  : (product.size || "Authentic Nepal Size (16–20 mm)")}
-              </strong> • 100% Genuine, Natural &amp; Energized
+                {isRudraksha 
+                  ? (selectedOrigin === "Indonesia"
+                      ? (product.indonesianSize || "Small Java Bead (10–14 mm)")
+                      : (product.size || "Authentic Nepal Size (16–20 mm)"))
+                  : (product.netWeight || product.size || "Auspicious Devotional Grade (100% Pure)")}
+              </strong> • {isRudraksha ? "100% Genuine, Natural & Energized" : "100% Pure, Natural & Sanctified"}
             </span>
           </div>
         </div>
@@ -199,3 +205,4 @@ export function ProductVariantSelector({
     </div>
   );
 }
+

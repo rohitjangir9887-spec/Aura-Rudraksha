@@ -1422,16 +1422,46 @@ export async function generateProductDescription(req, res, next) {
     const targetLanguage = language || "English";
     const cleanName = name.trim();
 
+    const isNonRudrakshaCategory = (cat, title) => {
+      const lowerCat = (cat || "").toLowerCase();
+      const lowerTitle = (title || "").toLowerCase();
+      if (lowerCat.includes("puja") || lowerCat.includes("samagri") || lowerCat.includes("hawan") || lowerCat.includes("agarbatti") || lowerCat.includes("dhoop") || lowerCat.includes("camphor") || lowerCat.includes("essential") || lowerCat.includes("crystal") || lowerCat.includes("yantra") || lowerCat.includes("idol")) return true;
+      if (lowerTitle.includes("puja") || lowerTitle.includes("samagri") || lowerTitle.includes("hawan") || lowerTitle.includes("agarbatti") || lowerTitle.includes("dhoop") || lowerTitle.includes("kapoor") || lowerTitle.includes("camphor") || lowerTitle.includes("chandan") || lowerTitle.includes("kumkum") || lowerTitle.includes("ganga jal") || lowerTitle.includes("ghee") || lowerTitle.includes("diya") || lowerTitle.includes("yantra")) return true;
+      return false;
+    };
+
+    const isPujaSamagri = isNonRudrakshaCategory(category, cleanName);
+
     const inferCategoryFromTitle = (title) => {
       const lower = title.toLowerCase();
       if (lower.includes("mala") || lower.includes("rosary") || lower.includes("108")) return "Malas";
       if (lower.includes("bracelet") || lower.includes("kada") || lower.includes("wrist")) return "Bracelets";
       if (lower.includes("gauri shankar") || lower.includes("gaurishankar")) return "Gauri Shankar";
-      if (lower.includes("puja") || lower.includes("pooja") || lower.includes("samagri")) return "Puja Samagri";
+      if (lower.includes("puja") || lower.includes("pooja") || lower.includes("samagri") || lower.includes("hawan") || lower.includes("dhoop") || lower.includes("kapoor") || lower.includes("camphor") || lower.includes("agarbatti") || lower.includes("chandan")) return "Puja Samagri";
+      if (lower.includes("crystal") || lower.includes("sphatik") || lower.includes("pyramid")) return "Crystals";
       return "Rudraksha";
     };
 
     const suggestedCategory = category && category !== "Rudraksha" ? category : inferCategoryFromTitle(cleanName);
+    const isCategoryPuja = isNonRudrakshaCategory(suggestedCategory, cleanName);
+
+    const promptHeadings = isCategoryPuja
+      ? `Use these structured headings exactly (enclosed in h2):
+<h2>✨ About the Sacred Product</h2>
+<h2>🌿 100% Pure & Natural Ingredients</h2>
+<h2>🪔 Sacred Usage & Puja Vidhi</h2>
+<h2>🙏 Spiritual Significance & Benefits</h2>
+<h2>📦 Storage & Sacred Guidelines</h2>`
+      : `Use these structured headings exactly (enclosed in h2):
+<h2>✨ About the Product</h2>
+<h2>📿 Product Highlights</h2>
+<h2>🌿 Spiritual Significance</h2>
+<h2>🙏 Suitable For</h2>
+<h2>🕉️ How to Wear & Care</h2>`;
+
+    const systemRole = isCategoryPuja
+      ? "You are an expert Vedic ritual specialist and copywriting expert for Aura spiritual store. Write authentic, pure, high-converting product descriptions for sacred Puja Samagri & spiritual essentials in clean HTML without mentioning Rudraksha Mukhi or certificates unless it is actually a bead."
+      : "You are an expert sales representative and Vedic spiritual guide for Aura Rudraksha. Write persuasive, authentic product descriptions in clean HTML.";
 
     const nvidiaClient = getNvidiaClient();
     if (nvidiaClient) {
@@ -1442,17 +1472,12 @@ export async function generateProductDescription(req, res, next) {
             messages: [
               {
                 role: "system",
-                content: "You are an expert sales representative and Vedic spiritual guide for Aura Rudraksha. Write persuasive, authentic product descriptions in clean HTML."
+                content: systemRole
               },
               {
                 role: "user",
                 content: `Generate a professional product description in clean HTML for "${cleanName}" (${suggestedCategory}) in ${targetLanguage}.
-Use these structured headings exactly (enclosed in h2):
-<h2>✨ About the Product</h2>
-<h2>📿 Product Highlights</h2>
-<h2>🌿 Spiritual Significance</h2>
-<h2>🙏 Suitable For</h2>
-<h2>🕉️ How to Wear & Care</h2>
+${promptHeadings}
 Output ONLY the pure HTML body itself.`
               }
             ],
@@ -1468,9 +1493,14 @@ Output ONLY the pure HTML body itself.`
             const resultData = {
               description: cleanHtml,
               category: suggestedCategory,
-              highlight: "100% Consecrated • Authentic Nepal Bead",
-              badge: "Best Seller",
-              tags: [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
+              productType: isCategoryPuja ? "puja_samagri" : "rudraksha",
+              isRudraksha: !isCategoryPuja,
+              hasCertificate: !isCategoryPuja,
+              highlight: isCategoryPuja ? "100% Pure & Natural • Vedic Sanctified" : "100% Consecrated • Authentic Nepal Bead",
+              badge: isCategoryPuja ? "100% Pure" : "Best Seller",
+              tags: isCategoryPuja 
+                ? [suggestedCategory, "100% Pure", "Vedic Sanctified", "Natural"]
+                : [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
             };
             return res.json({
               success: true,
@@ -1490,13 +1520,9 @@ Output ONLY the pure HTML body itself.`
       try {
         const geminiRes = await geminiAi.models.generateContent({
           model: "gemini-2.5-flash",
-          contents: `You are a Vedic Rudraksha master copywriter. Generate a sacred, high-converting product description for "${cleanName}" (${category || 'Rudraksha'}).
-Use exactly these structured headings enclosed in h2:
-<h2>✨ About the Product</h2>
-<h2>📿 Product Highlights</h2>
-<h2>🌿 Spiritual Significance</h2>
-<h2>🙏 Suitable For</h2>
-<h2>🕉️ How to Wear & Care</h2>
+          contents: `${systemRole}
+Generate a sacred, high-converting product description for "${cleanName}" (${suggestedCategory}).
+${promptHeadings}
 Output ONLY valid HTML body.`
         });
         const gText = cleanServerAiText(geminiRes?.text || "");
@@ -1504,9 +1530,14 @@ Output ONLY valid HTML body.`
           const resultData = {
             description: gText,
             category: suggestedCategory,
-            highlight: "100% Consecrated • Authentic Nepal Bead",
-            badge: "Best Seller",
-            tags: [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
+            productType: isCategoryPuja ? "puja_samagri" : "rudraksha",
+            isRudraksha: !isCategoryPuja,
+            hasCertificate: !isCategoryPuja,
+            highlight: isCategoryPuja ? "100% Pure & Natural • Vedic Sanctified" : "100% Consecrated • Authentic Nepal Bead",
+            badge: isCategoryPuja ? "100% Pure" : "Best Seller",
+            tags: isCategoryPuja 
+              ? [suggestedCategory, "100% Pure", "Vedic Sanctified", "Natural"]
+              : [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
           };
           return res.json({
             success: true,
@@ -1519,14 +1550,21 @@ Output ONLY valid HTML body.`
       }
     }
 
-    const fallbackDesc = `<h2>✨ About the Product</h2><p>Original 100% authentic, lab-certified ${cleanName} sourced directly from sacred high-altitude groves of Nepal.</p><h2>📿 Product Highlights</h2><p>Natural Mukhi lines, X-Ray tested, smooth bead texture, and pre-energized with Vedic Shiva Mantras in Haridwar.</p><h2>🌿 Spiritual Significance</h2><p>Attracts peace, clarity, protection from negative energies, and spiritual awakening.</p><h2>🙏 Suitable For</h2><p>Devotees, professionals, students, and meditation practitioners seeking positivity.</p><h2>🕉️ How to Wear & Care</h2><p>Purify with holy Ganga Jal or raw milk on Monday morning, chant 'Om Namah Shivaya' 108 times, and wear with reverence.</p>`;
+    const fallbackDesc = isCategoryPuja
+      ? `<h2>✨ About the Sacred Product</h2><p>100% pure, natural and sanctified ${cleanName} prepared with authentic Vedic ingredients for auspicious daily pujas, aartis, and spiritual ceremonies.</p><h2>🌿 100% Pure & Natural Ingredients</h2><p>Free from synthetic adulterants, artificial fragrance, or harsh chemicals. Prepared ethically according to traditional scriptures.</p><h2>🪔 Sacred Usage & Puja Vidhi</h2><p>Ideal for daily home puja, festive aartis, Hawan, Temple rituals, and meditation space purification.</p><h2>🙏 Spiritual Significance & Benefits</h2><p>Purifies atmospheric energy, invites positive vibrations, and invokes divine peace and prosperity in your home.</p><h2>📦 Storage & Sacred Guidelines</h2><p>Store in a clean, sacred place away from moisture in an airtight container to preserve freshness and natural aroma.</p>`
+      : `<h2>✨ About the Product</h2><p>Original 100% authentic, lab-certified ${cleanName} sourced directly from sacred high-altitude groves of Nepal.</p><h2>📿 Product Highlights</h2><p>Natural Mukhi lines, X-Ray tested, smooth bead texture, and pre-energized with Vedic Shiva Mantras in Haridwar.</p><h2>🌿 Spiritual Significance</h2><p>Attracts peace, clarity, protection from negative energies, and spiritual awakening.</p><h2>🙏 Suitable For</h2><p>Devotees, professionals, students, and meditation practitioners seeking positivity.</p><h2>🕉️ How to Wear & Care</h2><p>Purify with holy Ganga Jal or raw milk on Monday morning, chant 'Om Namah Shivaya' 108 times, and wear with reverence.</p>`;
     
     const fallbackResult = {
       description: fallbackDesc,
       category: suggestedCategory,
-      highlight: "100% Consecrated • Authentic Nepal Bead",
-      badge: "Best Seller",
-      tags: [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
+      productType: isCategoryPuja ? "puja_samagri" : "rudraksha",
+      isRudraksha: !isCategoryPuja,
+      hasCertificate: !isCategoryPuja,
+      highlight: isCategoryPuja ? "100% Pure & Natural • Vedic Sanctified" : "100% Consecrated • Authentic Nepal Bead",
+      badge: isCategoryPuja ? "100% Pure" : "Best Seller",
+      tags: isCategoryPuja 
+        ? [suggestedCategory, "100% Pure", "Vedic Sanctified", "Natural"]
+        : [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
     };
     return res.json({
       success: true,

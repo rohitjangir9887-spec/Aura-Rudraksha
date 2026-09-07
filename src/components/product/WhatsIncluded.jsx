@@ -1,8 +1,11 @@
 import React from "react";
-import { Package, Award, Droplets, BookOpen, ShieldCheck, Gift } from "lucide-react";
+import { Package, Award, Droplets, BookOpen, ShieldCheck, Gift, Leaf, Sparkles } from "lucide-react";
+import { isRudrakshaProduct } from "../../lib/productHelper";
 
 export function WhatsIncluded({ product }) {
-  const items = [
+  const isRudraksha = isRudrakshaProduct(product);
+
+  const items = isRudraksha ? [
     {
       icon: <Gift size={22} className="inc-icon" />,
       title: product?.name || "1x Authentic Sacred Rudraksha Bead",
@@ -10,7 +13,7 @@ export function WhatsIncluded({ product }) {
     },
     {
       icon: <Award size={22} className="inc-icon" />,
-      title: "1x Government Recognized Lab Certificate",
+      title: product?.hasCertificate !== false ? "1x Government Recognized Lab Certificate" : "1x Certificate of Authenticity",
       desc: "Physical laminated card with unique specimen identification number and gemological testing stamp."
     },
     {
@@ -33,6 +36,37 @@ export function WhatsIncluded({ product }) {
       title: "1x Tamper-Proof Protective Packaging",
       desc: "Heavy-duty shock-absorbing outer box with secure hologram seal for 100% transit safety."
     }
+  ] : [
+    {
+      icon: <Gift size={22} className="inc-icon" />,
+      title: product?.name || "1x Pure Puja Samagri Pack",
+      desc: "100% natural and authentic devotional preparation crafted according to authentic Vedic rituals."
+    },
+    {
+      icon: <ShieldCheck size={22} className="inc-icon" />,
+      title: "1x Vedic Purity & Sattvic Quality Seal",
+      desc: "Assured free from artificial chemicals, toxic residue, animal fats, and synthetic perfumes."
+    },
+    {
+      icon: <Droplets size={22} className="inc-icon" />,
+      title: "1x Consecrated Ganga Jal / Chandan Blessing",
+      desc: "Sanctified with holy Ganga Jal and Vedic Stotras before being sealed for shipment."
+    },
+    {
+      icon: <Package size={22} className="inc-icon" />,
+      title: "1x Airtight Aroma-Lock Protective Box",
+      desc: "Hermetically sealed packaging to keep the divine natural fragrance fresh and long-lasting."
+    },
+    {
+      icon: <BookOpen size={22} className="inc-icon" />,
+      title: "1x Vedic Ritual & Aarti Usage Guide",
+      desc: "Clear step-by-step instructions for auspicious daily mandir offering, hawan, and mantra chanting."
+    },
+    {
+      icon: <ShieldCheck size={22} className="inc-icon" />,
+      title: "1x Secure Tamper-Evident Delivery Box",
+      desc: "Aura tamper-proof transit casing ensuring 100% damage-free delivery to your doorstep."
+    }
   ];
 
   return (
@@ -53,3 +87,4 @@ export function WhatsIncluded({ product }) {
     </div>
   );
 }
+

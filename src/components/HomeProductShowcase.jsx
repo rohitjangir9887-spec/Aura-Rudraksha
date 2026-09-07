@@ -11,6 +11,7 @@ import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
 import { isPublicProduct } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
+import { sortProductsByHomeOrder } from "../lib/productHelper";
 
 // Authentic Devotee Avatars
 const DEVOTEE_AVATARS = [
@@ -316,14 +317,8 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
 
   // Filter products that admin explicitly enabled for Home Page Showcase
   const homeProducts = useMemo(() => {
-    return products
-      .filter(p => p.showOnHome !== false && isPublicProduct(p))
-      .sort((a, b) => {
-        const orderA = a.homeOrder !== undefined && a.homeOrder > 0 ? a.homeOrder : 999;
-        const orderB = b.homeOrder !== undefined && b.homeOrder > 0 ? b.homeOrder : 999;
-        if (orderA !== orderB) return orderA - orderB;
-        return (b.rating || 0) - (a.rating || 0);
-      });
+    const activeHomeProds = products.filter(p => p.showOnHome !== false && isPublicProduct(p));
+    return sortProductsByHomeOrder(activeHomeProds);
   }, [products]);
 
   // Compute sub-filters for easy user discovery

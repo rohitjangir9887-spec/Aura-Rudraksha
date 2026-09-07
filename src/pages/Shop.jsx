@@ -6,6 +6,7 @@ import { searchAndRankProducts } from "../lib/searchUtils";
 import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
+import { sortProductsByCatalogOrder } from "../lib/productHelper";
 import { 
   ChevronLeft, 
   ChevronDown, 
@@ -26,9 +27,10 @@ import "./Shop.css";
 
 const CATEGORY_CHIPS = [
   { id: "all", label: "All Items" },
-  { id: "mukhi", label: "1 to 7 Mukhi" },
+  { id: "mukhi", label: "1 to 14 Mukhi" },
   { id: "gauri", label: "Gauri Shankar" },
-  { id: "mala", label: "Malas" },
+  { id: "mala", label: "Malas & Bracelets" },
+  { id: "puja", label: "Puja Samagri" },
   { id: "offers", label: "Special Offers" },
 ];
 
@@ -167,13 +169,14 @@ export function Shop() {
 
   // Compute category counts for chips
   const chipCounts = useMemo(() => {
-    const counts = { all: products.length, mukhi: 0, gauri: 0, mala: 0, offers: 0 };
+    const counts = { all: products.length, mukhi: 0, gauri: 0, mala: 0, puja: 0, offers: 0 };
     products.forEach(p => {
       const name = (p?.name || "").toLowerCase();
       const cat = (p?.category || "").toLowerCase();
       if (/mukhi/i.test(name) || /mukhi|rudraksha/i.test(cat)) counts.mukhi++;
       if (/gauri/i.test(name) || /gauri/i.test(cat)) counts.gauri++;
-      if (/mala/i.test(name) || /mala/i.test(cat)) counts.mala++;
+      if (/mala|bracelet/i.test(name) || /mala|bracelet/i.test(cat)) counts.mala++;
+      if (/puja|samagri|camphor|kapoor|dhoop|agarbatti|hawan|chandan|ghee|diya/i.test(name) || /puja|samagri|essential/i.test(cat)) counts.puja++;
       if ((p?.discountPercent && p.discountPercent > 0) || (p?.mrp && p.mrp > p.price) || p?.customOffer?.enabled) {
         counts.offers++;
       }
@@ -196,7 +199,8 @@ export function Shop() {
     }
     if (chip === "mukhi") next = next.filter(p => /mukhi/i.test(p?.name || "") || (p?.mukhi && p.mukhi.trim().length > 0) || (p?.category && /mukhi|rudraksha/i.test(p.category)));
     if (chip === "gauri") next = next.filter(p => /gauri/i.test(p?.name || "") || (p?.mukhi && /gauri/i.test(p.mukhi)) || (p?.category && /gauri/i.test(p.category)));
-    if (chip === "mala") next = next.filter(p => /mala/i.test(p?.name || "") || (p?.subCategory && /mala/i.test(p.subCategory)) || (p?.category && /mala/i.test(p.category)));
+    if (chip === "mala") next = next.filter(p => /mala|bracelet/i.test(p?.name || "") || (p?.subCategory && /mala|bracelet/i.test(p.subCategory)) || (p?.category && /mala|bracelet/i.test(p.category)));
+    if (chip === "puja") next = next.filter(p => /puja|samagri|camphor|kapoor|dhoop|agarbatti|hawan|chandan|ghee|diya/i.test(p?.name || "") || (p?.category && /puja|samagri|essential/i.test(p.category)));
     if (chip === "offers") {
       next = next.filter(p => 
         (p?.discountPercent && p.discountPercent > 0) || 
@@ -216,10 +220,18 @@ export function Shop() {
       next = next.filter(p => (Number(p.price) || 0) > 10000);
     }
 
-    if (filter === "price-low") next.sort((a,b) => (Number(a.price) || 0) - (Number(b.price) || 0));
-    if (filter === "price-high") next.sort((a,b) => (Number(b.price) || 0) - (Number(a.price) || 0));
-    if (filter === "rating") next.sort((a,b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
-    if (filter === "popular") next.sort((a,b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
+    if (filter === "price-low") {
+      next.sort((a,b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    } else if (filter === "price-high") {
+      next.sort((a,b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    } else if (filter === "rating") {
+      next.sort((a,b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
+    } else if (filter === "popular") {
+      next.sort((a,b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
+    } else {
+      // Default: respect admin displayOrder / sortOrder followed by Mukhi / category ordering
+      next = sortProductsByCatalogOrder(next);
+    }
     
     return next;
   }, [products, filter, chip, priceRange, q, categoryParam]);
