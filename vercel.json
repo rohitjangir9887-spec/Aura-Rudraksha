@@ -23,6 +23,11 @@
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.js" },
+    { "source": "/sitemap.xml", "destination": "/api/index.js" },
+    { "source": "/robots.txt", "destination": "/api/index.js" },
+    { "source": "/google-merchant-feed.xml", "destination": "/api/index.js" },
+    { "source": "/merchant-feed.xml", "destination": "/api/index.js" },
+    { "source": "/indexnow-key.txt", "destination": "/api/index.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
