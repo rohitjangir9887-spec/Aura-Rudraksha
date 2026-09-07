@@ -215,6 +215,7 @@ export function createApp() {
   // API Routes Mount
   app.use("/api/upload", requireDb, uploadRoute);
   app.use("/api/admin/storage", requireDb, uploadRoute);
+  app.use("/api/admin/me", requireDb, authRoute);
   app.use("/api/cart", requireDb, cartRoute);
   app.use("/api/products", requireDb, productsRoute);
   app.use("/api/orders", requireDb, noCacheMiddleware, ordersRoute);

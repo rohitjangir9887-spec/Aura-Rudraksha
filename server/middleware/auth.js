@@ -65,35 +65,7 @@ if (!getApps().length) {
 // In Production/Vercel environments, it is strictly forbidden and permanently disabled.
 // ---------------------------------------------------------------------------
 export function devFallbackAllowed() {
-  const nodeEnv = (process.env.NODE_ENV || "").trim().toLowerCase();
-  const vercelEnv = (process.env.VERCEL_ENV || "").trim().toLowerCase();
-  const isVercel = Boolean(process.env.VERCEL && process.env.VERCEL !== "0");
-
-  // Production or cloud deployment environments must NEVER allow fallback under any circumstances
-  if (
-    nodeEnv === "production" ||
-    vercelEnv === "production" ||
-    vercelEnv === "preview" ||
-    (isVercel && nodeEnv !== "development")
-  ) {
-    return false;
-  }
-
-  // Development auth fallback can ONLY activate when:
-  // NODE_ENV !== "production" AND ALLOW_DEV_AUTH_FALLBACK === "true"
-  return nodeEnv !== "production" && process.env.ALLOW_DEV_AUTH_FALLBACK === "true";
-}
-
-function applyDevFallbackUser(req) {
-  const devEmail = (process.env.INITIAL_ADMIN_EMAIL || "admin@aurarudraksha.com").trim().toLowerCase();
-  const devPhone = (process.env.INITIAL_ADMIN_PHONE || "+919672996531").trim();
-  req.user = {
-    authUserId: "admin-dev-user",
-    email: devEmail,
-    phone: devPhone,
-    name: "Aura Dev Admin",
-    picture: ""
-  };
+  return false;
 }
 
 export async function requireAuth(req, res, next) {
@@ -101,13 +73,7 @@ export async function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
-      if (token && token !== "null" && token !== "undefined") {
-        // Fast path for development/preview admin tokens (ONLY allowed if dev fallback is explicitly permitted)
-        if (devFallbackAllowed() && (token === "preview-admin" || token === "demo-token" || token === "demo-token-123" || token.startsWith("admin_"))) {
-          applyDevFallbackUser(req);
-          return next();
-        }
-
+      if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123" && token !== "preview-admin" && !token.startsWith("admin_")) {
         try {
           // Verify Firebase ID Token
           const decodedToken = await getAuth().verifyIdToken(token);
@@ -121,15 +87,8 @@ export async function requireAuth(req, res, next) {
           return next();
         } catch (err) {
           console.warn("[Auth] Firebase token verification failed:", err?.message || err);
-          // When token verification fails, do not trust unverified JWT payloads
         }
       }
-    }
-
-    // Explicit development fallback ONLY when explicitly configured
-    if (devFallbackAllowed()) {
-      applyDevFallbackUser(req);
-      return next();
     }
 
     return res.status(401).json({ success: false, message: "Authentication required" });
@@ -212,10 +171,6 @@ export async function requireAdmin(req, res, next) {
 async function checkAdmin(req, res, next) {
   try {
     if (!req.user) {
-      if (devFallbackAllowed()) {
-        applyDevFallbackUser(req);
-        return next();
-      }
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
@@ -226,10 +181,6 @@ async function checkAdmin(req, res, next) {
     const hasAdminAccess = isInitialAdmin || dbAdminRole;
 
     if (!hasAdminAccess) {
-      // Ensure any non-admin record with role: "admin" is demoted if neither initial admin nor valid DB admin
-      if (mongoose.connection.readyState === 1) {
-        await Customer.updateOne({ authUserId, role: "admin" }, { $set: { role: "customer" } }).catch(() => {});
-      }
       return res.status(403).json({ 
         success: false, 
         message: "Access Denied: Admin authorization required."
@@ -259,9 +210,6 @@ async function checkAdmin(req, res, next) {
     return next();
   } catch (error) {
     console.error("Admin Check Error:", error?.message || error);
-    if (devFallbackAllowed() && req.user && isAdminUser(req.user).isInitialAdmin) {
-      return next();
-    }
     return res.status(500).json({ success: false, message: "Authorization service error" });
   }
 }

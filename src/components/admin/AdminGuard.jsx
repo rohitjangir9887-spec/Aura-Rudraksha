@@ -3,15 +3,6 @@ import { Navigate, useLocation, Outlet } from "react-router-dom";
 import { authClient } from "../../lib/authClient";
 import { ADMIN_LOGIN_PATH } from "../../lib/routes";
 
-const ALLOWED_ADMIN_EMAILS = [
-  "rohitjangir8740@gmail.com",
-  "rohitjangir9887@gmail.com",
-  "rohitjangir80055@gmail.com",
-  "aurarudrakshaofficial@gmail.com",
-  "admin@aurarudraksha.com"
-];
-const TARGET_PHONE_DIGITS = "9672996531";
-
 export function AdminGuard({ children }) {
   const location = useLocation();
   const [authState, setAuthState] = useState({
@@ -35,7 +26,7 @@ export function AdminGuard({ children }) {
         const currentUser = await authClient.getCurrentUserAsync();
         if (!isSubscribed || !mountedRef.current) return;
 
-        if (!currentUser && !authClient.isSignedIn()) {
+        if (!currentUser) {
           setAuthState({
             loading: false,
             authenticated: false,
@@ -46,63 +37,30 @@ export function AdminGuard({ children }) {
           return;
         }
 
-        const authUser = authClient.getUser() || currentUser;
-        const email = (authUser?.email || "").trim().toLowerCase();
-        const phone = (authUser?.phoneNumber || "").replace(/[^0-9]/g, "");
-
-        const isClientAdminCandidate =
-          ALLOWED_ADMIN_EMAILS.includes(email) ||
-          email.endsWith("@aurarudraksha.com") ||
-          phone.endsWith(TARGET_PHONE_DIGITS);
-
-        if (!isClientAdminCandidate) {
-          // Strictly deny if neither email nor phone matches admin credentials
-          setAuthState({
-            loading: false,
-            authenticated: true,
-            authorized: false,
-            user: authUser,
-            error: "Access Denied: You do not have administrator permissions."
-          });
-          return;
-        }
-
         // Verify with server as authoritative source of truth
         let serverAuthorized = false;
+        let verifiedUserData = null;
+
         try {
           const token = await authClient.getToken();
-          const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-          const res = await fetch(`${apiBase}/customers/me`, {
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { "Authorization": `Bearer ${token}` } : {})
-            }
-          });
+          if (token) {
+            const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+            const res = await fetch(`${apiBase}/auth/admin-me`, {
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              }
+            });
 
-          if (res.ok) {
-            const data = await res.json().catch(() => ({}));
-            const cust = data.data || data;
-            const custRole = (cust?.role || "").trim().toLowerCase();
-            const custEmail = (cust?.email || email).trim().toLowerCase();
-            const custPhone = (cust?.phone || phone).replace(/[^0-9]/g, "");
-
-            if (
-              custRole === "admin" ||
-              ALLOWED_ADMIN_EMAILS.includes(custEmail) ||
-              custEmail.endsWith("@aurarudraksha.com") ||
-              custPhone.endsWith(TARGET_PHONE_DIGITS)
-            ) {
-              serverAuthorized = true;
+            if (res.ok) {
+              const data = await res.json().catch(() => ({}));
+              if (data && data.success && data.authorized && data.role === "admin") {
+                serverAuthorized = true;
+                verifiedUserData = data.user;
+              }
             }
-          } else if (res.status === 401 || res.status === 403) {
-            // Explicit server rejection - fail-closed
-            serverAuthorized = false;
-          } else {
-            // Server error or non-OK response - fail-closed
-            serverAuthorized = false;
           }
         } catch (apiErr) {
-          // Network error during server verification - strictly fail-closed
           console.warn("[AdminGuard] Server verification error:", apiErr?.message);
           serverAuthorized = false;
         }
@@ -114,7 +72,7 @@ export function AdminGuard({ children }) {
             loading: false,
             authenticated: true,
             authorized: true,
-            user: authUser,
+            user: verifiedUserData || currentUser,
             error: null
           });
         } else {
@@ -122,14 +80,13 @@ export function AdminGuard({ children }) {
             loading: false,
             authenticated: true,
             authorized: false,
-            user: authUser,
+            user: currentUser,
             error: "Access Denied: Only designated administrators can access this portal."
           });
         }
       } catch (err) {
         if (!isSubscribed || !mountedRef.current) return;
         console.error("Admin authentication check error:", err);
-        // Fail-closed
         setAuthState({
           loading: false,
           authenticated: false,

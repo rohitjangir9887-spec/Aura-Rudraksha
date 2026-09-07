@@ -207,16 +207,7 @@ export function Account() {
     return "Verified Firebase ID";
   };
 
-  // Only allow admin if verified user matches authorized email (Rohitjangir8740@gmail.com / rohitjangir9887@gmail.com) or phone (+91 9672996531)
-  const isAuthorizedAdminIdentity = () => {
-    const email = (userEmail || user?.email || profile?.email || "").trim().toLowerCase();
-    const phone = (profile?.phone || user?.phoneNumber || "").replace(/[^0-9]/g, "");
-    const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
-    const targetPhoneDigits = "9672996531";
-    return allowedEmails.includes(email) || (phone.endsWith(targetPhoneDigits));
-  };
-
-  const isServerAdmin = isAuthorizedAdminIdentity();
+  const isServerAdmin = (profile?.role || "").toLowerCase() === "admin";
 
   if (loading) {
     return (

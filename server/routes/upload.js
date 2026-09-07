@@ -407,7 +407,7 @@ router.get("/pcloud/status", async (req, res) => {
  * POST /api/upload/pcloud/upload
  * Server-side handler to upload media directly to pCloud without exposing secrets
  */
-router.post("/pcloud/upload", async (req, res) => {
+router.post("/pcloud/upload", requireAdmin, async (req, res) => {
   try {
     const { fileData, filename, type, sizeBytes, metadata } = req.body || {};
     if (!fileData) {
@@ -863,7 +863,7 @@ router.post("/register", requireAdmin, async (req, res) => {
  * Registers metadata for multiple files uploaded directly to Puter Cloud in ONE request.
  * Fully idempotent with duplicate race condition handling in bulk.
  */
-router.post("/register-batch", async (req, res) => {
+router.post("/register-batch", requireAdmin, async (req, res) => {
   try {
     if (!isDbConnected()) {
       const items = req.body?.items || [];

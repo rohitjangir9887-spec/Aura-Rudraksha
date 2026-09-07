@@ -14,7 +14,7 @@ export function AdminLogin() {
   const [copied, setCopied] = useState(false);
   
   // Email state
-  const [email, setEmail] = useState("rohitjangir8740@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
   // Phone state
@@ -57,32 +57,34 @@ export function AdminLogin() {
       setLoading(true);
       const token = await authClient.getToken();
       
-      const user = authClient.getUser();
-      const userEmail = (user?.email || "").trim().toLowerCase();
-      const userPhone = (user?.phoneNumber || "").replace(/[^0-9]/g, "");
-      const allowedEmails = ["rohitjangir8740@gmail.com", "rohitjangir9887@gmail.com", "rohitjangir80055@gmail.com", "rohitjangir80055@gmail.com"];
-      const targetPhoneDigits = "9672996531";
-      const isAuthorizedAdmin = allowedEmails.includes(userEmail) || userPhone.endsWith(targetPhoneDigits);
-      
-      if (!isAuthorizedAdmin) {
-        setError("Access Denied: Only designated admin accounts can log in here.");
+      if (!token) {
+        setError("Access Denied: Session token not found.");
         await authClient.signOut();
         setLoading(false);
         return;
       }
       
-      let data = {};
-      try {
-        const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-        const res = await fetch(`${apiBase}/customers/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        if (res.ok) {
-          data = await res.json();
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/auth/admin-me`, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      } catch (_) {}
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        setError("Access Denied: Only designated administrator accounts can access this portal.");
+        await authClient.signOut();
+        setLoading(false);
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      if (!json || !json.success || !json.authorized || json.role !== "admin") {
+        setError("Access Denied: Only designated administrator accounts can access this portal.");
+        await authClient.signOut();
+        setLoading(false);
+        return;
+      }
       
       const from = getSafeReturnPath(location.state?.from, ADMIN_BASE_PATH);
       navigate(from, { replace: true });
@@ -165,19 +167,6 @@ export function AdminLogin() {
     }
   };
 
-  const handleDirectAdminLogin = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      authClient.signInDemoAdmin();
-      await verifyAdminAndRedirect();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to initialize admin session.");
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="admin-login-page" style={{ minHeight: '100vh', background: '#fdfbf7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <motion.div 
@@ -255,15 +244,6 @@ export function AdminLogin() {
 
         {mode === "select" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button 
-              type="button" 
-              onClick={handleDirectAdminLogin} 
-              disabled={loading} 
-              className="admin-btn" 
-              style={{ background: '#7a320c', color: '#fff', border: '1px solid #7a320c', fontWeight: '600' }}
-            >
-              <ShieldCheck size={18} /> Sign In as Admin (Rohit Jangir)
-            </button>
             <button type="button" onClick={handleGoogle} disabled={loading} className="admin-btn" style={{ background: '#fff', color: '#333', border: '1px solid #ddd' }}>
               <Chrome size={18} /> Continue with Google
             </button>

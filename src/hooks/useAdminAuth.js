@@ -3,28 +3,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { authClient } from "../lib/authClient";
 import { ADMIN_LOGIN_PATH } from "../lib/routes";
 
-const ALLOWED_ADMIN_EMAILS = [
-  "rohitjangir8740@gmail.com",
-  "rohitjangir9887@gmail.com",
-  "rohitjangir80055@gmail.com",
-  "aurarudrakshaofficial@gmail.com",
-  "admin@aurarudraksha.com"
-];
-const TARGET_PHONE_DIGITS = "9672996531";
-
 export function useAdminAuth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const initialUser = authClient.getUser();
-  const [adminSession, setAdminSession] = useState(
-    initialUser
-      ? {
-          email: initialUser.email || initialUser.displayName || initialUser.phoneNumber || "Admin",
-          name: initialUser.displayName || initialUser.email || "Admin"
-        }
-      : null
-  );
-  const [loadingAuth, setLoadingAuth] = useState(!initialUser && typeof window !== "undefined" && !authClient.isSignedIn());
+  const [adminSession, setAdminSession] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
   const userEmail =
     adminSession?.email ||
@@ -40,7 +23,7 @@ export function useAdminAuth() {
         const currentUser = await authClient.getCurrentUserAsync();
         if (!isSubscribed) return;
 
-        if (!currentUser && !authClient.isSignedIn()) {
+        if (!currentUser) {
           setAdminSession(null);
           setLoadingAuth(false);
           navigate(ADMIN_LOGIN_PATH, {
@@ -50,50 +33,28 @@ export function useAdminAuth() {
           return;
         }
 
-        const authUser = authClient.getUser() || currentUser;
-        const localEmail = (authUser?.email || "").trim().toLowerCase();
-        const localPhone = (authUser?.phoneNumber || "").replace(/[^0-9]/g, "");
+        let isAuthorizedAdmin = false;
+        let verifiedUserData = null;
 
-        let isAuthorizedAdmin =
-          ALLOWED_ADMIN_EMAILS.includes(localEmail) ||
-          localEmail.endsWith("@aurarudraksha.com") ||
-          localPhone.endsWith(TARGET_PHONE_DIGITS);
-
-        // Verify with server as authoritative source
+        // Verify with server as single authoritative source
         try {
           const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
           const token = await authClient.getToken().catch(() => "");
           if (token) {
-            const res = await fetch(`${apiBase}/customers/me`, {
+            const res = await fetch(`${apiBase}/auth/admin-me`, {
               headers: { Authorization: "Bearer " + token }
             }).catch(() => null);
 
             if (res && res.ok) {
               const json = await res.json().catch(() => ({}));
-              const cust = json.data || json;
-              const resEmail = (cust?.email || localEmail).trim().toLowerCase();
-              const resPhone = (cust?.phone || localPhone).replace(/[^0-9]/g, "");
-              const resRole = (cust?.role || "").trim().toLowerCase();
-
-              if (
-                resRole === "admin" ||
-                ALLOWED_ADMIN_EMAILS.includes(resEmail) ||
-                resEmail.endsWith("@aurarudraksha.com") ||
-                resPhone.endsWith(TARGET_PHONE_DIGITS)
-              ) {
+              if (json && json.success && json.authorized && json.role === "admin") {
                 isAuthorizedAdmin = true;
-              } else {
-                isAuthorizedAdmin = false;
+                verifiedUserData = json.user;
               }
-            } else {
-              // Server rejected or returned error - fail-closed
-              isAuthorizedAdmin = false;
             }
-          } else {
-            isAuthorizedAdmin = false;
           }
         } catch (_) {
-          // Strictly fail-closed on network or API verification error
+          // Fail-closed on network or server error
           isAuthorizedAdmin = false;
         }
 
@@ -107,10 +68,14 @@ export function useAdminAuth() {
         }
 
         const displayIdentifier =
-          authUser?.email || authUser?.displayName || authUser?.phoneNumber || "Admin";
+          verifiedUserData?.email ||
+          currentUser?.email ||
+          currentUser?.displayName ||
+          "Admin";
+
         setAdminSession({
           email: displayIdentifier,
-          name: authUser?.displayName || displayIdentifier
+          name: verifiedUserData?.name || currentUser?.displayName || displayIdentifier
         });
       } catch (err) {
         if (!isSubscribed) return;
@@ -138,3 +103,4 @@ export function useAdminAuth() {
 
   return { adminSession, loadingAuth, userEmail, handleLogout };
 }
+

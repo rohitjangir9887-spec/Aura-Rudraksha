@@ -126,39 +126,20 @@ export function getEmailVerificationActionSettings() {
 // never be true in a shipped production bundle regardless of runtime env
 // misconfiguration.
 function readDemoUser() {
-  try {
-    const demo = localStorage.getItem("aura_demo_user");
-    return demo ? JSON.parse(demo) : null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export const authClient = {
   signInDemoAdmin: () => {
-    const adminUser = {
-      uid: "admin_rohit_8740",
-      email: "rohitjangir8740@gmail.com",
-      displayName: "Rohit Jangir (Admin)",
-      phoneNumber: "+919672996531",
-      role: "admin"
-    };
-    try {
-      localStorage.setItem("aura_demo_user", JSON.stringify(adminUser));
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: adminUser }));
-      }
-    } catch (_) {}
-    return adminUser;
+    throw new Error("Demo admin sign-in is disabled.");
   },
 
   isSignedIn: () => {
-    if (auth.currentUser) return true;
-    return !!readDemoUser();
+    return Boolean(auth.currentUser);
   },
 
   hasCurrentUser: () => {
-    return Boolean(auth.currentUser || readDemoUser());
+    return Boolean(auth.currentUser);
   },
   
   getToken: async (forceRefresh = false, waitForAuth = false) => {
@@ -166,7 +147,6 @@ export const authClient = {
       if (auth.currentUser) {
         return await auth.currentUser.getIdToken(forceRefresh);
       }
-      if (readDemoUser()) return "demo-token-123";
 
       if (waitForAuth && auth.authStateReady) {
         await Promise.race([
@@ -184,14 +164,11 @@ export const authClient = {
   },
   
   getUser: () => {
-    if (auth.currentUser) return auth.currentUser;
-    return readDemoUser();
+    return auth.currentUser;
   },
 
   getCurrentUserAsync: async () => {
     if (auth.currentUser) return auth.currentUser;
-    const demo = readDemoUser();
-    if (demo) return demo;
     try {
       if (auth.authStateReady) {
         await auth.authStateReady();
@@ -322,63 +299,23 @@ export const authClient = {
   onAuthStateChanged: (callback) => {
     if (auth.currentUser) {
       callback(auth.currentUser);
-    } else {
-      const initialDemo = readDemoUser();
-      if (initialDemo) {
-        callback(initialDemo);
-      }
     }
 
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        try {
-          localStorage.removeItem("aura_demo_user");
-        } catch (_) {}
-        callback(user);
-      } else {
-        const demo = readDemoUser();
-        callback(demo || null);
-      }
+      try {
+        localStorage.removeItem("aura_demo_user");
+        localStorage.removeItem("aura_admin_token");
+      } catch (_) {}
+      callback(user || null);
     });
-
-    const handleDemoChange = (e) => {
-      callback(e.detail);
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("aura:auth-change", handleDemoChange);
-    }
 
     return () => {
       unsub();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("aura:auth-change", handleDemoChange);
-      }
     };
   },
 
-  // Development-only guest/demo session. No-ops in production builds so a
-  // real Firebase auth failure always surfaces a real error instead of
-  // silently granting a fake (and, for isAdmin=true, admin-looking) session.
-  signInAsDemo: (isAdmin = false) => {
-    if (!DEV_DEMO_AUTH_ENABLED) {
-      throw new Error("Demo sign-in is only available in development.");
-    }
-    const demoUser = {
-      uid: isAdmin ? "DEMO-ADMIN-UID" : "DEMO-USER-UID",
-      email: isAdmin ? "rohitjangir8740@gmail.com" : "customer@aurarudraksha.com",
-      displayName: isAdmin ? "Aura Admin" : "Aura Devotee",
-      phoneNumber: "+919672996531",
-      emailVerified: true,
-      isAnonymous: false,
-      getIdToken: async () => "demo-token-123"
-    };
-    try {
-      localStorage.setItem("aura_demo_user", JSON.stringify(demoUser));
-    } catch (_) {}
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: demoUser }));
-    }
-    return demoUser;
+  signInAsDemo: () => {
+    throw new Error("Demo sign-in is disabled.");
   },
 
   sendVerificationEmail: async (user) => {
