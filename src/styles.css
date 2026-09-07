@@ -10719,10 +10719,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   z-index: 10020;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   touch-action: manipulation;
   user-select: none;
-  cursor: pointer;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -10733,6 +10731,83 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     left: 24px;
     right: auto;
   }
+}
+
+.aura-ai-floating-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, #240e04 0%, #381807 48%, #180902 100%);
+  color: #fffdf9;
+  border: 1.4px solid rgba(212, 175, 55, 0.75);
+  border-radius: 999px;
+  padding: 5px 8px 5px 12px;
+  min-height: 46px;
+  box-shadow: 0 6px 20px rgba(25, 10, 3, 0.45), 0 0 16px rgba(212, 175, 55, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  font-family: inherit;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  animation: auraFloatingBob 3.2s ease-in-out infinite;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.aura-ai-floating-pill:hover {
+  animation-play-state: paused;
+  transform: translateY(-2px) scale(1.03);
+  border-color: #f3e5ab;
+  box-shadow: 0 8px 26px rgba(25, 10, 3, 0.55), 0 0 20px rgba(212, 175, 55, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.25);
+}
+
+.aura-ai-floating-main-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: #fffdf9;
+  cursor: pointer;
+  padding: 2px 4px 2px 0;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+
+.aura-ai-floating-divider {
+  width: 1.2px;
+  height: 22px;
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.75) 50%, rgba(212, 175, 55, 0.15) 100%);
+  margin: 0 6px 0 4px;
+  flex-shrink: 0;
+}
+
+.aura-ai-floating-dismiss-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(243, 229, 171, 0.28) 0%, rgba(212, 175, 55, 0.15) 70%, rgba(43, 20, 8, 0.4) 100%);
+  color: #fef3c7;
+  border: 1.2px solid rgba(212, 175, 55, 0.65);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: manipulation;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.aura-ai-floating-dismiss-btn:hover,
+.aura-ai-floating-dismiss-btn:active {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  color: #ffffff;
+  border-color: #f87171;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
+  transform: scale(1.12);
 }
 
 .aura-ai-drag-handle {
@@ -10751,17 +10826,16 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-floating-dismiss {
   position: static;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: #2b1408;
+  background: rgba(255, 255, 255, 0.08);
   color: #f3e5ab;
-  border: 1.5px solid #d4af37;
+  border: 1px solid rgba(212, 175, 55, 0.3);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 10;
   padding: 0;
@@ -10771,10 +10845,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-floating-dismiss:hover,
 .aura-ai-floating-dismiss:active {
-  background: #991b1b;
+  background: #dc2626;
   color: #ffffff;
   border-color: #ef4444;
-  transform: scale(1.15);
+  transform: scale(1.1);
 }
 
 .aura-ai-dismissed-toast {
@@ -10915,23 +10989,26 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-floating-icon {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: rgba(212, 175, 55, 0.15);
-  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: radial-gradient(circle at 35% 35%, rgba(243, 229, 171, 0.35) 0%, rgba(212, 175, 55, 0.18) 70%, rgba(43, 20, 8, 0.4) 100%);
+  border: 1.2px solid rgba(212, 175, 55, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #d4af37;
+  color: #fcd34d;
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .aura-ai-floating-label {
-  font-size: 11.5px;
+  font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #fffdf9;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
 }
 
 /* 3. Floating Chat Window & Container */

@@ -736,7 +736,7 @@ export function AuraAIFloating() {
         }} 
       />
 
-      {/* 1. Floating Action Button - Strictly fixed position with clean touch targets */}
+      {/* 1. Floating Action Button - Unified pill with integrated cancel icon */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
@@ -747,35 +747,38 @@ export function AuraAIFloating() {
             exit={{ scale: 0.85, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <button
-              type="button"
-              onClick={() => {
-                setIsFullWindow(false);
-                setIsOpen(true);
-              }}
-              className="aura-ai-floating-btn"
-              aria-label="Open Aura AI Shopping Guide"
-              title="Chat with Aura AI"
-            >
-              <div className="aura-ai-floating-pulse" />
-              <div className="aura-ai-floating-icon">
-                <Sparkles size={14} className="aura-ai-sparkle-spin" />
-              </div>
-              <span className="aura-ai-floating-label">Aura AI</span>
-            </button>
-            <button
-              id="aura-ai-floating-dismiss"
-              type="button"
-              className="aura-ai-floating-dismiss"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDismiss(e);
-              }}
-              title="Hide floating button"
-              aria-label="Hide Aura AI floating button"
-            >
-              <X size={12} />
-            </button>
+            <div className="aura-ai-floating-pill">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFullWindow(false);
+                  setIsOpen(true);
+                }}
+                className="aura-ai-floating-main-btn"
+                aria-label="Open Aura AI Shopping Guide"
+                title="Chat with Aura AI"
+              >
+                <div className="aura-ai-floating-pulse" />
+                <div className="aura-ai-floating-icon">
+                  <Sparkles size={16} strokeWidth={2.2} className="aura-ai-sparkle-spin" />
+                </div>
+                <span className="aura-ai-floating-label">Aura AI</span>
+              </button>
+              <div className="aura-ai-floating-divider" />
+              <button
+                id="aura-ai-floating-dismiss"
+                type="button"
+                className="aura-ai-floating-dismiss-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDismiss(e);
+                }}
+                title="Hide floating button / Band karein"
+                aria-label="Hide Aura AI floating button"
+              >
+                <X size={16} strokeWidth={2.2} />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
