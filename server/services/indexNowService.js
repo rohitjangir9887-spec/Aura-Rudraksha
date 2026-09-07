@@ -23,27 +23,20 @@ export function getSiteDomain(req) {
       return u.hostname;
     } catch (_) {}
   }
-  if (req) {
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-      return host.split(":")[0];
-    }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return String(process.env.VERCEL_PROJECT_PRODUCTION_URL).replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
   }
-  return "aurarudraksha.com";
+  return "aura-rudraksha.vercel.app";
 }
 
 export function getSiteBaseUrl(req) {
   if (process.env.SITE_URL) {
     return process.env.SITE_URL.replace(/\/+$/, "");
   }
-  if (req) {
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const proto = req.headers["x-forwarded-proto"] || "https";
-    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-      return `${proto}://${host}`.replace(/\/+$/, "");
-    }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${String(process.env.VERCEL_PROJECT_PRODUCTION_URL).replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
   }
-  return "https://aurarudraksha.com";
+  return "https://aura-rudraksha.vercel.app";
 }
 
 /**
