@@ -11,6 +11,48 @@ import {
 } from "lucide-react";
 import "./admin-pages.css";
 import { getOrderProducts } from "../account/Orders";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
+
+export const ORDER_STATES = {
+  PAYMENT_PENDING: "Payment Pending",
+  PENDING: "Pending",
+  CONFIRMED: "Confirmed",
+  PROCESSING: "Processing",
+  SHIPPED: "Shipped",
+  OUT_FOR_DELIVERY: "Out for Delivery",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled"
+};
+
+const ALLOWED_ORDER_TRANSITIONS = {
+  [ORDER_STATES.PAYMENT_PENDING]: [ORDER_STATES.CONFIRMED, ORDER_STATES.PROCESSING, ORDER_STATES.SHIPPED, ORDER_STATES.CANCELLED],
+  [ORDER_STATES.PENDING]: [ORDER_STATES.CONFIRMED, ORDER_STATES.PROCESSING, ORDER_STATES.SHIPPED, ORDER_STATES.CANCELLED],
+  [ORDER_STATES.CONFIRMED]: [ORDER_STATES.PROCESSING, ORDER_STATES.SHIPPED, ORDER_STATES.CANCELLED],
+  [ORDER_STATES.PROCESSING]: [ORDER_STATES.SHIPPED, ORDER_STATES.CANCELLED],
+  [ORDER_STATES.SHIPPED]: [ORDER_STATES.OUT_FOR_DELIVERY, ORDER_STATES.DELIVERED, ORDER_STATES.CANCELLED],
+  [ORDER_STATES.OUT_FOR_DELIVERY]: [ORDER_STATES.DELIVERED, ORDER_STATES.CANCELLED],
+  [ORDER_STATES.DELIVERED]: [],
+  [ORDER_STATES.CANCELLED]: []
+};
+
+export function isValidOrderTransition(currentStatus, targetStatus) {
+  if (!currentStatus) return true;
+  if (currentStatus === targetStatus) return true;
+
+  const normalizedCurrent = Object.values(ORDER_STATES).find(
+    s => s.toLowerCase() === String(currentStatus).toLowerCase()
+  ) || currentStatus;
+
+  const normalizedTarget = Object.values(ORDER_STATES).find(
+    s => s.toLowerCase() === String(targetStatus).toLowerCase()
+  ) || targetStatus;
+
+  const allowed = ALLOWED_ORDER_TRANSITIONS[normalizedCurrent];
+  if (!allowed) return false;
+
+  return allowed.includes(normalizedTarget);
+}
+
 
 const POPULAR_COURIERS = [
   { id: "delhivery", name: "Delhivery", urlTpl: (awb) => `https://www.delhivery.com/track/package/${encodeURIComponent(awb)}` },
@@ -35,6 +77,7 @@ export function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   
   // Shipping & Tracking State
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -143,9 +186,14 @@ export function AdminOrders() {
     setLoading(false);
   };
 
-  const handleUpdateStatus = async (id, newStatus) => {
+    const handleUpdateStatus = async (id, newStatus) => {
     const o = orders.find(x => String(x.id) === String(id));
     if(o) {
+      if (!isValidOrderTransition(o.status, newStatus)) {
+        emitToast(`Invalid order status transition from '${o.status}' to '${newStatus}'`, "error");
+        return;
+      }
+      setIsUpdatingStatus(true);
       const payload = { status: newStatus, orderStatus: newStatus };
       if (newStatus === "Cancelled" && o.status !== "Cancelled") {
         payload.cancelledAt = new Date().toISOString();
@@ -163,6 +211,8 @@ export function AdminOrders() {
         }
       } catch (err) {
         emitToast(err.message || "Failed to update order status", "error");
+      } finally {
+        setIsUpdatingStatus(false);
       }
     }
   };
@@ -279,12 +329,14 @@ export function AdminOrders() {
             <p className="admin-page-subtitle">Placed on {new Date(viewing.date).toLocaleString('en-IN')}</p>
           </div>
           <div>
-            <select 
+                        <select
               value={viewing.status} 
               onChange={(e) => handleUpdateStatus(viewing.id, e.target.value)}
+              disabled={isUpdatingStatus || ALLOWED_ORDER_TRANSITIONS[viewing.status]?.length === 0}
               style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #dcd1c6', fontWeight: 600, background: '#fff', fontSize: 13 }}
             >
-              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value={viewing.status}>{viewing.status}</option>
+              {statuses.filter(s => isValidOrderTransition(viewing.status, s) && s !== viewing.status).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
         </div>
@@ -852,6 +904,7 @@ export function AdminOrders() {
   }
 
   return (
+    <ErrorBoundary>
     <AdminLayout>
       <Link to="/admin" className="admin-back-link">
         <ArrowLeft size={16} /> Back to Dashboard
@@ -953,9 +1006,10 @@ export function AdminOrders() {
                       )}
                     </td>
                     <td>
-                      <select
+                                            <select
                         value={o.status}
                         onChange={(e) => handleUpdateStatus(o.id, e.target.value)}
+                        disabled={isUpdatingStatus || ALLOWED_ORDER_TRANSITIONS[o.status]?.length === 0}
                         style={{
                           padding: '4px 8px',
                           borderRadius: '20px',
@@ -967,7 +1021,8 @@ export function AdminOrders() {
                           outline: 'none'
                         }}
                       >
-                        {statuses.map(st => <option key={st} value={st}>{st}</option>)}
+                        <option value={o.status}>{o.status}</option>
+                        {statuses.filter(st => isValidOrderTransition(o.status, st) && st !== o.status).map(st => <option key={st} value={st}>{st}</option>)}
                       </select>
                     </td>
                     <td>
@@ -995,9 +1050,10 @@ export function AdminOrders() {
                     <span className="mobile-card-title">Order #{o.id}</span>
                     <div className="mobile-card-sub">{o.customerName || 'Guest Customer'} • {new Date(o.date).toLocaleDateString()}</div>
                   </div>
-                  <select 
+                                    <select
                     value={o.status} 
                     onChange={(e) => handleUpdateStatus(o.id, e.target.value)}
+                    disabled={isUpdatingStatus || ALLOWED_ORDER_TRANSITIONS[o.status]?.length === 0}
                     style={{
                       padding: '4px 8px',
                       borderRadius: '20px',
@@ -1009,7 +1065,8 @@ export function AdminOrders() {
                       outline: 'none'
                     }}
                   >
-                    {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                    <option value={o.status}>{o.status}</option>
+                    {statuses.filter(s => isValidOrderTransition(o.status, s) && s !== o.status).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
@@ -1045,5 +1102,6 @@ export function AdminOrders() {
         </>
       )}
     </AdminLayout>
+    </ErrorBoundary>
   );
 }
