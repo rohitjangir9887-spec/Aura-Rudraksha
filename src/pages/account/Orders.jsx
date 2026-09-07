@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -687,7 +689,7 @@ export function Orders() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                             <div style={{ display: 'flex', position: 'relative' }}>
                               {parsedItems.slice(0, 3).map((prod, idx) => {
-                                const imgSrc = prod.img || prod.image || db.getOrderItemImage(prod) || "/images/product-5mukhi.jpg";
+                                const imgSrc = getProductPrimaryImage(prod) || db.getOrderItemImage(prod);
                                 return (
                                   <div key={idx} style={{
                                     width: 48, 
@@ -807,7 +809,7 @@ export function Orders() {
 
                             {isDelivered && parsedItems.length > 0 && (
                               <Link
-                                to={`/product/${parsedItems[0].id}#write-review`}
+                                to={`${getProductRoute(parsedItems[0])}#write-review`}
                                 onClick={(e) => e.stopPropagation()}
                                 style={{
                                   display: 'inline-flex',

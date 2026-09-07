@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
@@ -1827,7 +1829,7 @@ export function AdminProducts() {
         <>
           <div className="admin-mobile-cards">
             {filteredProducts.map(p => {
-              const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+              const displayImg = getProductPrimaryImage(p);
               const imgCount = p.images?.length || (p.img ? 1 : 0);
               const isShownOnHome = p.showOnHome !== false;
               const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
@@ -1976,7 +1978,7 @@ export function AdminProducts() {
               </thead>
               <tbody>
                 {filteredProducts.map(p => {
-                  const displayImg = p.img || (p.images && p.images[0]) || "/images/product-5mukhi.jpg";
+                  const displayImg = getProductPrimaryImage(p);
                   const isShownOnHome = p.showOnHome !== false;
                   const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
 

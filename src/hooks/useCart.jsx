@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
@@ -193,7 +195,7 @@ export function CartProvider({ children }) {
             mrp,
             quantity: l.qty,
             qty: l.qty,
-            img: p ? (p.img || (p.images && p.images[0])) : null
+            img: p ? getProductPrimaryImage(p) : null
           });
         });
 

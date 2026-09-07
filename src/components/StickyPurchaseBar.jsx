@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingCart, Zap, Check } from "lucide-react";
@@ -23,7 +25,7 @@ export function StickyPurchaseBar({ product, isVisible, onAddToCart }) {
   if (offer?.stickyEnabled === false) return null;
 
   const isOutOfStock = product.stock === 0 || product.status === "Out of Stock";
-  const displayImg = (product.images && product.images[0]) || product.img || "/images/product-5mukhi.jpg";
+  const displayImg = getProductPrimaryImage(product);
   const mrp = Number(product.mrp) || Number(product.price) || 0;
   const price = Number(product.price) || 0;
   const discount = pct(product);

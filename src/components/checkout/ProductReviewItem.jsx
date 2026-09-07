@@ -1,3 +1,5 @@
+import { getProductPrimaryImage } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React from "react";
 import { ShieldCheck, Sparkles, Plus, Minus, CheckCircle2 } from "lucide-react";
 import { money } from "../../data";
@@ -36,7 +38,7 @@ export function ProductReviewItem({ item, onUpdateQty }) {
         }}
       >
         <img
-          src={item.img}
+          src={getProductPrimaryImage(item)}
           alt={item.name}
           loading="lazy"
           style={{ width: "100%", height: "100%", objectFit: "cover" }}

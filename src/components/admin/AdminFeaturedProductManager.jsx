@@ -1,3 +1,5 @@
+import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useMemo } from "react";
 import { Sparkles, Search, Check, X, ArrowRight, Loader2, Star, Eye } from "lucide-react";
 import { db, onStoreUpdate } from "../../lib/db";
@@ -203,7 +205,7 @@ export function AdminFeaturedProductManager({ products = [], onSettingsSaved }) 
             ) : (
               searchResults.map(p => {
                 const isSelected = String(p.id) === String(selectedProductId) || String(p._id) === String(selectedProductId);
-                const thumb = (Array.isArray(p.images) && p.images[0]) || p.img || "/images/product-5mukhi.jpg";
+                const thumb = getProductPrimaryImage(p);
                 const isDraft = p.status === "Draft" || p.status === "draft";
 
                 return (
@@ -283,7 +285,7 @@ export function AdminFeaturedProductManager({ products = [], onSettingsSaved }) 
               }}
             >
               <img 
-                src={(Array.isArray(selectedProduct.images) && selectedProduct.images[0]) || selectedProduct.img || "/images/product-5mukhi.jpg"} 
+                src={getProductPrimaryImage(selectedProduct)}
                 alt={selectedProduct.name}
                 onError={(e) => { e.currentTarget.src = "/images/product-5mukhi.jpg"; }}
                 style={{ width: "64px", height: "64px", borderRadius: "8px", objectFit: "cover", border: "1px solid #e8dacb", flexShrink: 0 }}

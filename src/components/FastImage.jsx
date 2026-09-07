@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { preloadImage } from "../lib/imageUtils";
 
 /**
  * FastImage Component
@@ -12,6 +13,8 @@ export function FastImage({
   style = {},
   fallbackSrc = "/images/product-5mukhi.jpg",
   priority = false,
+  width,
+  height,
   ...props
 }) {
   const [imgSrc, setImgSrc] = useState(src || fallbackSrc);
@@ -24,6 +27,10 @@ export function FastImage({
       setIsLoaded(true);
       return;
     }
+
+    // Add to global cache queue (non-blocking)
+    preloadImage(src);
+
     setImgSrc(src);
     setHasError(false);
 
@@ -39,11 +46,13 @@ export function FastImage({
 
   return (
     <div
+      className={className}
       style={{
         position: "relative",
         overflow: "hidden",
-        width: style.width || "100%",
-        height: style.height || "100%",
+        width: width || style.width || "100%",
+        height: height || style.height || "100%",
+        aspectRatio: style.aspectRatio || (width && height ? `${width} / ${height}` : "auto"),
         display: style.display || "block",
         borderRadius: style.borderRadius || "inherit",
         background: isLoaded ? "transparent" : "linear-gradient(110deg, #f7efe4 8%, #eee2d3 18%, #f7efe4 33%)",
@@ -55,15 +64,17 @@ export function FastImage({
       <img
         src={imgSrc}
         alt={alt}
+        width={width}
+        height={height}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
         fetchpriority={priority ? "high" : "auto"}
         onLoad={() => setIsLoaded(true)}
         onError={() => {
-          if (!hasError && imgSrc !== fallbackSrc) {
+          if (!hasError) {
             setHasError(true);
             setImgSrc(fallbackSrc);
-            setIsLoaded(true);
+            setIsLoaded(true); // Stop skeleton since fallback is loaded
           }
         }}
         style={{
@@ -80,6 +91,12 @@ export function FastImage({
         @keyframes fastImageSkeletonShimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fastImageSkeletonShimmer {
+            animation: none !important;
+            background: #eee2d3 !important;
+          }
         }
       `}</style>
     </div>
