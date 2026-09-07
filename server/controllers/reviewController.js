@@ -698,8 +698,8 @@ export async function generateReviewDrafts(req, res, next) {
 
     let rawDrafts = [];
 
-    // Primary AI Generator: Gemini API (@google/genai)
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    // Primary AI Generator: nemotron-3-super-120b-a12b
+    const nvidiaApiKey = (process.env.NEMOTRON_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENROUTER_API_KEY || "").trim();
     if (nvidiaApiKey) {
       try {
         const randomEntropy = Date.now() + "-" + Math.random().toString(36).substring(2, 7);
@@ -1038,7 +1038,7 @@ export async function polishReviewWithAI(req, res, next) {
 
     let polishedText = originalTextToPolish.trim();
 
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+    const nvidiaApiKey = (process.env.NEMOTRON_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENROUTER_API_KEY || "").trim();
     if (nvidiaApiKey) {
       try {
         const systemPrompt = `You are an expert review editor for an authentic Rudraksha store (Aura Rudraksha).

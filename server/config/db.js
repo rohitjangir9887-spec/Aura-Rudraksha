@@ -3,9 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// CRITICAL for container / serverless: fail fast, do not hang on queries when DB offline
-mongoose.set("bufferCommands", false);
-
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
 if (!cached) {
@@ -85,7 +82,6 @@ export async function connectDB() {
   // 3. If in-flight connection promise exists, await it (prevents connection storms)
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false,
       serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 10000,
       socketTimeoutMS: 45000,
@@ -120,7 +116,7 @@ export async function connectDB() {
 }
 
 export function isDbConnected() {
-  return mongoose.connection.readyState === 1;
+  return Boolean(mongoose && mongoose.connection && mongoose.connection.readyState === 1);
 }
 
 export function getLastDbSync() {

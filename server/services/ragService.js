@@ -6,6 +6,7 @@ import { Review } from "../models/Review.js";
 import { isDbConnected } from "../config/db.js";
 import { GoogleGenAI } from "@google/genai";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Global in-memory cache for ultra-fast RAG retrieval
 let ragCacheDocs = [];
@@ -108,55 +109,65 @@ export async function buildStoreRagIndex() {
     });
   }
 
-  // 3. Index Live Products from MongoDB
+  // 3. Index Live Products from MongoDB / inMemoryStore
+  let liveProducts = [];
   if (isDbConnected()) {
     try {
-      const dbProducts = await Product.find({
+      liveProducts = await Product.find({
         status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
       }).lean();
-
-      for (const p of dbProducts) {
-        const pPrice = Number(p.price) || 0;
-        const pMrp = Number(p.mrp || p.comparePrice || Math.round(pPrice * 1.35));
-        const pStock = Number(p.stock) > 0 ? Number(p.stock) : (p.inStock !== false ? 50 : 0);
-        const inStockText = pStock > 0 ? `In Stock (${pStock} available)` : "Out of Stock";
-
-        docs.push({
-          docId: `product_${p.id || p._id}`,
-          docType: "product",
-          title: `Product: ${p.name}`,
-          content: `${p.name} (Category: ${p.category || 'Rudraksha'}). Price: ₹${pPrice} (MRP: ₹${pMrp}). Availability: ${inStockText}. Rating: ${p.rating || 4.9} stars (${p.reviews || 24} reviews). Highlights & Benefits: ${p.highlight || p.description || ''}. Tags: ${Array.isArray(p.tags) ? p.tags.join(', ') : ''}. Slug: ${p.slug}`,
-          metadata: {
-            productId: String(p.id || p._id),
-            name: p.name,
-            price: pPrice,
-            mrp: pMrp,
-            stock: pStock,
-            inStock: pStock > 0,
-            image: (p.images && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg",
-            category: p.category || "Rudraksha"
-          }
-        });
-      }
     } catch (dbErr) {
-      console.warn("[RAG Service] MongoDB products fetch notice:", dbErr?.message);
+      console.warn("[RAG Service] MongoDB products fetch notice, fallback to in-memory:", dbErr?.message);
+      liveProducts = (inMemoryStore.products || []).filter(p => (p.status || "Published").toLowerCase() === "published" || (p.status || "Published").toLowerCase() === "active");
     }
+  } else {
+    liveProducts = (inMemoryStore.products || []).filter(p => (p.status || "Published").toLowerCase() === "published" || (p.status || "Published").toLowerCase() === "active");
+  }
 
-    // 4. Index Live Active Coupons
-    try {
-      const activeCoupons = await Coupon.find({ status: "Active" }).lean();
-      for (const c of activeCoupons) {
-        docs.push({
-          docId: `coupon_${c.code}`,
-          docType: "coupon",
-          title: `Coupon Code: ${c.code}`,
-          content: `Coupon Code '${c.code}': Offers ${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF. Minimum order amount: ₹${c.minPurchase || 0}. Valid code for checkout.`,
-          metadata: { code: c.code, discount: c.discount, type: c.type }
-        });
+  for (const p of (liveProducts || [])) {
+    const pPrice = Number(p.price) || 0;
+    const pMrp = Number(p.mrp || p.comparePrice || Math.round(pPrice * 1.35));
+    const pStock = Number(p.stock) > 0 ? Number(p.stock) : (p.inStock !== false ? 50 : 0);
+    const inStockText = pStock > 0 ? `In Stock (${pStock} available)` : "Out of Stock";
+
+    docs.push({
+      docId: `product_${p.id || p._id}`,
+      docType: "product",
+      title: `Product: ${p.name}`,
+      content: `${p.name} (Category: ${p.category || 'Rudraksha'}). Price: ₹${pPrice} (MRP: ₹${pMrp}). Availability: ${inStockText}. Rating: ${p.rating || 4.9} stars (${p.reviews || 24} reviews). Highlights & Benefits: ${p.highlight || p.description || ''}. Tags: ${Array.isArray(p.tags) ? p.tags.join(', ') : ''}. Slug: ${p.slug}`,
+      metadata: {
+        productId: String(p.id || p._id),
+        name: p.name,
+        price: pPrice,
+        mrp: pMrp,
+        stock: pStock,
+        inStock: pStock > 0,
+        image: (p.images && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg",
+        category: p.category || "Rudraksha"
       }
+    });
+  }
+
+  // 4. Index Live Active Coupons
+  let activeCoupons = [];
+  if (isDbConnected()) {
+    try {
+      activeCoupons = await Coupon.find({ status: "Active" }).lean();
     } catch (cErr) {
-      console.warn("[RAG Service] MongoDB coupons fetch notice:", cErr?.message);
+      activeCoupons = (inMemoryStore.coupons || []).filter(c => c.status === "Active" || !c.status);
     }
+  } else {
+    activeCoupons = (inMemoryStore.coupons || []).filter(c => c.status === "Active" || !c.status);
+  }
+
+  for (const c of (activeCoupons || [])) {
+    docs.push({
+      docId: `coupon_${c.code}`,
+      docType: "coupon",
+      title: `Coupon Code: ${c.code}`,
+      content: `Coupon Code '${c.code}': Offers ${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF. Minimum order amount: ₹${c.minPurchase || 0}. Valid code for checkout.`,
+      metadata: { code: c.code, discount: c.discount, type: c.type }
+    });
   }
 
   ragCacheDocs = docs;

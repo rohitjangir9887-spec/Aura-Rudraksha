@@ -67,21 +67,35 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Production AI provider configuration: NVIDIA NIM
-const PRIMARY_NIM_MODEL = "nemotron-3-super-120b-a12b";
-const BACKUP_NIM_MODELS = ["nemotron-3-super-120b-a12b"];
+// Universal AI Provider Configuration: nemotron-3-super-120b-a12b
+export const PRIMARY_NIM_MODEL = "nemotron-3-super-120b-a12b";
+export const BACKUP_NIM_MODELS = ["nemotron-3-super-120b-a12b", "nvidia/nemotron-3-super-120b-a12b"];
 
-function getNvidiaClient() {
-  const apiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
+export function getNvidiaClient() {
+  const apiKey = (
+    process.env.NEMOTRON_API_KEY ||
+    process.env.NVIDIA_API_KEY ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    ""
+  ).trim();
   if (!apiKey) return null;
+
+  const baseURL = (
+    process.env.NEMOTRON_BASE_URL ||
+    (process.env.OPENROUTER_API_KEY && !process.env.NVIDIA_API_KEY && !process.env.NEMOTRON_API_KEY
+      ? "https://openrouter.ai/api/v1"
+      : "https://integrate.api.nvidia.com/v1")
+  ).trim();
+
   try {
     return new OpenAI({
-      baseURL: "https://integrate.api.nvidia.com/v1",
+      baseURL,
       apiKey,
-      timeout: 20000
+      timeout: 30000
     });
   } catch (err) {
-    console.warn("Could not initialize NVIDIA NIM Client:", err?.message || err);
+    console.warn("Could not initialize nemotron-3-super-120b-a12b client:", err?.message || err);
     return null;
   }
 }
@@ -571,7 +585,16 @@ export async function chatAuraAI(req, res, next) {
     const intent = detectUserIntent(message);
     const targetMukhi = extractMukhiNumber(message);
 
-    const products = await Product.find({ isActive: { $ne: false } }).lean();
+    let products = [];
+    if (isDbConnected()) {
+      try {
+        products = await Product.find({ isActive: { $ne: false }, status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] } }).lean();
+      } catch (prodErr) {
+        products = (inMemoryStore.products || []).filter(p => (p.status || "Published").toLowerCase() === "published" || (p.status || "Published").toLowerCase() === "active");
+      }
+    } else {
+      products = (inMemoryStore.products || []).filter(p => (p.status || "Published").toLowerCase() === "published" || (p.status || "Published").toLowerCase() === "active");
+    }
 
     // Multi-attribute Vedic catalog search
     let matchedProducts = searchRelevantCatalogProducts(message, products);
@@ -672,139 +695,132 @@ Target Mukhi/Bead: ${targetMukhi || "General"}`;
     let generatedViaLLM = false;
     let triggeredAction = null;
 
-    // Primary AI Generation using Gemini API (@google/genai)
-    const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
-    if (geminiApiKey) {
-      try {
-        const ai = new GoogleGenAI({
-          apiKey: geminiApiKey,
-          httpOptions: { headers: { "User-Agent": "aistudio-build" } }
-        });
-
-        // Format multi-turn message history for Gemini
-        const contents = [];
-        for (const h of history.slice(-6)) {
-          if (h.sender === "user" && h.text) {
-            contents.push({ role: "user", parts: [{ text: String(h.text) }] });
-          } else if (h.sender === "ai" && h.text) {
-            contents.push({ role: "model", parts: [{ text: String(h.text) }] });
+    // Primary AI Generation: nemotron-3-super-120b-a12b
+    const nvidiaClient = getNvidiaClient();
+    if (nvidiaClient) {
+      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+        if (generatedViaLLM) break;
+        try {
+          const nimMessages = [
+            { role: "system", content: systemPrompt }
+          ];
+          for (const h of history.slice(-6)) {
+            if (h.sender === "user" && h.text) {
+              nimMessages.push({ role: "user", content: String(h.text) });
+            } else if (h.sender === "ai" && h.text) {
+              nimMessages.push({ role: "assistant", content: String(h.text) });
+            }
           }
+          nimMessages.push({ role: "user", content: message });
+
+          const nimCompletion = await nvidiaClient.chat.completions.create({
+            model: modelCandidate,
+            messages: nimMessages,
+            temperature: 0.35,
+            max_tokens: 1800,
+            chat_template_kwargs: { enable_thinking: false },
+            reasoning_effort: "none"
+          });
+
+          const nimText = nimCompletion.choices?.[0]?.message?.content || "";
+          if (nimText.trim()) {
+            fullRawContent = nimText;
+            generatedViaLLM = true;
+            break;
+          }
+        } catch (nimErr) {
+          console.warn(`[Aura AI] nemotron-3-super-120b-a12b execution notice (${modelCandidate}):`, nimErr?.message || nimErr);
         }
-        contents.push({ role: "user", parts: [{ text: message }] });
+      }
+    }
 
-        // Gemini Tools Configuration: Live Store Functions & Search Grounding
-        const isExternalQuery = /(news|article|history|research|today|weather|external|scientific|planet transit|astrology today)/i.test(message);
-        
-        const toolsConfig = isExternalQuery
-          ? [{ googleSearch: {} }]
-          : [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }];
-
-        // Generate content with function calling capabilities
-        let response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          config: {
-            systemInstruction: systemPrompt,
-            tools: toolsConfig,
-            temperature: 0.3,
-            maxOutputTokens: 2048
-          },
-          contents
-        });
-
-        // Handle potential tool function calls in loop
-        let functionCalls = response.functionCalls || [];
-        let maxToolTurns = 3;
-
-        while (functionCalls && functionCalls.length > 0 && maxToolTurns > 0) {
-          maxToolTurns -= 1;
-          const toolCall = functionCalls[0];
-          const toolName = toolCall.name;
-          const toolArgs = toolCall.args || {};
-
-          console.log(`[Aura AI] Gemini requested tool execution: ${toolName}`, toolArgs);
-
-          const toolResult = await executeAiToolCall(toolName, toolArgs, {
-            authenticatedUserId: userIsAuthenticated ? verifiedUserId : null,
-            userEmail: verifiedEmail
+    // Secondary fallback using Gemini API if Nemotron key is not yet set
+    if (!generatedViaLLM || !fullRawContent.trim()) {
+      const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
+      if (geminiApiKey) {
+        try {
+          const ai = new GoogleGenAI({
+            apiKey: geminiApiKey,
+            httpOptions: { headers: { "User-Agent": "aistudio-build" } }
           });
 
-          if (toolResult?.action) {
-            triggeredAction = toolResult;
+          const contents = [];
+          for (const h of history.slice(-6)) {
+            if (h.sender === "user" && h.text) {
+              contents.push({ role: "user", parts: [{ text: String(h.text) }] });
+            } else if (h.sender === "ai" && h.text) {
+              contents.push({ role: "model", parts: [{ text: String(h.text) }] });
+            }
           }
+          contents.push({ role: "user", parts: [{ text: message }] });
 
-          // Append function call and function response to multi-turn contents
-          contents.push({
-            role: "model",
-            parts: [{ functionCall: toolCall }]
-          });
-          contents.push({
-            role: "user",
-            parts: [{
-              functionResponse: {
-                name: toolName,
-                response: { output: toolResult }
-              }
-            }]
-          });
+          const isExternalQuery = /(news|article|history|research|today|weather|external|scientific|planet transit|astrology today)/i.test(message);
+          const toolsConfig = isExternalQuery
+            ? [{ googleSearch: {} }]
+            : [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }];
 
-          response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
+          let response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
             config: {
               systemInstruction: systemPrompt,
-              tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
-              temperature: 0.3
+              tools: toolsConfig,
+              temperature: 0.3,
+              maxOutputTokens: 2048
             },
             contents
           });
 
-          functionCalls = response.functionCalls || [];
-        }
+          let functionCalls = response.functionCalls || [];
+          let maxToolTurns = 3;
 
-        fullRawContent = response.text || "";
-        if (fullRawContent.trim()) {
-          generatedViaLLM = true;
-        }
-      } catch (geminiErr) {
-        console.warn("[Aura AI] Gemini API Execution Notice:", geminiErr?.message || geminiErr);
-      }
-    }
+          while (functionCalls && functionCalls.length > 0 && maxToolTurns > 0) {
+            maxToolTurns -= 1;
+            const toolCall = functionCalls[0];
+            const toolName = toolCall.name;
+            const toolArgs = toolCall.args || {};
 
-    // Secondary LLM Generation: NVIDIA NIM (with retry logic and timeout)
-    if (!generatedViaLLM || !fullRawContent.trim()) {
-      const nvidiaClient = getNvidiaClient();
-      if (nvidiaClient) {
-        for (let attempt = 1; attempt <= 2 && !generatedViaLLM; attempt++) {
-          try {
-            const nimMessages = [
-              { role: "system", content: systemPrompt }
-            ];
-            for (const h of history.slice(-6)) {
-              if (h.sender === "user" && h.text) {
-                nimMessages.push({ role: "user", content: String(h.text) });
-              } else if (h.sender === "ai" && h.text) {
-                nimMessages.push({ role: "assistant", content: String(h.text) });
-              }
-            }
-            nimMessages.push({ role: "user", content: message });
-
-            const nimCompletion = await nvidiaClient.chat.completions.create({
-              model: PRIMARY_NIM_MODEL,
-              messages: nimMessages,
-              temperature: 0.35,
-              max_tokens: 1500,
-              chat_template_kwargs: { enable_thinking: false },
-              reasoning_effort: "none"
+            const toolResult = await executeAiToolCall(toolName, toolArgs, {
+              authenticatedUserId: userIsAuthenticated ? verifiedUserId : null,
+              userEmail: verifiedEmail
             });
 
-            const nimText = nimCompletion.choices?.[0]?.message?.content || "";
-            if (nimText.trim()) {
-              fullRawContent = nimText;
-              generatedViaLLM = true;
-              break;
+            if (toolResult?.action) {
+              triggeredAction = toolResult;
             }
-          } catch (nimErr) {
-            console.warn(`[Aura AI] NVIDIA NIM attempt ${attempt} notice:`, nimErr?.message || nimErr);
+
+            contents.push({
+              role: "model",
+              parts: [{ functionCall: toolCall }]
+            });
+            contents.push({
+              role: "user",
+              parts: [{
+                functionResponse: {
+                  name: toolName,
+                  response: { output: toolResult }
+                }
+              }]
+            });
+
+            response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              config: {
+                systemInstruction: systemPrompt,
+                tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
+                temperature: 0.3
+              },
+              contents
+            });
+
+            functionCalls = response.functionCalls || [];
           }
+
+          fullRawContent = response.text || "";
+          if (fullRawContent.trim()) {
+            generatedViaLLM = true;
+          }
+        } catch (geminiErr) {
+          console.warn("[Aura AI] AI Model fallback execution notice:", geminiErr?.message || geminiErr);
         }
       }
     }
@@ -1108,6 +1124,20 @@ export async function getAuraAIConversations(req, res, next) {
       }
     }
 
+    if (!isDbConnected()) {
+      let memoryConvos = inMemoryStore.aiConversations || [];
+      if (!isAdmin) {
+        if (scopedEmail || scopedId) {
+          memoryConvos = memoryConvos.filter(c => (scopedEmail && c.userEmail === scopedEmail) || (scopedId && (c.userId === scopedId || c.authUserId === scopedId)));
+        } else if (clientGuestSessionId) {
+          memoryConvos = memoryConvos.filter(c => c.userId === "guest" && c.guestSessionId === clientGuestSessionId);
+        } else {
+          memoryConvos = [];
+        }
+      }
+      return res.json({ success: true, data: memoryConvos, count: memoryConvos.length });
+    }
+
     const convos = await AuraAIConversation.find(query)
       .select("-ipHash")
       .sort({ updatedAt: -1 })
@@ -1116,7 +1146,8 @@ export async function getAuraAIConversations(req, res, next) {
 
     return res.json({ success: true, data: convos || [], count: (convos || []).length });
   } catch (err) {
-    next(err);
+    console.warn("Notice in getAuraAIConversations, serving in-memory fallback:", err.message);
+    return res.json({ success: true, data: inMemoryStore.aiConversations || [], count: (inMemoryStore.aiConversations || []).length });
   }
 }
 
@@ -1389,9 +1420,14 @@ export async function getAuraAIAnalytics(req, res, next) {
     let catCounts = {};
     if (recIds.size > 0) {
       try {
-        const prods = await Product.find({ id: { $in: [...recIds] } }).lean();
+        let prods = [];
+        if (isDbConnected()) {
+          prods = await Product.find({ id: { $in: [...recIds] } }).lean();
+        } else {
+          prods = (inMemoryStore.products || []).filter(p => recIds.has(String(p.id)));
+        }
         const prodCatMap = new Map();
-        prods.forEach(pr => {
+        (prods || []).forEach(pr => {
           prodCatMap.set(String(pr.id), pr.category || "Rudraksha");
         });
         convos.forEach(c => {
@@ -1452,7 +1488,56 @@ export async function generateProductDescription(req, res, next) {
 
     const suggestedCategory = category && category !== "Rudraksha" ? category : inferCategoryFromTitle(cleanName);
 
-    // Primary AI Generation using Gemini API (@google/genai)
+    // Primary AI Generation using nemotron-3-super-120b-a12b
+    const nvidiaClient = getNvidiaClient();
+    if (nvidiaClient) {
+      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+        try {
+          const nimCompletion = await nvidiaClient.chat.completions.create({
+            model: modelCandidate,
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert sales representative and Vedic spiritual guide for Aura Rudraksha. Write persuasive, authentic product descriptions in clean HTML."
+              },
+              {
+                role: "user",
+                content: `Generate a professional, highly readable product description in clean HTML for "${cleanName}" (${suggestedCategory}) in ${targetLanguage}.
+Use the following structured headings exactly (enclosed in h2):
+<h2>✨ About the Product</h2>
+<h2>📿 Product Highlights</h2>
+<h2>🌿 Spiritual Significance</h2>
+<h2>🙏 Suitable For</h2>
+<h2>🕉️ How to Wear & Care</h2>
+
+Output ONLY the pure HTML body itself, no markdown code fences, no extra commentary.`
+              }
+            ],
+            temperature: 0.6,
+            max_tokens: 1500
+          });
+
+          const nimText = nimCompletion.choices?.[0]?.message?.content || "";
+          let cleanHtml = cleanServerAiText(nimText);
+          cleanHtml = cleanHtml.replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+          if (cleanHtml && cleanHtml.includes("<h2>")) {
+            return res.json({ 
+              success: true, 
+              description: cleanHtml,
+              category: suggestedCategory,
+              highlight: "100% Consecrated • Authentic Nepal Bead",
+              badge: "Best Seller",
+              tags: [suggestedCategory, "Authentic", "Consecrated"]
+            });
+          }
+        } catch (nimErr) {
+          console.warn(`[Aura AI] nemotron-3-super-120b-a12b description notice (${modelCandidate}):`, nimErr?.message || nimErr);
+        }
+      }
+    }
+
+    // Secondary fallback generation
     const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
     if (geminiApiKey) {
       try {
@@ -1472,7 +1557,7 @@ Use the following structured headings exactly (enclosed in h2):
 Output ONLY the pure HTML body itself, no markdown code fences, no extra commentary.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+          model: "gemini-2.5-flash",
           contents: prompt,
           config: {
             systemInstruction: "You are an expert sales representative and Vedic spiritual guide for Aura Rudraksha. Write persuasive, authentic product descriptions in clean HTML.",
@@ -1495,58 +1580,6 @@ Output ONLY the pure HTML body itself, no markdown code fences, no extra comment
         }
       } catch (geminiErr) {
         console.warn("[Aura AI] Description generation notice:", geminiErr?.message || geminiErr);
-      }
-    }
-
-    // Secondary AI Generation (NVIDIA NIM fallback)
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
-    if (nvidiaApiKey) {
-      try {
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({
-            model: PRIMARY_NIM_MODEL,
-            messages: [{
-              role: "system",
-              content: "You are an expert sales representative and spiritual guide combined. Think independently and creatively to guide the user towards making a purchase. Write persuasive product descriptions."
-            }, {
-              role: "user",
-              content: `Generate a professional, highly readable product description in clean HTML for ${cleanName} (${suggestedCategory}) in ${targetLanguage}.
-Use the following structured headings exactly (enclosed in h2):
-<h2>✨ About the Product</h2>
-<h2>📿 Product Highlights</h2>
-<h2>🌿 Spiritual Significance</h2>
-<h2>🙏 Suitable For</h2>
-<h2>🕉️ How to Wear & Care</h2>
-
-Output ONLY the pure HTML body itself, no markdown code fences.`
-            }],
-            temperature: 0.7,
-            max_tokens: 1000
-          })
-        });
-
-        if (nimRes.ok) {
-          const nimData = await nimRes.json();
-          let cleanHtml = (nimData.choices?.[0]?.message?.content || "").replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
-          if (cleanHtml && cleanHtml.includes("<h2>")) {
-            return res.json({ 
-              success: true, 
-              description: cleanHtml,
-              category: suggestedCategory,
-              highlight: "100% Consecrated • Authentic Nepal Bead",
-              badge: "Best Seller",
-              tags: [suggestedCategory, "Authentic", "Consecrated"]
-            });
-          }
-        }
-      } catch (nimErr) {
-        console.warn("NVIDIA NIM description notice:", nimErr?.message || nimErr);
       }
     }
 
@@ -1585,7 +1618,78 @@ export async function generateProductKeywords(req, res, next) {
     const inferredMukhi = mukhiNum ? `${mukhiNum} Mukhi` : (cleanName.toLowerCase().includes("gauri shankar") ? "Gauri Shankar" : (mukhi || ""));
     const inferredOrigin = origin || (cleanName.toLowerCase().includes("indonesia") || cleanName.toLowerCase().includes("java") ? "Java / Indonesia" : "Nepal");
 
-    // Primary AI Generation using Gemini API (@google/genai)
+    // Primary AI Generation using nemotron-3-super-120b-a12b
+    const nvidiaClient = getNvidiaClient();
+    if (nvidiaClient) {
+      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+        try {
+          const nimCompletion = await nvidiaClient.chat.completions.create({
+            model: modelCandidate,
+            messages: [
+              {
+                role: "system",
+                content: `You are an elite e-commerce search algorithm architect and Vedic Rudraksha specialist. 
+Your mission is to generate comprehensive search keywords, phonetic terms, Hinglish synonyms, Hindi translations, tags, and astrological metadata to maximize conversion and ensure any search query finds this product.
+Always respond with a valid, clean JSON object ONLY without markdown code fences:
+{
+  "keywords": ["keyword 1", "keyword 2", ... 18-25 keywords],
+  "tags": ["Tag 1", "Tag 2", ... 6-10 tags],
+  "subCategory": "Subcategory name",
+  "mukhi": "e.g. 5 Mukhi",
+  "rulingPlanet": "e.g. Jupiter (Guru / बृहस्पति)",
+  "deity": "e.g. Kalagni Rudra / Lord Shiva",
+  "origin": "Nepal",
+  "zodiac": ["Sagittarius (धनु)", "Pisces (मीन)"],
+  "highlight": "Short 1-line certified highlight badge"
+}`
+              },
+              {
+                role: "user",
+                content: `Generate high-ranking search keywords and Vedic product metadata for:
+Product Name: "${cleanName}"
+Category: "${category || 'Rudraksha'}"
+Mukhi/Bead: "${inferredMukhi || 'N/A'}"
+Origin: "${inferredOrigin}"
+Price: ₹${price || 999}
+Details: ${details || description?.replace(/<[^>]*>/g, '').slice(0, 300) || 'Authentic Vedic Sacred Bead'}
+Language preference: ${targetLang}`
+              }
+            ],
+            temperature: 0.5,
+            max_tokens: 1200
+          });
+
+          let rawText = (nimCompletion.choices?.[0]?.message?.content || "").trim();
+          rawText = stripThinkingAndReasoning(rawText);
+          rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
+              return res.json({
+                success: true,
+                data: {
+                  keywords: parsed.keywords.map(k => String(k).trim()).filter(Boolean),
+                  tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => String(t).trim()).filter(Boolean) : ["Lab Certified", "Nepal Origin", "Authentic"],
+                  subCategory: parsed.subCategory || (inferredMukhi ? "Mukhi Rudraksha Beads" : (category || "Rudraksha")),
+                  mukhi: parsed.mukhi || inferredMukhi || "",
+                  rulingPlanet: parsed.rulingPlanet || "",
+                  deity: parsed.deity || "",
+                  origin: parsed.origin || inferredOrigin,
+                  zodiac: Array.isArray(parsed.zodiac) ? parsed.zodiac : [],
+                  highlight: parsed.highlight || "100% Authentic Nepal Consecrated Bead"
+                }
+              });
+            }
+          }
+        } catch (nimErr) {
+          console.warn(`[Aura AI] nemotron-3-super-120b-a12b keywords notice (${modelCandidate}):`, nimErr?.message || nimErr);
+        }
+      }
+    }
+
+    // Secondary fallback generation
     const geminiApiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
     if (geminiApiKey) {
       try {
@@ -1617,7 +1721,7 @@ Always respond with a valid, clean JSON object ONLY without markdown code fences
 }`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+          model: "gemini-2.5-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json",
@@ -1650,93 +1754,6 @@ Always respond with a valid, clean JSON object ONLY without markdown code fences
         }
       } catch (geminiErr) {
         console.warn("[Aura AI] Keywords generation notice:", geminiErr?.message || geminiErr);
-      }
-    }
-
-    // Secondary AI Generation (NVIDIA NIM fallback)
-    const nvidiaApiKey = process.env.NVIDIA_API_KEY ? process.env.NVIDIA_API_KEY.trim() : "";
-    if (nvidiaApiKey) {
-      try {
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({
-            model: PRIMARY_NIM_MODEL,
-            messages: [
-              {
-                role: "system",
-                content: `You are an elite e-commerce search algorithm architect and Vedic Rudraksha specialist. 
-Your mission is to generate comprehensive search keywords, phonetic terms, Hinglish synonyms, Hindi translations, tags, and astrological metadata to maximize conversion and ensure any search query finds this product.
-Think strategically about user search patterns:
-1. Exact mukhi / name queries (e.g. "5 mukhi", "5mukhi", "panch mukhi", "panchamukhi")
-2. Spelling variations and typos (e.g. "rudraksh", "rudraksha", "rudrakshya", "rudrakshm")
-3. Hindi devanagari queries (e.g. "पंचमुखी रुद्राक्ष", "असली नेपाली रुद्राक्ष", "शिव रुद्राक्ष")
-4. Benefit/Purpose-driven queries (e.g. "blood pressure bead", "peace of mind", "jupiter guru graha", "meditation mala", "shiva blessing")
-5. Origin & Quality keywords (e.g. "nepal origin", "lab certified with certificate", "x-ray tested", "haridwar consecrated")
-
-Always respond with a valid, clean JSON object ONLY without markdown code fences:
-{
-  "keywords": ["keyword 1", "keyword 2", ... 18-25 keywords],
-  "tags": ["Tag 1", "Tag 2", ... 6-10 tags],
-  "subCategory": "Subcategory name",
-  "mukhi": "e.g. 5 Mukhi",
-  "rulingPlanet": "e.g. Jupiter (Guru / बृहस्पति)",
-  "deity": "e.g. Kalagni Rudra / Lord Shiva",
-  "origin": "Nepal",
-  "zodiac": ["Sagittarius (धनु)", "Pisces (मीन)"],
-  "highlight": "Short 1-line certified highlight badge"
-}`
-              },
-              {
-                role: "user",
-                content: `Generate high-ranking search keywords and Vedic product metadata for:
-Product Name: "${cleanName}"
-Category: "${category || 'Rudraksha'}"
-Mukhi/Bead: "${inferredMukhi || 'N/A'}"
-Origin: "${inferredOrigin}"
-Price: ₹${price || 999}
-Details: ${details || description?.replace(/<[^>]*>/g, '').slice(0, 300) || 'Authentic Vedic Sacred Bead'}
-Language preference: ${targetLang}`
-              }
-            ],
-            temperature: 0.6,
-            max_tokens: 800
-          })
-        });
-
-        if (nimRes.ok) {
-          const nimData = await nimRes.json();
-          let rawText = (nimData.choices?.[0]?.message?.content || "").trim();
-          rawText = stripThinkingAndReasoning(rawText);
-          rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-
-          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
-              return res.json({
-                success: true,
-                data: {
-                  keywords: parsed.keywords.map(k => String(k).trim()).filter(Boolean),
-                  tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => String(t).trim()).filter(Boolean) : ["Lab Certified", "Nepal Origin", "Authentic"],
-                  subCategory: parsed.subCategory || (inferredMukhi ? "Mukhi Rudraksha Beads" : (category || "Rudraksha")),
-                  mukhi: parsed.mukhi || inferredMukhi || "",
-                  rulingPlanet: parsed.rulingPlanet || "",
-                  deity: parsed.deity || "",
-                  origin: parsed.origin || inferredOrigin,
-                  zodiac: Array.isArray(parsed.zodiac) ? parsed.zodiac : [],
-                  highlight: parsed.highlight || "100% Authentic Nepal Consecrated Bead"
-                }
-              });
-            }
-          }
-        }
-      } catch (nimErr) {
-        console.warn("NVIDIA NIM keywords error:", nimErr?.message || nimErr);
       }
     }
 

@@ -107,7 +107,25 @@ export async function getProducts(req, res, next) {
     res.setHeader("Expires", "0");
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
-    next(err);
+    console.warn("Notice in getProducts, serving in-memory catalog fallback:", err.message);
+    const isAdmin = await checkIsAdmin(req).catch(() => false);
+    let products = [...inMemoryStore.products];
+    if (!isAdmin) {
+      products = products.filter(p => {
+        const s = (p.status || "Published").toLowerCase();
+        return s === "published" || s === "active";
+      });
+    } else if (req.query.status) {
+      const queryStatus = String(req.query.status).trim().toLowerCase();
+      products = products.filter(p => {
+        const s = (p.status || "Draft").toLowerCase();
+        if (queryStatus === "draft") return s === "draft" || s === "inactive";
+        if (queryStatus === "published" || queryStatus === "active") return s === "published" || s === "active";
+        return s === queryStatus;
+      });
+    }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    return res.json({ success: true, data: products, count: products.length });
   }
 }
 
@@ -156,7 +174,21 @@ export async function getProductById(req, res, next) {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: product });
   } catch (err) {
-    next(err);
+    console.warn("Notice in getProductById, serving in-memory product fallback:", err.message);
+    const cleanId = String(req.params.id || "").trim();
+    const product = inMemoryStore.products.find(p => String(p.id) === cleanId || p.slug === cleanId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    const isAdmin = await checkIsAdmin(req).catch(() => false);
+    if (!isAdmin) {
+      const currentStatus = (product.status || "Published").toLowerCase();
+      if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
+    }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.json({ success: true, data: product });
   }
 }
 

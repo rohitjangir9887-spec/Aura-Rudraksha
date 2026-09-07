@@ -4,6 +4,7 @@ import { Coupon } from "../models/Coupon.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { extractMukhiNumber } from "./vedicKnowledgeService.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 /**
  * Tool Function Declarations for Gemini API (@google/genai format)
@@ -158,7 +159,13 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
 
         let products = [];
         if (isDbConnected()) {
-          products = await Product.find(filter).lean();
+          try {
+            products = await Product.find(filter).lean();
+          } catch (_) {
+            products = [...(inMemoryStore.products || [])];
+          }
+        } else {
+          products = [...(inMemoryStore.products || [])];
         }
 
         // Search text matching if query supplied
@@ -202,9 +209,19 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         let p = null;
 
         if (isDbConnected()) {
-          if (productId) p = await Product.findOne({ $or: [{ id: productId }, { _id: productId }] }).lean();
-          else if (slug) p = await Product.findOne({ slug }).lean();
-          else if (name) p = await Product.findOne({ name: new RegExp(name, "i") }).lean();
+          try {
+            if (productId) p = await Product.findOne({ $or: [{ id: productId }, { _id: productId }] }).lean();
+            else if (slug) p = await Product.findOne({ slug }).lean();
+            else if (name) p = await Product.findOne({ name: new RegExp(name, "i") }).lean();
+          } catch (_) {
+            p = null;
+          }
+        }
+
+        if (!p) {
+          if (productId) p = (inMemoryStore.products || []).find(prod => String(prod.id) === String(productId) || String(prod._id) === String(productId));
+          else if (slug) p = (inMemoryStore.products || []).find(prod => prod.slug === slug);
+          else if (name) p = (inMemoryStore.products || []).find(prod => String(prod.name || "").toLowerCase().includes(String(name).toLowerCase()));
         }
 
         if (!p) {
@@ -237,21 +254,36 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         let inStock = false;
         let name = productName || "Requested Rudraksha";
 
+        let found = null;
         if (isDbConnected()) {
-          let query = {};
-          if (productId) query = { $or: [{ id: productId }, { _id: productId }] };
-          else if (productName) query = { name: new RegExp(productName, "i") };
+          try {
+            let query = {};
+            if (productId) query = { $or: [{ id: productId }, { _id: productId }] };
+            else if (productName) query = { name: new RegExp(productName, "i") };
+            else if (mukhi) {
+              const num = parseInt(mukhi, 10);
+              if (!isNaN(num)) query = { name: new RegExp(`${num}\\s*mukhi`, "i") };
+            }
+
+            found = await Product.findOne(query).lean();
+          } catch (_) {
+            found = null;
+          }
+        }
+
+        if (!found) {
+          if (productId) found = (inMemoryStore.products || []).find(prod => String(prod.id) === String(productId) || String(prod._id) === String(productId));
+          else if (productName) found = (inMemoryStore.products || []).find(prod => String(prod.name || "").toLowerCase().includes(String(productName).toLowerCase()));
           else if (mukhi) {
             const num = parseInt(mukhi, 10);
-            if (!isNaN(num)) query = { name: new RegExp(`${num}\\s*mukhi`, "i") };
+            if (!isNaN(num)) found = (inMemoryStore.products || []).find(prod => String(prod.name || "").toLowerCase().includes(`${num} mukhi`) || String(prod.mukhi || "") === String(num));
           }
+        }
 
-          const found = await Product.findOne(query).lean();
-          if (found) {
-            name = found.name;
-            stock = found.stock !== undefined ? Number(found.stock) : 0;
-            inStock = found.inStock !== false && stock > 0;
-          }
+        if (found) {
+          name = found.name;
+          stock = found.stock !== undefined ? Number(found.stock) : 0;
+          inStock = found.inStock !== false && stock > 0;
         }
 
         return {
