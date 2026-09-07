@@ -101,16 +101,25 @@ self.addEventListener("fetch", (event) => {
         const cache = await caches.open(IMAGE_CACHE);
         const cachedResponse = await cache.match(request);
 
-        // Fetch fresh copy in background to revalidate
-        const fetchPromise = fetch(request, { mode: "cors", credentials: "omit" })
+        // Fetch fresh copy in background to revalidate without forcing mode: cors
+        const fetchPromise = fetch(request)
           .then(async (networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              await cache.put(request, networkResponse.clone());
-              trimCache(IMAGE_CACHE, MAX_IMAGE_ENTRIES);
+            if (networkResponse && (networkResponse.status === 200 || networkResponse.type === "opaque")) {
+              try {
+                await cache.put(request, networkResponse.clone());
+                trimCache(IMAGE_CACHE, MAX_IMAGE_ENTRIES);
+              } catch (_) {}
             }
             return networkResponse;
           })
-          .catch(() => null);
+          .catch(async () => {
+            // Fallback no-cors fetch for opaque cross-origin media
+            try {
+              return await fetch(request.url, { mode: "no-cors" });
+            } catch (_) {
+              return null;
+            }
+          });
 
         // If cached, return immediately (0ms latency on refresh)
         if (cachedResponse) {

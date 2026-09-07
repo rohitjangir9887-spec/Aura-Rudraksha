@@ -4,6 +4,7 @@ import { Search, Heart, ShoppingCart, User, Menu, X, Home, ShoppingBag, PackageC
 import { useCart } from "../hooks/useCart";
 import { useWishlist } from "../hooks/useWishlist";
 import { db, onStoreUpdate } from "../lib/db";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 import { Footer } from "./Footer";
 import { TopOfferStrip } from "./TopOfferStrip";
 import { AuraAIPill } from "./AuraAIPill";
@@ -107,11 +108,18 @@ export function Shell({children}) {
           <div className="header-center">
             <Link className="brand" to="/" aria-label="Aura Rudraksha Home" onPointerEnter={() => handlePreload("/")}>
               <img 
-                src="https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png" 
+                src={getOptimizedImageUrl("https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png", { width: 360, quality: 85 })} 
                 alt="Aura Rudraksha" 
                 className="brand-logo-img" 
                 referrerPolicy="no-referrer"
-                onError={(e) => { if (e.target.src !== window.location.origin + "/logo-horizontal.png") e.target.src = "/logo-horizontal.png"; }}
+                onError={(e) => { 
+                  const target = e.currentTarget;
+                  if (target.src.includes("wsrv.nl")) {
+                    target.src = "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+                  } else if (!target.src.includes("logo-header-horizontal.png")) { 
+                    target.src = "/logo-header-horizontal.png"; 
+                  } 
+                }}
               />
             </Link>
           </div>

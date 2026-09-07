@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Gift, Copy, Check, Clock, Sparkles, ArrowRight, ShieldCheck, Flame } from "lucide-react";
 import { useActiveOffer } from "../hooks/useActiveOffer";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 
 /**
  * Home Hero / Promotional Offer Banner with live synchronized countdown timer
@@ -138,12 +139,18 @@ export function HomeHeroOffer() {
             <div className="hero-offer-img-halo" />
             <div className="hero-offer-img-box">
               <img 
-                src={offer.image || offer.bannerImage || "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png"} 
+                src={getOptimizedImageUrl(offer.image || offer.bannerImage || "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png", { width: 480, quality: 80 })} 
                 alt={title || "Sacred Himalayan Rudraksha Festival Offer"}
                 className="hero-offer-img"
                 loading="lazy"
+                decoding="async"
                 onError={(e) => { 
-                  if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { e.currentTarget.src = "/images/product-5mukhi.jpg"; } 
+                  const raw = offer.image || offer.bannerImage || "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png";
+                  if (e.currentTarget.src.includes("wsrv.nl")) {
+                    e.currentTarget.src = raw;
+                  } else if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { 
+                    e.currentTarget.src = "/images/product-5mukhi.jpg"; 
+                  } 
                 }}
               />
             </div>

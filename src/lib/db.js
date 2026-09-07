@@ -661,22 +661,33 @@ export async function fetchHomeData(force = false) {
         }
       };
 
+      // 1. Critical primary fetches for above-fold homepage
       await Promise.all([
-        fetchProducts(),
-        fetchActiveOffer(),
         fetchBanners(),
-        fetchSettings()
+        fetchProducts()
       ]);
-      Promise.all([
-        fetchOffers(),
-        fetchReviews(),
-        fetchReviewSettings(),
-        fetchCoupons()
-      ]).catch(console.warn);
 
       localStorage.setItem("aura_last_fetch_time", String(Date.now()));
       isHydrated = true;
       if (hydrationResolver) hydrationResolver(true);
+
+      // 2. Non-critical secondary fetches deferred until after initial paint
+      const runSecondaryFetches = () => {
+        Promise.all([
+          fetchActiveOffer(),
+          fetchSettings(),
+          fetchOffers(),
+          fetchReviews(),
+          fetchReviewSettings(),
+          fetchCoupons()
+        ]).catch(console.warn);
+      };
+
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(runSecondaryFetches, { timeout: 2500 });
+      } else {
+        setTimeout(runSecondaryFetches, 1500);
+      }
 
       emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
     } catch (err) {

@@ -207,25 +207,34 @@ export function Home() {
       aria-label="Aura Sacred Hero Banners"
     >
       <div className="hero-slides" style={{ minHeight: "220px", background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
-        {activeBanners.map((src, i) => (
-          <img 
-            key={`${src}-${i}`} 
-            src={getOptimizedImageUrl(src, { width: 1200, quality: 84 })} 
-            alt={`Aura Sacred Banner ${i + 1}`} 
-            className={`hero-slide ${i === hero ? 'active' : ''}`}
-            loading={i === 0 ? "eager" : "lazy"}
-            fetchpriority={i === 0 ? "high" : "auto"}
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onLoad={() => setLoadedBanners(prev => ({ ...prev, [i]: true }))}
-            onError={(e) => {
-              setLoadedBanners(prev => ({ ...prev, [i]: true }));
-              if (!e.currentTarget.src.includes("product-5mukhi.jpg")) {
-                e.currentTarget.src = "/images/product-5mukhi.jpg";
-              }
-            }}
-          />
-        ))}
+        {activeBanners.map((src, i) => {
+          const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+          const bannerWidth = isMobile ? 640 : 1200;
+          const bannerQuality = isMobile ? 78 : 84;
+
+          return (
+            <img 
+              key={`${src}-${i}`} 
+              src={getOptimizedImageUrl(src, { width: bannerWidth, quality: bannerQuality })} 
+              alt={`Aura Sacred Banner ${i + 1}`} 
+              className={`hero-slide ${i === hero ? 'active' : ''}`}
+              loading={i === 0 ? "eager" : "lazy"}
+              fetchpriority={i === 0 ? "high" : "low"}
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onLoad={() => setLoadedBanners(prev => ({ ...prev, [i]: true }))}
+              onError={(e) => {
+                setLoadedBanners(prev => ({ ...prev, [i]: true }));
+                const target = e.currentTarget;
+                if (target.src.includes("wsrv.nl")) {
+                  target.src = src;
+                } else if (!target.src.includes("product-5mukhi.jpg")) {
+                  target.src = "/images/product-5mukhi.jpg";
+                }
+              }}
+            />
+          );
+        })}
       </div>
       {activeBanners.length > 1 && (
         <div className="hero-pagination" role="tablist" aria-label="Slider Pagination">

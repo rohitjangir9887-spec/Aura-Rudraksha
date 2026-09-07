@@ -6,6 +6,7 @@ import {
   ShieldCheck, Beaker, Truck, Phone
 } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 import { motion } from "framer-motion";
 
 export function FooterHelpStrip() {
@@ -65,11 +66,20 @@ export function Footer() {
         {/* 2. Brand Section */}
         <div className="n-footer-brand">
           <img 
-            src="https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png" 
+            src={getOptimizedImageUrl("https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png", { width: 360, quality: 85 })} 
             alt="Aura Rudraksha Logo" 
             className="nf-logo"
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
-            onError={(e) => { if (e.target.src !== window.location.origin + "/logo-horizontal.png") e.target.src = "/logo-horizontal.png"; }}
+            onError={(e) => { 
+              const target = e.currentTarget;
+              if (target.src.includes("wsrv.nl")) {
+                target.src = "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+              } else if (!target.src.includes("logo-header-horizontal.png")) { 
+                target.src = "/logo-header-horizontal.png"; 
+              } 
+            }}
           />
           <h3 className="nf-tagline">Sacred. Natural. Powerful.</h3>
           <p className="nf-desc">

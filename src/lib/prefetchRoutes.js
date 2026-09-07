@@ -67,29 +67,22 @@ export function initInstantRoutePrefetch() {
   if (typeof window === "undefined" || idlePrefetchScheduled) return;
   idlePrefetchScheduled = true;
 
-  // Respect data saver mode and slow connections
+  // Strictly skip automatic bulk prefetching on slow connections or data saver mode
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  if (conn && (conn.saveData || conn.effectiveType === "2g" || conn.effectiveType === "slow-2g")) {
+  if (conn && (conn.saveData || conn.effectiveType === "2g" || conn.effectiveType === "3g" || conn.effectiveType === "slow-2g")) {
     return;
   }
 
-  // Pre-warm primary customer routes (product, shop, cart, wishlist) during browser idle time
-  // immediately after critical initial paint and hydration finish (1200ms).
-  if ("requestIdleCallback" in window) {
-    setTimeout(() => {
+  // Strictly defer automatic pre-warming until well after initial viewport paint (6000ms idle)
+  // so cold start bandwidth remains 100% dedicated to critical LCP and viewport rendering.
+  const scheduleIdlePrefetch = () => {
+    if ("requestIdleCallback" in window) {
       window.requestIdleCallback(() => {
         prefetchRoute("product");
         prefetchRoute("shop");
-        prefetchRoute("cart");
-        prefetchRoute("wishlist");
-      }, { timeout: 2000 });
-    }, 1200);
-  } else {
-    setTimeout(() => {
-      prefetchRoute("product");
-      prefetchRoute("shop");
-      prefetchRoute("cart");
-      prefetchRoute("wishlist");
-    }, 1500);
-  }
+      }, { timeout: 3000 });
+    }
+  };
+
+  setTimeout(scheduleIdlePrefetch, 6000);
 }

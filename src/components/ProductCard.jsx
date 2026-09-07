@@ -38,7 +38,8 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     ? p.images 
     : getProductGalleryImages(p);
   const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
-  const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: 440, quality: 82 });
+  const cardImgWidth = (typeof window !== "undefined" && window.innerWidth < 640) ? 360 : 440;
+  const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: cardImgWidth, quality: 80 });
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 

@@ -1,5 +1,6 @@
 import React from "react";
 import { Sparkles, MessageCircle } from "lucide-react";
+import { getOptimizedImageUrl } from "../../lib/imageUtils";
 
 export function PanditjiHeader({ handleAskInChat }) {
   return (
@@ -40,8 +41,10 @@ export function PanditjiHeader({ handleAskInChat }) {
           }}>
             {/* PNG Image Source with fallback to SVG */}
             <img
-              src="https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png"
+              src={getOptimizedImageUrl("https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png", { width: 320, quality: 80 })}
               alt="Aura Panditji"
+              loading="lazy"
+              decoding="async"
               style={{
                 width: '100%',
                 height: '100%',
@@ -50,8 +53,13 @@ export function PanditjiHeader({ handleAskInChat }) {
                 display: 'block'
               }}
               onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                const fallback = e.currentTarget.parentElement.querySelector('svg');
+                const target = e.currentTarget;
+                if (target.src.includes("wsrv.nl")) {
+                  target.src = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+                  return;
+                }
+                target.style.display = 'none';
+                const fallback = target.parentElement.querySelector('svg');
                 if (fallback) fallback.style.display = 'block';
               }}
               referrerPolicy="no-referrer"

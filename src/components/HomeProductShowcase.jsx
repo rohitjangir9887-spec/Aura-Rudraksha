@@ -12,6 +12,7 @@ import { useCart } from "../hooks/useCart";
 import { isPublicProduct } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
 import { sortProductsByHomeOrder } from "../lib/productHelper";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 
 // Authentic Devotee Avatars
 const DEVOTEE_AVATARS = [
@@ -75,7 +76,7 @@ function PanditJiAvatar({ size = 34 }) {
       }}
     >
       <img
-        src="https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png"
+        src={getOptimizedImageUrl("https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png", { width: 320, quality: 80 })}
         alt="AI Pandit Ji"
         style={{
           width: '100%',
@@ -85,12 +86,18 @@ function PanditJiAvatar({ size = 34 }) {
           display: 'block'
         }}
         onError={(e) => {
-          e.currentTarget.style.display = 'none';
-          const fallback = e.currentTarget.parentElement.querySelector('svg');
+          const target = e.currentTarget;
+          if (target.src.includes("wsrv.nl")) {
+            target.src = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+            return;
+          }
+          target.style.display = 'none';
+          const fallback = target.parentElement.querySelector('svg');
           if (fallback) fallback.style.display = 'block';
         }}
         referrerPolicy="no-referrer"
         loading="eager"
+        decoding="async"
       />
       <svg width={size - 2} height={size - 2} viewBox="0 0 40 40" fill="none" style={{ display: 'none' }}>
         {/* Radiating Halo Rays */}

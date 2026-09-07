@@ -136,21 +136,11 @@ function AuraAIFloatingWrapper() {
     window.addEventListener("aura_ai_open_change", handleTrigger);
     window.addEventListener("aura_ai_floating_dismiss_sync", handleTrigger);
 
-    let timerId;
-    if ("requestIdleCallback" in window) {
-      timerId = setTimeout(() => {
-        window.requestIdleCallback(() => setShouldLoad(true), { timeout: 3000 });
-      }, 3500);
-    } else {
-      timerId = setTimeout(() => setShouldLoad(true), 4500);
-    }
-
     return () => {
       window.removeEventListener("aura_ai_trigger_chat", handleTrigger);
       window.removeEventListener("aura_ai_trigger_chat_preload", handleTrigger);
       window.removeEventListener("aura_ai_open_change", handleTrigger);
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleTrigger);
-      clearTimeout(timerId);
     };
   }, [shouldLoad]);
 

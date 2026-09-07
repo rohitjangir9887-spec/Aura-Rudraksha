@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Sparkles, ShieldCheck, PackageCheck } from "lucide-react";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 
 export function WhyAuraSection() {
   return (
@@ -36,7 +37,7 @@ export function WhyAuraSection() {
           >
             <div className="aura-editorial-img-wrap">
               <img
-                src="https://i.ibb.co/G4XWVbHR/file-000000008f508206b947f8cd82988acb.png"
+                src={getOptimizedImageUrl("https://i.ibb.co/G4XWVbHR/file-000000008f508206b947f8cd82988acb.png", { width: 640, quality: 78 })}
                 alt="Sacred Japa & Dhyana Himalayan Malas"
                 className="aura-editorial-img"
                 loading="lazy"
