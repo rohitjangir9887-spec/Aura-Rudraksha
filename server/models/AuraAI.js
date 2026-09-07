@@ -61,6 +61,7 @@ const auraAIConversationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+auraAIConversationSchema.index({ userId: 1, id: 1 });
 export const AuraAIConversation = mongoose.models.AuraAIConversation || mongoose.model("AuraAIConversation", auraAIConversationSchema);
 
 // Long-Term Memory Schema (Mem0-Style Context Memory)
