@@ -5,7 +5,8 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
-  reorderProducts
+  reorderProducts,
+  triggerDailySalesIncrement
 } from "../controllers/productController.js";
 import { requireAdmin, optionalAuth } from "../middleware/auth.js";
 
@@ -17,6 +18,9 @@ router.route("/")
 
 router.route("/reorder")
   .put(requireAdmin, reorderProducts);
+
+router.route("/increment-daily-sales")
+  .post(requireAdmin, triggerDailySalesIncrement);
 
 router.route("/:id")
   .get(optionalAuth, getProductById)

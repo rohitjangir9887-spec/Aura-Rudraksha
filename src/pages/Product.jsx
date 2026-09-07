@@ -31,7 +31,7 @@ import "../components/RichTextEditor.css";
 export function Product() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { add, buyNow, totals } = useCart();
+  const { add, addBatch, buyNow, totals } = useCart();
   const shipThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const { isWishlisted, toggleWishlist } = useWishlist();
 
@@ -274,10 +274,12 @@ export function Product() {
   };
 
   const handleAddBundle = (items) => {
-    if (!Array.isArray(items)) return;
-    items.forEach(item => {
-      add(item.id, item.qty || 1);
-    });
+    if (!Array.isArray(items) || items.length === 0) return;
+    if (typeof addBatch === "function") {
+      addBatch(items);
+    } else {
+      add(items);
+    }
   };
 
   const scrollToReviews = () => {

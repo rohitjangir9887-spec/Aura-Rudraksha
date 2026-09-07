@@ -545,7 +545,7 @@
 .aura-sales-counter-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: linear-gradient(135deg, #fff8f0 0%, #ffedd5 100%);
   border: 1.5px solid #fed7aa;
   color: #9a3412;
@@ -559,6 +559,38 @@
   overflow: hidden;
   animation: auraSalesPulse 2.8s infinite ease-in-out;
   user-select: none;
+}
+
+.aura-sales-counter-badge.aura-sales-locked {
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.35), 0 2px 8px rgba(234, 88, 12, 0.15);
+  border-color: #f97316;
+}
+
+.aura-sales-digits-wrapper {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace, sans-serif;
+  font-weight: 900;
+  color: #9a3412;
+  letter-spacing: -0.5px;
+}
+
+.aura-sales-digit-slot {
+  display: inline-block;
+  height: 1.25em;
+  line-height: 1.25em;
+  overflow: hidden;
+  vertical-align: middle;
+  position: relative;
+  width: 0.65em;
+  text-align: center;
+}
+
+.aura-sales-badge-suffix {
+  font-size: 12px;
+  font-weight: 800;
+  color: #9a3412;
+  letter-spacing: -0.1px;
 }
 
 .aura-sales-flame-icon {

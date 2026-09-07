@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import { money, pct } from "../../data";
+import { AnimatedSalesCounter } from "./AnimatedSalesCounter";
 
 export function ProductPricing({ product }) {
   if (!product) return null;
@@ -29,7 +30,7 @@ export function ProductPricing({ product }) {
   }
 
   return (
-    <div className="aura-pricing-block">
+    <div className="aura-pricing-block" id="product-pricing-section">
       {/* Price Main Row */}
       <div className="aura-pricing-main-row">
         <div style={{ display: "inline-flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
@@ -44,16 +45,12 @@ export function ProductPricing({ product }) {
           )}
         </div>
 
-        {/* 🔥 Total Sales Social Proof Counter with Live Animation */}
+        {/* 🔥 Total Sales Social Proof Counter with Live Rolling Animation */}
         {formattedSales && (
-          <div 
-            className="aura-sales-counter-badge"
-            title={`${formattedSales} authentic beads consecrated and delivered`}
-          >
-            <span className="aura-sales-flame-icon">🔥</span>
-            <span className="aura-sales-badge-text">{formattedSales}</span>
-            <span className="aura-sales-live-dot" />
-          </div>
+          <AnimatedSalesCounter 
+            salesText={formattedSales} 
+            salesCount={product.salesCount} 
+          />
         )}
       </div>
 

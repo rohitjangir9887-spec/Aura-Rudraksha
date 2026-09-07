@@ -915,7 +915,13 @@ export const db = {
       showOnHome: p.showOnHome !== undefined ? !!p.showOnHome : true,
       isPopular: !!p.isPopular,
       homeOrder: Number(p.homeOrder) || 0,
-      homeBadge: p.homeBadge || p.badge || ""
+      homeBadge: p.homeBadge || p.badge || "",
+      totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
+      salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+      autoIncrementSales: p.autoIncrementSales !== undefined ? !!p.autoIncrementSales : true,
+      lastSalesUpdateDate: p.lastSalesUpdateDate || "",
+      dailySalesMin: Number(p.dailySalesMin) || 1,
+      dailySalesMax: Number(p.dailySalesMax) || 10
     };
 
     const res = await apiRequest("/products", {
@@ -958,7 +964,13 @@ export const db = {
       zodiac: Array.isArray(savedData.zodiac) ? savedData.zodiac : (finalProduct.zodiac || []),
       mrp: savedData.mrp || savedData.comparePrice || savedData.price,
       comparePrice: savedData.comparePrice || savedData.mrp || savedData.price,
-      images: getProductGalleryImages(savedData)
+      images: getProductGalleryImages(savedData),
+      totalSold: savedData.totalSold || finalProduct.totalSold || (finalProduct.salesCount ? `${finalProduct.salesCount}+ Sold` : ""),
+      salesCount: Number(savedData.salesCount ?? finalProduct.salesCount ?? 0),
+      autoIncrementSales: savedData.autoIncrementSales !== undefined ? !!savedData.autoIncrementSales : finalProduct.autoIncrementSales,
+      lastSalesUpdateDate: savedData.lastSalesUpdateDate || finalProduct.lastSalesUpdateDate || "",
+      dailySalesMin: Number(savedData.dailySalesMin ?? finalProduct.dailySalesMin ?? 1),
+      dailySalesMax: Number(savedData.dailySalesMax ?? finalProduct.dailySalesMax ?? 10)
     };
 
     if (currentIdx >= 0) {
@@ -1026,6 +1038,19 @@ export const db = {
     revalidateProducts(true).catch(() => {});
     fetchHomeData(true).catch(() => {}); // Force background sync across app
     return true;
+  },
+
+  triggerDailySalesIncrement: async () => {
+    try {
+      const res = await apiRequest("/products/increment-daily-sales", { method: "POST" });
+      if (res?.success) {
+        await revalidateProducts(true);
+        return res;
+      }
+    } catch (err) {
+      console.warn("Notice in triggerDailySalesIncrement:", err.message);
+    }
+    return { success: false };
   },
 
   // ORDERS

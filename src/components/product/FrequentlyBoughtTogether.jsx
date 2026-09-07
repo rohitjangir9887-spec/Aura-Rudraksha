@@ -1,6 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Plus, Check, ShoppingCart, Sparkles, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { money } from "../../data";
@@ -9,18 +9,29 @@ import { emitToast } from "../../context/ToastContext";
 export function FrequentlyBoughtTogether({ currentProduct, allProducts = [], onAddBundle }) {
   if (!currentProduct) return null;
 
-  // Pick 1 or 2 complementary products
-  const complementary = allProducts
-    .filter(p => String(p.id) !== String(currentProduct.id))
-    .slice(0, 2);
+  // Pick complementary products (same collection or top complementary items)
+  const complementary = useMemo(() => {
+    const list = (allProducts || []).filter(p => String(p.id) !== String(currentProduct.id));
+    // Prioritize products with matching or popular complementary categories
+    const matched = list.filter(p => p.category === "Malas" || p.category === "Bracelets" || p.category === "Puja Samagri");
+    const pool = matched.length >= 2 ? matched : list;
+    return pool.slice(0, 2);
+  }, [allProducts, currentProduct.id]);
 
   if (complementary.length === 0) return null;
 
-  // Selection state
+  // Selection state initialized with all 3 items (current + 2 complementary)
   const [selectedIds, setSelectedIds] = useState(() => [
     String(currentProduct.id),
     ...complementary.map(p => String(p.id))
   ]);
+
+  useEffect(() => {
+    setSelectedIds([
+      String(currentProduct.id),
+      ...complementary.map(p => String(p.id))
+    ]);
+  }, [currentProduct.id, complementary]);
 
   const [added, setAdded] = useState(false);
 

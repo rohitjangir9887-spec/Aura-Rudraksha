@@ -386,21 +386,40 @@ export function CartProvider({ children }) {
     const cart = lines.flatMap((l) => Array.from({ length: l.qty }, () => l.id));
     const count = lines.reduce((n, l) => n + l.qty, 0);
 
-    const add = (idOrObj, qty = 1) => {
-      let pid = null;
-      if (idOrObj && typeof idOrObj === "object") {
-        pid = String(idOrObj.id || idOrObj.productId || idOrObj._id || "").trim();
-      } else if (idOrObj !== undefined && idOrObj !== null) {
-        pid = String(idOrObj).trim();
+    const addBatch = (itemsArray) => {
+      if (!Array.isArray(itemsArray) || itemsArray.length === 0) return;
+      const key = getUserCartStorageKey(userRef.current);
+      const currentStored = readStoredCart(userRef.current);
+      
+      const map = new Map();
+      for (const l of currentStored) {
+        map.set(String(l.id), Number(l.qty) || 1);
       }
-      if (!pid || pid === "[object Object]" || pid === "undefined" || pid === "null") return;
+      
+      for (const item of itemsArray) {
+        let pid = null;
+        let qty = 1;
+        if (item && typeof item === "object") {
+          pid = String(item.id || item.productId || item._id || "").trim();
+          qty = Math.max(1, Number(item.qty || item.quantity) || 1);
+        } else if (item !== undefined && item !== null) {
+          pid = String(item).trim();
+        }
+        if (pid && pid !== "[object Object]" && pid !== "undefined" && pid !== "null") {
+          map.set(pid, (map.get(pid) || 0) + qty);
+        }
+      }
+      
+      const next = Array.from(map.entries()).map(([id, qty]) => ({ id, qty }));
+      persistLines(next);
+      return next;
+    };
 
-      const extra = Math.max(1, Number(qty) || 1);
-      persistLines(
-        lines.some((l) => l.id === pid)
-          ? lines.map((l) => (l.id === pid ? { ...l, qty: l.qty + extra } : l))
-          : [...lines, { id: pid, qty: extra }]
-      );
+    const add = (idOrObjOrArr, qty = 1) => {
+      if (Array.isArray(idOrObjOrArr)) {
+        return addBatch(idOrObjOrArr);
+      }
+      return addBatch([{ id: idOrObjOrArr, qty }]);
     };
 
     const buyNow = (idOrObj, qty = 1) => {
@@ -438,6 +457,7 @@ export function CartProvider({ children }) {
       lines,
       count,
       add,
+      addBatch,
       buyNow,
       remove,
       setQty,

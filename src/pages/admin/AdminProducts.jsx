@@ -8,7 +8,7 @@ import { compressImage, uploadMedia, uploadMediaBatch } from "../../lib/imageUti
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
-import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash } from "lucide-react";
+import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp } from "lucide-react";
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
 import { AdminFeaturedProductManager } from "../../components/admin/AdminFeaturedProductManager";
@@ -27,6 +27,7 @@ export function AdminProducts() {
   const [deleteId, setDeleteId] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState("");
+  const [isIncrementingSales, setIsIncrementingSales] = useState(false);
 
   // Search Keywords & Vedic SEO States
   const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false);
@@ -135,6 +136,23 @@ export function AdminProducts() {
       load();
     } catch (err) {
       emitToast(err.message || "Failed to delete product from database", "error");
+    }
+  };
+
+  const handleTriggerDailySales = async () => {
+    setIsIncrementingSales(true);
+    try {
+      const res = await db.triggerDailySalesIncrement();
+      if (res?.success) {
+        emitToast(`⚡ Daily sales updated! 1-10 new sales added to active products.`, "success");
+        load();
+      } else {
+        emitToast("Sales are already up to date for today.", "info");
+      }
+    } catch (err) {
+      emitToast("Error triggering daily sales: " + err.message, "error");
+    } finally {
+      setIsIncrementingSales(false);
     }
   };
 
@@ -402,7 +420,12 @@ export function AdminProducts() {
         homeBadge: p.homeBadge || p.badge || "",
         homeOrder: p.homeOrder !== undefined ? p.homeOrder : 0,
         img: p.img || (imgs[0] || ""),
-        images: imgs
+        images: imgs,
+        totalSold: p.totalSold || (p.salesCount ? `${p.salesCount}+ Sold` : ""),
+        salesCount: p.salesCount !== undefined && p.salesCount !== null ? Number(p.salesCount) : (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+        autoIncrementSales: p.autoIncrementSales !== undefined ? !!p.autoIncrementSales : true,
+        dailySalesMin: p.dailySalesMin !== undefined ? Number(p.dailySalesMin) : 1,
+        dailySalesMax: p.dailySalesMax !== undefined ? Number(p.dailySalesMax) : 10
       });
     } else {
       setEditing({
@@ -438,7 +461,12 @@ export function AdminProducts() {
         homeBadge: "Popular",
         homeOrder: 0,
         rating: 4.9,
-        reviews: 0
+        reviews: 0,
+        totalSold: "180+ Sold",
+        salesCount: 180,
+        autoIncrementSales: true,
+        dailySalesMin: 1,
+        dailySalesMax: 10
       });
     }
   };
@@ -758,8 +786,11 @@ export function AdminProducts() {
       homeOrder: Number(editing.homeOrder) || 0,
       homeBadge: (editing.homeBadge || editing.badge || "").trim(),
       badge: (editing.homeBadge || editing.badge || "").trim(),
-      totalSold: (editing.totalSold || "").trim(),
-      salesCount: Number(editing.salesCount) || (editing.totalSold ? parseInt(String(editing.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+      totalSold: (editing.totalSold || "").trim() || (editing.salesCount ? `${editing.salesCount}+ Sold` : "180+ Sold"),
+      salesCount: Number(editing.salesCount) || (editing.totalSold ? parseInt(String(editing.totalSold).replace(/\D/g, ""), 10) || 0 : 180),
+      autoIncrementSales: editing.autoIncrementSales !== false,
+      dailySalesMin: Number(editing.dailySalesMin) || 1,
+      dailySalesMax: Number(editing.dailySalesMax) || 10,
       rating: Number(editing.rating) || 4.9,
       reviews: Number(editing.reviews) || 0
     };
@@ -876,19 +907,59 @@ export function AdminProducts() {
               />
             </div>
 
-            <div className="admin-form-group">
-              <label style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <div className="admin-form-group" style={{ background: '#fff9f4', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid #fed7aa' }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: '700', color: '#9a3412', margin: 0 }}>
                 🔥 Total Sales / Units Sold (कुल बिक्री संख्या)
               </label>
-              <input 
-                type="text"
-                value={editing.totalSold || ""} 
-                onChange={e => setEditing({...editing, totalSold: e.target.value})}
-                placeholder="e.g. 540+ Sold or 1,280"
-              />
-              <span style={{ fontSize: '11px', color: '#7a6a5e', marginTop: '2px', display: 'block' }}>
-                ✨ Customer product page par price ke samne glowing animation ke sath dikhega (e.g. 540+ Sold)
-              </span>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#7a6a5e', display: 'block', marginBottom: '3px' }}>Sales Count (Number):</span>
+                  <input 
+                    type="number"
+                    value={editing.salesCount !== undefined && editing.salesCount !== null ? editing.salesCount : (parseInt(String(editing.totalSold || '').replace(/\D/g, ''), 10) || '')} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      const num = val === "" ? "" : Number(val);
+                      setEditing({
+                        ...editing, 
+                        salesCount: num,
+                        totalSold: num !== "" ? `${num}+ Sold` : ""
+                      });
+                    }}
+                    placeholder="e.g. 456"
+                  />
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#7a6a5e', display: 'block', marginBottom: '3px' }}>Display Badge Text:</span>
+                  <input 
+                    type="text"
+                    value={editing.totalSold || ""} 
+                    onChange={e => setEditing({...editing, totalSold: e.target.value})}
+                    placeholder="e.g. 456+ Sold"
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="checkbox"
+                  id="autoIncCheck"
+                  checked={editing.autoIncrementSales !== false}
+                  onChange={e => setEditing({ ...editing, autoIncrementSales: e.target.checked })}
+                  style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#ea580c' }}
+                />
+                <label htmlFor="autoIncCheck" style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: '#9a3412', cursor: 'pointer' }}>
+                  ⚡ Har din 1-10 ke beech sales automatically badhti rahe (Daily Auto-Growth 1-10/day)
+                </label>
+              </div>
+
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#7a6a5e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>✨ Customer page view:</span>
+                <span style={{ background: '#ffedd5', color: '#9a3412', border: '1px solid #fed7aa', padding: '2px 8px', borderRadius: '12px', fontWeight: '800', fontSize: '11px' }}>
+                  🔥 {editing.totalSold || (editing.salesCount ? `${editing.salesCount}+ Sold` : "456+ Sold")}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -2101,9 +2172,21 @@ export function AdminProducts() {
           <h1>Product Catalog &amp; Home Showcase</h1>
           <p className="admin-page-subtitle">Manage store products, publish or save drafts, stock levels, pricing, and home showcase</p>
         </div>
-        <button className="admin-btn" onClick={() => handleEdit(null)}>
-          <Plus size={16} /> Add Product
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button 
+            type="button"
+            className="admin-btn secondary"
+            onClick={handleTriggerDailySales}
+            disabled={isIncrementingSales}
+            style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#9a3412', fontWeight: '700' }}
+            title="Increment 1-10 daily sales right now across all auto-increment products"
+          >
+            <TrendingUp size={16} /> {isIncrementingSales ? "Updating..." : "⚡ Run Daily Sales Growth (+1-10)"}
+          </button>
+          <button className="admin-btn" onClick={() => handleEdit(null)}>
+            <Plus size={16} /> Add Product
+          </button>
+        </div>
       </div>
 
       {/* 1. HOME FEATURED PRODUCT CONTROL */}
@@ -2375,6 +2458,7 @@ export function AdminProducts() {
                   <th>Price</th>
                   <th>Delivery</th>
                   <th>Stock</th>
+                  <th>Total Sales</th>
                   <th style={{ textAlign: 'center' }}>Home Showcase</th>
                   <th style={{ textAlign: 'center' }}>Status</th>
                   <th>Actions</th>
@@ -2385,6 +2469,7 @@ export function AdminProducts() {
                   const displayImg = getProductPrimaryImage(p);
                   const isShownOnHome = p.showOnHome !== false;
                   const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
+                  const salesCountNum = Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
 
                   return (
                     <tr key={p.id}>
@@ -2473,6 +2558,25 @@ export function AdminProducts() {
                         <span style={{ color: p.stock < 10 ? '#dc2626' : '#1d9450', fontWeight: '600' }}>
                           {p.stock} units
                         </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ fontWeight: '800', color: '#9a3412', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            🔥 {salesCountNum}
+                          </span>
+                          <span style={{ 
+                            fontSize: '10px', 
+                            fontWeight: '700',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            width: 'fit-content',
+                            background: p.autoIncrementSales !== false ? '#ecfdf5' : '#f3f4f6',
+                            color: p.autoIncrementSales !== false ? '#047857' : '#6b7280',
+                            border: p.autoIncrementSales !== false ? '1px solid #a7f3d0' : '1px solid #e5e7eb'
+                          }}>
+                            {p.autoIncrementSales !== false ? '⚡ Auto +1-10/d' : '🔒 Fixed'}
+                          </span>
+                        </div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <button

@@ -59,6 +59,12 @@ const productSchema = new mongoose.Schema(
     rating: { type: Number, default: 4.9, min: 0, max: 5 },
     reviews: { type: Number, default: 0, min: 0 },
     reviewCount: { type: Number, default: 0, min: 0 },
+    totalSold: { type: String, default: "" },
+    salesCount: { type: Number, default: 0, min: 0 },
+    autoIncrementSales: { type: Boolean, default: true },
+    lastSalesUpdateDate: { type: String, default: "" },
+    dailySalesMin: { type: Number, default: 1 },
+    dailySalesMax: { type: Number, default: 10 },
     customOffer: { type: Object, default: null },
     freeShipping: { type: Boolean, default: true },
     shippingFee: { type: Number, default: 0, min: 0 }
