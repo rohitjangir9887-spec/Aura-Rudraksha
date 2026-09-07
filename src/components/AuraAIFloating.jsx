@@ -301,7 +301,10 @@ export function AuraAIFloating() {
   const isAdminPage = path.startsWith("/admin");
   const isDedicatedAiPage = path === "/aura-ai";
 
-  if (settings.enabled === false || settings.showFloatingButton === false || isAdminPage || isDedicatedAiPage) {
+  if (settings.enabled === false || isAdminPage || isDedicatedAiPage) {
+    return null;
+  }
+  if (!isOpen && settings.showFloatingButton === false) {
     return null;
   }
 
@@ -698,13 +701,14 @@ export function AuraAIFloating() {
             )}
             <div className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}>
             <motion.div
+              key={isFullWindow ? "full-modal" : "compact-panel"}
               id="aura-ai-floating-panel"
               className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
-              initial={{ opacity: 0, y: 20, scale: 0.94 }}
+              initial={{ opacity: 0, y: isFullWindow ? 0 : 20, scale: isFullWindow ? 0.98 : 0.94 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 15, scale: 0.95 }}
+              exit={{ opacity: 0, y: isFullWindow ? 0 : 15, scale: 0.95 }}
               transition={{ 
-                duration: 0.28,
+                duration: 0.25,
                 ease: [0.16, 1, 0.3, 1]
               }}
               drag={!isFullWindow}
@@ -775,7 +779,12 @@ export function AuraAIFloating() {
                   {/* Full Window / Maximize Toggle */}
                   <button 
                     type="button"
-                    onClick={() => setIsFullWindow((prev) => !prev)} 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsFullWindow((prev) => !prev);
+                    }} 
+                    onPointerDown={(e) => e.stopPropagation()}
                     className="aura-ai-btn-icon"
                     title={isFullWindow ? "Restore compact window" : "Maximize to full window"}
                     aria-label={isFullWindow ? "Restore compact window" : "Maximize to full window"}

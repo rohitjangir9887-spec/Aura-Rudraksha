@@ -11,10 +11,10 @@ export function PaymentResult() {
   const { clear } = useCart();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const status = searchParams.get("status") || "processing";
-  const orderId = searchParams.get("orderId");
-  const txnid = searchParams.get("txnid");
-  const reason = searchParams.get("reason");
+  const status = (searchParams.get("status") || searchParams.get("payment_status") || "processing").toLowerCase();
+  const orderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1");
+  const txnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id");
+  const reason = searchParams.get("reason") || searchParams.get("error") || searchParams.get("message");
   
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);

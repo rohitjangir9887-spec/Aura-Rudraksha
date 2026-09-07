@@ -15,12 +15,12 @@ import { AdminFeaturedProductManager } from "../../components/admin/AdminFeature
 
 export function AdminProducts() {
   const [searchParams] = useSearchParams();
-  const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [products, setProducts] = useState(() => db.getProducts() || []);
+  const [filteredProducts, setFilteredProducts] = useState(() => db.getProducts() || []);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [homeFilter, setHomeFilter] = useState("All"); // "All" | "On Home" | "Hidden"
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => (db.getProducts() || []).length === 0);
   const [editing, setEditing] = useState(null);
   const [urlInput, setUrlInput] = useState("");
   const [formError, setFormError] = useState("");

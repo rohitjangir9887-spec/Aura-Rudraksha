@@ -33,8 +33,11 @@ const POPULAR_COURIERS = [
 ];
 
 export function AdminOrders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => {
+    const list = [...(db.getOrders() || [])].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    return list;
+  });
+  const [loading, setLoading] = useState(() => (db.getOrders() || []).length === 0);
   const [viewing, setViewing] = useState(null);
 
   // Filters State
@@ -88,15 +91,21 @@ export function AdminOrders() {
 
   useEffect(() => {
     load();
-    const unsub = onStoreUpdate(() => load());
+    const unsub = onStoreUpdate(() => {
+      const list = [...(db.getOrders() || [])].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+      setOrders(list);
+    });
     return () => unsub();
   }, []);
 
   const load = async () => {
+    if ((db.getOrders() || []).length === 0) {
+      setLoading(true);
+    }
     try {
       await db.fetchOrders();
     } catch (_) {}
-    const list = [...db.getOrders()].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    const list = [...(db.getOrders() || [])].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
     setOrders(list);
     setLoading(false);
   };

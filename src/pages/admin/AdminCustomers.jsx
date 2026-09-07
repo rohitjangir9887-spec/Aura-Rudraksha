@@ -6,28 +6,35 @@ import { Eye, Search, User, Mail, Phone, Calendar, ArrowLeft, ShoppingBag, MapPi
 import "./admin-pages.css";
 
 export function AdminCustomers() {
-  const [customers, setCustomers] = useState([]);
-  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [customers, setCustomers] = useState(() => db.getCustomers() || []);
+  const [filteredCustomers, setFilteredCustomers] = useState(() => db.getCustomers() || []);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => (db.getCustomers() || []).length === 0);
   const [viewing, setViewing] = useState(null);
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => db.getOrders() || []);
 
   useEffect(() => {
     load();
-    const unsub = onStoreUpdate(() => load());
+    const unsub = onStoreUpdate(() => {
+      const custs = db.getCustomers() || [];
+      const ords = db.getOrders() || [];
+      setCustomers(custs);
+      setOrders(ords);
+    });
     return () => unsub();
   }, []);
 
   const load = async () => {
+    if ((db.getCustomers() || []).length === 0) {
+      setLoading(true);
+    }
     try {
       // Live customers from MongoDB (admin endpoint)
       await Promise.all([db.fetchCustomers(), db.fetchOrders()]);
     } catch (_) {}
-    const custs = db.getCustomers();
-    const ords = db.getOrders();
+    const custs = db.getCustomers() || [];
+    const ords = db.getOrders() || [];
     setCustomers(custs);
-    setFilteredCustomers(custs);
     setOrders(ords);
     setLoading(false);
   };

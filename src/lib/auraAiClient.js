@@ -4,6 +4,17 @@ import { auraChatStore } from "./auraChatStore.js";
 
 const API_BASE = ((((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env.VITE_API_BASE_URL : undefined) || "/api").replace(/\/$/, "")) + "/aura-ai";
 
+async function getAuthToken() {
+  try {
+    const token = await authClient.getToken();
+    if (token) return token;
+  } catch (_) {}
+  if (typeof localStorage !== "undefined") {
+    return localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+  }
+  return "";
+}
+
 let activeStreamAbortController = null;
 
 export const auraAiClient = {
@@ -303,7 +314,7 @@ export const auraAiClient = {
   // Update AI Settings (Admin)
   async updateSettings(settings) {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/settings`, {
         method: "PUT",
         headers: {
@@ -321,7 +332,7 @@ export const auraAiClient = {
   // Get Conversations (user history or admin overview)
   async getConversations() {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
       const res = await fetch(`${API_BASE}/conversations?guestSessionId=${encodeURIComponent(guestSessionId)}`, {
         headers: {
@@ -338,7 +349,7 @@ export const auraAiClient = {
   // Get Single Conversation
   async getConversationById(id) {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
       const res = await fetch(`${API_BASE}/conversations/${id}?guestSessionId=${encodeURIComponent(guestSessionId)}`, {
         headers: {
@@ -355,7 +366,7 @@ export const auraAiClient = {
   // Delete Conversation
   async deleteConversation(id) {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
       const res = await fetch(`${API_BASE}/conversations/${id}`, {
         method: "DELETE",
@@ -373,7 +384,7 @@ export const auraAiClient = {
   // Track product click or cart add from AI
   async trackAction({ conversationId, action, productId }) {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
       await fetch(`${API_BASE}/track`, {
         method: "POST",
@@ -390,7 +401,7 @@ export const auraAiClient = {
   // Calculate Authentic Astronomical Kundali & Recommendations
   async calculateKundali({ dob, birthTime, birthPlace, name, gender, concern }) {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/kundali`, {
         method: "POST",
         headers: {
@@ -408,7 +419,7 @@ export const auraAiClient = {
   // Get Admin AI Advanced Intelligence Report
   async getAdminIntelligence() {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/admin-intelligence`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -423,7 +434,7 @@ export const auraAiClient = {
   // Get Analytics (Admin)
   async getAnalytics() {
     try {
-      const token = await authClient.getToken();
+      const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/analytics`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})

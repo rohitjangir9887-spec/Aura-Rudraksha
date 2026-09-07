@@ -414,6 +414,20 @@ export function loadCacheFromLocalStorage() {
       const parsed = JSON.parse(cachedReviews);
       if (Array.isArray(parsed)) storeCache.reviews = parsed;
     }
+    const cachedOrders = localStorage.getItem("aura_admin_orders_cache") || localStorage.getItem("aura_orders_cache");
+    if (cachedOrders) {
+      try {
+        const parsed = JSON.parse(cachedOrders);
+        if (Array.isArray(parsed) && parsed.length > 0) storeCache.orders = parsed;
+      } catch (_) {}
+    }
+    const cachedCustomers = localStorage.getItem("aura_admin_customers_cache") || localStorage.getItem("aura_customers_cache");
+    if (cachedCustomers) {
+      try {
+        const parsed = JSON.parse(cachedCustomers);
+        if (Array.isArray(parsed) && parsed.length > 0) storeCache.customers = parsed;
+      } catch (_) {}
+    }
     
     // Check if we have a valid, unexpired cache
     const lastFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
@@ -1109,6 +1123,10 @@ export const db = {
     const res = await apiRequest("/orders");
     if (res?.success && Array.isArray(res.data)) {
       storeCache.orders = res.data;
+      try {
+        localStorage.setItem("aura_admin_orders_cache", JSON.stringify(res.data));
+      } catch (_) {}
+      emitStoreUpdate("orders:synced", storeCache.orders);
       return storeCache.orders;
     }
     if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {
@@ -1450,6 +1468,10 @@ export const db = {
     const res = await apiRequest("/customers");
     if (res?.success && Array.isArray(res.data)) {
       storeCache.customers = res.data;
+      try {
+        localStorage.setItem("aura_admin_customers_cache", JSON.stringify(res.data));
+      } catch (_) {}
+      emitStoreUpdate("customers:synced", storeCache.customers);
       return db.getCustomers();
     }
     if (res?.status === 503 || res?.error === "Database unavailable" || res?.success === false) {

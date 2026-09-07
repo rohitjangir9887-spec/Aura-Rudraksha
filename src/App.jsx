@@ -112,6 +112,18 @@ export function App() {
           <Route path="/payment-result" element={<PaymentResult />} />
           <Route path="/payment_result" element={<PaymentResult />} />
           <Route path="/payment-status" element={<PaymentResult />} />
+          <Route path="/payment/status" element={<PaymentResult />} />
+          <Route path="/payment-success" element={<PaymentResult />} />
+          <Route path="/payment/success" element={<PaymentResult />} />
+          <Route path="/payment-failed" element={<PaymentResult />} />
+          <Route path="/payment/failed" element={<PaymentResult />} />
+          <Route path="/payment-failure" element={<PaymentResult />} />
+          <Route path="/payment/failure" element={<PaymentResult />} />
+          <Route path="/order-success" element={<PaymentResult />} />
+          <Route path="/order-confirmation" element={<PaymentResult />} />
+          <Route path="/checkout/success" element={<PaymentResult />} />
+          <Route path="/checkout/result" element={<PaymentResult />} />
+          <Route path="/checkout/status" element={<PaymentResult />} />
           <Route path="/login" element={<Login />} />
 
           {/* Customer Account Routes */}
