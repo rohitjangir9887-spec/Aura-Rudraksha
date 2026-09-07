@@ -4,6 +4,7 @@
  */
 
 import { useEffect } from "react";
+import { CANONICAL_APP_ORIGIN } from "../lib/authClient";
 
 export function useSeo({
   title,
@@ -50,15 +51,22 @@ export function useSeo({
     }
 
     // Canonical link
+    // Normalize older page-level absolute domains to the single authoritative origin.
     if (canonical) {
+      let canonicalUrl = canonical;
+      try {
+        const parsed = new URL(canonical, CANONICAL_APP_ORIGIN);
+        canonicalUrl = `${CANONICAL_APP_ORIGIN}${parsed.pathname}${parsed.search}${parsed.hash}`;
+      } catch (_) {}
+
       let link = document.querySelector('link[rel="canonical"]');
       if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "canonical");
         document.head.appendChild(link);
       }
-      link.setAttribute("href", canonical);
-      setMetaTag("property", "og:url", canonical);
+      link.setAttribute("href", canonicalUrl);
+      setMetaTag("property", "og:url", canonicalUrl);
     }
   }, [title, description, canonical, ogImage, ogType]);
 }
