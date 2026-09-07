@@ -439,10 +439,7 @@ export function Checkout() {
     setPayuTimeout(false);
     setPayuError(null);
 
-    const timeoutTimer = setTimeout(() => {
-      setPayuTimeout(true);
-      setPaymentState("IDLE");
-    }, 15000);
+
 
     const { firstName, lastName, phone, email, address, landmark, locality, pincode, city, state } = formData;
     const cleanEmail = (email || "").trim().toLowerCase();
@@ -507,7 +504,6 @@ export function Checkout() {
 
     try {
       const res = await db.initiatePayment(paymentPayload);
-      clearTimeout(timeoutTimer);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         setPaymentState("REDIRECTING");
@@ -517,7 +513,6 @@ export function Checkout() {
         throw new Error(res?.message || "Could not initialize PayU payment gateway");
       }
     } catch (err) {
-      clearTimeout(timeoutTimer);
       setPayuError(err.message || "Payment gateway connection failed. Please verify your details and try again.");
       setPaymentState("FAILED");
       setLoading(false);
@@ -526,10 +521,9 @@ export function Checkout() {
   };
 
   const handlePlaceOrder = async (e) => {
-    if (isSubmittingRef.current) return;
-    isSubmittingRef.current = true;
     if (e) e.preventDefault();
-    if (loading) return;
+    if (loading || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     if (effectiveLines.length === 0 || subtotal === 0) {
       emitToast("Your cart is empty.", "warning");
@@ -573,14 +567,10 @@ export function Checkout() {
     setPayuTimeout(false);
     setPayuError(null);
 
-    const timeoutTimer = setTimeout(() => {
-      setPayuTimeout(true);
-      setPaymentState("FAILED");
-    }, 15000);
+
 
     try {
       const res = await db.retryPayment(orderId, null);
-      clearTimeout(timeoutTimer);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         setPaymentState("REDIRECTING");
@@ -589,7 +579,6 @@ export function Checkout() {
         throw new Error(res?.message || "Could not generate retry payment attempt");
       }
     } catch (err) {
-      clearTimeout(timeoutTimer);
       setPayuError(err.message || "Failed to retry payment. Please try again or create a fresh order.");
       setPaymentState("FAILED");
       setRetrying(false);
