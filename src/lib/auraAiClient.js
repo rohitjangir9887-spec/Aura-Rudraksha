@@ -211,7 +211,7 @@ export const auraAiClient = {
           text = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
         }
         const result = { ...parsed, text };
-        if (onChunk) onChunk(result.text, result.text);
+        if (onChunk) onChunk(result.text, result.text, result);
         if (onDone) onDone(result);
         return result;
       }
@@ -222,17 +222,23 @@ export const auraAiClient = {
       console.warn("Aura AI streaming notice:", err?.message || err);
       if (onError) onError(err);
       
+      const preservedKundali = finalData?.kundali || null;
       let errorText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
-      const errMsg = String(err?.message || "").toLowerCase();
-      if (errMsg.includes("503") || errMsg.includes("database") || errMsg.includes("html") || errMsg.includes("json") || errMsg.includes("status")) {
-        errorText = "Namaste! 🙏 Our digital temple is currently undergoing a brief Vedic alignment & routine maintenance. Our sevaks are working swiftly to restore full access. Please try again in a few moments or reach out to us on WhatsApp!";
+      if (preservedKundali) {
+        errorText = "🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका की खगोलीय गणना पूर्ण हो चुकी है (नीचे विवरण देखें)। AI पंडित जी का विस्तृत विश्लेषण वर्तमान में अनुपलब्ध है, परंतु आपके परिणाम नीचे सुरक्षित हैं।";
+      } else {
+        const errMsg = String(err?.message || "").toLowerCase();
+        if (errMsg.includes("503") || errMsg.includes("database") || errMsg.includes("html") || errMsg.includes("json") || errMsg.includes("status")) {
+          errorText = "Namaste! 🙏 Our digital temple is currently undergoing a brief Vedic alignment & routine maintenance. Our sevaks are working swiftly to restore full access. Please try again in a few moments or reach out to us on WhatsApp!";
+        }
       }
 
       const fallbackResult = {
         text: errorText,
-        products: [],
-        coupons: [],
-        quickReplies: ["Talk to Support", "Today's Offers", "Help Me Choose"],
+        products: finalData?.products || [],
+        coupons: finalData?.coupons || [],
+        kundali: preservedKundali,
+        quickReplies: preservedKundali ? ["📿 Mukhi Guide", "🕉️ Kundali Consultation", "Talk to Support"] : ["Talk to Support", "Today's Offers", "Help Me Choose"],
         requiresHuman: true,
         conversationId
       };
@@ -427,7 +433,11 @@ export const auraAiClient = {
         },
         body: JSON.stringify({ dob, birthTime, birthPlace, name, gender, concern })
       });
-      return await res.json();
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, message: json.message || "Kundali calculation failed" };
+      }
+      return { success: true, data: json.data, kundali: json.data };
     } catch (err) {
       return { success: false, message: err.message };
     }
@@ -435,31 +445,43 @@ export const auraAiClient = {
 
   // Get Admin AI Advanced Intelligence Report
   async getAdminIntelligence() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
       const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/admin-intelligence`, {
+        signal: controller.signal,
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
       });
       const data = await res.json();
       if (data.success && data.data) return data.data;
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      clearTimeout(timeoutId);
+    }
     return null;
   },
 
   // Get Analytics (Admin)
   async getAnalytics() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     try {
       const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/analytics`, {
+        signal: controller.signal,
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
       });
       const data = await res.json();
       if (data.success && data.data) return data.data;
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      clearTimeout(timeoutId);
+    }
     return null;
   }
 };

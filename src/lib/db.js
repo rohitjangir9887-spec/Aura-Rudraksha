@@ -359,7 +359,7 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
-const CACHE_FRESHNESS_LIMIT = 0; // 4 seconds for fast background revalidation
+const CACHE_FRESHNESS_LIMIT = 30000; // 30 seconds for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
 
 let isInitialized = false;
@@ -443,7 +443,7 @@ export function loadCacheFromLocalStorage() {
   }
 }
 
-const PRODUCT_FRESHNESS_LIMIT = 0; // Short 3.5s window for fast live sync
+const PRODUCT_FRESHNESS_LIMIT = 30000; // 30s window for fast live sync
 let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
 let inFlightProductsPromise = null;
 
@@ -477,7 +477,6 @@ export async function revalidateProducts(force = false) {
         }));
 
         storeCache.products = normalized;
-        preloadImages(normalized);
         lastProductFetchTime = Date.now();
         try {
           localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
@@ -503,10 +502,7 @@ export async function revalidateProducts(force = false) {
 export async function fetchHomeData(force = false) {
   if (typeof window === "undefined") return;
 
-  // Always revalidate products independently so updates propagate quickly
-  revalidateProducts(force).catch(() => {});
-
-  // Deduplicate background fetches for other home resources
+  // Deduplicate background fetches for home resources
   if (globalThis.__aura_fetching_home) {
     return globalThis.__aura_fetching_home_promise;
   }
@@ -756,12 +752,26 @@ export const db = {
 
   getProduct: (idOrSlug) => {
     if (!idOrSlug) return null;
-    const target = String(idOrSlug).trim().toLowerCase();
-    const p = storeCache.products.find(x => 
-      String(x.id || "").toLowerCase() === target ||
-      (x._id && String(x._id).toLowerCase() === target) ||
-      (x.slug && String(x.slug).toLowerCase() === target)
-    );
+    let raw = String(idOrSlug).trim();
+    try {
+      raw = decodeURIComponent(raw);
+    } catch (_) {}
+    const target = raw.toLowerCase();
+    const slugTarget = target.replace(/^\/+|\/+$/g, "");
+
+    const p = storeCache.products.find(x => {
+      if (!x) return false;
+      const xId = String(x.id || "").toLowerCase();
+      const xMongoId = String(x._id || "").toLowerCase();
+      const xSlug = String(x.slug || "").toLowerCase();
+
+      if (xId === target || xId === slugTarget) return true;
+      if (xMongoId && (xMongoId === target || xMongoId === slugTarget)) return true;
+      if (xSlug && (xSlug === target || xSlug === slugTarget)) return true;
+      if (!isNaN(target) && Number(x.id) === Number(target)) return true;
+      return false;
+    });
+
     if (!p) return null;
     return {
       ...p,
@@ -777,34 +787,58 @@ export const db = {
   getProductAsync: async (idOrSlug) => {
     if (!idOrSlug) return null;
 
-    // 1. Check in-memory storeCache immediately
+    // 1. Check in-memory storeCache immediately (0ms)
     const cached = db.getProduct(idOrSlug);
     if (cached) return cached;
 
-    // 2. Direct API lookup for fast single-item load
-    const res = await apiRequest(`/products/${encodeURIComponent(idOrSlug)}`);
-    if (res?.success && res.data) {
-      const p = res.data;
-      const normalized = {
-        ...p,
-        id: String(p.id || p._id),
-        mrp: p.mrp || p.comparePrice || p.price,
-        comparePrice: p.comparePrice || p.mrp || p.price,
-        images: getProductGalleryImages(p)
-      };
-      const idx = storeCache.products.findIndex(x =>
-        String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
-      );
-      if (idx >= 0) {
-        storeCache.products[idx] = normalized;
-      } else {
-        storeCache.products.push(normalized);
-      }
-      return normalized;
+    // 2. Check localStorage cache if storeCache was empty
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("aura_products_cache");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            storeCache.products = parsed;
+            const fromStorage = db.getProduct(idOrSlug);
+            if (fromStorage) return fromStorage;
+          }
+        }
+      } catch (_) {}
     }
 
-    // 3. Fallback: wait for initial home sync if API call didn't return
-    await db.waitForHydration();
+    // 3. Direct API lookup for fast single-item load (bounded by 8s timeout)
+    try {
+      let cleanParam = String(idOrSlug).trim();
+      try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
+      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 8000 });
+      if (res?.success && res.data) {
+        const p = res.data;
+        const normalized = {
+          ...p,
+          id: String(p.id || p._id),
+          mrp: p.mrp || p.comparePrice || p.price,
+          comparePrice: p.comparePrice || p.mrp || p.price,
+          images: getProductGalleryImages(p)
+        };
+        const idx = storeCache.products.findIndex(x =>
+          String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
+        );
+        if (idx >= 0) {
+          storeCache.products[idx] = normalized;
+        } else {
+          storeCache.products.push(normalized);
+        }
+        return normalized;
+      }
+    } catch (_) {}
+
+    // 4. Fallback: wait for initial home sync if API call didn't return (capped at 2500ms)
+    try {
+      const waitPromise = db.waitForHydration();
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2500));
+      await Promise.race([waitPromise, timeoutPromise]);
+    } catch (_) {}
+
     return db.getProduct(idOrSlug);
   },
 
@@ -1015,7 +1049,6 @@ export const db = {
             localStorage.setItem(myCacheKey, JSON.stringify(res.data.slice(0, 60)));
           } catch (_) {}
         }
-        preloadImages(res.data);
         return res;
       }
       const cached = db.getCachedMyOrders();

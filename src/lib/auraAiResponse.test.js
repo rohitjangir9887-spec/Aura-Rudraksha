@@ -11,7 +11,8 @@ test('parseAuraAiPayload - handles null and undefined', (t) => {
     couponCodes: [],
     requiresHuman: false,
     quickReplies: [],
-    orderInfo: null
+    orderInfo: null,
+    kundali: null
   };
 
   assert.deepStrictEqual(parseAuraAiPayload(null), expectedEmpty);
@@ -113,4 +114,33 @@ test('parseAuraAiPayload - extracts specific scalar fields', (t) => {
   assert.strictEqual(result.requiresHuman, true);
   assert.deepStrictEqual(result.orderInfo, { status: "shipped" });
   assert.strictEqual(result.conversationId, "conv_123");
+});
+
+test('parseAuraAiPayload - preserves and normalizes kundali payload', (t) => {
+  const input = {
+    success: true,
+    data: {
+      text: "Vedic Reading",
+      kundali: {
+        verifiedBirthData: { name: "Rohit", dob: "1998-05-15", birthTime: "10:30", birthPlace: "Jaipur" },
+        astronomicalKundali: {
+          lagna: { rashiHindi: "कर्क", rashiEnglish: "Karka", degree: "12°34'" },
+          chandraRashi: { rashiHindi: "धनु", rashiEnglish: "Dhanu", rashiSymbol: "♐", degree: "05°12'", nakshatra: "मूल", pada: 1 },
+          suryaRashi: { rashiHindi: "वृषभ", rashiEnglish: "Vrishabh", degree: "00°45'" },
+          mulank: 6,
+          vimshottariDasha: { currentMahadashaHindi: "गुरु", currentAntardashaHindi: "शनि" },
+          rudrakshaRecommendations: [{ role: "Lagna", mukhi: "2 Mukhi Rudraksha" }]
+        }
+      }
+    }
+  };
+
+  const result = parseAuraAiPayload(input);
+
+  assert.ok(result.kundali);
+  assert.strictEqual(result.kundali.devoteeName, "Rohit");
+  assert.strictEqual(result.kundali.dob, "1998-05-15");
+  assert.strictEqual(result.kundali.rashiHindi, "धनु");
+  assert.strictEqual(result.kundali.lagnaRashiHindi, "कर्क");
+  assert.strictEqual(result.kundali.recommendedMukhi, "2 Mukhi Rudraksha");
 });

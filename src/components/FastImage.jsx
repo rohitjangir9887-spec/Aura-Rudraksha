@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { preloadImage } from "../lib/imageUtils";
 
 /**
  * FastImage Component
- * High-performance image renderer with instant browser cache detection,
+ * High-performance image renderer with native browser cache detection,
  * smooth skeleton loading state, decoding="async", and fallback image handling.
  */
 export function FastImage({
@@ -20,6 +20,7 @@ export function FastImage({
   const [imgSrc, setImgSrc] = useState(src || fallbackSrc);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const imgRef = useRef(null);
 
   useEffect(() => {
     if (!src) {
@@ -28,21 +29,20 @@ export function FastImage({
       return;
     }
 
-    // Add to global cache queue (non-blocking)
-    preloadImage(src);
+    if (priority) {
+      preloadImage(src, true);
+    }
 
     setImgSrc(src);
     setHasError(false);
 
-    // Check if image is already cached in browser memory
-    const img = new Image();
-    img.src = src;
-    if (img.complete && img.naturalWidth > 0) {
+    // If image is already cached in browser memory, show immediately
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
       setIsLoaded(true);
     } else {
       setIsLoaded(false);
     }
-  }, [src, fallbackSrc]);
+  }, [src, fallbackSrc, priority]);
 
   return (
     <div
@@ -62,6 +62,7 @@ export function FastImage({
       }}
     >
       <img
+        ref={imgRef}
         src={imgSrc}
         alt={alt}
         width={width}

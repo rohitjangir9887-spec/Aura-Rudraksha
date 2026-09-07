@@ -59,7 +59,7 @@ export function useAdminAuth() {
           localEmail.endsWith("@aurarudraksha.com") ||
           localPhone.endsWith(TARGET_PHONE_DIGITS);
 
-        // Verify with server
+        // Verify with server as authoritative source
         try {
           const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
           const token = await authClient.getToken().catch(() => "");
@@ -82,15 +82,19 @@ export function useAdminAuth() {
                 resPhone.endsWith(TARGET_PHONE_DIGITS)
               ) {
                 isAuthorizedAdmin = true;
-              }
-            } else if (res && (res.status === 401 || res.status === 403)) {
-              if (!isAuthorizedAdmin) {
+              } else {
                 isAuthorizedAdmin = false;
               }
+            } else {
+              // Server rejected or returned error - fail-closed
+              isAuthorizedAdmin = false;
             }
+          } else {
+            isAuthorizedAdmin = false;
           }
         } catch (_) {
-          // Keep candidate status if offline/latency
+          // Strictly fail-closed on network or API verification error
+          isAuthorizedAdmin = false;
         }
 
         if (!isSubscribed) return;

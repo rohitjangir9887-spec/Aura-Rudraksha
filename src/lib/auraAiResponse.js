@@ -144,6 +144,89 @@ function tryParseJsonObject(s) {
   return null;
 }
 
+export function normalizeKundali(k) {
+  if (!k || typeof k !== "object") return null;
+
+  const verified = k.verifiedBirthData || {};
+  const astro = k.astronomicalKundali || {};
+  const lagna = astro.lagna || k.lagna || {};
+  const chandra = astro.chandraRashi || k.chandraRashi || {};
+  const surya = astro.suryaRashi || k.suryaRashi || {};
+  const dasha = astro.vimshottariDasha || k.vimshottariDasha || {};
+  const recs = astro.rudrakshaRecommendations || k.rudrakshaRecommendations || [];
+
+  return {
+    ...k,
+    verifiedBirthData: verified,
+    astronomicalKundali: astro,
+    devoteeName: verified.name || k.devoteeName || k.name || "Devotee",
+    dob: verified.dob || k.dob || "",
+    birthTime: verified.birthTime || k.birthTime || "",
+    birthPlace: verified.birthPlace || k.birthPlace || "",
+
+    // Lagna (Ascendant)
+    lagna: {
+      rashiHindi: lagna.rashiHindi || k.lagnaRashiHindi || "",
+      rashiEnglish: lagna.rashiEnglish || k.lagnaRashiEng || "",
+      rashiSymbol: lagna.rashiSymbol || k.lagnaSymbol || "✨",
+      degree: lagna.degree || k.lagnaDegree || "",
+      nakshatra: lagna.nakshatra || k.lagnaNakshatra || "",
+      pada: lagna.pada || k.lagnaPada || "",
+      lord: lagna.lord || k.lagnaLord || ""
+    },
+
+    // Chandra Rashi (Moon Sign)
+    chandraRashi: {
+      rashiHindi: chandra.rashiHindi || k.rashiHindi || "",
+      rashiEnglish: chandra.rashiEnglish || k.rashiEng || "",
+      rashiSymbol: chandra.rashiSymbol || k.symbol || "✨",
+      degree: chandra.degree || k.chandraDegree || "",
+      nakshatra: chandra.nakshatra || k.nakshatra || "",
+      pada: chandra.pada || k.pada || "",
+      lord: chandra.lord || k.lord || ""
+    },
+
+    // Surya Rashi (Sun Sign)
+    suryaRashi: {
+      rashiHindi: surya.rashiHindi || k.suryaRashiHindi || "",
+      rashiEnglish: surya.rashiEnglish || k.suryaRashiEng || "",
+      degree: surya.degree || k.suryaDegree || "",
+      nakshatra: surya.nakshatra || k.suryaNakshatra || ""
+    },
+
+    // Flat convenient accessors
+    lagnaRashiHindi: lagna.rashiHindi || k.lagnaRashiHindi || "",
+    lagnaRashiEng: lagna.rashiEnglish || k.lagnaRashiEng || "",
+    lagnaDegree: lagna.degree || k.lagnaDegree || "",
+    rashiHindi: chandra.rashiHindi || k.rashiHindi || "",
+    rashiEng: chandra.rashiEnglish || k.rashiEng || "",
+    symbol: chandra.rashiSymbol || k.symbol || "✨",
+    lord: chandra.lord || k.lord || "",
+    nakshatra: chandra.nakshatra || k.nakshatra || "",
+    pada: chandra.pada || k.pada || "",
+    suryaRashiHindi: surya.rashiHindi || k.suryaRashiHindi || "",
+    suryaDegree: surya.degree || k.suryaDegree || "",
+    mulank: astro.mulank || k.mulank || "",
+
+    // Dasha
+    vimshottariDasha: dasha,
+    mahadashaHindi: dasha.currentMahadashaHindi || k.mahadashaHindi || "",
+    antardashaHindi: dasha.currentAntardashaHindi || k.antardashaHindi || "",
+
+    // Planets & Houses
+    planets: astro.planets || k.planets || [],
+    houses: astro.houses || k.houses || [],
+    doshaSummary: astro.doshaSummary || k.doshaSummary || null,
+
+    // Recommendations
+    rudrakshaRecommendations: recs,
+    recommendedMukhi: recs[0]?.mukhi || k.recommendedMukhi || "7 Mukhi Rudraksha",
+    beejMantra: recs[0]?.beejMantra || k.beejMantra || "Om Namah Shivaya",
+    wearingDay: k.wearingDay || "सोमवार / शिव तिथि",
+    aiInterpretation: k.aiInterpretation || ""
+  };
+}
+
 export function parseAuraAiPayload(raw) {
   const empty = {
     text: "",
@@ -153,7 +236,8 @@ export function parseAuraAiPayload(raw) {
     couponCodes: [],
     requiresHuman: false,
     quickReplies: [],
-    orderInfo: null
+    orderInfo: null,
+    kundali: null
   };
 
   if (raw == null) return empty;
@@ -173,7 +257,7 @@ export function parseAuraAiPayload(raw) {
 
   if (raw.data && typeof raw.data === "object" && (raw.text == null || raw.success)) {
     const inner = parseAuraAiPayload(raw.data);
-    if (inner.text || inner.products?.length) return inner;
+    if (inner.text || inner.products?.length || inner.kundali) return inner;
   }
 
   const textSource =
@@ -200,6 +284,8 @@ export function parseAuraAiPayload(raw) {
       .slice(0, 4);
   }
 
+  const rawKundali = raw.kundali || raw.data?.kundali || null;
+
   return {
     text,
     products,
@@ -209,7 +295,8 @@ export function parseAuraAiPayload(raw) {
     requiresHuman: Boolean(raw.requiresHuman),
     quickReplies,
     orderInfo: raw.orderInfo || null,
-    conversationId: raw.conversationId
+    conversationId: raw.conversationId,
+    kundali: rawKundali ? normalizeKundali(rawKundali) : null
   };
 }
 

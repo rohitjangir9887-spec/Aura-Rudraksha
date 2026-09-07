@@ -95,19 +95,16 @@ export function AdminGuard({ children }) {
               serverAuthorized = true;
             }
           } else if (res.status === 401 || res.status === 403) {
-            // Explicit server rejection
+            // Explicit server rejection - fail-closed
             serverAuthorized = false;
-          } else if (res.status === 503 || res.status === 408) {
-            // If backend is momentarily booting or DB is initializing, but client holds verified Firebase admin token
-            if (isClientAdminCandidate) {
-              serverAuthorized = true;
-            }
+          } else {
+            // Server error or non-OK response - fail-closed
+            serverAuthorized = false;
           }
         } catch (apiErr) {
-          // If network error during API check, allow if client Firebase credential is authenticated admin
-          if (isClientAdminCandidate) {
-            serverAuthorized = true;
-          }
+          // Network error during server verification - strictly fail-closed
+          console.warn("[AdminGuard] Server verification error:", apiErr?.message);
+          serverAuthorized = false;
         }
 
         if (!isSubscribed || !mountedRef.current) return;

@@ -86,7 +86,7 @@ export async function connectDB() {
       connectTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       maxIdleTimeMS: 10000,
-      maxPoolSize: 2,
+      maxPoolSize: 10,
       minPoolSize: 0, // Serverless execution must not keep minPoolSize > 0
       autoIndex: process.env.NODE_ENV !== "production"
     };

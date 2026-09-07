@@ -28,6 +28,16 @@ if (typeof window !== "undefined") {
     window.addEventListener("touchmove", () => {}, passiveOpts);
     window.addEventListener("wheel", () => {}, passiveOpts);
   } catch (_) {}
+
+  // Handle Vite chunk load errors gracefully (e.g. after fresh deployments or flaky network)
+  window.addEventListener("vite:preloadError", (event) => {
+    const lastReload = sessionStorage.getItem("aura_vite_reload");
+    const now = Date.now();
+    if (!lastReload || now - Number(lastReload) > 10000) {
+      sessionStorage.setItem("aura_vite_reload", String(now));
+      window.location.reload();
+    }
+  });
 }
 
 createRoot(document.getElementById("root")).render(

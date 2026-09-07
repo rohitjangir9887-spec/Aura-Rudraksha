@@ -33,7 +33,7 @@
 
 @media (max-width: 768px) {
   .aura-pdp-container {
-    padding-bottom: 110px; /* Space for mobile sticky purchase bar */
+    padding-bottom: 140px; /* Space for mobile sticky purchase bar and bottom nav */
   }
 }
 

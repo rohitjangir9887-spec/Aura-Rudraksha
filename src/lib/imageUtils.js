@@ -1,37 +1,83 @@
 /**
- * Image Pre-loader & Memory Cache Engine + Media Upload Utilities
+ * Image Utilities & Non-Blocking Media Cache Engine
  */
 
 import { authClient } from "./authClient.js";
 
 const imageCache = new Set();
 
-export function preloadImage(url) {
+/**
+ * Preload a single high-priority image (e.g. primary LCP hero banner)
+ */
+export function preloadImage(url, priority = false) {
   if (typeof window === "undefined" || !url || typeof url !== "string") return;
   const cleanUrl = url.trim();
   if (!cleanUrl || imageCache.has(cleanUrl)) return;
 
   imageCache.add(cleanUrl);
-  try {
-    const img = new Image();
-    img.src = cleanUrl;
-    if ("decode" in img) {
-      img.decode().catch(() => {});
+
+  const load = () => {
+    try {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = cleanUrl;
+      if (priority) {
+        link.fetchPriority = "high";
+      }
+      document.head.appendChild(link);
+    } catch (_) {
+      try {
+        const img = new Image();
+        img.src = cleanUrl;
+      } catch (_) {}
     }
-  } catch (_) {}
+  };
+
+  if (priority) {
+    load();
+  } else if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(load, { timeout: 3000 });
+  } else {
+    setTimeout(load, 1500);
+  }
 }
 
+/**
+ * Non-blocking image preloading — strictly limited to avoid network congestion
+ */
 export function preloadImages(urls = []) {
-  if (typeof window === "undefined" || !Array.isArray(urls)) return;
-  urls.forEach((u) => {
+  // Intentionally do not eagerly preload bulk lists (e.g. 50+ product catalog items)
+  // to preserve critical initial bandwidth on mobile and new devices.
+  if (typeof window === "undefined" || !Array.isArray(urls) || urls.length === 0) return;
+  
+  // Only pre-warm the very first item (e.g. primary hero banner) if explicitly passed
+  const first = urls[0];
+  if (typeof first === "string") {
+    preloadImage(first, false);
+  } else if (first && typeof first === "object") {
+    const u = first.img || first.image || (Array.isArray(first.images) ? first.images[0] : null);
     if (typeof u === "string") {
-      preloadImage(u);
-    } else if (u && typeof u === "object") {
-      if (u.img) preloadImage(u.img);
-      if (u.image) preloadImage(u.image);
-      if (Array.isArray(u.images)) u.images.forEach(preloadImage);
+      preloadImage(u, false);
     }
-  });
+  }
+}
+
+/**
+ * Append CDN sizing parameters if using supported image delivery services (e.g. ImageKit)
+ */
+export function getOptimizedImageUrl(url, { width = 400, quality = 80 } = {}) {
+  if (!url || typeof url !== "string") return "/images/product-5mukhi.jpg";
+  const clean = url.trim();
+  if (!clean.startsWith("http")) return clean;
+
+  // If ImageKit URL, apply transformation parameters
+  if (clean.includes("ik.imagekit.io")) {
+    const separator = clean.includes("?") ? "&" : "?";
+    return `${clean}${separator}tr=w-${width},q-${quality},f-auto`;
+  }
+
+  return clean;
 }
 
 /**

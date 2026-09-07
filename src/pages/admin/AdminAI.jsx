@@ -55,23 +55,41 @@ export function AdminAI() {
   const [executiveReport, setExecutiveReport] = useState(null);
   const [loadingExecutive, setLoadingExecutive] = useState(false);
 
-  const loadAll = () => {
-    // Live data from MongoDB (admin endpoints)
+  const setSettingsSafe = (s) => {
+    if (s) setSettings(prev => ({ ...prev, ...s }));
+  };
+
+  // Lightweight initial load: only overview analytics and settings
+  useEffect(() => {
     auraAiClient.getAnalytics().then(data => {
       setAnalytics(data || null);
-    });
-    auraAiClient.getConversations().then(list => {
-      setConversations(list || []);
-    });
-    auraAiClient.getAdminIntelligence().then(rep => {
-      setExecutiveReport(rep || null);
-    });
-    auraAiClient.getSettings().then(setSettingsSafe);
-    Promise.all([db.fetchProducts(), db.fetchCoupons ? db.fetchCoupons() : Promise.resolve()]).then(() => {
-      setProducts(db.getProducts());
-      setCoupons(db.getCoupons ? db.getCoupons() : []);
-    });
-  };
+    }).catch(() => {});
+    auraAiClient.getSettings().then(setSettingsSafe).catch(() => {});
+  }, []);
+
+  // Lazy load data on-demand as administrator switches tabs
+  useEffect(() => {
+    if (activeTab === "intelligence" && !executiveReport && !loadingExecutive) {
+      setLoadingExecutive(true);
+      auraAiClient.getAdminIntelligence().then(rep => {
+        setExecutiveReport(rep || null);
+      }).catch(() => {}).finally(() => {
+        setLoadingExecutive(false);
+      });
+    } else if (activeTab === "conversations" && conversations.length === 0) {
+      auraAiClient.getConversations().then(list => {
+        setConversations(list || []);
+      }).catch(() => {});
+    } else if ((activeTab === "products" || activeTab === "offers") && products.length === 0) {
+      Promise.all([
+        db.fetchProducts(),
+        db.fetchCoupons ? db.fetchCoupons() : Promise.resolve()
+      ]).then(() => {
+        setProducts(db.getProducts());
+        setCoupons(db.getCoupons ? db.getCoupons() : []);
+      }).catch(() => {});
+    }
+  }, [activeTab]);
 
   const handleRefreshExecutive = async () => {
     setLoadingExecutive(true);
@@ -85,14 +103,6 @@ export function AdminAI() {
       setLoadingExecutive(false);
     }
   };
-
-  const setSettingsSafe = (s) => {
-    if (s) setSettings(prev => ({ ...prev, ...s }));
-  };
-
-  useEffect(() => {
-    loadAll();
-  }, []);
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();

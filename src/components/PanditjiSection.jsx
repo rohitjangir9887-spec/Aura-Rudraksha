@@ -6,7 +6,7 @@ import { auraAiClient } from "../lib/auraAiClient";
 import { emitToast } from "../context/ToastContext";
 import { auraChatStore } from "../lib/auraChatStore";
 
-import { CONCERN_OPTIONS, calculateRashi } from "./panditji/utils";
+import { CONCERN_OPTIONS } from "./panditji/utils";
 import { PanditjiHeader } from "./panditji/PanditjiHeader";
 import { PanditjiForm } from "./panditji/PanditjiForm";
 import { PanditjiResult } from "./panditji/PanditjiResult";
@@ -47,8 +47,8 @@ export function PanditjiSection() {
     setAddedSuccess(false);
 
     try {
-      // 1. Try real server-side Kundali calculation & NVIDIA NIM interpretation
-      const serverKundali = await auraAiClient.calculateKundali({
+      // Real server-side Astronomical Kundali calculation & NVIDIA NIM interpretation
+      const response = await auraAiClient.calculateKundali({
         name: name.trim(),
         dob,
         birthTime: birthTime || "12:00",
@@ -56,87 +56,45 @@ export function PanditjiSection() {
         concern
       });
 
-      if (serverKundali && serverKundali.rashi) {
+      const serverKundali = response?.data || response?.kundali;
+
+      if (serverKundali) {
+        const astro = serverKundali.astronomicalKundali || serverKundali;
+        const birth = serverKundali.verifiedBirthData || {};
+        const chandra = astro.chandraRashi || serverKundali.rashi || {};
         const matchedProd = serverKundali.matchedProduct || (db.getProducts()[0]);
+
         setResult({
-          devoteeName: name.trim(),
-          rashiHindi: serverKundali.rashi.nameHindi,
-          rashiEng: serverKundali.rashi.nameEng,
-          symbol: serverKundali.rashi.symbol,
-          lord: serverKundali.rashi.lord,
-          element: serverKundali.rashi.element,
-          mulank: serverKundali.numerology?.mulank || (((new Date(dob).getDate() - 1) % 9) + 1),
-          dob,
-          birthPlace: birthPlace.trim(),
-          birthTime: birthTime || "12:00",
+          devoteeName: birth.name || name.trim(),
+          rashiHindi: chandra.rashiHindi || chandra.nameHindi || "वैदिक",
+          rashiEng: chandra.rashiEnglish || chandra.nameEng || "Vedic",
+          symbol: chandra.rashiSymbol || chandra.symbol || "✨",
+          lord: chandra.lord || "शिव",
+          element: chandra.element || "Agni",
+          mulank: astro.mulank || serverKundali.numerology?.mulank || (((new Date(dob).getDate() - 1) % 9) + 1),
+          dob: birth.dob || dob,
+          birthPlace: birth.birthPlace || birthPlace.trim(),
+          birthTime: birth.birthTime || birthTime || "12:00",
           concernObj: CONCERN_OPTIONS.find(c => c.id === concern),
-          recommendedMukhi: serverKundali.recommendedRudraksha?.mukhi || "7 Mukhi Rudraksha",
-          beejMantra: serverKundali.beejMantra || serverKundali.rashi.mantra,
-          wearingDay: serverKundali.wearingDay || serverKundali.rashi.day,
+          recommendedMukhi: astro.rudrakshaRecommendations?.[0]?.mukhi || serverKundali.recommendedRudraksha?.mukhi || "7 Mukhi Rudraksha",
+          beejMantra: astro.rudrakshaRecommendations?.[0]?.beejMantra || serverKundali.beejMantra || chandra.mantra || "Om Namah Shivaya",
+          wearingDay: serverKundali.wearingDay || chandra.day || "सोमवार / शिव तिथि",
           matchedProduct: matchedProd,
-          astroReason: serverKundali.astroAnalysis || `आपकी जन्म कुंडली में ${serverKundali.rashi.nameHindi} राशि का प्रभाव है। ${serverKundali.rashi.lord} की अनुकूलता तथा आपके संकल्प की सिद्धि हेतु रुद्राक्ष को सिद्ध व प्राण-प्रतिष्ठित करवा कर धारण करना अत्यंत शुभ व लाभकारी सिद्ध होगा।`
+          astroReason: serverKundali.aiInterpretation || serverKundali.astroAnalysis || `आपकी जन्म कुंडली के प्रामाणिक वैदिक विश्लेषण अनुसार आपकी राशि ${chandra.rashiHindi || chandra.nameHindi || "वैदिक"} है।`
         });
         setIsCalculating(false);
         emitToast("पंडित जी द्वारा आपकी कुंडली का वैदिक विश्लेषण तैयार है!", "success");
         return;
+      } else {
+        const errMsg = response?.message || "वैदिक कुंडली गणना वर्तमान में उपलब्ध नहीं है। कृपया विवरण पुनः जांचें।";
+        emitToast(errMsg, "error");
       }
     } catch (err) {
-      console.warn("Backend Kundali calculation fallback to local calculation:", err);
+      console.warn("Backend Kundali calculation error:", err);
+      emitToast("वैदिक कुंडली गणना में समस्या आई। कृपया कुछ समय पश्चात पुनः प्रयास करें।", "error");
+    } finally {
+      setIsCalculating(false);
     }
-
-    // 2. High-precision fallback if offline
-    const rashi = calculateRashi(dob);
-    const dayOfBirth = new Date(dob).getDate();
-    const mulank = ((dayOfBirth - 1) % 9) + 1; // 1-9 numerology
-    
-    // Determine recommended Mukhi based on Rashi + Concern
-    let recommendedName = rashi.primaryMukhi;
-    let targetProductId = rashi.productId;
-
-    if (concern === "career") {
-      recommendedName = "7 Mukhi Rudraksha (महालक्ष्मी स्वरूप)";
-      targetProductId = "7";
-    } else if (concern === "shani_dosha") {
-      recommendedName = "7 Mukhi + 11 Mukhi Rudraksha (शनि व हनुमत रक्षा)";
-      targetProductId = "7";
-    } else if (concern === "spiritual") {
-      recommendedName = "1 Mukhi Rudraksha (साक्षात शिव स्वरूप)";
-      targetProductId = "1";
-    } else if (concern === "health" || concern === "peace") {
-      recommendedName = "5 Mukhi Rudraksha Mala (कालाग्नि रुद्र स्वरूप)";
-      targetProductId = "5";
-    } else if (concern === "marriage") {
-      recommendedName = "2 Mukhi / 6 Mukhi Rudraksha (अर्धनारीश्वर कृपा)";
-      targetProductId = "5";
-    } else {
-      recommendedName = `${rashi.primaryMukhi} Rudraksha (${rashi.lord} कृपा)`;
-    }
-
-    // Fetch matched product from DB
-    const allProds = db.getProducts();
-    let matchedProd = allProds.find(p => String(p.id) === String(targetProductId)) || allProds[0];
-
-    setResult({
-      devoteeName: name.trim(),
-      rashiHindi: rashi.nameHindi,
-      rashiEng: rashi.nameEng,
-      symbol: rashi.symbol,
-      lord: rashi.lord,
-      element: rashi.element,
-      mulank,
-      dob,
-      birthPlace: birthPlace.trim(),
-      birthTime: birthTime || "प्रातः काल (Default)",
-      concernObj: CONCERN_OPTIONS.find(c => c.id === concern),
-      recommendedMukhi: recommendedName,
-      beejMantra: rashi.mantra,
-      wearingDay: rashi.day,
-      matchedProduct: matchedProd,
-      astroReason: `आपकी जन्म कुंडली में ${rashi.nameHindi} राशि एवं मूलांक ${mulank} का प्रभाव है। ${rashi.lord} की अनुकूलता तथा आपके संकल्प की सिद्धि हेतु ${recommendedName} को सिद्ध व प्राण-प्रतिष्ठित करवा कर धारण करना अत्यंत शुभ व लाभकारी सिद्ध होगा।`
-    });
-
-    setIsCalculating(false);
-    emitToast("पंडित जी द्वारा आपकी कुंडली का वैदिक विश्लेषण तैयार है!", "success");
   };
 
   const handleAddToCart = () => {

@@ -33,7 +33,10 @@ export function prefetchRoute(routeName) {
   const loader = prefetchLoaders[routeName];
   if (typeof loader === "function") {
     try {
-      loader();
+      const p = loader();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {});
+      }
     } catch (_) {}
   }
 }
@@ -64,23 +67,23 @@ export function initInstantRoutePrefetch() {
   if (typeof window === "undefined" || idlePrefetchScheduled) return;
   idlePrefetchScheduled = true;
 
-  const preloadPriorityRoutes = () => {
-    // Stage 1: Preload immediate customer navigation destinations
-    ["shop", "cart", "wishlist", "account", "orders", "product", "auraAi"].forEach((key) => {
-      prefetchRoute(key);
-    });
+  // Respect data saver mode and slow connections
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (conn && (conn.saveData || conn.effectiveType === "2g" || conn.effectiveType === "slow-2g")) {
+    return;
+  }
 
-    // Stage 2: Preload secondary pages shortly after
-    setTimeout(() => {
-      ["checkout", "profile", "orderDetail", "about", "contact", "categories", "trackOrder", "policies", "login"].forEach((key) => {
-        prefetchRoute(key);
-      });
-    }, 400);
+  const preloadPriorityRoutes = () => {
+    // Only prefetch the primary shopping route after the main thread is completely quiescent
+    prefetchRoute("shop");
   };
 
+  // Wait 4 seconds after page settles before running any idle prefetch
   if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(preloadPriorityRoutes, { timeout: 1000 });
+    setTimeout(() => {
+      window.requestIdleCallback(preloadPriorityRoutes, { timeout: 3000 });
+    }, 4000);
   } else {
-    setTimeout(preloadPriorityRoutes, 200);
+    setTimeout(preloadPriorityRoutes, 4500);
   }
 }

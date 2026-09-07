@@ -65,12 +65,7 @@ export function Home() {
     // 1. Instantly render from local cache
     updateLocalState();
 
-    // 2. Revalidate products independently right away (does NOT block on banners/reviews/settings)
-    db.revalidateProducts().then(() => {
-      setProducts(db.getProducts().filter(isPublicProduct));
-    }).catch(() => {});
-
-    // 3. Background fetch for full home dataset
+    // 2. Background fetch for home dataset (products, banners, offers)
     db.fetchHomeData().then(() => {
       updateLocalState();
     }).catch(() => {});

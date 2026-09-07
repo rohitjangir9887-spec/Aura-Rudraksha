@@ -35,16 +35,23 @@ export function Product() {
   const shipThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const { isWishlisted, toggleWishlist } = useWishlist();
 
-  // Core product state
-  const [product, setProduct] = useState(null);
-  const [allProducts, setAllProducts] = useState([]);
-  const [coupons, setCoupons] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Core product state - check immediate synchronous cache to render instantly without lag
+  const initialProduct = React.useMemo(() => db.getProduct(id), [id]);
+  const [product, setProduct] = useState(initialProduct);
+  const [allProducts, setAllProducts] = useState(() => db.getProducts().filter(isPublicProduct));
+  const [coupons, setCoupons] = useState(() => db.getCoupons().filter(c => c.status === "Active"));
+  const [reviews, setReviews] = useState(() => initialProduct ? db.getReviews(initialProduct.id || initialProduct._id) : []);
+  const [loading, setLoading] = useState(!initialProduct);
 
   // User purchase selections
   const [qty, setQty] = useState(1);
-  const [selectedVariant, setSelectedVariant] = useState("");
+  const [selectedVariant, setSelectedVariant] = useState(() => {
+    if (initialProduct?.variants && initialProduct.variants.length > 0) {
+      const firstV = initialProduct.variants[0];
+      return typeof firstV === "string" ? firstV : (firstV.name || firstV.label || "");
+    }
+    return "";
+  });
   const [selectedSize, setSelectedSize] = useState("Medium (16 - 20 mm)");
   const [added, setAdded] = useState(false);
 
@@ -54,7 +61,10 @@ export function Product() {
 
   // Load and subscribe to database updates
   const loadData = async (silent = false) => {
-    if (!silent) setLoading(true);
+    // If we already have a product rendered, always remain silent (no layout flash)
+    const isSilent = silent || !!db.getProduct(id);
+    if (!isSilent) setLoading(true);
+
     try {
       const found = await db.getProductAsync(id);
       const isDraft = found && (
@@ -72,12 +82,15 @@ export function Product() {
       if (validProduct) {
         setReviews(db.getReviews(validProduct.id || validProduct._id));
         if (validProduct.variants && validProduct.variants.length > 0) {
-          const firstV = validProduct.variants[0];
-          setSelectedVariant(typeof firstV === "string" ? firstV : (firstV.name || firstV.label || ""));
+          setSelectedVariant(prev => {
+            if (prev) return prev;
+            const firstV = validProduct.variants[0];
+            return typeof firstV === "string" ? firstV : (firstV.name || firstV.label || "");
+          });
         }
       }
 
-      if (!silent) setLoading(false);
+      setLoading(false);
 
       // Load related products & active coupons
       const prods = db.getProducts().filter(isPublicProduct);
@@ -85,10 +98,9 @@ export function Product() {
       setCoupons(db.getCoupons().filter(c => c.status === "Active"));
     } catch (err) {
       console.error("[Product Page] Failed to load product:", err);
-      if (!silent) {
-        setProduct(null);
-        setLoading(false);
-      }
+      // If we already have a product from cache, keep it rather than blanking out
+      setProduct(prev => prev || null);
+      setLoading(false);
     }
   };
 
@@ -104,11 +116,10 @@ export function Product() {
 
     db.logVisit();
     db.logProductView();
-    loadData(false);
-
-    db.revalidateProducts().then(() => {
-      loadData(true);
-    }).catch(() => {});
+    
+    // Immediate load: silent if cache already populated
+    const hasSync = !!db.getProduct(id);
+    loadData(hasSync);
 
     const unsub = onStoreUpdate(() => {
       loadData(true);

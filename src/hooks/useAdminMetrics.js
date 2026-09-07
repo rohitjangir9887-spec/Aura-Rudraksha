@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { db, onStoreUpdate } from "../lib/db";
 
+let metricsFetchPromise = null;
+let lastMetricsFetchTime = 0;
+const METRICS_FRESHNESS_MS = 45000; // 45s cache to avoid repeated heavy queries
+
 export function useAdminMetrics() {
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
@@ -28,11 +32,24 @@ export function useAdminMetrics() {
     }
 
     async function initialLoad() {
-      try {
-        await Promise.allSettled([
+      const now = Date.now();
+      if (now - lastMetricsFetchTime < METRICS_FRESHNESS_MS) {
+        updateCounts();
+        return;
+      }
+
+      if (!metricsFetchPromise) {
+        metricsFetchPromise = Promise.allSettled([
           db.fetchTickets().catch(() => {}),
           db.fetchOrders().catch(() => {})
-        ]);
+        ]).then(() => {
+          lastMetricsFetchTime = Date.now();
+          metricsFetchPromise = null;
+        });
+      }
+
+      try {
+        await metricsFetchPromise;
         if (mountedRef.current) {
           updateCounts();
         }

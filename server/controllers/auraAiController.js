@@ -1107,9 +1107,24 @@ ${memoryContextText || "Guest shopper."}`;
  * Admin AI Advanced Intelligence Endpoint (Real DB Data + NVIDIA Nemotron)
  * Provides comprehensive executive summary, operational anomaly detection, product opportunities, customer sentiment trends, and recommended actions.
  */
+let cachedIntelligenceData = null;
+let lastIntelligenceTimestamp = 0;
+const INTELLIGENCE_CACHE_TTL_MS = 90000; // 90 seconds cache
+
 export async function getAdminAiIntelligence(req, res, next) {
   try {
-    // 1. Compile Real Authorized Database Metrics
+    const forceRefresh = req.query?.refresh === "true" || req.body?.refresh === true;
+    const now = Date.now();
+
+    if (!forceRefresh && cachedIntelligenceData && (now - lastIntelligenceTimestamp < INTELLIGENCE_CACHE_TTL_MS)) {
+      return res.json({
+        success: true,
+        data: cachedIntelligenceData,
+        cached: true
+      });
+    }
+
+    // 1. Compile Real Authorized Database Metrics concurrently with projected fields
     let orders = [];
     let products = [];
     let reviews = [];
@@ -1117,12 +1132,34 @@ export async function getAdminAiIntelligence(req, res, next) {
 
     if (isDbConnected()) {
       try {
-        orders = await Order.find().sort({ createdAt: -1 }).limit(500).lean();
-        products = await Product.find().lean();
-        reviews = await Review.find({ status: { $ne: "deleted" } }).sort({ createdAt: -1 }).limit(300).lean();
-        conversations = await AuraAIConversation.find().sort({ updatedAt: -1 }).limit(300).lean();
+        const [ordersRes, productsRes, reviewsRes, convosRes] = await Promise.all([
+          Order.find({}, { status: 1, paymentStatus: 1, finalAmount: 1, total: 1, amount: 1, createdAt: 1 })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .lean()
+            .catch(() => []),
+          Product.find({}, { name: 1, stock: 1, price: 1, status: 1 })
+            .limit(60)
+            .lean()
+            .catch(() => []),
+          Review.find({ status: { $ne: "deleted" } }, { rating: 1, status: 1 })
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .lean()
+            .catch(() => []),
+          AuraAIConversation.find({}, { requiresHumanSupport: 1, status: 1, updatedAt: 1 })
+            .sort({ updatedAt: -1 })
+            .limit(50)
+            .lean()
+            .catch(() => [])
+        ]);
+
+        orders = ordersRes || [];
+        products = productsRes || [];
+        reviews = reviewsRes || [];
+        conversations = convosRes || [];
       } catch (dbErr) {
-        console.warn("[Admin AI Intelligence] DB query fallback to in-memory:", dbErr?.message);
+        console.warn("[Admin AI Intelligence] DB query notice:", dbErr?.message);
         orders = inMemoryStore.orders || [];
         products = inMemoryStore.products || [];
         reviews = inMemoryStore.reviews || [];
@@ -1160,7 +1197,7 @@ export async function getAdminAiIntelligence(req, res, next) {
     const totalConvos = conversations.length;
     const escalatedConvos = conversations.filter(c => c.requiresHumanSupport || c.status === "Escalated").length;
 
-    // 2. Generate Real Executive Insights with NVIDIA NIM
+    // 2. Generate Real Executive Insights with NVIDIA NIM (with 7s timeout fallback)
     let aiExecutiveReport = null;
     const nvidiaClient = getNvidiaClient();
 
@@ -1190,7 +1227,7 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
   ]
 }`;
 
-        const completion = await nvidiaClient.chat.completions.create({
+        const aiPromise = nvidiaClient.chat.completions.create({
           model: PRIMARY_NIM_MODEL,
           messages: [
             { role: "system", content: "You are an executive e-commerce AI analytics engine. Output clean JSON only." },
@@ -1200,6 +1237,11 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
           max_tokens: 1500
         });
 
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("AI intelligence generation timed out")), 7000)
+        );
+
+        const completion = await Promise.race([aiPromise, timeoutPromise]);
         const rawText = completion.choices?.[0]?.message?.content || "";
         aiExecutiveReport = extractStructuredAiJson(rawText);
       } catch (nimErr) {
@@ -1245,25 +1287,31 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
       };
     }
 
+    const payload = {
+      metrics: {
+        totalOrders,
+        completedOrders,
+        pendingOrders,
+        cancelledOrders,
+        totalRevenue,
+        totalProducts: products.length,
+        lowStockCount: lowStockProducts.length,
+        outOfStockCount: outOfStockProducts.length,
+        totalReviews: reviews.length,
+        averageRating,
+        totalConvos,
+        escalatedConvos
+      },
+      executiveIntelligence: aiExecutiveReport
+    };
+
+    cachedIntelligenceData = payload;
+    lastIntelligenceTimestamp = Date.now();
+
     return res.json({
       success: true,
-      data: {
-        metrics: {
-          totalOrders,
-          completedOrders,
-          pendingOrders,
-          cancelledOrders,
-          totalRevenue,
-          totalProducts: products.length,
-          lowStockCount: lowStockProducts.length,
-          outOfStockCount: outOfStockProducts.length,
-          totalReviews: reviews.length,
-          averageRating,
-          totalConvos,
-          escalatedConvos
-        },
-        executiveIntelligence: aiExecutiveReport
-      }
+      data: payload,
+      cached: false
     });
 
   } catch (err) {

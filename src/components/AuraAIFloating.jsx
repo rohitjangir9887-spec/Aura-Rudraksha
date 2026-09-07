@@ -1118,24 +1118,71 @@ export function AuraAIFloating() {
                               </div>
 
                               <div className="aura-ai-kundali-grid">
-                                {m.kundali.rashiHindi && (
+                                {/* Lagna / Ascendant */}
+                                {(m.kundali.lagna?.rashiHindi || m.kundali.lagnaRashiHindi) && (
                                   <div className="aura-ai-kundali-cell">
-                                    <span className="aura-ai-cell-label">राशि (Rashi)</span>
-                                    <span className="aura-ai-cell-val">{m.kundali.symbol || "✨"} {m.kundali.rashiHindi} ({m.kundali.rashiEng})</span>
+                                    <span className="aura-ai-cell-label">लग्न (Ascendant)</span>
+                                    <span className="aura-ai-cell-val">
+                                      {m.kundali.lagna?.rashiSymbol || "🚩"} {m.kundali.lagna?.rashiHindi || m.kundali.lagnaRashiHindi}
+                                      {(m.kundali.lagna?.degree || m.kundali.lagnaDegree) ? ` (${m.kundali.lagna?.degree || m.kundali.lagnaDegree})` : ""}
+                                    </span>
                                   </div>
                                 )}
-                                {m.kundali.lord && (
+
+                                {/* Chandra Rashi */}
+                                {(m.kundali.chandraRashi?.rashiHindi || m.kundali.rashiHindi) && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">चंद्र राशि (Moon Sign)</span>
+                                    <span className="aura-ai-cell-val">
+                                      {m.kundali.chandraRashi?.rashiSymbol || m.kundali.symbol || "🌙"} {m.kundali.chandraRashi?.rashiHindi || m.kundali.rashiHindi}
+                                      {(m.kundali.chandraRashi?.rashiEnglish || m.kundali.rashiEng) ? ` (${m.kundali.chandraRashi?.rashiEnglish || m.kundali.rashiEng})` : ""}
+                                      {(m.kundali.chandraRashi?.degree || m.kundali.chandraDegree) ? ` ${m.kundali.chandraRashi?.degree || m.kundali.chandraDegree}` : ""}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Nakshatra + Pada */}
+                                {(m.kundali.chandraRashi?.nakshatra || m.kundali.nakshatra) && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">नक्षत्र व पद</span>
+                                    <span className="aura-ai-cell-val">
+                                      {m.kundali.chandraRashi?.nakshatra || m.kundali.nakshatra}
+                                      {(m.kundali.chandraRashi?.pada || m.kundali.pada) ? ` (पद ${m.kundali.chandraRashi?.pada || m.kundali.pada})` : ""}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Surya Rashi */}
+                                {(m.kundali.suryaRashi?.rashiHindi || m.kundali.suryaRashiHindi) && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">सूर्य राशि (Sun Sign)</span>
+                                    <span className="aura-ai-cell-val">
+                                      ☀️ {m.kundali.suryaRashi?.rashiHindi || m.kundali.suryaRashiHindi}
+                                      {(m.kundali.suryaRashi?.degree || m.kundali.suryaDegree) ? ` (${m.kundali.suryaRashi?.degree || m.kundali.suryaDegree})` : ""}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Lord */}
+                                {(m.kundali.chandraRashi?.lord || m.kundali.lord) && (
                                   <div className="aura-ai-kundali-cell">
                                     <span className="aura-ai-cell-label">स्वामी ग्रह</span>
-                                    <span className="aura-ai-cell-val">{m.kundali.lord}</span>
+                                    <span className="aura-ai-cell-val">{m.kundali.chandraRashi?.lord || m.kundali.lord}</span>
                                   </div>
                                 )}
-                                {m.kundali.nakshatra && (
+
+                                {/* Mahadasha */}
+                                {(m.kundali.vimshottariDasha?.currentMahadashaHindi || m.kundali.mahadashaHindi) && (
                                   <div className="aura-ai-kundali-cell">
-                                    <span className="aura-ai-cell-label">नक्षत्र</span>
-                                    <span className="aura-ai-cell-val">{m.kundali.nakshatra} {m.kundali.pada ? `(पद ${m.kundali.pada})` : ""}</span>
+                                    <span className="aura-ai-cell-label">विंशोत्तरी दशा</span>
+                                    <span className="aura-ai-cell-val">
+                                      {m.kundali.vimshottariDasha?.currentMahadashaHindi || m.kundali.mahadashaHindi} महादशा
+                                      {(m.kundali.vimshottariDasha?.currentAntardashaHindi || m.kundali.antardashaHindi) ? ` (${m.kundali.vimshottariDasha?.currentAntardashaHindi || m.kundali.antardashaHindi} अंतर)` : ""}
+                                    </span>
                                   </div>
                                 )}
+
+                                {/* Mulank */}
                                 {m.kundali.mulank && (
                                   <div className="aura-ai-kundali-cell">
                                     <span className="aura-ai-cell-label">मूलांक (Mulank)</span>
@@ -1144,17 +1191,42 @@ export function AuraAIFloating() {
                                 )}
                               </div>
 
-                              {m.kundali.recommendedMukhi && (
+                              {/* Planetary Placements Table / Badges if available */}
+                              {Array.isArray(m.kundali.planets) && m.kundali.planets.length > 0 && (
+                                <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed rgba(212, 160, 23, 0.3)" }}>
+                                  <div className="aura-ai-cell-label" style={{ marginBottom: "4px", fontWeight: 700, color: "#8b5a2b" }}>ग्रह स्थिति (Planetary Placements):</div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                    {m.kundali.planets.map((p, pIdx) => (
+                                      <span key={pIdx} style={{ fontSize: "10.5px", background: "rgba(251, 247, 238, 0.9)", border: "1px solid #e2d1a6", borderRadius: "4px", padding: "2px 6px", color: "#4a3b2c" }}>
+                                        <b>{p.englishName || p.name}:</b> {p.rashiHindi || p.rashi} ({p.degreeInSign || p.degree || "—"}) - भाव {p.houseNumber || "—"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Rudraksha Recommendations */}
+                              {((Array.isArray(m.kundali.rudrakshaRecommendations) && m.kundali.rudrakshaRecommendations.length > 0) || m.kundali.recommendedMukhi) && (
                                 <div className="aura-ai-kundali-rec">
-                                  <div className="aura-ai-rec-label">★ अनुशंसित सिद्ध रुद्राक्ष:</div>
-                                  <div className="aura-ai-rec-mukhi">{m.kundali.recommendedMukhi}</div>
-                                  {m.kundali.beejMantra && (
+                                  <div className="aura-ai-rec-label">★ अनुशंसित सिद्ध रुद्राक्ष (Recommended Consecrated Beads):</div>
+                                  {Array.isArray(m.kundali.rudrakshaRecommendations) && m.kundali.rudrakshaRecommendations.length > 0 ? (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "4px" }}>
+                                      {m.kundali.rudrakshaRecommendations.map((rec, rIdx) => (
+                                        <div key={rIdx} style={{ fontSize: "11.5px", color: "#7d3318", fontWeight: 600 }}>
+                                          • <b>{rec.role || "रुद्राक्ष"}:</b> {rec.mukhi} {rec.beejMantra ? `(मंत्र: ${rec.beejMantra})` : ""}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="aura-ai-rec-mukhi">{m.kundali.recommendedMukhi}</div>
+                                  )}
+                                  {m.kundali.beejMantra && (!Array.isArray(m.kundali.rudrakshaRecommendations) || m.kundali.rudrakshaRecommendations.length === 0) && (
                                     <div className="aura-ai-rec-mantra">
-                                      📿 मंत्र: <b>{m.kundali.beejMantra}</b>
+                                      📿 बीज मंत्र: <b>{m.kundali.beejMantra}</b>
                                     </div>
                                   )}
                                   {m.kundali.wearingDay && (
-                                    <div className="aura-ai-rec-day">
+                                    <div className="aura-ai-rec-day" style={{ marginTop: "3px" }}>
                                       🗓️ धारण वार: <b>{m.kundali.wearingDay}</b>
                                     </div>
                                   )}
