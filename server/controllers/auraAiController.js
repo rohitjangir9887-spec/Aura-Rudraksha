@@ -577,7 +577,7 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
       if (geminiClient) {
         try {
           const resp = await geminiClient.models.generateContent({
-            model: "gemini-3.8-flash",
+            model: "gemini-flash-latest",
             contents: astroPrompt,
             config: {
               systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
@@ -1010,7 +1010,7 @@ ${memoryContextText || "Guest shopper."}`;
           try {
             const geminiPrompt = (nimMessages || []).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
             const streamCompletion = await geminiClient.models.generateContentStream({
-              model: "gemini-3.8-flash",
+              model: "gemini-flash-latest",
               contents: geminiPrompt,
               config: {
                 systemInstruction: systemPrompt,
@@ -1161,7 +1161,7 @@ ${memoryContextText || "Guest shopper."}`;
         try {
           const geminiPrompt = (nimMessages || []).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
           const resp = await geminiClient.models.generateContent({
-            model: "gemini-3.8-flash",
+            model: "gemini-flash-latest",
             contents: geminiPrompt,
             config: {
               systemInstruction: systemPrompt,
