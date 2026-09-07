@@ -8,6 +8,7 @@ import { AdminGuard } from "./components/admin/AdminGuard";
 import { AdminErrorBoundary } from "./components/admin/AdminErrorBoundary";
 import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "./lib/routes";
 import { initInstantRoutePrefetch } from "./lib/prefetchRoutes";
+import { auraChatStore } from "./lib/auraChatStore";
 
 // ---------------------------------------------------------------------------
 // Resilient code splitting: Customer secondary pages & Admin pages are lazy-loaded.
@@ -117,6 +118,51 @@ function PageLoader() {
 function OrderParamRedirect() {
   const { id } = useParams();
   return <Navigate to={id ? `/account/orders/${id}` : "/account/orders"} replace />;
+}
+
+function AuraAIFloatingWrapper() {
+  const [shouldLoad, setShouldLoad] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return auraChatStore.isFloatingOpen();
+  });
+
+  React.useEffect(() => {
+    if (shouldLoad) return;
+
+    const handleTrigger = () => setShouldLoad(true);
+
+    window.addEventListener("aura_ai_trigger_chat", handleTrigger);
+    window.addEventListener("aura_ai_trigger_chat_preload", handleTrigger);
+    window.addEventListener("aura_ai_open_change", handleTrigger);
+    window.addEventListener("aura_ai_floating_dismiss_sync", handleTrigger);
+
+    let timerId;
+    if ("requestIdleCallback" in window) {
+      timerId = setTimeout(() => {
+        window.requestIdleCallback(() => setShouldLoad(true), { timeout: 3000 });
+      }, 3500);
+    } else {
+      timerId = setTimeout(() => setShouldLoad(true), 4500);
+    }
+
+    return () => {
+      window.removeEventListener("aura_ai_trigger_chat", handleTrigger);
+      window.removeEventListener("aura_ai_trigger_chat_preload", handleTrigger);
+      window.removeEventListener("aura_ai_open_change", handleTrigger);
+      window.removeEventListener("aura_ai_floating_dismiss_sync", handleTrigger);
+      clearTimeout(timerId);
+    };
+  }, [shouldLoad]);
+
+  if (!shouldLoad) return null;
+
+  return (
+    <ErrorBoundary isolate fallback={null}>
+      <Suspense fallback={null}>
+        <AuraAIFloating />
+      </Suspense>
+    </ErrorBoundary>
+  );
 }
 
 export function App() {
@@ -240,11 +286,7 @@ export function App() {
         </PageTransition>
       </Suspense>
       </ErrorBoundary>
-      <ErrorBoundary isolate fallback={null}>
-        <Suspense fallback={null}>
-          <AuraAIFloating />
-        </Suspense>
-      </ErrorBoundary>
+      <AuraAIFloatingWrapper />
     </>
   );
 }

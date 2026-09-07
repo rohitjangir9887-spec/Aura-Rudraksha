@@ -1137,15 +1137,26 @@ export const db = {
 
   // WISHLIST API
   getWishlist: async () => {
-    return await apiRequest("/wishlist");
+    const now = Date.now();
+    if (storeCache._wishlistCache && (now - (storeCache._wishlistFetchTime || 0) < 15000)) {
+      return storeCache._wishlistCache;
+    }
+    const res = await apiRequest("/wishlist");
+    if (res?.success) {
+      storeCache._wishlistCache = res;
+      storeCache._wishlistFetchTime = Date.now();
+    }
+    return res;
   },
   addToWishlist: async (productId) => {
+    storeCache._wishlistFetchTime = 0;
     return await apiRequest("/wishlist", {
       method: "POST",
       body: JSON.stringify({ productId })
     });
   },
   removeFromWishlist: async (productId) => {
+    storeCache._wishlistFetchTime = 0;
     return await apiRequest(`/wishlist/${productId}`, {
       method: "DELETE"
     });

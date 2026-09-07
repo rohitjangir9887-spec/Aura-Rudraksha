@@ -8,6 +8,12 @@ export function AuraAIPill({ className = "" }) {
   const location = useLocation();
   const isDedicatedAiPage = location.pathname === "/aura-ai";
 
+  const handlePreload = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aura_ai_trigger_chat_preload"));
+    }
+  };
+
   const handleClick = (e) => {
     if (!isDedicatedAiPage) {
       e.preventDefault();
@@ -28,6 +34,9 @@ export function AuraAIPill({ className = "" }) {
       className={`aura-ai-pill-btn ${className}`}
       title="Open Aura AI Spiritual Shopping & Support Guide"
       onClick={handleClick}
+      onPointerEnter={handlePreload}
+      onTouchStart={handlePreload}
+      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
     >
       <motion.span
         className="aura-ai-pill-glow"

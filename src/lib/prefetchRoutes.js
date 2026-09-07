@@ -73,19 +73,23 @@ export function initInstantRoutePrefetch() {
     return;
   }
 
-  // Defer speculative pre-warming well past the critical rendering and hydration window (3500ms)
-  // so cold startup network bandwidth and main-thread execution remain 100% focused on storefront UI.
+  // Pre-warm primary customer routes (product, shop, cart, wishlist) during browser idle time
+  // immediately after critical initial paint and hydration finish (1200ms).
   if ("requestIdleCallback" in window) {
     setTimeout(() => {
       window.requestIdleCallback(() => {
         prefetchRoute("product");
         prefetchRoute("shop");
-      }, { timeout: 3000 });
-    }, 3500);
+        prefetchRoute("cart");
+        prefetchRoute("wishlist");
+      }, { timeout: 2000 });
+    }, 1200);
   } else {
     setTimeout(() => {
       prefetchRoute("product");
       prefetchRoute("shop");
-    }, 4000);
+      prefetchRoute("cart");
+      prefetchRoute("wishlist");
+    }, 1500);
   }
 }

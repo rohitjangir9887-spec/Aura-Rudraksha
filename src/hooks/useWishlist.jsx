@@ -44,19 +44,24 @@ export function useWishlist() {
   }, []);
 
   useEffect(() => {
+    let isInitial = true;
     fetchWishlist();
-  }, [fetchWishlist]);
 
-  useEffect(() => {
     const handler = () => {
       setWishlist(readLocalWishlist());
     };
+
     const unsubAuth = authClient.onAuthStateChanged(() => {
       setWishlist(readLocalWishlist());
-      fetchWishlist();
+      if (!isInitial) {
+        fetchWishlist();
+      }
+      isInitial = false;
     });
+
     window.addEventListener("aura:wishlist-updated", handler);
     window.addEventListener("storage", handler);
+
     return () => {
       unsubAuth();
       window.removeEventListener("aura:wishlist-updated", handler);
