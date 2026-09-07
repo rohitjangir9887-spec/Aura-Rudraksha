@@ -349,6 +349,7 @@ export async function getProductById(req, res, next) {
 }
 
 import { logAuditEvent } from "../services/auditService.js";
+import { submitToIndexNow } from "../services/indexNowService.js";
 
 function normalizeArrayField(val) {
   if (Array.isArray(val)) {
@@ -422,6 +423,7 @@ export async function createProduct(req, res, next) {
         newState: productPayload,
         req
       });
+      submitToIndexNow([`/product/${productPayload.slug || productPayload.id}`, "/sitemap.xml"], req).catch(() => {});
       return res.status(201).json({ success: true, data: productPayload });
     }
 
@@ -450,6 +452,7 @@ export async function createProduct(req, res, next) {
       req
     });
 
+    submitToIndexNow([`/product/${created.slug || created.id}`, "/sitemap.xml"], req).catch(() => {});
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -522,7 +525,9 @@ export async function updateProduct(req, res, next) {
         newState: updatePayload,
         req
       });
-      return res.json({ success: true, data: inMemoryStore.products[idx] });
+      const inMemProd = inMemoryStore.products[idx];
+      submitToIndexNow([`/product/${inMemProd.slug || inMemProd.id}`, "/sitemap.xml"], req).catch(() => {});
+      return res.json({ success: true, data: inMemProd });
     }
 
     const cleanId = String(id).trim();
@@ -601,6 +606,7 @@ export async function updateProduct(req, res, next) {
       req
     });
 
+    submitToIndexNow([`/product/${updated.slug || updated.id}`, "/sitemap.xml"], req).catch(() => {});
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -623,6 +629,7 @@ export async function deleteProduct(req, res, next) {
         entityId: cleanId,
         req
       });
+      submitToIndexNow(["/sitemap.xml"], req).catch(() => {});
       return res.json({ success: true, message: "Product deleted", id: cleanId });
     }
 
@@ -637,6 +644,7 @@ export async function deleteProduct(req, res, next) {
     });
 
     if (deleted) {
+      submitToIndexNow(["/sitemap.xml"], req).catch(() => {});
       const productUrls = Array.from(new Set([
         ...(deleted.images || []),
         ...(deleted.img ? [deleted.img] : [])

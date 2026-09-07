@@ -267,4 +267,5 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
 }
 
 export const ProductCard = React.memo(ProductCardComponent);
+export default ProductCard;
 

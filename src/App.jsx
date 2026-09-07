@@ -58,6 +58,9 @@ const CategoriesPage = safeLazy(() => import("./pages/CategoriesPage").then(m =>
 const Wholesale = safeLazy(() => import("./pages/Wholesale").then(m => ({ default: m.Wholesale })));
 const ContactUs = safeLazy(() => import("./pages/ContactUs").then(m => ({ default: m.ContactUs })));
 const MobileDesignPage = safeLazy(() => import("./pages/MobileDesignPage").then(m => ({ default: m.MobileDesignPage })));
+const CategoryLanding = safeLazy(() => import("./pages/CategoryLanding").then(m => ({ default: m.default })));
+const RudrakshaGuide = safeLazy(() => import("./pages/RudrakshaGuide").then(m => ({ default: m.default })));
+const RudrakshaCalculator = safeLazy(() => import("./pages/RudrakshaCalculator").then(m => ({ default: m.default })));
 
 import { AuraAIFloating } from "./components/AuraAIFloating";
 import { TopLoadingBar } from "./components/TopLoadingBar";
@@ -178,6 +181,16 @@ export function App() {
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/aura-ai" element={<AuraAIPage />} />
           <Route path="/mobile-design" element={<MobileDesignPage />} />
+
+          {/* Sacred Rudraksha SEO Landing & Mukhi Pages */}
+          <Route path="/rudraksha" element={<CategoryLanding />} />
+          <Route path="/rudraksha/:slug" element={<CategoryLanding />} />
+          <Route path="/rudraksha-calculator" element={<RudrakshaCalculator />} />
+          <Route path="/rudraksha-for-rashi" element={<RudrakshaCalculator />} />
+          <Route path="/how-to-wear-rudraksha" element={<RudrakshaGuide />} />
+          <Route path="/rudraksha-benefits" element={<RudrakshaGuide />} />
+          <Route path="/rudraksha-authenticity" element={<RudrakshaGuide />} />
+          <Route path="/rudraksha-care" element={<RudrakshaGuide />} />
 
           {/* Admin Login Route */}
           <Route

@@ -83,8 +83,28 @@ export function Footer() {
           </div>
         </div>
 
-        {/* 3. Two Clean Columns */}
+        {/* 3. Link Columns */}
         <div className="n-footer-links-grid">
+          <div className="nf-links-col">
+            <h4>SACRED BEADS</h4>
+            <Link to="/rudraksha/1-mukhi">1 Mukhi (Ek Mukhi)</Link>
+            <Link to="/rudraksha/5-mukhi">5 Mukhi (Panch Mukhi)</Link>
+            <Link to="/rudraksha/7-mukhi">7 Mukhi (Mahalakshmi)</Link>
+            <Link to="/rudraksha/gauri-shankar">Gauri Shankar</Link>
+            <Link to="/rudraksha/ganesh-rudraksha">Ganesh Rudraksha</Link>
+            <Link to="/rudraksha/nepali">Nepali Rudraksha</Link>
+            <Link to="/rudraksha">All Sacred Beads</Link>
+          </div>
+          <div className="nf-links-col">
+            <h4>VEDIC GUIDES</h4>
+            <Link to="/how-to-wear-rudraksha">How to Wear Rudraksha</Link>
+            <Link to="/rudraksha-benefits">Rudraksha Benefits</Link>
+            <Link to="/rudraksha-authenticity">Authenticity &amp; Testing</Link>
+            <Link to="/rudraksha-care">Care &amp; Cleaning Guide</Link>
+            <Link to="/rudraksha-calculator">Rudraksha Calculator</Link>
+            <Link to="/rudraksha-for-rashi">Rudraksha by Rashi</Link>
+            <Link to="/aura-ai">Aura AI Pandit Ji</Link>
+          </div>
           <div className="nf-links-col">
             <h4>QUICK LINKS</h4>
             <Link to="/about">About Us</Link>
@@ -93,11 +113,11 @@ export function Footer() {
             <Link to="/categories">Categories</Link>
             <Link to="/wholesale">Bulk / Wholesale</Link>
             <Link to="/contact">Contact Us</Link>
-            <Link to="/terms">Terms & Conditions</Link>
+            <Link to="/terms">Terms &amp; Conditions</Link>
           </div>
           <div className="nf-links-col">
             <h4>POLICIES</h4>
-            <Link to="/return-policy">Refund & Return Policy</Link>
+            <Link to="/return-policy">Refund &amp; Return Policy</Link>
             <Link to="/shipping-policy">Shipping Policy</Link>
             <Link to="/privacy-policy">Privacy Policy</Link>
             <Link to="/terms">Terms of Service</Link>

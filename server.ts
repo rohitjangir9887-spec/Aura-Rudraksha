@@ -1,9 +1,11 @@
 import path from "path";
+import fs from "fs";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createApp } from "./server/app.js";
 import { connectDB } from "./server/config/db.js";
 import { reconcileAllOrders } from "./server/services/orderReconciliationService.js";
+import { injectSeoIntoHtml } from "./server/services/seoService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -18,6 +20,34 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+
+    // Intercept navigation requests to inject route-aware SEO & JSON-LD
+    app.use(async (req, res, next) => {
+      const p = req.path;
+      const isNavRequest = req.method === "GET" && 
+        !p.startsWith("/api") && 
+        !p.includes(".") && 
+        !p.startsWith("/@") && 
+        !p.startsWith("/src/") && 
+        !p.startsWith("/node_modules/");
+
+      if (isNavRequest) {
+        try {
+          const indexHtmlPath = path.join(process.cwd(), "index.html");
+          let template = await fs.promises.readFile(indexHtmlPath, "utf-8");
+          template = await vite.transformIndexHtml(req.originalUrl, template);
+          const finalHtml = await injectSeoIntoHtml(template, req.path, req);
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache");
+          return res.status(200).send(finalHtml);
+        } catch (err) {
+          console.warn("[Dev SEO HTML Notice]:", err);
+          return next();
+        }
+      }
+      next();
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
@@ -40,12 +70,24 @@ async function startServer() {
     app.use("/api", (req, res) => {
       res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
     });
-    // SPA fallback for all non-API requests (handles GET, POST, HEAD, etc.)
-    app.use((req, res, next) => {
+    // SPA fallback with server-side SEO & Schema injection for all public routes
+    let cachedDistHtml = "";
+    app.use(async (req, res, next) => {
       if (req.path.startsWith("/api")) {
         return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
       }
-      res.sendFile(path.join(distPath, "index.html"));
+      try {
+        if (!cachedDistHtml) {
+          cachedDistHtml = await fs.promises.readFile(path.join(distPath, "index.html"), "utf-8");
+        }
+        const finalHtml = await injectSeoIntoHtml(cachedDistHtml, req.path, req);
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return res.status(200).send(finalHtml);
+      } catch (err) {
+        console.warn("[Prod SEO HTML Fallback Notice]:", err);
+        res.sendFile(path.join(distPath, "index.html"));
+      }
     });
   }
 

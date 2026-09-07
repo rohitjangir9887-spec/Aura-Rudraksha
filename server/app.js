@@ -24,6 +24,7 @@ import auraAiRoute from "./routes/auraAi.js";
 import cartRoute from "./routes/cart.js";
 import paymentRoute from "./routes/payment.js";
 import uploadRoute from "./routes/upload.js";
+import seoRoute from "./routes/seo.js";
 import { handlePayuCallback } from "./controllers/paymentController.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -233,6 +234,9 @@ export function createApp() {
   app.use("/api/auth", requireDb, authRoute);
   app.use("/api/aura-ai", auraAiRoute);
   app.use("/api/payment", requireDb, noCacheMiddleware, paymentRoute);
+
+  // Top-level SEO endpoints (/sitemap.xml, /robots.txt, /google-merchant-feed.xml, IndexNow verification)
+  app.use("/", seoRoute);
 
   // Top-level PayU callback URL aliases (surl / furl redirects from PayU)
   app.all(["/payu-callback", "/payment/callback", "/checkout/callback", "/api/payment/payu-callback"], requireDb, handlePayuCallback);
