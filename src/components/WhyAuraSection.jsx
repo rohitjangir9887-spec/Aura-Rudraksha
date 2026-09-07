@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Sparkles, ShieldCheck, PackageCheck } from "lucide-react";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 
 export function WhyAuraSection() {
   return (
@@ -42,8 +42,13 @@ export function WhyAuraSection() {
                 className="aura-editorial-img"
                 loading="lazy"
                 onError={(e) => {
-                  if (!e.currentTarget.src.includes('product-5mukhi.jpg')) {
-                    e.currentTarget.src = "/images/product-5mukhi.jpg";
+                  const raw = "https://i.ibb.co/G4XWVbHR/file-000000008f508206b947f8cd82988acb.png";
+                  markProxyFailed(raw);
+                  const target = e.currentTarget;
+                  if (target.src.includes("wsrv.nl")) {
+                    target.src = raw;
+                  } else if (!target.src.includes('product-5mukhi.jpg')) {
+                    target.src = "/images/product-5mukhi.jpg";
                   }
                 }}
               />

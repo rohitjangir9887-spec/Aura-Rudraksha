@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Sparkles, ArrowRight, ShieldCheck, Flame, Compass } from "lucide-react";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 
 export function AuraEditorialSection() {
   return (
@@ -39,9 +39,11 @@ export function AuraEditorialSection() {
               loading="lazy"
               decoding="async"
               onError={(e) => {
+                const raw = "https://i.ibb.co/vvjdFqNQ/file-0000000057548208a095c1d1fc26f78c.jpg";
+                markProxyFailed(raw);
                 const target = e.currentTarget;
                 if (target.src.includes("wsrv.nl")) {
-                  target.src = "https://i.ibb.co/vvjdFqNQ/file-0000000057548208a095c1d1fc26f78c.jpg";
+                  target.src = raw;
                 } else if (!target.src.includes("product-mala.jpg")) { 
                   target.src = "/images/product-mala.jpg"; 
                 }
@@ -67,9 +69,11 @@ export function AuraEditorialSection() {
                 decoding="async"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
+                  const raw = "https://i.ibb.co/nMzc8B8k/file-00000000243482118ca7430425cda1ba.png";
+                  markProxyFailed(raw);
                   const target = e.currentTarget;
                   if (target.src.includes("wsrv.nl")) {
-                    target.src = "https://i.ibb.co/nMzc8B8k/file-00000000243482118ca7430425cda1ba.png";
+                    target.src = raw;
                   } else if (!target.src.includes("product-5mukhi.jpg")) { 
                     target.src = "/images/product-5mukhi.jpg"; 
                   }

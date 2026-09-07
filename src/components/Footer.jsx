@@ -6,7 +6,7 @@ import {
   ShieldCheck, Beaker, Truck, Phone
 } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { motion } from "framer-motion";
 
 export function FooterHelpStrip() {
@@ -73,9 +73,11 @@ export function Footer() {
             decoding="async"
             referrerPolicy="no-referrer"
             onError={(e) => { 
+              const raw = "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+              markProxyFailed(raw);
               const target = e.currentTarget;
               if (target.src.includes("wsrv.nl")) {
-                target.src = "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+                target.src = raw;
               } else if (!target.src.includes("logo-header-horizontal.png")) { 
                 target.src = "/logo-header-horizontal.png"; 
               } 

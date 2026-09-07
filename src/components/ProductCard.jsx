@@ -1,4 +1,4 @@
-import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl } from "../lib/imageUtils";
+import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState } from "react";
@@ -112,7 +112,15 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           className="aura-card-img"
           loading="lazy"
           decoding="async"
-          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+          onError={(e) => { 
+            markProxyFailed(rawDisplayImage);
+            const target = e.currentTarget;
+            if (target.src.includes("wsrv.nl")) {
+              target.src = rawDisplayImage;
+            } else if (!target.src.includes("product-5mukhi.jpg")) { 
+              target.src = "/images/product-5mukhi.jpg"; 
+            } 
+          }}
         />
 
         {/* Floating Offer Badge (Top Left of image) */}

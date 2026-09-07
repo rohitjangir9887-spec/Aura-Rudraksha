@@ -1,6 +1,6 @@
 import React from "react";
 import { Sparkles, MessageCircle } from "lucide-react";
-import { getOptimizedImageUrl } from "../../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../../lib/imageUtils";
 
 export function PanditjiHeader({ handleAskInChat }) {
   return (
@@ -53,9 +53,11 @@ export function PanditjiHeader({ handleAskInChat }) {
                 display: 'block'
               }}
               onError={(e) => {
+                const raw = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+                markProxyFailed(raw);
                 const target = e.currentTarget;
                 if (target.src.includes("wsrv.nl")) {
-                  target.src = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+                  target.src = raw;
                   return;
                 }
                 target.style.display = 'none';

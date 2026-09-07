@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle2, MessageCircle } from "lucide-react";
-import { getOptimizedImageUrl } from "../../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../../lib/imageUtils";
 
 export function PanditjiPortrait({ handleAskInChat }) {
   return (

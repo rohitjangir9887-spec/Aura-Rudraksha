@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Gift, Copy, Check, Clock, Sparkles, ArrowRight, ShieldCheck, Flame } from "lucide-react";
 import { useActiveOffer } from "../hooks/useActiveOffer";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 
 /**
  * Home Hero / Promotional Offer Banner with live synchronized countdown timer
@@ -146,6 +146,7 @@ export function HomeHeroOffer() {
                 decoding="async"
                 onError={(e) => { 
                   const raw = offer.image || offer.bannerImage || "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png";
+                  markProxyFailed(raw);
                   if (e.currentTarget.src.includes("wsrv.nl")) {
                     e.currentTarget.src = raw;
                   } else if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { 

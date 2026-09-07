@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { Countdown } from "../components/Countdown";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
@@ -224,6 +224,7 @@ export function Home() {
               referrerPolicy="no-referrer"
               onLoad={() => setLoadedBanners(prev => ({ ...prev, [i]: true }))}
               onError={(e) => {
+                markProxyFailed(src);
                 setLoadedBanners(prev => ({ ...prev, [i]: true }));
                 const target = e.currentTarget;
                 if (target.src.includes("wsrv.nl")) {

@@ -12,7 +12,7 @@ import { useCart } from "../hooks/useCart";
 import { isPublicProduct } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
 import { sortProductsByHomeOrder } from "../lib/productHelper";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 
 // Authentic Devotee Avatars
 const DEVOTEE_AVATARS = [
@@ -86,9 +86,11 @@ function PanditJiAvatar({ size = 34 }) {
           display: 'block'
         }}
         onError={(e) => {
+          const raw = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+          markProxyFailed(raw);
           const target = e.currentTarget;
           if (target.src.includes("wsrv.nl")) {
-            target.src = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+            target.src = raw;
             return;
           }
           target.style.display = 'none';

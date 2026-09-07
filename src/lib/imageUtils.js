@@ -63,6 +63,14 @@ export function preloadImages(urls = []) {
   }
 }
 
+const failedProxyUrls = new Set();
+
+export function markProxyFailed(url) {
+  if (url && typeof url === "string") {
+    failedProxyUrls.add(url.trim());
+  }
+}
+
 /**
  * Append CDN sizing parameters if using supported image delivery services (e.g. ImageKit, Unsplash)
  */
@@ -71,6 +79,10 @@ export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
   const clean = url.trim();
   if (!clean) return "/images/product-5mukhi.jpg";
   if (!clean.startsWith("http")) return clean;
+
+  if (failedProxyUrls.has(clean)) {
+    return clean;
+  }
 
   // If ImageKit URL, apply progressive transformation parameters (auto WebP, progressive render)
   if (clean.includes("ik.imagekit.io")) {

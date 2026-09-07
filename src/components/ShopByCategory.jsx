@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
-import { getOptimizedImageUrl } from "../lib/imageUtils";
+import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 
 export function ShopByCategory() {
   const scrollRef = useRef(null);
@@ -275,8 +275,12 @@ export function ShopByCategory() {
                   decoding="async"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    if (cat.fallback && !e.currentTarget.src.includes(cat.fallback.replace(/^\//, ''))) {
-                      e.currentTarget.src = cat.fallback;
+                    markProxyFailed(cat.image);
+                    const target = e.currentTarget;
+                    if (target.src.includes("wsrv.nl")) {
+                      target.src = cat.image;
+                    } else if (cat.fallback && !target.src.includes(cat.fallback.replace(/^\//, ''))) {
+                      target.src = cat.fallback;
                     }
                   }}
                   style={{
