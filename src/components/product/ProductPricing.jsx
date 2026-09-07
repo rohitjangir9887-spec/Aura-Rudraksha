@@ -16,10 +16,12 @@ export function ProductPricing({ product }) {
   const isLowStock = !isOutOfStock && stockLimit <= 5;
 
   // Format sales count (total sales added in admin dashboard or dynamic fallback)
-  const rawSales = product.totalSold || product.salesCount || product.totalSales;
+  const salesCountNum = Number(product.salesCount) || (product.totalSold ? parseInt(String(product.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
   let formattedSales = "";
-  if (rawSales !== undefined && rawSales !== null && String(rawSales).trim() !== "") {
-    const s = String(rawSales).trim();
+  if (salesCountNum > 0) {
+    formattedSales = `${salesCountNum.toLocaleString("en-IN")}+ Sold`;
+  } else if (product.totalSold && String(product.totalSold).trim()) {
+    const s = String(product.totalSold).trim();
     formattedSales = s.toLowerCase().includes("sold") || s.toLowerCase().includes("orders") || s.toLowerCase().includes("bought") 
       ? s 
       : `${s} Sold`;
@@ -49,7 +51,7 @@ export function ProductPricing({ product }) {
         {formattedSales && (
           <AnimatedSalesCounter 
             salesText={formattedSales} 
-            salesCount={product.salesCount} 
+            salesCount={salesCountNum > 0 ? salesCountNum : product.salesCount} 
           />
         )}
       </div>

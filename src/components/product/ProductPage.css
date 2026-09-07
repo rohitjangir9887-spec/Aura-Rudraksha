@@ -556,9 +556,14 @@
   box-shadow: 0 2px 8px rgba(234, 88, 12, 0.12);
   margin-left: auto;
   position: relative;
-  overflow: hidden;
+  overflow: visible; /* Prevent clipping of flame icon or large digit badges */
+  flex-shrink: 0;
+  width: auto;
+  min-width: max-content;
+  white-space: nowrap;
   animation: auraSalesPulse 2.8s infinite ease-in-out;
   user-select: none;
+  transition: all 0.3s ease;
 }
 
 .aura-sales-counter-badge.aura-sales-locked {
@@ -572,18 +577,23 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace, sans-serif;
   font-weight: 900;
   color: #9a3412;
-  letter-spacing: -0.5px;
+  letter-spacing: 0.3px;
+  height: 20px;
+  line-height: 20px;
+  flex-shrink: 0;
 }
 
 .aura-sales-digit-slot {
   display: inline-block;
-  height: 1.25em;
-  line-height: 1.25em;
+  height: 20px;
+  line-height: 20px;
   overflow: hidden;
   vertical-align: middle;
   position: relative;
-  width: 0.65em;
+  width: auto;
+  min-width: 9.5px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .aura-sales-badge-suffix {
@@ -591,11 +601,17 @@
   font-weight: 800;
   color: #9a3412;
   letter-spacing: -0.1px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .aura-sales-flame-icon {
-  font-size: 13.5px;
-  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   animation: auraFlameFlicker 1.8s infinite ease-in-out alternate;
 }
 
@@ -604,6 +620,8 @@
   font-weight: 800;
   color: #9a3412;
   letter-spacing: -0.1px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .aura-sales-live-dot {
@@ -613,6 +631,7 @@
   background: #ea580c;
   box-shadow: 0 0 6px #ea580c;
   display: inline-block;
+  flex-shrink: 0;
   animation: auraLiveBeacon 1.4s infinite ease-in-out;
 }
 

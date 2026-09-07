@@ -805,11 +805,42 @@ export const db = {
   getProductAsync: async (idOrSlug) => {
     if (!idOrSlug) return null;
 
-    // 1. Check in-memory storeCache immediately (0ms)
+    // 1. Prioritize direct API lookup for freshest data (including admin sales updates & increments)
+    try {
+      let cleanParam = String(idOrSlug).trim();
+      try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
+      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 5000 });
+      if (res?.success && res.data) {
+        const p = res.data;
+        const normalized = {
+          ...p,
+          id: String(p.id || p._id),
+          mrp: p.mrp || p.comparePrice || p.price,
+          comparePrice: p.comparePrice || p.mrp || p.price,
+          images: getProductGalleryImages(p),
+          totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
+          salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
+        };
+        const idx = storeCache.products.findIndex(x =>
+          String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
+        );
+        if (idx >= 0) {
+          storeCache.products[idx] = normalized;
+        } else {
+          storeCache.products.push(normalized);
+        }
+        try {
+          localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+        } catch (_) {}
+        return normalized;
+      }
+    } catch (_) {}
+
+    // 2. Fallback to in-memory storeCache if API failed or offline
     const cached = db.getProduct(idOrSlug);
     if (cached) return cached;
 
-    // 2. Check localStorage cache if storeCache was empty
+    // 3. Fallback to localStorage cache if storeCache was empty
     if (typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem("aura_products_cache");
@@ -823,32 +854,6 @@ export const db = {
         }
       } catch (_) {}
     }
-
-    // 3. Direct API lookup for fast single-item load (bounded by 8s timeout)
-    try {
-      let cleanParam = String(idOrSlug).trim();
-      try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
-      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 8000 });
-      if (res?.success && res.data) {
-        const p = res.data;
-        const normalized = {
-          ...p,
-          id: String(p.id || p._id),
-          mrp: p.mrp || p.comparePrice || p.price,
-          comparePrice: p.comparePrice || p.mrp || p.price,
-          images: getProductGalleryImages(p)
-        };
-        const idx = storeCache.products.findIndex(x =>
-          String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
-        );
-        if (idx >= 0) {
-          storeCache.products[idx] = normalized;
-        } else {
-          storeCache.products.push(normalized);
-        }
-        return normalized;
-      }
-    } catch (_) {}
 
     // 4. Fallback: wait for initial home sync if API call didn't return (capped at 2500ms)
     try {
@@ -924,10 +929,21 @@ export const db = {
       dailySalesMax: Number(p.dailySalesMax) || 10
     };
 
-    const res = await apiRequest("/products", {
-      method: "POST",
+    const isExisting = Boolean(finalProduct.id && finalProduct.id !== "new" && !String(finalProduct.id).startsWith("TEMP-"));
+    const endpoint = isExisting ? `/products/${encodeURIComponent(finalProduct.id)}` : "/products";
+    const method = isExisting ? "PUT" : "POST";
+
+    let res = await apiRequest(endpoint, {
+      method,
       body: JSON.stringify(finalProduct)
     });
+
+    if (!res?.success && isExisting) {
+      res = await apiRequest("/products", {
+        method: "POST",
+        body: JSON.stringify(finalProduct)
+      });
+    }
 
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save product. Database is unavailable.");

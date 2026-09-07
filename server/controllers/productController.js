@@ -394,7 +394,9 @@ export async function createProduct(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.products.findIndex(p => String(p.id) === String(id));
+      const idx = inMemoryStore.products.findIndex(p => 
+        String(p.id) === String(id) || (p._id && String(p._id) === String(id)) || (p.slug && p.slug === productPayload.slug)
+      );
       if (idx >= 0) {
         inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...productPayload };
       } else {
@@ -413,9 +415,17 @@ export async function createProduct(req, res, next) {
       return res.status(201).json({ success: true, data: productPayload });
     }
 
+    const cleanId = String(productPayload.id).trim();
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
     const created = await Product.findOneAndUpdate(
-      { id: productPayload.id },
-      productPayload,
+      { 
+        $or: [
+          { id: cleanId },
+          { slug: productPayload.slug },
+          ...(isMongoId ? [{ _id: cleanId }] : [])
+        ]
+      },
+      { $set: productPayload },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
     invalidateRagCache();
@@ -464,18 +474,17 @@ export async function updateProduct(req, res, next) {
     if (Array.isArray(data.images) && data.images.length > 0) {
       updatePayload.img = data.images[0];
     }
-    if (data.totalSold !== undefined) {
+    if (data.salesCount !== undefined && Number(data.salesCount) >= 0) {
+      updatePayload.salesCount = Number(data.salesCount);
+      updatePayload.totalSold = `${updatePayload.salesCount}+ Sold`;
+      updatePayload.lastSalesUpdateDate = new Date().toISOString().split("T")[0];
+    } else if (data.totalSold !== undefined) {
       updatePayload.totalSold = String(data.totalSold).trim();
       const extractedCount = parseInt(String(data.totalSold).replace(/\D/g, ""), 10);
       if (!isNaN(extractedCount) && extractedCount > 0) {
         updatePayload.salesCount = extractedCount;
       }
-    }
-    if (data.salesCount !== undefined && Number(data.salesCount) >= 0) {
-      updatePayload.salesCount = Number(data.salesCount);
-      if (!updatePayload.totalSold) {
-        updatePayload.totalSold = `${updatePayload.salesCount}+ Sold`;
-      }
+      updatePayload.lastSalesUpdateDate = new Date().toISOString().split("T")[0];
     }
     if (data.autoIncrementSales !== undefined) {
       updatePayload.autoIncrementSales = !!data.autoIncrementSales;
