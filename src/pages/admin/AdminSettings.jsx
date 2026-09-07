@@ -102,7 +102,7 @@ export function AdminSettings() {
               type="email" 
               required
               placeholder="aurarudrakshaofficial@gmail.com"
-              value={settings.supportEmail || "aurarudrakshaofficial@gmail.com"} 
+              value={settings.supportEmail ?? ""} 
               onChange={(e) => updateSettings("supportEmail", e.target.value)} 
             />
             <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>

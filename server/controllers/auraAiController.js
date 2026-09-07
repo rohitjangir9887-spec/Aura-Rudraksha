@@ -705,20 +705,21 @@ export async function chatAuraAI(req, res, next) {
       matchedProducts = await searchRelevantCatalogProducts(message || "", targetMukhi);
     }
 
+    // Fetch store products for prompt context
+    let allStoreProds = [];
+    if (isDbConnected()) {
+      try {
+        allStoreProds = await Product.find({ status: { $nin: ["Draft", "draft", "Inactive", "inactive"] } }).lean();
+      } catch (_) {
+        allStoreProds = inMemoryStore.products || [];
+      }
+    } else {
+      allStoreProds = inMemoryStore.products || [];
+    }
+
     // If we have calculated Kundali, match recommended beads to catalog
     if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
       const recMukhis = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => r.mukhiNumber);
-      let allStoreProds = [];
-      if (isDbConnected()) {
-        try {
-          allStoreProds = await Product.find({ status: { $nin: ["Draft", "draft", "Inactive", "inactive"] } }).lean();
-        } catch (_) {
-          allStoreProds = inMemoryStore.products || [];
-        }
-      } else {
-        allStoreProds = inMemoryStore.products || [];
-      }
-
       for (const mNum of recMukhis) {
         const found = allStoreProds.find(p => (p.name || "").toLowerCase().includes(`${mNum} mukhi`));
         if (found && !matchedProducts.some(mp => mp.id === String(found.id || found._id))) {
@@ -726,6 +727,34 @@ export async function chatAuraAI(req, res, next) {
         }
       }
     }
+
+    const storeCatalogPromptSnippet = (allStoreProds || []).slice(0, 45).map(p => {
+      const pPrice = Number(p.price) || 0;
+      const slug = p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : p.id);
+      return `- ${p.name} | Price: ₹${pPrice} | Category: ${p.category || 'Rudraksha'} | Link: /product/${slug}`;
+    }).join("\n");
+
+    const urlAndCatalogRulesText = `
+WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
+- Official Store Website URLs:
+  - https://aura-rudraksha.vercel.app (Live Web Application)
+  - https://aurarudraksha.com (Official Domain)
+- Main Page Routes:
+  - Official Homepage: https://aura-rudraksha.vercel.app (or /)
+  - Shop All Products: https://aura-rudraksha.vercel.app/shop (or /shop)
+  - Order Tracking: https://aura-rudraksha.vercel.app/track-order (or /track-order)
+  - Contact Us: https://aura-rudraksha.vercel.app/contact (or /contact)
+  - Cart / Checkout: https://aura-rudraksha.vercel.app/cart (or /cart)
+  - Free Kundali & Zodiac Analysis: https://aura-rudraksha.vercel.app/zodiac (or /zodiac)
+- When user asks "What is the website URL?", "Website link do", or "Where to buy?", ALWAYS provide: https://aura-rudraksha.vercel.app (or https://aurarudraksha.com).
+- NEVER generate or hallucinate fake external domain URLs (like example.com or random fake links).
+- NEVER invent fake product names. ONLY recommend real products from the official catalog below:
+
+REAL STORE PRODUCT CATALOG:
+${storeCatalogPromptSnippet}
+
+LINK FORMAT:
+- Use markdown links like [Product Name](/product/slug) or [Shop All](/shop).`;
 
     // 5. Retrieve Live RAG Knowledge Documents & Memories
     const ragDocs = await retrieveRagContext(message || (mode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 3);
@@ -745,6 +774,8 @@ CORE IDENTITY & TRANSPARENCY:
 - Strictly identify as AI; never claim to be a physical living human or invent fake degrees/claims.
 - Use warm, respectful Hindi/Hinglish greetings (e.g. "🙏 प्रणाम", "हर हर महादेव", "जय श्री राम", "शुभ प्रभात / शुभ संध्या").
 - Language Matching: If customer speaks in Hindi or Hinglish, reply in warm, respectful Hindi/Hinglish. If they speak in English, reply in English. Never randomly switch languages.
+
+${urlAndCatalogRulesText}
 
 KUNDALI & ASTROLOGICAL FIDELITY:
 ${calculatedKundaliData ? `
@@ -783,6 +814,8 @@ CORE MISSION:
 - Provide accurate product information, stock status, active coupon discounts, and order support.
 - Maintain a polite, spiritual, helpful, and conversion-oriented tone.
 - Language Matching: Reply in the same language as the customer (Hindi/Hinglish or English).
+
+${urlAndCatalogRulesText}
 
 ORDER & TRACKING QUERIES:
 - If customer asks for tracking/order status: Provide clear guidance. Remind them they can view real-time courier updates at [Track Order](/track-order) with their Order ID or phone number.

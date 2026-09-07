@@ -1,5 +1,6 @@
 import React from "react";
-import { Sparkles, Phone, Mail, CheckCircle2, ShieldCheck, Tag } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Sparkles, Phone, Mail, CheckCircle2, ShieldCheck, Tag, ExternalLink } from "lucide-react";
 
 /**
  * Universal Aura AI Message Renderer
@@ -32,19 +33,70 @@ function sanitizeText(raw) {
   return text;
 }
 
-// Tokenize a line of text for inline formatting (bold, italic, code, links, currency)
+// Tokenize a line of text for inline formatting (bold, italic, code, markdown links, raw URLs, contact)
 function renderInlineContent(text) {
   if (!text) return null;
 
-  // Split by inline markdown tokens: **bold**, `code`, *italic*
-  // Regex matches: **bold**, `code`, *italic*
-  const tokenRegex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  // Split by inline markdown tokens: [link text](url), https?://..., **bold**, `code`, *italic*
+  const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
   const parts = text.split(tokenRegex);
 
   return parts.map((part, idx) => {
     if (!part) return null;
 
-    // Bold: **something**
+    // 1. Markdown Link: [label](url)
+    const mdLinkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (mdLinkMatch) {
+      const label = mdLinkMatch[1];
+      let url = mdLinkMatch[2].trim();
+
+      // Normalize internal domains to relative route
+      if (url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
+        try {
+          const parsed = new URL(url);
+          url = parsed.pathname + parsed.search;
+        } catch (_) {
+          url = url.replace(/^https?:\/\/(www\.)?(aurarudraksha\.com|aura-rudraksha\.vercel\.app)/i, "") || "/";
+        }
+      }
+
+      if (url.startsWith("/")) {
+        return (
+          <Link key={idx} to={url} className="aura-ai-inline-link">
+            {label}
+          </Link>
+        );
+      }
+
+      return (
+        <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="aura-ai-inline-link">
+          {label} <ExternalLink size={10} className="inline ml-0.5" />
+        </a>
+      );
+    }
+
+    // 2. Direct Raw HTTP / HTTPS URL
+    if (part.startsWith("http://") || part.startsWith("https://")) {
+      let url = part;
+      if (url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
+        try {
+          const parsed = new URL(url);
+          const relPath = parsed.pathname + parsed.search;
+          return (
+            <Link key={idx} to={relPath || "/"} className="aura-ai-inline-link">
+              {part}
+            </Link>
+          );
+        } catch (_) {}
+      }
+      return (
+        <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="aura-ai-inline-link">
+          {part} <ExternalLink size={10} className="inline ml-0.5" />
+        </a>
+      );
+    }
+
+    // 3. Bold: **something**
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       const inner = part.slice(2, -2);
       return (
@@ -54,7 +106,7 @@ function renderInlineContent(text) {
       );
     }
 
-    // Code / Coupon / Highlight: `something`
+    // 4. Code / Coupon / Highlight: `something`
     if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
       const inner = part.slice(1, -1);
       return (
@@ -64,7 +116,7 @@ function renderInlineContent(text) {
       );
     }
 
-    // Italic: *something*
+    // 5. Italic: *something*
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
       const inner = part.slice(1, -1);
       return (
@@ -74,7 +126,7 @@ function renderInlineContent(text) {
       );
     }
 
-    // Check for phone numbers or emails in plain text
+    // 6. Check for phone numbers or emails in plain text
     const words = part.split(/(\+91\s*\d{10}|\+91\s*\d{5}\s*\d{5}|support@aurarudraksha\.com)/g);
     if (words.length > 1) {
       return (

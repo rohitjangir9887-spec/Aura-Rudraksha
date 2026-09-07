@@ -13,7 +13,7 @@ import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
-  instagramUrl: "url", facebookUrl: "url", youtubeUrl: "url",
+  instagramUrl: "webUrl", facebookUrl: "webUrl", youtubeUrl: "webUrl",
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",

@@ -31,6 +31,14 @@ export function pickFields(input, types) {
       case "richText":
         if (typeof v === "string" && v.length <= 100000) out[key] = v.trim();
         break;
+      case "webUrl":
+        if (typeof v === "string" && v.length <= 2000) {
+          const trimmed = v.trim();
+          if (!trimmed || trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/")) {
+            out[key] = trimmed;
+          }
+        }
+        break;
       case "url":
         // Same allowlist as review photos: http(s) links, same-origin
         // relative paths, or data:image/* URLs restricted to a real
