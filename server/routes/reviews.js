@@ -7,7 +7,6 @@ import {
   voteReview,
   getReviewSettings,
   saveReviewSettings,
-  generateReviewDrafts,
   bulkSaveReviews,
   importExternalReviews,
   polishReviewWithAI
@@ -25,9 +24,6 @@ router.route("/import-external")
 
 router.route("/polish")
   .post(requireAdmin, polishReviewWithAI);
-
-router.route("/generate-drafts")
-  .post(requireAdmin, generateReviewDrafts);
 
 router.route("/bulk-save")
   .post(requireAdmin, bulkSaveReviews);

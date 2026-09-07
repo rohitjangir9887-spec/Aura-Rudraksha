@@ -1,6 +1,8 @@
 {
   "version": 2,
-  "regions": ["bom1"],
+  "regions": [
+    "bom1"
+  ],
   "headers": [
     {
       "source": "/images/(.*)",
@@ -22,13 +24,44 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.js" },
-    { "source": "/sitemap.xml", "destination": "/api/sitemap.js" },
-    { "source": "/robots.txt", "destination": "/api/index.js" },
-    { "source": "/google-merchant-feed.xml", "destination": "/api/index.js" },
-    { "source": "/merchant-feed.xml", "destination": "/api/index.js" },
-    { "source": "/indexnow-key.txt", "destination": "/api/index.js" },
-    { "source": "/65afe1e2dec4bf210d1a3ce75cb3c7a0.txt", "destination": "/api/indexnow-key.js" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap.js"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/google-merchant-feed.xml",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/merchant-feed.xml",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/indexnow-key.txt",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/65afe1e2dec4bf210d1a3ce75cb3c7a0.txt",
+      "destination": "/api/indexnow-key.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/api/seo-html.js"
+    }
+  ],
+  "functions": {
+    "api/seo-html.js": {
+      "includeFiles": [
+        "dist/index.html"
+      ]
+    }
+  }
 }

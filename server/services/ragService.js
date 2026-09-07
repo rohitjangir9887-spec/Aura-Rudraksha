@@ -51,7 +51,7 @@ export async function buildStoreRagIndex() {
 
   docs.push({
     docId: "policy_purification",
-    docType: "policy",
+    docType: "knowledge",
     title: "Dharan Vidhi & Purification Rules",
     content: "Purification Vidhi: Dip the Rudraksha in Holy Ganga Jal or raw milk on Monday morning. Recite 'Om Namah Shivaya' or the specific Mukhi Beej Mantra 108 times before wearing. You can wear it during daily activities; remove before heavy exercise, sleeping, or visiting cremation grounds if following strict traditional ascetism.",
     metadata: { category: "spiritual" }
@@ -68,7 +68,7 @@ export async function buildStoreRagIndex() {
     });
   }
 
-  // 3. Index Live Products from MongoDB / inMemoryStore
+  // 3. Index live products from MongoDB / development fixtures.
   let liveProducts = [];
   if (isDbConnected()) {
     try {
@@ -85,15 +85,17 @@ export async function buildStoreRagIndex() {
 
   for (const p of (liveProducts || [])) {
     const pPrice = Number(p.price) || 0;
-    const pMrp = Number(p.mrp || p.comparePrice || Math.round(pPrice * 1.35));
-    const pStock = Number(p.stock) > 0 ? Number(p.stock) : (p.inStock !== false ? 50 : 0);
+    const pMrp = Number(p.mrp || p.comparePrice || pPrice);
+    const pStock = Number(p.stock) || 0;
     const inStockText = pStock > 0 ? `In Stock (${pStock} available)` : "Out of Stock";
+    const rating = Number(p.rating) || 0;
+    const reviewCount = Number(p.reviews || p.reviewCount) || 0;
 
     docs.push({
       docId: `product_${p.id || p._id}`,
       docType: "product",
       title: `Product: ${p.name}`,
-      content: `${p.name} (Category: ${p.category || 'Rudraksha'}). Price: ₹${pPrice} (MRP: ₹${pMrp}). Availability: ${inStockText}. Rating: ${p.rating || 4.9} stars (${p.reviews || 24} reviews). Highlights & Benefits: ${p.highlight || p.description || ''}. Tags: ${Array.isArray(p.tags) ? p.tags.join(', ') : ''}. Slug: ${p.slug}`,
+      content: `${p.name} (Category: ${p.category || 'Rudraksha'}). Price: ₹${pPrice} (MRP: ₹${pMrp}). Availability: ${inStockText}. Rating: ${rating} stars (${reviewCount} reviews). Highlights & Benefits: ${p.highlight || p.description || ''}. Tags: ${Array.isArray(p.tags) ? p.tags.join(', ') : ''}. Slug: ${p.slug}`,
       metadata: {
         productId: String(p.id || p._id),
         name: p.name,
@@ -176,7 +178,7 @@ export async function retrieveRagContext(userQuery = "", topK = 4) {
   const relevant = scoredDocs.filter(item => item.score > 0).slice(0, topK).map(item => item.doc);
 
   if (relevant.length === 0) {
-    // Return default general policy & featured product
+    // Return only actual indexed policies/coupons; no fabricated product is injected.
     return docs.filter(d => d.docType === "policy" || d.docType === "coupon").slice(0, 2);
   }
 

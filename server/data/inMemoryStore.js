@@ -11,11 +11,14 @@ import {
 
 class InMemoryStore {
   constructor() {
-    this.products = JSON.parse(JSON.stringify(defaultProducts));
-    this.banners = JSON.parse(JSON.stringify(defaultBanners));
-    this.coupons = JSON.parse(JSON.stringify(defaultCoupons));
-    this.activeOffer = JSON.parse(JSON.stringify(defaultActiveOffer));
-    this.offers = [
+    // Demo/seed fixtures are available for local development only.
+    // Production must never serve fabricated fallback catalog, orders, reviews, or coupons.
+    const useFixtures = process.env.NODE_ENV !== "production";
+    this.products = useFixtures ? JSON.parse(JSON.stringify(defaultProducts)) : [];
+    this.banners = useFixtures ? JSON.parse(JSON.stringify(defaultBanners)) : [];
+    this.coupons = useFixtures ? JSON.parse(JSON.stringify(defaultCoupons)) : [];
+    this.activeOffer = useFixtures ? JSON.parse(JSON.stringify(defaultActiveOffer)) : null;
+    this.offers = useFixtures ? [
       {
         id: "OFF-1",
         title: "Flat 20% OFF",
@@ -63,11 +66,11 @@ class InMemoryStore {
         theme: "light",
         order: 3
       }
-    ];
-    this.reviews = JSON.parse(JSON.stringify(defaultReviews));
-    this.orders = JSON.parse(JSON.stringify(defaultOrders));
-    this.customers = JSON.parse(JSON.stringify(defaultCustomers));
-    this.settings = JSON.parse(JSON.stringify(defaultSettings));
+    ] : [];
+    this.reviews = useFixtures ? JSON.parse(JSON.stringify(defaultReviews)) : [];
+    this.orders = useFixtures ? JSON.parse(JSON.stringify(defaultOrders)) : [];
+    this.customers = useFixtures ? JSON.parse(JSON.stringify(defaultCustomers)) : [];
+    this.settings = useFixtures ? JSON.parse(JSON.stringify(defaultSettings)) : {};
     this.promotions = [];
     this.tickets = [];
     this.addresses = [];
