@@ -11208,7 +11208,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   width: 100vw !important;
   height: 100dvh !important;
   max-width: 100vw !important;
-  z-index: 10004 !important;
+  z-index: 10020 !important;
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
@@ -11232,6 +11232,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   -webkit-backdrop-filter: blur(20px);
   margin: auto;
   pointer-events: auto;
+  z-index: 10022 !important;
   transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1), height 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-radius 0.2s ease, box-shadow 0.28s ease;
 }
 
@@ -11309,7 +11310,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     border: none !important;
     position: fixed !important;
     inset: 0 !important;
-    z-index: 10005 !important;
+    z-index: 10025 !important;
     box-shadow: none !important;
   }
 
@@ -12234,6 +12235,110 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-prod-btn-add.added {
   background: #047857;
+}
+
+/* Authentic In-Chat Kundali Card */
+.aura-ai-kundali-card {
+  margin-top: 5px;
+  background: linear-gradient(135deg, #fffdf8 0%, #faf3e6 100%);
+  border: 1.5px solid #d4af37;
+  border-radius: 9px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 8px rgba(74, 14, 23, 0.08);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aura-ai-kundali-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  border-bottom: 1px dashed rgba(212, 175, 55, 0.4);
+  padding-bottom: 5px;
+}
+
+.aura-ai-om {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.aura-ai-kundali-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #4a0e17;
+  line-height: 1.25;
+}
+
+.aura-ai-kundali-subtitle {
+  font-size: 9.5px;
+  color: #7a685b;
+  margin-top: 1px;
+}
+
+.aura-ai-kundali-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.aura-ai-kundali-cell {
+  background: #ffffff;
+  border: 1px solid #ebdccb;
+  border-radius: 5px;
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.aura-ai-cell-label {
+  font-size: 8.5px;
+  color: #8c786a;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.aura-ai-cell-val {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #4a0e17;
+  word-break: break-word;
+}
+
+.aura-ai-kundali-rec {
+  background: linear-gradient(135deg, #4a0e17 0%, #681523 100%);
+  color: #fffdf7;
+  border-radius: 6px;
+  padding: 6px 8px;
+  border: 1px solid #d4af37;
+}
+
+.aura-ai-rec-label {
+  font-size: 8.5px;
+  color: #ffe082;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.aura-ai-rec-mukhi {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 3px;
+}
+
+.aura-ai-rec-mantra,
+.aura-ai-rec-day {
+  font-size: 9.5px;
+  color: #f5e6d3;
+  line-height: 1.35;
+}
+
+.aura-ai-rec-mantra b,
+.aura-ai-rec-day b {
+  color: #ffe082;
 }
 
 /* Coupons in Chat */

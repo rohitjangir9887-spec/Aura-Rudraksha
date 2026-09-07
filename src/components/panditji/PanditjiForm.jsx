@@ -128,16 +128,17 @@ export function PanditjiForm({
           />
         </div>
 
-        {/* 4. BIRTH TIME (OPTIONAL) */}
+        {/* 4. BIRTH TIME (REQUIRED) */}
         <div style={{ minWidth: 0 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '12px', fontWeight: 700, color: '#4A0E17', marginBottom: '4px', overflowWrap: 'break-word' }}>
             <span style={{ display: 'inline-flex', padding: 2, background: 'rgba(212, 175, 55, 0.15)', borderRadius: 4 }}>
               <Clock size={12} color="#8A6014" style={{ flexShrink: 0 }} />
             </span>
-            <span>जन्म समय (Time - Optional)</span>
+            <span>जन्म समय (Birth Time) *</span>
           </label>
           <input
             type="time"
+            required
             value={birthTime}
             onChange={(e) => setBirthTime(e.target.value)}
             className="aura-input-field"

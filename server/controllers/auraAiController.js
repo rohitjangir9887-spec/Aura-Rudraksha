@@ -456,18 +456,18 @@ export async function calculateKundaliEndpoint(req, res, next) {
   try {
     const { dob, birthTime, birthPlace, name, gender, concern } = req.body;
 
-    if (!dob || !birthPlace) {
+    if (!dob || !birthTime || !birthPlace) {
       return res.status(400).json({
         success: false,
-        message: "Date of Birth (dob) and Birth Place (birthPlace) are required for authentic Vedic calculation."
+        message: "Date of Birth (dob), exact Birth Time (birthTime), and Birth Place (birthPlace) are all strictly required for authentic Vedic Kundali calculations."
       });
     }
 
-    // 1. Authoritative Astronomical Calculation Engine
+    // 1. Authoritative Astronomical Calculation Engine (Strictly verified)
     const kundaliData = calculateAuthenticKundali({
       dob,
-      birthTime: birthTime || "12:00",
-      birthPlace: birthPlace || "Delhi",
+      birthTime,
+      birthPlace,
       name: name || "Devotee",
       gender: gender || "",
       concern: concern || "career"
@@ -572,7 +572,7 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
 }
 
 /**
- * Main Chat Endpoint for Aura AI & AI Pandit Ji (NVIDIA NIM Strictly Enforced)
+ * Main Chat Endpoint for Aura AI & AI Pandit Ji (NVIDIA NIM Strictly Enforced & SSE Streaming Supported)
  */
 export async function chatAuraAI(req, res, next) {
   try {
@@ -586,8 +586,10 @@ export async function chatAuraAI(req, res, next) {
       cartItems = [],
       history = [],
       birthDetails = null, // { dob, birthTime, birthPlace, name, gender, concern }
-      stream = false
-    } = req.body;
+      notesContext = ""
+    } = req.body || {};
+
+    const isStreamingRequest = req.body?.stream === true || req.query?.stream === "true" || req.headers?.accept?.includes("text/event-stream");
 
     if (!message && !birthDetails) {
       return res.status(400).json({ success: false, message: "A message or birth details are required." });
@@ -645,18 +647,32 @@ export async function chatAuraAI(req, res, next) {
     if (mode === "panditji" && (intent === "ORDER_TRACKING" || intent === "ORDER_HISTORY" || intent === "ORDER_CANCEL" || intent === "SHIPPING")) {
       const handoffText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nOrder status, parcel tracking aur delivery updates ke liye **Aura AI Support** aapki behtar madad karega.\n\nAap niche diye gaye button par click karke **Aura AI Shopping & Support** mode mein switch kar sakte hain, ya seedhe [Track Order](/track-order) page par apna Order Number daal kar live status dekh sakte hain:\n\n📦 **Direct Order Tracking:** [https://aurarudraksha.com/track-order](/track-order)`;
 
+      const handoffPayload = {
+        text: handoffText,
+        products: [],
+        coupons: [],
+        quickReplies: ["Switch to Aura AI", "📦 Track Order Page", "🕉️ Kundali Consultation", "📿 Mukhi Guide"],
+        handoffToAuraAI: true,
+        trackingLink: "/track-order",
+        conversationId: targetConversationId,
+        guestSessionId: effectiveGuestSessionId
+      };
+
+      if (isStreamingRequest) {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders?.();
+
+        res.write(`data: ${JSON.stringify({ type: "final", data: handoffPayload })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      }
+
       return res.json({
         success: true,
-        data: {
-          text: handoffText,
-          products: [],
-          coupons: [],
-          quickReplies: ["Switch to Aura AI", "📦 Track Order Page", "🕉️ Kundali Consultation", "📿 Mukhi Guide"],
-          handoffToAuraAI: true,
-          trackingLink: "/track-order",
-          conversationId: targetConversationId,
-          guestSessionId: effectiveGuestSessionId
-        }
+        data: handoffPayload
       });
     }
 
@@ -664,11 +680,11 @@ export async function chatAuraAI(req, res, next) {
     let calculatedKundaliData = null;
     let shouldPromptBirthForm = false;
 
-    if (birthDetails && birthDetails.dob && birthDetails.birthPlace) {
+    if (birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace) {
       try {
         calculatedKundaliData = calculateAuthenticKundali({
           dob: birthDetails.dob,
-          birthTime: birthDetails.birthTime || "12:00",
+          birthTime: birthDetails.birthTime,
           birthPlace: birthDetails.birthPlace,
           name: birthDetails.name || verifiedName,
           gender: birthDetails.gender || "",
@@ -677,10 +693,8 @@ export async function chatAuraAI(req, res, next) {
       } catch (kErr) {
         console.warn("[Aura AI] Kundali calculation warning:", kErr?.message);
       }
-    } else if (mode === "panditji" && (intent === "KUNDALI" || (message || "").toLowerCase().includes("kundli") || (message || "").toLowerCase().includes("kundali"))) {
-      // Check if message itself contains birth details like "1995-05-12" or "12 May 1995"
-      const dateMatch = (message || "").match(/\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4})\b/);
-      if (!dateMatch) {
+    } else if (mode === "panditji" && (intent === "KUNDALI" || (message || "").toLowerCase().includes("kundli") || (message || "").toLowerCase().includes("kundali") || (message || "").toLowerCase().includes("horoscope") || (message || "").toLowerCase().includes("rashi"))) {
+      if (!birthDetails || !birthDetails.dob || !birthDetails.birthTime || !birthDetails.birthPlace) {
         shouldPromptBirthForm = true;
       }
     }
@@ -737,15 +751,15 @@ ${calculatedKundaliData ? `
 AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (DO NOT INVENT DIFFERENT PLANETARY POSITIONS):
 - Devotee: ${calculatedKundaliData.verifiedBirthData.name}
 - Birth: ${calculatedKundaliData.verifiedBirthData.dob} at ${calculatedKundaliData.verifiedBirthData.birthTime} (${calculatedKundaliData.verifiedBirthData.birthPlace})
-- Lagna (Ascendant): ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish}) in ${calculatedKundaliData.astronomicalKundali.lagna.nakshatra} Nakshatra
-- Chandra Rashi (Moon Sign): ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish}) in ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} Nakshatra
+- Lagna (Ascendant): ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.lagna.degree} in Nakshatra ${calculatedKundaliData.astronomicalKundali.lagna.nakshatra} (Pada ${calculatedKundaliData.astronomicalKundali.lagna.pada}), Lord: ${calculatedKundaliData.astronomicalKundali.lagna.lord}
+- Chandra Rashi (Moon Sign): ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.chandraRashi.degree} in Nakshatra ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (Pada ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada}), Lord: ${calculatedKundaliData.astronomicalKundali.chandraRashi.lord}
 - Surya Rashi: ${calculatedKundaliData.astronomicalKundali.suryaRashi.rashiHindi}
 - Mulank: ${calculatedKundaliData.astronomicalKundali.mulank}
 - Running Vimshottari Mahadasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi})
 - Manglik Status: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote}
 - Primary Recommended Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => r.mukhi).join(", ")}
 ` : `
-- If the user asks for personalized Kundali, Rashi, or Graha Dosha analysis without providing birth details (DOB, Time, Place), politely request their birth details and explain why exact time and place are required for authentic sidereal mathematics. Do not fabricate positions.
+- If the user asks for personalized Kundali, Rashi, or Graha Dosha analysis without providing complete birth details (DOB, Time, Place), politely request their birth details and explain why exact time and place are required for authentic sidereal mathematics. Do not fabricate positions.
 `}
 
 ORDER & DELIVERY INQUIRIES:
@@ -758,8 +772,9 @@ SALES & STORE INTEGRITY:
 STORE KNOWLEDGE CONTEXT:
 ${ragContextText}
 
-DEVOTEE PROFILE:
-${memoryContextText || "New devotee consultation."}`;
+DEVOTEE PROFILE & CONSULTATION NOTES:
+${memoryContextText || "New devotee consultation."}
+${notesContext ? `Active Notepad Context: ${notesContext}` : ""}`;
     } else {
       systemPrompt = `You are Aura AI, the intelligent personal shopping, Vedic bead specialist, and order support assistant for Aura Rudraksha (https://aurarudraksha.com).
 
@@ -783,7 +798,194 @@ CUSTOMER CONTEXT:
 ${memoryContextText || "Guest shopper."}`;
     }
 
-    // 7. Invoke NVIDIA NIM (nemotron-3-super-120b-a12b)
+    const nimMessages = [
+      { role: "system", content: systemPrompt }
+    ];
+
+    for (const h of history.slice(-6)) {
+      if (h.sender === "user" && h.text) {
+        nimMessages.push({ role: "user", content: String(h.text) });
+      } else if (h.sender === "ai" && h.text) {
+        nimMessages.push({ role: "assistant", content: String(h.text) });
+      }
+    }
+
+    if (calculatedKundaliData) {
+      nimMessages.push({
+        role: "user",
+        content: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+      });
+    } else {
+      nimMessages.push({ role: "user", content: message || "Namaste" });
+    }
+
+    const dynamicQuickReplies = generateDynamicQuickReplies({
+      userMessage: message || "",
+      intent,
+      targetMukhi,
+      mode
+    });
+
+    // 7. Handle SSE Streaming Request
+    if (isStreamingRequest) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders?.();
+
+      let clientDisconnected = false;
+      const abortController = new AbortController();
+
+      req.on("close", () => {
+        clientDisconnected = true;
+        abortController.abort();
+      });
+
+      // Send initial meta packet
+      res.write(`data: ${JSON.stringify({
+        type: "meta",
+        products: matchedProducts,
+        kundali: calculatedKundaliData,
+        showBirthForm: shouldPromptBirthForm,
+        quickReplies: dynamicQuickReplies,
+        conversationId: targetConversationId,
+        guestSessionId: effectiveGuestSessionId
+      })}\n\n`);
+
+      let fullStreamedText = "";
+      let streamSucceeded = false;
+      const nvidiaClient = getNvidiaClient();
+
+      if (nvidiaClient) {
+        for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+          if (streamSucceeded || clientDisconnected) break;
+          try {
+            const streamCompletion = await nvidiaClient.chat.completions.create(
+              {
+                model: modelCandidate,
+                messages: nimMessages,
+                temperature: 0.35,
+                max_tokens: 1800,
+                stream: true,
+                chat_template_kwargs: { enable_thinking: false },
+                reasoning_effort: "none"
+              },
+              { signal: abortController.signal }
+            );
+
+            for await (const chunk of streamCompletion) {
+              if (clientDisconnected) break;
+              const deltaContent = chunk.choices?.[0]?.delta?.content || "";
+              if (deltaContent) {
+                fullStreamedText += deltaContent;
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+              }
+            }
+
+            if (fullStreamedText.trim()) {
+              streamSucceeded = true;
+              break;
+            }
+          } catch (streamErr) {
+            if (streamErr.name === "AbortError" || clientDisconnected) {
+              return;
+            }
+            console.warn(`[Aura AI Streaming] Notice (${modelCandidate}):`, streamErr?.message || streamErr);
+          }
+        }
+      }
+
+      // If streaming could not produce output, generate fallback
+      if (!streamSucceeded && !clientDisconnected) {
+        let fallbackText = "";
+        if (mode === "panditji") {
+          if (calculatedKundaliData) {
+            fallbackText = `🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विश्लेषण के अनुसार:\n- **लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (पद ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n- **वर्तमान महादशा:** ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi}\n\n**वैदिक रुद्राक्ष परामर्श:**\nआपके लग्न एवं संकल्प की सिद्धि हेतु **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** धारण करना सर्वोत्तम रहेगा। यह आपके आत्मबल, स्वास्थ्य एवं ग्रह शांति के लिए अत्यंत लाभकारी है।`;
+          } else if (shouldPromptBirthForm) {
+            fallbackText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nआपकी जन्म कुंडली का सटीक एवं प्रामाणिक वैदिक विश्लेषण करने हेतु आपकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** एवं **जन्म स्थान (City)** की आवश्यकता है।\n\nकृपया नीचे दिए गए फॉर्म में अपना विवरण दर्ज करें ताकि मैं आपकी कुंडली का सही विश्लेषण कर सकूँ।`;
+          } else {
+            fallbackText = `🙏 **प्रणाम! Main AI Pandit Ji hoon — Aura Rudraksha का वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।**\n\nआप अपनी जन्म कुंडली विश्लेषण, राशि अनुसार रुद्राक्ष चयन, ग्रह शांति उपाय या किसी विशेष संकल्प हेतु परामर्श ले सकते हैं। आज मैं आपकी क्या सहायता करूँ?`;
+          }
+        } else {
+          fallbackText = `🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka shopping aur support assistant.**\n\nMain aapki 100% authentic Nepali Rudraksha, Jaap Mala, discount coupons aur order tracking mein madad kar sakta hoon. Aaj aap kya dekhna chahte hain?`;
+        }
+
+        fullStreamedText = fallbackText;
+        res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
+      }
+
+      const safeFinalStreamedText = cleanServerAiText(stripInternalJsonFromCustomerText(fullStreamedText));
+
+      // Background Memory Update
+      extractAndUpdateMemories({
+        userId: effectiveUserId,
+        guestSessionId: effectiveGuestSessionId,
+        userMessage: message || "",
+        aiResponse: safeFinalStreamedText
+      }).catch(() => {});
+
+      // Background Conversation Save
+      const userMsgObj = {
+        id: `msg_${Date.now()}_u`,
+        sender: "user",
+        text: message || (birthDetails ? `Kundali request for ${birthDetails.name || 'Devotee'} (${birthDetails.dob})` : ""),
+        timestamp: new Date()
+      };
+
+      const aiMsgObj = {
+        id: `msg_${Date.now()}_a`,
+        sender: "ai",
+        text: safeFinalStreamedText,
+        products: matchedProducts,
+        kundali: calculatedKundaliData,
+        timestamp: new Date()
+      };
+
+      if (isDbConnected()) {
+        AuraAIConversation.findOneAndUpdate(
+          { conversationId: targetConversationId },
+          {
+            $setOnInsert: {
+              conversationId: targetConversationId,
+              userId: effectiveUserId,
+              userEmail: verifiedEmail,
+              userName: verifiedName,
+              guestSessionId: effectiveGuestSessionId,
+              hashedIp: clientIp,
+              createdAt: new Date()
+            },
+            $push: { messages: { $each: [userMsgObj, aiMsgObj] } },
+            $set: {
+              updatedAt: new Date(),
+              lastMessageText: safeFinalStreamedText.slice(0, 150),
+              productsRecommended: matchedProducts.map(p => p.id)
+            }
+          },
+          { upsert: true }
+        ).catch(() => {});
+      }
+
+      if (!clientDisconnected) {
+        res.write(`data: ${JSON.stringify({
+          type: "final",
+          data: {
+            text: safeFinalStreamedText,
+            products: matchedProducts,
+            kundali: calculatedKundaliData,
+            showBirthForm: shouldPromptBirthForm,
+            quickReplies: dynamicQuickReplies,
+            conversationId: targetConversationId,
+            guestSessionId: effectiveGuestSessionId
+          }
+        })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      }
+      return;
+    }
+
+    // 8. Non-Streaming Execution
     let aiResponseText = "";
     let generatedViaNvidia = false;
 
@@ -792,27 +994,6 @@ ${memoryContextText || "Guest shopper."}`;
       for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
         if (generatedViaNvidia) break;
         try {
-          const nimMessages = [
-            { role: "system", content: systemPrompt }
-          ];
-
-          for (const h of history.slice(-6)) {
-            if (h.sender === "user" && h.text) {
-              nimMessages.push({ role: "user", content: String(h.text) });
-            } else if (h.sender === "ai" && h.text) {
-              nimMessages.push({ role: "assistant", content: String(h.text) });
-            }
-          }
-
-          if (calculatedKundaliData) {
-            nimMessages.push({
-              role: "user",
-              content: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
-            });
-          } else {
-            nimMessages.push({ role: "user", content: message || "Namaste" });
-          }
-
           const completion = await nvidiaClient.chat.completions.create({
             model: modelCandidate,
             messages: nimMessages,
@@ -903,13 +1084,6 @@ ${memoryContextText || "Guest shopper."}`;
         console.warn("[Aura AI] Conversation save warning:", dbErr?.message);
       }
     }
-
-    const dynamicQuickReplies = generateDynamicQuickReplies({
-      userMessage: message || "",
-      intent,
-      targetMukhi,
-      mode
-    });
 
     return res.json({
       success: true,

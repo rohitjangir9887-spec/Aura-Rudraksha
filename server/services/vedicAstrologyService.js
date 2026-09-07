@@ -173,26 +173,42 @@ export const CITIES_DATABASE = {
  * Resolve city to Latitude, Longitude, and Timezone offset
  */
 export function resolveLocationCoordinates(placeStr) {
-  if (!placeStr || typeof placeStr !== "string") {
-    return { name: "India (IST Standard)", lat: 28.6139, lon: 77.2090, tz: 5.5 };
+  if (!placeStr || typeof placeStr !== "string" || !placeStr.trim()) {
+    return null;
   }
 
-  const clean = placeStr.toLowerCase().trim();
+  const clean = placeStr.toLowerCase().trim().replace(/[,.\s]+/g, " ");
   
   // Exact match
   if (CITIES_DATABASE[clean]) {
-    return { name: placeStr, ...CITIES_DATABASE[clean] };
+    return { name: placeStr, ...CITIES_DATABASE[clean], isVerified: true };
   }
 
-  // Substring search
+  // Substring / key word search
   for (const [key, val] of Object.entries(CITIES_DATABASE)) {
     if (clean.includes(key) || key.includes(clean)) {
-      return { name: placeStr, ...val };
+      return { name: placeStr, ...val, matchedCity: key, isVerified: true };
     }
   }
 
-  // Default to Indian Standard Time (IST - Delhi / Prayagraj longitude 82.5°E)
-  return { name: placeStr, lat: 25.4358, lon: 81.8463, tz: 5.5, isEstimated: true };
+  // Split tokens (e.g. "Sikar, Rajasthan" -> "sikar", "rajasthan")
+  const tokens = clean.split(" ");
+  for (const token of tokens) {
+    if (token.length >= 3 && CITIES_DATABASE[token]) {
+      return { name: placeStr, ...CITIES_DATABASE[token], matchedCity: token, isVerified: true };
+    }
+  }
+
+  // Fallback with explicit flag (using Indian Standard Longitude 82.5°E / Prayagraj IST)
+  return { 
+    name: placeStr, 
+    lat: 25.4358, 
+    lon: 81.8463, 
+    tz: 5.5, 
+    state: "India (IST)", 
+    country: "India",
+    isEstimated: true 
+  };
 }
 
 /**
@@ -552,36 +568,64 @@ function getLagnaBenefics(lagnaRashiIndex) {
  * 
  * @param {Object} params
  * @param {string} params.dob - YYYY-MM-DD
- * @param {string} params.birthTime - HH:MM (24h)
- * @param {string} params.birthPlace - City name
+ * @param {string} params.birthTime - HH:MM (24h) or 12h with AM/PM
+ * @param {string} params.birthPlace - City / Place of Birth
  * @param {string} [params.name] - Devotee name (optional)
  * @param {string} [params.gender] - Devotee gender (optional)
  * @param {string} [params.concern] - Primary spiritual/life area (optional)
  */
-export function calculateAuthenticKundali({ dob, birthTime = "12:00", birthPlace = "Delhi", name = "Devotee", gender = "", concern = "career" }) {
-  if (!dob) {
-    throw new Error("Date of birth (dob) is required for authentic Kundali calculation.");
+export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "Devotee", gender = "", concern = "career" }) {
+  if (!dob || typeof dob !== "string" || !dob.trim()) {
+    throw new Error("Date of Birth (dob) is required for authentic Kundali calculation.");
+  }
+  if (!birthTime || typeof birthTime !== "string" || !birthTime.trim()) {
+    throw new Error("Exact Birth Time (birthTime) is required for authentic Lagna & Kundali calculation.");
+  }
+  if (!birthPlace || typeof birthPlace !== "string" || !birthPlace.trim()) {
+    throw new Error("Birth Place (birthPlace) is required for authentic Vedic Kundali coordinates.");
   }
 
-  const [yStr, mStr, dStr] = dob.split("-");
+  const cleanDob = dob.trim();
+  const [yStr, mStr, dStr] = cleanDob.split(/[-/.]/);
   const year = parseInt(yStr, 10);
   const month = parseInt(mStr, 10);
   const day = parseInt(dStr, 10);
 
-  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+  if (isNaN(year) || isNaN(month) || isNaN(day) || year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
     throw new Error("Invalid date of birth format. Please provide YYYY-MM-DD.");
   }
 
-  // Parse Time
-  let timeStr = birthTime || "12:00";
-  const [hStr, minStr] = timeStr.split(":");
-  let hour = parseInt(hStr || "12", 10);
-  let minute = parseInt(minStr || "0", 10);
-  if (isNaN(hour)) hour = 12;
-  if (isNaN(minute)) minute = 0;
+  // Robust Time Parser (supports "14:30", "2:30 PM", "08:15 AM", "14.30")
+  let hour = 12;
+  let minute = 0;
+  const cleanTime = birthTime.trim();
+  const isPm = /pm/i.test(cleanTime);
+  const isAm = /am/i.test(cleanTime);
+  const timeDigits = cleanTime.replace(/[^\d:]/g, "").split(":");
+
+  if (timeDigits.length >= 2) {
+    hour = parseInt(timeDigits[0], 10);
+    minute = parseInt(timeDigits[1], 10);
+  } else {
+    hour = parseInt(timeDigits[0] || "12", 10);
+    minute = 0;
+  }
+
+  if (isPm && hour < 12) hour += 12;
+  if (isAm && hour === 12) hour = 0;
+
+  if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    throw new Error("Invalid birth time format. Please provide time in HH:MM format (e.g. 14:30 or 06:15 AM).");
+  }
+
+  const formattedBirthTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
   // Resolve Location Coordinates and Timezone
   const location = resolveLocationCoordinates(birthPlace);
+  if (!location) {
+    throw new Error("Birth place could not be identified. Please enter a valid city or district name.");
+  }
+
   const decimalLocalHour = hour + minute / 60.0;
   const decimalUtcHour = decimalLocalHour - location.tz;
 
@@ -680,7 +724,7 @@ export function calculateAuthenticKundali({ dob, birthTime = "12:00", birthPlace
   }
 
   // Vimshottari Dasha
-  const birthDateObj = new Date(`${dob}T${birthTime.length === 5 ? birthTime : "12:00"}:00Z`);
+  const birthDateObj = new Date(`${dob}T${formattedBirthTime}:00Z`);
   const dashaInfo = calculateVimshottariDasha(moonSid, birthDateObj, new Date());
 
   // Lagna Analysis & Yogakaraka
@@ -733,7 +777,7 @@ export function calculateAuthenticKundali({ dob, birthTime = "12:00", birthPlace
       name: name || "Devotee",
       gender: gender || "Not Specified",
       dob,
-      birthTime,
+      birthTime: formattedBirthTime,
       birthPlace: location.name,
       coordinates: { lat: location.lat, lon: location.lon, tz: location.tz },
       julianDay: jd.toFixed(4),

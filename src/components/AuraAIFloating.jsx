@@ -470,6 +470,10 @@ export function AuraAIFloating() {
       emitToast("कृपया जन्म तिथि (Date of Birth) चुनें", "warning");
       return;
     }
+    if (!birthForm.time || !birthForm.time.trim()) {
+      emitToast("कृपया जन्म समय (Birth Time) दर्ज करें (Time is required)", "warning");
+      return;
+    }
     if (!birthForm.place.trim()) {
       emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
       return;
@@ -484,14 +488,14 @@ export function AuraAIFloating() {
       spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
     };
 
-    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim() || "12:00"}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
 
     setShowBirthForm(false);
     setMode("panditji");
     handleSend(promptText, {
       name: birthForm.name.trim(),
       dob: birthForm.dob,
-      birthTime: birthForm.time.trim() || "12:00",
+      birthTime: birthForm.time.trim(),
       birthPlace: birthForm.place.trim(),
       concern: birthForm.concern
     });
@@ -689,10 +693,7 @@ export function AuraAIFloating() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                onClick={() => {
-                  setIsFullWindow(false);
-                }}
-                onPointerDown={(e) => {
+                onClick={(e) => {
                   if (e.target === e.currentTarget) {
                     setIsFullWindow(false);
                   }
@@ -724,6 +725,9 @@ export function AuraAIFloating() {
               }}
               whileDrag={{ cursor: "grabbing" }}
               style={{ transformOrigin: isFullWindow ? "center center" : "bottom left", willChange: "transform, width, height" }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
             >
               {/* Header - Drag Handle Area (when compact) */}
               <div 
@@ -994,10 +998,11 @@ export function AuraAIFloating() {
                         </div>
                         <div>
                           <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
-                            जन्म समय (Time)
+                            जन्म समय (Birth Time) *
                           </label>
                           <input
                             type="time"
+                            required
                             value={birthForm.time}
                             onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
                             style={{ width: "100%", padding: "4px 6px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
@@ -1096,6 +1101,67 @@ export function AuraAIFloating() {
                           <div className="aura-ai-msg-text">
                             <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                           </div>
+
+                          {/* Authentic Vedic Kundli Result Card */}
+                          {m.kundali && (
+                            <div className="aura-ai-kundali-card">
+                              <div className="aura-ai-kundali-header">
+                                <span className="aura-ai-om">🕉️</span>
+                                <div>
+                                  <h4 className="aura-ai-kundali-title">
+                                    {m.kundali.devoteeName ? `श्री ${m.kundali.devoteeName} जी का वैदिक परामर्श` : "वैदिक जन्म पत्रिका विश्लेषण"}
+                                  </h4>
+                                  <div className="aura-ai-kundali-subtitle">
+                                    {m.kundali.dob && `जन्म: ${m.kundali.dob}`} {m.kundali.birthTime ? `• ${m.kundali.birthTime}` : ""} {m.kundali.birthPlace ? `• ${m.kundali.birthPlace}` : ""}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="aura-ai-kundali-grid">
+                                {m.kundali.rashiHindi && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">राशि (Rashi)</span>
+                                    <span className="aura-ai-cell-val">{m.kundali.symbol || "✨"} {m.kundali.rashiHindi} ({m.kundali.rashiEng})</span>
+                                  </div>
+                                )}
+                                {m.kundali.lord && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">स्वामी ग्रह</span>
+                                    <span className="aura-ai-cell-val">{m.kundali.lord}</span>
+                                  </div>
+                                )}
+                                {m.kundali.nakshatra && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">नक्षत्र</span>
+                                    <span className="aura-ai-cell-val">{m.kundali.nakshatra} {m.kundali.pada ? `(पद ${m.kundali.pada})` : ""}</span>
+                                  </div>
+                                )}
+                                {m.kundali.mulank && (
+                                  <div className="aura-ai-kundali-cell">
+                                    <span className="aura-ai-cell-label">मूलांक (Mulank)</span>
+                                    <span className="aura-ai-cell-val">अंक {m.kundali.mulank}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {m.kundali.recommendedMukhi && (
+                                <div className="aura-ai-kundali-rec">
+                                  <div className="aura-ai-rec-label">★ अनुशंसित सिद्ध रुद्राक्ष:</div>
+                                  <div className="aura-ai-rec-mukhi">{m.kundali.recommendedMukhi}</div>
+                                  {m.kundali.beejMantra && (
+                                    <div className="aura-ai-rec-mantra">
+                                      📿 मंत्र: <b>{m.kundali.beejMantra}</b>
+                                    </div>
+                                  )}
+                                  {m.kundali.wearingDay && (
+                                    <div className="aura-ai-rec-day">
+                                      🗓️ धारण वार: <b>{m.kundali.wearingDay}</b>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Product Recommendations Vertical Compact List (No Horizontal Scroll) */}
                           {m.products && m.products.length > 0 && (

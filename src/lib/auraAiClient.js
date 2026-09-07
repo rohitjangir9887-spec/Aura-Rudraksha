@@ -36,6 +36,8 @@ export const auraAiClient = {
     mode = "standard",
     cartItems = [],
     history = [],
+    birthDetails = null,
+    notesContext = "",
     onChunk,
     onStatus,
     onDone,
@@ -64,7 +66,7 @@ export const auraAiClient = {
           if (onChunk) onChunk(chunkDelta, safeAccumulated, finalData);
         } else if (parsed.type === "status" && parsed.message) {
           if (onStatus) onStatus(parsed.message);
-        } else if (parsed.type === "meta" && (parsed.data || parsed.products || parsed.coupons || parsed.quickReplies)) {
+        } else if (parsed.type === "meta" && (parsed.data || parsed.products || parsed.coupons || parsed.quickReplies || parsed.kundali)) {
           const payload = parsed.data || parsed;
           const parsedMeta = parseAuraAiPayload(payload);
           finalData = { ...(finalData || {}), ...parsedMeta };
@@ -100,6 +102,8 @@ export const auraAiClient = {
           mode,
           cartItems,
           history,
+          birthDetails,
+          notesContext,
           stream: true
         })
       });
@@ -142,10 +146,19 @@ export const auraAiClient = {
 
         let resultText = safeFinalText || safeAccumulated;
 
-        // If both empty, attempt non-streaming fallback request
+        // If both empty, attempt non-streaming fallback request preserving mode and birth details
         if (!resultText.trim()) {
           try {
-            const fallbackRes = await this.sendMessage({ message, conversationId, userEmail, userName, cartItems, history });
+            const fallbackRes = await this.sendMessage({
+              message,
+              conversationId,
+              userEmail,
+              userName,
+              mode,
+              cartItems,
+              history,
+              birthDetails
+            });
             if (fallbackRes && fallbackRes.text && fallbackRes.text.trim()) {
               finalData = fallbackRes;
               resultText = customerSafeAiText(fallbackRes.text);
@@ -155,17 +168,21 @@ export const auraAiClient = {
 
         // Final safety net message so output is NEVER blank
         if (!resultText.trim()) {
-          resultText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+          resultText = mode === "panditji" 
+            ? "प्रणाम 🙏 आपका संदेश प्राप्त हुआ। कृपया एक क्षण प्रतीक्षा करें, मैं आपकी सहायता कर रहा हूँ।"
+            : "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
         }
 
         const result = {
           text: resultText,
           products: finalData?.products || [],
           coupons: finalData?.coupons || [],
+          kundali: finalData?.kundali || null,
+          showBirthForm: Boolean(finalData?.showBirthForm),
           recommendedProductIds: finalData?.recommendedProductIds || [],
           couponCodes: finalData?.couponCodes || [],
           requiresHuman: Boolean(finalData?.requiresHuman),
-          quickReplies: finalData?.quickReplies?.length ? finalData.quickReplies : ["Talk to Support", "Today's Offers", "Help Me Choose"],
+          quickReplies: finalData?.quickReplies?.length ? finalData.quickReplies : (mode === "panditji" ? ["🕉️ Kundali Consultation", "📿 Mukhi Guide", "📦 Track Order"] : ["Talk to Support", "Today's Offers", "Help Me Choose"]),
           orderInfo: finalData?.orderInfo || null,
           conversationId: finalData?.conversationId || conversationId
         };
