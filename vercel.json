@@ -28,6 +28,7 @@
     { "source": "/google-merchant-feed.xml", "destination": "/api/index.js" },
     { "source": "/merchant-feed.xml", "destination": "/api/index.js" },
     { "source": "/indexnow-key.txt", "destination": "/api/index.js" },
+    { "source": "/aurarudraksha2025seoindexnowkey.txt", "destination": "/api/indexnow-key.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
