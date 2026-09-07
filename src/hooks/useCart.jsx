@@ -89,6 +89,7 @@ export function CartProvider({ children }) {
   const [totals, setTotals] = useState(defaultTotals);
   const [loadingTotals, setLoadingTotals] = useState(false);
   const isMounted = useRef(false);
+  const initialLoadDone = useRef(false);
 
   // Sync cart state when auth identity changes (login, logout, switch account)
   useEffect(() => {
@@ -138,6 +139,7 @@ export function CartProvider({ children }) {
 
   // Fetch authoritative pricing from server
   const fetchAuthoritativeTotals = useCallback(async (currentLines, currentCoupon) => {
+    const isInitial = !initialLoadDone.current;
     if (!currentLines || currentLines.length === 0) {
       setTotals({
         ...defaultTotals,
@@ -149,7 +151,9 @@ export function CartProvider({ children }) {
     }
 
     try {
-      setLoadingTotals(true);
+      if (!isInitial) {
+        setLoadingTotals(true);
+      }
       const res = await db.calculateCart(currentLines, currentCoupon);
       if (res?.success && res.data) {
         // Ensure appliedCoupon is null if valid is false or status is not APPLIED
@@ -302,7 +306,10 @@ export function CartProvider({ children }) {
         });
       } catch (_) {}
     } finally {
-      setLoadingTotals(false);
+      if (!isInitial) {
+        setLoadingTotals(false);
+      }
+      initialLoadDone.current = true;
     }
   }, []);
 
@@ -377,11 +384,10 @@ export function CartProvider({ children }) {
     fetchAuthoritativeTotals(lines, "");
   }, [lines, persistCouponCode, fetchAuthoritativeTotals]);
 
-  const value = useMemo(() => {
-    const cart = lines.flatMap((l) => Array.from({ length: l.qty }, () => l.id));
-    const count = lines.reduce((n, l) => n + l.qty, 0);
+  const cart = useMemo(() => lines.flatMap((l) => Array.from({ length: l.qty }, () => l.id)), [lines]);
+  const count = useMemo(() => lines.reduce((n, l) => n + l.qty, 0), [lines]);
 
-    const add = (idOrObj, qty = 1) => {
+  const add = useCallback((idOrObj, qty = 1) => {
       let pid = null;
       if (idOrObj && typeof idOrObj === "object") {
         pid = String(idOrObj.id || idOrObj.productId || idOrObj._id || "").trim();
@@ -396,9 +402,9 @@ export function CartProvider({ children }) {
           ? lines.map((l) => (l.id === pid ? { ...l, qty: l.qty + extra } : l))
           : [...lines, { id: pid, qty: extra }]
       );
-    };
+    }, [lines, persistLines]);
 
-    const buyNow = (idOrObj, qty = 1) => {
+    const buyNow = useCallback((idOrObj, qty = 1) => {
       let pid = null;
       if (idOrObj && typeof idOrObj === "object") {
         pid = String(idOrObj.id || idOrObj.productId || idOrObj._id || "").trim();
@@ -412,22 +418,23 @@ export function CartProvider({ children }) {
       try {
         sessionStorage.setItem("aura_buy_now_intent", JSON.stringify(buyNowIntent));
       } catch (_) {}
-    };
+    }, []);
 
-    const remove = (id) => persistLines(lines.filter((l) => l.id !== String(id)));
+    const remove = useCallback((id) => persistLines(lines.filter((l) => l.id !== String(id))), [lines, persistLines]);
 
-    const setQty = (id, qty) => {
+    const setQty = useCallback((id, qty) => {
       const n = Math.max(1, Number(qty) || 1);
       persistLines(lines.map((l) => (l.id === String(id) ? { ...l, qty: n } : l)));
-    };
+    }, [lines, persistLines]);
 
-    const clear = () => {
+    const clear = useCallback(() => {
       persistLines([]);
       persistCouponCode("");
-    };
+    }, [persistLines, persistCouponCode]);
 
-    const refreshTotals = () => fetchAuthoritativeTotals(lines, couponCode);
+    const refreshTotals = useCallback(() => fetchAuthoritativeTotals(lines, couponCode), [lines, couponCode, fetchAuthoritativeTotals]);
 
+  const value = useMemo(() => {
     return {
       cart,
       lines,
@@ -460,7 +467,7 @@ export function CartProvider({ children }) {
       refreshTotals,
       loadingTotals
     };
-  }, [lines, totals, couponCode, persistLines, persistCouponCode, applyCoupon, removeCoupon, fetchAuthoritativeTotals, loadingTotals]);
+  }, [cart, lines, count, add, buyNow, remove, setQty, clear, couponCode, totals, applyCoupon, removeCoupon, refreshTotals, loadingTotals]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

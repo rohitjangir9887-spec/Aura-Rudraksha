@@ -19,15 +19,32 @@ export function Home() {
   const [isLoading, setIsLoading] = useState(false); 
   const { add, totals } = useCart();
   const shippingThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
-  const [banners, setBanners] = useState(() => db.getBanners() || []);
-  const [products, setProducts] = useState(() => {
+  const location = useLocation();
+
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+
+  useEffect(() => {
+    db.logVisit();
+
+    // Trigger background hydration without blocking interaction
+    // The db.js internals already handle deduplication
+    db.fetchHomeData().catch(() => {});
+
+    const unsub = onStoreUpdate(() => {
+      setLastUpdate(Date.now());
+    });
+    return () => unsub();
+  }, []);
+
+  const products = React.useMemo(() => {
     try {
       return db.getProducts().filter(isPublicProduct);
     } catch {
       return [];
     }
-  });
-  const [offers, setOffers] = useState(() => {
+  }, [lastUpdate]);
+
+  const offers = React.useMemo(() => {
     try {
       return db.getOffers().filter(o => {
         if (o.offerType === 'badge') return false;
@@ -40,72 +57,11 @@ export function Home() {
     } catch {
       return [];
     }
-  });
-  const location = useLocation();
+  }, [lastUpdate]);
 
-  const updateLocalState = () => {
-    setProducts(db.getProducts().filter(isPublicProduct));
-    const cachedBanners = db.getBanners();
-    if (cachedBanners && cachedBanners.length > 0) {
-      setBanners(cachedBanners);
-    }
-    const allOffers = db.getOffers().filter(o => {
-      if (o.offerType === 'badge') return false;
-      if (o.status !== 'Active') return false;
-      if (o.shownOn && o.shownOn !== 'Home Banner') return false;
-      if (o.expiry && new Date(o.expiry) < new Date()) return false;
-      if (o.startDate && new Date(o.startDate) > new Date()) return false;
-      return true;
-    });
-    setOffers(allOffers.sort((a,b) => (a.order || 0) - (b.order || 0)));
-    setIsLoading(false);
-  };
-
-  const loadHomeData = async () => {
-    // 1. Instantly render from local cache
-    updateLocalState();
-
-    // 2. Revalidate products independently right away (does NOT block on banners/reviews/settings)
-    db.revalidateProducts().then(() => {
-      setProducts(db.getProducts().filter(isPublicProduct));
-    }).catch(() => {});
-
-    // 3. Background fetch for full home dataset
-    db.fetchHomeData().then(() => {
-      updateLocalState();
-    }).catch(() => {});
-  };
-
-  useEffect(() => {
-    loadHomeData();
-    db.logVisit();
-
-    // Periodic product revalidation (4s) when tab is visible
-    const intervalId = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        db.revalidateProducts().catch(() => {});
-      }
-    }, 4000);
-
-    const handleFocus = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        db.revalidateProducts().catch(() => {});
-      }
-    };
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleFocus);
-
-    const unsub = onStoreUpdate(() => {
-      updateLocalState();
-    });
-
-    return () => {
-      clearInterval(intervalId);
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleFocus);
-      unsub();
-    };
-  }, []);
+  const bannerMemo = React.useMemo(() => {
+     return db.getBanners() || [];
+  }, [lastUpdate]);
 
   useEffect(() => {
     if (location.hash === "#about") {
@@ -113,7 +69,7 @@ export function Home() {
     }
   }, [location.hash]);
 
-  const rawBanners = (banners && banners.length > 0) ? banners : db.getBanners();
+  const rawBanners = (bannerMemo && bannerMemo.length > 0) ? bannerMemo : db.getBanners();
   const activeBanners = (Array.isArray(rawBanners) ? rawBanners : [])
     .map(b => (typeof b === "string" ? b : (b?.url || b?.image || b?.src || "")))
     .filter(Boolean);
