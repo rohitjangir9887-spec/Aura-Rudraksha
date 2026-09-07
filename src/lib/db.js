@@ -6,16 +6,44 @@ import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
 
 // Event Broadcasters for real-time React UI updates
+let pendingSyncEvents = null;
+let syncRafId = null;
+
 export const emitStoreUpdate = (type, payload) => {
-  if (typeof window !== "undefined") {
-    const detail = { type, payload, timestamp: Date.now() };
-    window.dispatchEvent(
-      new CustomEvent("aura:store-updated", { detail })
-    );
-    try {
-      localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
-    } catch (e) {}
+  if (typeof window === "undefined") return;
+  const detail = { type, payload, timestamp: Date.now() };
+
+  // For background synchronization events, coalesce them into a single animation frame
+  // to prevent rapid DOM thrashing and touch drops on mobile devices during initial visit.
+  if (type.endsWith(":synced") || type === "home:synced") {
+    if (!pendingSyncEvents) pendingSyncEvents = [];
+    pendingSyncEvents.push(detail);
+
+    if (!syncRafId) {
+      syncRafId = window.requestAnimationFrame(() => {
+        syncRafId = null;
+        const events = pendingSyncEvents || [];
+        pendingSyncEvents = null;
+        window.dispatchEvent(
+          new CustomEvent("aura:store-updated", { 
+            detail: { type: "batch:synced", events, timestamp: Date.now() } 
+          })
+        );
+        try {
+          localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
+        } catch (e) {}
+      });
+    }
+    return;
   }
+
+  // Immediate user/admin action events dispatch immediately
+  window.dispatchEvent(
+    new CustomEvent("aura:store-updated", { detail })
+  );
+  try {
+    localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
+  } catch (e) {}
 };
 
 export const onStoreUpdate = (callback) => {

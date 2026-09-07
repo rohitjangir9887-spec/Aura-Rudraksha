@@ -26,8 +26,25 @@ export function Shell({children}) {
 
   useEffect(() => {
     const unsub = onStoreUpdate(() => {
-      setSettings(db.getSettings());
-      setActiveOffer(db.getActiveOffer());
+      const freshSettings = db.getSettings();
+      setSettings((prev) => {
+        if (
+          prev &&
+          prev.freeShippingThreshold === freshSettings?.freeShippingThreshold &&
+          prev.supportPhone === freshSettings?.supportPhone &&
+          prev.supportEmail === freshSettings?.supportEmail
+        ) {
+          return prev;
+        }
+        return freshSettings;
+      });
+      const freshOffer = db.getActiveOffer();
+      setActiveOffer((prev) => {
+        if (prev?.id === freshOffer?.id && prev?.updatedAt === freshOffer?.updatedAt) {
+          return prev;
+        }
+        return freshOffer;
+      });
     });
     return () => unsub();
   }, []);
@@ -78,17 +95,17 @@ export function Shell({children}) {
               <Menu size={24}/>
             </button>
             <nav className="desktop-nav">
-              <Link to="/" onPointerEnter={() => handlePreload("/")} onTouchStart={() => handlePreload("/")}>Home</Link>
-              <Link to="/shop" onPointerEnter={() => handlePreload("/shop")} onTouchStart={() => handlePreload("/shop")}>Shop</Link>
-              <Link to="/wishlist" onPointerEnter={() => handlePreload("/wishlist")} onTouchStart={() => handlePreload("/wishlist")}>Wishlist</Link>
-              <Link to="/shop?offer=1" onPointerEnter={() => handlePreload("/shop")} onTouchStart={() => handlePreload("/shop")}>Offers</Link>
-              <Link to="/about" onPointerEnter={() => handlePreload("/about")} onTouchStart={() => handlePreload("/about")}>About Us</Link>
-              <Link to="/contact" onPointerEnter={() => handlePreload("/contact")} onTouchStart={() => handlePreload("/contact")}>Contact</Link>
+              <Link to="/" onPointerEnter={() => handlePreload("/")}>Home</Link>
+              <Link to="/shop" onPointerEnter={() => handlePreload("/shop")}>Shop</Link>
+              <Link to="/wishlist" onPointerEnter={() => handlePreload("/wishlist")}>Wishlist</Link>
+              <Link to="/shop?offer=1" onPointerEnter={() => handlePreload("/shop")}>Offers</Link>
+              <Link to="/about" onPointerEnter={() => handlePreload("/about")}>About Us</Link>
+              <Link to="/contact" onPointerEnter={() => handlePreload("/contact")}>Contact</Link>
             </nav>
           </div>
           
           <div className="header-center">
-            <Link className="brand" to="/" aria-label="Aura Rudraksha Home" onPointerEnter={() => handlePreload("/")} onTouchStart={() => handlePreload("/")}>
+            <Link className="brand" to="/" aria-label="Aura Rudraksha Home" onPointerEnter={() => handlePreload("/")}>
               <img 
                 src="https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png" 
                 alt="Aura Rudraksha" 
@@ -216,7 +233,7 @@ export function Shell({children}) {
             to="/" 
             className={isHomeActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/")}
-            onTouchStart={() => handlePreload("/")}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Home"
           >
             <div className="nav-icon-box"><Home size={22} strokeWidth={1.8} /></div>
@@ -226,7 +243,7 @@ export function Shell({children}) {
             to="/shop" 
             className={isShopActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/shop")}
-            onTouchStart={() => handlePreload("/shop")}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Shop"
           >
             <div className="nav-icon-box"><ShoppingBag size={22} strokeWidth={1.8} /></div>
@@ -236,7 +253,7 @@ export function Shell({children}) {
             to="/cart" 
             className={isCartActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/cart")}
-            onTouchStart={() => handlePreload("/cart")}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Cart"
           >
             <div className="nav-icon-box" style={{ position: 'relative' }}>
@@ -249,7 +266,7 @@ export function Shell({children}) {
             to="/account/orders" 
             className={isOrdersActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/account/orders")}
-            onTouchStart={() => handlePreload("/account/orders")}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Orders"
           >
             <div className="nav-icon-box"><PackageCheck size={22} strokeWidth={1.8} /></div>
@@ -259,7 +276,7 @@ export function Shell({children}) {
             to="/account" 
             className={isAccountActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/account")}
-            onTouchStart={() => handlePreload("/account")}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Account"
           >
             <div className="nav-icon-box"><User size={22} strokeWidth={1.8} /></div>

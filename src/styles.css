@@ -16855,4 +16855,44 @@ button:active, .primary-btn:active, .outline-btn:active {
   }
 }
 
+/* ==========================================================================
+   PRODUCTION ZERO-LATENCY TOUCH & INTERACTION OPTIMIZATIONS
+   ========================================================================== */
+html, body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Eliminate 300ms double-tap zoom delay and touch latency across all clickable components */
+a, 
+button, 
+[role="button"], 
+[role="link"], 
+.aura-shop-card, 
+.aura-cat-card, 
+.mobile-nav a,
+.aura-ai-pill-btn,
+.primary-btn,
+.outline-btn {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Instant tactile feedback on mobile touch/tap */
+.aura-shop-card:active {
+  transform: scale(0.985) !important;
+  transition: transform 0.08s ease-out !important;
+}
+
+.aura-cat-card:active {
+  transform: scale(0.95) !important;
+  transition: transform 0.08s ease-out !important;
+}
+
+.mobile-nav a:active {
+  transform: scale(0.92) !important;
+  transition: transform 0.08s ease-out !important;
+}
+
+
 

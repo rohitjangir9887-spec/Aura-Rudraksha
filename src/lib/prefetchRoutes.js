@@ -73,21 +73,34 @@ export function initInstantRoutePrefetch() {
     return;
   }
 
-  const preloadPriorityRoutes = () => {
-    // Preload top high-traffic customer routes during idle time
-    prefetchRoute("product");
-    prefetchRoute("shop");
-    prefetchRoute("cart");
-    prefetchRoute("orders");
-    prefetchRoute("checkout");
+  // Staggered pre-warming so the most critical customer destinations are ready instantly
+  // without congesting mobile network bandwidth or freezing the main thread.
+  const scheduleTask = (fn, delay) => {
+    if ("requestIdleCallback" in window) {
+      setTimeout(() => {
+        window.requestIdleCallback(fn, { timeout: 1500 });
+      }, delay);
+    } else {
+      setTimeout(fn, delay);
+    }
   };
 
-  // Pre-warm priority routes quickly after page settles
-  if ("requestIdleCallback" in window) {
-    setTimeout(() => {
-      window.requestIdleCallback(preloadPriorityRoutes, { timeout: 2000 });
-    }, 800);
-  } else {
-    setTimeout(preloadPriorityRoutes, 1200);
-  }
+  // Phase 1: High priority product and shop routes ready within first ~150ms
+  scheduleTask(() => {
+    prefetchRoute("product");
+    prefetchRoute("shop");
+  }, 150);
+
+  // Phase 2: Cart and Categories
+  scheduleTask(() => {
+    prefetchRoute("cart");
+    prefetchRoute("categories");
+  }, 700);
+
+  // Phase 3: Secondary destinations
+  scheduleTask(() => {
+    prefetchRoute("orders");
+    prefetchRoute("checkout");
+    prefetchRoute("wishlist");
+  }, 1800);
 }

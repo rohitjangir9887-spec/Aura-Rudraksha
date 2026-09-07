@@ -44,20 +44,67 @@ export function Home() {
   const location = useLocation();
 
   const updateLocalState = () => {
-    setProducts(db.getProducts().filter(isPublicProduct));
+    const freshProducts = db.getProducts().filter(isPublicProduct);
+    setProducts((prev) => {
+      if (prev && prev.length === freshProducts.length) {
+        let isSame = true;
+        for (let i = 0; i < prev.length; i++) {
+          const a = prev[i];
+          const b = freshProducts[i];
+          if (
+            !b ||
+            a.id !== b.id ||
+            a.price !== b.price ||
+            a.salesCount !== b.salesCount ||
+            a.stock !== b.stock ||
+            a.badge !== b.badge
+          ) {
+            isSame = false;
+            break;
+          }
+        }
+        if (isSame) return prev;
+      }
+      return freshProducts;
+    });
+
     const cachedBanners = db.getBanners();
     if (cachedBanners && cachedBanners.length > 0) {
-      setBanners(cachedBanners);
+      setBanners((prev) => {
+        if (
+          prev &&
+          prev.length === cachedBanners.length &&
+          prev.every(
+            (b, i) =>
+              (b?.url || b?.image || b) ===
+              (cachedBanners[i]?.url || cachedBanners[i]?.image || cachedBanners[i])
+          )
+        ) {
+          return prev;
+        }
+        return cachedBanners;
+      });
     }
-    const allOffers = db.getOffers().filter(o => {
-      if (o.offerType === 'badge') return false;
-      if (o.status !== 'Active') return false;
-      if (o.shownOn && o.shownOn !== 'Home Banner') return false;
+
+    const allOffers = db.getOffers().filter((o) => {
+      if (o.offerType === "badge") return false;
+      if (o.status !== "Active") return false;
+      if (o.shownOn && o.shownOn !== "Home Banner") return false;
       if (o.expiry && new Date(o.expiry) < new Date()) return false;
       if (o.startDate && new Date(o.startDate) > new Date()) return false;
       return true;
+    }).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    setOffers((prev) => {
+      if (
+        prev &&
+        prev.length === allOffers.length &&
+        prev.every((o, i) => o.id === allOffers[i]?.id && o.status === allOffers[i]?.status)
+      ) {
+        return prev;
+      }
+      return allOffers;
     });
-    setOffers(allOffers.sort((a,b) => (a.order || 0) - (b.order || 0)));
     setIsLoading(false);
   };
 

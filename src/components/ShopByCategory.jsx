@@ -67,7 +67,21 @@ export function ShopByCategory() {
     const unsub = onStoreUpdate(() => {
       const settings = db.getSettings();
       if (settings.shopCategories && settings.shopCategories.length > 0) {
-        setCategories(settings.shopCategories);
+        setCategories((prev) => {
+          if (
+            prev &&
+            prev.length === settings.shopCategories.length &&
+            prev.every(
+              (c, i) =>
+                c.id === settings.shopCategories[i]?.id &&
+                c.name === settings.shopCategories[i]?.name &&
+                c.image === settings.shopCategories[i]?.image
+            )
+          ) {
+            return prev;
+          }
+          return settings.shopCategories;
+        });
       }
     });
     return () => unsub();

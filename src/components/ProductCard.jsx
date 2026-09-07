@@ -40,7 +40,10 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 
-  const handleCardClick = () => {
+  const handleCardClick = (e) => {
+    if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots")) {
+      return;
+    }
     if (productId) navigate(`/product/${productId}`);
   };
 
@@ -86,8 +89,11 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     <div 
       className="aura-shop-card" 
       onClick={handleCardClick}
-      onMouseEnter={handlePreload}
-      onTouchStart={handlePreload}
+      onPointerEnter={handlePreload}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter") handleCardClick(e); }}
+      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent", cursor: "pointer" }}
       id={`product-card-${p.id}`}
     >
       {/* 1. Card Image Area */}

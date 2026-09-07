@@ -60,6 +60,7 @@ const ContactUs = safeLazy(() => import("./pages/ContactUs").then(m => ({ defaul
 const MobileDesignPage = safeLazy(() => import("./pages/MobileDesignPage").then(m => ({ default: m.MobileDesignPage })));
 
 import { AuraAIFloating } from "./components/AuraAIFloating";
+import { TopLoadingBar } from "./components/TopLoadingBar";
 
 const AdminLogin = safeLazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = safeLazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
@@ -86,7 +87,8 @@ function PageLoader() {
         minHeight: "60vh",
         display: "grid",
         placeItems: "center",
-        background: "#fdfbf7"
+        background: "#fdfbf7",
+        pointerEvents: "none"
       }}
     >
       <div
@@ -121,6 +123,7 @@ export function App() {
 
   return (
     <>
+      <TopLoadingBar />
       <ScrollToTop />
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
