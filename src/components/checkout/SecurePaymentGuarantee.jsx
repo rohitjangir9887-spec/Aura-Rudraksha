@@ -66,10 +66,11 @@ export function SecurePaymentGuarantee({ className = "", style = {} }) {
         className="secure-payment-badges-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(42px, 1fr))",
-          gap: "6px",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: "4px",
           alignItems: "center",
           width: "100%",
+          maxWidth: "100%",
           boxSizing: "border-box"
         }}
       >

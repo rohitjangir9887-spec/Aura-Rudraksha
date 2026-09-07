@@ -123,21 +123,28 @@ export function AuraAIFloating() {
 
   // Smart Scroll Lock & Jump to Bottom states
   const userHasScrolledUpRef = useRef(false);
+  const isNearBottomRef = useRef(true);
+  const bodyScrollRef = useRef(null);
+  const textareaRef = useRef(null);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   const handleScroll = () => {
     if (!bodyScrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = bodyScrollRef.current;
     const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
-    const isScrolledUp = distanceToBottom > 35;
+    const isScrolledUp = distanceToBottom > 15;
     userHasScrolledUpRef.current = isScrolledUp;
-    setShowJumpToBottom(isScrolledUp && scrollHeight > clientHeight + 80);
+    isNearBottomRef.current = !isScrolledUp;
+    setShowJumpToBottom(isScrolledUp && scrollHeight > clientHeight + 40);
   };
 
   const handleWheel = (e) => {
-    if (e.deltaY < 0) {
-      userHasScrolledUpRef.current = true;
-      setShowJumpToBottom(true);
+    if (Math.abs(e.deltaY) > 1) {
+      if (e.deltaY < 0) {
+        userHasScrolledUpRef.current = true;
+        isNearBottomRef.current = false;
+        setShowJumpToBottom(true);
+      }
     }
   };
 
@@ -151,10 +158,11 @@ export function AuraAIFloating() {
   const handleTouchMove = (e) => {
     if (e.touches && e.touches[0]) {
       const deltaY = e.touches[0].clientY - touchStartYRef.current;
-      if (deltaY > 5 && bodyScrollRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = bodyScrollRef.current;
-        if (scrollHeight - (scrollTop + clientHeight) > 20) {
+      if (Math.abs(deltaY) > 2) {
+        if (deltaY > 0) {
+          // Swiping down = scrolling up
           userHasScrolledUpRef.current = true;
+          isNearBottomRef.current = false;
           setShowJumpToBottom(true);
         }
       }
@@ -246,8 +254,6 @@ export function AuraAIFloating() {
   const navigate = useNavigate();
   const location = useLocation();
   const messagesEndRef = useRef(null);
-  const bodyScrollRef = useRef(null);
-  const textareaRef = useRef(null);
   const isDraggingBtnRef = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragControls = useDragControls();

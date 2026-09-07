@@ -162,21 +162,26 @@ export function AuraAIPage() {
   }, []);
 
   const userHasScrolledUpRef = useRef(false);
+  const isNearBottomRef = useRef(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   const handleScroll = () => {
     if (!chatScrollContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = chatScrollContainerRef.current;
     const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
-    const isScrolledUp = distanceToBottom > 35;
+    const isScrolledUp = distanceToBottom > 15;
     userHasScrolledUpRef.current = isScrolledUp;
-    setShowJumpToBottom(isScrolledUp && scrollHeight > clientHeight + 80);
+    isNearBottomRef.current = !isScrolledUp;
+    setShowJumpToBottom(isScrolledUp && scrollHeight > clientHeight + 40);
   };
 
   const handleWheel = (e) => {
-    if (e.deltaY < 0) {
-      userHasScrolledUpRef.current = true;
-      setShowJumpToBottom(true);
+    if (Math.abs(e.deltaY) > 1) {
+      if (e.deltaY < 0) {
+        userHasScrolledUpRef.current = true;
+        isNearBottomRef.current = false;
+        setShowJumpToBottom(true);
+      }
     }
   };
 
@@ -190,10 +195,11 @@ export function AuraAIPage() {
   const handleTouchMove = (e) => {
     if (e.touches && e.touches[0]) {
       const deltaY = e.touches[0].clientY - touchStartYRef.current;
-      if (deltaY > 5 && chatScrollContainerRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = chatScrollContainerRef.current;
-        if (scrollHeight - (scrollTop + clientHeight) > 20) {
+      if (Math.abs(deltaY) > 2) {
+        if (deltaY > 0) {
+          // Swiping down = scrolling up
           userHasScrolledUpRef.current = true;
+          isNearBottomRef.current = false;
           setShowJumpToBottom(true);
         }
       }

@@ -2267,13 +2267,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) > div:nth-o
   .admin-wrapper {
     flex-direction: column;
     padding-bottom: 65px; /* Space for bottom nav */
-    max-width: 100vw;
+    max-width: 100%;
     overflow-x: hidden;
     width: 100%;
     box-sizing: border-box;
   }
   .admin-main {
-    max-width: 100vw;
+    max-width: 100%;
     overflow-x: hidden;
     width: 100%;
     box-sizing: border-box;
@@ -11216,9 +11216,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  width: 100vw !important;
+  width: 100% !important;
   height: 100dvh !important;
-  max-width: 100vw !important;
+  max-width: 100% !important;
   z-index: 10020 !important;
   display: flex !important;
   justify-content: center !important;
@@ -11313,7 +11313,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 @media (max-width: 767px) {
   .aura-ai-panel-full {
-    width: 100vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
     height: 100dvh !important;
     max-height: 100dvh !important;
     margin: 0 !important;
@@ -15262,7 +15263,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   .header {
     padding: 0 10px !important;
     gap: 10px !important;
-    max-width: 100vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
   }
   .header-left {
@@ -15286,7 +15288,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   .header {
     padding: 0 8px !important;
     gap: 6px !important;
-    max-width: 100vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
   }
   .header-left {
@@ -15354,7 +15357,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   .header {
     padding: 0 6px !important;
     gap: 4px !important;
-    max-width: 100vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
   }
   .header-left {

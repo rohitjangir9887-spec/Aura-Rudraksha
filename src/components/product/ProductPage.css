@@ -342,6 +342,10 @@
   overflow-x: auto;
   padding-bottom: 4px;
   scrollbar-width: thin;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .aura-thumb-btn {
@@ -464,6 +468,9 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-trust-chip {
@@ -478,6 +485,9 @@
   font-weight: 600;
   color: var(--aura-brown-dark);
   box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .chip-icon.gold { color: var(--aura-gold-bright); }
@@ -493,6 +503,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .aura-pricing-main-row {
@@ -594,12 +608,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-offer-left {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .aura-offer-icon-circle {
@@ -617,6 +637,7 @@
 .aura-offer-details {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .aura-offer-heading {
@@ -654,6 +675,7 @@
   gap: 5px;
   white-space: nowrap;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .aura-coupon-copy-btn:hover {
@@ -671,6 +693,9 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-variant-label {
@@ -684,6 +709,9 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-variant-chip {
@@ -699,6 +727,8 @@
   align-items: center;
   gap: 6px;
   transition: all 0.2s;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-variant-chip:hover {
@@ -724,6 +754,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .spec-icon-box {
@@ -757,6 +790,10 @@
   flex-direction: column;
   gap: 10px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .aura-delivery-checker-card.saved-address-view {
@@ -769,6 +806,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-saved-addr-info {
@@ -776,6 +815,7 @@
   align-items: flex-start;
   gap: 10px;
   flex: 1;
+  min-width: 0;
 }
 
 .aura-saved-pin-icon {
@@ -795,6 +835,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .aura-saved-addr-title-row {
@@ -830,6 +871,7 @@
   font-size: 11.5px;
   color: var(--aura-text-muted);
   line-height: 1.35;
+  word-break: break-word;
 }
 
 .aura-saved-addr-change-btn {
@@ -862,6 +904,7 @@
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
+  flex-shrink: 0;
 }
 
 .aura-saved-addr-estimate {
@@ -871,6 +914,8 @@
   padding: 8px 10px;
   font-size: 12px;
   color: var(--aura-green-dark);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-free-tag {
@@ -882,6 +927,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .delivery-icon-box {
@@ -912,11 +959,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aura-pincode-input-wrap {
   position: relative;
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .pincode-pin-icon {
@@ -929,8 +982,10 @@
 
 .aura-pincode-input {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
-  padding: 8px 12px 8px 32px;
+  padding: 8px 10px 8px 30px;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 8px;
   font-size: 13px;
@@ -948,12 +1003,14 @@
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 8px 14px;
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
   transition: opacity 0.2s;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .aura-pincode-submit-btn:disabled {
@@ -1027,13 +1084,19 @@
   background: #ffffff;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 10px;
-  padding: 8px 14px;
+  padding: 8px 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .qty-picker-label {
   font-size: 13px;
   font-weight: 700;
   color: var(--aura-brown-dark);
+  min-width: 0;
 }
 
 .aura-qty-control {
@@ -1043,6 +1106,7 @@
   border-radius: 6px;
   overflow: hidden;
   background: var(--aura-bg-cream);
+  flex-shrink: 0;
 }
 
 .qty-btn {
@@ -1079,6 +1143,8 @@
 .qty-total-preview {
   font-size: 13px;
   color: var(--aura-text-muted);
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .qty-total-preview strong {
@@ -1091,6 +1157,15 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 380px) {
+  .aura-primary-cta-grid {
+    gap: 6px;
+  }
 }
 
 .aura-btn-add-cart {
@@ -1098,16 +1173,22 @@
   color: var(--aura-brown-dark);
   border: 2px solid var(--aura-brown-dark);
   border-radius: 10px;
-  padding: 14px;
-  font-size: 15px;
+  padding: 12px 8px;
+  font-size: clamp(12px, 3.6vw, 15px);
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .aura-btn-add-cart:hover:not(:disabled) {
@@ -1125,16 +1206,22 @@
   color: #fbf5ea;
   border: 1px solid rgba(200, 138, 61, 0.4);
   border-radius: 10px;
-  padding: 14px;
-  font-size: 15px;
+  padding: 12px 8px;
+  font-size: clamp(12px, 3.6vw, 15px);
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 4px 14px rgba(42, 22, 13, 0.25);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .aura-btn-buy-now:hover:not(:disabled) {
@@ -1147,8 +1234,8 @@
   color: #15803d;
   border: 1px solid #86efac;
   border-radius: 10px;
-  padding: 11px;
-  font-size: 13.5px;
+  padding: 11px 8px;
+  font-size: clamp(12px, 3.4vw, 13.5px);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -1156,6 +1243,10 @@
   gap: 8px;
   cursor: pointer;
   transition: background 0.15s;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .aura-btn-whatsapp-order:hover {
