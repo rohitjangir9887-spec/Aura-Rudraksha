@@ -7,11 +7,13 @@
 import https from "https";
 import { URL } from "url";
 
-const DEFAULT_KEY = "aurarudraksha2025seoindexnowkey";
+// IndexNow requires an 8–128 character hexadecimal key (a-z, A-F, 0-9, hyphens).
+const DEFAULT_KEY = "65afe1e2dec4bf210d1a3ce75cb3c7a0";
 const submittedUrlsCache = new Map(); // url -> timestamp
 
 export function getIndexNowKey() {
-  return (process.env.INDEXNOW_KEY || DEFAULT_KEY).trim();
+  const configured = (process.env.INDEXNOW_KEY || "").trim();
+  return /^[A-Fa-f0-9-]{8,128}$/.test(configured) ? configured : DEFAULT_KEY;
 }
 
 export function getSiteDomain(req) {
@@ -46,7 +48,7 @@ export function getSiteBaseUrl(req) {
 
 /**
  * Submit modified URLs to the IndexNow protocol
- * @param {string[]|string} urls 
+ * @param {string[]|string} urls
  * @param {object} [req]
  */
 export async function submitToIndexNow(urls, req = null) {
@@ -65,7 +67,7 @@ export async function submitToIndexNow(urls, req = null) {
     for (const u of rawList) {
       if (!u || typeof u !== "string") continue;
       const fullUrl = u.startsWith("http") ? u : `${baseUrl}${u.startsWith("/") ? "" : "/"}${u}`;
-      
+
       // Prevent duplicate submissions within 5 minutes
       const lastSent = submittedUrlsCache.get(fullUrl);
       if (lastSent && now - lastSent < 300_000) {
