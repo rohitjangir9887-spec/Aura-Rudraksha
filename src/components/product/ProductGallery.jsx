@@ -32,12 +32,12 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
 
-  // Sync activeImg when product changes
+  // Sync activeImg when product or active image array changes
   useEffect(() => {
     if (images.length > 0) {
       setActiveImg(images[0]);
     }
-  }, [product?.id]);
+  }, [product?.id, images[0]]);
 
   const currentIndex = images.indexOf(activeImg);
   const activeIndex = currentIndex >= 0 ? currentIndex : 0;

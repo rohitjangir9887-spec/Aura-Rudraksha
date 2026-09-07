@@ -36,6 +36,11 @@ export function AdminProducts() {
   const [zodiacInput, setZodiacInput] = useState("");
   const [generatingKeywordId, setGeneratingKeywordId] = useState(null);
 
+  // Indonesian Variant Media Upload States
+  const [indonesianUrlInput, setIndonesianUrlInput] = useState("");
+  const [isUploadingIndonesian, setIsUploadingIndonesian] = useState(false);
+  const [uploadIndonesianProgressMsg, setUploadIndonesianProgressMsg] = useState("");
+
   useEffect(() => {
     load();
     const unsub = onStoreUpdate(() => {
@@ -227,8 +232,11 @@ export function AdminProducts() {
         })
       });
       const data = await res.json();
-      if (data.success && data.data) {
-        const { keywords, tags, subCategory, mukhi, rulingPlanet, deity, origin, zodiac, highlight } = data.data;
+      const payload = data.data || data;
+      if (data.success && payload) {
+        const keywords = Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(payload.searchKeywords) ? payload.searchKeywords : []);
+        const tags = Array.isArray(payload.tags) ? payload.tags : [];
+        const { subCategory, mukhi, rulingPlanet, deity, origin, zodiac, highlight } = payload;
         if (isDirectItem) {
           const currentKw = Array.isArray(productToProcess.keywords) ? productToProcess.keywords : [];
           const currentTags = Array.isArray(productToProcess.tags) ? productToProcess.tags : [];
@@ -357,11 +365,13 @@ export function AdminProducts() {
   const handleEdit = (p) => {
     setFormError("");
     setUrlInput("");
+    setIndonesianUrlInput("");
     setKeywordInput("");
     setTagInput("");
     setZodiacInput("");
     if (p) {
       const imgs = (p.images && p.images.length > 0) ? [...p.images] : (p.img ? [p.img] : []);
+      const indoImgs = Array.isArray(p.indonesianImages) ? p.indonesianImages : (p.indonesianImg ? [p.indonesianImg] : []);
       const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
       const existingKw = Array.isArray(p.keywords) ? p.keywords : (Array.isArray(p.searchKeywords) ? p.searchKeywords : []);
       const existingTags = Array.isArray(p.tags) ? p.tags : [];
@@ -377,7 +387,15 @@ export function AdminProducts() {
         rulingPlanet: p.rulingPlanet || "",
         deity: p.deity || "",
         origin: p.origin || "Nepal",
-        zodiac: existingZodiac,
+        hasIndonesianVariant: p.hasIndonesianVariant !== undefined ? !!p.hasIndonesianVariant : (Number(p.indonesianPrice) > 0),
+        indonesianTitle: p.indonesianTitle || "",
+        indonesianPrice: p.indonesianPrice !== undefined && p.indonesianPrice !== null ? p.indonesianPrice : "",
+        indonesianMrp: p.indonesianMrp !== undefined && p.indonesianMrp !== null ? p.indonesianMrp : "",
+        indonesianStock: p.indonesianStock !== undefined ? p.indonesianStock : 50,
+        indonesianImages: indoImgs,
+        indonesianImg: p.indonesianImg || (indoImgs[0] || ""),
+        indonesianSize: p.indonesianSize || "Small Java Bead (10–14 mm)",
+        indonesianHighlight: p.indonesianHighlight || "",
         status: isDraft ? "Draft" : "Published",
         showOnHome: p.showOnHome !== false,
         isPopular: !!p.isPopular,
@@ -403,6 +421,15 @@ export function AdminProducts() {
         rulingPlanet: "",
         deity: "",
         origin: "Nepal",
+        hasIndonesianVariant: false,
+        indonesianTitle: "",
+        indonesianPrice: "",
+        indonesianMrp: "",
+        indonesianStock: 50,
+        indonesianImages: [],
+        indonesianImg: "",
+        indonesianSize: "Small Java Bead (10–14 mm)",
+        indonesianHighlight: "",
         zodiac: [],
         description: "",
         status: "Draft", // Default new product status is Draft to prevent accidental public publishing
@@ -565,6 +592,116 @@ export function AdminProducts() {
     emitToast("Image reordered", "info");
   };
 
+  // Indonesian Variant Media Upload Handlers
+  const handleIndonesianFileUpload = async (e) => {
+    if (isUploadingIndonesian) return;
+    const allSelectedFiles = Array.from(e.target.files || []);
+    if (!allSelectedFiles.length) return;
+
+    setIsUploadingIndonesian(true);
+    setUploadIndonesianProgressMsg("Preparing Indonesian photos for Puter Cloud upload...");
+
+    try {
+      const handleChunkSuccess = (chunkResults) => {
+        if (!chunkResults || !chunkResults.length) return;
+        const newUrls = chunkResults.filter(r => r.success && r.url).map(r => r.url);
+        if (newUrls.length > 0) {
+          setEditing(prev => {
+            if (!prev) return prev;
+            const existingImages = prev.indonesianImages || [];
+            const merged = [...existingImages];
+            newUrls.forEach(url => {
+              if (!merged.includes(url)) merged.push(url);
+            });
+            return {
+              ...prev,
+              indonesianImages: merged,
+              indonesianImg: prev.indonesianImg || merged[0] || ""
+            };
+          });
+        }
+      };
+
+      const results = await uploadMediaBatch(allSelectedFiles, (pct, statusMsg) => {
+        setUploadIndonesianProgressMsg(statusMsg || `Uploading Indonesian photo — ${pct}%`);
+      }, handleChunkSuccess);
+
+      const successfulUrls = [];
+      const errors = [];
+      results.forEach((res, idx) => {
+        const fileName = allSelectedFiles[idx]?.name || res.originalName || "File";
+        if (res.success && res.url) {
+          successfulUrls.push(res.url);
+        } else if (!res.success) {
+          errors.push(`${fileName}: ${res.error || "Upload failed"}`);
+        }
+      });
+
+      if (successfulUrls.length > 0) {
+        setEditing(prev => {
+          if (!prev) return prev;
+          const existingImages = prev.indonesianImages || [];
+          const newImages = [...existingImages];
+          successfulUrls.forEach(url => {
+            if (!newImages.includes(url)) newImages.push(url);
+          });
+          return {
+            ...prev,
+            indonesianImages: newImages,
+            indonesianImg: prev.indonesianImg || newImages[0] || ""
+          };
+        });
+        emitToast(`${successfulUrls.length} Indonesian photo(s) uploaded successfully!`, "success");
+      }
+      if (errors.length > 0) {
+        emitToast(`Upload issues: ${errors[0]}`, "warning");
+      }
+    } catch (err) {
+      emitToast(err.message || "Failed to upload Indonesian bead photos", "error");
+    } finally {
+      setIsUploadingIndonesian(false);
+      setUploadIndonesianProgressMsg("");
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleAddIndonesianUrl = () => {
+    const trimmed = indonesianUrlInput.trim();
+    if (!trimmed) return;
+    setEditing(prev => {
+      if (!prev) return prev;
+      const newImages = [...(prev.indonesianImages || [])];
+      if (newImages.includes(trimmed)) return prev;
+      newImages.push(trimmed);
+      return {
+        ...prev,
+        indonesianImages: newImages,
+        indonesianImg: prev.indonesianImg || trimmed
+      };
+    });
+    setIndonesianUrlInput("");
+    emitToast("Indonesian photo URL added", "info");
+  };
+
+  const handleRemoveIndonesianImage = (indexToRemove) => {
+    setEditing(prev => {
+      if (!prev) return prev;
+      const newImages = (prev.indonesianImages || []).filter((_, idx) => idx !== indexToRemove);
+      const newPrimary = prev.indonesianImg === prev.indonesianImages[indexToRemove] ? (newImages[0] || "") : prev.indonesianImg;
+      return {
+        ...prev,
+        indonesianImages: newImages,
+        indonesianImg: newPrimary
+      };
+    });
+    emitToast("Indonesian photo removed", "info");
+  };
+
+  const handleSetPrimaryIndonesianImage = (imgUrl) => {
+    setEditing(prev => (prev ? { ...prev, indonesianImg: imgUrl } : prev));
+    emitToast("Primary Indonesian bead photo set", "info");
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setFormError("");
@@ -602,6 +739,15 @@ export function AdminProducts() {
       rulingPlanet: (editing.rulingPlanet || "").trim(),
       deity: (editing.deity || "").trim(),
       origin: (editing.origin || "Nepal").trim(),
+      hasIndonesianVariant: !!editing.hasIndonesianVariant || (Number(editing.indonesianPrice) > 0),
+      indonesianTitle: (editing.indonesianTitle || "").trim(),
+      indonesianPrice: Number(editing.indonesianPrice) || 0,
+      indonesianMrp: Number(editing.indonesianMrp) || Number(editing.indonesianPrice) || 0,
+      indonesianStock: Number(editing.indonesianStock) >= 0 ? Number(editing.indonesianStock) : 50,
+      indonesianImages: Array.isArray(editing.indonesianImages) ? editing.indonesianImages.filter(Boolean) : (editing.indonesianImg ? [editing.indonesianImg] : []),
+      indonesianImg: editing.indonesianImg || (Array.isArray(editing.indonesianImages) && editing.indonesianImages[0]) || "",
+      indonesianSize: (editing.indonesianSize || "").trim(),
+      indonesianHighlight: (editing.indonesianHighlight || "").trim(),
       zodiac: Array.isArray(editing.zodiac) ? editing.zodiac : [],
       freeShipping: editing.freeShipping !== false,
       shippingFee: Number(editing.shippingFee) || 0,
@@ -1244,18 +1390,18 @@ export function AdminProducts() {
                 {/* Origin */}
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                    Origin (उत्पत्ति)
+                    Primary Origin (मुख्य उत्पत्ति)
                   </label>
                   <select
                     value={editing.origin || "Nepal"}
                     onChange={e => setEditing({ ...editing, origin: e.target.value })}
                     style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
                   >
-                    <option value="Nepal">Nepal (नेपाल)</option>
-                    <option value="Java / Indonesia">Java / Indonesia (इंडोनेशिया)</option>
-                    <option value="Haridwar">Haridwar (हरिद्वार)</option>
-                    <option value="Rameshwaram">Rameshwaram</option>
-                    <option value="Himalayan">Himalayan Groves</option>
+                    <option value="Nepal">🇳🇵 Nepal (नेपाली - Default)</option>
+                    <option value="Java / Indonesia">🇮🇩 Java / Indonesia (इंडोनेशियाई)</option>
+                    <option value="Haridwar">🕉️ Haridwar (हरिद्वार)</option>
+                    <option value="Rameshwaram">🔱 Rameshwaram</option>
+                    <option value="Himalayan">🏔️ Himalayan Groves</option>
                   </select>
                 </div>
 
@@ -1286,6 +1432,235 @@ export function AdminProducts() {
                     style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
                   />
                 </div>
+              </div>
+
+              {/* Indonesian (Java) Origin Variant Section */}
+              <div style={{
+                background: editing.hasIndonesianVariant ? '#fdf8f4' : '#faf7f2',
+                border: editing.hasIndonesianVariant ? '1.5px solid #d97706' : '1px dashed #d5c7b8',
+                borderRadius: '8px',
+                padding: '14px',
+                marginBottom: '14px',
+                transition: 'all 0.2s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', color: '#78350f' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!editing.hasIndonesianVariant}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setEditing(prev => ({
+                          ...prev,
+                          hasIndonesianVariant: checked,
+                          indonesianTitle: checked && !prev.indonesianTitle ? `${prev.name || "Rudraksha"} (Indonesian Origin / Java)` : prev.indonesianTitle,
+                          indonesianPrice: checked && !prev.indonesianPrice ? Math.round(Number(prev.price || 999) * 0.5) : prev.indonesianPrice,
+                          indonesianMrp: checked && !prev.indonesianMrp ? Math.round(Number(prev.mrp || 1999) * 0.5) : prev.indonesianMrp
+                        }));
+                      }}
+                      style={{ width: '16px', height: '16px', accentColor: '#d97706', cursor: 'pointer' }}
+                    />
+                    <span>🇮🇩 Also Offer Indonesian (Java) Variant for this Rudraksha? (इंडोनेशियाई दाना विकल्प जोड़ें)</span>
+                  </label>
+                  <span style={{ fontSize: '11.5px', color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                    {editing.hasIndonesianVariant ? "Active (सक्रिय)" : "Optional (वैकल्पिक)"}
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '12px', color: '#6b584a', margin: '6px 0 0 24px', lineHeight: '1.4' }}>
+                  रुद्राक्ष दो प्रकार के होते हैं (नेपाली व इंडोनेशियाई)। इंडोनेशियाई दाने छोटे होते हैं और उनकी कीमत कम होती है। इसे चालू करने पर ग्राहक को प्रोडक्ट पेज पर इंडोनेशियाई विकल्प व फोटो दिखाई देगी।
+                </p>
+
+                {editing.hasIndonesianVariant && (
+                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #fde68a' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                      {/* Indonesian Title */}
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c' }}>
+                            Indonesian Variant Title (इंडोनेशियाई दाने का नाम / शीर्षक)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditing(prev => ({
+                                ...prev,
+                                indonesianTitle: `${prev.name || "Rudraksha"} (Indonesian / Java Origin)`
+                              }));
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#b45309', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600' }}
+                          >
+                            ✨ Auto-Fill Title
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={editing.indonesianTitle || ""}
+                          onChange={e => setEditing({ ...editing, indonesianTitle: e.target.value })}
+                          placeholder="e.g. 5 Mukhi Indonesian Rudraksha (Java Origin)"
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #d97706', fontSize: '12.5px', background: '#fff' }}
+                        />
+                      </div>
+
+                      {/* Indonesian Price */}
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                          Indonesian Price (₹ विक्रय मूल्य) <span style={{ color: '#dc2626' }}>*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={editing.indonesianPrice}
+                          onChange={e => setEditing({ ...editing, indonesianPrice: e.target.value })}
+                          placeholder="e.g. 499"
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                        />
+                      </div>
+
+                      {/* Indonesian MRP */}
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                          Indonesian MRP (₹ अंकित मूल्य)
+                        </label>
+                        <input
+                          type="number"
+                          value={editing.indonesianMrp}
+                          onChange={e => setEditing({ ...editing, indonesianMrp: e.target.value })}
+                          placeholder="e.g. 999"
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                        />
+                      </div>
+
+                      {/* Indonesian Stock & Size */}
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                          Indonesian Bead Size (दाने का आकार)
+                        </label>
+                        <input
+                          type="text"
+                          value={editing.indonesianSize || ""}
+                          onChange={e => setEditing({ ...editing, indonesianSize: e.target.value })}
+                          placeholder="e.g. Small Java (10–14 mm)"
+                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Indonesian Photos Upload */}
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#7c2d12', marginBottom: '6px' }}>
+                        📸 Indonesian Rudraksha Photos (इंडोनेशियाई दाने की फ़ोटो)
+                      </label>
+                      <p style={{ fontSize: '11.5px', color: '#78350f', margin: '0 0 10px 0' }}>
+                        Upload specific photos showing the authentic Indonesian/Java bead texture to display to customers.
+                      </p>
+
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+                        <label style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          background: '#9a3412', color: '#fff', padding: '6px 12px',
+                          borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                          cursor: isUploadingIndonesian ? 'not-allowed' : 'pointer'
+                        }}>
+                          <Upload size={14} />
+                          {isUploadingIndonesian ? "Uploading..." : "Upload Indonesian Photo(s)"}
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleIndonesianFileUpload}
+                            disabled={isUploadingIndonesian}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+
+                        <div style={{ display: 'flex', gap: '6px', flex: '1', minWidth: '220px' }}>
+                          <input
+                            type="text"
+                            value={indonesianUrlInput}
+                            onChange={e => setIndonesianUrlInput(e.target.value)}
+                            placeholder="Or paste Indonesian image URL (https://...)"
+                            style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddIndonesianUrl}
+                            style={{ background: '#f97316', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            Add URL
+                          </button>
+                        </div>
+                      </div>
+
+                      {uploadIndonesianProgressMsg && (
+                        <div style={{ fontSize: '12px', color: '#ea580c', marginBottom: '8px', fontWeight: '500' }}>
+                          ⏳ {uploadIndonesianProgressMsg}
+                        </div>
+                      )}
+
+                      {/* Indonesian Image Thumbnails */}
+                      {Array.isArray(editing.indonesianImages) && editing.indonesianImages.length > 0 ? (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                          {editing.indonesianImages.map((imgUrl, imgIdx) => {
+                            const isPrimary = (editing.indonesianImg === imgUrl) || (!editing.indonesianImg && imgIdx === 0);
+                            return (
+                              <div
+                                key={imgIdx}
+                                style={{
+                                  position: 'relative',
+                                  width: '80px',
+                                  height: '80px',
+                                  borderRadius: '6px',
+                                  border: isPrimary ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                  overflow: 'hidden',
+                                  background: '#f8fafc'
+                                }}
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Indonesian ${imgIdx + 1}`}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                {isPrimary && (
+                                  <span style={{
+                                    position: 'absolute', top: '2px', left: '2px',
+                                    background: '#ea580c', color: '#fff', fontSize: '9px',
+                                    padding: '1px 4px', borderRadius: '3px', fontWeight: '700'
+                                  }}>
+                                    Primary
+                                  </span>
+                                )}
+                                <div style={{ position: 'absolute', bottom: '2px', right: '2px', display: 'flex', gap: '2px' }}>
+                                  {!isPrimary && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetPrimaryIndonesianImage(imgUrl)}
+                                      title="Set as primary Indonesian photo"
+                                      style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 4px', fontSize: '9px', cursor: 'pointer' }}
+                                    >
+                                      ⭐
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveIndonesianImage(imgIdx)}
+                                    title="Delete photo"
+                                    style={{ background: 'rgba(220,38,38,0.85)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 4px', fontSize: '9px', cursor: 'pointer' }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '11.5px', color: '#9ca3af', fontStyle: 'italic' }}>
+                          No Indonesian photos added yet. Upload or enter a photo URL above.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Zodiac / Rashis Chips */}
@@ -1995,6 +2370,11 @@ export function AdminProducts() {
                             <strong>{p.name}</strong>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
                               <small>{p.reviews || 0} reviews • {p.images?.length || 1} images</small>
+                              {p.origin && (
+                                <span style={{ fontSize: '10px', background: p.hasIndonesianVariant ? '#fef3c7' : '#f1f5f9', color: p.hasIndonesianVariant ? '#92400e' : '#334155', border: '1px solid #e2e8f0', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
+                                  {p.hasIndonesianVariant ? "🇳🇵 Nepal + 🇮🇩 Java" : (p.origin.includes("Java") || p.origin.includes("Indonesia") ? "🇮🇩 Indonesia" : `🇳🇵 ${p.origin}`)}
+                                </span>
+                              )}
                               {p.mukhi && (
                                 <span style={{ fontSize: '10px', background: '#f5ebe1', color: '#6d2812', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
                                   {p.mukhi}

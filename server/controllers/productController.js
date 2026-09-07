@@ -14,7 +14,11 @@ const PRODUCT_FIELDS = {
   stock: "number", status: "string", tags: "string[]", keywords: "string[]", searchKeywords: "string[]",
   highlight: "string", badge: "string", homeBadge: "string", showOnHome: "bool", homeOrder: "number",
   isPopular: "bool", rating: "number", reviews: "number", reviewCount: "number",
-  customOffer: "object", origin: "string", mukhi: "string", rulingPlanet: "string", deity: "string",
+  customOffer: "object", origin: "string", hasIndonesianVariant: "bool",
+  indonesianTitle: "string", indonesianPrice: "number", indonesianMrp: "number",
+  indonesianStock: "number", indonesianImages: "url[]", indonesianImg: "url",
+  indonesianSize: "string", indonesianHighlight: "string",
+  mukhi: "string", rulingPlanet: "string", deity: "string",
   zodiac: "string[]", metaTitle: "string", metaDescription: "string", freeShipping: "bool", shippingFee: "number"
 };
 

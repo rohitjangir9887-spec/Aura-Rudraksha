@@ -54,20 +54,29 @@ export function normalizeLines(linesInput) {
         const strId = String(id).trim();
         if (strId) counts[strId] = (counts[strId] || 0) + 1;
       });
-      return Object.entries(counts).map(([id, qty]) => ({ id, qty }));
+      return Object.entries(counts).map(([id, qty]) => {
+        const isIndo = id.endsWith("-indo") || id.includes("_indo");
+        const baseId = id.replace(/-indo$|_indo$/i, "");
+        return { id, baseId, qty, isIndonesian: isIndo };
+      });
     }
 
     // Array of objects
     const map = new Map();
     for (const item of linesInput) {
       if (!item) continue;
-      const id = String(item.id || item.productId || item._id || "").trim();
+      const rawId = String(item.id || item.productId || item._id || "").trim();
       const qty = Math.max(1, Number(item.qty || item.quantity) || 1);
-      if (id) {
-        map.set(id, (map.get(id) || 0) + qty);
+      const isIndo = !!item.isIndonesian || rawId.endsWith("-indo") || rawId.includes("_indo") || (typeof item.variant === "string" && item.variant.toLowerCase().includes("indonesian"));
+      const baseId = rawId.replace(/-indo$|_indo$/i, "");
+      const lineKey = isIndo ? `${baseId}-indo` : baseId;
+      
+      if (baseId) {
+        const prev = map.get(lineKey) || { id: lineKey, baseId, qty: 0, isIndonesian: isIndo, variant: item.variant || "" };
+        map.set(lineKey, { ...prev, qty: prev.qty + qty });
       }
     }
-    return Array.from(map.entries()).map(([id, qty]) => ({ id, qty }));
+    return Array.from(map.values());
   }
 
   return [];
@@ -77,15 +86,15 @@ export function normalizeLines(linesInput) {
  * Fetch authoritative products from MongoDB or inMemoryStore fallback
  */
 export async function getAuthoritativeProducts(productIds = []) {
-  const ids = Array.from(new Set(productIds.map(String)));
-  if (ids.length === 0) return [];
+  const cleanIds = Array.from(new Set(productIds.map(id => String(id).replace(/-indo$|_indo$/i, ""))));
+  if (cleanIds.length === 0) return [];
 
   if (isDbConnected()) {
     try {
       const dbProducts = await Product.find({
         $or: [
-          { id: { $in: ids } },
-          { _id: { $in: ids.filter(id => id.match(/^[0-9a-fA-F]{24}$/)) } }
+          { id: { $in: cleanIds } },
+          { _id: { $in: cleanIds.filter(id => id.match(/^[0-9a-fA-F]{24}$/)) } }
         ]
       }).lean();
 
@@ -98,7 +107,7 @@ export async function getAuthoritativeProducts(productIds = []) {
   }
 
   // In-Memory Fallback
-  return inMemoryStore.products.filter(p => ids.includes(String(p.id)) || ids.includes(String(p.slug)) || ids.includes(String(p._id)));
+  return inMemoryStore.products.filter(p => cleanIds.includes(String(p.id)) || cleanIds.includes(String(p.slug)) || cleanIds.includes(String(p._id)));
 }
 
 /**
@@ -202,7 +211,8 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   const unavailableItems = [];
 
   for (const line of normalized) {
-    const product = fetchedProducts.find(p => String(p.id) === String(line.id) || String(p._id) === String(line.id));
+    const lookupId = line.baseId || String(line.id).replace(/-indo$|_indo$/i, "");
+    const product = fetchedProducts.find(p => String(p.id) === lookupId || String(p._id) === lookupId);
     if (!product) {
       unavailableItems.push({ id: line.id, reason: "Product not found or discontinued" });
       continue;
@@ -213,8 +223,22 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       continue;
     }
 
-    const unitPrice = Number(product.price) || 0;
-    const mrp = Number(product.mrp || product.comparePrice || product.price || unitPrice);
+    const isIndo = !!line.isIndonesian || (typeof line.variant === "string" && line.variant.toLowerCase().includes("indonesian"));
+    const unitPrice = isIndo && Number(product.indonesianPrice) > 0 
+      ? Number(product.indonesianPrice) 
+      : (Number(product.price) || 0);
+    const mrp = isIndo && Number(product.indonesianMrp) > 0
+      ? Number(product.indonesianMrp)
+      : Number(product.mrp || product.comparePrice || product.price || unitPrice);
+    
+    const itemName = isIndo && product.indonesianTitle 
+      ? product.indonesianTitle 
+      : (isIndo ? `${product.name} (Indonesian / Java Origin)` : product.name || "Sacred Rudraksha Item");
+    
+    const itemImg = isIndo && (product.indonesianImg || (Array.isArray(product.indonesianImages) && product.indonesianImages[0]))
+      ? (product.indonesianImg || product.indonesianImages[0])
+      : ((Array.isArray(product.images) && product.images[0]) || product.img || "/images/product-5mukhi.jpg");
+
     const itemSubtotal = unitPrice * line.qty;
     const itemMrpTotal = mrp * line.qty;
 
@@ -222,9 +246,11 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
     totalMrp += itemMrpTotal;
 
     validatedItems.push({
-      id: String(product.id || product._id),
+      id: String(line.id),
       productId: String(product.id || product._id),
-      name: product.name || "Sacred Rudraksha Item",
+      name: itemName,
+      origin: isIndo ? "Java / Indonesia" : (product.origin || "Nepal"),
+      isIndonesian: isIndo,
       price: unitPrice,
       unitPrice: unitPrice,
       mrp: mrp,
@@ -232,9 +258,9 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       quantity: line.qty,
       qty: line.qty,
       itemTotal: itemSubtotal,
-      stock: product.stock !== undefined ? product.stock : 50,
-      image: (Array.isArray(product.images) && product.images[0]) || product.img || "/images/product-5mukhi.jpg",
-      img: (Array.isArray(product.images) && product.images[0]) || product.img || "/images/product-5mukhi.jpg"
+      stock: isIndo && product.indonesianStock !== undefined ? product.indonesianStock : (product.stock !== undefined ? product.stock : 50),
+      image: itemImg,
+      img: itemImg
     });
   }
 

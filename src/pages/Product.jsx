@@ -45,6 +45,7 @@ export function Product() {
 
   // User purchase selections
   const [qty, setQty] = useState(1);
+  const [selectedOrigin, setSelectedOrigin] = useState("Nepal"); // Default Nepali as requested
   const [selectedVariant, setSelectedVariant] = useState(() => {
     if (initialProduct?.variants && initialProduct.variants.length > 0) {
       const firstV = initialProduct.variants[0];
@@ -117,6 +118,9 @@ export function Product() {
     db.logVisit();
     db.logProductView();
     
+    // Reset origin to default Nepal on new product
+    setSelectedOrigin("Nepal");
+
     // Immediate load: silent if cache already populated
     const hasSync = !!db.getProduct(id);
     loadData(hasSync);
@@ -149,7 +153,32 @@ export function Product() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const p = product;
+  const rawP = product;
+
+  // Dynamic Product derivation based on active Origin selection (Nepal vs Indonesia)
+  const isIndonesianActive = selectedOrigin === "Indonesia" && rawP && (!!rawP.hasIndonesianVariant || Number(rawP.indonesianPrice) > 0);
+  
+  const p = React.useMemo(() => {
+    if (!rawP) return null;
+    if (!isIndonesianActive) return rawP;
+
+    const indoImages = (Array.isArray(rawP.indonesianImages) && rawP.indonesianImages.length > 0)
+      ? rawP.indonesianImages
+      : (rawP.indonesianImg ? [rawP.indonesianImg] : rawP.images);
+
+    return {
+      ...rawP,
+      name: rawP.indonesianTitle || `${rawP.name} (Indonesian / Java Origin)`,
+      price: Number(rawP.indonesianPrice) || rawP.price,
+      mrp: Number(rawP.indonesianMrp) || Number(rawP.indonesianPrice) || rawP.mrp,
+      stock: rawP.indonesianStock !== undefined ? Number(rawP.indonesianStock) : rawP.stock,
+      images: indoImages,
+      img: rawP.indonesianImg || (indoImages && indoImages[0]) || rawP.img,
+      origin: "Java / Indonesia",
+      highlight: rawP.indonesianHighlight || rawP.highlight || "Authentic Java Rudraksha bead consecrated according to Vedic traditions.",
+      size: rawP.indonesianSize || "Small Java Bead (10–14 mm)"
+    };
+  }, [rawP, isIndonesianActive]);
 
   // Rating & review summary from real approved devotee reviews in MongoDB
   const realReviewsForRating = reviews.filter(r => !r.isAiGenerated && !r.isSample);
@@ -161,12 +190,22 @@ export function Product() {
 
   const stockLimit = p?.stock !== undefined ? Number(p.stock) : (p?.status === "Out of Stock" ? 0 : 50);
   const isOutOfStock = stockLimit <= 0 || p?.status === "Out of Stock";
-  const isFav = p ? isWishlisted(p.id) : false;
+  const isFav = p ? isWishlisted(rawP?.id || p.id) : false;
 
   // Cart & Buy Handlers
   const handleAddToCart = () => {
     if (!p || isOutOfStock) return;
-    add(p.id, qty);
+    const cartItemId = isIndonesianActive ? `${rawP.id}-indo` : rawP.id;
+    add({
+      id: cartItemId,
+      productId: rawP.id,
+      name: p.name,
+      price: p.price,
+      mrp: p.mrp,
+      img: p.img,
+      variant: isIndonesianActive ? `Indonesian Origin (${p.size || '10-14mm'})` : (selectedVariant || selectedSize),
+      isIndonesian: isIndonesianActive
+    }, qty);
     setAdded(true);
     emitToast(`${p.name} added to your cart ❤️`, "success");
     setTimeout(() => setAdded(false), 2000);
@@ -174,11 +213,21 @@ export function Product() {
 
   const handleBuyNow = () => {
     if (!p || isOutOfStock) return;
+    const cartItemId = isIndonesianActive ? `${rawP.id}-indo` : rawP.id;
     if (buyNow) {
-      buyNow(p.id, qty);
+      buyNow({
+        id: cartItemId,
+        productId: rawP.id,
+        name: p.name,
+        price: p.price,
+        mrp: p.mrp,
+        img: p.img,
+        variant: isIndonesianActive ? `Indonesian Origin (${p.size || '10-14mm'})` : (selectedVariant || selectedSize),
+        isIndonesian: isIndonesianActive
+      }, qty);
     } else {
       try {
-        sessionStorage.setItem("aura_buy_now_intent", JSON.stringify([{ id: String(p.id), qty }]));
+        sessionStorage.setItem("aura_buy_now_intent", JSON.stringify([{ id: String(cartItemId), qty }]));
       } catch (_) {}
     }
     emitToast(`Proceeding to checkout with ${p.name}`, "info");
@@ -396,9 +445,11 @@ export function Product() {
               {/* Limited Period Coupon Offer Card */}
               <ProductOfferCard coupons={coupons} activeOffer={p.activeOffer} />
 
-              {/* Variant / Size / Dimension Selector */}
+              {/* Variant / Size / Dimension & Origin Selector */}
               <ProductVariantSelector
-                product={p}
+                product={rawP}
+                selectedOrigin={selectedOrigin}
+                onSelectOrigin={setSelectedOrigin}
                 selectedVariant={selectedVariant}
                 onSelectVariant={setSelectedVariant}
                 selectedSize={selectedSize}
@@ -419,6 +470,88 @@ export function Product() {
                   added={added}
                 />
               </div>
+
+              {/* Similar Product / Alternative Rudraksha Origin Card (नेपाल vs इंडोनेशियाई दाना) */}
+              {rawP && (!!rawP.hasIndonesianVariant || Number(rawP.indonesianPrice) > 0) && (
+                <div style={{
+                  marginTop: '16px',
+                  background: '#fffdfa',
+                  border: isIndonesianActive ? '1.5px solid #fed7aa' : '1.5px solid #fed7aa',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  boxShadow: '0 2px 8px rgba(140, 43, 16, 0.05)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Sparkles size={14} style={{ color: '#c2410c' }} />
+                      Similar Origin Option (रुद्राक्ष दाना विकल्प):
+                    </span>
+                    <span style={{ fontSize: '11px', background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                      {isIndonesianActive ? "Nepal Available" : "Indonesia Available"}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <img
+                      src={isIndonesianActive
+                        ? (rawP.images?.[0] || rawP.img || "/images/product-5mukhi.jpg")
+                        : (rawP.indonesianImg || rawP.indonesianImages?.[0] || rawP.img || "/images/product-5mukhi.jpg")
+                      }
+                      alt="Similar Origin Bead"
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '8px',
+                        objectFit: 'cover',
+                        border: '1px solid #ebdccb',
+                        background: '#f8fafc',
+                        flexShrink: 0
+                      }}
+                    />
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {isIndonesianActive
+                          ? `🇳🇵 ${rawP.name} (Nepal Origin)`
+                          : `🇮🇩 ${rawP.indonesianTitle || `${rawP.name} (Indonesian Java)`}`
+                        }
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#78685c', margin: '2px 0' }}>
+                        {isIndonesianActive
+                          ? `Large Nepal Bead (${rawP.size || "18–22 mm"}) • Deep Mukhi Grooves`
+                          : `Small Java Bead (${rawP.indonesianSize || "10–14 mm"}) • Budget Friendly`
+                        }
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '800', color: isIndonesianActive ? '#8c2b10' : '#b45309' }}>
+                          ₹{(isIndonesianActive ? Number(rawP.price || 0) : Number(rawP.indonesianPrice || 0)).toLocaleString("en-IN")}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOrigin(isIndonesianActive ? "Nepal" : "Indonesia");
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          style={{
+                            marginLeft: 'auto',
+                            background: isIndonesianActive ? '#8c2b10' : '#d97706',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {isIndonesianActive ? "Switch to Nepali →" : "Switch to Indonesian →"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Indian Pincode Delivery & Saved Address Checker (Placed under Buy Now) */}
               <ProductDeliveryChecker

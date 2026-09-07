@@ -1465,13 +1465,17 @@ Output ONLY the pure HTML body itself.`
           cleanHtml = cleanHtml.replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
           if (cleanHtml && cleanHtml.includes("<h2>")) {
-            return res.json({
-              success: true,
+            const resultData = {
               description: cleanHtml,
               category: suggestedCategory,
               highlight: "100% Consecrated • Authentic Nepal Bead",
               badge: "Best Seller",
-              tags: [suggestedCategory, "Authentic", "Consecrated"]
+              tags: [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
+            };
+            return res.json({
+              success: true,
+              data: resultData,
+              ...resultData
             });
           }
         } catch (nimErr) {
@@ -1480,15 +1484,54 @@ Output ONLY the pure HTML body itself.`
       }
     }
 
+    // Secondary AI fallback: Gemini Flash
+    const geminiAi = getGeminiClient();
+    if (geminiAi) {
+      try {
+        const geminiRes = await geminiAi.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `You are a Vedic Rudraksha master copywriter. Generate a sacred, high-converting product description for "${cleanName}" (${category || 'Rudraksha'}).
+Use exactly these structured headings enclosed in h2:
+<h2>✨ About the Product</h2>
+<h2>📿 Product Highlights</h2>
+<h2>🌿 Spiritual Significance</h2>
+<h2>🙏 Suitable For</h2>
+<h2>🕉️ How to Wear & Care</h2>
+Output ONLY valid HTML body.`
+        });
+        const gText = cleanServerAiText(geminiRes?.text || "");
+        if (gText && gText.includes("<h2>")) {
+          const resultData = {
+            description: gText,
+            category: suggestedCategory,
+            highlight: "100% Consecrated • Authentic Nepal Bead",
+            badge: "Best Seller",
+            tags: [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
+          };
+          return res.json({
+            success: true,
+            data: resultData,
+            ...resultData
+          });
+        }
+      } catch (gErr) {
+        console.warn("[Aura AI] Gemini fallback notice:", gErr?.message || gErr);
+      }
+    }
+
     const fallbackDesc = `<h2>✨ About the Product</h2><p>Original 100% authentic, lab-certified ${cleanName} sourced directly from sacred high-altitude groves of Nepal.</p><h2>📿 Product Highlights</h2><p>Natural Mukhi lines, X-Ray tested, smooth bead texture, and pre-energized with Vedic Shiva Mantras in Haridwar.</p><h2>🌿 Spiritual Significance</h2><p>Attracts peace, clarity, protection from negative energies, and spiritual awakening.</p><h2>🙏 Suitable For</h2><p>Devotees, professionals, students, and meditation practitioners seeking positivity.</p><h2>🕉️ How to Wear & Care</h2><p>Purify with holy Ganga Jal or raw milk on Monday morning, chant 'Om Namah Shivaya' 108 times, and wear with reverence.</p>`;
     
-    return res.json({
-      success: true,
+    const fallbackResult = {
       description: fallbackDesc,
       category: suggestedCategory,
       highlight: "100% Consecrated • Authentic Nepal Bead",
       badge: "Best Seller",
-      tags: [suggestedCategory, "Authentic", "Consecrated"]
+      tags: [suggestedCategory, "Authentic", "Consecrated", "Nepal Origin"]
+    };
+    return res.json({
+      success: true,
+      data: fallbackResult,
+      ...fallbackResult
     });
 
   } catch (err) {
@@ -1497,11 +1540,11 @@ Output ONLY the pure HTML body itself.`
 }
 
 /**
- * Generate Product Keywords & Vedic SEO using NVIDIA NIM
+ * Generate Product Keywords & Vedic SEO using NVIDIA NIM (Nemotron 120B), Gemini fallback & Vedic Knowledge Base
  */
 export async function generateProductKeywords(req, res, next) {
   try {
-    const { name, category, origin, mukhi } = req.body;
+    const { name, category, origin, mukhi, language = "both" } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: "Product name is required" });
     }
@@ -1509,7 +1552,77 @@ export async function generateProductKeywords(req, res, next) {
     const cleanName = name.trim();
     const mukhiNum = extractMukhiNumber(cleanName);
     const inferredMukhi = mukhiNum ? `${mukhiNum} Mukhi` : (mukhi || "");
+    const beadKnowledge = mukhiNum && VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)] ? VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)] : null;
 
+    // Helper to build comprehensive Vedic keywords from knowledge base
+    const buildVedicFallbackData = () => {
+      const kwSet = new Set();
+      const tagsSet = new Set();
+
+      // Base variations
+      kwSet.add(cleanName.toLowerCase());
+      kwSet.add(`${cleanName.toLowerCase()} price`);
+      kwSet.add(`buy ${cleanName.toLowerCase()} online`);
+      kwSet.add(`original ${cleanName.toLowerCase()}`);
+      kwSet.add(`lab certified ${cleanName.toLowerCase()}`);
+      kwSet.add(`authentic ${cleanName.toLowerCase()}`);
+      kwSet.add(`${cleanName.toLowerCase()} benefits`);
+      kwSet.add(`${cleanName.toLowerCase()} dharan vidhi`);
+      kwSet.add(`${cleanName.toLowerCase()} nepal`);
+
+      // Hindi searches
+      kwSet.add(`${cleanName.toLowerCase()} ke fayde`);
+      kwSet.add(`asli ${cleanName.toLowerCase()}`);
+      kwSet.add(`${cleanName.toLowerCase()} pehanne ke niyam`);
+      kwSet.add(`nepali rudraksha store`);
+      kwSet.add(`haridwar consecrated rudraksha`);
+      kwSet.add(`certified rudraksh online`);
+
+      tagsSet.add(category || "Rudraksha");
+      tagsSet.add("Authentic");
+      tagsSet.add("Lab Certified");
+      tagsSet.add("Prana Pratishtha");
+      tagsSet.add(origin || "Nepal Origin");
+
+      let rulingPlanet = "";
+      let deity = "";
+      let zodiacSigns = [];
+      let highlight = `100% Original ${origin || "Nepal"} Rudraksha • Certified & Energized`;
+
+      if (beadKnowledge) {
+        rulingPlanet = beadKnowledge.planet || "";
+        deity = beadKnowledge.deity || "";
+        zodiacSigns = beadKnowledge.rashis || [];
+        highlight = beadKnowledge.primaryBenefits ? `${beadKnowledge.primaryBenefits.slice(0, 100)}...` : highlight;
+
+        if (Array.isArray(beadKnowledge.keywords)) {
+          beadKnowledge.keywords.forEach(k => kwSet.add(k.toLowerCase()));
+        }
+        if (beadKnowledge.beejMantra) {
+          kwSet.add(`${cleanName.toLowerCase()} mantra`);
+        }
+        tagsSet.add(`${mukhiNum} Mukhi`);
+        if (rulingPlanet) tagsSet.add(`${rulingPlanet} Shanti`);
+      }
+
+      const kwList = Array.from(kwSet).filter(Boolean);
+      const tagList = Array.from(tagsSet).filter(Boolean);
+
+      return {
+        keywords: kwList,
+        searchKeywords: kwList,
+        tags: tagList,
+        subCategory: beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : (category || "Rudraksha"),
+        mukhi: inferredMukhi || (beadKnowledge ? `${mukhiNum} Mukhi` : ""),
+        rulingPlanet: rulingPlanet || "Jupiter (Guru)",
+        deity: deity || "Lord Shiva (भगवान शिव)",
+        origin: origin || "Nepal",
+        zodiac: zodiacSigns.length > 0 ? zodiacSigns : ["All Rashis (Universal / सर्व कल्याणकारी)"],
+        highlight: highlight
+      };
+    };
+
+    // Primary: NVIDIA NIM (Nemotron 120B)
     const nvidiaClient = getNvidiaClient();
     if (nvidiaClient) {
       for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
@@ -1519,36 +1632,105 @@ export async function generateProductKeywords(req, res, next) {
             messages: [
               {
                 role: "system",
-                content: `You are an elite e-commerce search algorithm specialist for authentic Rudraksha items. Output clean JSON only with keys: keywords, tags, subCategory, mukhi, rulingPlanet, deity, origin, highlight.`
+                content: `You are an elite Vedic Astrological SEO and high-volume e-commerce search algorithm specialist for Aura Rudraksha.
+Generate high-converting, accurate search keywords, tags, ruling planet, deity, and zodiac compatibility.
+Output ONLY a clean JSON object with keys:
+{
+  "keywords": ["keyword 1", "keyword 2", ... at least 15 comprehensive search terms in English & Hinglish],
+  "tags": ["tag 1", "tag 2", ...],
+  "subCategory": "Sub category string",
+  "mukhi": "e.g. 5 Mukhi",
+  "rulingPlanet": "e.g. Jupiter (गुरु)",
+  "deity": "e.g. Lord Shiva",
+  "origin": "Nepal",
+  "zodiac": ["Leo (सिंह)", ...],
+  "highlight": "Short 1-line spiritual summary"
+}`
               },
               {
                 role: "user",
-                content: `Generate high-ranking search keywords for "${cleanName}" (${category || 'Rudraksha'}).`
+                content: `Generate high-ranking Vedic SEO search keywords, tags, planet, deity, and rashis for product "${cleanName}" (${category || 'Rudraksha'}, Origin: ${origin || 'Nepal'}). Language preference: ${language}.`
               }
             ],
-            temperature: 0.3,
-            max_tokens: 800
+            temperature: 0.25,
+            max_tokens: 1000
           });
 
           const rawText = completion.choices?.[0]?.message?.content || "";
           const parsed = extractStructuredAiJson(rawText);
-          if (parsed && Array.isArray(parsed.keywords)) {
-            return res.json({ success: true, ...parsed });
+          if (parsed && Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
+            const fallbackBase = buildVedicFallbackData();
+            const mergedKeywords = Array.from(new Set([...(parsed.keywords || []), ...fallbackBase.keywords])).filter(Boolean);
+            const mergedTags = Array.from(new Set([...(parsed.tags || []), ...fallbackBase.tags])).filter(Boolean);
+            const responseData = {
+              keywords: mergedKeywords,
+              searchKeywords: mergedKeywords,
+              tags: mergedTags,
+              subCategory: parsed.subCategory || fallbackBase.subCategory,
+              mukhi: parsed.mukhi || inferredMukhi || fallbackBase.mukhi,
+              rulingPlanet: parsed.rulingPlanet || fallbackBase.rulingPlanet,
+              deity: parsed.deity || fallbackBase.deity,
+              origin: parsed.origin || origin || "Nepal",
+              zodiac: Array.isArray(parsed.zodiac) && parsed.zodiac.length > 0 ? parsed.zodiac : fallbackBase.zodiac,
+              highlight: parsed.highlight || fallbackBase.highlight
+            };
+
+            return res.json({
+              success: true,
+              data: responseData,
+              ...responseData
+            });
           }
         } catch (nimErr) {
-          console.warn(`[Aura AI] Keywords generation notice (${modelCandidate}):`, nimErr?.message || nimErr);
+          console.warn(`[Aura AI] Nemotron keywords generation notice (${modelCandidate}):`, nimErr?.message || nimErr);
         }
       }
     }
 
+    // Secondary: Gemini Flash Fallback
+    const geminiAi = getGeminiClient();
+    if (geminiAi) {
+      try {
+        const geminiRes = await geminiAi.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `Generate Vedic SEO keywords JSON for Rudraksha product "${cleanName}". Return JSON with keys: keywords (array of 15+ items), tags (array), subCategory, mukhi, rulingPlanet, deity, origin, zodiac (array), highlight.`
+        });
+        const gText = geminiRes?.text || "";
+        const parsed = extractStructuredAiJson(gText);
+        if (parsed && Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
+          const fallbackBase = buildVedicFallbackData();
+          const mergedKeywords = Array.from(new Set([...(parsed.keywords || []), ...fallbackBase.keywords])).filter(Boolean);
+          const mergedTags = Array.from(new Set([...(parsed.tags || []), ...fallbackBase.tags])).filter(Boolean);
+          const responseData = {
+            keywords: mergedKeywords,
+            searchKeywords: mergedKeywords,
+            tags: mergedTags,
+            subCategory: parsed.subCategory || fallbackBase.subCategory,
+            mukhi: parsed.mukhi || inferredMukhi || fallbackBase.mukhi,
+            rulingPlanet: parsed.rulingPlanet || fallbackBase.rulingPlanet,
+            deity: parsed.deity || fallbackBase.deity,
+            origin: parsed.origin || origin || "Nepal",
+            zodiac: Array.isArray(parsed.zodiac) && parsed.zodiac.length > 0 ? parsed.zodiac : fallbackBase.zodiac,
+            highlight: parsed.highlight || fallbackBase.highlight
+          };
+
+          return res.json({
+            success: true,
+            data: responseData,
+            ...responseData
+          });
+        }
+      } catch (gErr) {
+        console.warn("[Aura AI] Gemini keywords generation notice:", gErr?.message || gErr);
+      }
+    }
+
+    // Tertiary: Guaranteed Authentic Vedic Knowledge Base
+    const fallbackData = buildVedicFallbackData();
     return res.json({
       success: true,
-      keywords: [cleanName, `${cleanName} price`, `buy ${cleanName}`, "original nepali rudraksha", "lab certified rudraksha", "haridwar consecrated bead"],
-      tags: [category || "Rudraksha", "Authentic", "Consecrated", "Nepal"],
-      subCategory: category || "Rudraksha",
-      mukhi: inferredMukhi,
-      origin: origin || "Nepal",
-      highlight: "100% Consecrated • Authentic Nepal Bead"
+      data: fallbackData,
+      ...fallbackData
     });
 
   } catch (err) {
