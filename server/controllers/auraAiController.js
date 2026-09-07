@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
@@ -95,6 +96,24 @@ export function getNvidiaClient() {
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM client:", err?.message || err);
+    return null;
+  }
+}
+
+export function getGeminiClient() {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) return null;
+  try {
+    return new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  } catch (err) {
+    console.warn("Could not initialize Gemini client:", err?.message || err);
     return null;
   }
 }
@@ -554,6 +573,25 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
     }
 
     if (!aiInterpretation.trim()) {
+      const geminiClient = getGeminiClient();
+      if (geminiClient) {
+        try {
+          const resp = await geminiClient.models.generateContent({
+            model: "gemini-3.8-flash",
+            contents: astroPrompt,
+            config: {
+              systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
+              temperature: 0.35,
+            }
+          });
+          if (resp.text) aiInterpretation = resp.text;
+        } catch (gErr) {
+          console.warn("[Kundali Endpoint] Gemini notice:", gErr?.message || gErr);
+        }
+      }
+    }
+
+    if (!aiInterpretation.trim()) {
       aiInterpretation = `🙏 **जय श्री राम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक खगोलीय विश्लेषण के अनुसार, आपका जन्म **${kundaliData.astronomicalKundali.lagna.rashiHindi} लग्न** एवं **${kundaliData.astronomicalKundali.chandraRashi.rashiHindi} राशि** में हुआ है। आपका जन्म नक्षत्र **${kundaliData.astronomicalKundali.chandraRashi.nakshatra}** (पद ${kundaliData.astronomicalKundali.chandraRashi.pada}) है।\n\nवर्तमान में आप पर **${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} महादशा** का प्रभाव है। आपके लग्न एवं राशि के स्वामी की अनुकूलता तथा आपके संकल्प की सिद्धि हेतु प्राण-प्रतिष्ठित **${kundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** धारण करना आपके लिए अत्यंत कल्याणकारी रहेगा।`;
     }
 
@@ -965,7 +1003,37 @@ ${memoryContextText || "Guest shopper."}`;
         }
       }
 
-      // If streaming could not produce output, generate fallback
+      // If streaming could not produce output, try Gemini fallback before static fallback
+      if (!streamSucceeded && !clientDisconnected) {
+        const geminiClient = getGeminiClient();
+        if (geminiClient) {
+          try {
+            const geminiPrompt = (nimMessages || []).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+            const streamCompletion = await geminiClient.models.generateContentStream({
+              model: "gemini-3.8-flash",
+              contents: geminiPrompt,
+              config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.35,
+              }
+            });
+            for await (const chunk of streamCompletion) {
+              if (clientDisconnected) break;
+              if (chunk.text) {
+                fullStreamedText += chunk.text;
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunk.text })}\n\n`);
+              }
+            }
+            if (fullStreamedText.trim()) {
+              streamSucceeded = true;
+            }
+          } catch (gStreamErr) {
+            console.warn("[Aura AI Gemini Streaming Notice]:", gStreamErr?.message || gStreamErr);
+          }
+        }
+      }
+
+      // If streaming still could not produce output, generate fallback
       if (!streamSucceeded && !clientDisconnected) {
         let fallbackText = "";
         if (mode === "panditji") {
@@ -1086,7 +1154,31 @@ ${memoryContextText || "Guest shopper."}`;
       }
     }
 
-    // Deterministic Vedic / Store Fallback if NVIDIA NIM is momentarily disconnected
+    // Try Gemini fallback if NVIDIA NIM was not available or didn't return text
+    if (!generatedViaNvidia || !aiResponseText.trim()) {
+      const geminiClient = getGeminiClient();
+      if (geminiClient) {
+        try {
+          const geminiPrompt = (nimMessages || []).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+          const resp = await geminiClient.models.generateContent({
+            model: "gemini-3.8-flash",
+            contents: geminiPrompt,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.35,
+            }
+          });
+          if (resp.text && resp.text.trim()) {
+            aiResponseText = resp.text;
+            generatedViaNvidia = true;
+          }
+        } catch (gErr) {
+          console.warn("[Aura AI Gemini Notice]:", gErr?.message || gErr);
+        }
+      }
+    }
+
+    // Deterministic Vedic / Store Fallback if AI models are momentarily disconnected
     if (!generatedViaNvidia || !aiResponseText.trim()) {
       if (mode === "panditji") {
         if (calculatedKundaliData) {
