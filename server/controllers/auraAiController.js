@@ -751,10 +751,11 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    const storeCatalogPromptSnippet = (allStoreProds || []).slice(0, 45).map(p => {
+    const storeCatalogPromptSnippet = (allStoreProds || []).slice(0, 50).map(p => {
       const pPrice = Number(p.price) || 0;
-      const slug = p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : p.id);
-      return `- ${p.name} | Price: ₹${pPrice} | Category: ${p.category || 'Rudraksha'} | Link: /product/${slug}`;
+      const pId = String(p.id || p._id || "");
+      const slug = p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : pId);
+      return `- Product Name: "${p.name}" | ID: ${pId} | Price: ₹${pPrice} | Category: ${p.category || 'Rudraksha'} | Valid Link: /product/${slug} (or /product/${pId})`;
     }).join("\n");
 
     const urlAndCatalogRulesText = `
@@ -771,13 +772,17 @@ WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
   - Free Kundali & Zodiac Analysis: https://aura-rudraksha.vercel.app/zodiac (or /zodiac)
 - When user asks "What is the website URL?", "Website link do", or "Where to buy?", ALWAYS provide: https://aura-rudraksha.vercel.app (or https://aurarudraksha.com).
 - NEVER generate or hallucinate fake external domain URLs (like example.com or random fake links).
-- NEVER invent fake product names. ONLY recommend real products from the official catalog below:
+- STRICT PRODUCT CATALOG & LINKING MANDATE:
+  - NEVER invent, hallucinate, or suggest fake product names, fake prices, or fake links.
+  - ONLY recommend real products from the official catalog below.
+  - Whenever linking to a product, ALWAYS use its exact Valid Link from the catalog below in markdown format:
+    e.g. [Product Name](/product/${allStoreProds[0]?.slug || "slug"}) or [Product Name](/product/${allStoreProds[0]?.id || "id"})
 
 REAL STORE PRODUCT CATALOG:
 ${storeCatalogPromptSnippet}
 
-LINK FORMAT:
-- Use markdown links like [Product Name](/product/slug) or [Shop All](/shop).`;
+LINK FORMAT RULES:
+- Use relative markdown links: [Product Name](/product/slug) or [Shop All](/shop).`;
 
     // 5. Retrieve Live RAG Knowledge Documents & Memories
     const ragDocs = await retrieveRagContext(message || (mode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 3);

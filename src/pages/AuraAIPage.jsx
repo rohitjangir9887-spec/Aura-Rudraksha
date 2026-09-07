@@ -24,7 +24,8 @@ import {
   HeartHandshake,
   MessageSquare,
   Sparkle,
-  Zap
+  Zap,
+  ArrowDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
@@ -160,17 +161,53 @@ export function AuraAIPage() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, []);
 
-  // Only scroll the internal chat container when messages change after initial mount (without moving window)
+  const userHasScrolledUpRef = useRef(false);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+
+  const handleScroll = () => {
+    if (!chatScrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatScrollContainerRef.current;
+    const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
+    const isScrolledUp = distanceToBottom > 35;
+    userHasScrolledUpRef.current = isScrolledUp;
+    setShowJumpToBottom(isScrolledUp && scrollHeight > clientHeight + 80);
+  };
+
+  const handleWheel = (e) => {
+    if (e.deltaY < 0) {
+      userHasScrolledUpRef.current = true;
+      setShowJumpToBottom(true);
+    }
+  };
+
+  const touchStartYRef = useRef(0);
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches[0]) {
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches && e.touches[0]) {
+      const deltaY = e.touches[0].clientY - touchStartYRef.current;
+      if (deltaY > 5 && chatScrollContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = chatScrollContainerRef.current;
+        if (scrollHeight - (scrollTop + clientHeight) > 20) {
+          userHasScrolledUpRef.current = true;
+          setShowJumpToBottom(true);
+        }
+      }
+    }
+  };
+
+  // Only scroll internal chat container when messages change if user has not scrolled up
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    if (chatScrollContainerRef.current) {
-      chatScrollContainerRef.current.scrollTo({
-        top: chatScrollContainerRef.current.scrollHeight,
-        behavior: "smooth"
-      });
+    if (!userHasScrolledUpRef.current && chatScrollContainerRef.current) {
+      chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
     }
   }, [messages, loading]);
 
@@ -189,6 +226,11 @@ export function AuraAIPage() {
     setMessages(currentMsgs);
     if (!customText) setInput("");
     setMobileTab("chat");
+    userHasScrolledUpRef.current = false;
+    setShowJumpToBottom(false);
+    if (chatScrollContainerRef.current) {
+      chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
+    }
 
     // Reset and Start Live Status Tracking
     setLastUserQuery(textToSend.trim());
@@ -614,6 +656,10 @@ export function AuraAIPage() {
                   : ""
               }`} 
               ref={chatScrollContainerRef}
+              onScroll={handleScroll}
+              onWheel={handleWheel}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
             >
               {messages.map((m, index) => {
                 // Session divider
@@ -873,6 +919,42 @@ export function AuraAIPage() {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Smart Jump to Latest Button */}
+            {showJumpToBottom && (
+              <button
+                type="button"
+                onClick={() => {
+                  userHasScrolledUpRef.current = false;
+                  setShowJumpToBottom(false);
+                  if (chatScrollContainerRef.current) {
+                    chatScrollContainerRef.current.scrollTo({ top: chatScrollContainerRef.current.scrollHeight, behavior: "smooth" });
+                  }
+                }}
+                className="aura-ai-jump-bottom-btn"
+                style={{
+                  position: "absolute",
+                  bottom: "95px",
+                  right: "24px",
+                  zIndex: 35,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  background: "linear-gradient(135deg, #a54d2b 0%, #7d3318 100%)",
+                  color: "#ffffff",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  boxShadow: "0 4px 12px rgba(125, 51, 24, 0.35)",
+                  border: "1px solid #ffd700",
+                  cursor: "pointer"
+                }}
+              >
+                <ArrowDown size={12} />
+                <span>Jump to latest</span>
+              </button>
+            )}
 
             {/* Input Bar */}
             <div className="aura-ai-page-input-area">

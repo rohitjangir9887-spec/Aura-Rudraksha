@@ -134,8 +134,32 @@ export async function getProductById(req, res, next) {
     const { id } = req.params;
     const cleanId = String(id).trim();
 
+    const findInMemory = (targetId) => {
+      const cleanTarget = targetId.toLowerCase();
+      // 1. Exact match
+      let p = inMemoryStore.products.find(x => 
+        String(x.id).toLowerCase() === cleanTarget || 
+        String(x._id || "").toLowerCase() === cleanTarget ||
+        String(x.slug || "").toLowerCase() === cleanTarget
+      );
+      // 2. Slugified name or partial match
+      if (!p) {
+        p = inMemoryStore.products.find(x => {
+          const xName = String(x.name || "").toLowerCase();
+          const xSlugified = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+          const xSlug = String(x.slug || "").toLowerCase();
+          return xSlugified === cleanTarget || 
+                 (cleanTarget.length >= 3 && xSlugified.includes(cleanTarget)) ||
+                 (cleanTarget.length >= 3 && cleanTarget.includes(xSlugified)) ||
+                 (cleanTarget.length >= 3 && xSlug.includes(cleanTarget)) ||
+                 (cleanTarget.length >= 3 && cleanTarget.includes(xSlug));
+        });
+      }
+      return p;
+    };
+
     if (!isDbConnected()) {
-      const product = inMemoryStore.products.find(p => String(p.id) === cleanId || p.slug === cleanId);
+      const product = findInMemory(cleanId);
       if (!product) {
         return res.status(404).json({ success: false, message: "Product not found" });
       }
@@ -160,6 +184,23 @@ export async function getProductById(req, res, next) {
     }).lean();
 
     if (!product) {
+      // Secondary fallback search in MongoDB by slugified name or regex
+      const allProds = await Product.find().lean();
+      const cleanTarget = cleanId.toLowerCase();
+      product = allProds.find(p => {
+        const pSlug = String(p.slug || "").toLowerCase();
+        const pName = String(p.name || "").toLowerCase();
+        const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        return pSlug === cleanTarget || 
+               pSlugifiedName === cleanTarget || 
+               (cleanTarget.length >= 3 && pSlug.includes(cleanTarget)) ||
+               (cleanTarget.length >= 3 && cleanTarget.includes(pSlug)) ||
+               (cleanTarget.length >= 3 && pSlugifiedName.includes(cleanTarget)) ||
+               (cleanTarget.length >= 3 && cleanTarget.includes(pSlugifiedName));
+      });
+    }
+
+    if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
@@ -176,7 +217,12 @@ export async function getProductById(req, res, next) {
   } catch (err) {
     console.warn("Notice in getProductById, serving in-memory product fallback:", err.message);
     const cleanId = String(req.params.id || "").trim();
-    const product = inMemoryStore.products.find(p => String(p.id) === cleanId || p.slug === cleanId);
+    const cleanTarget = cleanId.toLowerCase();
+    const product = inMemoryStore.products.find(p => {
+      const pSlug = String(p.slug || "").toLowerCase();
+      const pSlugified = String(p.name || "").toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      return String(p.id).toLowerCase() === cleanTarget || pSlug === cleanTarget || pSlugified === cleanTarget;
+    });
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
@@ -219,10 +265,12 @@ export async function createProduct(req, res, next) {
 
     const id = data.id || Date.now().toString();
     const normalizedStatus = normalizeProductStatus(data.status, "Draft");
+    const computedSlug = data.slug || (data.name ? String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-") : String(id));
 
     const productPayload = {
       ...data,
       id,
+      slug: computedSlug,
       status: normalizedStatus,
       tags: Array.isArray(data.tags) ? data.tags : [],
       keywords: Array.isArray(data.keywords) ? data.keywords : (Array.isArray(data.searchKeywords) ? data.searchKeywords : []),
@@ -291,6 +339,9 @@ export async function updateProduct(req, res, next) {
     const data = pickFields(rawBody, PRODUCT_FIELDS);
 
     const updatePayload = { ...data, id: String(id) };
+    if (data.name && !data.slug) {
+      updatePayload.slug = String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
+    }
     if (data.tags !== undefined) updatePayload.tags = Array.isArray(data.tags) ? data.tags : [];
     if (data.keywords !== undefined) {
       updatePayload.keywords = Array.isArray(data.keywords) ? data.keywords : [];

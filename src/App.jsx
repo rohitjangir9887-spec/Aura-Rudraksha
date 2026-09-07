@@ -59,8 +59,7 @@ const Wholesale = safeLazy(() => import("./pages/Wholesale").then(m => ({ defaul
 const ContactUs = safeLazy(() => import("./pages/ContactUs").then(m => ({ default: m.ContactUs })));
 const MobileDesignPage = safeLazy(() => import("./pages/MobileDesignPage").then(m => ({ default: m.MobileDesignPage })));
 
-// Lazy-loaded so customer first-paint stays fast and website never blocks on AI
-const AuraAIFloating = safeLazy(() => import("./components/AuraAIFloating").then(m => ({ default: m.AuraAIFloating })));
+import { AuraAIFloating } from "./components/AuraAIFloating";
 
 const AdminLogin = safeLazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = safeLazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));

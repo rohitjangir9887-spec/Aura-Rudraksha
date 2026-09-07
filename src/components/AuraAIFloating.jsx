@@ -122,16 +122,43 @@ export function AuraAIFloating() {
   });
 
   // Smart Scroll Lock & Jump to Bottom states
-  const isNearBottomRef = useRef(true);
+  const userHasScrolledUpRef = useRef(false);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   const handleScroll = () => {
     if (!bodyScrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = bodyScrollRef.current;
     const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
-    const isNear = distanceToBottom <= 80;
-    isNearBottomRef.current = isNear;
-    setShowJumpToBottom(!isNear && scrollHeight > clientHeight + 100);
+    const isScrolledUp = distanceToBottom > 35;
+    userHasScrolledUpRef.current = isScrolledUp;
+    setShowJumpToBottom(isScrolledUp && scrollHeight > clientHeight + 80);
+  };
+
+  const handleWheel = (e) => {
+    if (e.deltaY < 0) {
+      userHasScrolledUpRef.current = true;
+      setShowJumpToBottom(true);
+    }
+  };
+
+  const touchStartYRef = useRef(0);
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches[0]) {
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches && e.touches[0]) {
+      const deltaY = e.touches[0].clientY - touchStartYRef.current;
+      if (deltaY > 5 && bodyScrollRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = bodyScrollRef.current;
+        if (scrollHeight - (scrollTop + clientHeight) > 20) {
+          userHasScrolledUpRef.current = true;
+          setShowJumpToBottom(true);
+        }
+      }
+    }
   };
 
   // Spiritual / Shopping Notepad states
@@ -305,6 +332,10 @@ export function AuraAIFloating() {
     const handleOpenChange = (e) => {
       if (typeof e.detail === "boolean") {
         setIsOpenState(e.detail);
+        if (e.detail) {
+          setIsDismissed(false);
+          auraChatStore.setFloatingDismissed(false);
+        }
       }
     };
 
@@ -354,9 +385,9 @@ export function AuraAIFloating() {
     };
   }, [mode]);
 
-  // Scroll message area only (does not scroll page)
+  // Scroll message area only when new messages arrive UNLESS user has manually scrolled up
   useEffect(() => {
-    if (isOpen && bodyScrollRef.current) {
+    if (isOpen && bodyScrollRef.current && !userHasScrolledUpRef.current) {
       bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
     }
   }, [messages, isOpen, loading, isFullWindow]);
@@ -380,10 +411,13 @@ export function AuraAIFloating() {
   const isAdminPage = path.startsWith("/admin");
   const isDedicatedAiPage = path === "/aura-ai";
 
-  if (settings.enabled === false || isAdminPage || isDedicatedAiPage) {
+  const isAiEnabled = settings?.enabled !== false;
+  const isFloatingVisible = settings?.showFloatingButton !== false;
+
+  if (!isAiEnabled || isAdminPage || isDedicatedAiPage) {
     return null;
   }
-  if (!isOpen && settings.showFloatingButton === false) {
+  if (!isOpen && !isFloatingVisible) {
     return null;
   }
 
@@ -406,6 +440,8 @@ export function AuraAIFloating() {
     const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
+    userHasScrolledUpRef.current = false;
+    setShowJumpToBottom(false);
     if (bodyScrollRef.current) {
       bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
     }
@@ -475,9 +511,6 @@ export function AuraAIFloating() {
             }
             return [...prev, liveMsg];
           });
-          if (isNearBottomRef.current && bodyScrollRef.current) {
-            bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
-          }
         },
         onDone: (finalData) => {
           if (timerRef.current) {
@@ -728,20 +761,11 @@ export function AuraAIFloating() {
               id="aura-ai-floating-dismiss"
               type="button"
               className="aura-ai-floating-dismiss"
-              onClick={handleDismiss}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
+              onClick={(e) => {
                 e.stopPropagation();
                 handleDismiss(e);
               }}
-              title="Hide floating button from all pages"
+              title="Hide floating button"
               aria-label="Hide Aura AI floating button"
             >
               <X size={12} />
@@ -1148,6 +1172,9 @@ export function AuraAIFloating() {
               <div 
                 ref={bodyScrollRef}
                 onScroll={handleScroll}
+                onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
                 className={`aura-ai-body ${
                   refreshPhase === "fading-out" 
                     ? "aura-ai-refresh-fading-out" 
@@ -1541,10 +1568,10 @@ export function AuraAIFloating() {
                 <button
                   type="button"
                   onClick={() => {
+                    userHasScrolledUpRef.current = false;
+                    setShowJumpToBottom(false);
                     if (bodyScrollRef.current) {
                       bodyScrollRef.current.scrollTo({ top: bodyScrollRef.current.scrollHeight, behavior: "smooth" });
-                      isNearBottomRef.current = true;
-                      setShowJumpToBottom(false);
                     }
                   }}
                   className="aura-ai-jump-bottom-btn"

@@ -759,7 +759,8 @@ export const db = {
     const target = raw.toLowerCase();
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
 
-    const p = storeCache.products.find(x => {
+    // 1. Exact match on id, _id, or slug
+    let p = storeCache.products.find(x => {
       if (!x) return false;
       const xId = String(x.id || "").toLowerCase();
       const xMongoId = String(x._id || "").toLowerCase();
@@ -772,10 +773,27 @@ export const db = {
       return false;
     });
 
+    // 2. Secondary fallback search by slugified name or fuzzy matching
+    if (!p) {
+      p = storeCache.products.find(x => {
+        if (!x) return false;
+        const xName = String(x.name || "").toLowerCase();
+        const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        const xSlug = String(x.slug || "").toLowerCase();
+
+        if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget)) return true;
+        if (xSlug && slugTarget.length >= 3 && (xSlug.includes(slugTarget) || slugTarget.includes(xSlug))) return true;
+        if (xSlugifiedName && slugTarget.length >= 3 && (xSlugifiedName.includes(slugTarget) || slugTarget.includes(xSlugifiedName))) return true;
+        if (xName && target.length >= 3 && (xName.includes(target) || target.includes(xName))) return true;
+        return false;
+      });
+    }
+
     if (!p) return null;
     return {
       ...p,
       id: String(p.id || p._id),
+      slug: p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : String(p.id || p._id)),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
