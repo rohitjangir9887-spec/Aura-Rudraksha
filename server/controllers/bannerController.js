@@ -6,11 +6,11 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 export async function getBanners(req, res, next) {
   try {
     if (!isDbConnected()) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
       const bannerUrls = inMemoryStore.banners.map(b => typeof b === "string" ? b : (b.image || b.url || ""));
       return res.json({ success: true, data: bannerUrls, full: inMemoryStore.banners });
     }
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
     const bannerUrls = banners.map(b => b.image || b);
     return res.json({ success: true, data: bannerUrls, full: banners });

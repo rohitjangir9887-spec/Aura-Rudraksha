@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 import { Countdown } from "../components/Countdown";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
@@ -226,10 +227,11 @@ export function Home() {
         {activeBanners.map((src, i) => (
           <img 
             key={`${src}-${i}`} 
-            src={src} 
+            src={getOptimizedImageUrl(src, { width: 1200, quality: 84 })} 
             alt={`Aura Sacred Banner ${i + 1}`} 
             className={`hero-slide ${i === hero ? 'active' : ''}`}
             loading={i === 0 ? "eager" : "lazy"}
+            fetchpriority={i === 0 ? "high" : "auto"}
             decoding="async"
             referrerPolicy="no-referrer"
             onLoad={() => setLoadedBanners(prev => ({ ...prev, [i]: true }))}

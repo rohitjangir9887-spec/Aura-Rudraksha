@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
+import { getOptimizedImageUrl } from "../lib/imageUtils";
 
 export function ShopByCategory() {
   const scrollRef = useRef(null);
@@ -268,7 +269,7 @@ export function ShopByCategory() {
                 }}
               >
                 <img
-                  src={cat.image}
+                  src={getOptimizedImageUrl(cat.image, { width: 360, quality: 80 })}
                   alt={cat.name}
                   loading="lazy"
                   decoding="async"

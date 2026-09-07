@@ -152,7 +152,7 @@ async function apiRequest(endpoint, options = {}) {
         signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
+          ...(options.noCache ? { "Cache-Control": "no-cache" } : {}),
           ...(token ? { "Authorization": `Bearer ${token}` } : {}),
           ...(options.headers || {})
         },
@@ -387,7 +387,7 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
-const CACHE_FRESHNESS_LIMIT = 30000; // 30 seconds for background revalidation
+const CACHE_FRESHNESS_LIMIT = 5 * 60 * 1000; // 5 minutes for temporary customer cache window
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
 
 let isInitialized = false;
@@ -471,7 +471,7 @@ export function loadCacheFromLocalStorage() {
   }
 }
 
-const PRODUCT_FRESHNESS_LIMIT = 30000; // 30s window for fast live sync
+const PRODUCT_FRESHNESS_LIMIT = 5 * 60 * 1000; // 5 minutes window for smooth repeat visits and instant reloads
 let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
 let inFlightProductsPromise = null;
 
@@ -489,7 +489,8 @@ export async function revalidateProducts(force = false) {
 
   inFlightProductsPromise = (async () => {
     try {
-      const res = await apiRequest(`/products?_t=${now}`, { noCache: true });
+      const url = force ? `/products?_t=${now}` : "/products";
+      const res = await apiRequest(url, force ? { noCache: true } : {});
       if (res?.success && Array.isArray(res.data)) {
         storeCache.dbStatus = "connected";
         const normalized = res.data.map(p => ({

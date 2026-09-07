@@ -22,14 +22,17 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath, {
-      maxAge: '1h', // Cache static assets for 1 hour
-      setHeaders: (res, path) => {
-        if (path.endsWith('.html')) {
-          // Do not cache HTML files to ensure always fresh
+      maxAge: '7d', // Cache static assets for 7 days
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          // Do not cache HTML files to ensure always fresh SPA entry
           res.setHeader('Cache-Control', 'no-cache');
-        } else if (/\.(jpg|jpeg|png|gif|svg|webp|ico|css|js|woff2?)$/i.test(path)) {
-          // Cache images and other static assets
-          res.setHeader('Cache-Control', 'public, max-age=3600');
+        } else if (/\.(jpg|jpeg|png|gif|svg|webp|ico|avif)$/i.test(filePath)) {
+          // High-performance image caching with stale-while-revalidate
+          res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+        } else if (/\.(css|js|woff2?)$/i.test(filePath)) {
+          // Bundled hashed assets can be cached aggressively
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         }
       }
     }));

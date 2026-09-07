@@ -35,10 +35,10 @@ const ACTIVE_OFFER_FIELDS = {
 export async function getActiveOffer(req, res, next) {
   try {
     if (!isDbConnected()) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
       return res.json({ success: true, data: inMemoryStore.activeOffer || null });
     }
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
     return res.json({ success: true, data: offer || null });
   } catch (err) {
@@ -78,10 +78,10 @@ export async function saveActiveOffer(req, res, next) {
 export async function getOffers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
       return res.json({ success: true, data: inMemoryStore.offers || [] });
     }
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const list = await Offer.find().sort({ order: 1 }).lean();
     return res.json({ success: true, data: list || [] });
   } catch (err) {

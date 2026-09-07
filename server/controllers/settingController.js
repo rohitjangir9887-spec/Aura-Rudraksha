@@ -109,6 +109,12 @@ export async function getSettings(req, res, next) {
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
     }
 
+    if (isAdmin) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
+    }
+
     if (!isDbConnected()) {
       return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, isAdmin) });
     }

@@ -1,4 +1,4 @@
-import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState } from "react";
@@ -36,7 +36,8 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const images = (Array.isArray(p?.images) && p.images.length > 0) 
     ? p.images 
     : getProductGalleryImages(p);
-  const displayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
+  const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
+  const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: 440, quality: 82 });
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 

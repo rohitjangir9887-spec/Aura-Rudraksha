@@ -161,7 +161,11 @@ export async function getProducts(req, res, next) {
           return s === queryStatus;
         });
       }
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+      if (isAdmin) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+      } else {
+        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+      }
       return res.json({ success: true, data: products, count: products.length });
     }
 
@@ -198,9 +202,11 @@ export async function getProducts(req, res, next) {
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
     await applyDailySalesIncrement(products);
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
+    if (isAdmin) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    }
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
     console.warn("Notice in getProducts, serving in-memory catalog fallback:", err.message);
@@ -221,7 +227,11 @@ export async function getProducts(req, res, next) {
       });
     }
     await applyDailySalesIncrement(products);
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    if (isAdmin) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    }
     return res.json({ success: true, data: products, count: products.length });
   }
 }
