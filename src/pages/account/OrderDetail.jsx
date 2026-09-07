@@ -15,12 +15,33 @@ import { emitToast } from "../../context/ToastContext";
 import { useCart } from "../../hooks/useCart";
 import { OrderSummaryCard } from "../../components/checkout/OrderSummaryCard";
 
+function formatDetailDate(raw, opts) {
+  if (!raw) return "Recently";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return "Recently";
+    return d.toLocaleDateString("en-IN", opts || { day: "numeric", month: "long", year: "numeric" });
+  } catch (_) {
+    return "Recently";
+  }
+}
+
 export function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { add } = useCart();
-  const [order, setOrder] = useState(null);
+  
+  // Try to grab from synchronous local cache first for instant 0ms rendering
+  const [order, setOrder] = useState(() => {
+    try {
+      const cached = db.getCachedMyOrders();
+      const match = (cached || []).find(o => String(o.id) === String(id) || String(o.orderNumber) === String(id));
+      return match ? db.normalizeOrder(match) : null;
+    } catch (_) {
+      return null;
+    }
+  });
   
   // Modals state
   const [cancelModal, setCancelModal] = useState(false);
@@ -28,7 +49,7 @@ export function OrderDetail() {
   const [otherReason, setOtherReason] = useState("");
   
   const [editAddressModal, setEditAddressModal] = useState(false);
-  const [editAddressForm, setEditAddressForm] = useState("");
+  const [editAddressForm, setEditAddressForm] = useState(() => order?.address || "");
   const [copiedAwb, setCopiedAwb] = useState(false);
   const [retryingPayment, setRetryingPayment] = useState(false);
 
@@ -61,24 +82,15 @@ export function OrderDetail() {
     }
   };
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !order);
   const [loadError, setLoadError] = useState("");
   const [isNotFound, setIsNotFound] = useState(false);
 
   useEffect(() => {
-    // 1. Trap Browser Back to always navigate to Home ("/")
-    window.history.pushState({ auraOrderDetailView: true }, "", window.location.href);
-
-    const handlePopState = () => {
-      navigate("/", { replace: true });
-    };
-
-    window.addEventListener("popstate", handlePopState);
-
     let isMounted = true;
 
     async function fetchOrder() {
-      setLoading(true);
+      if (!order) setLoading(true);
       setLoadError("");
       setIsNotFound(false);
       try {
@@ -89,17 +101,23 @@ export function OrderDetail() {
           setOrder(normalized);
           setEditAddressForm(normalized.address || "");
         } else if (res?.notFound || res?.status === 404) {
-          setIsNotFound(true);
-          setOrder(null);
+          if (!order) {
+            setIsNotFound(true);
+            setOrder(null);
+          }
         } else {
-          setLoadError(res?.message || "Failed to load order details.");
-          setOrder(null);
+          if (!order) {
+            setLoadError(res?.message || "Failed to load order details.");
+            setOrder(null);
+          }
         }
       } catch (err) {
         if (!isMounted) return;
         console.error("Error loading order details:", err);
-        setLoadError("Network connection error. Please check your internet.");
-        setOrder(null);
+        if (!order) {
+          setLoadError("Network connection error. Please check your internet.");
+          setOrder(null);
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -113,7 +131,6 @@ export function OrderDetail() {
 
     return () => {
       isMounted = false;
-      window.removeEventListener("popstate", handlePopState);
       unsubscribe();
     };
   }, [id, navigate]);
@@ -371,7 +388,7 @@ export function OrderDetail() {
             <h1 style={{fontFamily: 'Cormorant Garamond, serif', fontSize: 30, margin: '0 0 5px', color: '#2b170d'}}>
               Order <span style={{fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', fontSize: '24px', fontWeight: 700, fontVariantNumeric: 'tabular-nums'}}>{order.id}</span>
             </h1>
-            <p style={{color: '#806f62', fontSize: 13}}>Placed on {new Date(order.date).toLocaleDateString('en-IN', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+            <p style={{color: '#806f62', fontSize: 13}}>Placed on {formatDetailDate(order.date || order.createdAt, {day: 'numeric', month: 'long', year: 'numeric'})}</p>
           </div>
           
           <div style={{display: 'flex', gap: 10}}>
@@ -462,8 +479,8 @@ export function OrderDetail() {
               {order.paymentMode && (
                 <span>Mode: <b>{order.paymentMode}</b></span>
               )}
-              {(order.paymentDetails?.verifiedAt || (order.paymentStatus === "Paid" && order.date)) && (
-                <span>Paid Date: <b>{new Date(order.paymentDetails?.verifiedAt || order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
+              {(order.paymentDetails?.verifiedAt || (order.paymentStatus === "Paid" && (order.date || order.createdAt))) && (
+                <span>Paid Date: <b>{formatDetailDate(order.paymentDetails?.verifiedAt || order.date || order.createdAt, { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
               )}
             </div>
 
@@ -477,7 +494,7 @@ export function OrderDetail() {
                 {Array.isArray(order.refundHistory) && order.refundHistory.length > 0 && (
                   <div style={{ marginTop: 4, fontSize: 11, color: '#3b82f6' }}>
                     {order.refundHistory.map((r, idx) => (
-                      <div key={idx}>• Ref ID: <code>{r.refundId || r.refundToken}</code> — ₹{Number(r.amount).toLocaleString('en-IN')} on {new Date(r.date).toLocaleDateString('en-IN')}</div>
+                      <div key={idx}>• Ref ID: <code>{r.refundId || r.refundToken}</code> — ₹{Number(r.amount).toLocaleString('en-IN')} on {formatDetailDate(r.date)}</div>
                     ))}
                   </div>
                 )}

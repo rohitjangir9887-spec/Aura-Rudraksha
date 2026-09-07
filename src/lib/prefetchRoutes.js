@@ -74,16 +74,20 @@ export function initInstantRoutePrefetch() {
   }
 
   const preloadPriorityRoutes = () => {
-    // Only prefetch the primary shopping route after the main thread is completely quiescent
+    // Preload top high-traffic customer routes during idle time
+    prefetchRoute("product");
     prefetchRoute("shop");
+    prefetchRoute("cart");
+    prefetchRoute("orders");
+    prefetchRoute("checkout");
   };
 
-  // Wait 4 seconds after page settles before running any idle prefetch
+  // Pre-warm priority routes quickly after page settles
   if ("requestIdleCallback" in window) {
     setTimeout(() => {
-      window.requestIdleCallback(preloadPriorityRoutes, { timeout: 3000 });
-    }, 4000);
+      window.requestIdleCallback(preloadPriorityRoutes, { timeout: 2000 });
+    }, 800);
   } else {
-    setTimeout(preloadPriorityRoutes, 4500);
+    setTimeout(preloadPriorityRoutes, 1200);
   }
 }

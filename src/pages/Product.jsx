@@ -105,7 +105,22 @@ export function Product() {
     }
   };
 
+  // Immediate load & state synchronization on product ID change
   useEffect(() => {
+    // Synchronously populate product from cache if available (0ms response)
+    const syncProduct = db.getProduct(id);
+    if (syncProduct) {
+      setProduct(syncProduct);
+      setReviews(db.getReviews(syncProduct.id || syncProduct._id));
+      setLoading(false);
+      if (syncProduct.variants && syncProduct.variants.length > 0) {
+        const firstV = syncProduct.variants[0];
+        setSelectedVariant(typeof firstV === "string" ? firstV : (firstV.name || firstV.label || ""));
+      }
+    } else {
+      setLoading(true);
+    }
+
     if (window.location.hash !== "#write-review") {
       window.scrollTo(0, 0);
     } else {
@@ -121,9 +136,8 @@ export function Product() {
     // Reset origin to default Nepal on new product
     setSelectedOrigin("Nepal");
 
-    // Immediate load: silent if cache already populated
-    const hasSync = !!db.getProduct(id);
-    loadData(hasSync);
+    // Load fresh data silently if we already have the product in cache
+    loadData(!!syncProduct);
 
     const unsub = onStoreUpdate(() => {
       loadData(true);

@@ -18,6 +18,24 @@ export function getOrderProducts(o) {
   return db.normalizeOrderItems(o);
 }
 
+function getOrderTimestamp(o) {
+  if (!o) return 0;
+  const raw = o.date || o.createdAt || o.placedAt || 0;
+  const t = new Date(raw).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+function formatOrderDate(raw, opts) {
+  if (!raw) return "Recently";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return "Recently";
+    return d.toLocaleDateString("en-IN", opts || { day: "numeric", month: "short", year: "numeric" });
+  } catch (_) {
+    return "Recently";
+  }
+}
+
 function OrdersSkeleton() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
@@ -85,8 +103,12 @@ function OrdersSkeleton() {
 export function Orders() {
   const [currentUser, setCurrentUser] = useState(() => authClient.getUser());
   const [orders, setOrders] = useState(() => {
-    const cached = db.getCachedMyOrders();
-    return Array.isArray(cached) ? [...cached].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)) : [];
+    try {
+      const cached = db.getCachedMyOrders();
+      return Array.isArray(cached) ? [...cached].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a)) : [];
+    } catch (_) {
+      return [];
+    }
   });
   const [loading, setLoading] = useState(() => db.getCachedMyOrders().length === 0);
   const [loadError, setLoadError] = useState("");
@@ -110,7 +132,11 @@ export function Orders() {
       setCurrentUser(user);
 
       if (!user || user.isAnonymous) {
-        setOrders([]);
+        // Only empty if cache is also empty
+        const cached = db.getCachedMyOrders();
+        if (!cached || cached.length === 0) {
+          setOrders([]);
+        }
         setLoading(false);
         return;
       }
@@ -119,7 +145,7 @@ export function Orders() {
         const res = await db.getMyOrders();
         if (!isMounted) return;
         if (res?.success && Array.isArray(res.data)) {
-          const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+          const sorted = [...res.data].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
           setOrders(sorted);
           setLoadError("");
         } else if (orders.length === 0) {
@@ -145,7 +171,10 @@ export function Orders() {
       if (u && !u.isAnonymous) {
         loadOrders(u, false);
       } else {
-        setOrders([]);
+        const cached = db.getCachedMyOrders();
+        if (!cached || cached.length === 0) {
+          setOrders([]);
+        }
         setLoading(false);
       }
     });
@@ -168,7 +197,10 @@ export function Orders() {
   async function loadOrders(user = null, showSpinner = false) {
     const authUser = user || authClient.getUser();
     if (!authUser || authUser.isAnonymous) {
-      setOrders([]);
+      const cached = db.getCachedMyOrders();
+      if (!cached || cached.length === 0) {
+        setOrders([]);
+      }
       setLoading(false);
       return;
     }
@@ -180,7 +212,7 @@ export function Orders() {
     try {
       const res = await db.getMyOrders();
       if (res?.success && Array.isArray(res.data)) {
-        const sorted = [...res.data].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+        const sorted = [...res.data].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
         setOrders(sorted);
         setLoadError("");
       } else if (orders.length === 0) {
@@ -235,17 +267,21 @@ export function Orders() {
     }
   };
 
-  const filteredOrders = orders.filter(o => {
-    const q = searchQuery.toLowerCase().trim();
-    const idMatch = String(o.id || o.orderNumber || "").toLowerCase().includes(q);
-    const itemMatch = (o.items || []).some(item => (item.name || "").toLowerCase().includes(q));
-    const statusMatch = statusFilter === "all" || (o.status || "").toLowerCase() === statusFilter.toLowerCase();
-    
-    if (q) {
-      return (idMatch || itemMatch) && statusMatch;
-    }
-    return statusMatch;
-  });
+  const filteredOrders = React.useMemo(() => {
+    return (orders || []).filter(o => {
+      if (!o) return false;
+      const q = searchQuery.toLowerCase().trim();
+      const idMatch = String(o.id || o.orderNumber || "").toLowerCase().includes(q);
+      const parsedItems = Array.isArray(getOrderProducts(o)) ? getOrderProducts(o) : [];
+      const itemMatch = parsedItems.some(item => (item?.name || "").toLowerCase().includes(q));
+      const statusMatch = statusFilter === "all" || (o.status || "").toLowerCase() === statusFilter.toLowerCase();
+      
+      if (q) {
+        return (idMatch || itemMatch) && statusMatch;
+      }
+      return statusMatch;
+    });
+  }, [orders, searchQuery, statusFilter]);
 
   return (
     <Shell>
@@ -575,7 +611,7 @@ export function Orders() {
                               {o.orderNumber || o.id}
                             </b>
                             <span style={{ fontSize: 12, color: '#806f62' }}>
-                              • Placed on {new Date(o.date || o.createdAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              • Placed on {formatOrderDate(o.date || o.createdAt, { day: 'numeric', month: 'short', year: 'numeric' })}
                             </span>
                           </div>
                           
@@ -591,7 +627,7 @@ export function Orders() {
                               <span>PayU Ref: <code style={{ fontFamily: 'monospace', background: '#f5eee6', padding: '1px 4px', borderRadius: 3 }}>{o.mihpayid}</code></span>
                             )}
                             {paymentDate && (
-                              <span>Paid on: {new Date(paymentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                              <span>Paid on: {formatOrderDate(paymentDate, { day: 'numeric', month: 'short' })}</span>
                             )}
                           </div>
                         </div>

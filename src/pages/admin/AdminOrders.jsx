@@ -32,10 +32,42 @@ const POPULAR_COURIERS = [
   { id: "other", name: "Other / Custom Courier", urlTpl: null }
 ];
 
+const safeDate = (raw) => {
+  if (!raw) return null;
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const safeToDateString = (raw) => {
+  const d = safeDate(raw);
+  return d ? d.toDateString() : "";
+};
+
+const safeToLocaleDateString = (raw, options) => {
+  const d = safeDate(raw);
+  return d ? d.toLocaleDateString('en-IN', options) : "Recently";
+};
+
+const safeToLocaleTimeString = (raw, options) => {
+  const d = safeDate(raw);
+  return d ? d.toLocaleTimeString([], options || { hour: '2-digit', minute: '2-digit' }) : "";
+};
+
+const getOrderTimestamp = (o) => {
+  if (!o) return 0;
+  const raw = o.date || o.createdAt || 0;
+  const t = new Date(raw).getTime();
+  return isNaN(t) ? 0 : t;
+};
+
 export function AdminOrders() {
   const [orders, setOrders] = useState(() => {
-    const list = [...(db.getOrders() || [])].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
-    return list;
+    try {
+      const list = [...(db.getOrders() || [])].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
+      return list;
+    } catch (_) {
+      return [];
+    }
   });
   const [loading, setLoading] = useState(() => (db.getOrders() || []).length === 0);
   const [viewing, setViewing] = useState(null);
@@ -71,7 +103,7 @@ export function AdminOrders() {
   useEffect(() => {
     load();
     const unsub = onStoreUpdate(() => {
-      const list = [...(db.getOrders() || [])].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+      const list = [...(db.getOrders() || [])].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
       setOrders(list);
     });
     return () => unsub();
@@ -84,7 +116,7 @@ export function AdminOrders() {
     try {
       await db.fetchOrders();
     } catch (_) {}
-    const list = [...(db.getOrders() || [])].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    const list = [...(db.getOrders() || [])].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
     setOrders(list);
     setLoading(false);
   };
@@ -133,26 +165,35 @@ export function AdminOrders() {
     const now = new Date();
 
     if (dateFilter === "Today") {
-      result = result.filter(o => new Date(o.date || o.createdAt).toDateString() === todayStr);
+      result = result.filter(o => safeToDateString(o.date || o.createdAt) === todayStr);
     } else if (dateFilter === "Yesterday") {
-      result = result.filter(o => new Date(o.date || o.createdAt).toDateString() === yesterdayStr);
+      result = result.filter(o => safeToDateString(o.date || o.createdAt) === yesterdayStr);
     } else if (dateFilter === "7days") {
-      result = result.filter(o => new Date(o.date || o.createdAt) >= sevenDaysAgo);
+      result = result.filter(o => {
+        const d = safeDate(o.date || o.createdAt);
+        return d && d >= sevenDaysAgo;
+      });
     } else if (dateFilter === "month") {
       result = result.filter(o => {
-        const d = new Date(o.date || o.createdAt);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        const d = safeDate(o.date || o.createdAt);
+        return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
     } else if (dateFilter === "custom") {
       if (customStartDate) {
         const start = new Date(customStartDate);
         start.setHours(0, 0, 0, 0);
-        result = result.filter(o => new Date(o.date || o.createdAt) >= start);
+        result = result.filter(o => {
+          const d = safeDate(o.date || o.createdAt);
+          return d && d >= start;
+        });
       }
       if (customEndDate) {
         const end = new Date(customEndDate);
         end.setHours(23, 59, 59, 999);
-        result = result.filter(o => new Date(o.date || o.createdAt) <= end);
+        result = result.filter(o => {
+          const d = safeDate(o.date || o.createdAt);
+          return d && d <= end;
+        });
       }
     }
 
@@ -258,7 +299,7 @@ export function AdminOrders() {
     orders.forEach(o => {
       const amt = Number(o.finalAmount || o.amount || 0);
       const isPaid = o.paymentStatus === "Paid";
-      const isToday = new Date(o.date || o.createdAt).toDateString() === todayStr;
+      const isToday = safeToDateString(o.date || o.createdAt) === todayStr;
 
       if (isPaid) {
         totalRevenue += amt;
@@ -1393,9 +1434,9 @@ export function AdminOrders() {
                       <small style={{ display: 'block', color: '#806f62' }}>{o.phone || o.customerPhone || o.customerEmail || ''}</small>
                     </td>
                     <td>
-                      <small style={{ fontWeight: 600 }}>{new Date(o.date || o.createdAt).toLocaleDateString()}</small>
+                      <small style={{ fontWeight: 600 }}>{safeToLocaleDateString(o.date || o.createdAt)}</small>
                       <small style={{ display: 'block', color: '#806f62', fontSize: 10 }}>
-                        {new Date(o.date || o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {safeToLocaleTimeString(o.date || o.createdAt)}
                       </small>
                     </td>
                     <td>
@@ -1526,7 +1567,7 @@ export function AdminOrders() {
                   <div>
                     <span className="mobile-card-title">Order #{o.id}</span>
                     <div className="mobile-card-sub">
-                      {o.customerName || 'Guest Customer'} • {new Date(o.date || o.createdAt).toLocaleDateString()}
+                      {o.customerName || 'Guest Customer'} • {safeToLocaleDateString(o.date || o.createdAt)}
                     </div>
                   </div>
                   <select 

@@ -1,5 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
+import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck } from "lucide-react";
@@ -74,10 +75,19 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const offerTitle = offer?.title || "Special Offer";
   const offerCode = offer?.couponCode || "";
 
+  const handlePreload = () => {
+    prefetchRoute("product");
+    if (productId) {
+      prefetchPath(`/product/${productId}`);
+    }
+  };
+
   return (
     <div 
       className="aura-shop-card" 
       onClick={handleCardClick}
+      onMouseEnter={handlePreload}
+      onTouchStart={handlePreload}
       id={`product-card-${p.id}`}
     >
       {/* 1. Card Image Area */}
