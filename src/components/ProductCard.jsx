@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck } from "lucide-react";
 import { money, pct } from "../data";
+import { db } from "../lib/db";
 import { useWishlist } from "../hooks/useWishlist";
 import { useActiveOffer } from "../hooks/useActiveOffer";
 import { emitToast } from "../context/ToastContext";

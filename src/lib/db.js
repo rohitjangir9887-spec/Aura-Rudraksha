@@ -820,23 +820,25 @@ export const db = {
       raw = decodeURIComponent(raw);
     } catch (_) {}
     const target = raw.toLowerCase();
+    const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
 
-    // 1. Exact match on id, _id, or slug
+    // 1. Exact match on id, _id, or slug in memory storeCache
     let p = storeCache.products.find(x => {
       if (!x) return false;
       const xId = String(x.id || "").toLowerCase();
       const xMongoId = String(x._id || "").toLowerCase();
       const xSlug = String(x.slug || "").toLowerCase();
 
-      if (xId === target || xId === slugTarget) return true;
-      if (xMongoId && (xMongoId === target || xMongoId === slugTarget)) return true;
-      if (xSlug && (xSlug === target || xSlug === slugTarget)) return true;
+      if (xId === target || xId === slugTarget || xId === cleanId) return true;
+      if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId)) return true;
+      if (xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId)) return true;
       if (!isNaN(target) && Number(x.id) === Number(target)) return true;
+      if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
       return false;
     });
 
-    // 2. Secondary fallback search by slugified name or fuzzy matching
+    // 2. Secondary fallback search in storeCache by slugified name or fuzzy match
     if (!p) {
       p = storeCache.products.find(x => {
         if (!x) return false;
@@ -844,10 +846,29 @@ export const db = {
         const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
         const xSlug = String(x.slug || "").toLowerCase();
 
-        if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget)) return true;
-        if (xSlug && slugTarget.length >= 3 && (xSlug.includes(slugTarget) || slugTarget.includes(xSlug))) return true;
-        if (xSlugifiedName && slugTarget.length >= 3 && (xSlugifiedName.includes(slugTarget) || slugTarget.includes(xSlugifiedName))) return true;
-        if (xName && target.length >= 3 && (xName.includes(target) || target.includes(xName))) return true;
+        if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId)) return true;
+        if (xSlug && slugTarget.length >= 2 && (xSlug.includes(slugTarget) || slugTarget.includes(xSlug))) return true;
+        if (xSlugifiedName && slugTarget.length >= 2 && (xSlugifiedName.includes(slugTarget) || slugTarget.includes(xSlugifiedName))) return true;
+        if (xName && target.length >= 2 && (xName.includes(target) || target.includes(xName))) return true;
+        return false;
+      });
+    }
+
+    // 3. Fallback search in defaultProducts array for instant day-1 catalog resolution on new devices
+    if (!p && Array.isArray(defaultProducts)) {
+      p = defaultProducts.find(x => {
+        if (!x) return false;
+        const xId = String(x.id || "").toLowerCase();
+        const xMongoId = String(x._id || "").toLowerCase();
+        const xSlug = String(x.slug || "").toLowerCase();
+        const xName = String(x.name || "").toLowerCase();
+        const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+
+        if (xId === target || xId === slugTarget || xId === cleanId) return true;
+        if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId)) return true;
+        if (xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId)) return true;
+        if (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId) return true;
+        if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
         return false;
       });
     }
@@ -868,11 +889,40 @@ export const db = {
   getProductAsync: async (idOrSlug) => {
     if (!idOrSlug) return null;
 
-    // 1. Prioritize direct API lookup for freshest data (including admin sales updates & increments)
+    // STEP 1: Immediate Memory & Cache Check (0ms Response Time!)
+    const cached = db.getProduct(idOrSlug);
+    if (cached) {
+      // Background non-blocking network revalidation
+      (async () => {
+        try {
+          let cleanParam = String(idOrSlug).trim();
+          try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
+          const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 3000 });
+          if (res?.success && res.data) {
+            const p = res.data;
+            const normalized = {
+              ...p,
+              id: String(p.id || p._id),
+              mrp: p.mrp || p.comparePrice || p.price,
+              comparePrice: p.comparePrice || p.mrp || p.price,
+              images: getProductGalleryImages(p),
+              totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
+              salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
+            };
+            db.cacheProduct(normalized);
+            emitStoreUpdate("product:synced", normalized);
+          }
+        } catch (_) {}
+      })();
+
+      return cached;
+    }
+
+    // STEP 2: Fast API Fetch with 2.5s Timeout only if not present in memory
     try {
       let cleanParam = String(idOrSlug).trim();
       try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
-      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 5000 });
+      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 2500 });
       if (res?.success && res.data) {
         const p = res.data;
         const normalized = {
@@ -884,47 +934,12 @@ export const db = {
           totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
           salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
         };
-        const idx = storeCache.products.findIndex(x =>
-          String(x.id) === String(normalized.id) || (x._id && String(x._id) === String(p._id)) || (x.slug && x.slug === p.slug)
-        );
-        if (idx >= 0) {
-          storeCache.products[idx] = normalized;
-        } else {
-          storeCache.products.push(normalized);
-        }
-        try {
-          localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
-        } catch (_) {}
+        db.cacheProduct(normalized);
         return normalized;
       }
     } catch (_) {}
 
-    // 2. Fallback to in-memory storeCache if API failed or offline
-    const cached = db.getProduct(idOrSlug);
-    if (cached) return cached;
-
-    // 3. Fallback to localStorage cache if storeCache was empty
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("aura_products_cache");
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            storeCache.products = parsed;
-            const fromStorage = db.getProduct(idOrSlug);
-            if (fromStorage) return fromStorage;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 4. Fallback: wait for initial home sync if API call didn't return (capped at 2500ms)
-    try {
-      const waitPromise = db.waitForHydration();
-      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2500));
-      await Promise.race([waitPromise, timeoutPromise]);
-    } catch (_) {}
-
+    // STEP 3: Fallback check from localStorage or defaultProducts
     return db.getProduct(idOrSlug);
   },
 

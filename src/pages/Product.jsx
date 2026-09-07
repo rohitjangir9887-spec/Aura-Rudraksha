@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { 
   Star, Share2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Loader2
 } from "lucide-react";
@@ -41,10 +42,14 @@ export function Product() {
   // Core product state - check location state and immediate synchronous cache to render instantly without lag
   const initialProduct = React.useMemo(() => {
     if (routeStateProduct) {
+      const targetClean = String(id || "").toLowerCase().replace(/^(product-card-|product-)/, "");
+      const rId = String(routeStateProduct.id || "").toLowerCase();
+      const rMongoId = String(routeStateProduct._id || "").toLowerCase();
+      const rSlug = String(routeStateProduct.slug || "").toLowerCase();
       const match = 
-        String(routeStateProduct.id) === String(id) ||
-        String(routeStateProduct._id) === String(id) ||
-        String(routeStateProduct.slug) === String(id);
+        rId === String(id).toLowerCase() || rId === targetClean ||
+        rMongoId === String(id).toLowerCase() || rMongoId === targetClean ||
+        rSlug === String(id).toLowerCase() || rSlug === targetClean;
       if (match) return routeStateProduct;
     }
     return db.getProduct(id);
@@ -74,9 +79,9 @@ export function Product() {
   const ctaSectionRef = useRef(null);
 
   // Load and subscribe to database updates
-  const loadData = async (silent = false) => {
-    // If we already have a product rendered, always remain silent (no layout flash)
-    const isSilent = silent || !!initialProduct || !!db.getProduct(id);
+  const loadData = async (silent = true) => {
+    const existing = product || initialProduct || db.getProduct(id);
+    const isSilent = silent || !!existing;
     if (!isSilent) setLoading(true);
 
     try {
@@ -91,9 +96,8 @@ export function Product() {
       const isAdmin = authClient.isAdmin && authClient.isAdmin();
       const validProduct = (isDraft && !isAdmin) ? null : found;
 
-      setProduct(validProduct);
-
       if (validProduct) {
+        setProduct(prev => prev ? { ...prev, ...validProduct } : validProduct);
         setReviews(db.getReviews(validProduct.id || validProduct._id));
         if (validProduct.variants && validProduct.variants.length > 0) {
           setSelectedVariant(prev => {
@@ -112,8 +116,6 @@ export function Product() {
       setCoupons(db.getCoupons().filter(c => c.status === "Active"));
     } catch (err) {
       console.error("[Product Page] Failed to load product:", err);
-      // If we already have a product from cache, keep it rather than blanking out
-      setProduct(prev => prev || null);
       setLoading(false);
     }
   };
@@ -121,7 +123,7 @@ export function Product() {
   // Immediate load & state synchronization on product ID change
   useEffect(() => {
     // Synchronously populate product from cache if available (0ms response)
-    const syncProduct = db.getProduct(id);
+    const syncProduct = initialProduct || db.getProduct(id);
     if (syncProduct) {
       setProduct(syncProduct);
       setReviews(db.getReviews(syncProduct.id || syncProduct._id));
@@ -150,7 +152,7 @@ export function Product() {
     setSelectedOrigin("Nepal");
 
     // Load fresh data silently if we already have the product in cache
-    loadData(!!syncProduct);
+    loadData(true);
 
     const unsub = onStoreUpdate(() => {
       loadData(true);
@@ -350,7 +352,12 @@ export function Product() {
 
   return (
     <Shell>
-      <div className="aura-pdp-container">
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        className="aura-pdp-container"
+      >
         {/* 1. Breadcrumb Navigation Bar with Back Button */}
         <div className="aura-pdp-breadcrumb-bar">
           <div className="aura-breadcrumb-inner">
@@ -677,7 +684,7 @@ export function Product() {
           onAddToCart={(pId, q) => add(pId, q)}
           onBuyNow={handleBuyNow}
         />
-      </div>
+      </motion.div>
     </Shell>
   );
 }
