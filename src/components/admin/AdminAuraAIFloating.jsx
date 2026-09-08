@@ -131,10 +131,22 @@ export function AdminAuraAIFloating() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => setIsMaximized(!isMaximized)} style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsMaximized(!isMaximized)}
+                  style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '4px' }}
+                  aria-label={isMaximized ? "Minimize Aura AI" : "Maximize Aura AI"}
+                  title={isMaximized ? "Minimize" : "Maximize"}
+                >
                   {isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                 </button>
-                <button onClick={() => setIsOpen(false)} style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '4px' }}
+                  aria-label="Close Aura AI chat"
+                  title="Close"
+                >
                   <X size={20} />
                 </button>
               </div>
@@ -221,8 +233,11 @@ export function AdminAuraAIFloating() {
                 }}
               />
               <button
+                type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
+                aria-label="Send message"
+                title="Send message"
                 style={{
                   background: input.trim() && !isLoading ? '#0f172a' : '#94a3b8',
                   color: 'white',
