@@ -6,16 +6,42 @@ import { db, onStoreUpdate } from "../lib/db";
 import { PanditjiSection } from "./PanditjiSection";
 import { HomeFeaturedProductAd } from "./HomeFeaturedProductAd";
 
-export function ZodiacRudrakshaSection() {
-  const [zodiacList, setZodiacList] = useState(() => {
-    const settings = db.getSettings();
-    return settings.zodiacs || ZODIAC_SIGNS;
+import { getProductPrimaryImage } from "../lib/imageUtils";
+
+function getResolvedZodiacs() {
+  const settings = db.getSettings();
+  const rawZodiacs = settings.zodiacs || ZODIAC_SIGNS;
+  const allProducts = db.getProducts() || [];
+
+  return rawZodiacs.map(item => {
+    // If admin set a custom image explicitly, keep it
+    if (item.customImage || (item.image && !item.image.includes("placeholder.svg") && !item.image.includes("/images/product-"))) {
+      return item;
+    }
+    // Match product in DB based on recommended or productName
+    const recText = (item.recommended || item.productName || item.english || "").toLowerCase();
+    const matched = allProducts.find(p => {
+      const pName = (p.name || "").toLowerCase();
+      const pBadge = (p.badge || "").toLowerCase();
+      return (pName.length > 0 && recText.includes(pName)) || pName.includes(recText) || pBadge.includes(recText);
+    });
+
+    if (matched) {
+      const prodImg = (Array.isArray(matched.images) && matched.images[0]) ? matched.images[0] : (matched.image || "");
+      if (prodImg && !prodImg.includes("placeholder.svg")) {
+        return { ...item, image: prodImg };
+      }
+    }
+    return item;
   });
+}
+
+export function ZodiacRudrakshaSection() {
+  const [zodiacList, setZodiacList] = useState(() => getResolvedZodiacs());
 
   useEffect(() => {
     const loadZodiacs = () => {
-      const settings = db.getSettings();
-      setZodiacList(settings.zodiacs || ZODIAC_SIGNS);
+      setZodiacList(getResolvedZodiacs());
     };
     loadZodiacs();
     const unsub = onStoreUpdate(() => {

@@ -5,87 +5,99 @@ import { db, onStoreUpdate } from "../lib/db";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { OptimizedImage } from "./OptimizedImage";
 
+const DEFAULT_CATEGORIES = [
+  {
+    id: "rudraksha",
+    name: "Rudraksha",
+    desc: "Authentic Nepal beads",
+    image: "/images/product-5mukhi.jpg",
+    fallback: "/images/product-5mukhi.jpg",
+    link: "/shop?q=Rudraksha"
+  },
+  {
+    id: "malas",
+    name: "Malas",
+    desc: "108+1 Japa malas",
+    image: "/images/product-mala.jpg",
+    fallback: "/images/product-mala.jpg",
+    link: "/shop?q=Mala"
+  },
+  {
+    id: "puja-samagri",
+    name: "Puja Samagri",
+    desc: "Sacred ritual essentials",
+    image: "/images/product-7mukhi.jpg",
+    fallback: "/images/product-7mukhi.jpg",
+    link: "/shop?q=Puja"
+  },
+  {
+    id: "bracelets",
+    name: "Bracelets",
+    desc: "Energized wristbands",
+    image: "/images/product-1mukhi.jpg",
+    fallback: "/images/product-1mukhi.jpg",
+    link: "/shop?q=Bracelet"
+  },
+  {
+    id: "crystals",
+    name: "Crystals",
+    desc: "Natural healing stones",
+    image: "/images/product-11mukhi.jpg",
+    fallback: "/images/product-11mukhi.jpg",
+    link: "/shop?q=Crystal"
+  },
+  {
+    id: "spiritual-essentials",
+    name: "Spiritual Essentials",
+    desc: "Vedic divine accessories",
+    image: "/images/placeholder.svg",
+    fallback: "/images/placeholder.svg",
+    link: "/shop?q=Spiritual"
+  }
+];
+
+function getResolvedCategories() {
+  const settings = db.getSettings();
+  const rawCategories = (settings.shopCategories && settings.shopCategories.length > 0) ? settings.shopCategories : DEFAULT_CATEGORIES;
+  const allProducts = db.getProducts() || [];
+
+  return rawCategories.map(cat => {
+    // If admin set a custom image, keep it
+    if (cat.customImage || (cat.image && !cat.image.includes("images.unsplash.com") && !cat.image.includes("/images/product-"))) {
+      return cat;
+    }
+    // Lookup matching product in DB to show live image updated from Admin Dashboard
+    const catKeyword = (cat.name || cat.id || "").toLowerCase();
+    const matchedProd = allProducts.find(p => {
+      const pCat = (p.category || "").toLowerCase();
+      const pName = (p.name || "").toLowerCase();
+      return pCat.includes(catKeyword) || pName.includes(catKeyword);
+    });
+
+    if (matchedProd) {
+      const prodImg = (Array.isArray(matchedProd.images) && matchedProd.images[0]) ? matchedProd.images[0] : (matchedProd.image || "");
+      if (prodImg && !prodImg.includes("placeholder.svg")) {
+        return { ...cat, image: prodImg };
+      }
+    }
+    return cat;
+  });
+}
+
 export function ShopByCategory() {
   const scrollRef = useRef(null);
   const location = useLocation();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  const [categories, setCategories] = useState(() => {
-    const settings = db.getSettings();
-    return (settings.shopCategories && settings.shopCategories.length > 0) ? settings.shopCategories : [
-      {
-        id: "rudraksha",
-        name: "Rudraksha",
-        desc: "Authentic Nepal beads",
-        image: "https://images.unsplash.com/photo-1609357605129-26f69add5d6e?auto=format&fit=crop&w=500&q=80",
-        fallback: "/images/product-5mukhi.jpg",
-        link: "/shop?q=Rudraksha"
-      },
-      {
-        id: "malas",
-        name: "Malas",
-        desc: "108+1 Japa malas",
-        image: "/images/product-mala.jpg",
-        fallback: "/images/product-mala.jpg",
-        link: "/shop?q=Mala"
-      },
-      {
-        id: "puja-samagri",
-        name: "Puja Samagri",
-        desc: "Sacred ritual essentials",
-        image: "https://images.unsplash.com/photo-1609137144813-7d9921338f24?auto=format&fit=crop&w=500&q=80",
-        fallback: "/images/product-7mukhi.jpg",
-        link: "/shop?q=Puja"
-      },
-      {
-        id: "bracelets",
-        name: "Bracelets",
-        desc: "Energized wristbands",
-        image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=500&q=80",
-        fallback: "/images/product-1mukhi.jpg",
-        link: "/shop?q=Bracelet"
-      },
-      {
-        id: "crystals",
-        name: "Crystals",
-        desc: "Natural healing stones",
-        image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80",
-        fallback: "/images/product-11mukhi.jpg",
-        link: "/shop?q=Crystal"
-      },
-      {
-        id: "spiritual-essentials",
-        name: "Spiritual Essentials",
-        desc: "Vedic divine accessories",
-        image: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=500&q=80",
-        fallback: "/images/placeholder.svg",
-        link: "/shop?q=Spiritual"
-      }
-    ];
-  });
+  const [categories, setCategories] = useState(() => getResolvedCategories());
 
   useEffect(() => {
-    const unsub = onStoreUpdate(() => {
-      const settings = db.getSettings();
-      if (settings.shopCategories && settings.shopCategories.length > 0) {
-        setCategories((prev) => {
-          if (
-            prev &&
-            prev.length === settings.shopCategories.length &&
-            prev.every(
-              (c, i) =>
-                c.id === settings.shopCategories[i]?.id &&
-                c.name === settings.shopCategories[i]?.name &&
-                c.image === settings.shopCategories[i]?.image
-            )
-          ) {
-            return prev;
-          }
-          return settings.shopCategories;
-        });
-      }
-    });
+    const updateCategories = () => {
+      setCategories(getResolvedCategories());
+    };
+    updateCategories();
+    const unsub = onStoreUpdate(updateCategories);
     return () => unsub();
   }, [location.pathname]);
 

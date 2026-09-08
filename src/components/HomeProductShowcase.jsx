@@ -76,7 +76,7 @@ function PanditJiAvatar({ size = 34 }) {
       }}
     >
       <img
-        src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=160&auto=format&fit=crop&q=80"
+        src={getOptimizedImageUrl("https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png", { width: 160, quality: 80 })}
         alt="AI Pandit Ji"
         style={{
           width: '100%',
@@ -86,12 +86,18 @@ function PanditJiAvatar({ size = 34 }) {
           display: 'block'
         }}
         onError={(e) => {
-          e.currentTarget.style.display = 'none';
-          const fallback = e.currentTarget.parentElement.querySelector('svg');
+          const target = e.currentTarget;
+          if (target.src.includes("wsrv.nl")) {
+            target.src = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
+            return;
+          }
+          target.style.display = 'none';
+          const fallback = target.parentElement.querySelector('svg');
           if (fallback) fallback.style.display = 'block';
         }}
         loading="eager"
         decoding="async"
+        referrerPolicy="no-referrer"
       />
       <svg width={size - 2} height={size - 2} viewBox="0 0 40 40" fill="none" style={{ display: 'none' }}>
         <circle cx="20" cy="16" r="14" fill="#F5CB87" fillOpacity="0.45" />

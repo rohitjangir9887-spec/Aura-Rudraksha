@@ -317,8 +317,8 @@ const storeCache = {
   ],
   activeOffer: {
     id: "OFFER-CENTRAL-1",
-    enabled: true,
-    status: "Active",
+    enabled: false,
+    status: "Inactive",
     title: "₹200 OFF",
     subtitle: "Limited Time Festival Offer",
     couponCode: "SHRAWAN200",
@@ -343,7 +343,7 @@ const storeCache = {
     stickyEnabled: false,
     popupEnabled: false,
     timerEnabled: false,
-    marqueeEnabled: true,
+    marqueeEnabled: false,
     popupDelay: 10,
     scrollTrigger: 400,
     animationStyle: "fade"
