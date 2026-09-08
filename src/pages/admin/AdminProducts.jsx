@@ -260,7 +260,14 @@ export function AdminProducts() {
 
         const keywords = normalizeKeywordItems(rawKeywords);
         const tags = normalizeKeywordItems(rawTags);
-        const { subCategory, mukhi, rulingPlanet, deity, origin, zodiac, highlight } = payload;
+        const subCategory = payload.subCategory || data.subCategory || "";
+        const mukhi = payload.mukhi || data.mukhi || "";
+        const rulingPlanet = payload.rulingPlanet || data.rulingPlanet || "";
+        const deity = payload.deity || data.deity || "";
+        const origin = payload.origin || data.origin || "Nepal";
+        const zodiac = payload.zodiac || data.zodiac || [];
+        const highlight = payload.highlight || data.highlight || "";
+
         if (isDirectItem) {
           const currentKw = normalizeKeywordItems(productToProcess.keywords);
           const currentTags = normalizeKeywordItems(productToProcess.tags);
@@ -271,15 +278,15 @@ export function AdminProducts() {
             searchKeywords: normalizeKeywordItems([...currentKw, ...keywords]),
             tags: normalizeKeywordItems([...currentTags, ...tags]),
             seoKeywordsDetails: richMetadata.length > 0 ? richMetadata : (productToProcess.seoKeywordsDetails || []),
-            subCategory: productToProcess.subCategory || subCategory || "",
-            mukhi: productToProcess.mukhi || mukhi || "",
-            rulingPlanet: productToProcess.rulingPlanet || rulingPlanet || "",
-            deity: productToProcess.deity || deity || "",
-            origin: productToProcess.origin || origin || "Nepal",
+            subCategory: subCategory || productToProcess.subCategory || "",
+            mukhi: mukhi || productToProcess.mukhi || "",
+            rulingPlanet: rulingPlanet || productToProcess.rulingPlanet || "",
+            deity: deity || productToProcess.deity || "",
+            origin: origin || productToProcess.origin || "Nepal",
             zodiac: normalizeKeywordItems([...currentZodiac, ...normalizeKeywordItems(zodiac)])
           };
           await db.saveProduct(merged);
-          emitToast(`✨ Generated ${keywords.length} AI keywords & tags for "${productToProcess.name}"!`, "success");
+          emitToast(`✨ Generated ${keywords.length} AI keywords & Vedic attributes for "${productToProcess.name}"!`, "success");
           load();
         } else {
           setEditing(prev => {
@@ -289,22 +296,26 @@ export function AdminProducts() {
             const currentZodiac = normalizeKeywordItems(prev.zodiac);
             const updatedKw = normalizeKeywordItems([...currentKw, ...keywords]);
             const updatedTags = normalizeKeywordItems([...currentTags, ...tags]);
+            const aiZodiacList = normalizeKeywordItems(zodiac);
+            const newZodiacList = normalizeKeywordItems([...currentZodiac, ...aiZodiacList]);
+
             return {
               ...prev,
               keywords: updatedKw,
               searchKeywords: updatedKw,
               tags: updatedTags,
               seoKeywordsDetails: richMetadata.length > 0 ? richMetadata : (prev.seoKeywordsDetails || []),
-              subCategory: prev.subCategory || subCategory || prev.category || "Rudraksha",
-              mukhi: prev.mukhi || mukhi || "",
-              rulingPlanet: prev.rulingPlanet || rulingPlanet || "",
-              deity: prev.deity || deity || "",
-              origin: prev.origin || origin || "Nepal",
-              zodiac: normalizeKeywordItems([...currentZodiac, ...normalizeKeywordItems(zodiac)]),
-              highlight: prev.highlight || highlight || ""
+              // Auto-fill Vedic & Astrological Attributes from AI
+              subCategory: subCategory || prev.subCategory || prev.category || "Rudraksha",
+              mukhi: mukhi || prev.mukhi || "",
+              rulingPlanet: rulingPlanet || prev.rulingPlanet || "",
+              deity: deity || prev.deity || "",
+              origin: origin || prev.origin || "Nepal",
+              zodiac: newZodiacList.length > 0 ? newZodiacList : prev.zodiac,
+              highlight: highlight || prev.highlight || ""
             };
           });
-          emitToast(`✨ Generated ${keywords.length} AI search keywords and Vedic tags!`, "success");
+          emitToast(`✨ Generated ${keywords.length} AI search keywords & auto-filled Vedic attributes!`, "success");
         }
       } else {
         emitToast(data.message || "Failed to generate keywords. Please try again.", "error");
@@ -1478,355 +1489,441 @@ export function AdminProducts() {
               </div>
             </div>
 
-            {/* 3. Vedic & Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण) */}
-            <div>
-              <label style={{ display: 'block', fontWeight: '700', fontSize: '13px', color: '#2b170d', marginBottom: '10px' }}>
-                <Globe size={14} style={{ color: '#8a2f10', display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
-                Vedic &amp; Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण)
-              </label>
+            {/* 3. Category-Adaptive Vedic & Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण) */}
+            {(() => {
+              const currentCat = (editing.category || "").toLowerCase();
+              const isRudrakshaCat = currentCat.includes("rudraksha") || currentCat.includes("rudraksh") || currentCat === "" || !!editing.mukhi;
+              const isGemstoneCat = currentCat.includes("gem") || currentCat.includes("ratna");
+              const isMalaCat = currentCat.includes("mala") || currentCat.includes("rosary") || currentCat.includes("kanthi");
+              const isYantraCat = currentCat.includes("yantra") || currentCat.includes("kavach");
+              const isPujaCat = currentCat.includes("puja") || currentCat.includes("samagri") || currentCat.includes("sacred");
+              const isIdolCat = currentCat.includes("idol") || currentCat.includes("statue") || currentCat.includes("murti");
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
-                {/* Mukhi */}
+              // Determine category-specific labels and placeholders
+              let sectionHeader = "Vedic & Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण - रुद्राक्ष)";
+              let field1Label = "Mukhi (मुखी संख्या)";
+              let field1Placeholder = "e.g. 5 Mukhi, Gauri Shankar, Siddha Mala";
+              let originOptions = [
+                { value: "Nepal", label: "🇳🇵 Nepal (नेपाली - Default)" },
+                { value: "Java / Indonesia", label: "🇮🇩 Java / Indonesia (इंडोनेशियाई)" },
+                { value: "Haridwar", label: "🕉️ Haridwar (हरिद्वार)" },
+                { value: "Rameshwaram", label: "🔱 Rameshwaram" },
+                { value: "Himalayan", label: "🏔️ Himalayan Groves" }
+              ];
+              let deityLabel = "Ruling Deity (अधिष्ठाता देवता)";
+              let planetLabel = "Ruling Planet (स्वामी ग्रह)";
+
+              if (isGemstoneCat) {
+                sectionHeader = "Astrological & Gemological Attributes (ज्योतिषीय व रत्न विवरण - राशि रत्न)";
+                field1Label = "Gemstone Type / Cut (रत्न का प्रकार)";
+                field1Placeholder = "e.g. Yellow Sapphire / Pukhraj, Ceylon Cut";
+                originOptions = [
+                  { value: "Sri Lanka / Ceylon", label: "🇱🇰 Sri Lanka / Ceylon (सिलोन)" },
+                  { value: "Bangkok / Thailand", label: "🇹🇭 Bangkok / Thailand" },
+                  { value: "Burma / Myanmar", label: "🇲🇲 Burma / Myanmar (बर्मा)" },
+                  { value: "Zambia", label: "🇿🇲 Zambia" },
+                  { value: "Jaipur / India", label: "🇮🇳 Jaipur / India" }
+                ];
+                deityLabel = "Associated Deity (इष्ट देवता)";
+                planetLabel = "Ruling Planet (स्वामी ग्रह)";
+              } else if (isMalaCat) {
+                sectionHeader = "Spiritual & Rosary Attributes (पवित्र माला व जप विवरण)";
+                field1Label = "Bead / Rosary Type (मनके का प्रकार)";
+                field1Placeholder = "e.g. 108 Sphatik Crystal, Tulsi Wood Mala";
+                originOptions = [
+                  { value: "Haridwar", label: "🕉️ Haridwar (हरिद्वार)" },
+                  { value: "Vrindavan", label: "🌺 Vrindavan (वृंदावन)" },
+                  { value: "Himalayan Groves", label: "🏔️ Himalayan Groves" },
+                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" }
+                ];
+                deityLabel = "Sanctified Deity (इष्ट देवता)";
+                planetLabel = "Ruling Planet / Energy (स्वामी ग्रह / ऊर्जा)";
+              } else if (isYantraCat) {
+                sectionHeader = "Sacred Yantra & Energy Attributes (पवित्र यंत्र व धातु विवरण)";
+                field1Label = "Yantra Type / Metal (यंत्र का प्रकार व धातु)";
+                field1Placeholder = "e.g. Pure Copper Shree Yantra 3x3";
+                originOptions = [
+                  { value: "Haridwar", label: "🕉️ Haridwar (हरिद्वार)" },
+                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" },
+                  { value: "Rishikesh", label: "🏔️ Rishikesh" }
+                ];
+                deityLabel = "Energized Deity (अधिष्ठात्री देवी / देवता)";
+                planetLabel = "Ruling Planet / Energy (स्वामी ग्रह / ऊर्जा)";
+              } else if (isPujaCat) {
+                sectionHeader = "Purity & Ritual Attributes (पूजा सामग्री व पवित्रता विवरण)";
+                field1Label = "Item Type & Purity (सामग्री प्रकार व शुद्धता)";
+                field1Placeholder = "e.g. 100% Pure Gangajal, Natural Camphor";
+                originOptions = [
+                  { value: "Haridwar / Gangotri", label: "🕉️ Haridwar / Gangotri" },
+                  { value: "Mathura", label: "🪔 Mathura" },
+                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" }
+                ];
+                deityLabel = "Sanctified Deity (पूजा इष्ट)";
+                planetLabel = "Ritual Energy (पवित्रता व ऊर्जा)";
+              } else if (isIdolCat) {
+                sectionHeader = "Devotional & Idol Attributes (दिव्य प्रतिमा व मूर्ति विवरण)";
+                field1Label = "Idol Form & Deity (प्रतिमा स्वरूप)";
+                field1Placeholder = "e.g. Lord Shiva Brass Statue, Ganesha Idol";
+                originOptions = [
+                  { value: "Mathura / Jaipur", label: "🪔 Mathura / Jaipur" },
+                  { value: "Haridwar", label: "🕉️ Haridwar" },
+                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" }
+                ];
+                deityLabel = "Idol Deity (प्रतिमा भगवान)";
+                planetLabel = "Blessing Energy (स्वामी ग्रह / आशीर्वाद)";
+              }
+
+              return (
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                    Mukhi (मुखी संख्या)
+                  <label style={{ display: 'block', fontWeight: '700', fontSize: '13px', color: '#2b170d', marginBottom: '10px' }}>
+                    <Globe size={14} style={{ color: '#8a2f10', display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                    {sectionHeader}
                   </label>
-                  <input
-                    type="text"
-                    value={editing.mukhi || ""}
-                    onChange={e => setEditing({ ...editing, mukhi: e.target.value })}
-                    placeholder="e.g. 5 Mukhi, Gauri Shankar, Siddha Mala"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                  />
-                </div>
 
-                {/* Sub-Category / Collection */}
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                    Sub-Category / Collection
-                  </label>
-                  <input
-                    type="text"
-                    value={editing.subCategory || ""}
-                    onChange={e => setEditing({ ...editing, subCategory: e.target.value })}
-                    placeholder="e.g. 1 to 14 Mukhi Beads, Siddha Mala"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                  />
-                </div>
-
-                {/* Origin */}
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                    Primary Origin (मुख्य उत्पत्ति)
-                  </label>
-                  <select
-                    value={editing.origin || "Nepal"}
-                    onChange={e => setEditing({ ...editing, origin: e.target.value })}
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                  >
-                    <option value="Nepal">🇳🇵 Nepal (नेपाली - Default)</option>
-                    <option value="Java / Indonesia">🇮🇩 Java / Indonesia (इंडोनेशियाई)</option>
-                    <option value="Haridwar">🕉️ Haridwar (हरिद्वार)</option>
-                    <option value="Rameshwaram">🔱 Rameshwaram</option>
-                    <option value="Himalayan">🏔️ Himalayan Groves</option>
-                  </select>
-                </div>
-
-                {/* Ruling Deity */}
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                    Ruling Deity (अधिष्ठाता देवता)
-                  </label>
-                  <input
-                    type="text"
-                    value={editing.deity || ""}
-                    onChange={e => setEditing({ ...editing, deity: e.target.value })}
-                    placeholder="e.g. Lord Shiva, Kalagni Rudra, Mahalakshmi"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                  />
-                </div>
-
-                {/* Ruling Planet */}
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                    Ruling Planet (स्वामी ग्रह)
-                  </label>
-                  <input
-                    type="text"
-                    value={editing.rulingPlanet || ""}
-                    onChange={e => setEditing({ ...editing, rulingPlanet: e.target.value })}
-                    placeholder="e.g. Jupiter (गुरु), Sun (सूर्य), Venus (शुक्र)"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                  />
-                </div>
-              </div>
-
-              {/* Indonesian (Java) Origin Variant Section */}
-              <div style={{
-                background: editing.hasIndonesianVariant ? '#fdf8f4' : '#faf7f2',
-                border: editing.hasIndonesianVariant ? '1.5px solid #d97706' : '1px dashed #d5c7b8',
-                borderRadius: '8px',
-                padding: '14px',
-                marginBottom: '14px',
-                transition: 'all 0.2s ease'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', color: '#78350f' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!editing.hasIndonesianVariant}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setEditing(prev => ({
-                          ...prev,
-                          hasIndonesianVariant: checked,
-                          indonesianTitle: checked && !prev.indonesianTitle ? `${prev.name || "Rudraksha"} (Indonesian Origin / Java)` : prev.indonesianTitle,
-                          indonesianPrice: checked && !prev.indonesianPrice ? Math.round(Number(prev.price || 999) * 0.5) : prev.indonesianPrice,
-                          indonesianMrp: checked && !prev.indonesianMrp ? Math.round(Number(prev.mrp || 1999) * 0.5) : prev.indonesianMrp
-                        }));
-                      }}
-                      style={{ width: '16px', height: '16px', accentColor: '#d97706', cursor: 'pointer' }}
-                    />
-                    <span>🇮🇩 Also Offer Indonesian (Java) Variant for this Rudraksha? (इंडोनेशियाई दाना विकल्प जोड़ें)</span>
-                  </label>
-                  <span style={{ fontSize: '11.5px', color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
-                    {editing.hasIndonesianVariant ? "Active (सक्रिय)" : "Optional (वैकल्पिक)"}
-                  </span>
-                </div>
-
-                <p style={{ fontSize: '12px', color: '#6b584a', margin: '6px 0 0 24px', lineHeight: '1.4' }}>
-                  रुद्राक्ष दो प्रकार के होते हैं (नेपाली व इंडोनेशियाई)। इंडोनेशियाई दाने छोटे होते हैं और उनकी कीमत कम होती है। इसे चालू करने पर ग्राहक को प्रोडक्ट पेज पर इंडोनेशियाई विकल्प व फोटो दिखाई देगी।
-                </p>
-
-                {editing.hasIndonesianVariant && (
-                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #fde68a' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-                      {/* Indonesian Title */}
-                      <div style={{ gridColumn: '1 / -1' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c' }}>
-                            Indonesian Variant Title (इंडोनेशियाई दाने का नाम / शीर्षक)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(prev => ({
-                                ...prev,
-                                indonesianTitle: `${prev.name || "Rudraksha"} (Indonesian / Java Origin)`
-                              }));
-                            }}
-                            style={{ background: 'none', border: 'none', color: '#b45309', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600' }}
-                          >
-                            ✨ Auto-Fill Title
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          value={editing.indonesianTitle || ""}
-                          onChange={e => setEditing({ ...editing, indonesianTitle: e.target.value })}
-                          placeholder="e.g. 5 Mukhi Indonesian Rudraksha (Java Origin)"
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #d97706', fontSize: '12.5px', background: '#fff' }}
-                        />
-                      </div>
-
-                      {/* Indonesian Price */}
-                      <div>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                          Indonesian Price (₹ विक्रय मूल्य) <span style={{ color: '#dc2626' }}>*</span>
-                        </label>
-                        <input
-                          type="number"
-                          value={editing.indonesianPrice}
-                          onChange={e => setEditing({ ...editing, indonesianPrice: e.target.value })}
-                          placeholder="e.g. 499"
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                        />
-                      </div>
-
-                      {/* Indonesian MRP */}
-                      <div>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                          Indonesian MRP (₹ अंकित मूल्य)
-                        </label>
-                        <input
-                          type="number"
-                          value={editing.indonesianMrp}
-                          onChange={e => setEditing({ ...editing, indonesianMrp: e.target.value })}
-                          placeholder="e.g. 999"
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                        />
-                      </div>
-
-                      {/* Indonesian Stock & Size */}
-                      <div>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
-                          Indonesian Bead Size (दाने का आकार)
-                        </label>
-                        <input
-                          type="text"
-                          value={editing.indonesianSize || ""}
-                          onChange={e => setEditing({ ...editing, indonesianSize: e.target.value })}
-                          placeholder="e.g. Small Java (10–14 mm)"
-                          style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
-                        />
-                      </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                    {/* Field 1: Mukhi / Type */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                        {field1Label}
+                      </label>
+                      <input
+                        type="text"
+                        value={editing.mukhi || ""}
+                        onChange={e => setEditing({ ...editing, mukhi: e.target.value })}
+                        placeholder={field1Placeholder}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                      />
                     </div>
 
-                    {/* Indonesian Photos Upload */}
-                    <div style={{ background: '#fff', padding: '12px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#7c2d12', marginBottom: '6px' }}>
-                        📸 Indonesian Rudraksha Photos (इंडोनेशियाई दाने की फ़ोटो)
+                    {/* Field 2: Sub-Category / Collection */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                        Sub-Category / Collection
                       </label>
-                      <p style={{ fontSize: '11.5px', color: '#78350f', margin: '0 0 10px 0' }}>
-                        Upload specific photos showing the authentic Indonesian/Java bead texture to display to customers.
-                      </p>
+                      <input
+                        type="text"
+                        value={editing.subCategory || ""}
+                        onChange={e => setEditing({ ...editing, subCategory: e.target.value })}
+                        placeholder="e.g. 1 to 14 Mukhi Beads, Siddha Mala"
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                      />
+                    </div>
 
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
-                        <label style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '6px',
-                          background: '#9a3412', color: '#fff', padding: '6px 12px',
-                          borderRadius: '6px', fontSize: '12px', fontWeight: '600',
-                          cursor: isUploadingIndonesian ? 'not-allowed' : 'pointer'
-                        }}>
-                          <Upload size={14} />
-                          {isUploadingIndonesian ? "Uploading..." : "Upload Indonesian Photo(s)"}
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={handleIndonesianFileUpload}
-                            disabled={isUploadingIndonesian}
-                            style={{ display: 'none' }}
-                          />
-                        </label>
+                    {/* Field 3: Origin */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                        Primary Origin (मुख्य उत्पत्ति)
+                      </label>
+                      <select
+                        value={editing.origin || originOptions[0]?.value || "Nepal"}
+                        onChange={e => setEditing({ ...editing, origin: e.target.value })}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                      >
+                        {originOptions.map((opt, oIdx) => (
+                          <option key={oIdx} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                        <div style={{ display: 'flex', gap: '6px', flex: '1', minWidth: '220px' }}>
-                          <input
-                            type="text"
-                            value={indonesianUrlInput}
-                            onChange={e => setIndonesianUrlInput(e.target.value)}
-                            placeholder="Or paste Indonesian image URL (https://...)"
-                            style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddIndonesianUrl}
-                            style={{ background: '#f97316', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-                          >
-                            Add URL
-                          </button>
-                        </div>
-                      </div>
+                    {/* Field 4: Ruling Deity */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                        {deityLabel}
+                      </label>
+                      <input
+                        type="text"
+                        value={editing.deity || ""}
+                        onChange={e => setEditing({ ...editing, deity: e.target.value })}
+                        placeholder="e.g. Lord Shiva, Kalagni Rudra, Mahalakshmi"
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                      />
+                    </div>
 
-                      {uploadIndonesianProgressMsg && (
-                        <div style={{ fontSize: '12px', color: '#ea580c', marginBottom: '8px', fontWeight: '500' }}>
-                          ⏳ {uploadIndonesianProgressMsg}
-                        </div>
-                      )}
-
-                      {/* Indonesian Image Thumbnails */}
-                      {Array.isArray(editing.indonesianImages) && editing.indonesianImages.length > 0 ? (
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
-                          {editing.indonesianImages.map((imgUrl, imgIdx) => {
-                            const isPrimary = (editing.indonesianImg === imgUrl) || (!editing.indonesianImg && imgIdx === 0);
-                            return (
-                              <div
-                                key={imgIdx}
-                                style={{
-                                  position: 'relative',
-                                  width: '80px',
-                                  height: '80px',
-                                  borderRadius: '6px',
-                                  border: isPrimary ? '2px solid #ea580c' : '1px solid #e2e8f0',
-                                  overflow: 'hidden',
-                                  background: '#f8fafc'
-                                }}
-                              >
-                                <img
-                                  src={imgUrl}
-                                  alt={`Indonesian ${imgIdx + 1}`}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                />
-                                {isPrimary && (
-                                  <span style={{
-                                    position: 'absolute', top: '2px', left: '2px',
-                                    background: '#ea580c', color: '#fff', fontSize: '9px',
-                                    padding: '1px 4px', borderRadius: '3px', fontWeight: '700'
-                                  }}>
-                                    Primary
-                                  </span>
-                                )}
-                                <div style={{ position: 'absolute', bottom: '2px', right: '2px', display: 'flex', gap: '2px' }}>
-                                  {!isPrimary && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSetPrimaryIndonesianImage(imgUrl)}
-                                      title="Set as primary Indonesian photo"
-                                      style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 4px', fontSize: '9px', cursor: 'pointer' }}
-                                    >
-                                      ⭐
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveIndonesianImage(imgIdx)}
-                                    title="Delete photo"
-                                    style={{ background: 'rgba(220,38,38,0.85)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 4px', fontSize: '9px', cursor: 'pointer' }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '11.5px', color: '#9ca3af', fontStyle: 'italic' }}>
-                          No Indonesian photos added yet. Upload or enter a photo URL above.
-                        </div>
-                      )}
+                    {/* Field 5: Ruling Planet */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                        {planetLabel}
+                      </label>
+                      <input
+                        type="text"
+                        value={editing.rulingPlanet || ""}
+                        onChange={e => setEditing({ ...editing, rulingPlanet: e.target.value })}
+                        placeholder="e.g. Jupiter (गुरु), Sun (सूर्य), Venus (शुक्र)"
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                      />
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Zodiac / Rashis Chips */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '6px' }}>
-                  Suitable Zodiac Signs (उपयुक्त राशियां)
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {[
-                    "Aries (मेष)", "Taurus (वृषभ)", "Gemini (मिथुन)", "Cancer (कर्क)",
-                    "Leo (सिंह)", "Virgo (कन्या)", "Libra (तुला)", "Scorpio (वृश्चिक)",
-                    "Sagittarius (धनु)", "Capricorn (मकर)", "Aquarius (कुंभ)", "Pisces (मीन)",
-                    "All Rashis (सर्व राशि)"
-                  ].map((zSign, zIdx) => {
-                    const isSelected = Array.isArray(editing.zodiac) && editing.zodiac.includes(zSign);
-                    return (
-                      <button
-                        key={zIdx}
-                        type="button"
-                        onClick={() => handleToggleZodiac(zSign)}
-                        style={{
-                          padding: '4px 9px',
-                          borderRadius: '14px',
-                          fontSize: '11.5px',
-                          fontWeight: isSelected ? '700' : '500',
-                          border: isSelected ? '1.5px solid #b44b1c' : '1px solid #d6c6b8',
-                          background: isSelected ? '#fed7aa' : '#fff',
-                          color: isSelected ? '#7c2d12' : '#574336',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {isSelected ? "✓ " : ""}{zSign}
-                      </button>
-                    );
-                  })}
+                  {/* Indonesian (Java) Origin Variant Section - ONLY for Rudraksha Category */}
+                  {isRudrakshaCat && (
+                    <div style={{
+                      background: editing.hasIndonesianVariant ? '#fdf8f4' : '#faf7f2',
+                      border: editing.hasIndonesianVariant ? '1.5px solid #d97706' : '1px dashed #d5c7b8',
+                      borderRadius: '8px',
+                      padding: '14px',
+                      marginBottom: '14px',
+                      transition: 'all 0.2s ease'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', color: '#78350f' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!editing.hasIndonesianVariant}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setEditing(prev => ({
+                                ...prev,
+                                hasIndonesianVariant: checked,
+                                indonesianTitle: checked && !prev.indonesianTitle ? `${prev.name || "Rudraksha"} (Indonesian Origin / Java)` : prev.indonesianTitle,
+                                indonesianPrice: checked && !prev.indonesianPrice ? Math.round(Number(prev.price || 999) * 0.5) : prev.indonesianPrice,
+                                indonesianMrp: checked && !prev.indonesianMrp ? Math.round(Number(prev.mrp || 1999) * 0.5) : prev.indonesianMrp
+                              }));
+                            }}
+                            style={{ width: '16px', height: '16px', accentColor: '#d97706', cursor: 'pointer' }}
+                          />
+                          <span>🇮🇩 Also Offer Indonesian (Java) Variant for this Rudraksha? (इंडोनेशियाई दाना विकल्प जोड़ें)</span>
+                        </label>
+                        <span style={{ fontSize: '11.5px', color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                          {editing.hasIndonesianVariant ? "Active (सक्रिय)" : "Optional (वैकल्पिक)"}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: '12px', color: '#6b584a', margin: '6px 0 0 24px', lineHeight: '1.4' }}>
+                        रुद्राक्ष दो प्रकार के होते हैं (नेपाली व इंडोनेशियाई)। इंडोनेशियाई दाने छोटे होते हैं और उनकी कीमत कम होती है। इसे चालू करने पर ग्राहक को प्रोडक्ट पेज पर इंडोनेशियाई विकल्प व फोटो दिखाई देगी।
+                      </p>
+
+                      {editing.hasIndonesianVariant && (
+                        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #fde68a' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                            {/* Indonesian Title */}
+                            <div style={{ gridColumn: '1 / -1' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c' }}>
+                                  Indonesian Variant Title (इंडोनेशियाई दाने का नाम / शीर्षक)
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditing(prev => ({
+                                      ...prev,
+                                      indonesianTitle: `${prev.name || "Rudraksha"} (Indonesian / Java Origin)`
+                                    }));
+                                  }}
+                                  style={{ background: 'none', border: 'none', color: '#b45309', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600' }}
+                                >
+                                  ✨ Auto-Fill Title
+                                </button>
+                              </div>
+                              <input
+                                type="text"
+                                value={editing.indonesianTitle || ""}
+                                onChange={e => setEditing({ ...editing, indonesianTitle: e.target.value })}
+                                placeholder="e.g. 5 Mukhi Indonesian Rudraksha (Java Origin)"
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #d97706', fontSize: '12.5px', background: '#fff' }}
+                              />
+                            </div>
+
+                            {/* Indonesian Price */}
+                            <div>
+                              <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                                Indonesian Price (₹ विक्रय मूल्य) <span style={{ color: '#dc2626' }}>*</span>
+                              </label>
+                              <input
+                                type="number"
+                                value={editing.indonesianPrice}
+                                onChange={e => setEditing({ ...editing, indonesianPrice: e.target.value })}
+                                placeholder="e.g. 499"
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                              />
+                            </div>
+
+                            {/* Indonesian MRP */}
+                            <div>
+                              <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                                Indonesian MRP (₹ अंकित मूल्य)
+                              </label>
+                              <input
+                                type="number"
+                                value={editing.indonesianMrp}
+                                onChange={e => setEditing({ ...editing, indonesianMrp: e.target.value })}
+                                placeholder="e.g. 999"
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                              />
+                            </div>
+
+                            {/* Indonesian Stock & Size */}
+                            <div>
+                              <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '4px' }}>
+                                Indonesian Bead Size (दाने का आकार)
+                              </label>
+                              <input
+                                type="text"
+                                value={editing.indonesianSize || ""}
+                                onChange={e => setEditing({ ...editing, indonesianSize: e.target.value })}
+                                placeholder="e.g. Small Java (10–14 mm)"
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #c9b8a8', fontSize: '12.5px', background: '#fff' }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Indonesian Photos Upload */}
+                          <div style={{ background: '#fff', padding: '12px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#7c2d12', marginBottom: '6px' }}>
+                              📸 Indonesian Rudraksha Photos (इंडोनेशियाई दाने की फ़ोटो)
+                            </label>
+                            <p style={{ fontSize: '11.5px', color: '#78350f', margin: '0 0 10px 0' }}>
+                              Upload specific photos showing the authentic Indonesian/Java bead texture to display to customers.
+                            </p>
+
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+                              <label style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                background: '#9a3412', color: '#fff', padding: '6px 12px',
+                                borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                                cursor: isUploadingIndonesian ? 'not-allowed' : 'pointer'
+                              }}>
+                                <Upload size={14} />
+                                {isUploadingIndonesian ? "Uploading..." : "Upload Indonesian Photo(s)"}
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept="image/*"
+                                  onChange={handleIndonesianFileUpload}
+                                  disabled={isUploadingIndonesian}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+
+                              <div style={{ display: 'flex', gap: '6px', flex: '1', minWidth: '220px' }}>
+                                <input
+                                  type="text"
+                                  value={indonesianUrlInput}
+                                  onChange={e => setIndonesianUrlInput(e.target.value)}
+                                  placeholder="Or paste Indonesian image URL (https://...)"
+                                  style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleAddIndonesianUrl}
+                                  style={{ background: '#f97316', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                                >
+                                  Add URL
+                                </button>
+                              </div>
+                            </div>
+
+                            {uploadIndonesianProgressMsg && (
+                              <div style={{ fontSize: '12px', color: '#ea580c', marginBottom: '8px', fontWeight: '500' }}>
+                                ⏳ {uploadIndonesianProgressMsg}
+                              </div>
+                            )}
+
+                            {/* Indonesian Image Thumbnails */}
+                            {Array.isArray(editing.indonesianImages) && editing.indonesianImages.length > 0 ? (
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                                {editing.indonesianImages.map((imgUrl, imgIdx) => {
+                                  const isPrimary = (editing.indonesianImg === imgUrl) || (!editing.indonesianImg && imgIdx === 0);
+                                  return (
+                                    <div
+                                      key={imgIdx}
+                                      style={{
+                                        position: 'relative',
+                                        width: '80px',
+                                        height: '80px',
+                                        borderRadius: '6px',
+                                        border: isPrimary ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                        overflow: 'hidden',
+                                        background: '#f8fafc'
+                                      }}
+                                    >
+                                      <img
+                                        src={imgUrl}
+                                        alt={`Indonesian ${imgIdx + 1}`}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      />
+                                      {isPrimary && (
+                                        <span style={{
+                                          position: 'absolute', top: '2px', left: '2px',
+                                          background: '#ea580c', color: '#fff', fontSize: '9px',
+                                          padding: '1px 4px', borderRadius: '3px', fontWeight: '700'
+                                        }}>
+                                          Primary
+                                        </span>
+                                      )}
+                                      <div style={{ position: 'absolute', bottom: '2px', right: '2px', display: 'flex', gap: '2px' }}>
+                                        {!isPrimary && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSetPrimaryIndonesianImage(imgUrl)}
+                                            title="Set as primary Indonesian photo"
+                                            style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 4px', fontSize: '9px', cursor: 'pointer' }}
+                                          >
+                                            ⭐
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveIndonesianImage(imgIdx)}
+                                          title="Delete photo"
+                                          style={{ background: 'rgba(220,38,38,0.85)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 4px', fontSize: '9px', cursor: 'pointer' }}
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '11.5px', color: '#9ca3af', fontStyle: 'italic' }}>
+                                No Indonesian photos added yet. Upload or enter a photo URL above.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Zodiac / Rashis Chips */}
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: '#4a382c', display: 'block', marginBottom: '6px' }}>
+                      Suitable Zodiac Signs (उपयुक्त राशियां)
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {[
+                        "Aries (मेष)", "Taurus (वृषभ)", "Gemini (मिथुन)", "Cancer (कर्क)",
+                        "Leo (सिंह)", "Virgo (कन्या)", "Libra (तुला)", "Scorpio (वृश्चिक)",
+                        "Sagittarius (धनु)", "Capricorn (मकर)", "Aquarius (कुंभ)", "Pisces (मीन)",
+                        "All Rashis (सर्व राशि)"
+                      ].map((zSign, zIdx) => {
+                        const isSelected = Array.isArray(editing.zodiac) && editing.zodiac.includes(zSign);
+                        return (
+                          <button
+                            key={zIdx}
+                            type="button"
+                            onClick={() => handleToggleZodiac(zSign)}
+                            style={{
+                              padding: '4px 9px',
+                              borderRadius: '14px',
+                              fontSize: '11.5px',
+                              fontWeight: isSelected ? '700' : '500',
+                              border: isSelected ? '1.5px solid #b44b1c' : '1px solid #d6c6b8',
+                              background: isSelected ? '#fed7aa' : '#fff',
+                              color: isSelected ? '#7c2d12' : '#574336',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {isSelected ? "✓ " : ""}{zSign}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
 
           <div className="admin-form-group">
