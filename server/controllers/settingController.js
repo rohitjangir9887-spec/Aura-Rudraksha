@@ -272,7 +272,12 @@ export async function getTickets(req, res, next) {
         return res.json({ success: true, data: [] });
       }
       const userId = authenticatedUser.authUserId;
-      query = { $or: [{ authUserId: userId }, { userId: userId }] };
+      const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
+      const conditions = [{ authUserId: userId }, { userId: userId }];
+      if (userEmail) {
+        conditions.push({ userEmail: userEmail }, { email: userEmail });
+      }
+      query = { $or: conditions };
     }
 
     const tickets = await Ticket.find(query).sort({ createdAt: -1 }).lean();

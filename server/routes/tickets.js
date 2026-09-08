@@ -5,7 +5,7 @@ import { requireAdmin, optionalAuth } from "../middleware/auth.js";
 const router = express.Router();
 
 router.route("/")
-  .get(requireAdmin, getTickets)
+  .get(optionalAuth, getTickets)
   .post(optionalAuth, createTicket);
 
 router.route("/:id")

@@ -1240,7 +1240,7 @@ export const db = {
     }
 
     try {
-      const res = await apiRequest("/orders/my", { timeoutMs: 15000 });
+      const res = await apiRequest("/orders/my", { timeoutMs: 15000, requiresAuth: true, noCache: true });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.myOrders = res.data;
         const myCacheKey = db.getUserScopedKey("aura_cached_my_orders");
@@ -1359,7 +1359,7 @@ export const db = {
   },
 
   fetchOrders: async () => {
-    const res = await apiRequest("/orders");
+    const res = await apiRequest("/orders", { requiresAuth: true, noCache: true });
     if (res?.success && Array.isArray(res.data)) {
       storeCache.orders = res.data;
       try {
@@ -1554,7 +1554,7 @@ export const db = {
     const cached = db.getCachedAddresses();
 
     try {
-      const res = await apiRequest("/addresses", { timeoutMs: 5000 });
+      const res = await apiRequest("/addresses", { timeoutMs: 5000, requiresAuth: true, noCache: true });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.addresses = res.data;
         if (cacheKey && typeof window !== "undefined") {
@@ -1580,7 +1580,9 @@ export const db = {
       if (address.id) {
         const res = await apiRequest(`/addresses/${address.id}`, {
           method: "PUT",
-          body: JSON.stringify(address)
+          body: JSON.stringify(address),
+          requiresAuth: true,
+          noCache: true
         });
         if (res?.success) {
           if (cacheKey) {
@@ -1591,7 +1593,9 @@ export const db = {
       } else {
         const res = await apiRequest("/addresses", {
           method: "POST",
-          body: JSON.stringify(address)
+          body: JSON.stringify(address),
+          requiresAuth: true,
+          noCache: true
         });
         if (res?.success) {
           if (cacheKey) {
@@ -1618,7 +1622,9 @@ export const db = {
     }
     try {
       await apiRequest(`/addresses/${id}`, {
-        method: "DELETE"
+        method: "DELETE",
+        requiresAuth: true,
+        noCache: true
       });
     } catch (_) {}
     return { success: true };
@@ -1659,7 +1665,7 @@ export const db = {
     const cached = db.getCachedCustomerMe();
 
     try {
-      const res = await apiRequest("/customers/me", { timeoutMs: 5000 });
+      const res = await apiRequest("/customers/me", { timeoutMs: 5000, requiresAuth: true, noCache: true });
       if (res?.success && res.data) {
         if (cacheKey && typeof window !== "undefined") {
           try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
@@ -1686,7 +1692,9 @@ export const db = {
     try {
       const res = await apiRequest("/customers/me", {
         method: "PUT",
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
+        requiresAuth: true,
+        noCache: true
       });
       if (res?.success && res.data) {
         if (cacheKey) {
@@ -2083,7 +2091,7 @@ export const db = {
   getCoupons: () => storeCache.coupons,
   getUserCart: async () => {
     try {
-      const res = await apiRequest("/cart");
+      const res = await apiRequest("/cart", { requiresAuth: true, noCache: true });
       if (res?.success) return res.data?.lines || [];
     } catch (_) {}
     return null;
@@ -2092,7 +2100,9 @@ export const db = {
     try {
       const res = await apiRequest("/cart", {
         method: "POST",
-        body: JSON.stringify({ lines })
+        body: JSON.stringify({ lines }),
+        requiresAuth: true,
+        noCache: true
       });
       if (res?.success) return res.data?.lines || [];
     } catch (_) {}
@@ -2102,7 +2112,9 @@ export const db = {
     try {
       const res = await apiRequest("/cart/merge", {
         method: "POST",
-        body: JSON.stringify({ guestLines })
+        body: JSON.stringify({ guestLines }),
+        requiresAuth: true,
+        noCache: true
       });
       if (res?.success) return res.data?.lines || [];
     } catch (_) {}
