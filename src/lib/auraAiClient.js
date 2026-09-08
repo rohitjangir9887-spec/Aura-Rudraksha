@@ -18,6 +18,24 @@ async function getAuthToken() {
 let activeStreamAbortController = null;
 
 export const auraAiClient = {
+  async sendAdminChat(messages) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ messages })
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  },
   abortActiveStream() {
     if (activeStreamAbortController) {
       try {

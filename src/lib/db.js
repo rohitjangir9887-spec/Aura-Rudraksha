@@ -2312,7 +2312,7 @@ export const db = {
         source: r.source || "customer",
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
+        img: getProductPrimaryImage(r) !== "/images/placeholder.svg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
@@ -2350,7 +2350,7 @@ export const db = {
         source: r.source || "customer",
         status: r.status || "Approved",
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
-        img: getProductPrimaryImage(r) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(r) : null,
+        img: getProductPrimaryImage(r) !== "/images/placeholder.svg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
@@ -2645,7 +2645,7 @@ export const db = {
 
   // HELPERS FOR ORDERS & CUSTOMER PROFILES
   getOrderItemImage: (item) => {
-    if (!item) return "/images/product-5mukhi.jpg";
+    if (!item) return "/images/placeholder.svg";
     if (item.img && typeof item.img === "string" && item.img.trim()) return item.img;
     if (item.image && typeof item.image === "string" && item.image.trim()) return item.image;
     if (item.id) {
@@ -2655,7 +2655,7 @@ export const db = {
         if (Array.isArray(p.images) && p.images[0]) return p.images[0];
       }
     }
-    return "/images/product-5mukhi.jpg";
+    return "/images/placeholder.svg";
   },
 
   normalizeOrderItems: (o) => {
@@ -2692,7 +2692,7 @@ export const db = {
         
         const name = p ? p.name : (typeof it === 'object' && it.name ? it.name : "Rudraksha Bead");
         const price = p ? p.price : (typeof it === 'object' && (it.price || it.unitPrice) ? Number(it.price || it.unitPrice) : 999);
-        const img = p ? getProductPrimaryImage(p) : (typeof it === "object" ? db.getOrderItemImage(it) : "/images/product-5mukhi.jpg");
+        const img = p ? getProductPrimaryImage(p) : (typeof it === "object" ? db.getOrderItemImage(it) : "/images/placeholder.svg");
 
         if (!map[strId]) {
           map[strId] = {

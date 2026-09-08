@@ -161,7 +161,7 @@ export function Home() {
     .map(b => (typeof b === "string" ? b : (b?.url || b?.image || b?.src || "")))
     .filter(Boolean);
   if (activeBanners.length === 0) {
-    activeBanners.push("/images/product-5mukhi.jpg");
+    activeBanners.push("/images/placeholder.svg");
   }
   const [loadedBanners, setLoadedBanners] = useState({});
 
@@ -230,7 +230,7 @@ export function Home() {
                 if (target.src.includes("wsrv.nl")) {
                   target.src = src;
                 } else if (!target.src.includes("product-5mukhi.jpg")) {
-                  target.src = "/images/product-5mukhi.jpg";
+                  target.src = "/images/placeholder.svg";
                 }
               }}
             />

@@ -417,25 +417,23 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
 CRITICAL KEYWORD GENERATION RULES:
 1. DISCOVER REAL HUMAN SEARCH PHRASES: Do NOT mechanically copy, repeat, or concatenate the product title.
 2. EXTRACT CORE HEAD TERM: First identify the core item subject (e.g., for "Buy Original 5 Mukhi Rudraksha (Nepali) Online | Lab Certified", the core term is "5 mukhi rudraksha").
-3. GENERATE 15 TO 30 DISTINCT, NATURAL SEARCH QUERIES across these intent buckets:
-   - CORE HEAD TERMS: e.g. "5 mukhi rudraksha", "5mukhi rudraksha", "panchmukhi rudraksha", "5 mukhi rudraksh"
+3. GENERATE 10 TO 15 HIGH-QUALITY, DISTINCT, NATURAL SEARCH QUERIES:
+   - CORE HEAD TERMS: e.g. "5 mukhi rudraksha", "5mukhi rudraksha", "panchmukhi rudraksha"
    - COMMERCIAL / BUY: e.g. "buy 5 mukhi rudraksha", "buy 5 mukhi rudraksha online", "original 5 mukhi rudraksha", "nepali 5 mukhi rudraksha"
    - PRICE: e.g. "5 mukhi rudraksha price", "original 5 mukhi rudraksha price in india"
-   - INFORMATIONAL / BENEFITS: e.g. "5 mukhi rudraksha benefits", "5 mukhi rudraksha ke fayde", "5 mukhi rudraksha mantra", "5 mukhi rudraksha kis rashi ke liye"
-   - AUTHENTICITY / TESTING: e.g. "5 mukhi rudraksha asli kaise pehchane", "how to identify original 5 mukhi rudraksha"
-   - WEARING & CARE: e.g. "5 mukhi rudraksha kaise pehne", "5 mukhi rudraksha dharan vidhi"
-   - CERTIFICATION & ORIGIN: e.g. "5 mukhi rudraksha lab certified", "nepali rudraksha"
+   - INFORMATIONAL / BENEFITS: e.g. "5 mukhi rudraksha benefits", "5 mukhi rudraksha ke fayde"
+   - AUTHENTICITY: e.g. "5 mukhi rudraksha asli kaise pehchane", "genuine 5 mukhi rudraksha"
 4. FORBIDDEN PATTERNS:
    - NEVER repeat words like "buy buy...", "original buy original..."
    - NEVER create long title-concatenated strings like "buy original 5 mukhi rudraksha nepali online lab certified"
-   - NEVER stack more than 2 commercial modifiers in a single keyword phrase
+   - NEVER stack more than 2 commercial modifiers in a single keyword phrase.
+   - Do NOT force 35 keywords. Quality over quantity.
 5. SEARCH EVIDENCE & TREND RULES:
    - Set "evidenceType": "ai_suggestion" for all keywords.
    - Set "trendLevel": "unknown" and "trendConfidence": "low" (no live search provider is connected). DO NOT fake search volume or trend percentages.
    - Set "relevanceScore": an integer from 70 to 98 representing internal model relevance.
    - Set "scoreType": "model_relevance".
 6. OUTPUT JSON ONLY matching this exact schema:
-
 {
   "productAnalysis": {
     "confidence": "high",
@@ -446,7 +444,18 @@ CRITICAL KEYWORD GENERATION RULES:
     "searched": false,
     "searchedAt": null
   },
+  "classification": {
+    "category": "Identify one of: Rudraksha, Mala, Bracelet, Puja Samagri, Yantra, Gemstone, Idol, Incense, or create a natural category",
+    "subCategory": "Identify a specific subcategory (e.g. 5 Mukhi Rudraksha, Siddha Mala, Camphor)",
+    "productType": "Identify type: Rudraksha, Mala, Bracelet, Puja item, etc.",
+    "isRudraksha": true
+  },
   "seo": {
+    "recommendedTitle": "Recommended SEO Title without clickbait",
+    "metaTitle": "Meta Title (under 60 chars)",
+    "metaDescription": "Meta Description (under 160 chars)",
+    "seoDescription": "Clean HTML product description with h2 headings"
+  },
     "recommendedTitle": "Recommended SEO Title without clickbait",
     "metaTitle": "Meta Title (under 60 chars)",
     "metaDescription": "Meta Description (under 160 chars)",
@@ -552,6 +561,12 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
         metaDescription: `Buy authentic ${cleanName} online at Aura Rudraksha. 100% Lab Certified, X-Ray Tested & Pre-energized with Haridwar Vedic Mantras.`,
         seoDescription: fallbackHtmlDesc
       },
+      classification: {
+        category: category || "Rudraksha",
+        subCategory: beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : (category || "Rudraksha"),
+        productType: category || "Rudraksha",
+        isRudraksha: !!beadKnowledge
+      },
       keywords: keywordObjects,
       vedicAstrology: {
         mukhi: mukhiNum ? `${mukhiNum} Mukhi` : (mukhi || ""),
@@ -652,7 +667,9 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
     searchKeywords: flatKeywordStrings,
     tags: flatTags,
     seoKeywordsDetails: aiOutputParsed.keywords || [],
-    subCategory: aiOutputParsed.vedicAstrology?.subCategory || subCategory || category,
+    category: aiOutputParsed.classification?.category || category,
+    productType: aiOutputParsed.classification?.productType || "",
+    subCategory: aiOutputParsed.classification?.subCategory || aiOutputParsed.vedicAstrology?.subCategory || subCategory || category,
     mukhi: aiOutputParsed.vedicAstrology?.mukhi || (mukhiNum ? `${mukhiNum} Mukhi` : ""),
     rulingPlanet: aiOutputParsed.vedicAstrology?.rulingPlanet || rulingPlanet,
     deity: aiOutputParsed.vedicAstrology?.rulingDeity || deity || rulingDeity,

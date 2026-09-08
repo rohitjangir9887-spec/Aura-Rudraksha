@@ -1753,10 +1753,12 @@ export async function adminChatAuraAI(req, res) {
     }
 
     const catalogSummary = await getCatalogSummary();
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayOrders = await Order.countDocuments({ createdAt: { $gte: today } });
+    let todayOrders = 0;
+    try {
+      todayOrders = await Order.countDocuments({ createdAt: { $gte: today } });
+    } catch(e) {}
     
     const systemPrompt = `You are Aura AI Admin Agent - a super-advanced, highly intelligent, and loyal company employee, market researcher, and sales strategist for Aura Rudraksha.
 You serve the administrator of the company. You are NOT a simple chatbot. You are an autonomous AI Agent with deep research capabilities.
@@ -1770,26 +1772,123 @@ Today's Orders: ${todayOrders}
 
 Instructions:
 1. When asked to research a product or write details, provide an extremely detailed, logically structured, and deeply researched response (include Vedic and Astrological details where applicable for Rudrakshas).
-2. Act as a proactive employee. Anticipate the admin's needs. 
-3. Maintain a highly professional, strategic, and supportive tone.
-`;
+2. For research tasks, prefer: Finding, Evidence, Analysis, Recommendation, Action.
+3. For product tasks: Product, Current data, Problem, Recommendation, Proposed change, Approval required.
+4. For SEO tasks: Keyword, Current SEO, Issue, Evidence, Recommended improvement.
+5. For operational tasks: Current status, Issue, Impact, Recommended action.
+6. For safe reversible actions, existing authorization rules may be used. For high-impact actions (deleting products/orders, changing prices/stock, publishing/unpublishing, changing Home merchandising), you MUST show WHAT WILL CHANGE, WHY, CURRENT VALUE, NEW VALUE and explicitly state "Approval required".
+7. Live Database - No Mock Data. Never fabricate products, orders, customers, sales, ratings, reviews, stock, search volume, Google Trends data, SEO ranking, or revenue.
+8. Web Research: If external research is unavailable, explicitly say "External research is unavailable." Do not fabricate citations.`;
 
     const formattedMessages = [
       { role: "system", content: systemPrompt },
       ...messages.map(m => ({
-        role: m.role === 'model' ? 'assistant' : 'user',
-        content: String(m.content || m.text || "")
-      })).filter(m => m.content.trim() !== "")
+        role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : (m.role === 'tool' ? 'tool' : 'user'),
+        content: String(m.content || m.text || ""),
+        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {})
+      })).filter(m => m.content.trim() !== "" || m.tool_calls)
     ];
 
-    const response = await nvidia.chat.completions.create({
+    const tools = [
+  {
+    "type": "function",
+    "function": {
+      "name": "searchProducts",
+      "description": "Search products in the catalog",
+      "parameters": {
+        "type": "object",
+        "properties": { "query": { "type": "string" } }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "getProductDetails",
+      "description": "Get complete details for a specific product",
+      "parameters": {
+        "type": "object",
+        "properties": { "productId": { "type": "string" } },
+        "required": ["productId"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "getAdminOrders",
+      "description": "Get recent orders for admin analysis",
+      "parameters": {
+        "type": "object",
+        "properties": { "limit": { "type": "number", "default": 10 } }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "getAdminHomeMerchandising",
+      "description": "Get products currently showcased on the Home Page",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+];
+
+    let response = await nvidia.chat.completions.create({
       model: PRIMARY_NIM_MODEL,
       messages: formattedMessages,
       temperature: 0.7,
-      max_tokens: 2500
+      max_tokens: 2500,
+      tools: tools,
+      tool_choice: "auto"
     });
 
-    const aiText = response.choices[0]?.message?.content || "No response generated.";
+    let responseMessage = response.choices[0]?.message;
+    
+    // Handle tool calls
+    if (responseMessage?.tool_calls) {
+      formattedMessages.push(responseMessage);
+      
+      for (const toolCall of responseMessage.tool_calls) {
+        let args = {};
+        try { args = JSON.parse(toolCall.function.arguments); } catch(e) {}
+        
+        let toolResult = { error: "Unknown tool" };
+        if (toolCall.function.name === "searchProducts" || toolCall.function.name === "getProductDetails") {
+          toolResult = await executeAiToolCall(toolCall.function.name, args, {});
+        } else if (toolCall.function.name === "getAdminOrders") {
+          try {
+            const orders = await Order.find().sort({ createdAt: -1 }).limit(args.limit || 10).lean();
+            toolResult = { orders: orders.map(o => ({ id: o.orderId, status: o.status, total: o.total, items: o.items?.length })) };
+          } catch(e) { toolResult = { error: "Failed to fetch orders" }; }
+        } else if (toolCall.function.name === "getAdminHomeMerchandising") {
+          try {
+            const homeProducts = await Product.find({ showOnHome: { $ne: false }, status: { $nin: ["Draft", "Inactive"] } }).sort({ homeOrder: 1 }).lean();
+            toolResult = { homeProducts: homeProducts.map(p => ({ id: p.id, name: p.name, category: p.category, price: p.price, order: p.homeOrder })) };
+          } catch(e) { toolResult = { error: "Failed to fetch home merchandising" }; }
+        }
+        
+        formattedMessages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(toolResult)
+        });
+      }
+      
+      response = await nvidia.chat.completions.create({
+        model: PRIMARY_NIM_MODEL,
+        messages: formattedMessages,
+        temperature: 0.7,
+        max_tokens: 2500
+      });
+      responseMessage = response.choices[0]?.message;
+    }
+
+    const aiText = responseMessage?.content || "No response generated.";
 
     return res.json({ text: aiText });
   } catch (error) {

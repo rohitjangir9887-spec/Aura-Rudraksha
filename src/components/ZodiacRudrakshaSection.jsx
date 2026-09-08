@@ -128,7 +128,7 @@ export function ZodiacRudrakshaSection() {
                     className="aura-zodiac-product-img"
                     loading="lazy"
                     onError={(e) => {
-                      if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { e.currentTarget.src = "/images/product-5mukhi.jpg"; }
+                      if (!e.currentTarget.src.includes("product-5mukhi.jpg")) { e.currentTarget.src = "/images/placeholder.svg"; }
                     }}
                   />
                   <div className="aura-zodiac-img-glow" />

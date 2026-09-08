@@ -45,7 +45,7 @@ export function AdminZodiac() {
           ...z,
           productName: product.name,
           link: `/product/${product.id}`,
-          image: getProductPrimaryImage(product) !== "/images/product-5mukhi.jpg" ? getProductPrimaryImage(product) : z.image
+          image: getProductPrimaryImage(product) !== "/images/placeholder.svg" ? getProductPrimaryImage(product) : z.image
         };
       }
       return z;

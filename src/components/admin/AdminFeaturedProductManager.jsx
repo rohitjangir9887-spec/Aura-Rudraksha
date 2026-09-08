@@ -286,7 +286,7 @@ export function AdminFeaturedProductManager({ products = [], onSettingsSaved }) 
                           <img 
                             src={thumb} 
                             alt={p.name}
-                            onError={(e) => { e.currentTarget.src = "/images/product-5mukhi.jpg"; }}
+                            onError={(e) => { e.currentTarget.src = "/images/placeholder.svg"; }}
                             style={{ width: "38px", height: "38px", borderRadius: "6px", objectFit: "cover", flexShrink: 0, border: "1px solid #e8dacb" }}
                           />
                           <div style={{ minWidth: 0 }}>
@@ -343,7 +343,7 @@ export function AdminFeaturedProductManager({ products = [], onSettingsSaved }) 
                   <img 
                     src={getProductPrimaryImage(selectedProduct)}
                     alt={selectedProduct.name}
-                    onError={(e) => { e.currentTarget.src = "/images/product-5mukhi.jpg"; }}
+                    onError={(e) => { e.currentTarget.src = "/images/placeholder.svg"; }}
                     style={{ width: "64px", height: "64px", borderRadius: "8px", objectFit: "cover", border: "1px solid #e8dacb", flexShrink: 0 }}
                   />
 

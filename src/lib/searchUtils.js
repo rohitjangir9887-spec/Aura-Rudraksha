@@ -59,14 +59,29 @@ export function buildProductSearchCorpus(product) {
   const parts = [];
 
   // Core Identity
-  if (product.name) parts.push(product.name);
-  if (product.slug) parts.push(product.slug.replace(/-/g, " "));
-  if (product.category) parts.push(product.category);
-  if (product.subCategory) parts.push(product.subCategory);
+  if (product.name) {
+    parts.push(product.name);
+    // Handle spacing variations like "5 Mukhi" -> "5mukhi"
+    parts.push(product.name.replace(/\s+/g, ""));
+  }
+  if (product.slug) {
+    parts.push(product.slug.replace(/-/g, " "));
+    parts.push(product.slug.replace(/-/g, ""));
+  }
+  if (product.category) {
+    parts.push(product.category);
+    parts.push(product.category.replace(/\s+/g, ""));
+  }
+  if (product.subCategory) {
+    parts.push(product.subCategory);
+    parts.push(product.subCategory.replace(/\s+/g, ""));
+  }
 
   // Search Keywords array
   if (Array.isArray(product.keywords)) {
-    parts.push(product.keywords.map(extractKeywordString).filter(Boolean).join(" "));
+    const kws = product.keywords.map(extractKeywordString).filter(Boolean);
+    parts.push(kws.join(" "));
+    parts.push(kws.map(k => k.replace(/\s+/g, "")).join(" "));
   } else if (typeof product.keywords === "string") {
     parts.push(product.keywords);
   } else if (product.keywords) {
@@ -74,12 +89,16 @@ export function buildProductSearchCorpus(product) {
   }
 
   if (Array.isArray(product.searchKeywords)) {
-    parts.push(product.searchKeywords.map(extractKeywordString).filter(Boolean).join(" "));
+    const skws = product.searchKeywords.map(extractKeywordString).filter(Boolean);
+    parts.push(skws.join(" "));
+    parts.push(skws.map(k => k.replace(/\s+/g, "")).join(" "));
   }
 
   // Tags array
   if (Array.isArray(product.tags)) {
-    parts.push(product.tags.map(extractKeywordString).filter(Boolean).join(" "));
+    const tg = product.tags.map(extractKeywordString).filter(Boolean);
+    parts.push(tg.join(" "));
+    parts.push(tg.map(t => t.replace(/\s+/g, "")).join(" "));
   }
 
   // Astrological & Vedic attributes
@@ -179,10 +198,17 @@ export function matchProductQuery(product, rawQuery) {
  */
 export function searchAndRankProducts(products, query) {
   if (!Array.isArray(products)) return [];
-  if (!query || !query.trim()) return products;
+  
+  // Always filter out drafts/inactive for public search ranking
+  let validProducts = products.filter(p => {
+    const s = String(p.status || "").toLowerCase();
+    return s !== "draft" && s !== "inactive" && s !== "archived";
+  });
+
+  if (!query || !query.trim()) return validProducts;
 
   const scored = [];
-  for (const p of products) {
+  for (const p of validProducts) {
     const score = matchProductQuery(p, query);
     if (score > 0) {
       scored.push({ product: p, score });

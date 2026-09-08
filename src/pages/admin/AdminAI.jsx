@@ -25,12 +25,13 @@ import {
   PhoneCall
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
+import { AdminAIAgentChat } from "../../components/admin/AdminAIAgentChat";
 import { auraAiClient } from "../../lib/auraAiClient";
 import { emitToast } from "../../context/ToastContext";
 import { db, isPublicProduct } from "../../lib/db";
 
 export function AdminAI() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("agent");
   const [analytics, setAnalytics] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedConvo, setSelectedConvo] = useState(null);
@@ -91,6 +92,40 @@ export function AdminAI() {
     }
   }, [activeTab]);
 
+  const loadAll = async () => {
+    try {
+      const [analyticsData, settingsData] = await Promise.all([
+        auraAiClient.getAnalytics().catch(() => null),
+        auraAiClient.getSettings().catch(() => null)
+      ]);
+      setAnalytics(analyticsData);
+      setSettingsSafe(settingsData);
+
+      if (activeTab === "intelligence" || executiveReport) {
+        setLoadingExecutive(true);
+        const rep = await auraAiClient.getAdminIntelligence().catch(() => null);
+        setExecutiveReport(rep);
+        setLoadingExecutive(false);
+      }
+      if (activeTab === "conversations" || conversations.length > 0) {
+        const list = await auraAiClient.getConversations().catch(() => []);
+        setConversations(list);
+      }
+      if (activeTab === "products" || activeTab === "offers" || products.length > 0) {
+        await Promise.all([
+          db.fetchProducts().catch(() => {}),
+          db.fetchCoupons ? db.fetchCoupons().catch(() => {}) : Promise.resolve()
+        ]);
+        setProducts(db.getProducts());
+        setCoupons(db.getCoupons ? db.getCoupons() : []);
+      }
+
+      emitToast("Live data refreshed successfully.", "success");
+    } catch (e) {
+      emitToast("Error refreshing data.", "error");
+    }
+  };
+
   const handleRefreshExecutive = async () => {
     setLoadingExecutive(true);
     try {
@@ -123,7 +158,33 @@ export function AdminAI() {
   const filteredConvos = conversations.filter(c => {
     if (!searchConvo) return true;
     const q = searchConvo.toLowerCase();
-    return (
+    const loadAll = async () => {
+    try {
+      emitToast("Refreshing Admin Agent data...", "info");
+      const [analyticsData, settingsData, convos, execRep] = await Promise.all([
+        auraAiClient.getAnalytics().catch(() => null),
+        auraAiClient.getSettings().catch(() => null),
+        auraAiClient.getConversations().catch(() => []),
+        activeTab === "intelligence" ? auraAiClient.getAdminIntelligence().catch(() => null) : Promise.resolve(executiveReport)
+      ]);
+      if (analyticsData) setAnalytics(analyticsData);
+      if (settingsData) setSettingsSafe(settingsData);
+      if (convos) setConversations(convos);
+      if (execRep) setExecutiveReport(execRep);
+      
+      const prods = db.getProducts();
+      setProducts(prods || []);
+      const offers = db.getOffers ? db.getOffers() : (db.getCoupons ? db.getCoupons() : []);
+      setCoupons(offers || []);
+
+      emitToast("Admin Agent data refreshed.", "success");
+    } catch (e) {
+      console.error(e);
+      emitToast("Failed to refresh some data.", "error");
+    }
+  };
+
+  return (
       (c.userName && c.userName.toLowerCase().includes(q)) ||
       (c.userEmail && c.userEmail.toLowerCase().includes(q)) ||
       (c.title && c.title.toLowerCase().includes(q))
@@ -142,9 +203,9 @@ export function AdminAI() {
               <Sparkles size={24} />
             </div>
             <div>
-              <h1 className="admin-ai-title">AURA AI Control Center</h1>
+              <h1 className="admin-ai-title">AURA AI Admin Agent</h1>
               <p className="admin-ai-subtitle">
-                Personalized spiritual shopping, real-time product recommendations, order tracking & customer support intelligence.
+                Research • SEO • Products • Sales • Operations
               </p>
             </div>
           </div>
@@ -167,8 +228,14 @@ export function AdminAI() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
+                {/* Tab Navigation */}
         <div className="admin-ai-tabs">
+          <button 
+            className={`admin-ai-tab ${activeTab === "agent" ? "active" : ""}`}
+            onClick={() => setActiveTab("agent")}
+          >
+            <Sparkles size={16} /> Ask Agent
+          </button>
           <button 
             className={`admin-ai-tab ${activeTab === "overview" ? "active" : ""}`}
             onClick={() => setActiveTab("overview")}
@@ -213,6 +280,10 @@ export function AdminAI() {
           </button>
         </div>
 
+                {activeTab === "agent" && (
+          <AdminAIAgentChat />
+        )}
+        
         {/* TAB 1: OVERVIEW & ANALYTICS */}
         {activeTab === "overview" && (
           <div className="admin-ai-tab-content">

@@ -125,7 +125,7 @@ export function Wishlist() {
                               alt={p.name}
                               loading="lazy"
                               decoding="async"
-                              onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+                              onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
                               style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             />
                           </Link>
@@ -207,7 +207,7 @@ export function Wishlist() {
                         loading="lazy"
                         decoding="async"
                         onError={(e) => {
-                          e.target.src = "/images/product-5mukhi.jpg";
+                          e.target.src = "/images/placeholder.svg";
                         }}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />

@@ -76,7 +76,7 @@ export function MobileStickyPurchaseBar({
                 loading="lazy"
                 onError={(e) => {
                   if (!e.target.src.includes("product-5mukhi.jpg")) {
-                    e.target.src = "/images/product-5mukhi.jpg";
+                    e.target.src = "/images/placeholder.svg";
                   }
                 }}
               />

@@ -419,7 +419,7 @@ export function AdminPromotions() {
                 <tr key={promo.id}>
                   <td>
                     <img 
-                      src={promo.image || "/images/product-5mukhi.jpg"} 
+                      src={promo.image || "/images/placeholder.svg"} 
                       alt="" 
                       style={{ width: '60px', height: '36px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e8dac9' }} 
                     />

@@ -141,7 +141,7 @@ export function HomeFeaturedProductAd() {
               referrerPolicy="no-referrer"
               onError={(e) => {
                 if (!e.currentTarget.src.includes("product-5mukhi.jpg")) {
-                  e.currentTarget.src = "/images/product-5mukhi.jpg";
+                  e.currentTarget.src = "/images/placeholder.svg";
                 }
               }}
               style={{

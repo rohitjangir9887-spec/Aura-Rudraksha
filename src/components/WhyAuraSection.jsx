@@ -48,7 +48,7 @@ export function WhyAuraSection() {
                   if (target.src.includes("wsrv.nl")) {
                     target.src = raw;
                   } else if (!target.src.includes('product-5mukhi.jpg')) {
-                    target.src = "/images/product-5mukhi.jpg";
+                    target.src = "/images/placeholder.svg";
                   }
                 }}
               />

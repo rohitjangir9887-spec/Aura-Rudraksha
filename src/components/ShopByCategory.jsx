@@ -17,8 +17,8 @@ export function ShopByCategory() {
         id: "rudraksha",
         name: "Rudraksha",
         desc: "Authentic Nepal beads",
-        image: "/images/product-5mukhi.jpg",
-        fallback: "/images/product-5mukhi.jpg",
+        image: "/images/placeholder.svg",
+        fallback: "/images/placeholder.svg",
         link: "/shop?q=Rudraksha"
       },
       {
@@ -58,7 +58,7 @@ export function ShopByCategory() {
         name: "Spiritual Essentials",
         desc: "Vedic divine accessories",
         image: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=500&q=80",
-        fallback: "/images/product-5mukhi.jpg",
+        fallback: "/images/placeholder.svg",
         link: "/shop?q=Spiritual"
       }
     ];

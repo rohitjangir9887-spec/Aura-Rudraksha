@@ -60,7 +60,7 @@ export function CheckoutRecommendations({ products, cartIds, onAddToCart }) {
                 loading="lazy"
                 decoding="async"
                 style={{ width: "46px", height: "46px", borderRadius: "6px", objectFit: "cover", flexShrink: 0, border: "1px solid #e8dac9" }}
-                onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+                onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
               />
 
               <div style={{ flex: 1, minWidth: 0 }}>

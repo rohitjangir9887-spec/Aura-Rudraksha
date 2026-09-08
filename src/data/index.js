@@ -13,7 +13,7 @@ export const products = [
     img: "/images/product-1mukhi.jpg",
     images: [
       "/images/product-1mukhi.jpg",
-      "/images/product-5mukhi.jpg",
+      "/images/placeholder.svg",
       "/images/product-7mukhi.jpg",
       "/images/product-mala.jpg"
     ],
@@ -32,9 +32,9 @@ export const products = [
     showOnHome: true,
     isPopular: true,
     homeOrder: 1,
-    img: "/images/product-5mukhi.jpg",
+    img: "/images/placeholder.svg",
     images: [
-      "/images/product-5mukhi.jpg",
+      "/images/placeholder.svg",
       "/images/product-mala.jpg",
       "/images/product-7mukhi.jpg",
       "/images/product-1mukhi.jpg",
@@ -58,7 +58,7 @@ export const products = [
     img: "/images/product-1mukhi.jpg",
     images: [
       "/images/product-1mukhi.jpg",
-      "/images/product-5mukhi.jpg",
+      "/images/placeholder.svg",
       "/images/product-mala.jpg",
       "/images/product-7mukhi.jpg"
     ],
@@ -80,7 +80,7 @@ export const products = [
     img: "/images/product-7mukhi.jpg",
     images: [
       "/images/product-7mukhi.jpg",
-      "/images/product-5mukhi.jpg",
+      "/images/placeholder.svg",
       "/images/product-11mukhi.jpg",
       "/images/product-mala.jpg"
     ],
@@ -102,7 +102,7 @@ export const products = [
     img: "/images/product-mala.jpg",
     images: [
       "/images/product-mala.jpg",
-      "/images/product-5mukhi.jpg",
+      "/images/placeholder.svg",
       "/images/product-7mukhi.jpg",
       "/images/product-1mukhi.jpg"
     ],
@@ -124,7 +124,7 @@ export const products = [
     img: "/images/product-11mukhi.jpg",
     images: [
       "/images/product-11mukhi.jpg",
-      "/images/product-5mukhi.jpg",
+      "/images/placeholder.svg",
       "/images/product-7mukhi.jpg",
       "/images/product-mala.jpg"
     ],

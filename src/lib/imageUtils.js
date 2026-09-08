@@ -75,9 +75,9 @@ export function markProxyFailed(url) {
  * Append CDN sizing parameters if using supported image delivery services (e.g. ImageKit, Unsplash)
  */
 export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
-  if (!url || typeof url !== "string") return "/images/product-5mukhi.jpg";
+  if (!url || typeof url !== "string") return "/images/placeholder.svg";
   const clean = url.trim();
-  if (!clean) return "/images/product-5mukhi.jpg";
+  if (!clean) return "/images/placeholder.svg";
   if (!clean.startsWith("http")) return clean;
 
   if (failedProxyUrls.has(clean)) {
@@ -559,7 +559,20 @@ export async function getImagekitMediaStatus() {
  * or a default placeholder.
  */
 export const getProductPrimaryImage = (product) => {
-  if (!product) return "/images/product-5mukhi.jpg";
+  const getFallback = (p) => {
+    if (!p) return "/images/placeholder.svg";
+    const cat = (p.category || "").toLowerCase();
+    const type = (p.productType || "").toLowerCase();
+    if (cat.includes("rudraksha") || type.includes("rudraksha") || cat.includes("mukhi") || (p.name || "").toLowerCase().includes("rudraksha")) {
+      return "/images/product-5mukhi.jpg";
+    }
+    if (cat.includes("mala") || type.includes("mala") || (p.name || "").toLowerCase().includes("mala")) {
+      return "/images/product-mala.jpg";
+    }
+    return "/images/placeholder.svg";
+  };
+
+  if (!product) return getFallback(product);
   if (Array.isArray(product.images) && product.images.length > 0 && product.images[0]) {
     return product.images[0];
   }
@@ -569,7 +582,7 @@ export const getProductPrimaryImage = (product) => {
   if (product.image && typeof product.image === "string") {
     return product.image;
   }
-  return "/images/product-5mukhi.jpg";
+  return getFallback(product);
 };
 
 /**
@@ -578,7 +591,20 @@ export const getProductPrimaryImage = (product) => {
  * or returns an array with the default placeholder.
  */
 export const getProductGalleryImages = (product) => {
-  if (!product) return ["/images/product-5mukhi.jpg"];
+  const getFallback = (p) => {
+    if (!p) return "/images/placeholder.svg";
+    const cat = (p.category || "").toLowerCase();
+    const type = (p.productType || "").toLowerCase();
+    if (cat.includes("rudraksha") || type.includes("rudraksha") || cat.includes("mukhi") || (p.name || "").toLowerCase().includes("rudraksha")) {
+      return "/images/product-5mukhi.jpg";
+    }
+    if (cat.includes("mala") || type.includes("mala") || (p.name || "").toLowerCase().includes("mala")) {
+      return "/images/product-mala.jpg";
+    }
+    return "/images/placeholder.svg";
+  };
+
+  if (!product) return [getFallback(product)];
   if (Array.isArray(product.images) && product.images.length > 0) {
     return product.images;
   }
@@ -588,5 +614,5 @@ export const getProductGalleryImages = (product) => {
   if (product.image && typeof product.image === "string") {
     return [product.image];
   }
-  return ["/images/product-5mukhi.jpg"];
+  return [getFallback(product)];
 };

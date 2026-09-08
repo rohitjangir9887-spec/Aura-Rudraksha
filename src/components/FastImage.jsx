@@ -11,7 +11,7 @@ export function FastImage({
   alt = "",
   className = "",
   style = {},
-  fallbackSrc = "/images/product-5mukhi.jpg",
+  fallbackSrc = "/images/placeholder.svg",
   priority = false,
   width,
   height,

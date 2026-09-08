@@ -37,7 +37,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const images = (Array.isArray(p?.images) && p.images.length > 0) 
     ? p.images 
     : getProductGalleryImages(p);
-  const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/product-5mukhi.jpg";
+  const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/placeholder.svg";
   const cardImgWidth = (typeof window !== "undefined" && window.innerWidth < 640) ? 360 : 440;
   const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: cardImgWidth, quality: 80 });
   const discount = pct(p);
@@ -118,7 +118,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
             if (target.src.includes("wsrv.nl")) {
               target.src = rawDisplayImage;
             } else if (!target.src.includes("product-5mukhi.jpg")) { 
-              target.src = "/images/product-5mukhi.jpg"; 
+              target.src = "/images/placeholder.svg"; 
             } 
           }}
         />

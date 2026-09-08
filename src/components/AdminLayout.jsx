@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Store, MoreHorizontal, LogOut } from "lucide-react";
+import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAdminAuth } from "../hooks/useAdminAuth";
 import { useAdminMetrics } from "../hooks/useAdminMetrics";
 import { getMenuItems, getBottomTabs } from "./admin/adminConfig";
 import { AdminNavLinks } from "./admin/AdminNavLinks";
-import { AdminAuraAIFloating } from "./admin/AdminAuraAIFloating";
 import { ADMIN_BASE_PATH } from "../lib/routes";
 
 export function AdminLayout({ children }) {
@@ -86,6 +85,25 @@ export function AdminLayout({ children }) {
 
         <div className="mobile-header-actions">
           <Link
+            to="/admin/ai"
+            className="mobile-store-icon"
+            title="AURA AI - Admin Agent"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "12px",
+              fontWeight: "700",
+              color: "#a84118",
+              background: "#fff1f2",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: "1px solid #fecdd3"
+            }}
+          >
+            <Sparkles size={16} /> AI
+          </Link>
+          <Link
             to="/"
             className="mobile-store-icon"
             title="Return to Customer Store Home"
@@ -157,6 +175,19 @@ export function AdminLayout({ children }) {
         <div className="admin-top-bar">
           <div className="page-title">{pageTitle}</div>
           <div className="admin-user-info">
+            <Link 
+              to="/admin/ai" 
+              className="view-store-pill" 
+              style={{
+                background: "#fff1f2", 
+                color: "#a84118", 
+                borderColor: "#fecdd3",
+                fontWeight: "700"
+              }}
+              title="AURA AI - Admin Agent"
+            >
+              <Sparkles size={14} /> Aura AI
+            </Link>
             <Link to="/" className="view-store-pill" target="_blank">
               <Store size={14} /> Store Preview
             </Link>
@@ -231,7 +262,6 @@ export function AdminLayout({ children }) {
         </button>
       </nav>
 
-      <AdminAuraAIFloating />
     </div>
   );
 }

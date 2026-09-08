@@ -12,7 +12,7 @@ export function ProductDetails({ product, unitPrice, unitMrp, qty, setQty }) {
           alt={product.name}
           loading="lazy"
           decoding="async"
-          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
         />
       </div>
       <div className="aura-ai-order-prod-meta">

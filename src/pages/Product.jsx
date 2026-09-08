@@ -530,8 +530,8 @@ export function Product() {
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <img
                       src={isIndonesianActive
-                        ? (rawP.images?.[0] || rawP.img || "/images/product-5mukhi.jpg")
-                        : (rawP.indonesianImg || rawP.indonesianImages?.[0] || rawP.img || "/images/product-5mukhi.jpg")
+                        ? (rawP.images?.[0] || rawP.img || "/images/placeholder.svg")
+                        : (rawP.indonesianImg || rawP.indonesianImages?.[0] || rawP.img || "/images/placeholder.svg")
                       }
                       alt="Similar Origin Bead"
                       style={{

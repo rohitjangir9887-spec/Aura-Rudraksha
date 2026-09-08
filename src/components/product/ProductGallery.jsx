@@ -17,7 +17,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
 
   // Unique list of valid image URLs
   const images = rawImages.filter(Boolean);
-  if (images.length === 0) images.push("/images/product-5mukhi.jpg");
+  if (images.length === 0) images.push("/images/placeholder.svg");
 
   const [activeImg, setActiveImg] = useState(images[0]);
   const [slideDirection, setSlideDirection] = useState(1);
@@ -246,7 +246,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
               transition={{ duration: 0.2, ease: "easeOut" }}
               onError={(e) => {
                 if (!e.target.src.includes("product-5mukhi.jpg")) {
-                  e.target.src = "/images/product-5mukhi.jpg";
+                  e.target.src = "/images/placeholder.svg";
                 }
               }}
             />
@@ -276,7 +276,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                   decoding="async"
                   onError={(e) => {
                     if (!e.target.src.includes("product-5mukhi.jpg")) {
-                      e.target.src = "/images/product-5mukhi.jpg";
+                      e.target.src = "/images/placeholder.svg";
                     }
                   }}
                 />

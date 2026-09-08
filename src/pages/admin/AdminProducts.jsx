@@ -13,6 +13,7 @@ import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as Link
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
 import { AdminFeaturedProductManager } from "../../components/admin/AdminFeaturedProductManager";
+import { HomeProductShowcase } from "../../components/HomeProductShowcase";
 
 export function AdminProducts() {
   const [searchParams] = useSearchParams();
@@ -1013,12 +1014,40 @@ export function AdminProducts() {
                 <option value="CUSTOM_INPUT">➕ Custom / New Category...</option>
               </select>
               
-              {(editing.isCustomCategory || (editing.category && !allKnownCatNames.includes(editing.category))) && (
+                          {(editing.isCustomCategory || (editing.category && !allKnownCatNames.includes(editing.category))) && (
                 <input 
                   type="text"
                   value={editing.category || ""}
                   onChange={e => setEditing({...editing, category: e.target.value})}
                   placeholder="Type new category name..."
+                  style={{ marginTop: '8px' }}
+                />
+              )}
+            </div>
+
+            <div className="admin-form-group">
+              <label>Product Type</label>
+              <select 
+                value={["Rudraksha", "Mala", "Bracelet", "Puja Samagri", "Yantra", "Gemstone", "Idol", "Incense", "Other"].includes(editing.productType) ? (editing.productType || "Rudraksha") : (editing.productType ? "CUSTOM_INPUT" : "Rudraksha")}
+                onChange={e => {
+                  if (e.target.value === "CUSTOM_INPUT") {
+                    setEditing({...editing, productType: "", isCustomProductType: true});
+                  } else {
+                    setEditing({...editing, productType: e.target.value, isCustomProductType: false});
+                  }
+                }}
+              >
+                {["Rudraksha", "Mala", "Bracelet", "Puja Samagri", "Yantra", "Gemstone", "Idol", "Incense", "Other"].map(pt => (
+                  <option key={pt} value={pt}>{pt}</option>
+                ))}
+                <option value="CUSTOM_INPUT">➕ Custom Type...</option>
+              </select>
+              {(editing.isCustomProductType || (editing.productType && !["Rudraksha", "Mala", "Bracelet", "Puja Samagri", "Yantra", "Gemstone", "Idol", "Incense", "Other"].includes(editing.productType))) && (
+                <input 
+                  type="text"
+                  value={editing.productType || ""}
+                  onChange={e => setEditing({...editing, productType: e.target.value})}
+                  placeholder="Type new product type..."
                   style={{ marginTop: '8px' }}
                 />
               )}
@@ -2144,7 +2173,7 @@ export function AdminProducts() {
                             src={imgUrl} 
                             alt={`Product thumbnail ${index + 1}`} 
                             style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                            onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+                            onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
                           />
                           {isPrimary ? (
                             <span style={{
@@ -2402,6 +2431,50 @@ export function AdminProducts() {
         </div>
       </div>
 
+            {homeFilter === "On Home" && !loading && (
+        <div style={{ marginBottom: '24px', background: '#fefcfb', border: '1px dashed #c2410c', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0, fontSize: '15px', color: '#9a3412', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Star size={18} /> Live Home Page Preview & Placement
+            </h3>
+            <span style={{ fontSize: '12px', color: '#c2410c', fontWeight: '600', background: '#ffedd5', padding: '4px 10px', borderRadius: '20px' }}>
+              {filteredProducts.length} Items Configured
+            </span>
+          </div>
+          
+          <div style={{ marginBottom: '20px', background: '#fff', border: '1px solid #eadecd', borderRadius: '12px', padding: '12px' }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#7c2d12' }}>Quick Edit Home Order (Lower number = shown first)</h4>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+              {filteredProducts.sort((a,b) => (a.homeOrder || 0) - (b.homeOrder || 0)).map(p => (
+                <div key={p.id} style={{ minWidth: '160px', background: '#fff9f4', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#9a3412' }}>{p.name}</div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#7a6a5e' }}>Order:</span>
+                    <input 
+                      type="number" 
+                      defaultValue={p.homeOrder || 0}
+                      onBlur={async (e) => {
+                        const newOrder = Number(e.target.value);
+                        if (newOrder !== (p.homeOrder || 0)) {
+                          await db.saveProduct({ ...p, homeOrder: newOrder });
+                          load();
+                        }
+                      }}
+                      style={{ width: '50px', padding: '2px 4px', fontSize: '12px', border: '1px solid #eadecd', borderRadius: '4px' }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: '11px', color: '#a8a29e', margin: '8px 0 0' }}>Tip: Change the order number and click outside to save. Live preview below will update.</p>
+          </div>
+
+          <div style={{ pointerEvents: 'none', transform: 'scale(0.95)', transformOrigin: 'top center', background: '#fff', border: '1px solid #eadecd', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
+            <HomeProductShowcase products={products.filter(p => p.showOnHome !== false && p.status !== "Draft" && p.status !== "Inactive")} isLoading={false} />
+          </div>
+        </div>
+      )}
+
       <div className="admin-filter-bar">
         <div className="admin-search-box">
           <Search size={16} />
@@ -2453,7 +2526,7 @@ export function AdminProducts() {
                         src={displayImg} 
                         alt={p.name} 
                         style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid #e8e0d8' }} 
-                        onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+                        onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
                       />
                       <div>
                         <span className="mobile-card-title">{p.name}</span>
@@ -2602,7 +2675,7 @@ export function AdminProducts() {
                           <img 
                             src={displayImg} 
                             alt={p.name} 
-                            onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/product-5mukhi.jpg"; }}
+                            onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
                           />
                           <div>
                             <strong>{p.name}</strong>
