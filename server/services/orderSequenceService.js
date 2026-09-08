@@ -51,7 +51,7 @@ export async function generateNextOrderNumber() {
     return orderNumber;
   } catch (err) {
     console.warn("⚠️ Counter sequence error, using timestamp sequential fallback:", err.message);
-    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-    return `AURA-${datePrefix}-${randomSuffix}`;
+    const timeSeq = String(Date.now()).slice(-6);
+    return `AURA-${datePrefix}-${timeSeq}`;
   }
 }

@@ -1,4 +1,5 @@
 import { Customer } from "../models/Customer.js";
+import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
@@ -309,6 +310,23 @@ export async function getCustomerMe(req, res, next) {
         guestCustomer.lastLoginAt = new Date();
         guestCustomer.lastSeen = now;
         await guestCustomer.save();
+
+        // Also link previous guest orders placed with this verified email/phone
+        const orderOr = [];
+        if (req.user.email) orderOr.push({ customerEmail: req.user.email.toLowerCase() }, { email: req.user.email.toLowerCase() });
+        if (req.user.phone) orderOr.push({ customerPhone: req.user.phone }, { phone: req.user.phone });
+        if (orderOr.length > 0) {
+          await Order.updateMany(
+            {
+              $and: [
+                { $or: [{ authUserId: { $exists: false } }, { authUserId: null }, { authUserId: "guest" }, { authUserId: { $regex: "^guest_" } }] },
+                { $or: orderOr }
+              ]
+            },
+            { $set: { authUserId: authUserId } }
+          ).catch(() => {});
+        }
+
         return res.json({ success: true, data: guestCustomer.toObject ? guestCustomer.toObject() : guestCustomer });
       }
     }
@@ -329,6 +347,24 @@ export async function getCustomerMe(req, res, next) {
       joined: now,
       status: "Active"
     });
+
+    // Link previous guest orders placed with this verified email/phone
+    if (req.user.email || req.user.phone) {
+      const orderOr = [];
+      if (req.user.email) orderOr.push({ customerEmail: req.user.email.toLowerCase() }, { email: req.user.email.toLowerCase() });
+      if (req.user.phone) orderOr.push({ customerPhone: req.user.phone }, { phone: req.user.phone });
+      if (orderOr.length > 0) {
+        await Order.updateMany(
+          {
+            $and: [
+              { $or: [{ authUserId: { $exists: false } }, { authUserId: null }, { authUserId: "guest" }, { authUserId: { $regex: "^guest_" } }] },
+              { $or: orderOr }
+            ]
+          },
+          { $set: { authUserId: authUserId } }
+        ).catch(() => {});
+      }
+    }
 
     return res.json({ success: true, data: newCust.toObject ? newCust.toObject() : newCust });
   } catch (err) {

@@ -1283,10 +1283,22 @@ export const db = {
     }
   },
 
-  getOrder: async (id) => {
+  getOrder: async (id, guestToken = "", txnid = "") => {
     if (!id) return { success: false, notFound: true, message: "Order ID is required" };
     try {
-      const res = await apiRequest(`/orders/${id}`, { timeoutMs: 15000 });
+      const gToken = guestToken || (typeof window !== "undefined" ? (sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "") : "");
+      const headers = {};
+      if (gToken) headers["x-guest-token"] = gToken;
+      if (txnid) headers["x-payu-txnid"] = txnid;
+
+      let url = `/orders/${id}`;
+      const params = new URLSearchParams();
+      if (gToken) params.set("guestToken", gToken);
+      if (txnid) params.set("txnid", txnid);
+      const q = params.toString();
+      if (q) url += `?${q}`;
+
+      const res = await apiRequest(url, { headers, timeoutMs: 15000 });
       if (res?.success && res.data) {
         return res;
       }
@@ -1438,11 +1450,22 @@ export const db = {
     return res;
   },
 
-  verifyPayment: async (orderId, txnid = "") => {
+  verifyPayment: async (orderId, txnid = "", guestToken = "") => {
     if (!orderId) return { success: false };
     try {
-      const url = txnid ? `/payment/verify/${orderId}?txnid=${encodeURIComponent(txnid)}` : `/payment/verify/${orderId}`;
-      const res = await apiRequest(url, { timeoutMs: 8000 });
+      const gToken = guestToken || (typeof window !== "undefined" ? (sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "") : "");
+      let url = `/payment/verify/${orderId}`;
+      const params = new URLSearchParams();
+      if (txnid) params.set("txnid", txnid);
+      if (gToken) params.set("guestToken", gToken);
+      const qStr = params.toString();
+      if (qStr) url += `?${qStr}`;
+
+      const headers = {};
+      if (gToken) headers["x-guest-token"] = gToken;
+      if (txnid) headers["x-payu-txnid"] = txnid;
+
+      const res = await apiRequest(url, { headers, timeoutMs: 10000 });
       if (res?.success && res.data) {
         const idx = storeCache.orders.findIndex(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
         if (idx >= 0) {
@@ -1457,10 +1480,16 @@ export const db = {
     }
   },
 
-  retryPayment: async (orderId, txnid = "") => {
+  retryPayment: async (orderId, txnid = "", guestToken = "") => {
+    const gToken = guestToken || (typeof window !== "undefined" ? (sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "") : "");
+    const headers = {};
+    if (gToken) headers["x-guest-token"] = gToken;
+    if (txnid) headers["x-payu-txnid"] = txnid;
+
     const res = await apiRequest(`/payment/retry/${orderId}`, {
       method: "POST",
-      body: JSON.stringify({ txnid })
+      headers,
+      body: JSON.stringify({ txnid, guestToken: gToken })
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to generate PayU payment retry.");

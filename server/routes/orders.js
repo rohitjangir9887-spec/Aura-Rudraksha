@@ -8,7 +8,7 @@ import {
   getPaymentFailureAlert,
   trackOrderPublic
 } from "../controllers/orderController.js";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -38,7 +38,7 @@ router.route("/")
   .post(requireAuth, createOrder);
 
 router.route("/:id")
-  .get(requireAuth, getOrderById)
+  .get(optionalAuth, getOrderById)
   .put(requireAuth, updateOrder);
 
 export default router;

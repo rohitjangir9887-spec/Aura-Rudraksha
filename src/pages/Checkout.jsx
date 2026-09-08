@@ -509,6 +509,12 @@ export function Checkout() {
       const res = await db.initiatePayment(paymentPayload);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        if (res.data?.guestToken) {
+          try {
+            sessionStorage.setItem("aura_guest_token", res.data.guestToken);
+            localStorage.setItem("aura_guest_token", res.data.guestToken);
+          } catch (_) {}
+        }
         setPaymentState("REDIRECTING");
         // Automatically and immediately redirect to PayU
         postToPayuGateway(res.data.paymentUrl, res.data.params);

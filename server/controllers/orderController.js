@@ -110,9 +110,11 @@ export async function getMyOrders(req, res, next) {
 export async function getOrderById(req, res, next) {
   try {
     const { id } = req.params;
-    const authUserId = req.user.authUserId;
-    const userEmail = (req.user.email || "").trim().toLowerCase();
-    const userPhone = (req.user.phone || "").trim();
+    const authUserId = req.user?.authUserId;
+    const userEmail = (req.user?.email || "").trim().toLowerCase();
+    const userPhone = (req.user?.phone || "").trim();
+    const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || "").trim();
+    const reqTxnid = String(req.headers["x-payu-txnid"] || req.query.txnid || "").trim();
 
     let order = null;
     if (!isDbConnected()) {
@@ -134,17 +136,23 @@ export async function getOrderById(req, res, next) {
 
     // Authorization check
     const { isInitialAdmin } = isAdminUser(req.user);
-    const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
+    const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     
     const oEmail = (order.customerEmail || order.email || order.shippingAddress?.email || "").toLowerCase();
     const oPhone = order.customerPhone || order.phone || order.shippingAddress?.phone || "";
-    const isOwner = (
+    const isOwner = authUserId && (
       order.authUserId === authUserId ||
       (userEmail && oEmail === userEmail) ||
       (userPhone && oPhone === userPhone)
     );
 
-    if (!isAdmin && !isOwner) {
+    const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
+    const isGuestOwner = isGuestOrder && (
+      (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+    );
+
+    if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
     }
 

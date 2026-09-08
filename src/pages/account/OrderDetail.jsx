@@ -31,6 +31,17 @@ export function OrderDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { add } = useCart();
+
+  const searchParams = new URLSearchParams(location.search);
+  const guestToken = searchParams.get("guestToken") || searchParams.get("guest_token") || "";
+  const txnid = searchParams.get("txnid") || searchParams.get("txnId") || "";
+
+  if (guestToken) {
+    try {
+      sessionStorage.setItem("aura_guest_token", guestToken);
+      localStorage.setItem("aura_guest_token", guestToken);
+    } catch (_) {}
+  }
   
   // Try to grab from synchronous local cache first for instant 0ms rendering
   const [order, setOrder] = useState(() => {
@@ -57,7 +68,9 @@ export function OrderDetail() {
     if (!order?.id) return;
     setRetryingPayment(true);
     try {
-      const res = await db.retryPayment(order.id);
+      const effectiveGuestToken = guestToken || order?.guestToken || "";
+      const effectiveTxnid = txnid || order?.txnid || "";
+      const res = await db.retryPayment(order.id, effectiveTxnid, effectiveGuestToken);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         emitToast("Redirecting to PayU Secure Gateway...", "info");
         const form = document.createElement("form");
@@ -94,7 +107,7 @@ export function OrderDetail() {
       setLoadError("");
       setIsNotFound(false);
       try {
-        const res = await db.getOrder(id);
+        const res = await db.getOrder(id, guestToken, txnid);
         if (!isMounted) return;
         if (res?.success && res.data) {
           const normalized = db.normalizeOrder(res.data);
@@ -133,14 +146,14 @@ export function OrderDetail() {
       isMounted = false;
       unsubscribe();
     };
-  }, [id, navigate]);
+  }, [id, guestToken, txnid, navigate]);
   
   async function loadOrder() {
     setLoading(true);
     setLoadError("");
     setIsNotFound(false);
     try {
-      const res = await db.getOrder(id);
+      const res = await db.getOrder(id, guestToken, txnid);
       if (res?.success && res.data) {
         const normalized = db.normalizeOrder(res.data);
         setOrder(normalized);

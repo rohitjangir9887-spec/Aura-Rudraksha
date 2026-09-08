@@ -14,7 +14,15 @@ export function PaymentResult() {
   const status = (searchParams.get("status") || searchParams.get("payment_status") || "processing").toLowerCase();
   const orderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1");
   const txnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id");
+  const guestToken = searchParams.get("guestToken") || searchParams.get("guest_token") || "";
   const reason = searchParams.get("reason") || searchParams.get("error") || searchParams.get("message");
+  
+  if (guestToken) {
+    try {
+      sessionStorage.setItem("aura_guest_token", guestToken);
+      localStorage.setItem("aura_guest_token", guestToken);
+    } catch (_) {}
+  }
   
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,11 +40,11 @@ export function PaymentResult() {
         return;
       }
       try {
-        let res = await db.verifyPayment(orderId, txnid);
+        let res = await db.verifyPayment(orderId, txnid, guestToken);
         // If query param indicated success but server state transition is mid-flight, retry once after a brief interval
         if (res?.data?.paymentStatus !== "Paid" && status === "success") {
           await new Promise((r) => setTimeout(r, 1500));
-          res = await db.verifyPayment(orderId, txnid);
+          res = await db.verifyPayment(orderId, txnid, guestToken);
         }
 
         if (res?.success && res.data) {
@@ -56,7 +64,7 @@ export function PaymentResult() {
        verifyAttempted.current = true;
        verify();
     }
-  }, [orderId, txnid, clear, status]);
+  }, [orderId, txnid, guestToken, clear, status]);
 
   // Authoritative server-verified payment success
   const isVerifiedSuccess = order?.paymentStatus === "Paid";
@@ -96,7 +104,7 @@ export function PaymentResult() {
     if (!orderId) return;
     setRetrying(true);
     try {
-      const res = await db.retryPayment(orderId);
+      const res = await db.retryPayment(orderId, txnid || "", guestToken || "");
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         const { paymentUrl, params } = res.data;
         const form = document.createElement("form");
@@ -155,7 +163,7 @@ export function PaymentResult() {
               Thank you! Your sacred order <b>#{orderNum}</b> has been securely received. Redirecting to your order details...
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-              <Link to={`/account/orders/${orderNum}`} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
+              <Link to={`/account/orders/${orderNum}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
                 View Order Details
               </Link>
             </div>
@@ -193,7 +201,7 @@ export function PaymentResult() {
               <button type="button" disabled={retrying} onClick={handleRetry} style={{ background: retrying ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)", color: "#ffffff", border: "none", borderRadius: "10px", padding: "13px 26px", fontSize: "14.5px", fontWeight: "700", cursor: retrying ? "wait" : "pointer", display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 14px rgba(165, 77, 43, 0.3)" }}>
                 {retrying ? <><Loader2 size={16} className="animate-spin" /><span>Connecting...</span></> : <><RefreshCw size={16} /><span>Retry Payment</span></>}
               </button>
-              <button type="button" onClick={() => navigate(`/account/orders/${orderId}`, { replace: true })} className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}>
+              <button type="button" onClick={() => navigate(`/account/orders/${orderId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`, { replace: true })} className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}>
                 View Order Details
               </button>
             </div>

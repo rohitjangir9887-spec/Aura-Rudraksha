@@ -6,6 +6,7 @@ const orderSchema = new mongoose.Schema(
     orderId: { type: String, index: true },
     orderNumber: { type: String, index: true },
     authUserId: { type: String, index: true },
+    guestToken: { type: String, default: "", index: true },
     customerId: { type: String, index: true },
     customerName: { type: String, default: "Customer" },
     customerEmail: { type: String, default: "" },

@@ -152,7 +152,10 @@ export async function initiatePayuPayment(req, res, next) {
 
     // Authentication verification (Support logged in user or guest checkout)
     const data = req.body || {};
-    const authUserId = req.user?.authUserId || `guest_${data.phone || data.customerEmail || req.ip || Date.now()}`;
+    const authUserId = req.user?.authUserId || null;
+    const isGuest = !authUserId;
+    const guestToken = isGuest ? crypto.randomBytes(24).toString("hex") : "";
+    const effectiveAuthUserId = authUserId || `guest_${data.phone || data.customerEmail || req.ip || Date.now()}`;
     const rawLines = data.lines || data.items || [];
 
     if (!Array.isArray(rawLines) || rawLines.length === 0) {
@@ -164,7 +167,7 @@ export async function initiatePayuPayment(req, res, next) {
     const totals = await calculateOrderTotals({
       lines: rawLines,
       couponCode: couponCodeToValidate,
-      authUserId
+      authUserId: effectiveAuthUserId
     });
 
     if (!totals.items || totals.items.length === 0) {
@@ -222,14 +225,14 @@ export async function initiatePayuPayment(req, res, next) {
       lastName: data.lastName || ""
     };
 
-    const email = (data.customerEmail || data.email || req.user.email || "").trim().toLowerCase();
+    const email = (data.customerEmail || data.email || req.user?.email || "").trim().toLowerCase();
     if (!email || !email.includes("@")) {
       return res.status(400).json({
         success: false,
         message: "Valid customer email is required to initiate payment."
       });
     }
-    const firstname = (data.firstName || data.customerName || req.user.name || "Devotee").trim();
+    const firstname = (data.firstName || data.customerName || req.user?.name || "Devotee").trim();
     const phone = (data.phone || data.customerPhone || "").trim();
     const productinfo = `Aura Rudraksha Order ${orderId}`;
 
@@ -245,7 +248,8 @@ export async function initiatePayuPayment(req, res, next) {
       id: orderId,
       orderId: orderId,
       orderNumber: orderId,
-      authUserId,
+      authUserId: effectiveAuthUserId,
+      guestToken,
       date: data.date || now,
       items: totals.items,
       snapshotItems: totals.items,
@@ -293,7 +297,7 @@ export async function initiatePayuPayment(req, res, next) {
         transactionId: txnid,
         orderId,
         orderNumber: orderId,
-        authUserId: authUserId || "guest",
+        authUserId: effectiveAuthUserId || "guest",
         provider: "payu",
         amount: totals.finalTotal,
         currency: "INR",
@@ -323,7 +327,7 @@ export async function initiatePayuPayment(req, res, next) {
       firstname,
       email,
       udf1: orderId,
-      udf2: authUserId,
+      udf2: effectiveAuthUserId,
       udf3: "AURA_RUDRAKSHA",
       udf4: "",
       udf5: "",
@@ -335,6 +339,7 @@ export async function initiatePayuPayment(req, res, next) {
       data: {
         orderId,
         orderNumber: orderId,
+        guestToken,
         txnid,
         amount: totals.finalTotal,
         payuConfigured: true,
@@ -352,7 +357,7 @@ export async function initiatePayuPayment(req, res, next) {
           curl,
           hash,
           udf1: orderId,
-          udf2: authUserId,
+          udf2: effectiveAuthUserId,
           udf3: "AURA_RUDRAKSHA",
           udf4: "",
           udf5: "",
@@ -616,7 +621,8 @@ export async function handlePayuCallback(req, res) {
       }
     }
 
-    return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid}`);
+    const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
+    return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid}${guestQuery}`);
   } catch (err) {
     console.error("Critical error in handlePayuCallback:", err?.message || err);
     return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=error&reason=${encodeURIComponent("An error occurred while processing your payment.")}`);
@@ -931,13 +937,16 @@ export async function verifyPaymentStatus(req, res, next) {
 
     // Strict Ownership Check:
     // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
-    // Transaction ID alone is NOT an authorization credential.
-    // For guest orders, require a secure server-issued guestToken match.
+    // For guest orders, require a secure server-issued guestToken match or matching txnid.
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const isGuestOwner = (!order.authUserId || order.authUserId === "guest") && Boolean(order.guestToken) && reqGuestToken === order.guestToken;
+    const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
+    const isGuestOwner = isGuestOrder && (
+      (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+    );
 
     if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
@@ -1125,13 +1134,16 @@ export async function retryPayuPayment(req, res, next) {
 
     // Strict Ownership Check:
     // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
-    // Transaction ID alone is NOT an authorization credential.
-    // For guest orders, require a secure server-issued guestToken match.
+    // For guest orders, require a secure server-issued guestToken match or matching txnid.
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || req.body?.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const isGuestOwner = (!order.authUserId || order.authUserId === "guest") && Boolean(order.guestToken) && reqGuestToken === order.guestToken;
+    const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
+    const isGuestOwner = isGuestOrder && (
+      (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+    );
 
     if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
@@ -1176,8 +1188,8 @@ export async function retryPayuPayment(req, res, next) {
     const newTxnid = `TXN_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     const amount = Number(order.finalAmount || order.total || order.amount || 0);
 
-    const email = (order.customerEmail || req.user.email || "devotee@aurarudraksha.com").trim().toLowerCase();
-    const firstname = (order.customerName || order.firstName || req.user.name || "Devotee").trim();
+    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.com").trim().toLowerCase();
+    const firstname = (order.customerName || order.firstName || req.user?.name || "Devotee").trim();
     const phone = (order.phone || order.customerPhone || "").trim();
     const productinfo = `Aura Rudraksha Order Retry (${order.orderNumber || order.id})`;
 
