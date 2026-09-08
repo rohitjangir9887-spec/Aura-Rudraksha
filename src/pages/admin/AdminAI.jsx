@@ -158,33 +158,7 @@ export function AdminAI() {
   const filteredConvos = conversations.filter(c => {
     if (!searchConvo) return true;
     const q = searchConvo.toLowerCase();
-    const loadAll = async () => {
-    try {
-      emitToast("Refreshing Admin Agent data...", "info");
-      const [analyticsData, settingsData, convos, execRep] = await Promise.all([
-        auraAiClient.getAnalytics().catch(() => null),
-        auraAiClient.getSettings().catch(() => null),
-        auraAiClient.getConversations().catch(() => []),
-        activeTab === "intelligence" ? auraAiClient.getAdminIntelligence().catch(() => null) : Promise.resolve(executiveReport)
-      ]);
-      if (analyticsData) setAnalytics(analyticsData);
-      if (settingsData) setSettingsSafe(settingsData);
-      if (convos) setConversations(convos);
-      if (execRep) setExecutiveReport(execRep);
-      
-      const prods = db.getProducts();
-      setProducts(prods || []);
-      const offers = db.getOffers ? db.getOffers() : (db.getCoupons ? db.getCoupons() : []);
-      setCoupons(offers || []);
-
-      emitToast("Admin Agent data refreshed.", "success");
-    } catch (e) {
-      console.error(e);
-      emitToast("Failed to refresh some data.", "error");
-    }
-  };
-
-  return (
+    return (
       (c.userName && c.userName.toLowerCase().includes(q)) ||
       (c.userEmail && c.userEmail.toLowerCase().includes(q)) ||
       (c.title && c.title.toLowerCase().includes(q))

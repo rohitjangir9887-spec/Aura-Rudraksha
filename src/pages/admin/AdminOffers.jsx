@@ -32,7 +32,10 @@ export function AdminOffers() {
     return () => clearInterval(timer);
   }, []);
 
-  const load = () => {
+  const load = async () => {
+    if (!db.getActiveOffer() && db.fetchOffers) {
+      try { await db.fetchOffers(); } catch(e) {}
+    }
     setActiveOffer(db.getActiveOffer());
   };
 

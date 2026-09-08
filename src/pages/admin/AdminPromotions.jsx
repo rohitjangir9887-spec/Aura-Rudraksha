@@ -31,7 +31,12 @@ export function AdminPromotions() {
   const [previewMode, setPreviewMode] = useState("desktop"); // desktop | mobile
   const [deleteId, setDeleteId] = useState(null);
 
-  const load = () => setPromotions(db.getPromotions());
+  const load = async () => {
+    if ((db.getPromotions() || []).length === 0 && db.fetchPromotions) {
+      try { await db.fetchPromotions(); } catch(e) {}
+    }
+    setPromotions(db.getPromotions() || []);
+  };
   useEffect(() => {
     load();
     const unsub = onStoreUpdate(load);

@@ -88,8 +88,14 @@ export function AdminProducts() {
     setFilteredProducts(result);
   }, [searchTerm, selectedCategory, homeFilter, products]);
 
-  const load = () => {
-    const list = db.getProducts();
+  const load = async () => {
+    if ((db.getProducts() || []).length === 0) {
+      setLoading(true);
+      try {
+        await db.fetchProducts();
+      } catch (e) {}
+    }
+    const list = db.getProducts() || [];
     setProducts(list);
     setFilteredProducts(list);
     setLoading(false);

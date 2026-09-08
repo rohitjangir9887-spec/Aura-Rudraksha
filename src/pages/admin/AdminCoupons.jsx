@@ -19,7 +19,12 @@ export function AdminCoupons() {
     return () => unsub();
   }, []);
 
-  const load = () => setCoupons(db.getCoupons());
+  const load = async () => {
+    if ((db.getCoupons() || []).length === 0 && db.fetchCoupons) {
+      try { await db.fetchCoupons(); } catch(e) {}
+    }
+    setCoupons(db.getCoupons() || []);
+  };
 
   const isExpired = (c) => Boolean(c.expiry && new Date(c.expiry).getTime() < Date.now());
   const effectiveStatus = (c) => (c.status === "Active" && isExpired(c)) ? "Expired" : (c.status === "Disabled" ? "Inactive" : c.status || "Active");

@@ -33,7 +33,9 @@ export function AdminAIAgentChat() {
 
     try {
       const res = await auraAiClient.sendAdminChat(newMsgs);
-      if (res && res.messages) {
+      if (res && res.text) {
+        setMessages([...newMsgs, { sender: "ai", text: res.text }]);
+      } else if (res && res.messages) {
         setMessages(res.messages);
       } else {
         setMessages([...newMsgs, { sender: "ai", text: "I encountered an error while processing that request." }]);

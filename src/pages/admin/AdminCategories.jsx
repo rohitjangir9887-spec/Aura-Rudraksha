@@ -41,13 +41,16 @@ export function AdminCategories() {
   const [isSavingProducts, setIsSavingProducts] = useState(false);
 
   useEffect(() => {
-    const load = () => {
-      const settings = db.getSettings();
-      if (settings.shopCategories && settings.shopCategories.length > 0) {
-        setCategories(settings.shopCategories);
-      }
-      setProducts(db.getProducts());
-    };
+    const load = async () => {
+    if ((db.getProducts() || []).length === 0) {
+      try { await db.fetchProducts(); } catch(e) {}
+    }
+    const settings = db.getSettings() || {};
+    if (settings.shopCategories && settings.shopCategories.length > 0) {
+      setCategories(settings.shopCategories);
+    }
+    setProducts(db.getProducts() || []);
+  };
     load();
     db.fetchSettings().then(load);
     db.fetchProducts().then(load);
