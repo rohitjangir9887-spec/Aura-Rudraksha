@@ -1,4 +1,5 @@
 import { Setting, Ticket, Analytics } from "../models/Setting.js";
+import { Counter } from "../models/Counter.js";
 import { Product } from "../models/Product.js";
 import { Review } from "../models/Review.js";
 import { ActiveOffer } from "../models/Promotion.js";
@@ -298,20 +299,6 @@ export async function createTicket(req, res, next) {
     const authUserId = authenticatedUser ? (authenticatedUser.authUserId || authenticatedUser.uid || "") : "";
     const userEmail = authenticatedUser?.email ? authenticatedUser.email.toLowerCase().trim() : (data.email || "").toLowerCase().trim();
 
-    const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
-    const payload = {
-      ...data,
-      id,
-      authUserId: authUserId || "guest",
-      userId: authUserId || "guest",
-      userEmail,
-      email: userEmail || data.email,
-      status: "Open",
-      priority: "Normal",
-      adminResponse: "",
-      date: new Date().toISOString()
-    };
-
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
@@ -320,6 +307,27 @@ export async function createTicket(req, res, next) {
         databaseUnavailable: true
       });
     }
+
+    const counter = await Counter.findOneAndUpdate(
+      { _id: "ticketNumber" },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: "after" }
+    );
+    const seqNum = counter?.seq ? 1000 + counter.seq : Math.floor(1000 + Math.random() * 9000);
+    const id = `TIC-${seqNum}`;
+
+    const payload = {
+      ...data,
+      id,
+      authUserId: authUserId || "guest",
+      userId: authUserId || "guest",
+      userEmail,
+      email: userEmail || data.email,
+      status: "Open",
+      priority: data.priority || "Normal",
+      adminResponse: "",
+      date: new Date().toISOString()
+    };
 
     const saved = await Ticket.create(payload);
     return res.status(201).json({ success: true, data: saved });

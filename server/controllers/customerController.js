@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Customer } from "../models/Customer.js";
 import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
@@ -65,7 +66,7 @@ export async function saveCustomer(req, res, next) {
     const phone = (data.phone || "").trim();
     const now = new Date().toISOString();
 
-    const id = req.body.id || ("CUS-" + Math.floor(1000 + Math.random() * 9000));
+    const id = req.body.id || ("CUS-" + crypto.randomBytes(4).toString("hex").toUpperCase());
     const customerPayload = {
       ...data,
       id,
@@ -341,7 +342,7 @@ export async function getCustomerMe(req, res, next) {
     }
 
     // 3. Create new Customer record securely keyed by verified authUserId with automatic Gmail / Google name
-    const id = "CUS-" + Math.floor(1000 + Math.random() * 9000);
+    const id = "CUS-" + crypto.randomBytes(4).toString("hex").toUpperCase();
     const resolvedName = googleName || (req.user.email ? req.user.email.split("@")[0] : "Customer");
     const newCust = await Customer.create({
       id,
@@ -455,7 +456,7 @@ async function findCustomerForAuthUser(user) {
   // Create new customer if record does not exist
   const now = new Date().toISOString();
   const created = await Customer.create({
-    id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+    id: "CUS-" + crypto.randomBytes(4).toString("hex").toUpperCase(),
     authUserId,
     name: user.name || (email ? email.split("@")[0] : "Customer"),
     email,
@@ -497,7 +498,7 @@ export async function addAddress(req, res, next) {
     }
 
     const address = req.body || {};
-    const addrId = address.id || ("ADDR-" + Math.floor(1000 + Math.random() * 9000));
+    const addrId = address.id || ("ADDR-" + crypto.randomBytes(4).toString("hex").toUpperCase());
     const newAddress = { ...address, id: addrId };
 
     const customer = await findCustomerForAuthUser(req.user);

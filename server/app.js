@@ -280,9 +280,6 @@ export function createApp() {
 
     if (isDbErr) {
       console.warn('[Database Error Handler] Database offline/unavailable:', err.message);
-      if (req.method === 'GET') {
-        return res.json({ success: true, data: req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {} });
-      }
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.status(503).json({
         success: false,

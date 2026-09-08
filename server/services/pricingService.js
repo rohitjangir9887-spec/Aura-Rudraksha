@@ -95,6 +95,7 @@ export async function getAuthoritativeProducts(productIds = []) {
       const dbProducts = await Product.find({
         $or: [
           { id: { $in: cleanIds } },
+          { slug: { $in: cleanIds } },
           { _id: { $in: cleanIds.filter(id => id.match(/^[0-9a-fA-F]{24}$/)) } }
         ]
       }).lean();
