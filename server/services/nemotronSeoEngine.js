@@ -54,32 +54,222 @@ export function sanitizeMedicalAndHealthClaims(text) {
 }
 
 /**
- * Clean & Deduplicate Keywords
+ * Extract Core Head Terms from product title (e.g. "5 mukhi rudraksha", "5mukhi rudraksha", "panchmukhi rudraksha")
  */
-export function cleanAndDeduplicateKeywords(keywordList = []) {
-  const seen = new Set();
-  const cleaned = [];
+export function extractCoreHeadTerms(cleanName = "", category = "", mukhiNum = null) {
+  const mNumRaw = mukhiNum || extractMukhiNumber(cleanName);
+  const mNum = (mNumRaw && /^\d+$/.test(String(mNumRaw))) ? String(mNumRaw) : null;
+  const coreTerms = [];
+  let mainCore = "";
 
-  for (const item of keywordList) {
-    const rawKw = typeof item === "string" ? item : (item?.keyword || "");
+  if (mNum) {
+    mainCore = `${mNum} mukhi rudraksha`;
+    coreTerms.push(mainCore);
+    coreTerms.push(`${mNum}mukhi rudraksha`);
+    coreTerms.push(`${mNum} mukhi rudraksh`);
+
+    const HINDI_MUKHI_MAP = {
+      1: "ek mukhi rudraksha",
+      2: "do mukhi rudraksha",
+      3: "teen mukhi rudraksha",
+      4: "chaar mukhi rudraksha",
+      5: "panchmukhi rudraksha",
+      6: "chheh mukhi rudraksha",
+      7: "saat mukhi rudraksha",
+      8: "aath mukhi rudraksha",
+      9: "nau mukhi rudraksha",
+      10: "das mukhi rudraksha",
+      11: "gyarah mukhi rudraksha",
+      12: "barah mukhi rudraksha",
+      13: "terah mukhi rudraksha",
+      14: "chaudah mukhi rudraksha"
+    };
+    if (HINDI_MUKHI_MAP[mNum]) {
+      coreTerms.push(HINDI_MUKHI_MAP[mNum]);
+    }
+  } else if (/gauri\s*shankar/i.test(cleanName)) {
+    mainCore = "gauri shankar rudraksha";
+    coreTerms.push("gauri shankar rudraksha", "gaurishankar rudraksh");
+  } else if (/ganesh/i.test(cleanName)) {
+    mainCore = "ganesh rudraksha";
+    coreTerms.push("ganesh rudraksha", "ganpati rudraksh");
+  } else if (/sphatik/i.test(cleanName)) {
+    mainCore = "sphatik mala";
+    coreTerms.push("sphatik mala", "sphatik crystal mala", "sphatik 108 mala");
+  } else if (/tulsi/i.test(cleanName)) {
+    mainCore = "tulsi mala";
+    coreTerms.push("tulsi mala", "original tulsi mala", "iskcon tulsi mala");
+  } else if (/mala/i.test(cleanName)) {
+    mainCore = cleanName
+      .toLowerCase()
+      .replace(/\b(buy|online|original|lab\s*certified|certified|genuine|100%|authentic|price|cost|best|quality)\b/gi, "")
+      .replace(/[()|]/g, "")
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!mainCore) mainCore = "rudraksha mala";
+    coreTerms.push(mainCore);
+  } else {
+    // Strip promotional modifiers from raw title to obtain clean subject
+    mainCore = cleanName
+      .toLowerCase()
+      .replace(/\b(buy|online|original|lab\s*certified|certified|genuine|nepali|nepal|100%|authentic|price|cost|best|quality|free\s*shipping)\b/gi, "")
+      .replace(/[()|]/g, "")
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!mainCore || mainCore.length < 3) {
+      mainCore = cleanName.toLowerCase().replace(/[()|]/g, "").replace(/\s+/g, " ").trim();
+    }
+    coreTerms.push(mainCore);
+  }
+
+  return { mainCore, coreTerms };
+}
+
+/**
+ * Filter, Deduplicate and Rank Keywords based on Natural Search Intent
+ */
+export function filterAndRankKeywords(candidates = [], mainCore = "") {
+  const seen = new Set();
+  const validKeywords = [];
+
+  const commercialModifiers = ["buy", "online", "price", "original", "lab", "certified", "genuine", "authentic", "best", "shop", "store", "cost"];
+
+  for (const rawItem of candidates) {
+    const rawKw = typeof rawItem === "string" ? rawItem : (rawItem?.keyword || rawItem?.term || rawItem?.text || rawItem?.value || "");
     if (!rawKw || typeof rawKw !== "string") continue;
 
-    // Normalize for duplicate detection
-    const normalized = rawKw
+    let kw = rawKw
       .toLowerCase()
-      .replace(/[^\w\s]/gi, "")
+      .replace(/[()|]/g, "")
+      .replace(/[^\w\s-]/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
-    if (!normalized || normalized.length < 2) continue;
+    if (!kw || kw.length < 2) continue;
 
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      cleaned.push(typeof item === "string" ? rawKw.trim() : { ...item, keyword: rawKw.trim() });
+    const words = kw.split(" ");
+    if (words.length > 9) continue; // Skip unnaturally long title-dumps
+
+    // Reject phrase if it has repeated words (e.g. "buy buy", "original original")
+    const wordCounts = {};
+    let hasDuplicateWord = false;
+    for (const w of words) {
+      if (w.length <= 2) continue; // ignore short prepositions like "in", "to", "ke"
+      wordCounts[w] = (wordCounts[w] || 0) + 1;
+      if (wordCounts[w] > 1) {
+        hasDuplicateWord = true;
+        break;
+      }
     }
+    if (hasDuplicateWord) continue;
+
+    // Reject phrase if it stacks more than 2 commercial modifiers
+    const commCount = words.filter(w => commercialModifiers.includes(w)).length;
+    if (commCount > 2) continue;
+
+    // Normalize whitespace for deduplication
+    const normKey = words.join(" ");
+    if (seen.has(normKey)) continue;
+    seen.add(normKey);
+
+    // Classify
+    let kwType = "medium";
+    if (words.length <= 2) kwType = "short";
+    else if (words.length >= 5) kwType = "long_tail";
+    if (/\b(kaise|kis|how|why|what)\b/.test(kw)) kwType = "question";
+
+    let lang = "english";
+    if (/\b(fayde|pehne|asli|pehchane|kis|rashi|dharan|vidhi|ke|liye)\b/.test(kw)) lang = "hinglish";
+
+    let intent = "Informational";
+    if (/\b(buy|price|cost|store|shop|online)\b/.test(kw)) intent = "Transactional/Commercial";
+    else if (/\b(asli|pehchane|identify|lab|certified|genuine|original)\b/.test(kw)) intent = "Authenticity";
+    else if (/\b(benefits|fayde|mantra|rashi|significance)\b/.test(kw)) intent = "Benefits/Traditional Significance";
+    else if (/\b(pehne|dharan|vidhi|care)\b/.test(kw)) intent = "Wearing/Care";
+
+    // Score represents internal model relevance (not Google search volume)
+    const relScore = Math.max(70, 98 - validKeywords.length * 1);
+
+    validKeywords.push({
+      keyword: kw,
+      type: kwType,
+      intent: intent,
+      language: lang,
+      evidenceType: "ai_suggestion",
+      trendLevel: "unknown",
+      trendConfidence: "low",
+      relevanceScore: relScore,
+      scoreType: "model_relevance"
+    });
+
+    if (validKeywords.length >= 30) break;
   }
 
-  return cleaned;
+  return validKeywords;
+}
+
+/**
+ * Generate Natural Knowledge Base Keywords (Fallback Engine)
+ */
+export function generateNaturalKeywordsFromKnowledge(cleanName, category = "Rudraksha", productInput = {}) {
+  const mukhiNum = extractMukhiNumber(cleanName) || extractMukhiNumber(productInput.mukhi);
+  const beadKnowledge = mukhiNum && VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)] ? VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)] : null;
+  const origin = (productInput.origin || "Nepal").trim();
+
+  const { mainCore, coreTerms } = extractCoreHeadTerms(cleanName, category, mukhiNum);
+  const candidateQueries = [];
+
+  // Core terms
+  coreTerms.forEach(ct => candidateQueries.push(ct));
+
+  // Commercial / Buy
+  candidateQueries.push(`buy ${mainCore}`);
+  candidateQueries.push(`buy ${mainCore} online`);
+  candidateQueries.push(`original ${mainCore}`);
+  candidateQueries.push(`genuine ${mainCore}`);
+  if (origin) candidateQueries.push(`${origin.toLowerCase()} ${mainCore}`);
+
+  // Price
+  candidateQueries.push(`${mainCore} price`);
+  candidateQueries.push(`${mainCore} price in india`);
+  candidateQueries.push(`original ${mainCore} price`);
+
+  // Informational / Benefits
+  candidateQueries.push(`${mainCore} benefits`);
+  candidateQueries.push(`${mainCore} ke fayde`);
+  candidateQueries.push(`${mainCore} mantra`);
+  candidateQueries.push(`${mainCore} kis rashi ke liye`);
+
+  // Authenticity
+  candidateQueries.push(`${mainCore} asli kaise pehchane`);
+  candidateQueries.push(`how to identify original ${mainCore}`);
+
+  // Wearing & Care
+  candidateQueries.push(`${mainCore} kaise pehne`);
+  candidateQueries.push(`${mainCore} dharan vidhi`);
+
+  // Certification & Origin
+  candidateQueries.push(`${mainCore} lab certified`);
+  if (origin) candidateQueries.push(`original ${origin.toLowerCase()} ${mainCore}`);
+
+  // Add knowledge base keywords if available
+  if (beadKnowledge && Array.isArray(beadKnowledge.keywords)) {
+    beadKnowledge.keywords.forEach(k => {
+      const kw = String(k).toLowerCase().trim();
+      if (kw && !kw.includes("|")) candidateQueries.push(kw);
+    });
+  }
+
+  return filterAndRankKeywords(candidateQueries, mainCore);
+}
+
+/**
+ * Clean & Deduplicate Keywords
+ */
+export function cleanAndDeduplicateKeywords(keywordList = []) {
+  return filterAndRankKeywords(keywordList);
 }
 
 /**
@@ -212,6 +402,8 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
     beadKnowledge
   );
 
+  const { mainCore } = extractCoreHeadTerms(cleanName, category, mukhiNum);
+
   // Initialize strictly NVIDIA NIM model
   const nvidiaClient = getNvidiaNemotronClient();
   let aiOutputParsed = null;
@@ -220,20 +412,39 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
 
   if (nvidiaClient) {
     try {
-      const promptSystem = `You are Aura AI SEO + Vedic Product Data Engine for Aura Rudraksha, powered strictly by NVIDIA Nemotron-3 Super 120B.
+      const promptSystem = `You are the Aura AI SEO & Vedic Keyword Generation Engine for Aura Rudraksha, powered strictly by NVIDIA Nemotron-3 Super 120B (nvidia/nemotron-3-super-120b-a12b).
 
-CRITICAL INSTRUCTIONS:
-1. Model: You are running on nvidia/nemotron-3-super-120b-a12b.
-2. No Fabrication: Do NOT invent search volume numbers (e.g. "10,000/mo"), fake customer reviews, ratings, sales counts, or unverified claims.
-3. Medical Safety: Never claim Rudraksha cures medical diseases. Use "Traditional belief / traditional practice — not medical advice."
-4. Multi-source research: Cross-check Vedic facts for ${mukhiNum ? `${mukhiNum} Mukhi` : cleanName}.
-5. Keyword Engine: Generate 20-35 high-converting, distinct search keywords across short (1-2 words), medium (3-4 words), long_tail (5-9 words), and question types in English, Hindi, and Hinglish.
-6. Output JSON: Return ONLY a valid JSON object strictly matching this schema:
+CRITICAL KEYWORD GENERATION RULES:
+1. DISCOVER REAL HUMAN SEARCH PHRASES: Do NOT mechanically copy, repeat, or concatenate the product title.
+2. EXTRACT CORE HEAD TERM: First identify the core item subject (e.g., for "Buy Original 5 Mukhi Rudraksha (Nepali) Online | Lab Certified", the core term is "5 mukhi rudraksha").
+3. GENERATE 15 TO 30 DISTINCT, NATURAL SEARCH QUERIES across these intent buckets:
+   - CORE HEAD TERMS: e.g. "5 mukhi rudraksha", "5mukhi rudraksha", "panchmukhi rudraksha", "5 mukhi rudraksh"
+   - COMMERCIAL / BUY: e.g. "buy 5 mukhi rudraksha", "buy 5 mukhi rudraksha online", "original 5 mukhi rudraksha", "nepali 5 mukhi rudraksha"
+   - PRICE: e.g. "5 mukhi rudraksha price", "original 5 mukhi rudraksha price in india"
+   - INFORMATIONAL / BENEFITS: e.g. "5 mukhi rudraksha benefits", "5 mukhi rudraksha ke fayde", "5 mukhi rudraksha mantra", "5 mukhi rudraksha kis rashi ke liye"
+   - AUTHENTICITY / TESTING: e.g. "5 mukhi rudraksha asli kaise pehchane", "how to identify original 5 mukhi rudraksha"
+   - WEARING & CARE: e.g. "5 mukhi rudraksha kaise pehne", "5 mukhi rudraksha dharan vidhi"
+   - CERTIFICATION & ORIGIN: e.g. "5 mukhi rudraksha lab certified", "nepali rudraksha"
+4. FORBIDDEN PATTERNS:
+   - NEVER repeat words like "buy buy...", "original buy original..."
+   - NEVER create long title-concatenated strings like "buy original 5 mukhi rudraksha nepali online lab certified"
+   - NEVER stack more than 2 commercial modifiers in a single keyword phrase
+5. SEARCH EVIDENCE & TREND RULES:
+   - Set "evidenceType": "ai_suggestion" for all keywords.
+   - Set "trendLevel": "unknown" and "trendConfidence": "low" (no live search provider is connected). DO NOT fake search volume or trend percentages.
+   - Set "relevanceScore": an integer from 70 to 98 representing internal model relevance.
+   - Set "scoreType": "model_relevance".
+6. OUTPUT JSON ONLY matching this exact schema:
 
 {
   "productAnalysis": {
     "confidence": "high",
     "warnings": []
+  },
+  "searchEvidence": {
+    "provider": null,
+    "searched": false,
+    "searchedAt": null
   },
   "seo": {
     "recommendedTitle": "Recommended SEO Title without clickbait",
@@ -243,14 +454,15 @@ CRITICAL INSTRUCTIONS:
   },
   "keywords": [
     {
-      "keyword": "string keyword",
-      "type": "short|medium|long_tail|question",
-      "intent": "Informational|Commercial Investigation|Transactional|Navigational|Astrology|Spiritual|Authenticity|Wearing/Care|Origin|Price|Certification|Benefits/Traditional Significance",
-      "language": "english|hindi|hinglish",
-      "seoScore": 85,
-      "trendLevel": "rising|high|stable|seasonal|unknown",
-      "trendConfidence": "high|medium|low",
-      "evidence": "Observed natural search pattern for Vedic Rudraksha buyers"
+      "keyword": "5 mukhi rudraksha",
+      "type": "short",
+      "intent": "Transactional/Commercial",
+      "language": "english",
+      "evidenceType": "ai_suggestion",
+      "trendLevel": "unknown",
+      "trendConfidence": "low",
+      "relevanceScore": 96,
+      "scoreType": "model_relevance"
     }
   ],
   "vedicAstrology": {
@@ -286,7 +498,7 @@ Existing Highlight: "${highlight || details || ''}"
 Existing Description: "${description.slice(0, 300)}"
 Target Language: ${language}
 
-Generate complete, authentic Vedic SEO & Product Data JSON.`;
+Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
 
       const completion = await nvidiaClient.chat.completions.create({
         model: NEMOTRON_NIM_MODEL,
@@ -311,56 +523,14 @@ Generate complete, authentic Vedic SEO & Product Data JSON.`;
     aiWarningMessage = "NVIDIA NIM API Key not configured. Populated from verified Vedic Knowledge Base without fabrication.";
   }
 
-  // Fallback to verified Vedic Knowledge Base if AI output is not available (NO other LLM model used!)
+  // Fallback to verified Vedic Knowledge Base if AI output is not available
   if (!aiGenerationSuccess || !aiOutputParsed) {
     const defaultDeity = deity || rulingDeity || beadKnowledge?.deity || "Lord Shiva";
     const defaultPlanet = rulingPlanet || beadKnowledge?.planet || "Universal / Jupiter";
     const defaultRashi = zodiac.length > 0 ? zodiac : (beadKnowledge?.rashis || ["All Rashis (Universal)"]);
     const defaultMantra = mantra || beejMantra || beadKnowledge?.beejMantra || "Om Namah Shivaya";
 
-    const baseKeywords = [
-      `${cleanName.toLowerCase()}`,
-      `original ${cleanName.toLowerCase()}`,
-      `buy ${cleanName.toLowerCase()} online`,
-      `${cleanName.toLowerCase()} price`,
-      `lab certified ${cleanName.toLowerCase()}`,
-      `${cleanName.toLowerCase()} benefits`,
-      `${cleanName.toLowerCase()} dharan vidhi`,
-      `nepal ${cleanName.toLowerCase()}`,
-      `asli ${cleanName.toLowerCase()}`,
-      `${cleanName.toLowerCase()} ke fayde`,
-      `${cleanName.toLowerCase()} kis rashi ke liye`,
-      `${cleanName.toLowerCase()} kaise pehne`,
-      `authentic ${cleanName.toLowerCase()} online india`
-    ];
-
-    if (beadKnowledge && Array.isArray(beadKnowledge.keywords)) {
-      beadKnowledge.keywords.forEach(k => baseKeywords.push(k.toLowerCase()));
-    }
-
-    const cleanedKwStrings = Array.from(new Set(baseKeywords));
-
-    const keywordObjects = cleanedKwStrings.map((kw, idx) => {
-      let kwType = "medium";
-      const wordCount = kw.split(" ").length;
-      if (wordCount <= 2) kwType = "short";
-      else if (wordCount >= 5) kwType = "long_tail";
-      if (kw.includes("kis") || kw.includes("kaise") || kw.includes("for") || kw.includes("how")) kwType = "question";
-
-      let lang = "english";
-      if (kw.includes("fayde") || kw.includes("pehne") || kw.includes("ke liye") || kw.includes("asli") || kw.includes("dharan")) lang = "hinglish";
-
-      return {
-        keyword: kw,
-        type: kwType,
-        intent: kw.includes("buy") || kw.includes("price") ? "Transactional" : "Spiritual",
-        language: lang,
-        seoScore: Math.max(70, 95 - idx * 2),
-        trendLevel: "high",
-        trendConfidence: "high",
-        evidence: "Verified Vedic search intent pattern"
-      };
-    });
+    const keywordObjects = generateNaturalKeywordsFromKnowledge(cleanName, category, productInput);
 
     const fallbackHtmlDesc = beadKnowledge
       ? `<h2>✨ About the Product</h2><p>Original 100% authentic, lab-certified ${cleanName} sourced directly from sacred high-altitude groves of ${origin}. ${beadKnowledge.traditionalSignificance}</p><h2>📿 Product Highlights</h2><p>Natural Mukhi lines, X-Ray tested, smooth bead texture, and pre-energized with authentic Vedic Shiva Mantras.</p><h2>🌿 Spiritual Significance & Benefits</h2><p>${beadKnowledge.primaryBenefits} (Traditional belief — not medical advice).</p><h2>🙏 Suitable For</h2><p>Suitable for ${defaultRashi.join(", ")} and devotees seeking peace, clarity, and spiritual elevation.</p><h2>🕉️ How to Wear & Care</h2><p>${beadKnowledge.dharanVidhi} ${beadKnowledge.careGuidance}</p>`
@@ -370,6 +540,11 @@ Generate complete, authentic Vedic SEO & Product Data JSON.`;
       productAnalysis: {
         confidence: "medium",
         warnings: aiWarningMessage ? [aiWarningMessage] : ["Populated from verified Vedic Knowledge Base."]
+      },
+      searchEvidence: {
+        provider: null,
+        searched: false,
+        searchedAt: null
       },
       seo: {
         recommendedTitle: `${cleanName} - Original ${origin} Lab Certified`,
@@ -426,12 +601,20 @@ Generate complete, authentic Vedic SEO & Product Data JSON.`;
     }
   }
 
-  // Clean and deduplicate keywords
+  // Enforce strict quality control, deduplication and ranking on all generated keywords
   if (Array.isArray(aiOutputParsed.keywords)) {
     const rawKws = aiOutputParsed.keywords;
-    const cleanedKwObjects = cleanAndDeduplicateKeywords(rawKws);
-    aiOutputParsed.keywords = cleanedKwObjects.slice(0, 35);
+    aiOutputParsed.keywords = filterAndRankKeywords(rawKws, mainCore);
+  } else {
+    aiOutputParsed.keywords = generateNaturalKeywordsFromKnowledge(cleanName, category, productInput);
   }
+
+  // Ensure searchEvidence is transparently structured
+  aiOutputParsed.searchEvidence = {
+    provider: null,
+    searched: false,
+    searchedAt: null
+  };
 
   // Ensure top-level flat compatibility fields for existing UI form bindings
   const flatKeywordStrings = (aiOutputParsed.keywords || []).map(
@@ -458,6 +641,11 @@ Generate complete, authentic Vedic SEO & Product Data JSON.`;
     success: true,
     engine: "NVIDIA NIM (nvidia/nemotron-3-super-120b-a12b)",
     data: aiOutputParsed,
+    searchEvidence: {
+      provider: null,
+      searched: false,
+      searchedAt: null
+    },
     // Top-level flat fields for AdminProducts.jsx backwards compatibility
     description: aiOutputParsed.seo?.seoDescription || "",
     keywords: flatKeywordStrings,

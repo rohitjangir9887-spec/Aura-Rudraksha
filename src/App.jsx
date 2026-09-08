@@ -121,31 +121,6 @@ function OrderParamRedirect() {
 }
 
 function AuraAIFloatingWrapper() {
-  const [shouldLoad, setShouldLoad] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    return auraChatStore.isFloatingOpen();
-  });
-
-  React.useEffect(() => {
-    if (shouldLoad) return;
-
-    const handleTrigger = () => setShouldLoad(true);
-
-    window.addEventListener("aura_ai_trigger_chat", handleTrigger);
-    window.addEventListener("aura_ai_trigger_chat_preload", handleTrigger);
-    window.addEventListener("aura_ai_open_change", handleTrigger);
-    window.addEventListener("aura_ai_floating_dismiss_sync", handleTrigger);
-
-    return () => {
-      window.removeEventListener("aura_ai_trigger_chat", handleTrigger);
-      window.removeEventListener("aura_ai_trigger_chat_preload", handleTrigger);
-      window.removeEventListener("aura_ai_open_change", handleTrigger);
-      window.removeEventListener("aura_ai_floating_dismiss_sync", handleTrigger);
-    };
-  }, [shouldLoad]);
-
-  if (!shouldLoad) return null;
-
   return (
     <ErrorBoundary isolate fallback={null}>
       <Suspense fallback={null}>
