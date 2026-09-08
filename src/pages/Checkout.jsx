@@ -470,13 +470,16 @@ export function Checkout() {
 
     const linesToProcess = (activeLines && activeLines.length > 0) ? activeLines : effectiveLines;
 
+    const unresolvable = linesToProcess.find(line => !resolveCartProduct(products, line));
+    if (unresolvable) {
+      setLoading(false);
+      setPayuModalOpen(false);
+      emitToast("One or more items in your cart could not be verified. Please review your cart.", "error");
+      return;
+    }
+
     const snapshotItems = linesToProcess.map(line => {
-      const p = resolveCartProduct(products, line) || {
-        name: "Original 14 Mukhi Rudraksha (Nepali) — Lab Certified Chaudah Mukhi Rudraksha",
-        price: 36950,
-        mrp: 59000,
-        img: "/images/product-1mukhi.jpg"
-      };
+      const p = resolveCartProduct(products, line);
       return {
         id: line.id,
         productId: p.productId || p.id || line.id,

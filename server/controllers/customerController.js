@@ -3,6 +3,7 @@ import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { normalizePhoneNumber, buildPhoneQueryVariants, extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 
 // Fields an admin may create/update on a customer record via the admin
 // dashboard. `role`, `id`, and `authUserId` are deliberately excluded so an
@@ -17,7 +18,12 @@ const ADMIN_CUSTOMER_FIELDS = {
 export async function getCustomers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, data: inMemoryStore.customers, count: inMemoryStore.customers.length });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
     const customers = await Customer.find().sort({ updatedAt: -1 }).lean();
     return res.json({ success: true, data: customers, count: customers.length });
@@ -30,11 +36,12 @@ export async function getCustomerById(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      const customer = inMemoryStore.customers.find(c => String(c.id) === String(id) || String(c.email).toLowerCase() === String(id).toLowerCase() || String(c.phone) === String(id));
-      if (!customer) {
-        return res.status(404).json({ success: false, message: "Customer not found" });
-      }
-      return res.json({ success: true, data: customer });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
 
     let customer = await Customer.findOne({
@@ -101,7 +108,8 @@ export async function saveCustomer(req, res, next) {
 export async function recordCustomerOrder({ authUserId, email, phone, name, address, amount, shippingAddress }) {
   const now = new Date().toISOString();
   const cleanEmail = (email || "").trim().toLowerCase();
-  const cleanPhone = (phone || "").trim();
+  const rawPhone = (phone || "").trim();
+  const cleanPhone = normalizePhoneNumber(rawPhone) || rawPhone;
   const cleanName = (name || "Customer").trim();
 
   if (isDbConnected()) {
@@ -112,8 +120,11 @@ export async function recordCustomerOrder({ authUserId, email, phone, name, addr
     if (!existingCust && cleanEmail) {
       existingCust = await Customer.findOne({ email: cleanEmail });
     }
-    if (!existingCust && cleanPhone) {
-      existingCust = await Customer.findOne({ phone: cleanPhone });
+    if (!existingCust && rawPhone) {
+      const phoneQueries = buildPhoneQueryVariants(rawPhone, ["phone"]);
+      if (phoneQueries.length > 0) {
+        existingCust = await Customer.findOne({ $or: phoneQueries });
+      }
     }
 
     if (existingCust) {
@@ -291,10 +302,15 @@ export async function getCustomerMe(req, res, next) {
     }
 
     // 2. Safe migration: link existing customer or guest record by verified email or phone
-    if (req.user.email || req.user.phone) {
+    const userPhone = (req.user.phone || "").trim();
+
+    if (userEmail || userPhone) {
       const query = [];
-      if (req.user.email) query.push({ email: req.user.email });
-      if (req.user.phone) query.push({ phone: req.user.phone });
+      if (userEmail) query.push({ email: userEmail });
+      if (userPhone) {
+        const phoneVariants = buildPhoneQueryVariants(userPhone, ["phone"]);
+        query.push(...phoneVariants);
+      }
       const guestCustomer = await Customer.findOne({ $or: query });
       if (guestCustomer) {
         guestCustomer.authUserId = authUserId;
@@ -313,8 +329,13 @@ export async function getCustomerMe(req, res, next) {
 
         // Also link previous guest orders placed with this verified email/phone
         const orderOr = [];
-        if (req.user.email) orderOr.push({ customerEmail: req.user.email.toLowerCase() }, { email: req.user.email.toLowerCase() });
-        if (req.user.phone) orderOr.push({ customerPhone: req.user.phone }, { phone: req.user.phone });
+        if (userEmail) {
+          orderOr.push({ customerEmail: userEmail }, { email: userEmail }, { "shippingAddress.email": userEmail });
+        }
+        if (userPhone) {
+          const phoneVariants = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
+          orderOr.push(...phoneVariants);
+        }
         if (orderOr.length > 0) {
           await Order.updateMany(
             {
@@ -339,7 +360,8 @@ export async function getCustomerMe(req, res, next) {
       authUserId,
       role: isInitialAdmin ? "admin" : "customer",
       name: resolvedName,
-      email: req.user.email || "",
+      email: userEmail || "",
+      phone: userPhone ? (normalizePhoneNumber(userPhone) || userPhone) : "",
       avatar: googleAvatar || "",
       lastLoginAt: new Date(),
       lastSeen: now,
@@ -349,10 +371,15 @@ export async function getCustomerMe(req, res, next) {
     });
 
     // Link previous guest orders placed with this verified email/phone
-    if (req.user.email || req.user.phone) {
+    if (userEmail || userPhone) {
       const orderOr = [];
-      if (req.user.email) orderOr.push({ customerEmail: req.user.email.toLowerCase() }, { email: req.user.email.toLowerCase() });
-      if (req.user.phone) orderOr.push({ customerPhone: req.user.phone }, { phone: req.user.phone });
+      if (userEmail) {
+        orderOr.push({ customerEmail: userEmail }, { email: userEmail }, { "shippingAddress.email": userEmail });
+      }
+      if (userPhone) {
+        const phoneVariants = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
+        orderOr.push(...phoneVariants);
+      }
       if (orderOr.length > 0) {
         await Order.updateMany(
           {

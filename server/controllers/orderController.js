@@ -11,8 +11,9 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 import { pickFields } from "../utils/sanitize.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency } from "../services/idempotencyService.js";
 import { isValidOrderTransition, isValidPaymentTransition, createStateHistoryEntry, ORDER_STATES, PAYMENT_STATES, REFUND_STATES } from "../services/stateMachineService.js";
-import { normalizeOrderState, reconcileAllOrders } from "../services/orderReconciliationService.js";
+import { normalizeOrderState } from "../services/orderReconciliationService.js";
 import { logAuditEvent } from "../services/auditService.js";
+import { buildPhoneQueryVariants, normalizePhoneNumber } from "../utils/phoneUtils.js";
 import crypto from "crypto";
 
 // Allowed customer input fields during order creation
@@ -52,10 +53,13 @@ function cleanRecentSubmissions() {
 
 export async function getOrders(req, res, next) {
   try {
-    await reconcileAllOrders();
     if (!isDbConnected()) {
-      const orders = (inMemoryStore.orders || []).map(o => normalizeOrderState(o));
-      return res.json({ success: true, data: orders, count: orders.length });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
     const rawOrders = await Order.find().sort({ createdAt: -1 }).lean();
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
@@ -71,7 +75,14 @@ export async function getMyOrders(req, res, next) {
     const userEmail = (req.user.email || "").trim().toLowerCase();
     const userPhone = (req.user.phone || "").trim();
 
-    await reconcileAllOrders();
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
+    }
 
     const queryFilters = [{ authUserId }];
     if (userEmail) {
@@ -80,23 +91,8 @@ export async function getMyOrders(req, res, next) {
       queryFilters.push({ "shippingAddress.email": userEmail });
     }
     if (userPhone) {
-      queryFilters.push({ customerPhone: userPhone });
-      queryFilters.push({ phone: userPhone });
-      queryFilters.push({ "shippingAddress.phone": userPhone });
-    }
-
-    if (!isDbConnected()) {
-      const myOrders = (inMemoryStore.orders || [])
-        .filter(o => {
-          if (o.authUserId === authUserId) return true;
-          const oEmail = (o.customerEmail || o.email || o.shippingAddress?.email || "").toLowerCase();
-          if (userEmail && oEmail === userEmail) return true;
-          const oPhone = o.customerPhone || o.phone || o.shippingAddress?.phone || "";
-          if (userPhone && oPhone === userPhone) return true;
-          return false;
-        })
-        .map(o => normalizeOrderState(o));
-      return res.json({ success: true, data: myOrders, count: myOrders.length });
+      const phoneFilters = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
+      queryFilters.push(...phoneFilters);
     }
 
     const rawOrders = await Order.find({ $or: queryFilters }).sort({ createdAt: -1 }).lean();
@@ -116,23 +112,23 @@ export async function getOrderById(req, res, next) {
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || "").trim();
     const reqTxnid = String(req.headers["x-payu-txnid"] || req.query.txnid || "").trim();
 
-    let order = null;
     if (!isDbConnected()) {
-      order = (inMemoryStore.orders || []).find(o => String(o.id) === String(id) || String(o.orderId) === String(id) || String(o.orderNumber) === String(id));
-      if (!order) {
-        return res.status(404).json({ success: false, message: "Order not found" });
-      }
-      order = normalizeOrderState(order);
-    } else {
-      order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] }).lean();
-      if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
-        order = await Order.findById(id).lean();
-      }
-      if (!order) {
-        return res.status(404).json({ success: false, message: "Order not found" });
-      }
-      order = normalizeOrderState(order);
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
+
+    let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] }).lean();
+    if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(id).lean();
+    }
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    order = normalizeOrderState(order);
 
     // Authorization check
     const { isInitialAdmin } = isAdminUser(req.user);
@@ -614,40 +610,32 @@ export async function trackOrderPublic(req, res, next) {
     let order = null;
     const cleanTerm = rawQuery.toUpperCase();
 
-    if (isDbConnected()) {
-      const queryConditions = [];
-      if (rawQuery) {
-        queryConditions.push({ id: cleanTerm });
-        queryConditions.push({ orderId: cleanTerm });
-        queryConditions.push({ orderNumber: cleanTerm });
-        queryConditions.push({ trackingNumber: cleanTerm });
-        queryConditions.push({ trackingId: cleanTerm });
-        if (cleanTerm.match(/^[0-9A-F]{24}$/i)) {
-          queryConditions.push({ _id: cleanTerm });
-        }
-      }
-      if (rawPhone && rawPhone.length >= 7) {
-        const phoneSuffix = rawPhone.slice(-10);
-        queryConditions.push({ customerPhone: { $regex: phoneSuffix + "$" } });
-        queryConditions.push({ phone: { $regex: phoneSuffix + "$" } });
-        queryConditions.push({ "shippingAddress.phone": { $regex: phoneSuffix + "$" } });
-      }
-
-      order = await Order.findOne({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
-    } else {
-      const allOrders = inMemoryStore.orders || [];
-      order = allOrders.find(o => {
-        const idMatch = rawQuery && (
-          String(o.id || "").toUpperCase() === cleanTerm ||
-          String(o.orderId || "").toUpperCase() === cleanTerm ||
-          String(o.orderNumber || "").toUpperCase() === cleanTerm ||
-          String(o.trackingNumber || "").toUpperCase() === cleanTerm
-        );
-        const oPhone = String(o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/\D/g, "");
-        const phoneMatch = rawPhone && rawPhone.length >= 7 && oPhone.endsWith(rawPhone.slice(-10));
-        return idMatch || phoneMatch;
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Order tracking is temporarily unavailable. Please try again in a few moments.",
+        databaseUnavailable: true
       });
     }
+
+    const queryConditions = [];
+    if (rawQuery) {
+      queryConditions.push({ id: cleanTerm });
+      queryConditions.push({ orderId: cleanTerm });
+      queryConditions.push({ orderNumber: cleanTerm });
+      queryConditions.push({ trackingNumber: cleanTerm });
+      queryConditions.push({ trackingId: cleanTerm });
+      if (cleanTerm.match(/^[0-9A-F]{24}$/i)) {
+        queryConditions.push({ _id: cleanTerm });
+      }
+    }
+    if (rawPhone && rawPhone.length >= 7) {
+      const phoneFilters = buildPhoneQueryVariants(rawPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
+      queryConditions.push(...phoneFilters);
+    }
+
+    order = await Order.findOne({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
 
     if (!order) {
       return res.status(404).json({ 
