@@ -32,7 +32,12 @@ const activeOfferSchema = new mongoose.Schema(
     timerEnabled: { type: Boolean, default: true },
     popupDelay: { type: Number, default: 10 },
     scrollTrigger: { type: Number, default: 400 },
-    animationStyle: { type: String, default: "fade" }
+    animationStyle: { type: String, default: "fade" },
+    targetType: { type: String, enum: ["all", "selected", "excluded", "category", "subcategory"], default: "all" },
+    selectedProducts: { type: [String], default: [] },
+    excludedProducts: { type: [String], default: [] },
+    targetCategories: { type: [String], default: [] },
+    targetSubcategories: { type: [String], default: [] },
   },
   {
     timestamps: true,
@@ -65,7 +70,13 @@ const promotionSchema = new mongoose.Schema(
     status: { type: String, default: "Active" },
     showOnHome: { type: Boolean, default: true },
     showOnProduct: { type: Boolean, default: true },
-    showPopup: { type: Boolean, default: false }
+    showPopup: { type: Boolean, default: false },
+    targetType: { type: String, enum: ["all", "selected", "excluded", "category", "subcategory"], default: "all" },
+    selectedProducts: { type: [String], default: [] },
+    excludedProducts: { type: [String], default: [] },
+    targetCategories: { type: [String], default: [] },
+    targetSubcategories: { type: [String], default: [] },
+
   },
   {
     timestamps: true,

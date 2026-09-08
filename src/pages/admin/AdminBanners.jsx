@@ -20,6 +20,14 @@ export function AdminBanners() {
       </div>
       
       <div className="admin-card" style={{padding: 0}}>
+        <Link to={`${ADMIN_BASE_PATH}/banners/home-products`} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px', textDecoration: 'none', color: '#3b322c', borderBottom: '1px solid #f0ebe4'}}>
+          <div>
+            <b style={{display: 'block', fontSize: 16}}>Home Product Listing Manager</b>
+            <span style={{fontSize: 13, color: '#806f62'}}>Manage which products appear on the home page and their specific ordering</span>
+          </div>
+          <ChevronRight size={18} color="#a29286"/>
+        </Link>
+
         <Link to={`${ADMIN_BASE_PATH}/banners/hero`} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px', textDecoration: 'none', color: '#3b322c', borderBottom: '1px solid #f0ebe4'}}>
           <div>
             <b style={{display: 'block', fontSize: 16}}>Hero Images</b>

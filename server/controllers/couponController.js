@@ -15,7 +15,7 @@ import { logAuditEvent } from "../services/auditService.js";
 const COUPON_FIELDS = {
   code: "string", discount: "number", value: "number", type: "string", limit: "number",
   usage: "number", minAmount: "number", minOrder: "number", minOrderValue: "number",
-  expiry: "nullableString", status: "string", description: "string"
+  expiry: "nullableString", status: "string", description: "string", targetType: "string", selectedProducts: "string[]", excludedProducts: "string[]", targetCategories: "string[]", targetSubcategories: "string[]", maxDiscount: "number", perCustomerLimit: "number"
 };
 
 // Fields safe to show to unauthenticated shoppers on cart/checkout (no usage

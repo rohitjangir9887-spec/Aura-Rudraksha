@@ -11,7 +11,15 @@ const couponSchema = new mongoose.Schema(
     minAmount: { type: Number, default: 0 },
     minOrderValue: { type: Number, default: 0 }, // legacy alias of minAmount
     expiry: { type: String, default: null },
-    status: { type: String, enum: ["Active", "Inactive", "Expired"], default: "Active" }
+    status: { type: String, enum: ["Active", "Inactive", "Expired"], default: "Active" },
+    targetType: { type: String, enum: ["all", "selected", "excluded", "category", "subcategory"], default: "all" },
+    selectedProducts: { type: [String], default: [] },
+    excludedProducts: { type: [String], default: [] },
+    targetCategories: { type: [String], default: [] },
+    targetSubcategories: { type: [String], default: [] },
+    maxDiscount: { type: Number, default: 0 },
+    perCustomerLimit: { type: Number, default: 0 },
+
   },
   {
     timestamps: true,

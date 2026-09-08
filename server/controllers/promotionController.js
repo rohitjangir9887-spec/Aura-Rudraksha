@@ -27,7 +27,7 @@ const ACTIVE_OFFER_FIELDS = {
   heroEnabled: "bool", topStripEnabled: "bool", marqueeEnabled: "bool", productCardEnabled: "bool", productPageEnabled: "bool",
   imageBadgeEnabled: "bool", floatingEnabled: "bool", stickyEnabled: "bool",
   popupEnabled: "bool", timerEnabled: "bool", popupDelay: "number",
-  scrollTrigger: "number", animationStyle: "string",
+  scrollTrigger: "number", animationStyle: "string", targetType: "string", selectedProducts: "string[]", excludedProducts: "string[]", targetCategories: "string[]", targetSubcategories: "string[]",
   applicableProducts: "string[]", applicableCategories: "string[]"
 };
 

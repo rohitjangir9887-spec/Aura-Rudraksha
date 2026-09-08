@@ -27,7 +27,8 @@ const settingSchema = new mongoose.Schema(
     freeShippingThreshold: { type: Number, default: 499 }, // Default FREE shipping on all order amounts (₹0)
     enableProductShipping: { type: Boolean, default: true }, // Product-specific shipping rules toggle
     featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
-    featuredProductEnabled: { type: Boolean, default: true } // Toggle for featured product section on Home
+    featuredProductEnabled: { type: Boolean, default: true },
+    homeProductLayout: { type: Object, default: { draft: [], live: [] } },
   },
   { timestamps: true }
 );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { emitToast } from "../context/ToastContext";
-import { db } from "../lib/db";
+import { db, onStoreUpdate } from "../lib/db";
 import { authClient } from "../lib/authClient";
 
 function getWishlistStorageKey() {
@@ -14,7 +14,8 @@ function readLocalWishlist() {
   try {
     const key = getWishlistStorageKey();
     const raw = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(raw) ? raw.map(String) : [];
+    let ids = Array.isArray(raw) ? raw.map(String).filter(id => id && id !== "undefined" && id !== "null") : [];
+    return ids;
   } catch {
     return [];
   }
@@ -122,9 +123,21 @@ export function useWishlist() {
     return wishlist.includes(String(productId));
   }, [wishlist]);
 
+  const [storeVersion, setStoreVersion] = useState(0);
+  useEffect(() => {
+    const unsub = typeof onStoreUpdate === "function" ? onStoreUpdate(() => setStoreVersion(v => v + 1)) : () => {};
+    return () => unsub();
+  }, []);
+
+  const validWishlist = wishlist.filter(id => {
+    const p = db.getProduct(id);
+    return p && p.status !== "Draft" && p.status !== "Inactive";
+  });
+
   return {
-    wishlist,
-    count: wishlist.length,
+    wishlist: validWishlist,
+    rawWishlist: wishlist,
+    count: validWishlist.length,
     toggleWishlist,
     isWishlisted,
   };

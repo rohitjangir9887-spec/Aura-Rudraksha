@@ -17,7 +17,7 @@ const SETTING_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
-  enableProductShipping: "boolean", featuredProductId: "string", featuredProductEnabled: "boolean",
+  enableProductShipping: "boolean", featuredProductId: "string", featuredProductEnabled: "boolean", homeProductLayout: "object",
   pcloudAccessToken: "string", pcloudFolderId: "string",
   imagekitPublicKey: "string", imagekitPrivateKey: "string", imagekitUrlEndpoint: "string"
 };

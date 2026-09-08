@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
-import { isPublicProduct } from "../lib/db";
+import { db, isPublicProduct } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
 import { sortProductsByHomeOrder } from "../lib/productHelper";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
@@ -302,7 +302,7 @@ function MandalaCornerWatermark() {
   );
 }
 
-export function HomeProductShowcase({ products = [], isLoading = false }) {
+export function HomeProductShowcase({ products = [], isLoading = false, overrideLayout = false }) {
   const { add } = useCart();
   const [activeTab, setActiveTab] = useState("all");
 
@@ -326,9 +326,26 @@ export function HomeProductShowcase({ products = [], isLoading = false }) {
 
   // Filter products that admin explicitly enabled for Home Page Showcase
   const homeProducts = useMemo(() => {
+    if (overrideLayout) {
+      return products.filter(p => p && isPublicProduct(p));
+    }
+    const settings = db.getSettings();
+    if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
+      const liveOrder = settings.homeProductLayout.live;
+      const orderedProducts = [];
+      for (const id of liveOrder) {
+        const prod = products.find(p => String(p.id || p._id) === String(id));
+        if (prod && isPublicProduct(prod)) {
+          orderedProducts.push(prod);
+        }
+      }
+      return orderedProducts;
+    }
+    
+    // Fallback if no layout is set
     const activeHomeProds = products.filter(p => p.showOnHome !== false && isPublicProduct(p));
     return sortProductsByHomeOrder(activeHomeProds);
-  }, [products]);
+  }, [products, overrideLayout]);
 
   // Compute sub-filters for easy user discovery
   const popularProducts = useMemo(() => {

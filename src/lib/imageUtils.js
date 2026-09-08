@@ -561,13 +561,9 @@ export async function getImagekitMediaStatus() {
 export const getProductPrimaryImage = (product) => {
   const getFallback = (p) => {
     if (!p) return "/images/placeholder.svg";
-    const cat = (p.category || "").toLowerCase();
-    const type = (p.productType || "").toLowerCase();
-    if (cat.includes("rudraksha") || type.includes("rudraksha") || cat.includes("mukhi") || (p.name || "").toLowerCase().includes("rudraksha")) {
+    const name = (p.name || "").toLowerCase();
+    if (name.includes("5 mukhi") || name.includes("panch mukhi")) {
       return "/images/product-5mukhi.jpg";
-    }
-    if (cat.includes("mala") || type.includes("mala") || (p.name || "").toLowerCase().includes("mala")) {
-      return "/images/product-mala.jpg";
     }
     return "/images/placeholder.svg";
   };
@@ -593,13 +589,9 @@ export const getProductPrimaryImage = (product) => {
 export const getProductGalleryImages = (product) => {
   const getFallback = (p) => {
     if (!p) return "/images/placeholder.svg";
-    const cat = (p.category || "").toLowerCase();
-    const type = (p.productType || "").toLowerCase();
-    if (cat.includes("rudraksha") || type.includes("rudraksha") || cat.includes("mukhi") || (p.name || "").toLowerCase().includes("rudraksha")) {
+    const name = (p.name || "").toLowerCase();
+    if (name.includes("5 mukhi") || name.includes("panch mukhi")) {
       return "/images/product-5mukhi.jpg";
-    }
-    if (cat.includes("mala") || type.includes("mala") || (p.name || "").toLowerCase().includes("mala")) {
-      return "/images/product-mala.jpg";
     }
     return "/images/placeholder.svg";
   };

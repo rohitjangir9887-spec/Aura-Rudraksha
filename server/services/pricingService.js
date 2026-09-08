@@ -348,11 +348,47 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       const isInactive = coupon.status === "Inactive";
       const isLimitReached = Boolean(coupon.limit && (coupon.usage || 0) >= Number(coupon.limit));
       const minOrder = Number(coupon.minAmount || coupon.minOrder || coupon.minOrderValue || 0);
-      const isMinOrderNotMet = Boolean(minOrder > 0 && subtotal < minOrder);
-
       const discountVal = Number(coupon.discount || coupon.value || 0);
       const couponType = coupon.type || "percentage";
       const formattedExpiry = formatDate(expiryDate);
+
+      // Targeting Logic
+      let eligibleSubtotal = 0;
+      let excludedItemsCount = 0;
+      const tType = coupon.targetType || "all";
+      const selProds = coupon.selectedProducts || [];
+      const excProds = coupon.excludedProducts || [];
+      const tCats = coupon.targetCategories || [];
+      const tSubCats = coupon.targetSubcategories || [];
+
+      for (const item of validatedItems) {
+        let eligible = false;
+        if (tType === "all") {
+          eligible = true;
+        } else if (tType === "selected") {
+          eligible = selProds.includes(item.productId);
+        } else if (tType === "excluded") {
+          eligible = !excProds.includes(item.productId);
+        } else if (tType === "category") {
+          const prodObj = fetchedProducts.find(p => String(p.id) === item.productId || String(p._id) === item.productId);
+          eligible = prodObj && tCats.includes(prodObj.category);
+        } else if (tType === "subcategory") {
+          const prodObj = fetchedProducts.find(p => String(p.id) === item.productId || String(p._id) === item.productId);
+          eligible = prodObj && tSubCats.includes(prodObj.subcategory);
+        }
+
+        if (tType === "all" && excProds.length > 0) {
+           if (excProds.includes(item.productId)) eligible = false;
+        }
+
+        if (eligible) {
+          eligibleSubtotal += item.itemTotal;
+        } else {
+          excludedItemsCount++;
+        }
+      }
+
+      const isMinOrderNotMet = Boolean(minOrder > 0 && eligibleSubtotal < minOrder);
 
       if (isExpiredByDate || isStatusExpired) {
         couponStatus = "EXPIRED";
@@ -392,9 +428,21 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
           type: couponType,
           reason: "This coupon usage limit has been reached."
         };
+      } else if (eligibleSubtotal === 0) {
+        couponStatus = "NOT_ELIGIBLE";
+        couponRejection = {
+          id: coupon.id || coupon._id,
+          code: coupon.code,
+          status: "NOT_ELIGIBLE",
+          valid: false,
+          discount: discountVal,
+          discountAmount: 0,
+          type: couponType,
+          reason: "This coupon does not apply to any products in your cart."
+        };
       } else if (isMinOrderNotMet) {
         couponStatus = "NOT_ELIGIBLE";
-        const shortfall = minOrder - subtotal;
+        const shortfall = minOrder - eligibleSubtotal;
         couponRejection = {
           id: coupon.id || coupon._id,
           code: coupon.code,
@@ -405,15 +453,18 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
           type: couponType,
           minOrder,
           shortfall,
-          reason: `Add ₹${shortfall.toLocaleString('en-IN')} more to use this coupon.`
+          reason: `Add ₹${shortfall.toLocaleString('en-IN')} more of eligible products to use this coupon.`
         };
       } else {
-        // Valid & Active Coupon
         couponStatus = "APPLIED";
         if (couponType === "fixed") {
-          couponDiscount = Math.min(subtotal, discountVal);
+          couponDiscount = Math.min(eligibleSubtotal, discountVal);
         } else {
-          couponDiscount = Math.min(subtotal, Math.round((subtotal * discountVal) / 100));
+          couponDiscount = Math.min(eligibleSubtotal, Math.round((eligibleSubtotal * discountVal) / 100));
+        }
+        const maxDiscount = Number(coupon.maxDiscount || 0);
+        if (maxDiscount > 0 && couponDiscount > maxDiscount) {
+          couponDiscount = maxDiscount;
         }
 
         appliedCoupon = {

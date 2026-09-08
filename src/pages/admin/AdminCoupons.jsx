@@ -244,7 +244,7 @@ export function AdminCoupons() {
           <h1>Coupons</h1>
           <p className="admin-page-subtitle">Manage promotional discount codes for store checkout</p>
         </div>
-        <button className="admin-btn" onClick={() => setEditing({ code: '', discount: 10, type: 'percentage', limit: '', minAmount: '', expiry: '', status: 'Active', showOnHome: false })}>
+        <button className="admin-btn" onClick={() => setEditing({ code: '', discount: 10, type: 'percentage', limit: '', minAmount: '', maxDiscount: '', targetType: 'all', selectedProducts: [], excludedProducts: [], expiry: '', status: 'Active', showOnHome: false })}>
           <Plus size={16}/> Add Coupon
         </button>
       </div>

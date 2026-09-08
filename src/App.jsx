@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
@@ -72,6 +72,7 @@ const AdminAI = safeLazy(() => import("./pages/admin/AdminAI").then(m => ({ defa
 const AdminProducts = safeLazy(() => import("./pages/admin/AdminProducts").then(m => ({ default: m.AdminProducts })));
 const AdminOrders = safeLazy(() => import("./pages/admin/AdminOrders").then(m => ({ default: m.AdminOrders })));
 const AdminCustomers = safeLazy(() => import("./pages/admin/AdminCustomers").then(m => ({ default: m.AdminCustomers })));
+const AdminHomeProductManager = safeLazy(() => import("./pages/admin/AdminHomeProductManager").then(m => ({ default: m.AdminHomeProductManager })));
 const AdminBanners = safeLazy(() => import("./pages/admin/AdminBanners").then(m => ({ default: m.AdminBanners })));
 const HeroImages = safeLazy(() => import("./pages/admin/HeroImages").then(m => ({ default: m.HeroImages })));
 const AdminPromotions = safeLazy(() => import("./pages/admin/AdminPromotions").then(m => ({ default: m.AdminPromotions })));
@@ -121,6 +122,10 @@ function OrderParamRedirect() {
 }
 
 function AuraAIFloatingWrapper() {
+  const location = useLocation();
+  if (location.pathname.startsWith('/admin')) {
+    return null; // Do not show floating button in Admin UI
+  }
   return (
     <ErrorBoundary isolate fallback={null}>
       <Suspense fallback={null}>
@@ -229,6 +234,7 @@ export function App() {
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="banners" element={<AdminBanners />} />
+            <Route path="banners/home-products" element={<AdminHomeProductManager />} />
             <Route path="banners/hero" element={<HeroImages />} />
             <Route path="banners/promotions" element={<AdminPromotions />} />
             <Route path="categories" element={<AdminCategories />} />
