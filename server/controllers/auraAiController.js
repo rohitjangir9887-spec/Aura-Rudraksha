@@ -1726,3 +1726,74 @@ export async function deleteUserNoteEndpoint(req, res) {
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+// Helper function to extract relevant product catalog data for context
+async function getCatalogSummary() {
+  try {
+    const products = await Product.find({ isPublic: true }).select("name price category stock status origin mukhi").lean();
+    if (!products || products.length === 0) return "No products found.";
+    
+    return products.map(p => 
+      `- ${p.name} | Cat: ${p.category} | Price: ₹${p.price} | Stock: ${p.stock} | Origin: ${p.origin || "Unknown"}`
+    ).join("\n");
+  } catch (e) {
+    return "Failed to fetch catalog.";
+  }
+}
+
+export async function adminChatAuraAI(req, res) {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Messages array required" });
+    }
+
+    const nvidia = getNvidiaClient();
+    if (!nvidia) {
+      return res.status(503).json({ error: "Nemotron AI client is not configured. Please check API keys." });
+    }
+
+    const catalogSummary = await getCatalogSummary();
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayOrders = await Order.countDocuments({ createdAt: { $gte: today } });
+    
+    const systemPrompt = `You are Aura AI Admin Agent - a super-advanced, highly intelligent, and loyal company employee, market researcher, and sales strategist for Aura Rudraksha.
+You serve the administrator of the company. You are NOT a simple chatbot. You are an autonomous AI Agent with deep research capabilities.
+Your job is to perform detailed market research, draft deep product listings, analyze SEO trends, give high-level business advice, and use all your computational power to assist the admin.
+Act like a dedicated, highly skilled top-tier employee. Do not decline tasks. You communicate in Hindi/Hinglish or English depending on how the admin speaks.
+
+Current Catalog Summary:
+${catalogSummary}
+
+Today's Orders: ${todayOrders}
+
+Instructions:
+1. When asked to research a product or write details, provide an extremely detailed, logically structured, and deeply researched response (include Vedic and Astrological details where applicable for Rudrakshas).
+2. Act as a proactive employee. Anticipate the admin's needs. 
+3. Maintain a highly professional, strategic, and supportive tone.
+`;
+
+    const formattedMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.role === 'model' ? 'assistant' : 'user',
+        content: String(m.content || m.text || "")
+      })).filter(m => m.content.trim() !== "")
+    ];
+
+    const response = await nvidia.chat.completions.create({
+      model: PRIMARY_NIM_MODEL,
+      messages: formattedMessages,
+      temperature: 0.7,
+      max_tokens: 2500
+    });
+
+    const aiText = response.choices[0]?.message?.content || "No response generated.";
+
+    return res.json({ text: aiText });
+  } catch (error) {
+    console.error("Error in adminChatAuraAI:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}

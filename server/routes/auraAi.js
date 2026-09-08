@@ -1,6 +1,7 @@
 import express from "express";
 import {
   chatAuraAI,
+  adminChatAuraAI,
   calculateKundaliEndpoint,
   getAdminAiIntelligence,
   getAuraAISettings,
@@ -35,6 +36,7 @@ router.get("/conversations/:id", optionalAuth, getAuraAIConversationById);
 router.delete("/conversations/:id", optionalAuth, deleteAuraAIConversation);
 
 // Admin endpoints
+router.post("/admin-chat", requireAdmin, adminChatAuraAI);
 router.put("/settings", requireAdmin, updateAuraAISettings);
 router.get("/analytics", requireAdmin, getAuraAIAnalytics);
 router.get("/admin-intelligence", requireAdmin, getAdminAiIntelligence);

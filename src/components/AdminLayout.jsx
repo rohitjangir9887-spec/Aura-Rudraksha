@@ -7,6 +7,7 @@ import { useAdminAuth } from "../hooks/useAdminAuth";
 import { useAdminMetrics } from "../hooks/useAdminMetrics";
 import { getMenuItems, getBottomTabs } from "./admin/adminConfig";
 import { AdminNavLinks } from "./admin/AdminNavLinks";
+import { AdminAuraAIFloating } from "./admin/AdminAuraAIFloating";
 import { ADMIN_BASE_PATH } from "../lib/routes";
 
 export function AdminLayout({ children }) {
@@ -229,6 +230,8 @@ export function AdminLayout({ children }) {
           <span>More</span>
         </button>
       </nav>
+
+      <AdminAuraAIFloating />
     </div>
   );
 }
