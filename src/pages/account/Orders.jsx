@@ -9,10 +9,12 @@ import { authClient } from "../../lib/authClient";
 import { 
   ChevronLeft, Package, CreditCard, ChevronRight, 
   Search, Truck, LogIn, Clock, ArrowRight, RefreshCw, Loader2,
-  CheckCircle2, XCircle, RotateCcw, MessageCircle, AlertCircle
+  CheckCircle2, XCircle, RotateCcw, MessageCircle, AlertCircle, Star
 } from "lucide-react";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
+import { WriteReviewModal } from "../../components/reviews/WriteReviewModal";
 import { emitToast } from "../../context/ToastContext";
+
 
 export function getOrderProducts(o) {
   return db.normalizeOrderItems(o);
@@ -116,6 +118,8 @@ export function Orders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [retryingOrderId, setRetryingOrderId] = useState(null);
   const [trackInput, setTrackInput] = useState("");
+  const [reviewModalProduct, setReviewModalProduct] = useState(null);
+  const [reviewModalOrderId, setReviewModalOrderId] = useState("");
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -840,25 +844,29 @@ export function Orders() {
                             )}
 
                             {isDelivered && parsedItems.length > 0 && (
-                              <Link
-                                to={`${getProductRoute(parsedItems[0])}#write-review`}
-                                onClick={(e) => e.stopPropagation()}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReviewModalProduct(parsedItems[0]);
+                                  setReviewModalOrderId(o.orderNumber || o.id);
+                                }}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: 4,
+                                  gap: 5,
                                   padding: '8px 14px',
-                                  background: '#fff',
+                                  background: '#fdf8f4',
                                   border: '1px solid #ebdccb',
                                   color: '#a54d2b',
                                   borderRadius: 6,
                                   fontSize: 12,
-                                  fontWeight: 600,
-                                  textDecoration: 'none'
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
                                 }}
                               >
-                                <MessageCircle size={13} /> Review
-                              </Link>
+                                <Star size={13} fill="#d97706" color="#d97706" /> Post Review
+                              </button>
                             )}
 
                             <Link 
@@ -880,6 +888,33 @@ export function Orders() {
                               Details <ChevronRight size={13} />
                             </Link>
                           </div>
+
+                          {/* Cancellation & Refund Processing Note */}
+                          {isCancelled && (o.paymentStatus === 'Paid' || o.paymentStatus === 'Refund Pending' || o.refundStatus === 'Refund Pending' || o.amountRefunded > 0) && (
+                            <div style={{
+                              marginTop: 14,
+                              padding: '10px 14px',
+                              background: '#fef3c7',
+                              border: '1px solid #fde68a',
+                              borderRadius: 8,
+                              fontSize: '12px',
+                              color: '#92400e',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 8,
+                              lineHeight: 1.45
+                            }}>
+                              <AlertCircle size={15} color="#d97706" style={{ flexShrink: 0, marginTop: 2 }} />
+                              <div>
+                                <b>रिफंड सूचना / Refund Processing:</b> आपकी डिटेल हमारी टीम को मिल गई है, आपका पेमेंट जल्द ही 1-4 दिनों में आपके मूल भुगतान खाते में प्रोसेस कर दिया जाएगा।
+                                {o.refundNotes && (
+                                  <div style={{ marginTop: 4, color: '#78350f', fontWeight: 600 }}>
+                                    एडमिन अपडेट: {o.refundNotes}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           
                         </div>
                       </div>
@@ -890,6 +925,17 @@ export function Orders() {
             )}
           </>
         )}
+
+        {/* Post Review Modal for Delivered Products */}
+        <WriteReviewModal
+          isOpen={Boolean(reviewModalProduct)}
+          onClose={() => setReviewModalProduct(null)}
+          product={reviewModalProduct}
+          orderId={reviewModalOrderId}
+          onSuccess={() => {
+            db.fetchMyOrders(true).catch(() => {});
+          }}
+        />
       </main>
     </Shell>
   );

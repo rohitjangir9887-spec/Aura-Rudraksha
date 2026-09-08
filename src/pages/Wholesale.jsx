@@ -4,9 +4,11 @@ import { Shell } from "../components/Shell";
 import { 
   Building2, Award, ShieldCheck, CheckCircle2, 
   Send, Phone, MessageCircle, ArrowRight, Sparkles,
-  Truck, Gem, FileCheck
+  Truck, Gem, FileCheck, Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { db } from "../lib/db";
+import { emitToast } from "../context/ToastContext";
 
 export function Wholesale() {
   const [form, setForm] = useState({
@@ -15,15 +17,47 @@ export function Wholesale() {
     email: "",
     phone: "",
     city: "",
-    productInterest: "5 Mukhi Nepali Beads",
-    quantity: "50-100 pcs",
+    productInterest: "5 Mukhi Nepali Loose Beads",
+    quantity: "50 - 200 pcs",
     notes: ""
   });
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (!form.phone && !form.email) {
+      emitToast("Please enter a phone number or email.", "warning");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const ticketPayload = {
+        name: (form.contactPerson || form.businessName || "Bulk Buyer").trim(),
+        email: (form.email || (form.phone ? `${form.phone.replace(/\D/g, "")}@phone.customer` : "bulk@customer.com")).trim(),
+        phone: (form.phone || "").trim(),
+        category: "Bulk Order",
+        subject: `📦 Bulk Order: ${form.businessName || form.contactPerson} (${form.quantity || 'Wholesale'})`,
+        priority: "High",
+        message: `🏢 Organization / Business: ${form.businessName || "N/A"}
+👤 Contact Person: ${form.contactPerson || "N/A"}
+📞 Mobile / WhatsApp: ${form.phone || "N/A"}
+✉️ Email: ${form.email || "N/A"}
+📍 City & State: ${form.city || "N/A"}
+📿 Category of Interest: ${form.productInterest || "Nepali Beads"}
+📦 Estimated Quantity: ${form.quantity || "Bulk Batch"}
+📝 Specific Notes: ${form.notes || "None"}`
+      };
+
+      await db.saveTicket(ticketPayload);
+      emitToast("🙏 Bulk Order enquiry submitted successfully! Our B2B desk will contact you.", "success");
+      setSubmitted(true);
+    } catch (err) {
+      emitToast(err.message || "Could not submit enquiry. Please try again.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -186,7 +220,7 @@ export function Wholesale() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#4a3b32", marginBottom: "4px" }}>
-                        Mobile Number / WhatsApp
+                        Mobile Number / WhatsApp *
                       </label>
                       <input 
                         type="tel" 
@@ -200,17 +234,30 @@ export function Wholesale() {
 
                     <div>
                       <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#4a3b32", marginBottom: "4px" }}>
-                        City & State
+                        Email Address (Optional)
                       </label>
                       <input 
-                        type="text" 
-                        placeholder="e.g. Mumbai, Maharashtra"
-                        value={form.city}
-                        onChange={(e) => setForm({ ...form, city: e.target.value })}
-                        required
+                        type="email" 
+                        placeholder="trust@example.com"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
                         style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #ebdccb", fontSize: "13px" }}
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#4a3b32", marginBottom: "4px" }}>
+                      City & State *
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Mumbai, Maharashtra"
+                      value={form.city}
+                      onChange={(e) => setForm({ ...form, city: e.target.value })}
+                      required
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #ebdccb", fontSize: "13px" }}
+                    />
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -265,6 +312,7 @@ export function Wholesale() {
 
                   <button
                     type="submit"
+                    disabled={isSubmitting}
                     style={{
                       background: "#a54d2b",
                       color: "#ffffff",
@@ -273,7 +321,7 @@ export function Wholesale() {
                       borderRadius: "8px",
                       fontWeight: 700,
                       fontSize: "14px",
-                      cursor: "pointer",
+                      cursor: isSubmitting ? "not-allowed" : "pointer",
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -281,7 +329,15 @@ export function Wholesale() {
                       marginTop: "6px"
                     }}
                   >
-                    Submit Wholesale Enquiry <ArrowRight size={16} />
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" /> Submitting Bulk Enquiry...
+                      </>
+                    ) : (
+                      <>
+                        Submit Wholesale Enquiry <ArrowRight size={16} />
+                      </>
+                    )}
                   </button>
                 </form>
               )}

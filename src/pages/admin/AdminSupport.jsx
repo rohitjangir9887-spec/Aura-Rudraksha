@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
-import { Edit, ArrowLeft, Search, Headphones, CheckCircle, MessageSquare, Send } from "lucide-react";
+import { 
+  Edit, ArrowLeft, Search, Headphones, CheckCircle, MessageSquare, Send, 
+  Paperclip, Image, Video, ExternalLink, Phone, MessageCircle, X, Sparkles, Box
+} from "lucide-react";
 import "./admin-pages.css";
 
 export function AdminSupport() {
@@ -11,9 +14,11 @@ export function AdminSupport() {
   const [filteredTickets, setFilteredTickets] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [viewing, setViewing] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [replyStatus, setReplyStatus] = useState("In Progress");
+  const [activeMediaPreview, setActiveMediaPreview] = useState(null);
 
   useEffect(() => {
     load();
@@ -33,18 +38,32 @@ export function AdminSupport() {
   useEffect(() => {
     let result = tickets;
     if (searchTerm) {
+      const q = searchTerm.toLowerCase();
       result = result.filter(t => 
-        t.id?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        t.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.subject?.toLowerCase().includes(searchTerm.toLowerCase())
+        t.id?.toLowerCase().includes(q) || 
+        t.email?.toLowerCase().includes(q) ||
+        t.name?.toLowerCase().includes(q) ||
+        t.phone?.toLowerCase().includes(q) ||
+        t.subject?.toLowerCase().includes(q) ||
+        t.category?.toLowerCase().includes(q)
       );
     }
     if (statusFilter !== "All") {
       result = result.filter(t => (t.status || "Open") === statusFilter);
     }
+    if (categoryFilter !== "All") {
+      if (categoryFilter === "Bulk Orders") {
+        result = result.filter(t => 
+          t.category?.toLowerCase().includes("bulk") || 
+          t.subject?.toLowerCase().includes("bulk") || 
+          t.message?.toLowerCase().includes("wholesale")
+        );
+      } else {
+        result = result.filter(t => t.category === categoryFilter);
+      }
+    }
     setFilteredTickets(result);
-  }, [searchTerm, statusFilter, tickets]);
+  }, [searchTerm, statusFilter, categoryFilter, tickets]);
 
   const handleUpdateStatus = async (id, status) => {
     const t = tickets.find(x => x.id === id);
@@ -93,6 +112,9 @@ export function AdminSupport() {
   };
 
   if (viewing) {
+    const isBulk = viewing.category?.toLowerCase().includes("bulk") || viewing.subject?.toLowerCase().includes("bulk");
+    const attachments = viewing.attachments || [];
+
     return (
       <AdminLayout>
         <button className="admin-back-link" onClick={() => { setViewing(null); setReplyText(""); }}>
@@ -100,7 +122,14 @@ export function AdminSupport() {
         </button>
         <div className="admin-page-header">
           <div>
-            <h1>Ticket #{viewing.id}</h1>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <h1>Ticket #{viewing.id}</h1>
+              {isBulk && (
+                <span style={{ background: "#fcf4ed", border: "1.5px solid #ebdccb", color: "#a54d2b", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Box size={14} /> Bulk Order Enquiry
+                </span>
+              )}
+            </div>
             <p className="admin-page-subtitle">Inquiry from {viewing.name || viewing.email || "Customer"}</p>
           </div>
           <div>
@@ -118,25 +147,164 @@ export function AdminSupport() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 20 }}>
           {/* Customer Details */}
           <div className="admin-card" style={{ margin: 0 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#2b170d' }}>Customer Details</h3>
             <p style={{ fontSize: 13, marginBottom: 6 }}><b>Name:</b> {viewing.name || "Devotee / Guest"}</p>
             <p style={{ fontSize: 13, marginBottom: 6 }}><b>Email:</b> {viewing.email || "N/A"}</p>
             <p style={{ fontSize: 13, marginBottom: 6 }}><b>Phone:</b> {viewing.phone || "N/A"}</p>
-            <p style={{ fontSize: 13, marginBottom: 6 }}><b>Order ID:</b> {viewing.orderId ? `#${viewing.orderId}` : "General Support"}</p>
-            <p style={{ fontSize: 13, marginBottom: 0 }}><b>Date:</b> {new Date(viewing.date || viewing.createdAt || Date.now()).toLocaleString()}</p>
+            <p style={{ fontSize: 13, marginBottom: 6 }}><b>Category:</b> <span style={{ fontWeight: 600, color: "#8c2b10" }}>{viewing.category || (isBulk ? "Bulk Order" : "General Support")}</span></p>
+            <p style={{ fontSize: 13, marginBottom: 6 }}><b>Order ID:</b> {viewing.orderId ? `#${viewing.orderId}` : "N/A"}</p>
+            <p style={{ fontSize: 13, marginBottom: 12 }}><b>Date:</b> {new Date(viewing.date || viewing.createdAt || Date.now()).toLocaleString()}</p>
+            
+            {viewing.phone && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #f0ebe4" }}>
+                <a 
+                  href={`https://wa.me/${viewing.phone.replace(/\D/g, "")}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  style={{
+                    background: "#25D366",
+                    color: "#fff",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px"
+                  }}
+                >
+                  <MessageCircle size={14} /> WhatsApp Customer
+                </a>
+                <a 
+                  href={`tel:${viewing.phone}`}
+                  style={{
+                    background: "#f4ece5",
+                    color: "#5c493d",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px"
+                  }}
+                >
+                  <Phone size={14} /> Call Customer
+                </a>
+              </div>
+            )}
           </div>
 
-          {/* Ticket Subject & Message */}
+          {/* Ticket Subject, Message & Attachments */}
           <div className="admin-card" style={{ margin: 0 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: '#2b170d' }}>{viewing.subject || 'Support Request'}</h3>
             <div style={{ background: '#fdfbf7', border: '1px solid #f0ebe4', padding: 14, borderRadius: 8, whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: 13, color: '#3b322c', minHeight: 90 }}>
               {viewing.message || 'No message provided.'}
             </div>
+
+            {/* Customer Media Attachments (Photos / Videos) */}
+            {attachments.length > 0 && (
+              <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #ebdccb" }}>
+                <h4 style={{ fontSize: "13px", fontWeight: 700, color: "#4a3b32", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Paperclip size={14} /> Uploaded Photos / Videos ({attachments.length}):
+                </h4>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  {attachments.map((att, i) => (
+                    <div
+                      key={i}
+                      onClick={() => setActiveMediaPreview(att)}
+                      style={{
+                        width: "80px",
+                        height: "80px",
+                        borderRadius: "8px",
+                        border: "1px solid #dcd1c6",
+                        overflow: "hidden",
+                        position: "relative",
+                        cursor: "pointer",
+                        background: "#000"
+                      }}
+                      title={att.name || `Attachment ${i + 1}`}
+                    >
+                      {att.type === "video" ? (
+                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", background: "#1f140e" }}>
+                          <Video size={24} />
+                          <span style={{ fontSize: "9px", marginTop: "2px" }}>Video</span>
+                        </div>
+                      ) : (
+                        <img 
+                          src={att.url} 
+                          alt="Ticket media" 
+                          referrerPolicy="no-referrer"
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Media Preview Modal */}
+        {activeMediaPreview && (
+          <div 
+            onClick={() => setActiveMediaPreview(null)}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0,0,0,0.85)",
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px"
+            }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ position: "relative", maxWidth: "90vw", maxHeight: "90vh" }}>
+              <button 
+                onClick={() => setActiveMediaPreview(null)}
+                style={{
+                  position: "absolute",
+                  top: "-40px",
+                  right: 0,
+                  background: "transparent",
+                  border: "none",
+                  color: "#fff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}
+              >
+                <X size={24} /> Close
+              </button>
+              {activeMediaPreview.type === "video" ? (
+                <video 
+                  controls 
+                  autoPlay 
+                  src={activeMediaPreview.url} 
+                  style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: "8px" }} 
+                />
+              ) : (
+                <img 
+                  src={activeMediaPreview.url} 
+                  alt="Attachment preview" 
+                  referrerPolicy="no-referrer"
+                  style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: "8px", objectFit: "contain" }} 
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Admin Reply Section */}
         <div className="admin-card">
@@ -188,6 +356,12 @@ export function AdminSupport() {
     );
   }
 
+  const bulkCount = tickets.filter(t => 
+    t.category?.toLowerCase().includes("bulk") || 
+    t.subject?.toLowerCase().includes("bulk") || 
+    t.message?.toLowerCase().includes("wholesale")
+  ).length;
+
   return (
     <AdminLayout>
       <Link to="/admin" className="admin-back-link">
@@ -195,8 +369,8 @@ export function AdminSupport() {
       </Link>
       <div className="admin-page-header">
         <div>
-          <h1>Customer Support Tickets</h1>
-          <p className="admin-page-subtitle">{tickets.length} total customer inquiries recorded</p>
+          <h1>Customer Support & Queries</h1>
+          <p className="admin-page-subtitle">{tickets.length} total customer inquiries & bulk orders recorded</p>
         </div>
       </div>
 
@@ -205,17 +379,27 @@ export function AdminSupport() {
           <Search size={18} />
           <input 
             type="text" 
-            placeholder="Search by ticket ID, customer name, email, or subject..." 
+            placeholder="Search by ticket ID, customer name, email, subject, or bulk..." 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="admin-filter-chips">
+          <button
+            className={`admin-filter-chip ${categoryFilter === "Bulk Orders" ? 'active' : ''}`}
+            onClick={() => setCategoryFilter(categoryFilter === "Bulk Orders" ? "All" : "Bulk Orders")}
+            style={{ fontWeight: 700, borderColor: "#a54d2b" }}
+          >
+            📦 Bulk Orders ({bulkCount})
+          </button>
           {statuses.map(st => (
             <button 
               key={st} 
-              className={`admin-filter-chip ${statusFilter === st ? 'active' : ''}`}
-              onClick={() => setStatusFilter(st)}
+              className={`admin-filter-chip ${statusFilter === st && categoryFilter === "All" ? 'active' : ''}`}
+              onClick={() => {
+                setStatusFilter(st);
+                setCategoryFilter("All");
+              }}
             >
               {st}
             </button>
@@ -223,24 +407,53 @@ export function AdminSupport() {
         </div>
       </div>
 
-      {filteredTickets.length === 0 ? <div className="admin-empty">No support tickets found.</div> : (
+      {filteredTickets.length === 0 ? <div className="admin-empty">No support tickets or inquiries found.</div> : (
         <div className="admin-card" style={{padding: 0, overflowX: 'auto'}}>
           <table className="admin-table">
             <thead>
-              <tr><th>ID</th><th>Customer</th><th>Date</th><th>Subject</th><th>Status</th><th>Action</th></tr>
+              <tr>
+                <th>ID</th>
+                <th>Category</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Subject & Attachments</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
             </thead>
             <tbody>
               {filteredTickets.map(t => {
                 const currentStatus = t.status || 'Open';
+                const isBulk = t.category?.toLowerCase().includes("bulk") || t.subject?.toLowerCase().includes("bulk");
+                const hasMedia = Array.isArray(t.attachments) && t.attachments.length > 0;
+
                 return (
-                  <tr key={t.id}>
+                  <tr key={t.id} style={{ background: isBulk ? "#fffbf7" : "transparent" }}>
                     <td><b>{t.id}</b></td>
                     <td>
+                      {isBulk ? (
+                        <span style={{ background: "#fcf4ed", color: "#a54d2b", border: "1px solid #ebdccb", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap" }}>
+                          📦 Bulk Order
+                        </span>
+                      ) : (
+                        <span style={{ background: "#f5f0ea", color: "#5c493d", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                          {t.category || "General"}
+                        </span>
+                      )}
+                    </td>
+                    <td>
                       <div style={{ fontWeight: 600, color: '#2b170d' }}>{t.name || "Devotee"}</div>
-                      <div style={{ fontSize: 11, color: '#806f62' }}>{t.email}</div>
+                      <div style={{ fontSize: 11, color: '#806f62' }}>{t.phone || t.email}</div>
                     </td>
                     <td><small>{new Date(t.date || t.createdAt || Date.now()).toLocaleDateString()}</small></td>
-                    <td>{t.subject}</td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{t.subject}</div>
+                      {hasMedia && (
+                        <span style={{ fontSize: "10.5px", color: "#15803d", display: "inline-flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+                          <Paperclip size={11} /> {t.attachments.length} Photo/Video attached
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className={`admin-badge ${getBadgeClass(currentStatus)}`}>

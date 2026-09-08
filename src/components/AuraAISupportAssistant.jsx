@@ -40,6 +40,8 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
   const [showTicketForm, setShowTicketForm] = useState(false);
   const [ticketSubject, setTicketSubject] = useState("");
   const [ticketMessage, setTicketMessage] = useState("");
+  const [ticketCategory, setTicketCategory] = useState("Order Issue");
+  const [ticketAttachments, setTicketAttachments] = useState([]);
   const [ticketSuccess, setTicketSuccess] = useState(false);
   const [customerTickets, setCustomerTickets] = useState([]);
   const [showMyTickets, setShowMyTickets] = useState(false);
@@ -159,6 +161,8 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
         id: "TKT-" + Math.floor(100000 + Math.random() * 900000),
         subject: ticketSubject.trim(),
         message: ticketMessage.trim(),
+        category: ticketCategory || "Order Issue",
+        attachments: ticketAttachments || [],
         orderId: selectedOrder?.id || "",
         email: u?.email || "devotee@aurarudraksha.com",
         name: u?.displayName || u?.name || "Devotee",
@@ -181,6 +185,8 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
         setShowTicketForm(false);
         setTicketSubject("");
         setTicketMessage("");
+        setTicketCategory("Order Issue");
+        setTicketAttachments([]);
         setTicketSuccess(false);
         setShowMyTickets(true);
       }, 2000);
@@ -382,6 +388,10 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
         setTicketSubject={setTicketSubject}
         ticketMessage={ticketMessage}
         setTicketMessage={setTicketMessage}
+        ticketCategory={ticketCategory}
+        setTicketCategory={setTicketCategory}
+        attachments={ticketAttachments}
+        setAttachments={setTicketAttachments}
         handleCreateTicket={handleCreateTicket}
       />
 

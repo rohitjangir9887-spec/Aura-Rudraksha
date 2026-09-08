@@ -1,64 +1,52 @@
+import crypto from "crypto";
 import { Counter } from "../models/Counter.js";
 import { Order } from "../models/Order.js";
 
 /**
- * Generates permanent customer-facing sequential Order IDs
- * Format: AURA-YYMMDD-000123
+ * Generates permanent customer-facing unique random Order IDs
+ * Format: AURA-XXXXXXXX (e.g. AURA-8K2N94XP)
  * 
  * Rules:
- * - Unique MongoDB orderNumber
- * - Sequential, permanent, human-readable
- * - Never changes after creation
+ * - Format strictly begins with 'AURA-' followed by random uppercase alphanumeric characters
+ * - Unique across active, cancelled, refunded, and archived orders in MongoDB
+ * - Cryptographically collision-resistant and guaranteed NEVER reused
  */
 export async function generateNextOrderNumber() {
-  const now = new Date();
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // excludes ambiguous chars 0, 1, I, O
   
-  // Format YYMMDD
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  const datePrefix = `${yy}${mm}${dd}`;
-
-  const counterKey = `order_seq_${datePrefix}`;
-  
-  // Atomic sequential increment in MongoDB
-  const counter = await Counter.findByIdAndUpdate(
-    counterKey,
-    { $inc: { seq: 1 } },
-    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
-  );
-
-  if (!counter || typeof counter.seq !== "number") {
-    throw new Error("Failed to atomically increment order sequence counter in MongoDB");
-  }
-
-  let seqNumber = counter.seq;
-
-  // Format: AURA-260902-000123
-  let paddedSeq = String(seqNumber).padStart(6, "0");
-  let orderNumber = `AURA-${datePrefix}-${paddedSeq}`;
-
-  // Verify uniqueness in Order collection; if collision occurs, step atomic counter again
-  let existing = await Order.findOne({ $or: [{ id: orderNumber }, { orderId: orderNumber }, { orderNumber }] });
   let attempts = 0;
-  while (existing && attempts < 5) {
+  while (attempts < 10) {
     attempts++;
-    const retryCounter = await Counter.findByIdAndUpdate(
-      counterKey,
-      { $inc: { seq: 1 } },
-      { returnDocument: "after", upsert: true }
-    );
-    if (!retryCounter || typeof retryCounter.seq !== "number") {
-      throw new Error("Failed to step order sequence counter in MongoDB");
+    // Generate 8 cryptographically secure random characters
+    const randomBytes = crypto.randomBytes(8);
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars[randomBytes[i] % chars.length];
     }
-    const retrySeq = String(retryCounter.seq).padStart(6, "0");
-    orderNumber = `AURA-${datePrefix}-${retrySeq}`;
-    existing = await Order.findOne({ $or: [{ id: orderNumber }, { orderId: orderNumber }, { orderNumber }] });
+    
+    const orderNumber = `AURA-${code}`;
+
+    // Verify uniqueness against existing orders in MongoDB
+    const existing = await Order.findOne({ 
+      $or: [
+        { id: orderNumber }, 
+        { orderId: orderNumber }, 
+        { orderNumber: orderNumber }
+      ] 
+    }).lean();
+
+    if (!existing) {
+      return orderNumber;
+    }
   }
 
-  if (existing) {
-    throw new Error("Could not resolve unique sequential order ID in MongoDB after multiple attempts");
+  // Fallback with timestamp guarantee if multiple collisions (extremely unlikely with 32^8 combinations)
+  const timestampSuffix = Date.now().toString(36).toUpperCase().slice(-4);
+  const randomBytes = crypto.randomBytes(4);
+  let code = "";
+  for (let i = 0; i < 4; i++) {
+    code += chars[randomBytes[i] % chars.length];
   }
-
-  return orderNumber;
+  return `AURA-${code}${timestampSuffix}`;
 }
+

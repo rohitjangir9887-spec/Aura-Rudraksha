@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { 
   ChevronLeft, Check, Package, MapPin, CreditCard, RotateCcw, 
   X, Edit3, MessageCircle, AlertCircle, Truck, ExternalLink, 
-  Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2
+  Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2, Star
 } from "lucide-react";
 import { Shell } from "../../components/Shell";
 import { db } from "../../lib/db";
@@ -14,6 +14,7 @@ import { authClient } from "../../lib/authClient";
 import { emitToast } from "../../context/ToastContext";
 import { useCart } from "../../hooks/useCart";
 import { OrderSummaryCard } from "../../components/checkout/OrderSummaryCard";
+import { WriteReviewModal } from "../../components/reviews/WriteReviewModal";
 
 function formatDetailDate(raw, opts) {
   if (!raw) return "Recently";
@@ -58,6 +59,7 @@ export function OrderDetail() {
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [otherReason, setOtherReason] = useState("");
+  const [reviewModalProduct, setReviewModalProduct] = useState(null);
   
   const [editAddressModal, setEditAddressModal] = useState(false);
   const [editAddressForm, setEditAddressForm] = useState(() => order?.address || "");
@@ -418,8 +420,41 @@ export function OrderDetail() {
         </div>
         
         {isCancelled && order.cancelReason && (
-          <div style={{background: '#fff0ed', color: '#c62828', padding: '16px', borderRadius: 12, marginBottom: 30, fontSize: 13, border: '1px solid #ffcdd2'}}>
+          <div style={{background: '#fff0ed', color: '#c62828', padding: '16px', borderRadius: 12, marginBottom: 16, fontSize: 13, border: '1px solid #ffcdd2'}}>
             <b>Cancellation Reason:</b> {order.cancelReason}
+          </div>
+        )}
+
+        {/* Cancellation & Refund Processing Banner */}
+        {isCancelled && (order.paymentStatus === 'Paid' || order.paymentStatus === 'Refund Pending' || order.refundStatus === 'Refund Pending' || Number(order.amountRefunded || 0) > 0) && (
+          <div style={{
+            background: '#fef3c7',
+            border: '1.5px solid #fde68a',
+            borderRadius: '14px',
+            padding: '16px 20px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px'
+          }}>
+            <AlertCircle size={22} color="#d97706" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <h4 style={{ margin: '0 0 6px', fontSize: '14.5px', color: '#92400e', fontWeight: 700 }}>
+                रिफंड स्टेटस एवं सूचना / Refund Processing Update
+              </h4>
+              <p style={{ margin: '0 0 6px', fontSize: '13px', color: '#92400e', lineHeight: 1.5 }}>
+                आपकी डिटेल हमारी टीम को मिल गई है, आपका पेमेंट जल्द ही 1-4 दिनों में आपके मूल भुगतान खाते में प्रोसेस कर दिया जाएगा।
+              </p>
+              <div style={{ fontSize: '12px', color: '#b45309', display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '6px' }}>
+                <span>रिफंड स्थिति: <b>{order.refundStatus || "Refund Processing"}</b></span>
+                {order.amountRefunded > 0 && <span>रिफंडेड राशि: <b>₹{Number(order.amountRefunded).toLocaleString('en-IN')}</b></span>}
+              </div>
+              {order.refundNotes && (
+                <div style={{ marginTop: '8px', padding: '8px 12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef08a', fontSize: '12px', color: '#78350f' }}>
+                  <b>सपोर्ट/एडमिन संदेश:</b> {order.refundNotes}
+                </div>
+              )}
+            </div>
           </div>
         )}
         
@@ -631,23 +666,27 @@ export function OrderDetail() {
                             <AlertCircle size={10} /> Product no longer available
                           </span>
                         )}
-                        {isDelivered && productExists && (
-                          <Link to={`${getProductRoute(item)}#write-review`} style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: '#fcf4ed',
-                            border: '1px solid #ebdccb',
-                            color: '#a54d2b',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            textDecoration: 'none',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <MessageCircle size={14} /> Write a Review
-                          </Link>
+                        {isDelivered && (
+                          <button 
+                            type="button"
+                            onClick={() => setReviewModalProduct(item)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              background: '#fcf4ed',
+                              border: '1px solid #ebdccb',
+                              color: '#a54d2b',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Star size={13} fill="#d97706" color="#d97706" /> Post Review
+                          </button>
                         )}
                       </div>
                       <p style={{margin: '0 0 8px', fontSize: 12, color: '#806f62'}}>Quantity: <b>{item.qty}</b></p>
@@ -979,6 +1018,17 @@ export function OrderDetail() {
             </div>
           </div>
         )}
+
+      {/* Post Review Modal for Delivered Items */}
+      <WriteReviewModal
+        isOpen={Boolean(reviewModalProduct)}
+        onClose={() => setReviewModalProduct(null)}
+        product={reviewModalProduct}
+        orderId={order?.id || order?.orderNumber}
+        onSuccess={() => {
+          db.fetchMyOrders(true).catch(() => {});
+        }}
+      />
       
     </Shell>
   );
