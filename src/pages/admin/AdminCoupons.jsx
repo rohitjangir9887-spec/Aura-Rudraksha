@@ -4,7 +4,8 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal";
-import { Edit, Trash2, Plus, ArrowLeft, Tag, Check, AlertCircle } from "lucide-react";
+import { Edit, Trash2, Plus, ArrowLeft, Tag, Check, AlertCircle, ShoppingBag, ShieldAlert } from "lucide-react";
+import { AdminProductMultiSelector } from "../../components/admin/AdminProductMultiSelector";
 import "./admin-pages.css";
 
 export function AdminCoupons() {
@@ -57,6 +58,10 @@ export function AdminCoupons() {
       type: editing.type || "percentage",
       limit: editing.limit ? Number(editing.limit) : "",
       minAmount: editing.minAmount ? Number(editing.minAmount) : 0,
+      maxDiscount: editing.maxDiscount ? Number(editing.maxDiscount) : 0,
+      targetType: editing.targetType || "all",
+      selectedProducts: editing.selectedProducts || [],
+      excludedProducts: editing.excludedProducts || [],
       expiry: editing.expiry || null,
       status: editing.status || "Active",
       showOnHome: Boolean(editing.showOnHome)
@@ -178,15 +183,31 @@ export function AdminCoupons() {
 
           <div className="admin-form-row">
             <div className="admin-form-group">
-              <label>Minimum Order Amount (₹)</label>
+              <label>Minimum Shopping Amount (₹) *</label>
               <input
                 type="number"
                 min="0"
-                value={editing.minAmount || ''}
+                value={editing.minAmount !== undefined ? editing.minAmount : ''}
                 onChange={e => setEditing({...editing, minAmount: e.target.value})}
-                placeholder="0 = no minimum"
+                placeholder="e.g. 500 (Shopping kitne ki ho tb lage)"
               />
+              <small className="admin-help">User ki total shopping is price se adhik ya barabar hone par hi coupon apply hoga.</small>
             </div>
+
+            <div className="admin-form-group">
+              <label>Maximum Discount Cap (₹) (Optional)</label>
+              <input
+                type="number"
+                min="0"
+                value={editing.maxDiscount !== undefined ? editing.maxDiscount : ''}
+                onChange={e => setEditing({...editing, maxDiscount: e.target.value})}
+                placeholder="e.g. 500 (Max off limit)"
+              />
+              <small className="admin-help">Percentage discount par maximum kitna discount mil sakta hai.</small>
+            </div>
+          </div>
+
+          <div className="admin-form-row">
             <div className="admin-form-group">
               <label>Expiry Date (optional)</label>
               <input
@@ -196,15 +217,64 @@ export function AdminCoupons() {
               />
               <small className="admin-help">Coupons stop working automatically after this time.</small>
             </div>
+
+            <div className="admin-form-group">
+              <label>Coupon Status</label>
+              <select value={effectiveStatus(editing) === "Expired" ? "Active" : (editing.status || "Active")} onChange={e => setEditing({...editing, status: e.target.value})}>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive (Disabled)</option>
+                <option value="Expired">Expired</option>
+              </select>
+            </div>
           </div>
 
-          <div className="admin-form-group">
-            <label>Coupon Status</label>
-            <select value={effectiveStatus(editing) === "Expired" ? "Active" : (editing.status || "Active")} onChange={e => setEditing({...editing, status: e.target.value})}>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive (Disabled)</option>
-              <option value="Expired">Expired</option>
-            </select>
+          {/* Product Applicability Section */}
+          <div style={{ marginTop: '16px', background: '#fcfaf8', padding: '16px', borderRadius: '12px', border: '1px solid #e8e0d8' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#2b170d', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingBag size={16} color="#a54d2b" /> Product Applicability & Rules (Kin Products Par Lagna Chahiye)
+            </h4>
+
+            <div className="admin-form-group">
+              <label>Which products does this coupon apply to?</label>
+              <select 
+                value={editing.targetType || "all"} 
+                onChange={e => setEditing({...editing, targetType: e.target.value})}
+                style={{ fontWeight: '600', color: '#2b170d' }}
+              >
+                <option value="all">Apply to ALL Products in Catalog</option>
+                <option value="selected">Apply ONLY to Specific Selected Products</option>
+                <option value="excluded">Apply to ALL Products EXCEPT Excluded Products</option>
+              </select>
+            </div>
+
+            {editing.targetType === "selected" && (
+              <AdminProductMultiSelector
+                selectedIds={editing.selectedProducts || []}
+                onChange={(ids) => setEditing({...editing, selectedProducts: ids})}
+                label="Select Applicable Products (Select products to apply coupon)"
+              />
+            )}
+
+            {editing.targetType === "excluded" && (
+              <AdminProductMultiSelector
+                selectedIds={editing.excludedProducts || []}
+                onChange={(ids) => setEditing({...editing, excludedProducts: ids})}
+                label="Select Excluded Products (Select products where coupon SHOULD NOT work)"
+              />
+            )}
+
+            {editing.targetType === "all" && (
+              <div style={{ marginTop: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#7c2d12', display: 'block', marginBottom: '6px' }}>
+                  Optionally Exclude Specific Products
+                </label>
+                <AdminProductMultiSelector
+                  selectedIds={editing.excludedProducts || []}
+                  onChange={(ids) => setEditing({...editing, excludedProducts: ids})}
+                  label="Select Excluded Products (Products to block from coupon)"
+                />
+              </div>
+            )}
           </div>
 
           <div className="admin-form-group" style={{ background: '#fdfbf7', padding: '14px', borderRadius: '10px', border: '1px solid #e8e0d8', marginTop: '10px' }}>
@@ -261,6 +331,7 @@ export function AdminCoupons() {
                 <th>Code</th>
                 <th>Discount</th>
                 <th>Min. Order</th>
+                <th>Applicability</th>
                 <th>Usage</th>
                 <th>Expiry</th>
                 <th>Status</th>
@@ -271,11 +342,15 @@ export function AdminCoupons() {
             <tbody>
               {coupons.map(c => {
                 const st = effectiveStatus(c);
+                const targetText = c.targetType === "selected" 
+                  ? `${c.selectedProducts?.length || 0} Selected` 
+                  : (c.excludedProducts?.length ? `All except ${c.excludedProducts.length}` : "All Products");
                 return (
                   <tr key={c.id}>
                     <td><b>{c.code}</b></td>
                     <td><b>{c.type === "fixed" ? `₹${c.discount} OFF` : `${c.discount}% OFF`}</b></td>
-                    <td>{c.minAmount || c.minOrderValue ? `₹${Number(c.minAmount || c.minOrderValue).toLocaleString()}` : "—"}</td>
+                    <td>{c.minAmount || c.minOrderValue ? `₹${Number(c.minAmount || c.minOrderValue).toLocaleString()}` : "₹0 (No Min)"}</td>
+                    <td><span className="admin-badge info" style={{ fontSize: '11px' }}>{targetText}</span></td>
                     <td>{c.usage || 0} / {c.limit ? c.limit : "∞"}</td>
                     <td><small>{c.expiry ? new Date(c.expiry).toLocaleDateString() : "—"}</small></td>
                     <td>

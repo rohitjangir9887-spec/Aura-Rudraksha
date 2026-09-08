@@ -1748,9 +1748,6 @@ export async function adminChatAuraAI(req, res) {
     }
 
     const nvidia = getNvidiaClient();
-    if (!nvidia) {
-      return res.status(503).json({ error: "Nemotron AI client is not configured. Please check API keys." });
-    }
 
     const catalogSummary = await getCatalogSummary();
     const today = new Date();
@@ -1782,13 +1779,47 @@ Instructions:
 
     const formattedMessages = [
       { role: "system", content: systemPrompt },
-      ...messages.map(m => ({
-        role: m.role === 'model' || m.role === 'assistant' ? 'assistant' : (m.role === 'tool' ? 'tool' : 'user'),
-        content: String(m.content || m.text || ""),
-        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {})
-      })).filter(m => m.content.trim() !== "" || m.tool_calls)
+      ...messages.map(m => {
+        const isAi = m.sender === 'ai' || m.sender === 'assistant' || m.role === 'model' || m.role === 'assistant';
+        return {
+          role: isAi ? 'assistant' : (m.role === 'tool' ? 'tool' : 'user'),
+          content: String(m.text || m.content || ""),
+          ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {})
+        };
+      }).filter(m => m.content.trim() !== "" || m.tool_calls)
     ];
+
+    if (!nvidia) {
+      // Fallback to Gemini if NVIDIA client not configured
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (geminiApiKey) {
+        try {
+          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+          const geminiContents = formattedMessages
+            .filter(m => m.role !== 'system' && m.role !== 'tool')
+            .map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: String(m.content || "") }]
+            }));
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.7,
+            }
+          });
+
+          const geminiText = response.text || "No response generated.";
+          return res.json({ text: geminiText });
+        } catch (geminiErr) {
+          console.error("Gemini fallback error in adminChatAuraAI:", geminiErr);
+        }
+      }
+      return res.status(503).json({ error: "AI Engine is initializing. Please retry in a moment." });
+    }
 
     const tools = [
   {

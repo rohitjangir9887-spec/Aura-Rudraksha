@@ -6,8 +6,9 @@ import { ConfirmModal } from "../../components/ConfirmModal";
 import { 
   Sparkles, Gift, Clock, Tag, Eye, Smartphone, Monitor, Check, 
   Copy, RefreshCw, Sliders, Palette, Zap, Layers, AlertCircle, 
-  HelpCircle, ArrowRight, ShieldCheck, X, Plus, Pencil, Trash2
+  HelpCircle, ArrowRight, ShieldCheck, X, Plus, Pencil, Trash2, ShoppingBag
 } from "lucide-react";
+import { AdminProductMultiSelector } from "../../components/admin/AdminProductMultiSelector";
 import "./admin-pages.css";
 
 export function AdminOffers() {
@@ -680,10 +681,61 @@ export function AdminOffers() {
             </div>
           </div>
 
-          {/* Section 4: Colors & Luxury Palette */}
+          {/* Section 4: Product Applicability & Targeting */}
+          <div style={{ marginBottom: "24px", borderBottom: "1px solid #f0e2d3", paddingBottom: "20px" }}>
+            <h3 style={{ fontSize: "16px", color: "#2b170d", display: "flex", alignItems: "center", gap: "8px", margin: "0 0 16px 0" }}>
+              <ShoppingBag size={18} color="#7a320c" /> 4. Product Applicability (Kin Products Par Offer Lagana Hai)
+            </h3>
+
+            <div style={{ background: "#fcfaf8", padding: "16px", borderRadius: "12px", border: "1px solid #e8e0d8" }}>
+              <div className="form-group" style={{ marginBottom: "16px" }}>
+                <label style={{ fontWeight: "700", color: "#2b170d" }}>Offer Applicability Mode</label>
+                <select 
+                  value={activeOffer.targetType || "all"}
+                  onChange={(e) => handleChange("targetType", e.target.value)}
+                  style={{ fontWeight: "600" }}
+                >
+                  <option value="all">Apply to ALL Products in Store</option>
+                  <option value="selected">Apply ONLY to Specific Selected Products</option>
+                  <option value="excluded">Apply to ALL Products EXCEPT Excluded Products</option>
+                </select>
+              </div>
+
+              {activeOffer.targetType === "selected" && (
+                <AdminProductMultiSelector
+                  selectedIds={activeOffer.applicableProducts || []}
+                  onChange={(ids) => handleChange("applicableProducts", ids)}
+                  label="Select Applicable Products for Live Offer"
+                />
+              )}
+
+              {activeOffer.targetType === "excluded" && (
+                <AdminProductMultiSelector
+                  selectedIds={activeOffer.excludedProducts || []}
+                  onChange={(ids) => handleChange("excludedProducts", ids)}
+                  label="Select Excluded Products (Offer WILL NOT apply to these)"
+                />
+              )}
+
+              {activeOffer.targetType === "all" && (
+                <div style={{ marginTop: "12px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: "600", color: "#7c2d12", display: "block", marginBottom: "6px" }}>
+                    Optionally Exclude Specific Products From Central Offer
+                  </label>
+                  <AdminProductMultiSelector
+                    selectedIds={activeOffer.excludedProducts || []}
+                    onChange={(ids) => handleChange("excludedProducts", ids)}
+                    label="Select Excluded Products (Blocked from offer)"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 5: Colors & Luxury Palette */}
           <div style={{ marginBottom: "24px" }}>
             <h3 style={{ fontSize: "16px", color: "#2b170d", display: "flex", alignItems: "center", gap: "8px", margin: "0 0 16px 0" }}>
-              <Palette size={18} color="#7a320c" /> 4. Colors & Theme Customization
+              <Palette size={18} color="#7a320c" /> 5. Colors & Theme Customization
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>

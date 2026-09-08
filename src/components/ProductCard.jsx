@@ -1,4 +1,5 @@
 import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
+import { OptimizedImage } from "./OptimizedImage";
 import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState } from "react";
@@ -106,21 +107,12 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     >
       {/* 1. Card Image Area */}
       <div className="aura-card-media">
-        <img 
-          src={displayImage} 
+        <OptimizedImage 
+          src={rawDisplayImage} 
           alt={p.name}
+          width={cardImgWidth}
+          quality={80}
           className="aura-card-img"
-          loading="lazy"
-          decoding="async"
-          onError={(e) => { 
-            markProxyFailed(rawDisplayImage);
-            const target = e.currentTarget;
-            if (target.src.includes("wsrv.nl")) {
-              target.src = rawDisplayImage;
-            } else if (!target.src.includes("product-5mukhi.jpg")) { 
-              target.src = "/images/placeholder.svg"; 
-            } 
-          }}
         />
 
         {/* Floating Offer Badge (Top Left of image) */}

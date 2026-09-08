@@ -2130,25 +2130,80 @@ export const db = {
 
     if (couponCode && String(couponCode).trim()) {
       const clean = String(couponCode).trim().toUpperCase();
-      const coup = storeCache.coupons.find(c => c.code.toUpperCase() === clean);
+      const coup = storeCache.coupons.find(c => (c.code || "").toUpperCase() === clean);
       if (coup) {
-        couponValid = true;
-        couponStatus = "APPLIED";
-        if (clean === "SHRAWAN200" || clean === "MAHASHIVRATRI" || (coup.discount && coup.discount >= 100)) {
-          couponDiscount = Math.min(coup.discount || 200, subtotal);
+        const isExp = coup.expiry && new Date(coup.expiry).getTime() < Date.now();
+        const isDisabled = coup.status === "Inactive" || coup.status === "Disabled";
+        const minSpend = Number(coup.minAmount || coup.minOrderValue || 0);
+
+        if (isDisabled || isExp) {
+          couponStatus = "INVALID";
+          couponReason = `Coupon '${clean}' is ${isExp ? "expired" : "disabled"}.`;
+        } else if (minSpend > 0 && subtotal < minSpend) {
+          couponStatus = "NOT_ELIGIBLE";
+          couponReason = `Minimum shopping amount of ₹${minSpend.toLocaleString()} required for coupon '${clean}'.`;
         } else {
-          const pct = coup.discount || 10;
-          couponDiscount = Math.round((subtotal * pct) / 100);
+          // Check item eligibility (selected vs excluded products)
+          let eligibleSubtotal = 0;
+          let eligibleItemCount = 0;
+
+          const selIds = (coup.selectedProducts || []).map(String);
+          const excIds = (coup.excludedProducts || []).map(String);
+          const targetType = coup.targetType || "all";
+
+          validItems.forEach(it => {
+            const pid = String(it.productId || it.id || it._id || "");
+            let isItemEligible = true;
+
+            if (excIds.length > 0 && excIds.includes(pid)) {
+              isItemEligible = false;
+            }
+            if (targetType === "selected" && selIds.length > 0 && !selIds.includes(pid)) {
+              isItemEligible = false;
+            }
+
+            if (isItemEligible) {
+              eligibleSubtotal += Number(it.subtotal || (it.price * (it.qty || 1))) || 0;
+              eligibleItemCount += (it.qty || 1);
+            }
+          });
+
+          if (validItems.length > 0 && eligibleItemCount === 0) {
+            couponStatus = "NOT_ELIGIBLE";
+            couponReason = `Coupon '${clean}' is not applicable to the items in your cart.`;
+          } else {
+            const evalSubtotal = eligibleSubtotal > 0 ? eligibleSubtotal : subtotal;
+            let rawDiscount = 0;
+
+            if (coup.type === "fixed" || clean === "SHRAWAN200" || clean === "MAHASHIVRATRI") {
+              rawDiscount = Number(coup.discount || 200);
+            } else {
+              const pct = Number(coup.discount || 10);
+              rawDiscount = Math.round((evalSubtotal * pct) / 100);
+            }
+
+            const maxCap = Number(coup.maxDiscount || 0);
+            if (maxCap > 0 && rawDiscount > maxCap) {
+              rawDiscount = maxCap;
+            }
+
+            couponDiscount = Math.min(rawDiscount, evalSubtotal);
+            couponValid = true;
+            couponStatus = "APPLIED";
+            couponReason = `Applied '${clean}' discount!`;
+            appliedCoupon = {
+              code: clean,
+              discount: coup.discount,
+              discountAmount: couponDiscount,
+              type: coup.type || "percentage",
+              valid: true,
+              status: "APPLIED",
+              reason: couponReason,
+              minAmount: minSpend,
+              targetType: coup.targetType || "all"
+            };
+          }
         }
-        couponReason = `Applied '${clean}' discount`;
-        appliedCoupon = {
-          code: clean,
-          discount: coup.discount,
-          discountAmount: couponDiscount,
-          valid: true,
-          status: "APPLIED",
-          reason: couponReason
-        };
       } else {
         couponStatus = "INVALID";
         couponReason = `Coupon '${clean}' is not valid`;
@@ -2201,21 +2256,69 @@ export const db = {
     } catch (_) {}
 
     const clean = (code || "").trim().toUpperCase();
-    const coup = storeCache.coupons.find(c => c.code.toUpperCase() === clean);
-    if (coup) {
+    const coup = storeCache.coupons.find(c => (c.code || "").toUpperCase() === clean);
+    if (!coup) {
       return {
-        success: true,
-        valid: true,
-        status: "APPLIED",
-        message: `Coupon '${clean}' applied successfully!`,
-        data: coup
+        success: false,
+        valid: false,
+        status: "INVALID",
+        message: `Coupon '${clean}' is invalid or does not exist.`
       };
     }
+
+    const isExp = coup.expiry && new Date(coup.expiry).getTime() < Date.now();
+    const isDisabled = coup.status === "Inactive" || coup.status === "Disabled";
+    if (isDisabled || isExp) {
+      return {
+        success: false,
+        valid: false,
+        status: "EXPIRED",
+        message: `Coupon '${clean}' is ${isExp ? "expired" : "disabled"}.`
+      };
+    }
+
+    // Compute cart subtotal
+    const subtotal = lines.reduce((sum, l) => sum + ((l.price || l.product?.price || 0) * (l.qty || 1)), 0);
+    const minSpend = Number(coup.minAmount || coup.minOrderValue || 0);
+
+    if (minSpend > 0 && subtotal < minSpend) {
+      return {
+        success: false,
+        valid: false,
+        status: "NOT_ELIGIBLE",
+        message: `Minimum shopping amount of ₹${minSpend.toLocaleString()} required to apply '${clean}'. (Your current subtotal: ₹${subtotal.toLocaleString()})`
+      };
+    }
+
+    // Check item eligibility
+    const selIds = (coup.selectedProducts || []).map(String);
+    const excIds = (coup.excludedProducts || []).map(String);
+    const targetType = coup.targetType || "all";
+
+    if (lines.length > 0) {
+      const eligibleItems = lines.filter(l => {
+        const pid = String(l.productId || l.product?.id || l.product?._id || l.id || "");
+        if (excIds.length > 0 && excIds.includes(pid)) return false;
+        if (targetType === "selected" && selIds.length > 0 && !selIds.includes(pid)) return false;
+        return true;
+      });
+
+      if (eligibleItems.length === 0) {
+        return {
+          success: false,
+          valid: false,
+          status: "NOT_ELIGIBLE",
+          message: `Coupon '${clean}' is not applicable to the items in your cart.`
+        };
+      }
+    }
+
     return {
-      success: false,
-      valid: false,
-      status: "INVALID",
-      message: `Coupon '${clean}' is invalid or expired.`
+      success: true,
+      valid: true,
+      status: "APPLIED",
+      message: `Coupon '${clean}' applied successfully!`,
+      data: coup
     };
   },
 

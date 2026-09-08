@@ -116,13 +116,16 @@ export function useActiveOffer(product = null, options = {}) {
     return calculateTimeRemaining(getExpiryDate(currentOffer));
   });
 
+  const productId = typeof product === "object" ? String(product?.id || product?._id || "") : String(product || "");
+  const customOfferJson = product && typeof product === "object" && product.customOffer ? JSON.stringify(product.customOffer) : "";
+
   // Re-fetch offer from DB
   const refreshOffer = useCallback(() => {
     let resolvedOffer;
-    if (product && product.customOffer && product.customOffer.enabled) {
+    if (product && typeof product === "object" && product.customOffer && product.customOffer.enabled) {
       resolvedOffer = product.customOffer;
-    } else if (product && (typeof product === "string" || typeof product === "number")) {
-      const p = db.getProduct(product);
+    } else if (productId) {
+      const p = db.getProduct(productId);
       if (p && p.customOffer && p.customOffer.enabled) {
         resolvedOffer = p.customOffer;
       } else {
@@ -132,9 +135,22 @@ export function useActiveOffer(product = null, options = {}) {
       resolvedOffer = db.getActiveOffer();
     }
 
-    setOffer(resolvedOffer);
-    setTimeLeft(calculateTimeRemaining(getExpiryDate(resolvedOffer)));
-  }, [product]);
+    setOffer(prev => {
+      if (prev === resolvedOffer) return prev;
+      if (prev && resolvedOffer && prev.id === resolvedOffer.id && prev.updatedAt === resolvedOffer.updatedAt && prev.title === resolvedOffer.title) {
+        return prev;
+      }
+      return resolvedOffer;
+    });
+
+    const newTime = calculateTimeRemaining(getExpiryDate(resolvedOffer));
+    setTimeLeft(prev => {
+      if (prev.totalSeconds === newTime.totalSeconds && prev.isExpired === newTime.isExpired && prev.seconds === newTime.seconds) {
+        return prev;
+      }
+      return newTime;
+    });
+  }, [productId, customOfferJson]);
 
   // Subscribe to central DB / store updates
   useEffect(() => {
@@ -150,20 +166,20 @@ export function useActiveOffer(product = null, options = {}) {
     if (!withTimer || !offer) return;
     const expiry = getExpiryDate(offer);
     if (!expiry) {
-      setTimeLeft({ days: "00", hours: "00", minutes: "00", seconds: "00", totalSeconds: 0, isExpired: false });
+      setTimeLeft(prev => prev.totalSeconds === 0 ? prev : { days: "00", hours: "00", minutes: "00", seconds: "00", totalSeconds: 0, isExpired: false });
       return;
     }
 
     // Immediately calculate
     const initial = calculateTimeRemaining(expiry);
-    setTimeLeft(initial);
+    setTimeLeft(prev => prev.seconds === initial.seconds && prev.isExpired === initial.isExpired ? prev : initial);
     if (initial.isExpired) {
       return; // Already expired, no interval needed
     }
 
     const interval = setInterval(() => {
       const remaining = calculateTimeRemaining(expiry);
-      setTimeLeft(remaining);
+      setTimeLeft(prev => prev.seconds === remaining.seconds && prev.isExpired === remaining.isExpired ? prev : remaining);
       if (remaining.isExpired) {
         clearInterval(interval);
       }
@@ -190,11 +206,26 @@ export function useActiveOffer(product = null, options = {}) {
   // Check product applicability if product is provided
   let appliesToProduct = true;
   if (product && typeof product === "object") {
-    // 1. Check applicableProducts
-    if (Array.isArray(offer?.applicableProducts) && offer.applicableProducts.length > 0) {
-      appliesToProduct = offer.applicableProducts.map(String).includes(String(product.id));
+    const pid = String(product.id || product._id || "");
+    const targetType = offer?.targetType || "all";
+
+    // 1. Check Excluded Products
+    if (Array.isArray(offer?.excludedProducts) && offer.excludedProducts.length > 0) {
+      if (offer.excludedProducts.map(String).includes(pid)) {
+        appliesToProduct = false;
+      }
     }
-    // 2. Check applicableCategories
+
+    // 2. Check Target Type & Applicable Products
+    if (appliesToProduct) {
+      if (targetType === "selected" || (Array.isArray(offer?.applicableProducts) && offer.applicableProducts.length > 0)) {
+        if (Array.isArray(offer?.applicableProducts) && offer.applicableProducts.length > 0) {
+          appliesToProduct = offer.applicableProducts.map(String).includes(pid);
+        }
+      }
+    }
+
+    // 3. Check Applicable Categories
     if (appliesToProduct && Array.isArray(offer?.applicableCategories) && offer.applicableCategories.length > 0) {
       const prodCat = (product.category || "").toLowerCase();
       const prodName = (product.name || "").toLowerCase();

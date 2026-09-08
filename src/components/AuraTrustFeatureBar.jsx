@@ -74,7 +74,7 @@ export function AuraTrustFeatureBar() {
       style={{
         maxWidth: 1240,
         width: "94%",
-        margin: "-48px auto 36px",
+        margin: "0 auto 28px",
         position: "relative",
         zIndex: 20
       }}

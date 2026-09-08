@@ -37,14 +37,20 @@ export function AdminAIAgentChat() {
         setMessages([...newMsgs, { sender: "ai", text: res.text }]);
       } else if (res && res.messages) {
         setMessages(res.messages);
+      } else if (res && res.error) {
+        setMessages([...newMsgs, { sender: "ai", text: `⚠️ ${res.error}` }]);
       } else {
-        setMessages([...newMsgs, { sender: "ai", text: "I encountered an error while processing that request." }]);
+        setMessages([...newMsgs, { sender: "ai", text: "I encountered an error while processing that request. Please retry." }]);
       }
     } catch (e) {
       setMessages([...newMsgs, { sender: "ai", text: "Connection error with the Aura AI backend." }]);
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const handleQuickPrompt = (promptText) => {
+    setInput(promptText);
   };
 
   const handleKeyDown = (e) => {
@@ -90,6 +96,38 @@ export function AdminAIAgentChat() {
         )}
       </div>
 
+      {/* Quick Prompt Recommendation Chips */}
+      <div style={{ padding: '8px 12px', background: '#faf7f2', borderTop: '1px solid #eadecd', display: 'flex', gap: '6px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+        <button 
+          type="button" 
+          onClick={() => handleQuickPrompt("Analyze current store catalog and suggest top selling products")} 
+          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+        >
+          🔍 Analyze Catalog Sales
+        </button>
+        <button 
+          type="button" 
+          onClick={() => handleQuickPrompt("Write a high-converting SEO product description for 5 Mukhi Nepal Mala")} 
+          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+        >
+          ✍️ SEO Description
+        </button>
+        <button 
+          type="button" 
+          onClick={() => handleQuickPrompt("Check current inventory and identify low stock products")} 
+          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+        >
+          📦 Inventory Status
+        </button>
+        <button 
+          type="button" 
+          onClick={() => handleQuickPrompt("Suggest promotional discount offer for upcoming festival")} 
+          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+        >
+          🏷️ Promotional Coupon Strategy
+        </button>
+      </div>
+
       <div style={{ padding: '12px', background: '#fff', borderTop: '1px solid #eadecd', display: 'flex', gap: '8px' }}>
         <input
           type="text"
@@ -97,7 +135,17 @@ export function AdminAIAgentChat() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask Aura AI to analyze products, sales, or SEO..."
-          style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', outline: 'none' }}
+          style={{ 
+            flex: 1, 
+            padding: '12px 14px', 
+            borderRadius: '8px', 
+            border: '1px solid #c2b4a5', 
+            fontSize: '14px', 
+            outline: 'none',
+            color: '#2b170d',
+            backgroundColor: '#ffffff',
+            fontWeight: '500'
+          }}
           disabled={isTyping}
         />
         <button
@@ -108,7 +156,7 @@ export function AdminAIAgentChat() {
             color: '#fff',
             border: 'none',
             borderRadius: '8px',
-            padding: '0 16px',
+            padding: '0 18px',
             cursor: input.trim() && !isTyping ? 'pointer' : 'not-allowed',
             display: 'flex',
             alignItems: 'center',

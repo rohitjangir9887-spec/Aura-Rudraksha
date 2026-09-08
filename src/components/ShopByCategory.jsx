@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
+import { OptimizedImage } from "./OptimizedImage";
 
 export function ShopByCategory() {
   const scrollRef = useRef(null);
@@ -17,8 +18,8 @@ export function ShopByCategory() {
         id: "rudraksha",
         name: "Rudraksha",
         desc: "Authentic Nepal beads",
-        image: "/images/placeholder.svg",
-        fallback: "/images/placeholder.svg",
+        image: "https://images.unsplash.com/photo-1609357605129-26f69add5d6e?auto=format&fit=crop&w=500&q=80",
+        fallback: "/images/product-5mukhi.jpg",
         link: "/shop?q=Rudraksha"
       },
       {
@@ -268,21 +269,11 @@ export function ShopByCategory() {
                   position: "relative"
                 }}
               >
-                <img
-                  src={getOptimizedImageUrl(cat.image, { width: 360, quality: 80 })}
+                <OptimizedImage
+                  src={cat.image}
                   alt={cat.name}
-                  loading="lazy"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    markProxyFailed(cat.image);
-                    const target = e.currentTarget;
-                    if (target.src.includes("wsrv.nl")) {
-                      target.src = cat.image;
-                    } else if (cat.fallback && !target.src.includes(cat.fallback.replace(/^\//, ''))) {
-                      target.src = cat.fallback;
-                    }
-                  }}
+                  width={360}
+                  quality={80}
                   style={{
                     width: "100%",
                     height: "100%",

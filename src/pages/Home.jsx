@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
+import { OptimizedImage } from "../components/OptimizedImage";
 import { Countdown } from "../components/Countdown";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
@@ -169,7 +170,7 @@ export function Home() {
     if (activeBanners.length <= 1) return;
     const interval = setInterval(() => {
       setHero((current) => (current + 1) % activeBanners.length);
-    }, 5000); 
+    }, 3500); 
     return () => clearInterval(interval);
   }, [activeBanners.length]);
 
@@ -198,6 +199,10 @@ export function Home() {
     }
   };
   
+  const currentBannerSrc = activeBanners[hero] || activeBanners[0];
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const bannerWidth = isMobile ? 640 : 1200;
+
   return <Shell>
     
     <section className="hero premium-slider"
@@ -205,6 +210,7 @@ export function Home() {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       aria-label="Aura Sacred Hero Banners"
+      style={{ overflow: 'hidden', borderRadius: '12px', margin: '0 0 16px 0' }}
     >
       <div className="hero-slides" style={{ minHeight: "220px", background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => {
@@ -213,26 +219,15 @@ export function Home() {
           const bannerQuality = isMobile ? 78 : 84;
 
           return (
-            <img 
+            <OptimizedImage 
               key={`${src}-${i}`} 
-              src={getOptimizedImageUrl(src, { width: bannerWidth, quality: bannerQuality })} 
+              src={src} 
               alt={`Aura Sacred Banner ${i + 1}`} 
-              className={`hero-slide ${i === hero ? 'active' : ''}`}
-              loading={i === 0 ? "eager" : "lazy"}
-              fetchpriority={i === 0 ? "high" : "low"}
-              decoding="async"
-              referrerPolicy="no-referrer"
-              onLoad={() => setLoadedBanners(prev => ({ ...prev, [i]: true }))}
-              onError={(e) => {
-                markProxyFailed(src);
-                setLoadedBanners(prev => ({ ...prev, [i]: true }));
-                const target = e.currentTarget;
-                if (target.src.includes("wsrv.nl")) {
-                  target.src = src;
-                } else if (!target.src.includes("product-5mukhi.jpg")) {
-                  target.src = "/images/placeholder.svg";
-                }
-              }}
+              width={bannerWidth}
+              quality={bannerQuality}
+              priority={i === 0}
+              containerClassName={`hero-slide ${i === hero ? 'active' : ''}`}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           );
         })}

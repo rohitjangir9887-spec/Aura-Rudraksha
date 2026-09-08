@@ -1,4 +1,5 @@
-import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl } from "../../lib/imageUtils";
+import { OptimizedImage } from "../OptimizedImage";
 import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useRef } from "react";
 import { 
@@ -230,11 +231,12 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
           <AnimatePresence mode="wait" initial={false}>
             <motion.img
               key={activeImg || images[0]}
-              src={activeImg || images[0]}
+              src={getOptimizedImageUrl(activeImg || images[0], { width: 800, quality: 84 })}
               alt={`${product.name} - Sacred View ${activeIndex + 1}`}
               className="aura-gallery-hero-img"
               loading="eager"
               decoding="async"
+              fetchpriority="high"
               style={{
                 transformOrigin: `${zoomTransform.originX} ${zoomTransform.originY}`,
                 transform: `scale(${zoomTransform.scale})`,
@@ -269,16 +271,11 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                 className={`aura-thumb-btn ${isActive ? "active" : ""}`}
                 onClick={() => handleSelectThumbnail(imgUrl, idx)}
               >
-                <img
+                <OptimizedImage
                   src={imgUrl}
                   alt={`${product.name} thumbnail ${idx + 1}`}
-                  loading="lazy"
-                  decoding="async"
-                  onError={(e) => {
-                    if (!e.target.src.includes("product-5mukhi.jpg")) {
-                      e.target.src = "/images/placeholder.svg";
-                    }
-                  }}
+                  width={120}
+                  quality={70}
                 />
               </button>
             );

@@ -1,4 +1,5 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
+import { OptimizedImage } from "../components/OptimizedImage";
 import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
@@ -120,12 +121,11 @@ export function Wishlist() {
                       >
                         <div style={{ height: "180px", background: "#f5eee6", overflow: "hidden" }}>
                           <Link to={getProductRoute(p)}>
-                            <img
+                            <OptimizedImage
                               src={displayImage}
                               alt={p.name}
-                              loading="lazy"
-                              decoding="async"
-                              onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
+                              width={320}
+                              quality={80}
                               style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             />
                           </Link>

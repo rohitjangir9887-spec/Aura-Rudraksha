@@ -76,7 +76,7 @@ function PanditJiAvatar({ size = 34 }) {
       }}
     >
       <img
-        src={getOptimizedImageUrl("https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png", { width: 320, quality: 80 })}
+        src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=160&auto=format&fit=crop&q=80"
         alt="AI Pandit Ji"
         style={{
           width: '100%',
@@ -86,82 +86,17 @@ function PanditJiAvatar({ size = 34 }) {
           display: 'block'
         }}
         onError={(e) => {
-          const raw = "https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png";
-          markProxyFailed(raw);
-          const target = e.currentTarget;
-          if (target.src.includes("wsrv.nl")) {
-            target.src = raw;
-            return;
-          }
-          target.style.display = 'none';
-          const fallback = target.parentElement.querySelector('svg');
+          e.currentTarget.style.display = 'none';
+          const fallback = e.currentTarget.parentElement.querySelector('svg');
           if (fallback) fallback.style.display = 'block';
         }}
-        referrerPolicy="no-referrer"
         loading="eager"
         decoding="async"
       />
       <svg width={size - 2} height={size - 2} viewBox="0 0 40 40" fill="none" style={{ display: 'none' }}>
-        {/* Radiating Halo Rays */}
-        <circle cx="20" cy="16" r="14" fill="url(#haloGrad)" fillOpacity="0.45" />
-        <defs>
-          <radialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#FFF9E6" />
-            <stop offset="60%" stopColor="#F5CB87" />
-            <stop offset="100%" stopColor="#D49B3E" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-
-        {/* Halo outer rings */}
-        <circle cx="20" cy="16" r="11" stroke="#FDE68A" strokeWidth="0.8" strokeDasharray="2 1.5" opacity="0.7" />
-
-        {/* Shoulders & Saffron Shawl / Angavastram */}
-        <path d="M6 39C6 31 11 26 20 26C29 26 34 31 34 39H6Z" fill="#D96E14" />
-        <path d="M12 28C14 31 16 39 16 39H24C24 39 26 31 28 28C25 27 22 26.5 20 26.5C18 26.5 15 27 12 28Z" fill="#BA4C09" />
-        <path d="M15 30C15 30 17 38 18 39H22C23 38 25 30 25 30" stroke="#F6C56F" strokeWidth="1" strokeLinecap="round" />
-
-        {/* Rudraksha Beads Mala on Shawl */}
-        <circle cx="16" cy="33" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
-        <circle cx="18" cy="35" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
-        <circle cx="20" cy="36" r="1.3" fill="#8E3310" stroke="#FFDF9E" strokeWidth="0.5" />
-        <circle cx="22" cy="35" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
-        <circle cx="24" cy="33" r="1.1" fill="#7A2B0E" stroke="#FFDF9E" strokeWidth="0.4" />
-
-        {/* Neck & Chin */}
-        <rect x="17" y="21" width="6" height="6" rx="2" fill="#E8B084" />
-
-        {/* Head / Face */}
-        <circle cx="20" cy="16" r="7" fill="#F0C097" />
-
-        {/* Ears */}
-        <circle cx="13" cy="16.5" r="1.5" fill="#E8B084" />
-        <circle cx="27" cy="16.5" r="1.5" fill="#E8B084" />
-        <circle cx="13" cy="17.2" r="0.6" fill="#D4AF37" />
-        <circle cx="27" cy="17.2" r="0.6" fill="#D4AF37" />
-
-        {/* Hair / Bald Crown with grey-white side hair */}
-        <path d="M13 14C12.5 16 12.5 18 13.5 19.5" stroke="#F1F1F1" strokeWidth="1.6" strokeLinecap="round" />
-        <path d="M27 14C27.5 16 27.5 18 26.5 19.5" stroke="#F1F1F1" strokeWidth="1.6" strokeLinecap="round" />
-
-        {/* Saffron / Sandalwood Tripundra Tilak on Forehead */}
-        <path d="M18 12.5H22" stroke="#E67E22" strokeWidth="0.8" strokeLinecap="round" />
-        <path d="M18.2 13.5H21.8" stroke="#E67E22" strokeWidth="0.7" strokeLinecap="round" />
-        <circle cx="20" cy="13.2" r="0.6" fill="#C0392B" />
-
-        {/* Eyebrows */}
-        <path d="M16 14.8C16.8 14.4 17.8 14.5 18.2 15" stroke="#6D6059" strokeWidth="0.8" strokeLinecap="round" />
-        <path d="M21.8 15C22.2 14.5 23.2 14.4 24 14.8" stroke="#6D6059" strokeWidth="0.8" strokeLinecap="round" />
-
-        {/* Eyes (Serene, gentle, smiling) */}
-        <path d="M16.5 16.5C17 16.2 17.8 16.5 18 17" stroke="#3D2817" strokeWidth="0.9" strokeLinecap="round" />
-        <path d="M22 17C22.2 16.5 23 16.2 23.5 16.5" stroke="#3D2817" strokeWidth="0.9" strokeLinecap="round" />
-
-        {/* Nose */}
-        <path d="M20 15.5V18C20 18.3 19.6 18.6 19.3 18.6" stroke="#D3976C" strokeWidth="0.8" strokeLinecap="round" />
-
-        {/* White / Grey Beard and Moustache */}
-        <path d="M16.5 19C18 19.5 20 19 20 19C20 19 22 19.5 23.5 19C24 20.5 23.5 24 20 25C16.5 24 16 20.5 16.5 19Z" fill="#F8F8F8" />
-        <path d="M17.5 19.5C18.5 20.2 20 19.8 20 19.8C20 19.8 21.5 20.2 22.5 19.5" stroke="#DDD7D0" strokeWidth="0.7" strokeLinecap="round" />
+        <circle cx="20" cy="16" r="14" fill="#F5CB87" fillOpacity="0.45" />
+        <circle cx="20" cy="14" r="8" fill="#7A4215" />
+        <path d="M10 32C10 25 14 22 20 22C26 22 30 25 30 32" fill="#D49B3E" />
       </svg>
     </div>
   );
