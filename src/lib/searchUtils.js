@@ -35,6 +35,8 @@ const HINDI_NUMBER_SYNONYMS = {
   "21": ["ikkis", "ekavimshati", "21", "twenty-one", "इक्कीस"]
 };
 
+import { extractKeywordString } from "./keywordUtils.js";
+
 /**
  * Normalizes text for lenient searching (lowercases, removes accents, trims)
  */
@@ -64,18 +66,20 @@ export function buildProductSearchCorpus(product) {
 
   // Search Keywords array
   if (Array.isArray(product.keywords)) {
-    parts.push(product.keywords.join(" "));
+    parts.push(product.keywords.map(extractKeywordString).filter(Boolean).join(" "));
   } else if (typeof product.keywords === "string") {
     parts.push(product.keywords);
+  } else if (product.keywords) {
+    parts.push(extractKeywordString(product.keywords));
   }
 
   if (Array.isArray(product.searchKeywords)) {
-    parts.push(product.searchKeywords.join(" "));
+    parts.push(product.searchKeywords.map(extractKeywordString).filter(Boolean).join(" "));
   }
 
   // Tags array
   if (Array.isArray(product.tags)) {
-    parts.push(product.tags.join(" "));
+    parts.push(product.tags.map(extractKeywordString).filter(Boolean).join(" "));
   }
 
   // Astrological & Vedic attributes
@@ -110,8 +114,8 @@ export function matchProductQuery(product, rawQuery) {
 
   const corpus = buildProductSearchCorpus(product);
   const nameClean = normalizeSearchString(product.name || "");
-  const keywordsClean = Array.isArray(product.keywords) ? product.keywords.map(normalizeSearchString) : [];
-  const tagsClean = Array.isArray(product.tags) ? product.tags.map(normalizeSearchString) : [];
+  const keywordsClean = Array.isArray(product.keywords) ? product.keywords.map(k => normalizeSearchString(extractKeywordString(k))).filter(Boolean) : [];
+  const tagsClean = Array.isArray(product.tags) ? product.tags.map(t => normalizeSearchString(extractKeywordString(t))).filter(Boolean) : [];
 
   // Exact phrase match (Highest Priority)
   if (nameClean.includes(cleanQ)) return 100;

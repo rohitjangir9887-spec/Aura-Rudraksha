@@ -351,12 +351,28 @@ export async function getProductById(req, res, next) {
 import { logAuditEvent } from "../services/auditService.js";
 import { submitToIndexNow } from "../services/indexNowService.js";
 
+function extractStringValue(item) {
+  if (item === null || item === undefined) return "";
+  if (typeof item === "string") return item.trim();
+  if (typeof item === "number" || typeof item === "boolean") return String(item);
+  if (typeof item === "object") {
+    const val = item.keyword ?? item.term ?? item.text ?? item.value ?? item.name ?? item.tag ?? "";
+    if (typeof val === "string") return val.trim();
+    if (typeof val === "number") return String(val);
+  }
+  return "";
+}
+
 function normalizeArrayField(val) {
   if (Array.isArray(val)) {
-    return val.map(s => String(s || "").trim()).filter(Boolean);
+    return val.map(item => extractStringValue(item)).filter(Boolean);
   }
   if (typeof val === "string" && val.trim()) {
     return val.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+  }
+  if (typeof val === "object" && val !== null) {
+    const str = extractStringValue(val);
+    return str ? [str] : [];
   }
   return [];
 }

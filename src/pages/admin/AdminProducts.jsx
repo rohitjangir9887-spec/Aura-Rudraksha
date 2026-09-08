@@ -1,5 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
+import { extractKeywordString, normalizeKeywordItems } from "../../lib/keywordUtils.js";
 import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
@@ -66,9 +67,9 @@ export function AdminProducts() {
         (p.subCategory && p.subCategory.toLowerCase().includes(q)) ||
         (p.mukhi && p.mukhi.toLowerCase().includes(q)) ||
         (p.origin && p.origin.toLowerCase().includes(q)) ||
-        (Array.isArray(p.keywords) && p.keywords.some(k => k.toLowerCase().includes(q))) ||
-        (Array.isArray(p.searchKeywords) && p.searchKeywords.some(k => k.toLowerCase().includes(q))) ||
-        (Array.isArray(p.tags) && p.tags.some(t => t.toLowerCase().includes(q)))
+        (Array.isArray(p.keywords) && p.keywords.some(k => extractKeywordString(k).toLowerCase().includes(q))) ||
+        (Array.isArray(p.searchKeywords) && p.searchKeywords.some(k => extractKeywordString(k).toLowerCase().includes(q))) ||
+        (Array.isArray(p.tags) && p.tags.some(t => extractKeywordString(t).toLowerCase().includes(q)))
       );
     }
     if (selectedCategory !== "All") {
@@ -252,24 +253,30 @@ export function AdminProducts() {
       const data = await res.json();
       const payload = data.data || data;
       if (data.success && payload) {
-        const keywords = Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(payload.searchKeywords) ? payload.searchKeywords : []);
-        const tags = Array.isArray(payload.tags) ? payload.tags : [];
+        const rawKeywords = Array.isArray(data.keywords) ? data.keywords : (Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(payload.searchKeywords) ? payload.searchKeywords : []));
+        const rawTags = Array.isArray(data.tags) ? data.tags : (Array.isArray(payload.tags) ? payload.tags : []);
+        const richMetadata = (Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(data.seoKeywordsDetails) ? data.seoKeywordsDetails : []))
+          .filter(item => typeof item === "object" && item !== null);
+
+        const keywords = normalizeKeywordItems(rawKeywords);
+        const tags = normalizeKeywordItems(rawTags);
         const { subCategory, mukhi, rulingPlanet, deity, origin, zodiac, highlight } = payload;
         if (isDirectItem) {
-          const currentKw = Array.isArray(productToProcess.keywords) ? productToProcess.keywords : [];
-          const currentTags = Array.isArray(productToProcess.tags) ? productToProcess.tags : [];
-          const currentZodiac = Array.isArray(productToProcess.zodiac) ? productToProcess.zodiac : [];
+          const currentKw = normalizeKeywordItems(productToProcess.keywords);
+          const currentTags = normalizeKeywordItems(productToProcess.tags);
+          const currentZodiac = normalizeKeywordItems(productToProcess.zodiac);
           const merged = {
             ...productToProcess,
-            keywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
-            searchKeywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
-            tags: Array.from(new Set([...currentTags, ...(tags || [])])),
+            keywords: normalizeKeywordItems([...currentKw, ...keywords]),
+            searchKeywords: normalizeKeywordItems([...currentKw, ...keywords]),
+            tags: normalizeKeywordItems([...currentTags, ...tags]),
+            seoKeywordsDetails: richMetadata.length > 0 ? richMetadata : (productToProcess.seoKeywordsDetails || []),
             subCategory: productToProcess.subCategory || subCategory || "",
             mukhi: productToProcess.mukhi || mukhi || "",
             rulingPlanet: productToProcess.rulingPlanet || rulingPlanet || "",
             deity: productToProcess.deity || deity || "",
             origin: productToProcess.origin || origin || "Nepal",
-            zodiac: Array.from(new Set([...currentZodiac, ...(zodiac || [])]))
+            zodiac: normalizeKeywordItems([...currentZodiac, ...normalizeKeywordItems(zodiac)])
           };
           await db.saveProduct(merged);
           emitToast(`✨ Generated ${keywords.length} AI keywords & tags for "${productToProcess.name}"!`, "success");
@@ -277,20 +284,23 @@ export function AdminProducts() {
         } else {
           setEditing(prev => {
             if (!prev) return prev;
-            const currentKw = Array.isArray(prev.keywords) ? prev.keywords : (Array.isArray(prev.searchKeywords) ? prev.searchKeywords : []);
-            const currentTags = Array.isArray(prev.tags) ? prev.tags : [];
-            const currentZodiac = Array.isArray(prev.zodiac) ? prev.zodiac : [];
+            const currentKw = normalizeKeywordItems(prev.keywords);
+            const currentTags = normalizeKeywordItems(prev.tags);
+            const currentZodiac = normalizeKeywordItems(prev.zodiac);
+            const updatedKw = normalizeKeywordItems([...currentKw, ...keywords]);
+            const updatedTags = normalizeKeywordItems([...currentTags, ...tags]);
             return {
               ...prev,
-              keywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
-              searchKeywords: Array.from(new Set([...currentKw, ...(keywords || [])])),
-              tags: Array.from(new Set([...currentTags, ...(tags || [])])),
+              keywords: updatedKw,
+              searchKeywords: updatedKw,
+              tags: updatedTags,
+              seoKeywordsDetails: richMetadata.length > 0 ? richMetadata : (prev.seoKeywordsDetails || []),
               subCategory: prev.subCategory || subCategory || prev.category || "Rudraksha",
               mukhi: prev.mukhi || mukhi || "",
               rulingPlanet: prev.rulingPlanet || rulingPlanet || "",
               deity: prev.deity || deity || "",
               origin: prev.origin || origin || "Nepal",
-              zodiac: Array.from(new Set([...currentZodiac, ...(zodiac || [])])),
+              zodiac: normalizeKeywordItems([...currentZodiac, ...normalizeKeywordItems(zodiac)]),
               highlight: prev.highlight || highlight || ""
             };
           });
@@ -310,12 +320,14 @@ export function AdminProducts() {
   const handleAddKeyword = (kw) => {
     const raw = (kw !== undefined ? kw : keywordInput);
     if (!raw) return;
-    const parts = String(raw).split(/[,|\n]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
+    const strVal = extractKeywordString(raw);
+    if (!strVal) return;
+    const parts = strVal.split(/[,|\n]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
     if (parts.length === 0) return;
 
     setEditing(prev => {
       if (!prev) return prev;
-      const current = Array.isArray(prev.keywords) ? [...prev.keywords] : [];
+      const current = normalizeKeywordItems(prev.keywords);
       parts.forEach(p => {
         if (!current.includes(p)) current.push(p);
       });
@@ -327,7 +339,7 @@ export function AdminProducts() {
   const handleRemoveKeyword = (indexToRemove) => {
     setEditing(prev => {
       if (!prev) return prev;
-      const current = Array.isArray(prev.keywords) ? [...prev.keywords] : [];
+      const current = normalizeKeywordItems(prev.keywords);
       current.splice(indexToRemove, 1);
       return { ...prev, keywords: current, searchKeywords: current };
     });
@@ -341,12 +353,14 @@ export function AdminProducts() {
   const handleAddTag = (tg) => {
     const raw = (tg !== undefined ? tg : tagInput);
     if (!raw) return;
-    const parts = String(raw).split(/[,|\n]+/).map(t => t.trim()).filter(Boolean);
+    const strVal = extractKeywordString(raw);
+    if (!strVal) return;
+    const parts = strVal.split(/[,|\n]+/).map(t => t.trim()).filter(Boolean);
     if (parts.length === 0) return;
 
     setEditing(prev => {
       if (!prev) return prev;
-      const current = Array.isArray(prev.tags) ? [...prev.tags] : [];
+      const current = normalizeKeywordItems(prev.tags);
       parts.forEach(p => {
         if (!current.includes(p)) current.push(p);
       });
@@ -358,18 +372,18 @@ export function AdminProducts() {
   const handleRemoveTag = (indexToRemove) => {
     setEditing(prev => {
       if (!prev) return prev;
-      const current = Array.isArray(prev.tags) ? [...prev.tags] : [];
+      const current = normalizeKeywordItems(prev.tags);
       current.splice(indexToRemove, 1);
       return { ...prev, tags: current };
     });
   };
 
   const handleToggleZodiac = (z) => {
-    const sign = String(z).trim();
+    const sign = extractKeywordString(z);
     if (!sign) return;
     setEditing(prev => {
       if (!prev) return prev;
-      const current = Array.isArray(prev.zodiac) ? [...prev.zodiac] : [];
+      const current = normalizeKeywordItems(prev.zodiac);
       const idx = current.indexOf(sign);
       if (idx >= 0) {
         current.splice(idx, 1);
@@ -391,15 +405,16 @@ export function AdminProducts() {
       const imgs = (p.images && p.images.length > 0) ? [...p.images] : (p.img ? [p.img] : []);
       const indoImgs = Array.isArray(p.indonesianImages) ? p.indonesianImages : (p.indonesianImg ? [p.indonesianImg] : []);
       const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
-      const existingKw = Array.isArray(p.keywords) ? p.keywords : (Array.isArray(p.searchKeywords) ? p.searchKeywords : []);
-      const existingTags = Array.isArray(p.tags) ? p.tags : [];
-      const existingZodiac = Array.isArray(p.zodiac) ? p.zodiac : [];
+      const existingKw = normalizeKeywordItems(p.keywords || p.searchKeywords);
+      const existingTags = normalizeKeywordItems(p.tags);
+      const existingZodiac = normalizeKeywordItems(p.zodiac);
 
       setEditing({
         ...p,
         keywords: existingKw,
         searchKeywords: existingKw,
         tags: existingTags,
+        zodiac: existingZodiac,
         subCategory: p.subCategory || "",
         mukhi: p.mukhi || "",
         rulingPlanet: p.rulingPlanet || "",
@@ -760,9 +775,10 @@ export function AdminProducts() {
       images: currentImages.length > 0 ? currentImages : [primaryImg],
       category: editing.category || "Rudraksha",
       subCategory: (editing.subCategory || "").trim(),
-      keywords: Array.isArray(editing.keywords) ? editing.keywords : [],
-      searchKeywords: Array.isArray(editing.keywords) ? editing.keywords : [],
-      tags: Array.isArray(editing.tags) ? editing.tags : [],
+      keywords: normalizeKeywordItems(editing.keywords),
+      searchKeywords: normalizeKeywordItems(editing.keywords),
+      tags: normalizeKeywordItems(editing.tags),
+      zodiac: normalizeKeywordItems(editing.zodiac),
       mukhi: (editing.mukhi || "").trim(),
       rulingPlanet: (editing.rulingPlanet || "").trim(),
       deity: (editing.deity || "").trim(),
@@ -776,7 +792,6 @@ export function AdminProducts() {
       indonesianImg: editing.indonesianImg || (Array.isArray(editing.indonesianImages) && editing.indonesianImages[0]) || "",
       indonesianSize: (editing.indonesianSize || "").trim(),
       indonesianHighlight: (editing.indonesianHighlight || "").trim(),
-      zodiac: Array.isArray(editing.zodiac) ? editing.zodiac : [],
       freeShipping: editing.freeShipping !== false,
       shippingFee: Number(editing.shippingFee) || 0,
       description: editing.description || "",
@@ -1248,33 +1263,42 @@ export function AdminProducts() {
                     No search keywords added yet. Type below or click presets / generate with AI.
                   </span>
                 ) : (
-                  editing.keywords.map((kw, idx) => (
-                    <span
-                      key={idx}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        background: '#fef3e7',
-                        border: '1px solid #fed7aa',
-                        color: '#9a3412',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        padding: '3px 8px',
-                        borderRadius: '6px'
-                      }}
-                    >
-                      {kw}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveKeyword(idx)}
-                        style={{ background: 'none', border: 'none', color: '#9a3412', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', opacity: 0.7 }}
-                        title="Remove keyword"
+                  editing.keywords.map((kw, idx) => {
+                    const kwStr = extractKeywordString(kw);
+                    const meta = typeof kw === "object" && kw !== null ? kw : null;
+                    const tooltip = meta
+                      ? `Keyword: ${kwStr}${meta.type ? ` | Type: ${meta.type}` : ''}${meta.intent ? ` | Intent: ${meta.intent}` : ''}${meta.seoScore ? ` | Score: ${meta.seoScore}` : ''}`
+                      : undefined;
+
+                    return (
+                      <span
+                        key={idx}
+                        title={tooltip}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: '#fef3e7',
+                          border: '1px solid #fed7aa',
+                          color: '#9a3412',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          padding: '3px 8px',
+                          borderRadius: '6px'
+                        }}
                       >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))
+                        {kwStr}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveKeyword(idx)}
+                          style={{ background: 'none', border: 'none', color: '#9a3412', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', opacity: 0.7 }}
+                          title="Remove keyword"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    );
+                  })
                 )}
               </div>
 
@@ -1365,32 +1389,35 @@ export function AdminProducts() {
                     No tags added.
                   </span>
                 ) : (
-                  editing.tags.map((tg, idx) => (
-                    <span
-                      key={idx}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        background: '#ecfdf5',
-                        border: '1px solid #a7f3d0',
-                        color: '#065f46',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        padding: '3px 8px',
-                        borderRadius: '6px'
-                      }}
-                    >
-                      🏷️ {tg}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(idx)}
-                        style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                  editing.tags.map((tg, idx) => {
+                    const tgStr = extractKeywordString(tg);
+                    return (
+                      <span
+                        key={idx}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          color: '#065f46',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          padding: '3px 8px',
+                          borderRadius: '6px'
+                        }}
                       >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))
+                        🏷️ {tgStr}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(idx)}
+                          style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    );
+                  })
                 )}
               </div>
 
@@ -2495,7 +2522,7 @@ export function AdminProducts() {
                                 </span>
                               )}
                               {Array.isArray(p.keywords) && p.keywords.length > 0 ? (
-                                <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }} title={p.keywords.join(', ')}>
+                                <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }} title={p.keywords.map(extractKeywordString).filter(Boolean).join(', ')}>
                                   🔍 {p.keywords.length} keywords
                                 </span>
                               ) : (

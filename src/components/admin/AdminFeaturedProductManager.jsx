@@ -1,5 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
+import { extractKeywordString } from "../../lib/keywordUtils";
 import React, { useState, useEffect, useMemo } from "react";
 import { Sparkles, Search, Check, X, ArrowRight, Loader2, Star, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { db, onStoreUpdate } from "../../lib/db";
@@ -44,7 +45,7 @@ export function AdminFeaturedProductManager({ products = [], onSettingsSaved }) 
       (p.category && p.category.toLowerCase().includes(q)) ||
       (p.subCategory && p.subCategory.toLowerCase().includes(q)) ||
       (p.mukhi && p.mukhi.toLowerCase().includes(q)) ||
-      (Array.isArray(p.tags) && p.tags.some(t => t.toLowerCase().includes(q)))
+      (Array.isArray(p.tags) && p.tags.some(t => extractKeywordString(t).toLowerCase().includes(q)))
     ).slice(0, 10);
   }, [searchQuery, products]);
 

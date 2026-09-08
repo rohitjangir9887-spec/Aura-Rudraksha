@@ -435,7 +435,7 @@ Generate complete, authentic Vedic SEO & Product Data JSON.`;
 
   // Ensure top-level flat compatibility fields for existing UI form bindings
   const flatKeywordStrings = (aiOutputParsed.keywords || []).map(
-    k => (typeof k === "string" ? k : k.keyword)
+    k => (typeof k === "string" ? k.trim() : (k?.keyword || k?.term || k?.text || k?.value || "").trim())
   ).filter(Boolean);
 
   const flatTags = Array.from(
@@ -463,6 +463,7 @@ Generate complete, authentic Vedic SEO & Product Data JSON.`;
     keywords: flatKeywordStrings,
     searchKeywords: flatKeywordStrings,
     tags: flatTags,
+    seoKeywordsDetails: aiOutputParsed.keywords || [],
     subCategory: aiOutputParsed.vedicAstrology?.subCategory || subCategory || category,
     mukhi: aiOutputParsed.vedicAstrology?.mukhi || (mukhiNum ? `${mukhiNum} Mukhi` : ""),
     rulingPlanet: aiOutputParsed.vedicAstrology?.rulingPlanet || rulingPlanet,

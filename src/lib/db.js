@@ -4,6 +4,7 @@ import { products as defaultProducts } from "../data/index.js";
 import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
+import { normalizeKeywordItems } from "./keywordUtils.js";
 
 // Event Broadcasters for real-time React UI updates
 let pendingSyncEvents = null;
@@ -979,9 +980,9 @@ export const db = {
       id,
       img: primaryImg,
       images: imgs,
-      tags: Array.isArray(p.tags) ? p.tags : [],
-      keywords: Array.isArray(p.keywords) ? p.keywords : (Array.isArray(p.searchKeywords) ? p.searchKeywords : []),
-      searchKeywords: Array.isArray(p.keywords) ? p.keywords : [],
+      tags: normalizeKeywordItems(p.tags),
+      keywords: normalizeKeywordItems(p.keywords || p.searchKeywords),
+      searchKeywords: normalizeKeywordItems(p.keywords || p.searchKeywords),
       subCategory: (p.subCategory || "").trim(),
       mukhi: (p.mukhi || "").trim(),
       rulingPlanet: (p.rulingPlanet || "").trim(),
@@ -1049,9 +1050,9 @@ export const db = {
     const normalizedSaved = {
       ...savedData,
       id: String(savedData.id || savedData._id || id),
-      tags: Array.isArray(savedData.tags) ? savedData.tags : (finalProduct.tags || []),
-      keywords: Array.isArray(savedData.keywords) ? savedData.keywords : (finalProduct.keywords || []),
-      searchKeywords: Array.isArray(savedData.keywords) ? savedData.keywords : (finalProduct.keywords || []),
+      tags: normalizeKeywordItems(savedData.tags || finalProduct.tags),
+      keywords: normalizeKeywordItems(savedData.keywords || finalProduct.keywords),
+      searchKeywords: normalizeKeywordItems(savedData.keywords || finalProduct.keywords),
       subCategory: savedData.subCategory || finalProduct.subCategory || "",
       mukhi: savedData.mukhi || finalProduct.mukhi || "",
       rulingPlanet: savedData.rulingPlanet || finalProduct.rulingPlanet || "",
