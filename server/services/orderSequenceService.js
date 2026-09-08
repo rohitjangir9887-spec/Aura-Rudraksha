@@ -19,39 +19,46 @@ export async function generateNextOrderNumber() {
   const dd = String(now.getDate()).padStart(2, "0");
   const datePrefix = `${yy}${mm}${dd}`;
 
-  try {
-    const counterKey = `order_seq_${datePrefix}`;
-    
-    // Atomic sequential increment
-    let counter = await Counter.findByIdAndUpdate(
+  const counterKey = `order_seq_${datePrefix}`;
+  
+  // Atomic sequential increment in MongoDB
+  const counter = await Counter.findByIdAndUpdate(
+    counterKey,
+    { $inc: { seq: 1 } },
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
+  );
+
+  if (!counter || typeof counter.seq !== "number") {
+    throw new Error("Failed to atomically increment order sequence counter in MongoDB");
+  }
+
+  let seqNumber = counter.seq;
+
+  // Format: AURA-260902-000123
+  let paddedSeq = String(seqNumber).padStart(6, "0");
+  let orderNumber = `AURA-${datePrefix}-${paddedSeq}`;
+
+  // Verify uniqueness in Order collection; if collision occurs, step atomic counter again
+  let existing = await Order.findOne({ $or: [{ id: orderNumber }, { orderId: orderNumber }, { orderNumber }] });
+  let attempts = 0;
+  while (existing && attempts < 5) {
+    attempts++;
+    const retryCounter = await Counter.findByIdAndUpdate(
       counterKey,
       { $inc: { seq: 1 } },
-      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
+      { returnDocument: "after", upsert: true }
     );
-
-    let seqNumber = counter ? counter.seq : 1;
-
-    // Format: AURA-260902-000123
-    const paddedSeq = String(seqNumber).padStart(6, "0");
-    const orderNumber = `AURA-${datePrefix}-${paddedSeq}`;
-
-    // Verify uniqueness in Order collection just in case
-    const existing = await Order.findOne({ $or: [{ id: orderNumber }, { orderId: orderNumber }, { orderNumber }] });
-    if (existing) {
-      // Step counter again to avoid collision
-      const retryCounter = await Counter.findByIdAndUpdate(
-        counterKey,
-        { $inc: { seq: 1 } },
-        { returnDocument: "after", upsert: true }
-      );
-      const retrySeq = String(retryCounter.seq).padStart(6, "0");
-      return `AURA-${datePrefix}-${retrySeq}`;
+    if (!retryCounter || typeof retryCounter.seq !== "number") {
+      throw new Error("Failed to step order sequence counter in MongoDB");
     }
-
-    return orderNumber;
-  } catch (err) {
-    console.warn("⚠️ Counter sequence error, using timestamp sequential fallback:", err.message);
-    const timeSeq = String(Date.now()).slice(-6);
-    return `AURA-${datePrefix}-${timeSeq}`;
+    const retrySeq = String(retryCounter.seq).padStart(6, "0");
+    orderNumber = `AURA-${datePrefix}-${retrySeq}`;
+    existing = await Order.findOne({ $or: [{ id: orderNumber }, { orderId: orderNumber }, { orderNumber }] });
   }
+
+  if (existing) {
+    throw new Error("Could not resolve unique sequential order ID in MongoDB after multiple attempts");
+  }
+
+  return orderNumber;
 }

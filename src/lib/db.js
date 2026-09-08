@@ -1390,12 +1390,9 @@ export const db = {
   },
 
   saveOrder: async (o) => {
-    const id = o.id || o.orderId || ("ORD-" + Math.floor(1000 + Math.random() * 9000));
     const now = new Date().toISOString();
-    const finalOrder = {
+    const payload = {
       ...o,
-      id,
-      orderId: id,
       date: o.date || now,
       amount: o.amount || o.total || o.finalAmount || 0,
       total: o.total || o.amount || o.finalAmount || 0,
@@ -1405,14 +1402,15 @@ export const db = {
 
     const res = await apiRequest("/orders", {
       method: "POST",
-      body: JSON.stringify(finalOrder)
+      body: JSON.stringify(payload)
     });
-    if (!res?.success) {
+    if (!res?.success || !res?.data) {
       throw new Error(res?.message || "Failed to save order. Database is unavailable.");
     }
 
-    const savedData = res.data || finalOrder;
-    const idx = storeCache.orders.findIndex(x => String(x.id) === String(id));
+    const savedData = res.data;
+    const finalId = String(savedData.id || savedData.orderId || savedData.orderNumber || "");
+    const idx = storeCache.orders.findIndex(x => String(x.id) === finalId || String(x.orderId) === finalId);
     if (idx >= 0) {
       storeCache.orders[idx] = { ...storeCache.orders[idx], ...savedData };
     } else {
@@ -1420,7 +1418,7 @@ export const db = {
     }
 
     if (!Array.isArray(storeCache.myOrders)) storeCache.myOrders = [];
-    const myIdx = storeCache.myOrders.findIndex(x => String(x.id) === String(id));
+    const myIdx = storeCache.myOrders.findIndex(x => String(x.id) === finalId || String(x.orderId) === finalId);
     if (myIdx >= 0) {
       storeCache.myOrders[myIdx] = { ...storeCache.myOrders[myIdx], ...savedData };
     } else {
@@ -1454,7 +1452,7 @@ export const db = {
     if (!orderId) return { success: false };
     try {
       const gToken = guestToken || (typeof window !== "undefined" ? (sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "") : "");
-      let url = `/payment/verify/${orderId}`;
+      let url = `/payment/verify/${encodeURIComponent(orderId)}`;
       const params = new URLSearchParams();
       if (txnid) params.set("txnid", txnid);
       if (gToken) params.set("guestToken", gToken);
@@ -2925,17 +2923,7 @@ export const db = {
       (c.email && c.email.toLowerCase() === query) || 
       (c.phone && c.phone.trim() === query)
     );
-    if (found) return found;
-
-    return {
-      id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
-      name: emailOrPhone.includes('@') ? emailOrPhone.split('@')[0] : "Aura Devotee",
-      email: emailOrPhone.includes('@') ? emailOrPhone : "",
-      phone: !emailOrPhone.includes('@') ? emailOrPhone : "",
-      address: "",
-      avatar: "",
-      joined: new Date().toISOString()
-    };
+    return found || null;
   },
 
   saveCustomerProfile: async (identifier, data) => {

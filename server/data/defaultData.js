@@ -272,10 +272,6 @@ export const defaultReviews = [
   }
 ];
 
-export const defaultOrders = [];
-
-export const defaultCustomers = [];
-
 export const defaultSettings = {
   storeName: "Aura Rudraksha",
   supportEmail: "aurarudrakshaofficial@gmail.com",

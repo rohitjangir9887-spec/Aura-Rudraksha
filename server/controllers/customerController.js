@@ -2,7 +2,6 @@ import { Customer } from "../models/Customer.js";
 import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { normalizePhoneNumber, buildPhoneQueryVariants, extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 
 // Fields an admin may create/update on a customer record via the admin
@@ -240,23 +239,12 @@ export async function getCustomerMe(req, res, next) {
     const googleAvatar = (req.user.picture || "").trim();
 
     if (!isDbConnected()) {
-      let customer = inMemoryStore.customers.find(c => c.authUserId === authUserId);
-      if (!customer) {
-        customer = {
-          id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
-          authUserId,
-          role: isInitialAdmin ? "admin" : (req.user.role || "customer"),
-          name: googleName || (req.user.email ? req.user.email.split("@")[0] : "Customer"),
-          email: req.user.email || "",
-          avatar: googleAvatar || "",
-          lastLoginAt: new Date().toISOString(),
-          lastSeen: now,
-          joined: now,
-          status: "Active"
-        };
-        inMemoryStore.customers.push(customer);
-      }
-      return res.json({ success: true, data: customer });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Customer profile service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
 
     // 1. Look for existing customer by verified authUserId
@@ -405,18 +393,12 @@ export async function updateCustomerMe(req, res, next) {
     const { name, phone, address, addresses, wishlist } = req.body;
 
     if (!isDbConnected()) {
-      let customer = inMemoryStore.customers.find(c => c.authUserId === authUserId);
-      if (!customer) {
-        customer = { id: "CUS-" + Math.floor(1000 + Math.random() * 9000), authUserId, name: name || "Customer" };
-        inMemoryStore.customers.push(customer);
-      }
-      if (name !== undefined) customer.name = String(name).trim();
-      if (phone !== undefined) customer.phone = String(phone).trim();
-      if (address !== undefined) customer.address = address;
-      if (Array.isArray(addresses)) customer.addresses = addresses;
-      if (Array.isArray(wishlist)) customer.wishlist = wishlist;
-      customer.lastSeen = new Date().toISOString();
-      return res.json({ success: true, data: customer });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Customer service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
 
     const updateFields = {
@@ -445,8 +427,12 @@ export async function updateCustomerMe(req, res, next) {
 export async function getAddresses(req, res, next) {
   try {
     if (!isDbConnected()) {
-      const customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      return res.json({ success: true, data: customer?.addresses || [] });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Addresses service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
     const customer = await Customer.findOne({ authUserId: req.user.authUserId }).lean();
     return res.json({ success: true, data: customer?.addresses || [] });
@@ -455,28 +441,18 @@ export async function getAddresses(req, res, next) {
 
 export async function addAddress(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Addresses service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
+    }
+
     const address = req.body;
     const addrId = address.id || ("ADDR-" + Math.floor(1000 + Math.random() * 9000));
     const newAddress = { ...address, id: addrId };
-
-    if (!isDbConnected()) {
-      let customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      if (!customer) {
-        customer = {
-          id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
-          authUserId: req.user.authUserId,
-          name: req.user.username || "Customer",
-          email: req.user.email || "",
-          addresses: [newAddress],
-          joined: new Date().toISOString()
-        };
-        inMemoryStore.customers.push(customer);
-      } else {
-        if (!Array.isArray(customer.addresses)) customer.addresses = [];
-        customer.addresses.push(newAddress);
-      }
-      return res.status(201).json({ success: true, data: customer.addresses, added: newAddress });
-    }
 
     const customer = await Customer.findOne({ authUserId: req.user.authUserId });
     if (!customer) {
@@ -506,20 +482,17 @@ export async function addAddress(req, res, next) {
 
 export async function updateAddress(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Addresses service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
+    }
+
     const target = req.params.id || req.params.index;
     const addressData = req.body;
-    if (!isDbConnected()) {
-      const customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
-      if (Array.isArray(customer.addresses)) {
-        const idx = customer.addresses.findIndex((a, i) => String(a.id) === String(target) || String(i) === String(target));
-        if (idx !== -1) {
-          customer.addresses[idx] = { ...customer.addresses[idx], ...addressData };
-          return res.json({ success: true, data: customer.addresses, updated: customer.addresses[idx] });
-        }
-      }
-      return res.status(404).json({ success: false, message: "Address not found" });
-    }
 
     const customer = await Customer.findOne({ authUserId: req.user.authUserId });
     if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
@@ -539,19 +512,16 @@ export async function updateAddress(req, res, next) {
 
 export async function deleteAddress(req, res, next) {
   try {
-    const target = req.params.id || req.params.index;
     if (!isDbConnected()) {
-      const customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
-      if (Array.isArray(customer.addresses)) {
-        const idx = customer.addresses.findIndex((a, i) => String(a.id) === String(target) || String(i) === String(target));
-        if (idx !== -1) {
-          customer.addresses.splice(idx, 1);
-          return res.json({ success: true, data: customer.addresses });
-        }
-      }
-      return res.status(404).json({ success: false, message: "Address not found" });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Addresses service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
+
+    const target = req.params.id || req.params.index;
 
     const customer = await Customer.findOne({ authUserId: req.user.authUserId });
     if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
@@ -572,8 +542,12 @@ export async function deleteAddress(req, res, next) {
 export async function getWishlist(req, res, next) {
   try {
     if (!isDbConnected()) {
-      const customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      return res.json({ success: true, data: customer?.wishlist || [] });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Wishlist service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
     const customer = await Customer.findOne({ authUserId: req.user.authUserId }).lean();
     return res.json({ success: true, data: customer?.wishlist || [] });
@@ -582,22 +556,16 @@ export async function getWishlist(req, res, next) {
 
 export async function addWishlist(req, res, next) {
   try {
-    const { productId } = req.body;
     if (!isDbConnected()) {
-      let customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      if (!customer) {
-        customer = {
-          id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
-          authUserId: req.user.authUserId,
-          wishlist: [String(productId)]
-        };
-        inMemoryStore.customers.push(customer);
-      } else {
-        if (!Array.isArray(customer.wishlist)) customer.wishlist = [];
-        if (!customer.wishlist.includes(String(productId))) customer.wishlist.push(String(productId));
-      }
-      return res.json({ success: true, data: customer.wishlist });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Wishlist service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
+
+    const { productId } = req.body;
 
     const customer = await Customer.findOneAndUpdate(
       { authUserId: req.user.authUserId },
@@ -610,14 +578,16 @@ export async function addWishlist(req, res, next) {
 
 export async function deleteWishlist(req, res, next) {
   try {
-    const { productId } = req.params;
     if (!isDbConnected()) {
-      let customer = inMemoryStore.customers.find(c => c.authUserId === req.user.authUserId);
-      if (customer && Array.isArray(customer.wishlist)) {
-        customer.wishlist = customer.wishlist.filter(id => id !== String(productId));
-      }
-      return res.json({ success: true, data: customer?.wishlist || [] });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Wishlist service is temporarily unavailable. Please try again shortly.",
+        databaseUnavailable: true
+      });
     }
+
+    const { productId } = req.params;
 
     const customer = await Customer.findOneAndUpdate(
       { authUserId: req.user.authUserId },

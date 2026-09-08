@@ -1253,13 +1253,13 @@ export async function getAdminAiIntelligence(req, res, next) {
         conversations = convosRes || [];
       } catch (dbErr) {
         console.warn("[Admin AI Intelligence] DB query notice:", dbErr?.message);
-        orders = inMemoryStore.orders || [];
+        orders = [];
         products = inMemoryStore.products || [];
         reviews = inMemoryStore.reviews || [];
         conversations = inMemoryStore.conversations || [];
       }
     } else {
-      orders = inMemoryStore.orders || [];
+      orders = [];
       products = inMemoryStore.products || [];
       reviews = inMemoryStore.reviews || [];
       conversations = inMemoryStore.conversations || [];

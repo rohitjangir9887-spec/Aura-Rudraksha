@@ -843,6 +843,28 @@ export async function handlePayuWebhook(req, res) {
     );
 
     if (updatedOrder) {
+      // Update payment attempts array
+      const attempts = order.paymentAttempts || [];
+      const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
+      if (attemptIdx >= 0) {
+        attempts[attemptIdx].status = "success";
+        attempts[attemptIdx].mihpayid = params.mihpayid || verifyRes.mihpayid || "";
+        attempts[attemptIdx].bankRefNum = params.bank_ref_num || verifyRes.bankRefNum || "";
+        attempts[attemptIdx].paymentMode = params.mode || verifyRes.mode || "";
+        attempts[attemptIdx].updatedAt = new Date().toISOString();
+      } else {
+        attempts.push({
+          txnid,
+          amount: expectedAmount,
+          status: "success",
+          mihpayid: params.mihpayid || verifyRes.mihpayid || "",
+          bankRefNum: params.bank_ref_num || verifyRes.bankRefNum || "",
+          paymentMode: params.mode || verifyRes.mode || "",
+          createdAt: new Date().toISOString()
+        });
+      }
+      await Order.updateOne({ _id: order._id }, { $set: { paymentAttempts: attempts } });
+
       // Execute side-effects strictly ONCE (atomically claimed)
       const stockClaim = await Order.findOneAndUpdate(
         { _id: order._id, inventoryDeducted: { $ne: true } },
@@ -989,6 +1011,27 @@ export async function verifyPaymentStatus(req, res, next) {
           );
 
           if (updatedOrder) {
+            const attempts = order.paymentAttempts || [];
+            const attemptIdx = attempts.findIndex(a => a.txnid === order.txnid);
+            if (attemptIdx >= 0) {
+              attempts[attemptIdx].status = "success";
+              attempts[attemptIdx].mihpayid = verifyRes.mihpayid || attempts[attemptIdx].mihpayid || "";
+              attempts[attemptIdx].bankRefNum = verifyRes.bankRefNum || attempts[attemptIdx].bankRefNum || "";
+              attempts[attemptIdx].paymentMode = verifyRes.mode || attempts[attemptIdx].paymentMode || "";
+              attempts[attemptIdx].updatedAt = new Date().toISOString();
+            } else if (order.txnid) {
+              attempts.push({
+                txnid: order.txnid,
+                amount: expectedAmount,
+                status: "success",
+                mihpayid: verifyRes.mihpayid || "",
+                bankRefNum: verifyRes.bankRefNum || "",
+                paymentMode: verifyRes.mode || "",
+                createdAt: new Date().toISOString()
+              });
+            }
+            await Order.updateOne({ _id: order._id }, { $set: { paymentAttempts: attempts } });
+
             const stockClaim = await Order.findOneAndUpdate(
               { _id: order._id, inventoryDeducted: { $ne: true } },
               { $set: { inventoryDeducted: true } },

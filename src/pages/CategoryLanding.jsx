@@ -20,6 +20,7 @@ import { db } from "../lib/db";
 import { MUKHI_CATALOG } from "../data/seoCatalogData";
 import { useSeo } from "../hooks/useSeo";
 import ProductCard from "../components/ProductCard";
+import { Shell } from "../components/Shell";
 
 export default function CategoryLanding() {
   const { slug } = useParams();
@@ -117,8 +118,9 @@ export default function CategoryLanding() {
   };
 
   return (
-    <div className="bg-[#faf7f2] min-h-screen pb-20 text-[#2a160d]">
-      {/* Sacred Top Banner & Breadcrumbs */}
+    <Shell>
+      <div className="bg-[#faf7f2] min-h-screen pb-20 text-[#2a160d]">
+        {/* Sacred Top Banner & Breadcrumbs */}
       <div className="border-b border-[#ebdccb] bg-white/70 backdrop-blur-sm sticky top-0 z-10 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs sm:text-sm text-[#7a5843]">
           <nav aria-label="Breadcrumb" className="flex items-center space-x-2">
@@ -403,5 +405,6 @@ export default function CategoryLanding() {
         </section>
       </div>
     </div>
+    </Shell>
   );
 }

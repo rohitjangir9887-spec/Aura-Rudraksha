@@ -41,10 +41,14 @@ export function PaymentResult() {
       }
       try {
         let res = await db.verifyPayment(orderId, txnid, guestToken);
-        // If query param indicated success but server state transition is mid-flight, retry once after a brief interval
-        if (res?.data?.paymentStatus !== "Paid" && status === "success") {
-          await new Promise((r) => setTimeout(r, 1500));
-          res = await db.verifyPayment(orderId, txnid, guestToken);
+        // If query param indicated success or processing, but server state transition is mid-flight, poll with backoff
+        if (res?.data?.paymentStatus !== "Paid" && (status === "success" || status === "processing")) {
+          const delays = [1500, 2000, 2500, 3000];
+          for (const delay of delays) {
+            await new Promise((r) => setTimeout(r, delay));
+            res = await db.verifyPayment(orderId, txnid, guestToken);
+            if (res?.data?.paymentStatus === "Paid") break;
+          }
         }
 
         if (res?.success && res.data) {

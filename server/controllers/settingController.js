@@ -35,9 +35,7 @@ import {
   defaultReviews,
   defaultActiveOffer,
   defaultCoupons,
-  defaultBanners,
-  defaultOrders,
-  defaultCustomers
+  defaultBanners
 } from "../data/defaultData.js";
 
 import { logAuditEvent } from "../services/auditService.js";
@@ -482,8 +480,8 @@ export async function seedDatabase(req, res, next) {
     };
 
     seeded.products = await seedInsertOnly(Product, defaultProducts);
-    seeded.orders = await seedInsertOnly(Order, defaultOrders);
-    seeded.customers = await seedInsertOnly(Customer, defaultCustomers);
+    seeded.orders = 0;
+    seeded.customers = 0;
     seeded.coupons = await seedInsertOnly(Coupon, defaultCoupons);
     seeded.banners = await seedInsertOnly(Banner, defaultBanners);
 

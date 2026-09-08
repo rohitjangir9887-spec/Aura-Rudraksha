@@ -7,7 +7,6 @@ import Customer from "../models/Customer.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { pickFields } from "../utils/sanitize.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency } from "../services/idempotencyService.js";
 import { isValidOrderTransition, isValidPaymentTransition, createStateHistoryEntry, ORDER_STATES, PAYMENT_STATES, REFUND_STATES } from "../services/stateMachineService.js";
@@ -159,6 +158,15 @@ export async function getOrderById(req, res, next) {
 }
 
 export async function createOrder(req, res, next) {
+  if (!isDbConnected()) {
+    return res.status(503).json({
+      success: false,
+      error: "Database unavailable",
+      message: "Order service is temporarily unavailable. Please try again shortly.",
+      databaseUnavailable: true
+    });
+  }
+
   const data = pickFields(req.body, CUSTOMER_ORDER_FIELDS);
   const authUserId = req.user.authUserId;
 
@@ -219,17 +227,6 @@ export async function createOrder(req, res, next) {
       });
     }
 
-    if (!isDbConnected()) {
-      recentOrderSubmissions.delete(submissionKey);
-      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot process orders without MongoDB connection.",
-        databaseUnavailable: true
-      });
-    }
-
     // Check stock for all items
     const itemIds = totals.items.map(item => item.id);
     const dbProducts = await Product.find({ id: { $in: itemIds } });
@@ -268,15 +265,24 @@ export async function createOrder(req, res, next) {
           message: totals.couponReason || "The applied coupon is invalid or expired. Please review your order."
         });
       }
-      if (isDbConnected()) {
-        validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
-      } else {
-        validCouponDoc = inMemoryStore.coupons.find(c => c.code === String(couponCodeToValidate).trim().toUpperCase());
-      }
+      validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
     }
 
-    // Server always generates the permanent sequential order ID (AURA-YYMMDD-000123)
-    const id = isDbConnected() ? await generateNextOrderNumber() : `AURA-${Date.now().toString().slice(-6)}`;
+    // Server always generates the permanent sequential order ID from MongoDB atomic counter
+    let id;
+    try {
+      id = await generateNextOrderNumber();
+    } catch (seqErr) {
+      recentOrderSubmissions.delete(submissionKey);
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
+      console.error("Order ID generation error:", seqErr.message);
+      return res.status(503).json({
+        success: false,
+        error: "Database sequence error",
+        message: "Could not generate order ID due to database issue. Please try again.",
+        databaseUnavailable: true
+      });
+    }
     const now = new Date().toISOString();
 
     // Create copy of shipping address inside snapshot
@@ -352,54 +358,35 @@ export async function createOrder(req, res, next) {
     };
     
     // Atomically decrement stock
-    if (isDbConnected()) {
-      const bulkOps = [];
-      for (const item of totals.items) {
-        bulkOps.push({
-          updateOne: {
-            filter: { id: item.id, stock: { $gte: item.quantity } },
-            update: { $inc: { stock: -item.quantity } }
-          }
-        });
-      }
-      if (bulkOps.length > 0) {
-        await Product.bulkWrite(bulkOps);
-      }
-      if (totals.appliedCoupon && totals.appliedCoupon.code) {
-        await Coupon.updateOne(
-          { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
-          { $inc: { usage: 1 } }
-        );
-      }
-    } else {
-      for (const item of totals.items) {
-        const p = inMemoryStore.products.find(prod => String(prod.id) === String(item.id));
-        if (p && p.stock !== undefined) {
-          p.stock = Math.max(0, p.stock - item.quantity);
+    const bulkOps = [];
+    for (const item of totals.items) {
+      bulkOps.push({
+        updateOne: {
+          filter: { id: item.id, stock: { $gte: item.quantity } },
+          update: { $inc: { stock: -item.quantity } }
         }
-      }
-      if (totals.appliedCoupon && totals.appliedCoupon.code) {
-        const c = inMemoryStore.coupons.find(coup => coup.code.toUpperCase() === String(totals.appliedCoupon.code).trim().toUpperCase());
-        if (c) c.usage = (c.usage || 0) + 1;
-      }
+      });
+    }
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps);
+    }
+    if (totals.appliedCoupon && totals.appliedCoupon.code) {
+      await Coupon.updateOne(
+        { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
+        { $inc: { usage: 1 } }
+      );
     }
 
-    let created;
-    if (isDbConnected()) {
-      created = await Order.findOneAndUpdate(
-        { id: orderPayload.id },
-        orderPayload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-    } else {
-      created = orderPayload;
-      inMemoryStore.orders.unshift(created);
-    }
+    const created = await Order.findOneAndUpdate(
+      { id: orderPayload.id },
+      orderPayload,
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
 
     // Save in deduplication cache
     recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
 
-    // Auto update/create customer record in MongoDB or inMemoryStore
+    // Auto update/create customer record in MongoDB
     try {
       await recordCustomerOrder({
         authUserId,
@@ -577,12 +564,6 @@ export async function updateOrder(req, res, next) {
       return res.status(403).json({ success: false, message: "Access Denied: You do not own this order" });
     }
 
-    if (!isDbConnected()) {
-      const idx = inMemoryStore.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
-      inMemoryStore.orders[idx] = { ...existing, ...updateFields };
-      return res.json({ success: true, data: inMemoryStore.orders[idx] });
-    }
-
     const updated = await Order.findByIdAndUpdate(existing._id, { $set: updateFields }, { returnDocument: "after" });
     return res.json({ success: true, data: updated });
   } catch (err) {
@@ -711,56 +692,7 @@ export async function getPaymentFailureAlert(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const myOrders = (inMemoryStore.orders || [])
-        .filter(o => (authUserId && o.authUserId === authUserId) || (userEmail && o.customerEmail === userEmail))
-        .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
-
-      if (!myOrders || myOrders.length === 0) {
-        return res.json({ success: true, hasNotification: false });
-      }
-
-      const latestOrder = myOrders[0];
-      if (latestOrder.paymentStatus === "Paid" || latestOrder.paymentStatus === "Refunded" || latestOrder.status === "Confirmed") {
-        return res.json({ success: true, hasNotification: false });
-      }
-
-      const pStatus = latestOrder.paymentStatus || "Pending";
-      let notificationType = "Failed";
-      if (pStatus === "Cancelled" || latestOrder.status === "Cancelled") {
-        notificationType = "Cancelled";
-      } else if (pStatus === "Pending" || pStatus === "Initiated") {
-        notificationType = "Pending";
-      }
-
-      const failedAtStr = latestOrder.updatedAt || latestOrder.createdAt || latestOrder.date || new Date().toISOString();
-      const failedAt = new Date(failedAtStr);
-      const expiresAt = new Date(failedAt.getTime() + 2 * 60 * 60 * 1000);
-
-      if (new Date() > expiresAt) {
-        return res.json({ success: true, hasNotification: false });
-      }
-
-      const items = latestOrder.items || latestOrder.snapshotItems || [];
-      const firstItem = items[0] || {};
-
-      return res.json({
-        success: true,
-        hasNotification: true,
-        data: {
-          orderId: latestOrder._id || latestOrder.id,
-          orderNumber: latestOrder.orderNumber || latestOrder.id,
-          amount: Number(latestOrder.finalAmount || latestOrder.total || latestOrder.amount || 0),
-          productName: firstItem.name || "Aura Sacred Items",
-          productImage: firstItem.image || firstItem.imageUrl || firstItem.primaryImage || "",
-          itemsCount: items.length || 1,
-          transactionId: latestOrder.txnid || "",
-          payuPaymentId: latestOrder.mihpayid || "",
-          payuStatus: latestOrder.payuStatus || pStatus,
-          paymentStatus: notificationType,
-          failedAt: failedAt.toISOString(),
-          expiresAt: expiresAt.toISOString()
-        }
-      });
+      return res.json({ success: true, hasNotification: false });
     }
 
     // Find latest order for authenticated customer

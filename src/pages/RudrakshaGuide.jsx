@@ -16,6 +16,7 @@ import {
   Sun
 } from "lucide-react";
 import { useSeo } from "../hooks/useSeo";
+import { Shell } from "../components/Shell";
 
 export default function RudrakshaGuide() {
   const location = useLocation();
@@ -67,8 +68,9 @@ export default function RudrakshaGuide() {
   const toggleFaq = (idx) => setOpenFaq(openFaq === idx ? -1 : idx);
 
   return (
-    <div className="bg-[#faf7f2] min-h-screen pb-20 text-[#2a160d]">
-      {/* Breadcrumb Navigation */}
+    <Shell>
+      <div className="bg-[#faf7f2] min-h-screen pb-20 text-[#2a160d]">
+        {/* Breadcrumb Navigation */}
       <div className="border-b border-[#ebdccb] bg-white/70 backdrop-blur-sm sticky top-0 z-10 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between text-xs sm:text-sm text-[#7a5843]">
           <nav aria-label="Breadcrumb" className="flex items-center space-x-2 truncate">
@@ -353,5 +355,6 @@ export default function RudrakshaGuide() {
         </section>
       </article>
     </div>
+    </Shell>
   );
 }

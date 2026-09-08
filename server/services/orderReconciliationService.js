@@ -1,11 +1,9 @@
 import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
-import { defaultOrders } from "../data/defaultData.js";
 import { ORDER_STATES, PAYMENT_STATES, REFUND_STATES } from "./stateMachineService.js";
 
 /**
- * Normalizes an order object in-memory to strictly satisfy business rules
+ * Normalizes an order object to strictly satisfy business rules
  */
 export function normalizeOrderState(rawOrder) {
   if (!rawOrder) return rawOrder;
@@ -52,31 +50,24 @@ export function normalizeOrderState(rawOrder) {
 }
 
 /**
- * Reconciles default orders in memory and Mongo on server startup / requests
+ * Reconciles orders in Mongo on server startup / requests
  */
 export async function reconcileAllOrders() {
   try {
-    // 1. Update inMemoryStore and defaultOrders
-    if (Array.isArray(inMemoryStore.orders)) {
-      // Normalize all orders in memory
-      inMemoryStore.orders = inMemoryStore.orders.map(o => normalizeOrderState(o));
-    }
+    if (!isDbConnected()) return;
 
-    // 2. If DB is connected, reconcile in MongoDB
-    if (isDbConnected()) {
-      // Reconcile any inconsistent cancelled orders in MongoDB
-      const inconsistentCancelled = await Order.find({
-        $or: [
-          { status: "Cancelled", orderStatus: { $ne: "Cancelled" } },
-          { orderStatus: "Cancelled", status: { $ne: "Cancelled" } },
-          { cancelledAt: { $exists: true, $ne: "" }, status: { $ne: "Cancelled" } }
-        ]
-      });
+    // Reconcile any inconsistent cancelled orders in MongoDB
+    const inconsistentCancelled = await Order.find({
+      $or: [
+        { status: "Cancelled", orderStatus: { $ne: "Cancelled" } },
+        { orderStatus: "Cancelled", status: { $ne: "Cancelled" } },
+        { cancelledAt: { $exists: true, $ne: "" }, status: { $ne: "Cancelled" } }
+      ]
+    });
 
-      for (const ord of inconsistentCancelled) {
-        const normalized = normalizeOrderState(ord.toObject());
-        await Order.updateOne({ _id: ord._id }, { $set: normalized });
-      }
+    for (const ord of inconsistentCancelled) {
+      const normalized = normalizeOrderState(ord.toObject());
+      await Order.updateOne({ _id: ord._id }, { $set: normalized });
     }
   } catch (err) {
     console.warn("Order reconciliation notice:", err?.message || err);

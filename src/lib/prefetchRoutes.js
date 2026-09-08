@@ -21,6 +21,9 @@ export const prefetchLoaders = {
   categories: () => import("../pages/CategoriesPage"),
   trackOrder: () => import("../pages/TrackOrder"),
   login: () => import("../pages/Login"),
+  categoryLanding: () => import("../pages/CategoryLanding"),
+  rudrakshaCalculator: () => import("../pages/RudrakshaCalculator"),
+  rudrakshaGuide: () => import("../pages/RudrakshaGuide"),
 };
 
 const prefetchedSet = new Set();
@@ -59,6 +62,9 @@ export function prefetchPath(path) {
   else if (clean === "/categories") prefetchRoute("categories");
   else if (clean === "/track-order") prefetchRoute("trackOrder");
   else if (clean === "/login") prefetchRoute("login");
+  else if (clean === "/rudraksha" || clean.startsWith("/rudraksha/")) prefetchRoute("categoryLanding");
+  else if (clean === "/rudraksha-calculator" || clean === "/rudraksha-for-rashi") prefetchRoute("rudrakshaCalculator");
+  else if (clean === "/how-to-wear-rudraksha" || clean === "/rudraksha-benefits" || clean === "/rudraksha-authenticity" || clean === "/rudraksha-care") prefetchRoute("rudrakshaGuide");
 }
 
 let idlePrefetchScheduled = false;

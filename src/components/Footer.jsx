@@ -12,27 +12,27 @@ import { motion } from "framer-motion";
 export function FooterHelpStrip() {
   return (
     <div className="n-footer-help-strip">
-      <div className="nf-help-item">
+      <Link to="/contact" className="nf-help-item" style={{ textDecoration: 'none', color: 'inherit' }}>
         <Headphones size={22} strokeWidth={1.5} className="nf-icon" />
         <div className="nf-help-text">
           <b>Happy to help</b>
           <span>Chat or email</span>
         </div>
-      </div>
-      <div className="nf-help-item">
+      </Link>
+      <Link to="/track-order" className="nf-help-item" style={{ textDecoration: 'none', color: 'inherit' }}>
         <PackageSearch size={22} strokeWidth={1.5} className="nf-icon" />
         <div className="nf-help-text">
           <b>Check order status</b>
           <span>Updates & tracking</span>
         </div>
-      </div>
-      <div className="nf-help-item">
+      </Link>
+      <Link to="/return-policy" className="nf-help-item" style={{ textDecoration: 'none', color: 'inherit' }}>
         <RefreshCcw size={22} strokeWidth={1.5} className="nf-icon" />
         <div className="nf-help-text">
           <b>Returns & exchanges</b>
           <span>Quick & hassle-free</span>
         </div>
-      </div>
+      </Link>
     </div>
   );
 }

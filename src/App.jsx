@@ -33,6 +33,9 @@ const CategoriesPage = lazy(() => import("./pages/CategoriesPage").then(m => ({ 
 const Wholesale = lazy(() => import("./pages/Wholesale").then(m => ({ default: m.Wholesale })));
 const ContactUs = lazy(() => import("./pages/ContactUs").then(m => ({ default: m.ContactUs })));
 const MobileDesignPage = lazy(() => import("./pages/MobileDesignPage").then(m => ({ default: m.MobileDesignPage })));
+const CategoryLanding = lazy(() => import("./pages/CategoryLanding"));
+const RudrakshaCalculator = lazy(() => import("./pages/RudrakshaCalculator"));
+const RudrakshaGuide = lazy(() => import("./pages/RudrakshaGuide"));
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
@@ -138,6 +141,28 @@ export function App() {
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/aura-ai" element={<AuraAIPage />} />
           <Route path="/mobile-design" element={<MobileDesignPage />} />
+
+          {/* Sacred Rudraksha Beads & Category Landings */}
+          <Route path="/rudraksha" element={<CategoryLanding />} />
+          <Route path="/rudraksha/:slug" element={<CategoryLanding />} />
+
+          {/* Vedic Astrological Guides & Mukhi Calculator */}
+          <Route path="/rudraksha-calculator" element={<RudrakshaCalculator />} />
+          <Route path="/rudraksha-for-rashi" element={<RudrakshaCalculator />} />
+          <Route path="/how-to-wear-rudraksha" element={<RudrakshaGuide />} />
+          <Route path="/rudraksha-benefits" element={<RudrakshaGuide />} />
+          <Route path="/rudraksha-authenticity" element={<RudrakshaGuide />} />
+          <Route path="/rudraksha-care" element={<RudrakshaGuide />} />
+
+          {/* Customer Route Aliases for smooth navigation */}
+          <Route path="/about-us" element={<Navigate to="/about" replace />} />
+          <Route path="/contact-us" element={<Navigate to="/contact" replace />} />
+          <Route path="/track" element={<Navigate to="/track-order" replace />} />
+          <Route path="/refund-policy" element={<Navigate to="/return-policy" replace />} />
+          <Route path="/terms-and-conditions" element={<Navigate to="/terms" replace />} />
+          <Route path="/terms-of-service" element={<Navigate to="/terms" replace />} />
+          <Route path="/faq" element={<Navigate to="/about" replace />} />
+          <Route path="/faqs" element={<Navigate to="/about" replace />} />
 
           {/* Admin Login Route */}
           <Route

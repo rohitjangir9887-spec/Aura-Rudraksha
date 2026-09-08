@@ -4,8 +4,6 @@ import {
   defaultCoupons,
   defaultActiveOffer,
   defaultReviews,
-  defaultOrders,
-  defaultCustomers,
   defaultSettings
 } from "./defaultData.js";
 
@@ -65,8 +63,8 @@ class InMemoryStore {
       }
     ];
     this.reviews = JSON.parse(JSON.stringify(defaultReviews));
-    this.orders = JSON.parse(JSON.stringify(defaultOrders));
-    this.customers = JSON.parse(JSON.stringify(defaultCustomers));
+    this.orders = [];
+    this.customers = [];
     this.settings = JSON.parse(JSON.stringify(defaultSettings));
     this.promotions = [];
     this.tickets = [];
