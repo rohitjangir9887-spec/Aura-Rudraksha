@@ -857,20 +857,27 @@ export const db = {
     const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
 
-    // 1. Exact match on id, _id, or slug in memory storeCache
+    // 1. Strict exact match on id or _id in memory storeCache
     let p = storeCache.products.find(x => {
       if (!x) return false;
       const xId = String(x.id || "").toLowerCase();
       const xMongoId = String(x._id || "").toLowerCase();
-      const xSlug = String(x.slug || "").toLowerCase();
 
       if (xId === target || xId === slugTarget || xId === cleanId) return true;
       if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId)) return true;
-      if (xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId)) return true;
       if (!isNaN(target) && Number(x.id) === Number(target)) return true;
       if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
       return false;
     });
+
+    // 2. Secondary exact match on slug in memory storeCache
+    if (!p) {
+      p = storeCache.products.find(x => {
+        if (!x) return false;
+        const xSlug = String(x.slug || "").toLowerCase();
+        return xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId);
+      });
+    }
 
     // 2. Secondary fallback search in storeCache by slugified name or fuzzy match
     if (!p) {
@@ -1577,38 +1584,32 @@ export const db = {
     else storeCache.addresses.push(finalAddr);
 
     try {
-      if (address.id) {
-        const res = await apiRequest(`/addresses/${address.id}`, {
-          method: "PUT",
-          body: JSON.stringify(address),
-          requiresAuth: true,
-          noCache: true
-        });
-        if (res?.success) {
-          if (cacheKey) {
-            try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
-          }
-          return res;
+      const endpoint = address.id ? `/addresses/${encodeURIComponent(address.id)}` : "/addresses";
+      const method = address.id ? "PUT" : "POST";
+      const res = await apiRequest(endpoint, {
+        method,
+        body: JSON.stringify(address),
+        requiresAuth: true,
+        noCache: true
+      });
+
+      if (res?.success) {
+        if (Array.isArray(res.data)) {
+          storeCache.addresses = res.data;
         }
-      } else {
-        const res = await apiRequest("/addresses", {
-          method: "POST",
-          body: JSON.stringify(address),
-          requiresAuth: true,
-          noCache: true
-        });
-        if (res?.success) {
-          if (cacheKey) {
-            try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
-          }
-          return res;
+        if (cacheKey) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
         }
+        emitStoreUpdate("addresses:synced", storeCache.addresses);
+        return { success: true, data: storeCache.addresses };
       }
     } catch (_) {}
+
     if (cacheKey) {
       try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
     }
-    return { success: true, data: finalAddr };
+    emitStoreUpdate("addresses:synced", storeCache.addresses);
+    return { success: true, data: storeCache.addresses };
   },
 
   deleteAddress: async (id) => {
@@ -2764,19 +2765,48 @@ export const db = {
   },
 
   // SUPPORT TICKETS
-  getTickets: () => storeCache.tickets,
+  getCachedTickets: () => {
+    if (Array.isArray(storeCache.tickets) && storeCache.tickets.length > 0) return storeCache.tickets;
+    const cacheKey = db.getUserScopedKey("aura_tickets_cache");
+    if (cacheKey && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            storeCache.tickets = parsed;
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+    return storeCache.tickets || [];
+  },
+
+  getTickets: () => {
+    const cached = db.getCachedTickets();
+    return Array.isArray(cached) && cached.length > 0 ? cached : storeCache.tickets;
+  },
+
   fetchTickets: async () => {
+    const cacheKey = db.getUserScopedKey("aura_tickets_cache");
     try {
-      const res = await apiRequest("/tickets", { noCache: true });
+      const res = await apiRequest("/tickets", { noCache: true, requiresAuth: true });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.tickets = res.data;
+        if (cacheKey && typeof window !== "undefined") {
+          try { localStorage.setItem(cacheKey, JSON.stringify(res.data)); } catch(_) {}
+        }
         emitStoreUpdate("tickets:synced", storeCache.tickets);
         return storeCache.tickets;
       }
     } catch (_) {}
-    return storeCache.tickets;
+    const cached = db.getCachedTickets();
+    return (Array.isArray(cached) && cached.length > 0) ? cached : storeCache.tickets;
   },
+
   saveTicket: async (t) => {
+    const cacheKey = db.getUserScopedKey("aura_tickets_cache");
     const isExisting = Boolean(t.id && storeCache.tickets.some(x => x.id === t.id));
     const id = t.id || ("TIC-" + Math.floor(1000 + Math.random() * 9000));
     const finalTicket = { ...t, id, date: t.date || new Date().toISOString(), status: t.status || "Open" };
@@ -2787,7 +2817,9 @@ export const db = {
       const method = isExisting ? "PUT" : "POST";
       const res = await apiRequest(endpoint, {
         method,
-        body: JSON.stringify(finalTicket)
+        body: JSON.stringify(finalTicket),
+        requiresAuth: true,
+        noCache: true
       });
       if (res?.success && res.data) {
         saved = res.data;
@@ -2797,6 +2829,11 @@ export const db = {
     const idx = storeCache.tickets.findIndex(x => x.id === id);
     if (idx >= 0) storeCache.tickets[idx] = saved;
     else storeCache.tickets.unshift(saved);
+
+    if (cacheKey && typeof window !== "undefined") {
+      try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.tickets)); } catch (_) {}
+    }
+
     emitStoreUpdate("ticket:saved", saved);
     return saved;
   },

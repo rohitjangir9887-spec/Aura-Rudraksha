@@ -424,6 +424,52 @@ export async function updateCustomerMe(req, res, next) {
   }
 }
 
+// Helper to reliably retrieve or bootstrap a customer document for an authenticated request
+async function findCustomerForAuthUser(user) {
+  if (!user || !user.authUserId) return null;
+  const authUserId = user.authUserId;
+
+  let customer = await Customer.findOne({ authUserId });
+  if (customer) return customer;
+
+  const email = (user.email || "").trim().toLowerCase();
+  const phone = (user.phone || "").trim();
+
+  if (email || phone) {
+    const orCond = [];
+    if (email) orCond.push({ email });
+    if (phone) {
+      const phoneVars = buildPhoneQueryVariants(phone, ["phone"]);
+      orCond.push(...phoneVars);
+    }
+    customer = await Customer.findOne({ $or: orCond });
+    if (customer) {
+      customer.authUserId = authUserId;
+      if (email && !customer.email) customer.email = email;
+      if (phone && !customer.phone) customer.phone = phone;
+      await customer.save();
+      return customer;
+    }
+  }
+
+  // Create new customer if record does not exist
+  const now = new Date().toISOString();
+  const created = await Customer.create({
+    id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+    authUserId,
+    name: user.name || (email ? email.split("@")[0] : "Customer"),
+    email,
+    phone,
+    addresses: [],
+    joined: now,
+    firstSeen: now,
+    lastSeen: now,
+    visits: 1,
+    status: "Active"
+  });
+  return created;
+}
+
 export async function getAddresses(req, res, next) {
   try {
     if (!isDbConnected()) {
@@ -434,7 +480,7 @@ export async function getAddresses(req, res, next) {
         databaseUnavailable: true
       });
     }
-    const customer = await Customer.findOne({ authUserId: req.user.authUserId }).lean();
+    const customer = await findCustomerForAuthUser(req.user);
     return res.json({ success: true, data: customer?.addresses || [] });
   } catch(err) { next(err); }
 }
@@ -450,28 +496,21 @@ export async function addAddress(req, res, next) {
       });
     }
 
-    const address = req.body;
+    const address = req.body || {};
     const addrId = address.id || ("ADDR-" + Math.floor(1000 + Math.random() * 9000));
     const newAddress = { ...address, id: addrId };
 
-    const customer = await Customer.findOne({ authUserId: req.user.authUserId });
-    if (!customer) {
-      const now = new Date().toISOString();
-      const newCust = await Customer.create({
-        id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
-        authUserId: req.user.authUserId,
-        name: req.user.username || "Customer",
-        email: req.user.email || "",
-        addresses: [newAddress],
-        lastSeen: now,
-        joined: now
-      });
-      return res.status(201).json({ success: true, data: newCust.addresses, added: newAddress });
-    }
-
+    const customer = await findCustomerForAuthUser(req.user);
     if (!Array.isArray(customer.addresses)) {
       customer.addresses = [];
     }
+
+    if (newAddress.isDefault) {
+      customer.addresses.forEach(a => { a.isDefault = false; });
+    } else if (customer.addresses.length === 0) {
+      newAddress.isDefault = true;
+    }
+
     customer.addresses.push(newAddress);
     customer.markModified('addresses');
     await customer.save();
@@ -491,22 +530,40 @@ export async function updateAddress(req, res, next) {
       });
     }
 
-    const target = req.params.id || req.params.index;
-    const addressData = req.body;
+    const target = req.params.id || req.params.index || req.body.id;
+    const addressData = req.body || {};
 
-    const customer = await Customer.findOne({ authUserId: req.user.authUserId });
-    if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
-    
-    if (Array.isArray(customer.addresses)) {
-      const idx = customer.addresses.findIndex((a, i) => String(a.id) === String(target) || String(i) === String(target));
-      if (idx !== -1) {
-        customer.addresses[idx] = { ...customer.addresses[idx], ...addressData };
-        customer.markModified('addresses');
-        await customer.save();
-        return res.json({ success: true, data: customer.addresses, updated: customer.addresses[idx] });
-      }
+    const customer = await findCustomerForAuthUser(req.user);
+    if (!Array.isArray(customer.addresses)) {
+      customer.addresses = [];
     }
-    return res.status(404).json({ success: false, message: "Address not found" });
+    
+    let targetIdx = customer.addresses.findIndex((a, i) => 
+      String(a.id) === String(target) || String(i) === String(target)
+    );
+
+    if (targetIdx !== -1) {
+      customer.addresses[targetIdx] = { 
+        ...customer.addresses[targetIdx], 
+        ...addressData, 
+        id: customer.addresses[targetIdx].id || target 
+      };
+    } else {
+      const newId = target || addressData.id || ("ADDR-" + Date.now());
+      customer.addresses.push({ ...addressData, id: newId });
+      targetIdx = customer.addresses.length - 1;
+    }
+
+    if (addressData.isDefault) {
+      customer.addresses.forEach((a, i) => {
+        if (i !== targetIdx) a.isDefault = false;
+      });
+      customer.addresses[targetIdx].isDefault = true;
+    }
+
+    customer.markModified('addresses');
+    await customer.save();
+    return res.json({ success: true, data: customer.addresses, updated: customer.addresses[targetIdx] });
   } catch(err) { next(err); }
 }
 
@@ -522,20 +579,21 @@ export async function deleteAddress(req, res, next) {
     }
 
     const target = req.params.id || req.params.index;
-
-    const customer = await Customer.findOne({ authUserId: req.user.authUserId });
-    if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
+    const customer = await findCustomerForAuthUser(req.user);
     
     if (Array.isArray(customer.addresses)) {
       const idx = customer.addresses.findIndex((a, i) => String(a.id) === String(target) || String(i) === String(target));
       if (idx !== -1) {
         customer.addresses.splice(idx, 1);
+        if (customer.addresses.length > 0 && !customer.addresses.some(a => a.isDefault)) {
+          customer.addresses[0].isDefault = true;
+        }
         customer.markModified('addresses');
         await customer.save();
         return res.json({ success: true, data: customer.addresses });
       }
     }
-    return res.status(404).json({ success: false, message: "Address not found" });
+    return res.json({ success: true, data: customer.addresses || [] });
   } catch(err) { next(err); }
 }
 

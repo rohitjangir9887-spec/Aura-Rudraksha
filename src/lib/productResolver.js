@@ -23,15 +23,20 @@ export function resolveCartProduct(products = [], lineOrId) {
 
   const productPool = Array.isArray(products) && products.length > 0 ? products : db.getProducts();
 
+  // 1. Strict exact ID or Mongo _ID match (prevents slug collision with another product's ID)
   let baseProduct = productPool.find(p => 
     p && (
       String(p.id) === baseId || 
       String(p._id) === baseId || 
       String(p.id) === rawId ||
-      String(p._id) === rawId ||
-      String(p.slug) === baseId
+      String(p._id) === rawId
     )
   );
+
+  // 2. Secondary slug match only if exact ID match was not found
+  if (!baseProduct) {
+    baseProduct = productPool.find(p => p && (String(p.slug) === baseId || String(p.slug) === rawId));
+  }
 
   if (!baseProduct) {
     baseProduct = db.getProduct(baseId) || db.getProduct(rawId);
