@@ -6,16 +6,55 @@ import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
 import { normalizeKeywordItems } from "./keywordUtils.js";
 
+// Cross-Tab and Process-Wide Real-Time Synchronization Channel
+let syncBroadcastChannel = null;
+if (typeof window !== "undefined" && typeof window.BroadcastChannel === "function") {
+  try {
+    syncBroadcastChannel = new BroadcastChannel("aura_store_sync_channel");
+  } catch (_) {}
+}
+
 // Event Broadcasters for real-time React UI updates
 let pendingSyncEvents = null;
 let syncRafId = null;
+
+function applyStoreUpdatePayload(type, payload) {
+  if (!payload && type !== "batch:synced") return;
+
+  if (type === "product:saved" && payload) {
+    const idx = storeCache.products.findIndex(x => 
+      String(x.id) === String(payload.id) || (payload._id && String(x._id) === String(payload._id)) || (payload.slug && x.slug === payload.slug)
+    );
+    if (idx >= 0) storeCache.products[idx] = payload;
+    else storeCache.products.unshift(payload);
+  } else if (type === "product:deleted" && payload) {
+    storeCache.products = storeCache.products.filter(p => 
+      String(p.id) !== String(payload) && String(p._id) !== String(payload) && p.slug !== String(payload)
+    );
+  } else if (type === "active-offer:saved" && payload) {
+    storeCache.activeOffer = payload;
+  } else if (type === "offer:saved" && payload) {
+    const idx = storeCache.offers.findIndex(x => String(x.id) === String(payload.id));
+    if (idx >= 0) storeCache.offers[idx] = payload;
+    else storeCache.offers.unshift(payload);
+  } else if (type === "offer:deleted" && payload) {
+    storeCache.offers = storeCache.offers.filter(x => String(x.id) !== String(payload));
+  } else if (type === "settings:saved" && payload) {
+    storeCache.settings = payload;
+  } else if (type === "products:synced" && Array.isArray(payload)) {
+    storeCache.products = payload;
+  } else if (type === "banners:synced" && Array.isArray(payload)) {
+    storeCache.banners = payload;
+  } else if (type === "offers:synced" && Array.isArray(payload)) {
+    storeCache.offers = payload;
+  }
+}
 
 export const emitStoreUpdate = (type, payload) => {
   if (typeof window === "undefined") return;
   const detail = { type, payload, timestamp: Date.now() };
 
   // For background synchronization events, coalesce them into a single animation frame
-  // to prevent rapid DOM thrashing and touch drops on mobile devices during initial visit.
   if (type.endsWith(":synced") || type === "home:synced") {
     if (!pendingSyncEvents) pendingSyncEvents = [];
     pendingSyncEvents.push(detail);
@@ -25,26 +64,32 @@ export const emitStoreUpdate = (type, payload) => {
         syncRafId = null;
         const events = pendingSyncEvents || [];
         pendingSyncEvents = null;
+        const batchDetail = { type: "batch:synced", events, timestamp: Date.now() };
         window.dispatchEvent(
-          new CustomEvent("aura:store-updated", { 
-            detail: { type: "batch:synced", events, timestamp: Date.now() } 
-          })
+          new CustomEvent("aura:store-updated", { detail: batchDetail })
         );
+        if (syncBroadcastChannel) {
+          try { syncBroadcastChannel.postMessage(batchDetail); } catch (_) {}
+        }
         try {
-          localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
-        } catch (e) {}
+          localStorage.setItem("aura_cross_tab_signal", JSON.stringify(batchDetail));
+        } catch (_) {}
       });
     }
     return;
   }
 
   // Immediate user/admin action events dispatch immediately
+  applyStoreUpdatePayload(type, payload);
   window.dispatchEvent(
     new CustomEvent("aura:store-updated", { detail })
   );
+  if (syncBroadcastChannel) {
+    try { syncBroadcastChannel.postMessage(detail); } catch (_) {}
+  }
   try {
     localStorage.setItem("aura_cross_tab_signal", JSON.stringify(detail));
-  } catch (e) {}
+  } catch (_) {}
 };
 
 export const onStoreUpdate = (callback) => {
@@ -63,64 +108,50 @@ export const onStoreUpdate = (callback) => {
 const API_BASE = (((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env.VITE_API_BASE_URL : undefined) || "/api").replace(/\/$/, "");
 
 if (typeof window !== "undefined") {
+  const handleIncomingCrossTabSync = (detail) => {
+    if (!detail) return;
+    const { type, payload, events } = detail;
+
+    if (type === "batch:synced" && Array.isArray(events)) {
+      events.forEach(ev => applyStoreUpdatePayload(ev.type, ev.payload));
+    } else {
+      applyStoreUpdatePayload(type, payload);
+    }
+
+    // Trigger local React components
+    window.dispatchEvent(new CustomEvent("aura:store-updated", { detail }));
+
+    // If visible, trigger non-blocking revalidation
+    if (document.visibilityState === "visible") {
+      if (type && type.startsWith("product")) {
+        revalidateProducts(true).catch(() => {});
+      } else if (type && (type.startsWith("active-offer") || type.startsWith("offer") || type.startsWith("banners") || type.startsWith("settings"))) {
+        fetchHomeData(true).catch(() => {});
+      }
+    }
+  };
+
+  // BroadcastChannel listener (Instant cross-tab messaging)
+  if (syncBroadcastChannel) {
+    syncBroadcastChannel.onmessage = (event) => {
+      handleIncomingCrossTabSync(event.data);
+    };
+  }
+
+  // localStorage storage event listener (Fallback)
   window.addEventListener("storage", (e) => {
     if (e.key === "aura_cross_tab_signal" && e.newValue) {
       try {
         const detail = JSON.parse(e.newValue);
-        const { type, payload } = detail;
-
-        // Synchronously update local cache if possible
-        if (type === "product:saved" && payload) {
-          const idx = storeCache.products.findIndex(x => String(x.id) === String(payload.id));
-          if (idx >= 0) storeCache.products[idx] = payload;
-          else storeCache.products.unshift(payload);
-        } else if (type === "product:deleted" && payload) {
-          storeCache.products = storeCache.products.filter(p => String(p.id) !== String(payload));
-        } else if (type === "active-offer:saved" && payload) {
-          storeCache.activeOffer = payload;
-        } else if (type === "offer:saved" && payload) {
-          const idx = storeCache.offers.findIndex(x => String(x.id) === String(payload.id));
-          if (idx >= 0) storeCache.offers[idx] = payload;
-          else storeCache.offers.unshift(payload);
-        } else if (type === "offer:deleted" && payload) {
-          storeCache.offers = storeCache.offers.filter(x => String(x.id) !== String(payload));
-        } else if (type === "settings:saved" && payload) {
-          storeCache.settings = payload;
-        }
-
-        // Trigger React updates
-        window.dispatchEvent(new CustomEvent("aura:store-updated", { detail }));
-
-        // Trigger background revalidation if tab is visible
-        if (document.visibilityState === "visible") {
-          if (type.startsWith("product")) {
-            revalidateProducts(true).catch(()=>{});
-          } else if (type.startsWith("active-offer") || type.startsWith("offer") || type.startsWith("banners") || type.startsWith("settings")) {
-            fetchHomeData(true).catch(()=>{});
-          }
-        } else {
-          // Invalidate freshness to force fetch on next visibility
-          if (type.startsWith("product")) {
-            lastProductFetchTime = 0;
-            localStorage.setItem("aura_last_product_fetch_time", "0");
-          } else {
-            localStorage.setItem("aura_last_fetch_time", "0");
-          }
-        }
-      } catch (err) {}
+        handleIncomingCrossTabSync(detail);
+      } catch (_) {}
     }
   });
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      const pFetch = Number(localStorage.getItem("aura_last_product_fetch_time") || 0);
-      if (pFetch === 0 || Date.now() - pFetch > 300000) { // arbitrary freshness for visibility
-        revalidateProducts(true).catch(()=>{});
-      }
-      const hFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
-      if (hFetch === 0 || Date.now() - hFetch > 300000) {
-        fetchHomeData(true).catch(()=>{});
-      }
+      revalidateProducts(true).catch(() => {});
+      fetchHomeData(true).catch(() => {});
     }
   });
 }
@@ -249,7 +280,7 @@ const storeCache = {
     id: String(p.id),
     status: p.status || "Published",
     category: p.category || "Rudraksha",
-    stock: p.stock !== undefined ? p.stock : 50,
+    stock: p.stock !== undefined ? p.stock : 0,
     showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
     isPopular: !!p.isPopular,
     homeOrder: p.homeOrder || 0,
@@ -992,7 +1023,7 @@ export const db = {
       indonesianTitle: (p.indonesianTitle || "").trim(),
       indonesianPrice: Number(p.indonesianPrice) || 0,
       indonesianMrp: Number(p.indonesianMrp) || Number(p.indonesianPrice) || 0,
-      indonesianStock: Number(p.indonesianStock) >= 0 ? Number(p.indonesianStock) : 50,
+      indonesianStock: Number(p.indonesianStock) >= 0 ? Number(p.indonesianStock) : 0,
       indonesianImages: Array.isArray(p.indonesianImages) ? p.indonesianImages.filter(Boolean) : (p.indonesianImg ? [p.indonesianImg] : []),
       indonesianImg: p.indonesianImg || (Array.isArray(p.indonesianImages) && p.indonesianImages[0]) || "",
       indonesianSize: (p.indonesianSize || "").trim(),
@@ -1005,7 +1036,7 @@ export const db = {
       mrp: Number(p.mrp) || Number(p.comparePrice) || Number(p.price) || 0,
       comparePrice: Number(p.comparePrice) || Number(p.mrp) || Number(p.price) || 0,
       price: Number(p.price) || 0,
-      stock: Number(p.stock) >= 0 ? Number(p.stock) : 50,
+      stock: Number(p.stock) >= 0 ? Number(p.stock) : 0,
       status: normalizedStatus,
       showOnHome: p.showOnHome !== undefined ? !!p.showOnHome : true,
       isPopular: !!p.isPopular,
@@ -1013,10 +1044,10 @@ export const db = {
       homeBadge: p.homeBadge || p.badge || "",
       totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
       salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
-      autoIncrementSales: p.autoIncrementSales !== undefined ? !!p.autoIncrementSales : true,
+      autoIncrementSales: false,
       lastSalesUpdateDate: p.lastSalesUpdateDate || "",
-      dailySalesMin: Number(p.dailySalesMin) || 1,
-      dailySalesMax: Number(p.dailySalesMax) || 10
+      dailySalesMin: 0,
+      dailySalesMax: 0
     };
 
     const isExisting = Boolean(finalProduct.id && finalProduct.id !== "new" && !String(finalProduct.id).startsWith("TEMP-"));

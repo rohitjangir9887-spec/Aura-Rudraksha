@@ -69,14 +69,12 @@ export async function saveCustomer(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.customers.findIndex(c => String(c.id) === String(id) || (email && c.email === email));
-      if (idx >= 0) {
-        inMemoryStore.customers[idx] = { ...inMemoryStore.customers[idx], ...data, lastSeen: now };
-        return res.json({ success: true, data: inMemoryStore.customers[idx] });
-      } else {
-        inMemoryStore.customers.unshift(customerPayload);
-        return res.status(201).json({ success: true, data: customerPayload });
-      }
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot save customer without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     let query = { id };

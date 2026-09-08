@@ -221,22 +221,12 @@ export async function createCoupon(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.coupons.findIndex(c => String(c.id) === payload.id || c.code === payload.code);
-      if (idx >= 0) {
-        inMemoryStore.coupons[idx] = { ...inMemoryStore.coupons[idx], ...payload };
-      } else {
-        inMemoryStore.coupons.unshift(payload);
-      }
-      await logAuditEvent({
-        actor: req.user?.email || "admin",
-        actorRole: "admin",
-        action: "COUPON_CREATED",
-        entityType: "Coupon",
-        entityId: payload.code,
-        newState: payload,
-        req
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot create coupon without MongoDB connection.",
+        databaseUnavailable: true
       });
-      return res.status(201).json({ success: true, data: payload });
     }
 
     const created = await Coupon.findOneAndUpdate(
@@ -268,21 +258,12 @@ export async function updateCoupon(req, res, next) {
     if (data.code) data.code = String(data.code).trim().toUpperCase();
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.coupons.findIndex(c => String(c.id) === String(id) || c.code === String(id).toUpperCase());
-      if (idx < 0) {
-        return res.status(404).json({ success: false, message: "Coupon not found" });
-      }
-      inMemoryStore.coupons[idx] = { ...inMemoryStore.coupons[idx], ...data };
-      await logAuditEvent({
-        actor: req.user?.email || "admin",
-        actorRole: "admin",
-        action: "COUPON_UPDATED",
-        entityType: "Coupon",
-        entityId: String(id),
-        newState: data,
-        req
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot update coupon without MongoDB connection.",
+        databaseUnavailable: true
       });
-      return res.json({ success: true, data: inMemoryStore.coupons[idx] });
     }
 
     const oldCoupon = await Coupon.findOne({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] }).lean();

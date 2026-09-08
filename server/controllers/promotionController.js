@@ -59,8 +59,12 @@ export async function saveActiveOffer(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      inMemoryStore.activeOffer = { ...(inMemoryStore.activeOffer || {}), ...payload };
-      return res.json({ success: true, data: inMemoryStore.activeOffer });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot save active offer without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const updated = await ActiveOffer.findOneAndUpdate(
@@ -96,10 +100,12 @@ export async function saveOffer(req, res, next) {
     const payload = { ...data, id };
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.offers.findIndex(o => o.id === id);
-      if (idx >= 0) inMemoryStore.offers[idx] = payload;
-      else inMemoryStore.offers.push(payload);
-      return res.status(201).json({ success: true, data: payload });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot save offer without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const saved = await Offer.findOneAndUpdate(
@@ -117,9 +123,12 @@ export async function deleteOffer(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      const idx = inMemoryStore.offers.findIndex(o => String(o.id) === String(id));
-      if (idx >= 0) inMemoryStore.offers.splice(idx, 1);
-      return res.json({ success: true, message: "Offer deleted", id });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot delete offer without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     await Offer.findOneAndDelete({ id: String(id) });
@@ -149,10 +158,12 @@ export async function savePromotion(req, res, next) {
     const payload = { ...data, id };
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.promotions.findIndex(p => p.id === id);
-      if (idx >= 0) inMemoryStore.promotions[idx] = payload;
-      else inMemoryStore.promotions.push(payload);
-      return res.status(201).json({ success: true, data: payload });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot save promotion without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const saved = await Promotion.findOneAndUpdate(
@@ -170,9 +181,12 @@ export async function deletePromotion(req, res, next) {
   try {
     const { id } = req.params;
     if (!isDbConnected()) {
-      const idx = inMemoryStore.promotions.findIndex(p => String(p.id) === String(id));
-      if (idx >= 0) inMemoryStore.promotions.splice(idx, 1);
-      return res.json({ success: true, message: "Promotion deleted", id });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot delete promotion without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     await Promotion.findOneAndDelete({ id: String(id) });

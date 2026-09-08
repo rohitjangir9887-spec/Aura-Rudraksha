@@ -215,44 +215,40 @@ export async function createOrder(req, res, next) {
       });
     }
 
-    // Check stock for all items
-    if (isDbConnected()) {
-      const itemIds = totals.items.map(item => item.id);
-      const dbProducts = await Product.find({ id: { $in: itemIds } });
-      const productMap = new Map(dbProducts.map(p => [String(p.id), p]));
+    if (!isDbConnected()) {
+      recentOrderSubmissions.delete(submissionKey);
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot process orders without MongoDB connection.",
+        databaseUnavailable: true
+      });
+    }
 
-      for (const item of totals.items) {
-        const product = productMap.get(String(item.id));
-        const pStatus = (product?.status || "Published").toLowerCase();
-        if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
-          recentOrderSubmissions.delete(submissionKey);
-          if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
-          return res.status(400).json({ 
-            success: false, 
-            message: `Product '${item.name}' is no longer available.` 
-          });
-        }
-        if (product.stock !== undefined && product.stock < item.quantity) {
-          recentOrderSubmissions.delete(submissionKey);
-          if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
-          return res.status(400).json({ 
-            success: false, 
-            message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).` 
-          });
-        }
+    // Check stock for all items
+    const itemIds = totals.items.map(item => item.id);
+    const dbProducts = await Product.find({ id: { $in: itemIds } });
+    const productMap = new Map(dbProducts.map(p => [String(p.id), p]));
+
+    for (const item of totals.items) {
+      const product = productMap.get(String(item.id));
+      const pStatus = (product?.status || "Published").toLowerCase();
+      if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
+        recentOrderSubmissions.delete(submissionKey);
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
+        return res.status(400).json({ 
+          success: false, 
+          message: `Product '${item.name}' is no longer available.` 
+        });
       }
-    } else {
-      for (const item of totals.items) {
-        const product = inMemoryStore.products.find(p => String(p.id) === String(item.id));
-        const pStatus = (product?.status || "Published").toLowerCase();
-        if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
-          recentOrderSubmissions.delete(submissionKey);
-          if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
-          return res.status(400).json({ 
-            success: false, 
-            message: `Product '${item.name}' is no longer available.` 
-          });
-        }
+      if (product.stock !== undefined && product.stock < item.quantity) {
+        recentOrderSubmissions.delete(submissionKey);
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
+        return res.status(400).json({ 
+          success: false, 
+          message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).` 
+        });
       }
     }
 
@@ -438,21 +434,23 @@ export async function updateOrder(req, res, next) {
     const data = req.body;
     const authUserId = req.user.authUserId;
 
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot update order without MongoDB connection.",
+        databaseUnavailable: true
+      });
+    }
+
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (await hasAdminRole(authUserId));
 
-    let existing;
-    if (!isDbConnected()) {
-      const idx = inMemoryStore.orders.findIndex(o => String(o.id) === String(id) || String(o.orderId) === String(id));
-      if (idx < 0) return res.status(404).json({ success: false, message: "Order not found" });
-      existing = inMemoryStore.orders[idx];
-    } else {
-      existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] });
-      if (!existing && id.match(/^[0-9a-fA-F]{24}$/)) {
-        existing = await Order.findById(id);
-      }
-      if (!existing) return res.status(404).json({ success: false, message: "Order not found" });
+    let existing = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] });
+    if (!existing && id.match(/^[0-9a-fA-F]{24}$/)) {
+      existing = await Order.findById(id);
     }
+    if (!existing) return res.status(404).json({ success: false, message: "Order not found" });
 
     let updateFields = {};
 

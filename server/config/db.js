@@ -12,35 +12,17 @@ if (!cached) {
   cached = global.mongoose = { conn: null, promise: null, lastConnected: null };
 }
 
-// Ensure state listeners are attached once
+// Ensure state listeners are attached once without manual recursive reconnect loops (Mongoose driver manages reconnection internally)
 if (!global.__mongoose_listeners_attached) {
   global.__mongoose_listeners_attached = true;
+  mongoose.connection.on("connected", () => {
+    cached.lastConnected = new Date().toISOString();
+  });
   mongoose.connection.on("disconnected", () => {
-    console.warn("⚠️ [MongoDB] Disconnected from database. Auto-reconnecting...");
-    if (cached) {
-      cached.conn = null;
-      cached.promise = null;
-    }
-    setTimeout(() => {
-      connectDB().catch(() => {});
-    }, 1500);
+    cached.conn = null;
   });
   mongoose.connection.on("error", (err) => {
-    console.error("⚠️ [MongoDB] Connection error:", err.message);
-    if (cached) {
-      cached.conn = null;
-      cached.promise = null;
-    }
-  });
-  mongoose.connection.on("reconnectFailed", () => {
-    console.error("⚠️ [MongoDB] Reconnect failed. Retrying...");
-    if (cached) {
-      cached.conn = null;
-      cached.promise = null;
-    }
-    setTimeout(() => {
-      connectDB().catch(() => {});
-    }, 3000);
+    console.warn("⚠️ [MongoDB] Connection error:", err.message);
   });
 }
 
@@ -76,27 +58,32 @@ export async function connectDB() {
     return false;
   }
   
-  // 1. If already active and ready, return true immediately
+  // 1. If already active and connected (readyState === 1), return true immediately
   if (mongoose.connection.readyState === 1) {
     cached.conn = mongoose;
     return true;
   }
 
-  // 2. If disconnected or disconnecting, clear any stale promise and cached connection
-  if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
-    cached.conn = null;
-    cached.promise = null;
+  // 2. If in-flight connection promise is currently connecting (readyState === 2), await it
+  if (mongoose.connection.readyState === 2 && cached.promise) {
+    try {
+      cached.conn = await cached.promise;
+      return mongoose.connection.readyState === 1;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // 3. If in-flight connection promise exists, await it (prevents connection storms)
-  if (!cached.promise) {
+  // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
+  if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const opts = {
-      serverSelectionTimeoutMS: 20000,
-      connectTimeoutMS: 20000,
-      socketTimeoutMS: 60000,
-      maxIdleTimeMS: 300000, // 5 mins idle timeout prevents premature socket drops
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxIdleTimeMS: 60000,
       maxPoolSize: 10,
-      minPoolSize: 1, // Keep at least 1 warm socket
+      minPoolSize: 0,
+      retryWrites: true,
       autoIndex: process.env.NODE_ENV !== "production"
     };
 
@@ -119,7 +106,6 @@ export async function connectDB() {
   } catch (error) {
     cached.promise = null;
     cached.conn = null;
-    console.warn("⚠️ [MongoDB] Database not connected:", error.message);
     return false;
   }
 }
@@ -131,6 +117,7 @@ export function isDbConnected() {
 export function getLastDbSync() {
   return cached?.lastConnected || null;
 }
+
 
 
 

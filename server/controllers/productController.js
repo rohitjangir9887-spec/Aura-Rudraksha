@@ -28,88 +28,9 @@ const PRODUCT_FIELDS = {
 };
 
 /**
- * Compute and apply daily sales increment (1-10 sales per day) for products
+ * Daily sales helper - preserved for signature compatibility without automatic mutation
  */
 export async function applyDailySalesIncrement(products = []) {
-  if (!Array.isArray(products) || products.length === 0) return products;
-  
-  const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  const bulkOps = [];
-
-  for (const p of products) {
-    if (p.autoIncrementSales === false) {
-      continue;
-    }
-
-    const lastDateStr = p.lastSalesUpdateDate || "";
-    let shouldUpdate = false;
-    let newSalesCount = Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
-
-    // If newSalesCount is 0, initialize realistic starting baseline (e.g. 180 + mukhi/reviews)
-    if (newSalesCount <= 0) {
-      const base = (Number(p.reviews) || 45) * 4 + 160;
-      newSalesCount = base;
-      shouldUpdate = true;
-    }
-
-    if (!lastDateStr) {
-      shouldUpdate = true;
-    } else if (lastDateStr < todayStr) {
-      // Calculate days passed
-      const lastDate = new Date(lastDateStr);
-      const todayDate = new Date(todayStr);
-      const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
-      const diffDays = Math.min(30, Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24))));
-
-      const minInc = Number(p.dailySalesMin) || 1;
-      const maxInc = Number(p.dailySalesMax) || 10;
-      
-      for (let day = 0; day < diffDays; day++) {
-        // Random increment between 1 and 10 per day
-        const dailyInc = Math.floor(Math.random() * (maxInc - minInc + 1)) + minInc;
-        newSalesCount += dailyInc;
-      }
-      shouldUpdate = true;
-    }
-
-    if (shouldUpdate) {
-      const formattedTotalSold = `${newSalesCount.toLocaleString("en-IN")}+ Sold`;
-      p.salesCount = newSalesCount;
-      p.totalSold = formattedTotalSold;
-      p.lastSalesUpdateDate = todayStr;
-
-      if (isDbConnected()) {
-        bulkOps.push({
-          updateOne: {
-            filter: { id: p.id },
-            update: {
-              $set: {
-                salesCount: newSalesCount,
-                totalSold: formattedTotalSold,
-                lastSalesUpdateDate: todayStr
-              }
-            }
-          }
-        });
-      } else {
-        const inMemIdx = inMemoryStore.products.findIndex(x => String(x.id) === String(p.id));
-        if (inMemIdx >= 0) {
-          inMemoryStore.products[inMemIdx].salesCount = newSalesCount;
-          inMemoryStore.products[inMemIdx].totalSold = formattedTotalSold;
-          inMemoryStore.products[inMemIdx].lastSalesUpdateDate = todayStr;
-        }
-      }
-    }
-  }
-
-  if (bulkOps.length > 0 && isDbConnected()) {
-    try {
-      await Product.bulkWrite(bulkOps);
-    } catch (err) {
-      console.warn("Notice in Product bulkWrite daily sales increment:", err.message);
-    }
-  }
-
   return products;
 }
 
@@ -145,28 +66,19 @@ export async function getProducts(req, res, next) {
   try {
     const isAdmin = await checkIsAdmin(req);
 
+    if (isAdmin) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+    } else {
+      res.setHeader("Cache-Control", "no-cache, must-revalidate");
+    }
+
     if (!isDbConnected()) {
-      let products = [...inMemoryStore.products];
-      if (!isAdmin) {
-        products = products.filter(p => {
-          const s = (p.status || "Published").toLowerCase();
-          return s === "published" || s === "active";
-        });
-      } else if (req.query.status) {
-        const queryStatus = String(req.query.status).trim().toLowerCase();
-        products = products.filter(p => {
-          const s = (p.status || "Draft").toLowerCase();
-          if (queryStatus === "draft") return s === "draft" || s === "inactive";
-          if (queryStatus === "published" || queryStatus === "active") return s === "published" || s === "active";
-          return s === queryStatus;
-        });
-      }
-      if (isAdmin) {
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-      } else {
-        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
-      }
-      return res.json({ success: true, data: products, count: products.length });
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable. Live MongoDB connection required."
+      });
     }
 
     let filter = {};
@@ -200,39 +112,17 @@ export async function getProducts(req, res, next) {
       };
     }
 
-    const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
-    await applyDailySalesIncrement(products);
-    if (isAdmin) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-    } else {
-      res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
-    }
+    const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
-    console.warn("Notice in getProducts, serving in-memory catalog fallback:", err.message);
-    const isAdmin = await checkIsAdmin(req).catch(() => false);
-    let products = [...inMemoryStore.products];
-    if (!isAdmin) {
-      products = products.filter(p => {
-        const s = (p.status || "Published").toLowerCase();
-        return s === "published" || s === "active";
-      });
-    } else if (req.query.status) {
-      const queryStatus = String(req.query.status).trim().toLowerCase();
-      products = products.filter(p => {
-        const s = (p.status || "Draft").toLowerCase();
-        if (queryStatus === "draft") return s === "draft" || s === "inactive";
-        if (queryStatus === "published" || queryStatus === "active") return s === "published" || s === "active";
-        return s === queryStatus;
-      });
-    }
-    await applyDailySalesIncrement(products);
-    if (isAdmin) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-    } else {
-      res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
-    }
-    return res.json({ success: true, data: products, count: products.length });
+    console.warn("Error in getProducts:", err.message);
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.status(503).json({
+      success: false,
+      databaseUnavailable: true,
+      error: "Database unavailable",
+      message: "Database is temporarily unavailable."
+    });
   }
 }
 
@@ -241,44 +131,15 @@ export async function getProductById(req, res, next) {
     const { id } = req.params;
     const cleanId = String(id).trim();
 
-    const findInMemory = (targetId) => {
-      const cleanTarget = targetId.toLowerCase();
-      // 1. Exact match
-      let p = inMemoryStore.products.find(x => 
-        String(x.id).toLowerCase() === cleanTarget || 
-        String(x._id || "").toLowerCase() === cleanTarget ||
-        String(x.slug || "").toLowerCase() === cleanTarget
-      );
-      // 2. Slugified name or partial match
-      if (!p) {
-        p = inMemoryStore.products.find(x => {
-          const xName = String(x.name || "").toLowerCase();
-          const xSlugified = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-          const xSlug = String(x.slug || "").toLowerCase();
-          return xSlugified === cleanTarget || 
-                 (cleanTarget.length >= 3 && xSlugified.includes(cleanTarget)) ||
-                 (cleanTarget.length >= 3 && cleanTarget.includes(xSlugified)) ||
-                 (cleanTarget.length >= 3 && xSlug.includes(cleanTarget)) ||
-                 (cleanTarget.length >= 3 && cleanTarget.includes(xSlug));
-        });
-      }
-      return p;
-    };
+    res.setHeader("Cache-Control", "no-cache, must-revalidate");
 
     if (!isDbConnected()) {
-      const product = findInMemory(cleanId);
-      if (!product) {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-      const isAdmin = await checkIsAdmin(req);
-      if (!isAdmin) {
-        const currentStatus = (product.status || "Published").toLowerCase();
-        if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
-          return res.status(404).json({ success: false, message: "Product not found" });
-        }
-      }
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      return res.json({ success: true, data: product });
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Database is temporarily unavailable."
+      });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
@@ -311,8 +172,6 @@ export async function getProductById(req, res, next) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    await applyDailySalesIncrement([product]);
-
     const isAdmin = await checkIsAdmin(req);
     if (!isAdmin) {
       const currentStatus = (product.status || "Published").toLowerCase();
@@ -321,30 +180,16 @@ export async function getProductById(req, res, next) {
       }
     }
 
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: product });
   } catch (err) {
-    console.warn("Notice in getProductById, serving in-memory product fallback:", err.message);
-    const cleanId = String(req.params.id || "").trim();
-    const cleanTarget = cleanId.toLowerCase();
-    const product = inMemoryStore.products.find(p => {
-      const pSlug = String(p.slug || "").toLowerCase();
-      const pSlugified = String(p.name || "").toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-      return String(p.id).toLowerCase() === cleanTarget || pSlug === cleanTarget || pSlugified === cleanTarget;
-    });
-    if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
-    }
-    await applyDailySalesIncrement([product]);
-    const isAdmin = await checkIsAdmin(req).catch(() => false);
-    if (!isAdmin) {
-      const currentStatus = (product.status || "Published").toLowerCase();
-      if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-    }
+    console.warn("Error in getProductById:", err.message);
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    return res.json({ success: true, data: product });
+    return res.status(503).json({
+      success: false,
+      databaseUnavailable: true,
+      error: "Database unavailable",
+      message: "Database is temporarily unavailable."
+    });
   }
 }
 
@@ -395,7 +240,7 @@ export async function createProduct(req, res, next) {
     const computedSlug = data.slug || (data.name ? String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-") : String(id));
 
     const salesCountNum = Number(data.salesCount) || (data.totalSold ? parseInt(String(data.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
-    const totalSoldStr = data.totalSold !== undefined && String(data.totalSold).trim() ? String(data.totalSold).trim() : (salesCountNum > 0 ? `${salesCountNum}+ Sold` : "180+ Sold");
+    const totalSoldStr = data.totalSold !== undefined && String(data.totalSold).trim() ? String(data.totalSold).trim() : (salesCountNum > 0 ? `${salesCountNum}+ Sold` : "");
 
     const productPayload = {
       ...data,
@@ -408,39 +253,25 @@ export async function createProduct(req, res, next) {
       mrp: data.mrp || data.comparePrice || data.price,
       comparePrice: data.comparePrice || data.mrp || data.price,
       images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : []),
-      img: (Array.isArray(data.images) && data.images[0]) || data.img || "/images/product-5mukhi.jpg",
-      stock: data.stock !== undefined ? Number(data.stock) : 50,
-      rating: Number(data.rating) || 4.9,
+      img: (Array.isArray(data.images) && data.images[0]) || data.img || "/images/placeholder.svg",
+      stock: data.stock !== undefined ? Number(data.stock) : 0,
+      rating: Number(data.rating) || 0,
       reviews: Number(data.reviews || data.reviewCount) || 0,
       totalSold: totalSoldStr,
-      salesCount: salesCountNum > 0 ? salesCountNum : 180,
-      autoIncrementSales: data.autoIncrementSales !== undefined ? !!data.autoIncrementSales : true,
+      salesCount: salesCountNum,
+      autoIncrementSales: false,
       lastSalesUpdateDate: data.lastSalesUpdateDate || new Date().toISOString().split("T")[0],
-      dailySalesMin: Number(data.dailySalesMin) || 1,
-      dailySalesMax: Number(data.dailySalesMax) || 10
+      dailySalesMin: 0,
+      dailySalesMax: 0
     };
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.products.findIndex(p => 
-        String(p.id) === String(id) || (p._id && String(p._id) === String(id)) || (p.slug && p.slug === productPayload.slug)
-      );
-      if (idx >= 0) {
-        inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...productPayload };
-      } else {
-        inMemoryStore.products.unshift(productPayload);
-      }
-      invalidateRagCache();
-      await logAuditEvent({
-        actor: req.user?.email || "admin",
-        actorRole: "admin",
-        action: "PRODUCT_CREATED",
-        entityType: "Product",
-        entityId: String(id),
-        newState: productPayload,
-        req
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Cannot create product while database is disconnected."
       });
-      submitToIndexNow([`/product/${productPayload.slug || productPayload.id}`, "/sitemap.xml"], req).catch(() => {});
-      return res.status(201).json({ success: true, data: productPayload });
     }
 
     const cleanId = String(productPayload.id).trim();
@@ -469,6 +300,7 @@ export async function createProduct(req, res, next) {
     });
 
     submitToIndexNow([`/product/${created.slug || created.id}`, "/sitemap.xml"], req).catch(() => {});
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -526,24 +358,12 @@ export async function updateProduct(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.products.findIndex(p => String(p.id) === String(id) || p.slug === String(id));
-      if (idx < 0) {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-      inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...updatePayload };
-      invalidateRagCache();
-      await logAuditEvent({
-        actor: req.user?.email || "admin",
-        actorRole: "admin",
-        action: "PRODUCT_UPDATED",
-        entityType: "Product",
-        entityId: String(id),
-        newState: updatePayload,
-        req
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Cannot update product while database is disconnected."
       });
-      const inMemProd = inMemoryStore.products[idx];
-      submitToIndexNow([`/product/${inMemProd.slug || inMemProd.id}`, "/sitemap.xml"], req).catch(() => {});
-      return res.json({ success: true, data: inMemProd });
     }
 
     const cleanId = String(id).trim();
@@ -623,6 +443,7 @@ export async function updateProduct(req, res, next) {
     });
 
     submitToIndexNow([`/product/${updated.slug || updated.id}`, "/sitemap.xml"], req).catch(() => {});
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -635,18 +456,12 @@ export async function deleteProduct(req, res, next) {
     const cleanId = String(id).trim();
 
     if (!isDbConnected()) {
-      inMemoryStore.products = inMemoryStore.products.filter(p => String(p.id) !== cleanId && p.slug !== cleanId);
-      invalidateRagCache();
-      await logAuditEvent({
-        actor: req.user?.email || "admin",
-        actorRole: "admin",
-        action: "PRODUCT_DELETED",
-        entityType: "Product",
-        entityId: cleanId,
-        req
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Cannot delete product while database is disconnected."
       });
-      submitToIndexNow(["/sitemap.xml"], req).catch(() => {});
-      return res.json({ success: true, message: "Product deleted", id: cleanId });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);

@@ -159,17 +159,12 @@ export async function saveSettings(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      inMemoryStore.settings = { ...inMemoryStore.settings, ...data };
-      await logAuditEvent({
-        actor: req.user?.email || "admin",
-        actorRole: "admin",
-        action: "SETTINGS_UPDATED",
-        entityType: "Setting",
-        entityId: "STORE_SETTINGS",
-        newState: data,
-        req
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot save settings without MongoDB connection.",
+        databaseUnavailable: true
       });
-      return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, true) });
     }
 
     const oldSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
@@ -235,8 +230,12 @@ export async function savePolicies(req, res, next) {
     const data = pickFields(req.body, POLICY_FIELDS);
 
     if (!isDbConnected()) {
-      inMemoryStore.settings = { ...inMemoryStore.settings, ...data };
-      return res.json({ success: true, data: inMemoryStore.settings });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Database is unavailable. Cannot save policies without MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const updated = await Setting.findOneAndUpdate(
@@ -393,9 +392,9 @@ export async function getAnalytics(req, res, next) {
         success: true,
         data: {
           id: "GLOBAL_ANALYTICS",
-          visits: 124,
-          productViews: 450,
-          hasData: true,
+          visits: 0,
+          productViews: 0,
+          hasData: false,
           lastUpdated: new Date().toISOString()
         }
       });
