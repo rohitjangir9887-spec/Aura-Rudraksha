@@ -96,7 +96,19 @@ export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
     return `${clean}${separator}auto=format&fit=crop&w=${width}&q=${quality}`;
   }
 
-  // If ibb.co, imgur, or any external image URL -> transform & compress to WebP via wsrv.nl CDN proxy
+  // If direct image URL, Google User photo, or Firebase/Cloud storage, return directly
+  if (
+    clean.includes("googleusercontent.com") ||
+    clean.includes("firebasestorage.googleapis.com") ||
+    clean.includes("storage.googleapis.com") ||
+    clean.includes("pcloud") ||
+    clean.includes("raw.githubusercontent.com") ||
+    /\.(jpg|jpeg|png|webp|svg|gif|avif)(\?.*)?$/i.test(clean)
+  ) {
+    return clean;
+  }
+
+  // If ibb.co, imgur, or generic external image URL -> transform & compress to WebP via wsrv.nl CDN proxy
   return `https://wsrv.nl/?url=${encodeURIComponent(clean)}&w=${width}&q=${quality}&output=webp`;
 }
 

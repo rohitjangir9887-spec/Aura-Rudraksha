@@ -47,11 +47,13 @@ export function OptimizedImage({
     setCurrentSrc(newOptimizedSrc);
   }, [src, width, quality]);
 
-  // Handle cached image instant loads
+  // Handle cached image instant loads & complete status
   useEffect(() => {
     if (imgRef.current && imgRef.current.complete) {
       if (imgRef.current.naturalWidth > 0) {
         setIsLoaded(true);
+      } else if (imgRef.current.naturalWidth === 0 && currentSrc) {
+        handleImageError();
       }
     }
   }, [currentSrc]);
@@ -68,9 +70,18 @@ export function OptimizedImage({
       // Fallback: Try raw unproxied src if proxy failed, or fallback placeholder
       if (currentSrc !== src && src && typeof src === "string") {
         setCurrentSrc(src);
-      } else if (!currentSrc.includes("product-5mukhi.jpg")) {
-        setCurrentSrc("/images/placeholder.svg");
+      } else if (!currentSrc.includes("product-5mukhi.jpg") && !currentSrc.includes("placeholder.svg")) {
+        const name = (alt || "").toLowerCase();
+        if (name.includes("5 mukhi") || name.includes("panch mukhi")) {
+          setCurrentSrc("/images/product-5mukhi.jpg");
+        } else {
+          setCurrentSrc("/images/placeholder.svg");
+        }
+      } else {
+        setIsLoaded(true);
       }
+    } else {
+      setIsLoaded(true);
     }
     if (onError) onError(e);
   };
@@ -116,7 +127,7 @@ export function OptimizedImage({
         alt={alt}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
-        fetchpriority={priority ? "high" : "low"}
+        fetchPriority={priority ? "high" : "low"}
         onLoad={handleImageLoad}
         onError={handleImageError}
         className={className}
