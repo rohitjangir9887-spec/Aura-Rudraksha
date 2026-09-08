@@ -1,6 +1,8 @@
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
+import { defaultActiveOffer } from "../data/defaultData.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const OFFER_FIELDS = {
   title: "string", label: "string", description: "string", buttonText: "string",
@@ -34,12 +36,7 @@ const ACTIVE_OFFER_FIELDS = {
 export async function getActiveOffer(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Active offer requires an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      return res.json({ success: true, data: inMemoryStore.activeOffer || defaultActiveOffer, isFallback: true });
     }
     res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
@@ -85,12 +82,7 @@ export async function saveActiveOffer(req, res, next) {
 export async function getOffers(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Offers require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      return res.json({ success: true, data: inMemoryStore.offers || [], isFallback: true });
     }
     res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const list = await Offer.find().sort({ order: 1 }).lean();

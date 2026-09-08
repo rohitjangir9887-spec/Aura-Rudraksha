@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Enable command buffering so database requests wait for connection rather than failing instantly
-mongoose.set("bufferCommands", true);
+// Disable command buffering so queries fail fast and allow graceful fallbacks when offline
+mongoose.set("bufferCommands", false);
 
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;

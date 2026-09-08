@@ -5,6 +5,8 @@ import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
 import { logAuditEvent } from "../services/auditService.js";
+import { defaultCoupons } from "../data/defaultData.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Fields an admin may set on a coupon. Allowlisted for defense-in-depth
 // consistency with the rest of the admin write paths in this codebase, even
@@ -169,12 +171,12 @@ export async function getCoupons(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Coupons require an authoritative MongoDB connection."
-      });
+      const list = inMemoryStore.coupons || defaultCoupons;
+      if (isAdmin) {
+        return res.json({ success: true, data: list, count: list.length, isFallback: true });
+      }
+      const publicCoupons = list.filter(c => c.status === "Active").map(toPublicCoupon);
+      return res.json({ success: true, data: publicCoupons, count: publicCoupons.length, isFallback: true });
     }
 
     const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();

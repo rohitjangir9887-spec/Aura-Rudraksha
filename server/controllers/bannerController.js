@@ -1,16 +1,14 @@
 import { Banner } from "../models/Banner.js";
 import { isDbConnected } from "../config/db.js";
 import { isSafeImageValue } from "../utils/imageValidation.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
+import { defaultBanners } from "../data/defaultData.js";
 
 export async function getBanners(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. MongoDB connection required.",
-        databaseUnavailable: true
-      });
+      const bannerUrls = inMemoryStore.banners || defaultBanners;
+      return res.json({ success: true, data: bannerUrls, full: [], isFallback: true });
     }
     res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();

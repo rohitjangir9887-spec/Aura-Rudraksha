@@ -5,6 +5,7 @@ import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateRagCache } from "../services/ragService.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -72,11 +73,12 @@ export async function getProducts(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable. Live MongoDB connection required."
+      const items = inMemoryStore.products || [];
+      return res.json({
+        success: true,
+        data: items,
+        count: items.length,
+        isFallback: true
       });
     }
 
@@ -133,12 +135,15 @@ export async function getProductById(req, res, next) {
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Database is temporarily unavailable."
-      });
+      const cleanTarget = cleanId.toLowerCase();
+      const product = (inMemoryStore.products || []).find(p => 
+        String(p.id).toLowerCase() === cleanTarget || 
+        String(p.slug || "").toLowerCase() === cleanTarget
+      );
+      if (product) {
+        return res.json({ success: true, data: product, isFallback: true });
+      }
+      return res.status(404).json({ success: false, message: "Product not found" });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);

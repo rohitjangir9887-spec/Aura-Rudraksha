@@ -7,6 +7,8 @@ import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import crypto from "crypto";
 import { getGeminiClient } from "./auraAiController.js";
+import { defaultReviews } from "../data/defaultData.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // In-memory set of deleted review IDs for session isolation
 const deletedReviewIds = new Set();
@@ -92,12 +94,11 @@ export async function getReviews(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Reviews require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      let list = inMemoryStore.reviews || defaultReviews;
+      if (productId && productId !== "all") {
+        list = list.filter(r => String(r.productId) === String(productId));
+      }
+      return res.json({ success: true, data: list, count: list.length, isFallback: true });
     }
 
     let query = {

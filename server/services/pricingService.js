@@ -3,6 +3,8 @@ import { Coupon } from "../models/Coupon.js";
 import { Setting } from "../models/Setting.js";
 import { ActiveOffer, Promotion } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
+import { defaultCoupons } from "../data/defaultData.js";
 
 /**
  * Single Authoritative Pricing & Coupon Service for Aura Rudraksha
@@ -105,6 +107,12 @@ export async function getAuthoritativeProducts(productIds = []) {
     }
   }
 
+  // Fallback to in-memory store if DB is offline
+  if (inMemoryStore && inMemoryStore.products) {
+    const matched = inMemoryStore.products.filter(p => cleanIds.includes(String(p.id)));
+    if (matched.length > 0) return matched;
+  }
+
   return [];
 }
 
@@ -165,6 +173,11 @@ export async function getAuthoritativeCoupon(couponCode) {
     } catch (err) {
       console.warn("PricingService DB coupon lookup warning:", err.message);
     }
+  } else if (inMemoryStore) {
+    // Offline fallback
+    const list = inMemoryStore.coupons || defaultCoupons;
+    const found = list.find(c => String(c.code).trim().toUpperCase() === cleanCode && c.status === "Active");
+    if (found) return found;
   }
 
   return null;
