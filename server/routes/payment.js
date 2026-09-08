@@ -47,8 +47,8 @@ const paymentRefundLimit = rateLimit({
   prefix: "pay_ref"
 });
 
-// 1. Initiate PayU Hosted Checkout Payment (Customer authenticated)
-router.all("/initiate", requireAuth, paymentInitiateLimit, initiatePayuPayment);
+// 1. Initiate PayU Hosted Checkout Payment (Customer authenticated or guest)
+router.all("/initiate", optionalAuth, paymentInitiateLimit, initiatePayuPayment);
 
 // 2. PayU Browser Redirect Callback (surl/furl - standard PayU Hosted Checkout POST / GET fallback)
 // DO NOT rate-limit PayU customer redirect callback

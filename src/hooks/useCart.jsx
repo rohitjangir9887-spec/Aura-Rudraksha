@@ -433,6 +433,11 @@ export function CartProvider({ children }) {
 
       const count = Math.max(1, Number(qty) || 1);
       const buyNowIntent = [{ id: pid, qty: count }];
+      
+      // 1. Add item to persistent cart state so cart badge & cart page stay in sync
+      addBatch(buyNowIntent);
+
+      // 2. Set buy now intent for direct checkout focus
       try {
         sessionStorage.setItem("aura_buy_now_intent", JSON.stringify(buyNowIntent));
       } catch (_) {}

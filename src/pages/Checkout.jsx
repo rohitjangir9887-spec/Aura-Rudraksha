@@ -528,8 +528,9 @@ export function Checkout() {
     if (loading || isSubmittingRef.current) return;
     isSubmittingRef.current = true;
 
-    if (effectiveLines.length === 0 || subtotal === 0) {
+    if (effectiveLines.length === 0) {
       emitToast("Your cart is empty.", "warning");
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -537,16 +538,6 @@ export function Checkout() {
       emitToast("Please fill in all required shipping details correctly.", "warning");
       const el = document.getElementById("checkout-address-section");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      isSubmittingRef.current = false;
-      return;
-    }
-
-    // Require Firebase authenticated session before placing order
-    const isUserSignedIn = authClient.isSignedIn();
-    const currentUser = authClient.getUser();
-
-    if (!isUserSignedIn || (currentUser && currentUser.isAnonymous)) {
-      setAuthModalOpen(true);
       isSubmittingRef.current = false;
       return;
     }

@@ -96,12 +96,8 @@ export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
     return `${clean}${separator}auto=format&fit=crop&w=${width}&q=${quality}`;
   }
 
-  // If ibb.co, imgur, or other external uncompressed images -> transform to WebP via wsrv.nl CDN proxy
-  if (clean.includes("i.ibb.co") || clean.includes("ibb.co") || clean.includes("i.imgur.com") || clean.includes("postimg.cc")) {
-    return `https://wsrv.nl/?url=${encodeURIComponent(clean)}&w=${width}&q=${quality}&output=webp`;
-  }
-
-  return clean;
+  // If ibb.co, imgur, or any external image URL -> transform & compress to WebP via wsrv.nl CDN proxy
+  return `https://wsrv.nl/?url=${encodeURIComponent(clean)}&w=${width}&q=${quality}&output=webp`;
 }
 
 /**

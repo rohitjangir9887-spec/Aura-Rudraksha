@@ -67,14 +67,19 @@ export function WhyAuraSection() {
             >
               <div className="aura-editorial-img-wrap">
                 <img
-                  src="https://i.ibb.co/nMzc8B8k/file-00000000243482118ca7430425cda1ba.png"
+                  src={getOptimizedImageUrl("https://i.ibb.co/nMzc8B8k/file-00000000243482118ca7430425cda1ba.png", { width: 500, quality: 80 })}
                   alt="Certified Nepali Mukhi Rudraksha Beads"
                   className="aura-editorial-img"
                   loading="lazy"
-                  referrerPolicy="no-referrer"
+                  decoding="async"
                   onError={(e) => {
-                    if (!e.currentTarget.src.includes('product-7mukhi.jpg')) {
-                      e.currentTarget.src = "/images/product-7mukhi.jpg";
+                    const raw = "https://i.ibb.co/nMzc8B8k/file-00000000243482118ca7430425cda1ba.png";
+                    markProxyFailed(raw);
+                    const target = e.currentTarget;
+                    if (target.src.includes("wsrv.nl")) {
+                      target.src = raw;
+                    } else if (!target.src.includes('product-7mukhi.jpg')) {
+                      target.src = "/images/product-7mukhi.jpg";
                     }
                   }}
                 />
@@ -90,14 +95,19 @@ export function WhyAuraSection() {
             >
               <div className="aura-editorial-img-wrap">
                 <img
-                  src="https://i.ibb.co/v6qncJqn/file-000000009b148211a15f486f2796884a.png"
+                  src={getOptimizedImageUrl("https://i.ibb.co/v6qncJqn/file-000000009b148211a15f486f2796884a.png", { width: 500, quality: 80 })}
                   alt="Sacred Wrist Bracelets with Rudraksha"
                   className="aura-editorial-img"
                   loading="lazy"
-                  referrerPolicy="no-referrer"
+                  decoding="async"
                   onError={(e) => {
-                    if (!e.currentTarget.src.includes('product-11mukhi.jpg')) {
-                      e.currentTarget.src = "/images/product-11mukhi.jpg";
+                    const raw = "https://i.ibb.co/v6qncJqn/file-000000009b148211a15f486f2796884a.png";
+                    markProxyFailed(raw);
+                    const target = e.currentTarget;
+                    if (target.src.includes("wsrv.nl")) {
+                      target.src = raw;
+                    } else if (!target.src.includes('product-11mukhi.jpg')) {
+                      target.src = "/images/product-11mukhi.jpg";
                     }
                   }}
                 />
@@ -113,14 +123,19 @@ export function WhyAuraSection() {
             >
               <div className="aura-editorial-img-wrap">
                 <img
-                  src="https://i.ibb.co/GQR7sCpS/file-00000000567c8211bf9d0bc607e701c0.png"
+                  src={getOptimizedImageUrl("https://i.ibb.co/GQR7sCpS/file-00000000567c8211bf9d0bc607e701c0.png", { width: 640, quality: 80 })}
                   alt="Vedic Consecration & Brass Diyas"
                   className="aura-editorial-img"
                   loading="lazy"
-                  referrerPolicy="no-referrer"
+                  decoding="async"
                   onError={(e) => {
-                    if (!e.currentTarget.src.includes('product-1mukhi.jpg')) {
-                      e.currentTarget.src = "/images/product-1mukhi.jpg";
+                    const raw = "https://i.ibb.co/GQR7sCpS/file-00000000567c8211bf9d0bc607e701c0.png";
+                    markProxyFailed(raw);
+                    const target = e.currentTarget;
+                    if (target.src.includes("wsrv.nl")) {
+                      target.src = raw;
+                    } else if (!target.src.includes('product-1mukhi.jpg')) {
+                      target.src = "/images/product-1mukhi.jpg";
                     }
                   }}
                 />

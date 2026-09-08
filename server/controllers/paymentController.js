@@ -150,16 +150,9 @@ export async function initiatePayuPayment(req, res, next) {
       });
     }
 
-    // Authentication verification
-    const authUserId = req.user?.authUserId;
-    if (!authUserId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required to initiate payment."
-      });
-    }
-
+    // Authentication verification (Support logged in user or guest checkout)
     const data = req.body || {};
+    const authUserId = req.user?.authUserId || `guest_${data.phone || data.customerEmail || req.ip || Date.now()}`;
     const rawLines = data.lines || data.items || [];
 
     if (!Array.isArray(rawLines) || rawLines.length === 0) {

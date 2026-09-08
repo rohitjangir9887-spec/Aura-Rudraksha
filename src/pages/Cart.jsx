@@ -143,7 +143,7 @@ export function Cart() {
     .filter(p => !Object.keys(items).includes(String(p.id)) && p.status !== "Out of Stock")
     .slice(0, 6);
 
-  const isEmpty = !cart.length || subtotal === 0;
+  const isEmpty = !lines || lines.length === 0;
 
   return (
     <Shell>
