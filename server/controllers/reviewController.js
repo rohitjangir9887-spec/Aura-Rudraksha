@@ -93,6 +93,14 @@ export async function getReviews(req, res, next) {
     }
 
     if (!isDbConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({
+          success: false,
+          error: "Database unavailable",
+          message: "Reviews require an authoritative MongoDB connection.",
+          databaseUnavailable: true
+        });
+      }
       let filtered = [...inMemoryStore.reviews].filter(r => !deletedReviewIds.has(r.id) && r.status !== "deleted");
       if (status && status !== "all") filtered = filtered.filter(r => r.status === status);
       if (type && type !== "all") filtered = filtered.filter(r => r.type === type);

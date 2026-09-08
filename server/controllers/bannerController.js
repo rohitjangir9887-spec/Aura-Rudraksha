@@ -6,7 +6,15 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 export async function getBanners(req, res, next) {
   try {
     if (!isDbConnected()) {
-      res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({
+          success: false,
+          error: "Database unavailable",
+          message: "Database is unavailable. MongoDB connection required.",
+          databaseUnavailable: true
+        });
+      }
+      res.setHeader("Cache-Control", "no-cache");
       const bannerUrls = inMemoryStore.banners.map(b => typeof b === "string" ? b : (b.image || b.url || ""));
       return res.json({ success: true, data: bannerUrls, full: inMemoryStore.banners });
     }

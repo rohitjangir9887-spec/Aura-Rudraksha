@@ -558,13 +558,16 @@ export async function reorderProducts(req, res, next) {
  */
 export async function triggerDailySalesIncrement(req, res, next) {
   try {
-    let allProds = [];
-    if (isDbConnected()) {
-      allProds = await Product.find({}).lean();
-    } else {
-      allProds = [...inMemoryStore.products];
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Database is unavailable. MongoDB connection required."
+      });
     }
 
+    const allProds = await Product.find({}).lean();
     const todayStr = new Date().toISOString().split("T")[0];
     const bulkOps = [];
     let updatedCount = 0;

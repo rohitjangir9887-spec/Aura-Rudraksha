@@ -170,6 +170,14 @@ export async function getCoupons(req, res, next) {
     }
 
     if (!isDbConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({
+          success: false,
+          databaseUnavailable: true,
+          error: "Database unavailable",
+          message: "Coupons require an authoritative MongoDB connection."
+        });
+      }
       const coupons = inMemoryStore.coupons;
       if (isAdmin) {
         return res.json({ success: true, data: coupons, count: coupons.length });

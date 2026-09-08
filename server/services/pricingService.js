@@ -106,7 +106,10 @@ export async function getAuthoritativeProducts(productIds = []) {
     }
   }
 
-  // In-Memory Fallback
+  // In-Memory Fallback (strictly disabled in production)
+  if (process.env.NODE_ENV === "production") {
+    return [];
+  }
   return inMemoryStore.products.filter(p => cleanIds.includes(String(p.id)) || cleanIds.includes(String(p.slug)) || cleanIds.includes(String(p._id)));
 }
 
@@ -169,7 +172,11 @@ export async function getAuthoritativeCoupon(couponCode) {
     }
   }
 
-  // In-Memory Fallback (ONLY when DB is completely disconnected)
+  // In-Memory Fallback (strictly disabled in production)
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
   const memCoupon = inMemoryStore.coupons.find(c => c.code === cleanCode);
   if (memCoupon) return memCoupon;
 

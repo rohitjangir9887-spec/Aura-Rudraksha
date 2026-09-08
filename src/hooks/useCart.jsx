@@ -103,6 +103,47 @@ export function CartProvider({ children }) {
       userRef.current = currUser;
 
       if (prevUid !== nextUid) {
+        if (prevUid === "guest" && currUser && !currUser.isAnonymous) {
+          // Guest just logged in! Merge guest cart with user cart to prevent item loss
+          const guestLines = readStoredCart(null);
+          const userLines = readStoredCart(currUser);
+
+          if (guestLines.length > 0) {
+            const mergedMap = new Map();
+            for (const item of userLines) {
+              mergedMap.set(item.id, item.qty);
+            }
+            for (const item of guestLines) {
+              if (mergedMap.has(item.id)) {
+                mergedMap.set(item.id, Math.max(mergedMap.get(item.id), item.qty));
+              } else {
+                mergedMap.set(item.id, item.qty);
+              }
+            }
+            const mergedLines = Array.from(mergedMap.entries()).map(([id, qty]) => ({ id, qty }));
+            const userKey = getUserCartStorageKey(currUser);
+
+            try {
+              localStorage.setItem(userKey, JSON.stringify(mergedLines));
+              localStorage.removeItem("aura-cart-guest");
+            } catch (_) {}
+
+            setLines(mergedLines);
+            db.mergeUserCart(guestLines).then((serverLines) => {
+              if (Array.isArray(serverLines) && serverLines.length > 0) {
+                setLines(serverLines);
+                try {
+                  localStorage.setItem(userKey, JSON.stringify(serverLines));
+                } catch (_) {}
+              }
+            }).catch(() => {});
+
+            const nextCoupon = readStoredCoupon(currUser);
+            setCouponCode(nextCoupon);
+            return;
+          }
+        }
+
         const nextLines = readStoredCart(currUser);
         const nextCoupon = readStoredCoupon(currUser);
         setLines(nextLines);

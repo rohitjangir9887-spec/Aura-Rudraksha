@@ -480,20 +480,11 @@ export function loadCacheFromLocalStorage() {
       const parsed = JSON.parse(cachedReviews);
       if (Array.isArray(parsed)) storeCache.reviews = parsed;
     }
-    const cachedOrders = localStorage.getItem("aura_admin_orders_cache") || localStorage.getItem("aura_orders_cache");
-    if (cachedOrders) {
-      try {
-        const parsed = JSON.parse(cachedOrders);
-        if (Array.isArray(parsed) && parsed.length > 0) storeCache.orders = parsed;
-      } catch (_) {}
-    }
-    const cachedCustomers = localStorage.getItem("aura_admin_customers_cache") || localStorage.getItem("aura_customers_cache");
-    if (cachedCustomers) {
-      try {
-        const parsed = JSON.parse(cachedCustomers);
-        if (Array.isArray(parsed) && parsed.length > 0) storeCache.customers = parsed;
-      } catch (_) {}
-    }
+    // Clear any legacy stale order/customer cache keys to ensure MongoDB authoritative state
+    localStorage.removeItem("aura_admin_orders_cache");
+    localStorage.removeItem("aura_orders_cache");
+    localStorage.removeItem("aura_admin_customers_cache");
+    localStorage.removeItem("aura_customers_cache");
     
     // Check if we have a valid, unexpired cache
     const lastFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
@@ -1260,10 +1251,6 @@ export const db = {
         }
         return res;
       }
-      const cached = db.getCachedMyOrders();
-      if (cached && cached.length > 0) {
-        return { success: true, data: cached };
-      }
       return { 
         success: false, 
         message: res?.message || "Failed to fetch orders from server", 
@@ -1271,10 +1258,6 @@ export const db = {
       };
     } catch (err) {
       console.error("[DB] getMyOrders API error:", err);
-      const cached = db.getCachedMyOrders();
-      if (cached && cached.length > 0) {
-        return { success: true, data: cached };
-      }
       return { 
         success: false, 
         message: err?.message || "Network error while loading your orders", 

@@ -114,6 +114,14 @@ export async function getSettings(req, res, next) {
     }
 
     if (!isDbConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({
+          success: false,
+          error: "Database unavailable",
+          message: "Settings require an authoritative MongoDB connection.",
+          databaseUnavailable: true
+        });
+      }
       return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, isAdmin) });
     }
 
@@ -261,6 +269,14 @@ export async function getTickets(req, res, next) {
     }
 
     if (!isDbConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({
+          success: false,
+          error: "Database unavailable",
+          message: "Support tickets require an authoritative MongoDB connection.",
+          databaseUnavailable: true
+        });
+      }
       let tickets = inMemoryStore.tickets || [];
       if (!isAdmin) {
         if (!authenticatedUser || !authenticatedUser.authUserId) return res.json({ success: true, data: [] });
