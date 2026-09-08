@@ -219,7 +219,7 @@ export function Product() {
 
   const stockLimit = p?.stock !== undefined ? Number(p.stock) : (p?.status === "Out of Stock" ? 0 : 50);
   const isOutOfStock = stockLimit <= 0 || p?.status === "Out of Stock";
-  const isFav = p ? isWishlisted(rawP?.id || p.id) : false;
+  const isFav = p ? isWishlisted(rawP?.id || rawP?._id || p.id || p._id) : false;
 
   // Cart & Buy Handlers
   const handleAddToCart = () => {

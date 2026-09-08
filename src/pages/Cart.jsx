@@ -24,7 +24,7 @@ import { CartEmptyState } from "../components/cart/CartEmptyState";
 
 export function Cart() {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(() => db.getProducts());
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   
   const [couponInput, setCouponInput] = useState("");

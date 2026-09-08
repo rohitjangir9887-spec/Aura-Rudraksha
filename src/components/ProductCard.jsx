@@ -8,6 +8,7 @@ import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck } from "lucide-reac
 import { money, pct } from "../data";
 import { db } from "../lib/db";
 import { useWishlist } from "../hooks/useWishlist";
+import { useCart } from "../hooks/useCart";
 import { useActiveOffer } from "../hooks/useActiveOffer";
 import { emitToast } from "../context/ToastContext";
 
@@ -29,6 +30,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   if (!p) return null;
   const navigate = useNavigate();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { add: fallbackAddToCart } = useCart();
   const { offer, isActive: hasOffer } = useActiveOffer(p);
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
@@ -59,8 +61,11 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     e.stopPropagation();
     if (isOutOfStock) return;
     
+    const targetId = productId || p?.id || p?._id;
     if (onAdd) {
-      onAdd(productId || p?.id);
+      onAdd(targetId);
+    } else {
+      fallbackAddToCart(targetId, 1);
     }
     setAdded(true);
     emitToast(`${p.name} added to cart`, "success");
@@ -72,7 +77,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const handleToggleWishlist = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleWishlist(productId || p?.id, p.name);
+    toggleWishlist(productId || p?.id || p?._id, p.name);
   };
 
   const handleSelectImage = (e, idx) => {

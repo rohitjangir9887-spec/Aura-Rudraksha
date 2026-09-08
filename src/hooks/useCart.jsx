@@ -123,6 +123,27 @@ export function CartProvider({ children }) {
         db.saveUserCart(sanitized).catch(() => {});
       }
     } catch (_) {}
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aura:cart-updated", { detail: { lines: sanitized } }));
+    }
+  }, []);
+
+  // Listen for cross-component / cross-tab cart updates
+  useEffect(() => {
+    const handleCartSync = (e) => {
+      if (e?.detail?.lines) {
+        setLines(sanitizeLines(e.detail.lines));
+      } else {
+        const latest = readStoredCart(userRef.current);
+        setLines(latest);
+      }
+    };
+    window.addEventListener("aura:cart-updated", handleCartSync);
+    window.addEventListener("storage", handleCartSync);
+    return () => {
+      window.removeEventListener("aura:cart-updated", handleCartSync);
+      window.removeEventListener("storage", handleCartSync);
+    };
   }, []);
 
   // Synchronize localStorage for coupon
@@ -388,19 +409,27 @@ export function CartProvider({ children }) {
 
     const addBatch = (itemsArray) => {
       if (!Array.isArray(itemsArray) || itemsArray.length === 0) return;
-      const key = getUserCartStorageKey(userRef.current);
       const currentStored = readStoredCart(userRef.current);
       
       const map = new Map();
       for (const l of currentStored) {
-        map.set(String(l.id), Number(l.qty) || 1);
+        if (l && l.id) {
+          map.set(String(l.id), Number(l.qty) || 1);
+        }
       }
       
       for (const item of itemsArray) {
+        if (!item) continue;
         let pid = null;
         let qty = 1;
-        if (item && typeof item === "object") {
-          pid = String(item.id || item.productId || item._id || "").trim();
+        if (typeof item === "object") {
+          let rawId = item.id || item.productId || item._id;
+          if (rawId && typeof rawId === "object") {
+            rawId = rawId.id || rawId.productId || rawId._id;
+          }
+          if (rawId && typeof rawId !== "object") {
+            pid = String(rawId).trim();
+          }
           qty = Math.max(1, Number(item.qty || item.quantity) || 1);
         } else if (item !== undefined && item !== null) {
           pid = String(item).trim();
@@ -416,22 +445,46 @@ export function CartProvider({ children }) {
     };
 
     const add = (idOrObjOrArr, qty = 1) => {
+      if (!idOrObjOrArr) return;
       if (Array.isArray(idOrObjOrArr)) {
         return addBatch(idOrObjOrArr);
       }
-      return addBatch([{ id: idOrObjOrArr, qty }]);
+      if (typeof idOrObjOrArr === "object") {
+        let rawId = idOrObjOrArr.id || idOrObjOrArr.productId || idOrObjOrArr._id;
+        if (rawId && typeof rawId === "object") {
+          rawId = rawId.id || rawId.productId || rawId._id;
+        }
+        const itemQty = Math.max(1, Number(qty || idOrObjOrArr.qty || idOrObjOrArr.quantity) || 1);
+        const itemId = rawId ? String(rawId).trim() : "";
+        if (itemId && itemId !== "[object Object]" && itemId !== "undefined" && itemId !== "null") {
+          return addBatch([{ id: itemId, qty: itemQty }]);
+        }
+      }
+      const cleanId = String(idOrObjOrArr).trim();
+      if (cleanId && cleanId !== "[object Object]" && cleanId !== "undefined" && cleanId !== "null") {
+        return addBatch([{ id: cleanId, qty: Math.max(1, Number(qty) || 1) }]);
+      }
     };
 
     const buyNow = (idOrObj, qty = 1) => {
       let pid = null;
+      let count = Math.max(1, Number(qty) || 1);
       if (idOrObj && typeof idOrObj === "object") {
-        pid = String(idOrObj.id || idOrObj.productId || idOrObj._id || "").trim();
+        let rawId = idOrObj.id || idOrObj.productId || idOrObj._id;
+        if (rawId && typeof rawId === "object") {
+          rawId = rawId.id || rawId.productId || rawId._id;
+        }
+        if (rawId && typeof rawId !== "object") {
+          pid = String(rawId).trim();
+        }
+        if (idOrObj.qty || idOrObj.quantity) {
+          count = Math.max(1, Number(qty || idOrObj.qty || idOrObj.quantity) || 1);
+        }
       } else if (idOrObj !== undefined && idOrObj !== null) {
         pid = String(idOrObj).trim();
       }
-      if (!pid || pid === "[object Object]") return;
+      if (!pid || pid === "[object Object]" || pid === "undefined" || pid === "null") return;
 
-      const count = Math.max(1, Number(qty) || 1);
       const buyNowIntent = [{ id: pid, qty: count }];
       
       // 1. Add item to persistent cart state so cart badge & cart page stay in sync

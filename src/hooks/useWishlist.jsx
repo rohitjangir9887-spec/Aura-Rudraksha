@@ -14,7 +14,9 @@ function readLocalWishlist() {
   try {
     const key = getWishlistStorageKey();
     const raw = JSON.parse(localStorage.getItem(key) || "[]");
-    let ids = Array.isArray(raw) ? raw.map(String).filter(id => id && id !== "undefined" && id !== "null") : [];
+    let ids = Array.isArray(raw) 
+      ? raw.map(String).map(s => s.trim()).filter(id => id && id !== "undefined" && id !== "null" && id !== "[object Object]") 
+      : [];
     return ids;
   } catch {
     return [];
@@ -22,14 +24,14 @@ function readLocalWishlist() {
 }
 
 export function useWishlist() {
-  const [wishlist, setWishlist] = useState(readLocalWishlist());
+  const [wishlist, setWishlist] = useState(readLocalWishlist);
 
   const fetchWishlist = useCallback(async () => {
     if (authClient.isSignedIn()) {
       try {
         const res = await db.getWishlist();
         if (res?.success && Array.isArray(res.data)) {
-          const apiWishlist = res.data.map(String);
+          const apiWishlist = res.data.map(String).map(s => s.trim()).filter(id => id && id !== "undefined" && id !== "null" && id !== "[object Object]");
           setWishlist(apiWishlist);
           try {
             const key = getWishlistStorageKey();
@@ -48,8 +50,12 @@ export function useWishlist() {
     let isInitial = true;
     fetchWishlist();
 
-    const handler = () => {
-      setWishlist(readLocalWishlist());
+    const handler = (e) => {
+      if (e?.detail?.wishlist && Array.isArray(e.detail.wishlist)) {
+        setWishlist(e.detail.wishlist);
+      } else {
+        setWishlist(readLocalWishlist());
+      }
     };
 
     const unsubAuth = authClient.onAuthStateChanged(() => {
@@ -71,16 +77,40 @@ export function useWishlist() {
   }, [fetchWishlist]);
 
   const toggleWishlist = useCallback(async (productId, productName) => {
-    const pid = String(productId);
+    if (!productId) return;
+    let pid = "";
+    if (typeof productId === "object") {
+      let rawId = productId.id || productId.productId || productId._id || productId.slug;
+      if (rawId && typeof rawId === "object") {
+        rawId = rawId.id || rawId.productId || rawId._id;
+      }
+      if (rawId && typeof rawId !== "object") {
+        pid = String(rawId).trim();
+      }
+    } else {
+      pid = String(productId).trim();
+    }
+    if (!pid || pid === "[object Object]" || pid === "undefined" || pid === "null") return;
+
     const current = readLocalWishlist();
+    
+    // Check if item or any of its matching aliases is already in wishlist
+    const p = db.getProduct(pid);
+    const pId = p ? String(p.id || "") : pid;
+    const pMongoId = p ? String(p._id || "") : "";
+    const pSlug = p ? String(p.slug || "") : "";
+
+    const isAlreadyIn = current.some(id => id === pid || (pId && id === pId) || (pMongoId && id === pMongoId) || (pSlug && id === pSlug));
+
     let next;
     let added = false;
 
-    if (current.includes(pid)) {
-      next = current.filter((id) => id !== pid);
+    if (isAlreadyIn) {
+      next = current.filter(id => id !== pid && id !== pId && id !== pMongoId && id !== pSlug);
       added = false;
     } else {
-      next = [...current, pid];
+      const storeId = pId || pid;
+      next = [...current.filter(id => id !== storeId), storeId];
       added = true;
     }
 
@@ -97,7 +127,7 @@ export function useWishlist() {
       })
     );
 
-    const nameStr = productName || db.getProduct(pid)?.name || "Item";
+    const nameStr = productName || p?.name || "Item";
     if (added) {
       emitToast(`${nameStr} added to wishlist ❤️`, "success");
     } else {
@@ -114,13 +144,37 @@ export function useWishlist() {
         }
       } catch (err) {
         console.error("Failed to sync wishlist to backend", err);
-        // Rollback on failure could be implemented here, but optimistic is often fine.
       }
     }
   }, []);
 
   const isWishlisted = useCallback((productId) => {
-    return wishlist.includes(String(productId));
+    if (!productId) return false;
+    let target = "";
+    if (typeof productId === "object") {
+      let rawId = productId.id || productId.productId || productId._id || productId.slug;
+      if (rawId && typeof rawId === "object") {
+        rawId = rawId.id || rawId.productId || rawId._id;
+      }
+      if (rawId && typeof rawId !== "object") {
+        target = String(rawId).trim();
+      }
+    } else {
+      target = String(productId).trim();
+    }
+    if (!target || target === "[object Object]") return false;
+
+    if (wishlist.includes(target)) return true;
+
+    // Check alias matching against product catalog
+    const p = db.getProduct(target);
+    if (p) {
+      const pId = String(p.id || "");
+      const pMongoId = String(p._id || "");
+      const pSlug = String(p.slug || "");
+      return wishlist.some(id => id === pId || (pMongoId && id === pMongoId) || (pSlug && id === pSlug));
+    }
+    return false;
   }, [wishlist]);
 
   const [storeVersion, setStoreVersion] = useState(0);
@@ -129,9 +183,11 @@ export function useWishlist() {
     return () => unsub();
   }, []);
 
+  // Filter out only explicitly inactive/draft products, don't discard valid IDs if db is still loading
   const validWishlist = wishlist.filter(id => {
     const p = db.getProduct(id);
-    return p && p.status !== "Draft" && p.status !== "Inactive";
+    if (!p) return true; // Keep in wishlist while catalog revalidates
+    return p.status !== "Draft" && p.status !== "draft" && p.status !== "Inactive" && p.status !== "inactive" && p.status !== "Archived";
   });
 
   return {

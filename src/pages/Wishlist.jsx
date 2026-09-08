@@ -14,7 +14,7 @@ import { Heart, ShoppingCart, Trash2, ArrowRight, Star, ShoppingBag } from "luci
 export function Wishlist() {
   const { wishlist, toggleWishlist } = useWishlist();
   const { add } = useCart();
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(() => db.getProducts().filter(isPublicProduct));
   const [addedIds, setAddedIds] = useState({});
 
   const loadProducts = () => {
@@ -28,14 +28,19 @@ export function Wishlist() {
     return () => unsub();
   }, []);
 
-  const wishlistedProducts = products.filter((p) => wishlist.includes(String(p.id)));
+  const wishlistedProducts = products.filter((p) => {
+    const pId = String(p.id || "");
+    const pMongoId = String(p._id || "");
+    const pSlug = String(p.slug || "");
+    return wishlist.some(id => id === pId || (pMongoId && id === pMongoId) || (pSlug && id === pSlug));
+  });
 
   const handleAddToCart = (p) => {
-    add(p.id, 1);
-    setAddedIds((prev) => ({ ...prev, [p.id]: true }));
+    add(p.id || p._id, 1);
+    setAddedIds((prev) => ({ ...prev, [p.id]: true, [p._id]: true }));
     emitToast(`${p.name} added to cart`, "success");
     setTimeout(() => {
-      setAddedIds((prev) => ({ ...prev, [p.id]: false }));
+      setAddedIds((prev) => ({ ...prev, [p.id]: false, [p._id]: false }));
     }, 2000);
   };
 

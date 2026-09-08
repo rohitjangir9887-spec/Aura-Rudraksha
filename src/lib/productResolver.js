@@ -1,14 +1,18 @@
 import { getProductPrimaryImage } from "./imageUtils";
+import { db } from "./db";
 
 /**
  * Resolves a product or product variant (Nepali vs Indonesian Java) from cart line or id
  */
 export function resolveCartProduct(products = [], lineOrId) {
-  if (!lineOrId || !Array.isArray(products)) return null;
+  if (!lineOrId) return null;
 
   const lineObj = typeof lineOrId === "object" ? lineOrId : { id: String(lineOrId) };
-  const rawId = String(lineObj.id || lineObj.productId || lineObj._id || "").trim();
-  if (!rawId) return null;
+  let rawId = String(lineObj.id || lineObj.productId || lineObj._id || "").trim();
+  if (rawId && typeof rawId === "object") {
+    rawId = String(rawId.id || rawId.productId || rawId._id || "").trim();
+  }
+  if (!rawId || rawId === "[object Object]" || rawId === "undefined" || rawId === "null") return null;
 
   const isIndo = !!lineObj.isIndonesian || 
     rawId.endsWith("-indo") || 
@@ -17,12 +21,21 @@ export function resolveCartProduct(products = [], lineOrId) {
 
   const baseId = rawId.replace(/-indo$|_indo$/i, "");
 
-  const baseProduct = products.find(p => 
-    String(p.id) === baseId || 
-    String(p._id) === baseId || 
-    String(p.id) === rawId ||
-    String(p.slug) === baseId
+  const productPool = Array.isArray(products) && products.length > 0 ? products : db.getProducts();
+
+  let baseProduct = productPool.find(p => 
+    p && (
+      String(p.id) === baseId || 
+      String(p._id) === baseId || 
+      String(p.id) === rawId ||
+      String(p._id) === rawId ||
+      String(p.slug) === baseId
+    )
   );
+
+  if (!baseProduct) {
+    baseProduct = db.getProduct(baseId) || db.getProduct(rawId);
+  }
 
   if (!baseProduct) return null;
 
