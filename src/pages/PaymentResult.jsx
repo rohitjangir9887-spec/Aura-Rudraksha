@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
-import { AlertCircle, ShieldCheck, RefreshCw, Loader2 } from "lucide-react";
+import { AlertCircle, ShieldCheck, RefreshCw, Loader2, Clock } from "lucide-react";
 import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
@@ -27,6 +27,7 @@ export function PaymentResult() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
   const verifyAttempted = useRef(false);
 
   useEffect(() => {
@@ -138,6 +139,28 @@ export function PaymentResult() {
     }
   };
 
+  const handleRecheck = async () => {
+    if (!orderId) return;
+    setRechecking(true);
+    try {
+      const res = await db.verifyPayment(orderId, txnid, guestToken);
+      if (res?.success && res.data) {
+        setOrder(res.data);
+        if (res.data.paymentStatus === "Paid") {
+          clear();
+          emitToast("Payment confirmed successfully!", "success");
+        } else {
+          emitToast("Payment is still processing with gateway. Please wait a moment.", "info");
+        }
+      }
+    } catch (err) {
+      console.error("Recheck verification error:", err);
+      emitToast("Unable to verify payment status. Please try again.", "error");
+    } finally {
+      setRechecking(false);
+    }
+  };
+
   if (loading) {
     return (
       <Shell>
@@ -171,6 +194,73 @@ export function PaymentResult() {
                 View Order Details
               </Link>
             </div>
+          </div>
+        </main>
+      </Shell>
+    );
+  }
+
+  // Pending Verification: when transaction was initiated or redirected back with success/processing,
+  // but gateway or bank server confirmation is still pending. Never show false "Payment Failed" or "Incomplete".
+  const isPendingVerification = !isVerifiedSuccess && (
+    order?.paymentStatus === "Pending" ||
+    order?.paymentStatus === "Payment Pending" ||
+    order?.paymentStatus === "Processing" ||
+    status === "processing" ||
+    (status === "success" && order?.paymentStatus !== "Failed" && order?.paymentStatus !== "Cancelled")
+  );
+
+  if (isPendingVerification) {
+    const orderNum = order?.orderNumber || order?.id || orderId;
+    return (
+      <Shell>
+        <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
+          <div className="card" style={{ background: "#fffdf9", border: "1.5px solid #fef3c7", borderRadius: "16px", padding: "36px 20px", textAlign: "center" }}>
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#fffbeb", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Clock size={36} />
+            </div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#fef3c7", color: "#92400e", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "700", marginBottom: "12px" }}>
+              <RefreshCw size={13} className={rechecking ? "animate-spin" : ""} /> Payment Verification In Progress
+            </div>
+            <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "32px", fontWeight: "700", color: "#78350f", margin: "0 0 8px" }}>
+              Confirming Your Payment
+            </h1>
+            <p style={{ fontSize: "14px", color: "#4a3528", margin: "0 auto 16px", maxWidth: "520px", lineHeight: "1.5" }}>
+              Your transaction was initiated with PayU. We are currently awaiting final confirmation from the banking network. If the amount was debited from your account, your sacred order <b>#{orderNum}</b> is safe and will be confirmed shortly.
+            </p>
+            {orderId && (
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>
+                <button
+                  type="button"
+                  disabled={rechecking}
+                  onClick={handleRecheck}
+                  style={{
+                    background: rechecking ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "13px 26px",
+                    fontSize: "14.5px",
+                    fontWeight: "700",
+                    cursor: rechecking ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 14px rgba(165, 77, 43, 0.3)"
+                  }}
+                >
+                  {rechecking ? <><Loader2 size={16} className="animate-spin" /><span>Checking Status...</span></> : <><RefreshCw size={16} /><span>Check Status Again</span></>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/account/orders/${orderId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`, { replace: true })}
+                  className="outline-btn"
+                  style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
+                >
+                  View Order Details
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </Shell>

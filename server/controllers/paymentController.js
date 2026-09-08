@@ -408,6 +408,12 @@ export async function handlePayuCallback(req, res) {
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Order record not found")}`);
     }
 
+    // A late failed callback or duplicate callback must NEVER downgrade an already verified Paid order
+    if (order.paymentStatus === "Paid") {
+      const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid || order.txnid}${guestQuery}`);
+    }
+
     // 1. Verify Merchant Key
     if (params.key !== expectedKey) {
       console.error(`⚠️ PayU Callback Merchant Key Mismatch: received '${params.key}', expected '${expectedKey}'`);
@@ -660,6 +666,10 @@ export async function handlePayuCancel(req, res) {
 
     if (orderId && isDbConnected()) {
       const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+      if (order && order.paymentStatus === "Paid") {
+        const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
+        return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid || order.txnid}${guestQuery}`);
+      }
       if (order && order.paymentStatus !== "Paid" && order.paymentStatus !== "Refunded") {
         const attempts = order.paymentAttempts || [];
         const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
@@ -740,6 +750,11 @@ export async function handlePayuWebhook(req, res) {
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Idempotent guard: if already Paid, acknowledge webhook without modifying order
+    if (order.paymentStatus === "Paid") {
+      return res.status(200).json({ success: true, message: "Order already verified and paid", orderId });
     }
 
     // Verify txnid belongs to order

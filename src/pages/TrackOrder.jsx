@@ -19,6 +19,7 @@ export function TrackOrder() {
   const [orderResult, setOrderResult] = useState(null);
   const [searched, setSearched] = useState(false);
   const [copiedAwb, setCopiedAwb] = useState(false);
+  const [searchError, setSearchError] = useState(null);
 
   useEffect(() => {
     if (initialQuery) {
@@ -33,12 +34,20 @@ export function TrackOrder() {
     setIsSearching(true);
     setSearched(true);
     setOrderResult(null);
+    setSearchError(null);
 
     try {
       // 1. Call dedicated public tracking endpoint
       const trackRes = await db.trackOrder(rawTerm);
       if (trackRes?.success && trackRes.data) {
         setOrderResult(trackRes.data);
+        return;
+      }
+      if (trackRes?.databaseUnavailable) {
+        setSearchError({
+          title: "Service Temporarily Unavailable",
+          message: trackRes.message || "Order tracking is temporarily unavailable due to database connectivity. Please try again in a few moments."
+        });
         return;
       }
 
@@ -49,9 +58,17 @@ export function TrackOrder() {
         return;
       }
 
+      setSearchError({
+        title: "Order Not Found",
+        message: `We couldn't locate an active order for "${rawTerm}". Please double check your order number or phone number.`
+      });
       setOrderResult(null);
     } catch (err) {
       console.error("Tracking search error:", err);
+      setSearchError({
+        title: "Connection Error",
+        message: "Unable to connect to order tracking service. Please try again in a few moments."
+      });
       setOrderResult(null);
     } finally {
       setIsSearching(false);
@@ -407,10 +424,10 @@ export function TrackOrder() {
               >
                 <AlertCircle size={36} color="#c89b3c" style={{ margin: "0 auto 12px" }} />
                 <h3 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "22px", color: "#2b170d", margin: "0 0 6px" }}>
-                  Order Not Found
+                  {searchError?.title || "Order Not Found"}
                 </h3>
                 <p style={{ fontSize: "13.5px", color: "#7d6d62", maxWidth: "480px", margin: "0 auto 18px", lineHeight: 1.5 }}>
-                  We couldn't locate an active order for "{query}". Please double check your order number or phone number.
+                  {searchError?.message || `We couldn't locate an active order for "${query}". Please double check your order number or phone number.`}
                 </p>
                 <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
                   <a 

@@ -1308,26 +1308,28 @@ export const db = {
       if (res?.success && res.data) {
         return res;
       }
-    } catch (_) {}
-
-    // Fallback search in local cache
-    const cleanTerm = rawTerm.toUpperCase();
-    const found = storeCache.orders.find(o => {
-      const idMatch = rawTerm && (
-        String(o.id || "").toUpperCase() === cleanTerm || 
-        String(o.orderId || "").toUpperCase() === cleanTerm || 
-        String(o.orderNumber || "").toUpperCase() === cleanTerm ||
-        String(o.trackingNumber || "").toUpperCase() === cleanTerm
-      );
-      const oPhone = String(o.customerPhone || o.phone || o.shippingAddress?.phone || "").replace(/\D/g, "");
-      const phoneMatch = rawPhone && rawPhone.length >= 7 && oPhone.endsWith(rawPhone.slice(-10));
-      return idMatch || phoneMatch;
-    });
-
-    if (found) {
-      return { success: true, data: found };
+      if (res?.databaseUnavailable || res?.status === 503) {
+        return {
+          success: false,
+          databaseUnavailable: true,
+          error: "Database unavailable",
+          message: res?.message || "Order tracking is temporarily unavailable. Please try again in a few moments."
+        };
+      }
+      return {
+        success: false,
+        notFound: true,
+        message: res?.message || "No matching order found. Please check your Order ID or phone number."
+      };
+    } catch (err) {
+      console.error("[DB] trackOrder API error:", err);
+      return {
+        success: false,
+        databaseUnavailable: true,
+        error: "Network error",
+        message: "Order tracking service is temporarily unreachable. Please try again in a few moments."
+      };
     }
-    return { success: false, message: "No matching order found" };
   },
 
   updateOrder: async (id, data) => {
