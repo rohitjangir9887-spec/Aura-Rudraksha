@@ -2,7 +2,6 @@ import express from "express";
 import { Media, initMediaIndexes } from "../models/Media.js";
 import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { getPcloudStatus, uploadToPcloud, deleteFromPcloud, exchangePcloudCode, savePcloudToken, clearPcloudToken, getPcloudApiHost } from "../services/pcloudService.js";
 import { getImagekitStatus, getImagekitAuthParams, uploadToImagekit, deleteFromImagekit, saveImagekitCredentials } from "../services/imagekitService.js";
@@ -43,8 +42,6 @@ router.get("/provider", async (req, res) => {
           { upsert: true }
         ).catch(() => {});
       }
-    } else if (inMemoryStore.settings && inMemoryStore.settings.storageProvider) {
-      activeProvider = inMemoryStore.settings.storageProvider;
     } else {
       const hasImagekitEnv = Boolean(
         (process.env.IMAGEKIT_PUBLIC_KEY || "").trim() &&
@@ -115,9 +112,6 @@ router.post("/provider", requireAdmin, async (req, res) => {
         { $set: { storageProvider: targetProvider } },
         { upsert: true, returnDocument: "after" }
       );
-    }
-    if (inMemoryStore.settings) {
-      inMemoryStore.settings.storageProvider = targetProvider;
     }
 
     clearSettingsCache();

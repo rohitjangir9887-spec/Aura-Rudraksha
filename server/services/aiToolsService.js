@@ -4,7 +4,6 @@ import { Coupon } from "../models/Coupon.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { extractMukhiNumber } from "./vedicKnowledgeService.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 /**
  * Tool Function Declarations for Gemini API (@google/genai format)
@@ -162,10 +161,8 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
           try {
             products = await Product.find(filter).lean();
           } catch (_) {
-            products = [...(inMemoryStore.products || [])];
+            products = [];
           }
-        } else {
-          products = [...(inMemoryStore.products || [])];
         }
 
         // Search text matching if query supplied
@@ -219,12 +216,6 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         }
 
         if (!p) {
-          if (productId) p = (inMemoryStore.products || []).find(prod => String(prod.id) === String(productId) || String(prod._id) === String(productId));
-          else if (slug) p = (inMemoryStore.products || []).find(prod => prod.slug === slug);
-          else if (name) p = (inMemoryStore.products || []).find(prod => String(prod.name || "").toLowerCase().includes(String(name).toLowerCase()));
-        }
-
-        if (!p) {
           return { error: "Product not found in current store inventory." };
         }
 
@@ -268,15 +259,6 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
             found = await Product.findOne(query).lean();
           } catch (_) {
             found = null;
-          }
-        }
-
-        if (!found) {
-          if (productId) found = (inMemoryStore.products || []).find(prod => String(prod.id) === String(productId) || String(prod._id) === String(productId));
-          else if (productName) found = (inMemoryStore.products || []).find(prod => String(prod.name || "").toLowerCase().includes(String(productName).toLowerCase()));
-          else if (mukhi) {
-            const num = parseInt(mukhi, 10);
-            if (!isNaN(num)) found = (inMemoryStore.products || []).find(prod => String(prod.name || "").toLowerCase().includes(`${num} mukhi`) || String(prod.mukhi || "") === String(num));
           }
         }
 

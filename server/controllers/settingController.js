@@ -8,7 +8,6 @@ import { Order } from "../models/Order.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 
 const SETTING_FIELDS = {
@@ -114,15 +113,12 @@ export async function getSettings(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      if (process.env.NODE_ENV === "production") {
-        return res.status(503).json({
-          success: false,
-          error: "Database unavailable",
-          message: "Settings require an authoritative MongoDB connection.",
-          databaseUnavailable: true
-        });
-      }
-      return res.json({ success: true, data: sanitizeSettingsForClient(inMemoryStore.settings, isAdmin) });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Settings require an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const settings = await fetchStoreSettings();
@@ -148,9 +144,7 @@ export async function saveSettings(req, res, next) {
     if (data.featuredProductId && data.featuredProductId.trim()) {
       const prodId = data.featuredProductId.trim();
       let exists = false;
-      if (!isDbConnected()) {
-        exists = (inMemoryStore.products || []).some(p => String(p.id) === String(prodId) || String(p._id) === String(prodId));
-      } else {
+      if (isDbConnected()) {
         const prod = await Product.findOne({
           $or: [
             { id: prodId },
@@ -202,16 +196,11 @@ export async function saveSettings(req, res, next) {
 export async function getPolicies(req, res, next) {
   try {
     if (!isDbConnected()) {
-      const settings = inMemoryStore.settings || defaultSettings;
-      return res.json({
-        success: true,
-        data: {
-          shippingPolicy: settings.shippingPolicy || defaultSettings.shippingPolicy,
-          returnPolicy: settings.returnPolicy || defaultSettings.returnPolicy,
-          privacyPolicy: settings.privacyPolicy || defaultSettings.privacyPolicy,
-          termsPolicy: settings.termsPolicy || defaultSettings.termsPolicy,
-          contactSupport: settings.contactSupport || defaultSettings.contactSupport
-        }
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Policies require an authoritative MongoDB connection.",
+        databaseUnavailable: true
       });
     }
 
@@ -269,21 +258,12 @@ export async function getTickets(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      if (process.env.NODE_ENV === "production") {
-        return res.status(503).json({
-          success: false,
-          error: "Database unavailable",
-          message: "Support tickets require an authoritative MongoDB connection.",
-          databaseUnavailable: true
-        });
-      }
-      let tickets = inMemoryStore.tickets || [];
-      if (!isAdmin) {
-        if (!authenticatedUser || !authenticatedUser.authUserId) return res.json({ success: true, data: [] });
-        const userId = authenticatedUser.authUserId;
-        tickets = tickets.filter(t => t.authUserId === userId || t.userId === userId);
-      }
-      return res.json({ success: true, data: tickets });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Support tickets require an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     let query = {};
@@ -328,8 +308,12 @@ export async function createTicket(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      inMemoryStore.tickets.unshift(payload);
-      return res.status(201).json({ success: true, data: payload });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Support tickets require an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const saved = await Ticket.create(payload);
@@ -356,21 +340,12 @@ export async function updateTicket(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const idx = inMemoryStore.tickets.findIndex(t => String(t.id) === String(id));
-      if (idx < 0) {
-        return res.status(404).json({ success: false, message: "Ticket not found" });
-      }
-      const ticket = inMemoryStore.tickets[idx];
-      if (!isAdmin) {
-        if (!authenticatedUser) return res.status(401).json({ success: false, message: "Authentication required" });
-        const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
-        const userId = authenticatedUser.authUserId;
-        const isOwner = (userId && (ticket.authUserId === userId || ticket.userId === userId)) ||
-                        (userEmail && (ticket.userEmail?.toLowerCase() === userEmail || ticket.email?.toLowerCase() === userEmail));
-        if (!isOwner) return res.status(403).json({ success: false, message: "Access denied" });
-      }
-      inMemoryStore.tickets[idx] = { ...inMemoryStore.tickets[idx], ...data };
-      return res.json({ success: true, data: inMemoryStore.tickets[idx] });
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Support tickets require an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
 
     const ticket = await Ticket.findOne({ id: String(id) });

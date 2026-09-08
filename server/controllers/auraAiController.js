@@ -12,7 +12,6 @@ import { Review } from "../models/Review.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { 
   searchRelevantCatalogProducts, 
   extractMukhiNumber, 
@@ -501,10 +500,8 @@ export async function calculateKundaliEndpoint(req, res, next) {
           status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
         }).lean();
       } catch (_) {
-        allProducts = inMemoryStore.products || [];
+        allProducts = [];
       }
-    } else {
-      allProducts = inMemoryStore.products || [];
     }
 
     const recommendedProducts = [];
@@ -754,10 +751,8 @@ export async function chatAuraAI(req, res, next) {
       try {
         allStoreProds = await Product.find({ status: { $nin: ["Draft", "draft", "Inactive", "inactive"] } }).lean();
       } catch (_) {
-        allStoreProds = inMemoryStore.products || [];
+        allStoreProds = [];
       }
-    } else {
-      allStoreProds = inMemoryStore.products || [];
     }
 
     // If we have calculated Kundali, match recommended beads to catalog
@@ -1131,7 +1126,7 @@ ${memoryContextText || "Guest shopper."}`;
       aiResponse: safeFinalText
     }).catch(() => {});
 
-    // Save Conversation in MongoDB / inMemoryStore
+    // Save Conversation in MongoDB
     const userMsgObj = {
       id: `msg_${Date.now()}_u`,
       sender: "user",
@@ -1223,46 +1218,48 @@ export async function getAdminAiIntelligence(req, res, next) {
     let reviews = [];
     let conversations = [];
 
-    if (isDbConnected()) {
-      try {
-        const [ordersRes, productsRes, reviewsRes, convosRes] = await Promise.all([
-          Order.find({}, { status: 1, paymentStatus: 1, finalAmount: 1, total: 1, amount: 1, createdAt: 1 })
-            .sort({ createdAt: -1 })
-            .limit(100)
-            .lean()
-            .catch(() => []),
-          Product.find({}, { name: 1, stock: 1, price: 1, status: 1 })
-            .limit(60)
-            .lean()
-            .catch(() => []),
-          Review.find({ status: { $ne: "deleted" } }, { rating: 1, status: 1 })
-            .sort({ createdAt: -1 })
-            .limit(50)
-            .lean()
-            .catch(() => []),
-          AuraAIConversation.find({}, { requiresHumanSupport: 1, status: 1, updatedAt: 1 })
-            .sort({ updatedAt: -1 })
-            .limit(50)
-            .lean()
-            .catch(() => [])
-        ]);
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Admin AI intelligence requires an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
+    }
 
-        orders = ordersRes || [];
-        products = productsRes || [];
-        reviews = reviewsRes || [];
-        conversations = convosRes || [];
-      } catch (dbErr) {
-        console.warn("[Admin AI Intelligence] DB query notice:", dbErr?.message);
-        orders = [];
-        products = inMemoryStore.products || [];
-        reviews = inMemoryStore.reviews || [];
-        conversations = inMemoryStore.conversations || [];
-      }
-    } else {
+    try {
+      const [ordersRes, productsRes, reviewsRes, convosRes] = await Promise.all([
+        Order.find({}, { status: 1, paymentStatus: 1, finalAmount: 1, total: 1, amount: 1, createdAt: 1 })
+          .sort({ createdAt: -1 })
+          .limit(100)
+          .lean()
+          .catch(() => []),
+        Product.find({}, { name: 1, stock: 1, price: 1, status: 1 })
+          .limit(60)
+          .lean()
+          .catch(() => []),
+        Review.find({ status: { $ne: "deleted" } }, { rating: 1, status: 1 })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean()
+          .catch(() => []),
+        AuraAIConversation.find({}, { requiresHumanSupport: 1, status: 1, updatedAt: 1 })
+          .sort({ updatedAt: -1 })
+          .limit(50)
+          .lean()
+          .catch(() => [])
+      ]);
+
+      orders = ordersRes || [];
+      products = productsRes || [];
+      reviews = reviewsRes || [];
+      conversations = convosRes || [];
+    } catch (dbErr) {
+      console.warn("[Admin AI Intelligence] DB query notice:", dbErr?.message);
       orders = [];
-      products = inMemoryStore.products || [];
-      reviews = inMemoryStore.reviews || [];
-      conversations = inMemoryStore.conversations || [];
+      products = [];
+      reviews = [];
+      conversations = [];
     }
 
     // Calculations based strictly on real DB records
@@ -1547,18 +1544,16 @@ export async function getAuraAIConversations(req, res, next) {
       return res.json({ success: true, data: [] });
     }
 
-    let list = [];
-    if (isDbConnected()) {
-      list = await AuraAIConversation.find(query).sort({ updatedAt: -1 }).limit(100).lean();
-    } else {
-      list = (inMemoryStore.conversations || []).filter(c => {
-        if (!query.userId && !query.guestSessionId) return true;
-        if (query.userId) return c.userId === query.userId;
-        if (query.guestSessionId) return c.guestSessionId === query.guestSessionId;
-        return false;
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Conversations require an authoritative MongoDB connection.",
+        databaseUnavailable: true
       });
     }
 
+    const list = await AuraAIConversation.find(query).sort({ updatedAt: -1 }).limit(100).lean();
     return res.json({ success: true, data: list });
   } catch (err) {
     next(err);
@@ -1571,13 +1566,17 @@ export async function getAuraAIConversations(req, res, next) {
 export async function getAuraAIConversationById(req, res, next) {
   try {
     const { id } = req.params;
-    let conv = null;
 
-    if (isDbConnected()) {
-      conv = await AuraAIConversation.findOne({ conversationId: id }).lean();
-    } else {
-      conv = (inMemoryStore.conversations || []).find(c => c.conversationId === id || c.id === id);
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Conversation requires an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
+
+    const conv = await AuraAIConversation.findOne({ conversationId: id }).lean();
 
     const check = await verifyConversationOwnership(conv, req);
     if (!check.allowed) {
@@ -1596,24 +1595,24 @@ export async function getAuraAIConversationById(req, res, next) {
 export async function deleteAuraAIConversation(req, res, next) {
   try {
     const { id } = req.params;
-    let conv = null;
 
-    if (isDbConnected()) {
-      conv = await AuraAIConversation.findOne({ conversationId: id }).lean();
-    } else {
-      conv = (inMemoryStore.conversations || []).find(c => c.conversationId === id || c.id === id);
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Conversation deletion requires an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
+
+    const conv = await AuraAIConversation.findOne({ conversationId: id }).lean();
 
     const check = await verifyConversationOwnership(conv, req);
     if (!check.allowed) {
       return res.status(check.status || 403).json({ success: false, message: check.message });
     }
 
-    if (isDbConnected()) {
-      await AuraAIConversation.deleteOne({ conversationId: id });
-    } else {
-      inMemoryStore.conversations = (inMemoryStore.conversations || []).filter(c => c.conversationId !== id && c.id !== id);
-    }
+    await AuraAIConversation.deleteOne({ conversationId: id });
 
     return res.json({ success: true, message: "Conversation deleted successfully" });
   } catch (err) {
@@ -1626,12 +1625,16 @@ export async function deleteAuraAIConversation(req, res, next) {
  */
 export async function getAuraAIAnalytics(req, res, next) {
   try {
-    let convos = [];
-    if (isDbConnected()) {
-      convos = await AuraAIConversation.find().sort({ updatedAt: -1 }).limit(500).lean();
-    } else {
-      convos = inMemoryStore.conversations || [];
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Aura AI analytics require an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
     }
+
+    const convos = await AuraAIConversation.find().sort({ updatedAt: -1 }).limit(500).lean();
 
     const totalConvos = convos.length;
     const userIds = new Set();

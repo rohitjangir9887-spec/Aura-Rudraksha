@@ -5,7 +5,6 @@ import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { isDbConnected } from "../config/db.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Global in-memory cache for ultra-fast RAG retrieval
 let ragCacheDocs = [];
@@ -68,7 +67,7 @@ export async function buildStoreRagIndex() {
     });
   }
 
-  // 3. Index Live Products from MongoDB / inMemoryStore
+  // 3. Index Live Products from MongoDB
   let liveProducts = [];
   if (isDbConnected()) {
     try {
@@ -76,11 +75,9 @@ export async function buildStoreRagIndex() {
         status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
       }).lean();
     } catch (dbErr) {
-      console.warn("[RAG Service] MongoDB products fetch notice, fallback to in-memory:", dbErr?.message);
-      liveProducts = (inMemoryStore.products || []).filter(p => (p.status || "Published").toLowerCase() === "published" || (p.status || "Published").toLowerCase() === "active");
+      console.warn("[RAG Service] MongoDB products fetch notice:", dbErr?.message);
+      liveProducts = [];
     }
-  } else {
-    liveProducts = (inMemoryStore.products || []).filter(p => (p.status || "Published").toLowerCase() === "published" || (p.status || "Published").toLowerCase() === "active");
   }
 
   for (const p of (liveProducts || [])) {
@@ -107,16 +104,14 @@ export async function buildStoreRagIndex() {
     });
   }
 
-  // 4. Index Live Active Coupons
+  // 4. Index Live Active Coupons from MongoDB
   let activeCoupons = [];
   if (isDbConnected()) {
     try {
       activeCoupons = await Coupon.find({ status: "Active" }).lean();
     } catch (cErr) {
-      activeCoupons = (inMemoryStore.coupons || []).filter(c => c.status === "Active" || !c.status);
+      activeCoupons = [];
     }
-  } else {
-    activeCoupons = (inMemoryStore.coupons || []).filter(c => c.status === "Active" || !c.status);
   }
 
   for (const c of (activeCoupons || [])) {

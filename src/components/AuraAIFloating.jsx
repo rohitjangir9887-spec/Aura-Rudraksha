@@ -283,9 +283,26 @@ export function AuraAIFloating() {
     }).catch(() => {});
   }, []);
 
+  const turnSeqRef = useRef(0);
+  const prevIsOpenRef = useRef(false);
+
   // Update messages when switching mode (e.g. standard vs panditji)
   useEffect(() => {
-    setMessages(auraChatStore.getMessages(mode));
+    auraAiClient.abortActiveStream();
+    turnSeqRef.current++;
+    setLoading(false);
+    setErrorOccurred(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    const msgs = auraChatStore.getMessages(mode);
+    setMessages(msgs);
+    requestAnimationFrame(() => {
+      if (bodyScrollRef.current) {
+        bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
+      }
+    });
   }, [mode]);
 
   // Handle Auth changes safely without wiping chats on page refresh
@@ -391,12 +408,13 @@ export function AuraAIFloating() {
     };
   }, [mode]);
 
-  // Scroll message area only when new messages arrive UNLESS user has manually scrolled up
+  // Scroll message area only when window first opens so existing history is visible
   useEffect(() => {
-    if (isOpen && bodyScrollRef.current && !userHasScrolledUpRef.current) {
+    if (isOpen && !prevIsOpenRef.current && bodyScrollRef.current) {
       bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
     }
-  }, [messages, isOpen, loading, isFullWindow]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Keyboard Escape listener to close floating window or modal
   useEffect(() => {
@@ -430,7 +448,14 @@ export function AuraAIFloating() {
   const handleSend = async (customText = null, customBirthDetails = null) => {
     const textToSend = customText || input;
     if ((!textToSend || !textToSend.trim()) && !customBirthDetails) return;
-    if (loading) return;
+
+    // 1. Immediately abort active stream and increment sequence to discard superseded events
+    auraAiClient.abortActiveStream();
+    const currentTurnSeq = ++turnSeqRef.current;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
     // Reset scroll lock state on sending new user message
     isNearBottomRef.current = true;
@@ -448,9 +473,14 @@ export function AuraAIFloating() {
     if (!customText) setInput("");
     userHasScrolledUpRef.current = false;
     setShowJumpToBottom(false);
-    if (bodyScrollRef.current) {
-      bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
-    }
+
+    // Scroll smoothly to newly sent user message so it starts at the top of the viewing area
+    requestAnimationFrame(() => {
+      const userEl = document.getElementById(userMsg.id);
+      if (userEl && bodyScrollRef.current) {
+        userEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
 
     // Reset and Start Live Status Tracking
     setLastUserQuery(textToSend ? textToSend.trim() : "Kundali Request");
@@ -459,9 +489,6 @@ export function AuraAIFloating() {
     setElapsedTime(0);
     setLoading(true);
 
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
     timerRef.current = setInterval(() => {
       setElapsedTime((prev) => prev + 1);
     }, 1000);
@@ -486,9 +513,11 @@ export function AuraAIFloating() {
         birthDetails: customBirthDetails,
         notesContext,
         onStatus: (statusMsg) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
         },
         onChunk: (delta, accumulated, partialData) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
@@ -496,6 +525,7 @@ export function AuraAIFloating() {
           setStatusText(mode === "panditji" ? "वैदिक परामर्श लिखा जा रहा है..." : "Writing answer...");
           const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
+            if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             const existing = idx >= 0 ? prev[idx] : null;
             const liveMsg = {
@@ -519,6 +549,7 @@ export function AuraAIFloating() {
           });
         },
         onDone: (finalData) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -544,6 +575,7 @@ export function AuraAIFloating() {
           };
           auraChatStore.upsertMessage(aiMsg, mode);
           setMessages((prev) => {
+            if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             if (idx >= 0) {
               const clone = [...prev];
@@ -553,11 +585,9 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
-          if (isNearBottomRef.current && bodyScrollRef.current) {
-            bodyScrollRef.current.scrollTop = bodyScrollRef.current.scrollHeight;
-          }
         },
         onError: (err) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream error in floating assistant:", err);
           setErrorOccurred(true);
           if (timerRef.current) {
@@ -567,6 +597,7 @@ export function AuraAIFloating() {
         }
       });
     } catch (err) {
+      if (currentTurnSeq !== turnSeqRef.current) return;
       setErrorOccurred(true);
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -586,7 +617,9 @@ export function AuraAIFloating() {
         setMessages(updatedMsgs);
       }
     } finally {
-      setLoading(false);
+      if (currentTurnSeq === turnSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -637,6 +670,16 @@ export function AuraAIFloating() {
   // Start a new chat session with smooth fade-out and fade-in transition
   const handleNewChat = () => {
     if (isRefreshing) return;
+    auraAiClient.abortActiveStream();
+    turnSeqRef.current++;
+    setLoading(false);
+    setErrorOccurred(false);
+    setStatusText(mode === "panditji" ? "गणित व नक्षत्र गणना..." : "Thinking...");
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     setIsRefreshing(true);
     setRefreshPhase("fading-out");
     setShowRefreshToast(true);
@@ -1226,7 +1269,7 @@ export function AuraAIFloating() {
                         </div>
                       )}
 
-                      <div className={`aura-ai-msg ${m.sender === "user" ? "aura-ai-msg-user" : "aura-ai-msg-ai"}`}>
+                      <div id={m.id} className={`aura-ai-msg ${m.sender === "user" ? "aura-ai-msg-user" : "aura-ai-msg-ai"}`}>
                         {m.sender === "ai" && (
                           <div className="aura-ai-msg-avatar">
                             <Sparkles size={13} />
@@ -1781,16 +1824,17 @@ export function AuraAIFloating() {
                         ? "Poochiye Panditji se — Rashi, Rudraksha, Dharan Vidhi..."
                         : "Poochiye — jaise '₹1000 ke andar Rudraksha'..."
                     }
-                    disabled={loading}
                     rows={1}
                     className="aura-ai-input-field aura-ai-textarea"
                   />
-                  {loading ? (
+                  {loading && !input.trim() ? (
                     <button
                       type="button"
                       onClick={() => {
                         auraAiClient.abortActiveStream();
+                        turnSeqRef.current++;
                         setLoading(false);
+                        setErrorOccurred(false);
                         setStatusText("Stopped");
                         if (timerRef.current) {
                           clearInterval(timerRef.current);
@@ -1807,7 +1851,7 @@ export function AuraAIFloating() {
                   ) : (
                     <button
                       type="submit"
-                      disabled={!input.trim() || loading}
+                      disabled={!input.trim()}
                       className="aura-ai-send-btn"
                       aria-label="Send message"
                     >

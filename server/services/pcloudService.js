@@ -1,14 +1,10 @@
 import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 export function getPcloudApiHost() {
   const custom = (process.env.PCLOUD_API_HOST || "").trim();
   if (custom) {
     return custom.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  }
-  if (inMemoryStore.settings && inMemoryStore.settings.pcloudHostname) {
-    return inMemoryStore.settings.pcloudHostname;
   }
   return "api.pcloud.com";
 }
@@ -21,15 +17,9 @@ export async function getPcloudToken() {
     try {
       const settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
       if (settings && settings.pcloudAccessToken) {
-        if (settings.pcloudHostname && inMemoryStore.settings) {
-          inMemoryStore.settings.pcloudHostname = settings.pcloudHostname;
-        }
         return settings.pcloudAccessToken.trim();
       }
     } catch (_) {}
-  }
-  if (inMemoryStore.settings && inMemoryStore.settings.pcloudAccessToken) {
-    return inMemoryStore.settings.pcloudAccessToken.trim();
   }
   return "";
 }
@@ -53,11 +43,6 @@ export async function savePcloudToken(token, extraData = {}) {
       { upsert: true }
     ).catch(() => {});
   }
-  if (inMemoryStore.settings) {
-    inMemoryStore.settings.pcloudAccessToken = cleanToken;
-    if (extraData.hostname) inMemoryStore.settings.pcloudHostname = extraData.hostname;
-    if (extraData.email) inMemoryStore.settings.pcloudAccountEmail = extraData.email;
-  }
   return true;
 }
 
@@ -68,11 +53,6 @@ export async function clearPcloudToken() {
       { $set: { pcloudAccessToken: "", pcloudAccountEmail: "", pcloudHostname: "" } },
       { upsert: true }
     ).catch(() => {});
-  }
-  if (inMemoryStore.settings) {
-    inMemoryStore.settings.pcloudAccessToken = "";
-    inMemoryStore.settings.pcloudAccountEmail = "";
-    inMemoryStore.settings.pcloudHostname = "";
   }
   return true;
 }

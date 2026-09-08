@@ -11,7 +11,6 @@
  */
 
 import { isDbConnected } from "../config/db.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
@@ -413,14 +412,11 @@ export function escapeXml(str) {
 }
 
 /**
- * Fetch all active public products from MongoDB or memory store
+ * Fetch all active public products from MongoDB
  */
 export async function getPublicProductsForSeo() {
   if (!isDbConnected()) {
-    return (inMemoryStore.products || []).filter(p => {
-      const s = (p.status || "Published").toLowerCase();
-      return s === "published" || s === "active";
-    });
+    return [];
   }
   try {
     const products = await Product.find({
@@ -441,10 +437,7 @@ export async function getPublicProductsForSeo() {
     return products || [];
   } catch (err) {
     console.warn("[SEO] Notice fetching public products from MongoDB:", err.message);
-    return (inMemoryStore.products || []).filter(p => {
-      const s = (p.status || "Published").toLowerCase();
-      return s === "published" || s === "active";
-    });
+    return [];
   }
 }
 
@@ -455,17 +448,8 @@ export async function findProductForSeo(idOrSlug) {
   if (!idOrSlug) return null;
   const clean = String(idOrSlug).trim().toLowerCase();
 
-  const findInMemory = () => {
-    return (inMemoryStore.products || []).find(p => {
-      const pId = String(p.id || "").toLowerCase();
-      const pSlug = String(p.slug || "").toLowerCase();
-      const pNameSlug = String(p.name || "").toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-      return pId === clean || pSlug === clean || pNameSlug === clean;
-    });
-  };
-
   if (!isDbConnected()) {
-    return findInMemory();
+    return null;
   }
 
   try {
@@ -479,10 +463,10 @@ export async function findProductForSeo(idOrSlug) {
     };
     const product = await Product.findOne(query).lean();
     if (product) return product;
-    return findInMemory();
+    return null;
   } catch (err) {
     console.warn("[SEO] Notice in findProductForSeo:", err.message);
-    return findInMemory();
+    return null;
   }
 }
 

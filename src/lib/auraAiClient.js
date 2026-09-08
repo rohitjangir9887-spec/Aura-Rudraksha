@@ -16,6 +16,7 @@ async function getAuthToken() {
 }
 
 let activeStreamAbortController = null;
+let activeStreamSeq = 0;
 
 export const auraAiClient = {
   async sendAdminChat(messages) {
@@ -37,6 +38,7 @@ export const auraAiClient = {
     }
   },
   abortActiveStream() {
+    activeStreamSeq++;
     if (activeStreamAbortController) {
       try {
         activeStreamAbortController.abort();
@@ -64,7 +66,14 @@ export const auraAiClient = {
     let accumulatedRaw = "";
     let finalData = null;
 
+    // Cleanly cancel any in-flight stream before starting a new one
+    this.abortActiveStream();
+    const thisSeq = ++activeStreamSeq;
+    const thisController = new AbortController();
+    activeStreamAbortController = thisController;
+
     const processLine = (line) => {
+      if (thisController.signal.aborted || thisSeq !== activeStreamSeq) return;
       const trimmed = line.trim();
       if (!trimmed.startsWith("data: ")) return;
       const dataStr = trimmed.slice(6).trim();
@@ -81,14 +90,20 @@ export const auraAiClient = {
           accumulatedRaw += chunkDelta;
 
           const safeAccumulated = customerSafeAiText(accumulatedRaw);
-          if (onChunk) onChunk(chunkDelta, safeAccumulated, finalData);
+          if (onChunk && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+            onChunk(chunkDelta, safeAccumulated, finalData);
+          }
         } else if (parsed.type === "status" && parsed.message) {
-          if (onStatus) onStatus(parsed.message);
+          if (onStatus && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+            onStatus(parsed.message);
+          }
         } else if (parsed.type === "meta" && (parsed.data || parsed.products || parsed.coupons || parsed.quickReplies || parsed.kundali)) {
           const payload = parsed.data || parsed;
           const parsedMeta = parseAuraAiPayload(payload);
           finalData = { ...(finalData || {}), ...parsedMeta };
-          if (onChunk) onChunk("", customerSafeAiText(accumulatedRaw), finalData);
+          if (onChunk && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+            onChunk("", customerSafeAiText(accumulatedRaw), finalData);
+          }
         } else if (parsed.type === "final" && parsed.data) {
           finalData = { ...(finalData || {}), ...parseAuraAiPayload(parsed.data) };
         }
@@ -96,16 +111,17 @@ export const auraAiClient = {
     };
 
     try {
-      this.abortActiveStream();
-      activeStreamAbortController = new AbortController();
-
       const token = await authClient.getToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
       const effectiveBirthDetails = birthDetails || (mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null);
 
+      if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+        return { aborted: true, text: "" };
+      }
+
       const res = await fetch(`${API_BASE}/chat?stream=true`, {
         method: "POST",
-        signal: activeStreamAbortController.signal,
+        signal: thisController.signal,
         headers: {
           "Content-Type": "application/json",
           "Accept": "text/event-stream",
@@ -127,6 +143,10 @@ export const auraAiClient = {
         })
       });
 
+      if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+        return { aborted: true, text: "" };
+      }
+
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
       }
@@ -138,12 +158,21 @@ export const auraAiClient = {
         let buffer = "";
 
         while (true) {
+          if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+            try { reader.cancel(); } catch (_) {}
+            break;
+          }
           const { done, value } = await reader.read();
+          if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+            try { reader.cancel(); } catch (_) {}
+            break;
+          }
           if (value) {
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop() || "";
             for (const line of lines) {
+              if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
               processLine(line);
             }
           }
@@ -153,11 +182,21 @@ export const auraAiClient = {
             if (buffer.trim()) {
               const lines = buffer.split("\n");
               for (const line of lines) {
+                if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
                 processLine(line);
               }
             }
             break;
           }
+        }
+
+        if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+          return {
+            aborted: true,
+            text: customerSafeAiText(accumulatedRaw),
+            products: finalData?.products || [],
+            coupons: finalData?.coupons || []
+          };
         }
 
         let safeFinalText = finalData?.text ? customerSafeAiText(finalData.text) : "";
@@ -166,7 +205,7 @@ export const auraAiClient = {
         let resultText = safeFinalText || safeAccumulated;
 
         // If both empty, attempt non-streaming fallback request preserving mode and birth details
-        if (!resultText.trim()) {
+        if (!resultText.trim() && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
           try {
             const fallbackRes = await this.sendMessage({
               message,
@@ -183,6 +222,15 @@ export const auraAiClient = {
               resultText = customerSafeAiText(fallbackRes.text);
             }
           } catch (_) {}
+        }
+
+        if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+          return {
+            aborted: true,
+            text: customerSafeAiText(accumulatedRaw),
+            products: finalData?.products || [],
+            coupons: finalData?.coupons || []
+          };
         }
 
         // Final safety net message so output is NEVER blank
@@ -206,7 +254,9 @@ export const auraAiClient = {
           conversationId: finalData?.conversationId || conversationId
         };
 
-        if (onDone) onDone(result);
+        if (onDone && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+          onDone(result);
+        }
         return result;
       } else {
         const fallbackContentType = res.headers.get("content-type") || "";
@@ -230,13 +280,28 @@ export const auraAiClient = {
           text = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
         }
         const result = { ...parsed, text };
-        if (onChunk) onChunk(result.text, result.text, result);
-        if (onDone) onDone(result);
+        if (onChunk && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+          onChunk(result.text, result.text, result);
+        }
+        if (onDone && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+          onDone(result);
+        }
         return result;
       }
     } catch (err) {
-      if (err.name === "AbortError") {
-        return { aborted: true };
+      const wasAborted = thisController.signal.aborted || 
+        thisSeq !== activeStreamSeq || 
+        err?.name === "AbortError" || 
+        String(err?.message || "").toLowerCase().includes("abort") ||
+        String(err?.message || "").toLowerCase().includes("cancelled");
+
+      if (wasAborted) {
+        return { 
+          aborted: true, 
+          text: customerSafeAiText(accumulatedRaw),
+          products: finalData?.products || [],
+          coupons: finalData?.coupons || []
+        };
       }
       console.warn("Aura AI streaming notice:", err?.message || err);
       if (onError) onError(err);
@@ -264,7 +329,9 @@ export const auraAiClient = {
       if (onDone) onDone(fallbackResult);
       return fallbackResult;
     } finally {
-      activeStreamAbortController = null;
+      if (activeStreamAbortController === thisController) {
+        activeStreamAbortController = null;
+      }
     }
   },
 

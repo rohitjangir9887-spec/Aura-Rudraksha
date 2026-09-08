@@ -45,4 +45,39 @@ describe('auraAiClient', () => {
         assert.strictEqual(result.requiresHuman, true);
         assert.ok(result.text.includes("Namaste"));
     });
+
+    test('abortActiveStream cleanly aborts active stream without calling onError or showing maintenance message', async () => {
+        const mockFetch = vi.fn((url, options) => {
+            return new Promise((resolve, reject) => {
+                options.signal.addEventListener('abort', () => {
+                    const abortErr = new Error('The operation was aborted');
+                    abortErr.name = 'AbortError';
+                    reject(abortErr);
+                });
+            });
+        });
+        vi.stubGlobal('fetch', mockFetch);
+
+        let onErrorCalled = false;
+        let onDoneCalled = false;
+
+        const streamPromise = auraAiClient.sendMessageStream({
+            message: "Hello while streaming",
+            conversationId: "test-conv-2",
+            onError: () => {
+                onErrorCalled = true;
+            },
+            onDone: () => {
+                onDoneCalled = true;
+            }
+        });
+
+        // Abort while stream is pending
+        auraAiClient.abortActiveStream();
+        const result = await streamPromise;
+
+        assert.strictEqual(onErrorCalled, false);
+        assert.strictEqual(onDoneCalled, false);
+        assert.strictEqual(result.aborted, true);
+    });
 });

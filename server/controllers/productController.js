@@ -4,7 +4,6 @@ import { deleteFromPcloud } from "../services/pcloudService.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { invalidateRagCache } from "../services/ragService.js";
 
 const PRODUCT_FIELDS = {
@@ -586,30 +585,21 @@ export async function triggerDailySalesIncrement(req, res, next) {
       p.lastSalesUpdateDate = todayStr;
       updatedCount++;
 
-      if (isDbConnected()) {
-        bulkOps.push({
-          updateOne: {
-            filter: { id: p.id },
-            update: {
-              $set: {
-                salesCount: newCount,
-                totalSold: formattedTotalSold,
-                lastSalesUpdateDate: todayStr
-              }
+      bulkOps.push({
+        updateOne: {
+          filter: { id: p.id },
+          update: {
+            $set: {
+              salesCount: newCount,
+              totalSold: formattedTotalSold,
+              lastSalesUpdateDate: todayStr
             }
           }
-        });
-      } else {
-        const inMemIdx = inMemoryStore.products.findIndex(x => String(x.id) === String(p.id));
-        if (inMemIdx >= 0) {
-          inMemoryStore.products[inMemIdx].salesCount = newCount;
-          inMemoryStore.products[inMemIdx].totalSold = formattedTotalSold;
-          inMemoryStore.products[inMemIdx].lastSalesUpdateDate = todayStr;
         }
-      }
+      });
     }
 
-    if (bulkOps.length > 0 && isDbConnected()) {
+    if (bulkOps.length > 0) {
       await Product.bulkWrite(bulkOps);
     }
 

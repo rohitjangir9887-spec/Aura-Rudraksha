@@ -4,7 +4,6 @@ import { isDbConnected } from "../config/db.js";
 import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 import { logAuditEvent } from "../services/auditService.js";
 
 // Fields an admin may set on a coupon. Allowlisted for defense-in-depth
@@ -170,20 +169,12 @@ export async function getCoupons(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      if (process.env.NODE_ENV === "production") {
-        return res.status(503).json({
-          success: false,
-          databaseUnavailable: true,
-          error: "Database unavailable",
-          message: "Coupons require an authoritative MongoDB connection."
-        });
-      }
-      const coupons = inMemoryStore.coupons;
-      if (isAdmin) {
-        return res.json({ success: true, data: coupons, count: coupons.length });
-      }
-      const publicCoupons = coupons.filter(c => c.status === "Active").map(toPublicCoupon);
-      return res.json({ success: true, data: publicCoupons, count: publicCoupons.length });
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Coupons require an authoritative MongoDB connection."
+      });
     }
 
     const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
@@ -307,17 +298,18 @@ export async function deleteCoupon(req, res, next) {
     const cleanId = String(id).trim();
     const cleanCode = cleanId.toUpperCase();
 
-    inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== cleanId && c.code !== cleanCode);
-    if (inMemoryStore.activeOffer && inMemoryStore.activeOffer.couponCode === cleanCode) {
-      inMemoryStore.activeOffer.couponCode = "";
-      inMemoryStore.activeOffer.discountValue = 0;
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Coupons require an authoritative MongoDB connection."
+      });
     }
 
-    if (isDbConnected()) {
-      await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });
-      await ActiveOffer.deleteMany({ couponCode: cleanCode });
-      await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }] });
-    }
+    await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });
+    await ActiveOffer.deleteMany({ couponCode: cleanCode });
+    await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }] });
 
     await logAuditEvent({
       actor: req.user?.email || "admin",

@@ -1,7 +1,6 @@
 import crypto from "crypto";
 import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Global cache for ImageKit credentials to avoid DB lookups
 let cachedImagekitCredentials = null;
@@ -32,12 +31,6 @@ export async function getImagekitCredentials() {
     } catch (_) {}
   }
 
-  if ((!publicKey || !privateKey || !urlEndpoint) && inMemoryStore.settings) {
-    if (!publicKey && inMemoryStore.settings.imagekitPublicKey) publicKey = inMemoryStore.settings.imagekitPublicKey.trim();
-    if (!privateKey && inMemoryStore.settings.imagekitPrivateKey) privateKey = inMemoryStore.settings.imagekitPrivateKey.trim();
-    if (!urlEndpoint && inMemoryStore.settings.imagekitUrlEndpoint) urlEndpoint = inMemoryStore.settings.imagekitUrlEndpoint.trim();
-  }
-
   // Ensure urlEndpoint format is clean (no trailing slash)
   if (urlEndpoint && urlEndpoint.endsWith("/")) {
     urlEndpoint = urlEndpoint.slice(0, -1);
@@ -66,12 +59,6 @@ export async function saveImagekitCredentials({ publicKey, privateKey, urlEndpoi
       { $set: updateFields },
       { upsert: true }
     ).catch(() => {});
-  }
-
-  if (inMemoryStore.settings) {
-    if (updateFields.imagekitPublicKey !== undefined) inMemoryStore.settings.imagekitPublicKey = updateFields.imagekitPublicKey;
-    if (updateFields.imagekitPrivateKey !== undefined) inMemoryStore.settings.imagekitPrivateKey = updateFields.imagekitPrivateKey;
-    if (updateFields.imagekitUrlEndpoint !== undefined) inMemoryStore.settings.imagekitUrlEndpoint = updateFields.imagekitUrlEndpoint;
   }
 
   // Invalidate cache
