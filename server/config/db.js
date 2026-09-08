@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Fail fast when MongoDB is offline rather than hanging requests indefinitely
-mongoose.set("bufferCommands", false);
+// Enable command buffering so database requests wait for connection rather than failing instantly
+mongoose.set("bufferCommands", true);
 
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
@@ -16,11 +16,14 @@ if (!cached) {
 if (!global.__mongoose_listeners_attached) {
   global.__mongoose_listeners_attached = true;
   mongoose.connection.on("disconnected", () => {
-    console.warn("⚠️ [MongoDB] Disconnected from database.");
+    console.warn("⚠️ [MongoDB] Disconnected from database. Auto-reconnecting...");
     if (cached) {
       cached.conn = null;
       cached.promise = null;
     }
+    setTimeout(() => {
+      connectDB().catch(() => {});
+    }, 1500);
   });
   mongoose.connection.on("error", (err) => {
     console.error("⚠️ [MongoDB] Connection error:", err.message);
@@ -30,11 +33,14 @@ if (!global.__mongoose_listeners_attached) {
     }
   });
   mongoose.connection.on("reconnectFailed", () => {
-    console.error("⚠️ [MongoDB] Reconnect failed.");
+    console.error("⚠️ [MongoDB] Reconnect failed. Retrying...");
     if (cached) {
       cached.conn = null;
       cached.promise = null;
     }
+    setTimeout(() => {
+      connectDB().catch(() => {});
+    }, 3000);
   });
 }
 
@@ -85,12 +91,12 @@ export async function connectDB() {
   // 3. If in-flight connection promise exists, await it (prevents connection storms)
   if (!cached.promise) {
     const opts = {
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      maxIdleTimeMS: 10000,
+      serverSelectionTimeoutMS: 20000,
+      connectTimeoutMS: 20000,
+      socketTimeoutMS: 60000,
+      maxIdleTimeMS: 300000, // 5 mins idle timeout prevents premature socket drops
       maxPoolSize: 10,
-      minPoolSize: 0, // Serverless execution must not keep minPoolSize > 0
+      minPoolSize: 1, // Keep at least 1 warm socket
       autoIndex: process.env.NODE_ENV !== "production"
     };
 

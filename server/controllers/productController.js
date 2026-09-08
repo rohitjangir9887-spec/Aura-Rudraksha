@@ -133,7 +133,7 @@ async function checkIsAdmin(req) {
  * Normalize and validate status values
  * Allowed normalized values: "Published", "Draft"
  */
-function normalizeProductStatus(rawStatus, defaultStatus = "Draft") {
+function normalizeProductStatus(rawStatus, defaultStatus = "Published") {
   if (!rawStatus || typeof rawStatus !== "string") return defaultStatus;
   const s = rawStatus.trim().toLowerCase();
   if (s === "published" || s === "active") return "Published";
@@ -391,7 +391,7 @@ export async function createProduct(req, res, next) {
     }
 
     const id = data.id || Date.now().toString();
-    const normalizedStatus = normalizeProductStatus(data.status, "Draft");
+    const normalizedStatus = normalizeProductStatus(data.status, "Published");
     const computedSlug = data.slug || (data.name ? String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-") : String(id));
 
     const salesCountNum = Number(data.salesCount) || (data.totalSold ? parseInt(String(data.totalSold).replace(/\D/g, ""), 10) || 0 : 0);

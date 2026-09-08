@@ -488,7 +488,7 @@ export function AdminProducts() {
         indonesianHighlight: "",
         zodiac: [],
         description: "",
-        status: "Draft", // Default new product status is Draft to prevent accidental public publishing
+        status: "Published", // Default status is Published so customers can view newly added products immediately
         showOnHome: true,
         isPopular: false,
         homeBadge: "Popular",
@@ -780,8 +780,8 @@ export function AdminProducts() {
       return;
     }
 
-    const rawStatus = editing.status || "Draft";
-    const finalStatus = (rawStatus === "Published" || rawStatus === "Active" || rawStatus === "published") ? "Published" : "Draft";
+    const rawStatus = editing.status || "Published";
+    const finalStatus = (rawStatus === "Draft" || rawStatus === "draft" || rawStatus === "Inactive" || rawStatus === "inactive") ? "Draft" : "Published";
 
     const finalProduct = {
       ...editing,
