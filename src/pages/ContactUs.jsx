@@ -22,9 +22,28 @@ export function ContactUs() {
   const settings = db.getSettings();
   const supportEmail = settings?.supportEmail || "aurarudrakshaofficial@gmail.com";
 
-  const handleSubmit = (e) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitError("");
+    setSubmitting(true);
+    try {
+      await db.saveTicket({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        subject: form.subject,
+        message: form.message.trim(),
+        category: form.subject
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(err.message || "Failed to submit message. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const FAQS = [
@@ -259,17 +278,24 @@ export function ContactUs() {
                     />
                   </div>
 
+                  {submitError && (
+                    <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: "10px 14px", borderRadius: "8px", fontSize: "13px" }}>
+                      {submitError}
+                    </div>
+                  )}
+
                   <button
                     type="submit"
+                    disabled={submitting}
                     style={{
-                      background: "#a54d2b",
+                      background: submitting ? "#7d6d62" : "#a54d2b",
                       color: "#ffffff",
                       border: "none",
                       padding: "12px 20px",
                       borderRadius: "8px",
                       fontWeight: 700,
                       fontSize: "14px",
-                      cursor: "pointer",
+                      cursor: submitting ? "not-allowed" : "pointer",
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -277,7 +303,7 @@ export function ContactUs() {
                       marginTop: "6px"
                     }}
                   >
-                    Submit Message <Send size={15} />
+                    {submitting ? "Submitting..." : "Submit Message"} <Send size={15} />
                   </button>
                 </form>
               )}

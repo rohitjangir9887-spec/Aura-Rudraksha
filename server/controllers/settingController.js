@@ -25,9 +25,21 @@ const POLICY_FIELDS = {
   termsPolicy: "string", contactSupport: "string"
 };
 // Public customers may only ever set these fields when submitting a ticket.
-const CUSTOMER_TICKET_FIELDS = { name: "string", email: "string", phone: "string", subject: "string", message: "string", orderId: "string" };
-// Admin-only fields (status, priority, adminResponse) are applied separately, only on the admin-gated PUT route.
-const ADMIN_TICKET_FIELDS = { status: "string", priority: "string", adminResponse: "string" };
+const CUSTOMER_TICKET_FIELDS = { name: "string", email: "string", phone: "string", subject: "string", message: "string", orderId: "string", category: "string" };
+// Admin-only fields applied on ticket updates.
+const ADMIN_TICKET_FIELDS = {
+  status: "string",
+  priority: "string",
+  adminResponse: "string",
+  category: "string",
+  subject: "string",
+  message: "string",
+  name: "string",
+  email: "string",
+  phone: "string",
+  notes: "string",
+  orderId: "string"
+};
 import {
   defaultSettings,
   defaultProducts,
@@ -298,10 +310,26 @@ export async function createTicket(req, res, next) {
     const authUserId = authenticatedUser ? (authenticatedUser.authUserId || authenticatedUser.uid || "") : "";
     const userEmail = authenticatedUser?.email ? authenticatedUser.email.toLowerCase().trim() : (data.email || "").toLowerCase().trim();
 
-    const id = "TIC-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
+    // Atomic sequential Ticket ID via Counter
+    let counter = await Counter.findByIdAndUpdate(
+      { _id: "ticketNumber" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    if (!counter.seq || counter.seq < 1001) {
+      counter = await Counter.findByIdAndUpdate(
+        { _id: "ticketNumber" },
+        { $set: { seq: 1001 } },
+        { new: true, upsert: true }
+      );
+    }
+
+    const id = `TIC-${counter.seq}`;
     const payload = {
       ...data,
       id,
+      ticketId: id,
       authUserId: authUserId || "guest",
       userId: authUserId || "guest",
       userEmail,
@@ -353,7 +381,10 @@ export async function updateTicket(req, res, next) {
       });
     }
 
-    const ticket = await Ticket.findOne({ id: String(id) });
+    let ticket = await Ticket.findOne({ $or: [{ id: String(id) }, { ticketId: String(id) }] });
+    if (!ticket && String(id).match(/^[0-9a-fA-F]{24}$/)) {
+      ticket = await Ticket.findById(id);
+    }
     if (!ticket) {
       return res.status(404).json({ success: false, message: "Ticket not found" });
     }
@@ -368,7 +399,7 @@ export async function updateTicket(req, res, next) {
     }
 
     const updated = await Ticket.findOneAndUpdate(
-      { id: String(id) },
+      { _id: ticket._id },
       { $set: data },
       { returnDocument: "after" }
     );
