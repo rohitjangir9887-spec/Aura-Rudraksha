@@ -9,7 +9,7 @@ export function NotFound() {
   useSeo({
     title: "Page Not Found | Aura Rudraksha",
     description: "The sacred Rudraksha page you are looking for does not exist or has been moved.",
-    canonical: "https://aurarudraksha.com/404"
+    canonical: "https://aura-rudraksha.vercel.app/404"
   });
 
   return (

@@ -45,7 +45,7 @@ export function AuraAIPage() {
   useSeo({
     title: "Aura AI Astrologer - Live Vedic Rudraksha Recommendation | Aura Rudraksha",
     description: "Consult Aura AI Vedic Astrologer for personalized Rudraksha recommendations based on your birth date, zodiac Rashi, career aspirations, and spiritual goals.",
-    canonical: "https://aurarudraksha.com/aura-ai"
+    canonical: "https://aura-rudraksha.vercel.app/aura-ai"
   });
 
   const [mode, setMode] = useState("standard"); // "standard" | "panditji"

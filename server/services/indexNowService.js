@@ -38,6 +38,13 @@ export function getSiteBaseUrl(req) {
       return raw;
     }
   }
+  if (req) {
+    const host = req.get("x-forwarded-host") || req.get("host");
+    const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+      return `${proto}://${host}`;
+    }
+  }
   return DETERMINISTIC_CANONICAL_ORIGIN;
 }
 

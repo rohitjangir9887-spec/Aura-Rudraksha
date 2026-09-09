@@ -46,7 +46,7 @@ describe('Auth Client Utilities', () => {
   describe('isValidAuthEmail', () => {
     test('validates standard email addresses', () => {
       assert.strictEqual(isValidAuthEmail('rohitjangir9887@gmail.com'), true);
-      assert.strictEqual(isValidAuthEmail('admin@aurarudraksha.com'), true);
+      assert.strictEqual(isValidAuthEmail('admin@aura-rudraksha.vercel.app'), true);
       assert.strictEqual(isValidAuthEmail('test.dev+extra@sub.example.co.in'), true);
     });
 

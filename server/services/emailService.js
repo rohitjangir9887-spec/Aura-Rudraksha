@@ -164,7 +164,7 @@ Do NOT share this code with anyone.`;
   if (transporter) {
     try {
       await transporter.sendMail({
-        from: `"Aura Rudraksha Security" <${process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || "security@aurarudraksha.com"}>`,
+        from: `"Aura Rudraksha Security" <${process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || "security@aura-rudraksha.vercel.app"}>`,
         to: adminEmail,
         subject: `🔒 [Aura Admin] OTP ${otp} to Authorize PayU Refund for Order #${orderId}`,
         text: textContent,

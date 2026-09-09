@@ -348,7 +348,7 @@ export function buildMultiSourceVedicReferences(productInput, mukhiNum, beadKnow
 
     sources.push({
       name: "Aura Certified Gemological & Vedic Laboratory Reference",
-      url: "https://aurarudraksha.com/authenticity",
+      url: "https://aura-rudraksha.vercel.app/authenticity",
       claimSupported: `100% Authentic ${origin} origin bead with natural Mukhi contours, X-Ray verification & Prana Pratishtha.`,
       researchedAt: currentDate,
       confidence: "high"

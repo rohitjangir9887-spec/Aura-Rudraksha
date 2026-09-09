@@ -15,7 +15,7 @@ export function TrackOrder() {
   useSeo({
     title: "Track Your Sacred Order | Aura Rudraksha",
     description: "Track live temple consecration, lab certification, and express air courier dispatch status for your Aura Rudraksha order.",
-    canonical: "https://aurarudraksha.com/track-order"
+    canonical: "https://aura-rudraksha.vercel.app/track-order"
   });
 
   const [searchParams] = useSearchParams();

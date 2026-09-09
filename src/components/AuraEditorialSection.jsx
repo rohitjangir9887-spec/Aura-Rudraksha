@@ -89,7 +89,7 @@ export function AuraEditorialSection() {
           >
             <div className="absolute inset-0 overflow-hidden">
               <img
-                src="https://aurarudraksha.com/wp-content/uploads/2024/02/IMG_1020.jpg"
+                src="https://aura-rudraksha.vercel.app/wp-content/uploads/2024/02/IMG_1020.jpg"
                 alt="Sacred Wrist Bracelets"
                 className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500 ease-out"
                 loading="lazy"

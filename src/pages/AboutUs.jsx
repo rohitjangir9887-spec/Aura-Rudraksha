@@ -14,7 +14,7 @@ export function AboutUs() {
   useSeo({
     title: "About Aura Rudraksha - Sacred Origin, Vedic Heritage & Purity Promise",
     description: "Learn about Aura Rudraksha's mission: 100% genuine Nepali Rudraksha beads, rigorous lab X-ray certification, and traditional Vedic Prana Pratishtha consecration.",
-    canonical: "https://aurarudraksha.com/about"
+    canonical: "https://aura-rudraksha.vercel.app/about"
   });
 
   return (

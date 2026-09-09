@@ -23,7 +23,7 @@ export function Policies() {
   useSeo({
     title: "Store Policies & Devotee Assurance | Aura Rudraksha",
     description: "Read Aura Rudraksha policies: Shipping, 7-Day Returns, Authenticity Guarantee, Privacy Policy, Terms of Service, and Secure Payments.",
-    canonical: "https://aurarudraksha.com/policies"
+    canonical: "https://aura-rudraksha.vercel.app/policies"
   });
 
   const [activeTab, setActiveTab] = useState(initialTab);

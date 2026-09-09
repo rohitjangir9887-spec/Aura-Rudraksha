@@ -24,8 +24,8 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 export const SEO_BRAND = {
   name: "Aura Rudraksha",
   legalName: "Aura Rudraksha Enterprises",
-  logo: "https://aura-rudraksha.vercel.app/logo-header-horizontal.png",
-  defaultImage: "https://aura-rudraksha.vercel.app/og-image.jpg",
+  logo: "/logo-header-horizontal.png",
+  defaultImage: "/og-image.jpg",
   supportEmail: "aurarudrakshaofficial@gmail.com",
   supportPhone: "+91 9672996531",
   address: {

@@ -1290,7 +1290,7 @@ export async function retryPayuPayment(req, res, next) {
     const newTxnid = `TXN_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     const amount = Number(order.finalAmount || order.total || order.amount || 0);
 
-    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.com").trim().toLowerCase();
+    const email = (order.customerEmail || req.user?.email || "devotee@aura-rudraksha.vercel.app").trim().toLowerCase();
     const firstname = (order.customerName || order.firstName || req.user?.name || "Devotee").trim();
     const phone = (order.phone || order.customerPhone || "").trim();
     const productinfo = `Aura Rudraksha Order Retry (${order.orderNumber || order.id})`;
