@@ -150,7 +150,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
 
         {/* Auspicious / Curated Badge (Bottom Left) */}
         {p.badge && !isOutOfStock && (
-          <span className="aura-card-badge-pill">
+          <span className="aura-card-badge-pill" style={{ display: 'none' }}>
             {p.badge}
           </span>
         )}
@@ -190,7 +190,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
       </div>
 
       {/* 2. Card Content Area */}
-      <div className="aura-card-body">
+      <div className="aura-card-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <div>
           {/* Category Tag */}
           {p.category && (

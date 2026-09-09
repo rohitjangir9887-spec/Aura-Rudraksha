@@ -586,7 +586,7 @@ export function OrderDetail() {
           </div>
 
           {/* If unpaid, provide live Retry PayU button */}
-          {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && (
+          {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && order?.status !== "Cancelled" && (
             <button
               type="button"
               id="btn-order-retry-payu"
