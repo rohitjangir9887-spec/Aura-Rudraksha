@@ -1,7 +1,7 @@
 import { createApp } from "../server/app.js";
 import { connectDB, getMongoUri } from "../server/config/db.js";
 
-const app = createApp();
+const app = createApp({ enableSsr: true });
 
 export default async function handler(req, res) {
   // If Vercel rewrote to /api/index.js or /index.js, restore the original matched route

@@ -62,7 +62,8 @@ export function resolveAllowedOrigins() {
   return [...new Set([...fromEnv, ...devOrigins])];
 }
 
-export function createApp() {
+export function createApp(options = {}) {
+  const { enableSsr = false } = options;
   const app = express();
 
   // Bounded trust proxy for containerized environments (Cloud Run / reverse proxy)
@@ -266,38 +267,40 @@ export function createApp() {
     res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
   });
 
-  // Server-Side Rendered (SSR) HTML Handler for all public and private navigation routes
-  app.use(async (req, res, next) => {
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      return next();
-    }
+  // Server-Side Rendered (SSR) HTML Handler for serverless / explicit SSR environments
+  if (enableSsr) {
+    app.use(async (req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        return next();
+      }
 
-    if (req.path.startsWith("/api")) {
-      return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
-    }
+      if (req.path.startsWith("/api")) {
+        return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
+      }
 
-    // Skip static asset files and internal dev bundling paths
-    if (
-      req.path.startsWith("/@") ||
-      req.path.startsWith("/src/") ||
-      req.path.startsWith("/node_modules/") ||
-      /\.(js|jsx|ts|tsx|mjs|cjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|json|txt|xml|map)$/i.test(req.path)
-    ) {
-      return next();
-    }
+      // Skip static asset files and internal dev bundling paths
+      if (
+        req.path.startsWith("/@") ||
+        req.path.startsWith("/src/") ||
+        req.path.startsWith("/node_modules/") ||
+        /\.(js|jsx|ts|tsx|mjs|cjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|json|txt|xml|map)$/i.test(req.path)
+      ) {
+        return next();
+      }
 
-    try {
-      const { html, status } = await renderSsrHtml(req.path, req);
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      return res.status(status).send(html);
-    } catch (err) {
-      console.warn("[SSR Page Rendering Notice]:", err?.message || err);
-      const template = getHtmlTemplate();
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.status(200).send(template);
-    }
-  });
+      try {
+        const { html, status } = await renderSsrHtml(req.path, req);
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return res.status(status).send(html);
+      } catch (err) {
+        console.warn("[SSR Page Rendering Notice]:", err?.message || err);
+        const template = getHtmlTemplate();
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(template);
+      }
+    });
+  }
 
   // Mongoose / Database error handler
   app.use((err, req, res, next) => {
