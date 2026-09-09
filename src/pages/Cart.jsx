@@ -43,20 +43,6 @@ export function Cart() {
     return () => unsub();
   }, []);
 
-  // Ensure browser or mobile back gesture from Cart page navigates to Home UI ("/") instead of closing site
-  useEffect(() => {
-    window.history.pushState({ page: "cart" }, "", window.location.href);
-
-    const handlePopState = () => {
-      navigate("/", { replace: true });
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [navigate]);
-
   const handleGoBackHome = () => {
     navigate("/");
   };

@@ -76,6 +76,11 @@ const productSchema = new mongoose.Schema(
   }
 );
 
+// Database indexes for fast querying and sorting
+productSchema.index({ status: 1, sortOrder: 1, homeOrder: 1, createdAt: -1 });
+productSchema.index({ slug: 1 });
+productSchema.index({ category: 1, status: 1 });
+
 // Auto slug generation before save
 productSchema.pre("save", function () {
   if (this.name && !this.slug) {

@@ -1007,8 +1007,8 @@ body {
 .hero-slide {
     grid-area: 1 / 1;
     width: 100%;
-    height: auto;
-    object-fit: contain; /* Keep images from being cropped */
+    height: 100%;
+    position: relative;
     opacity: 0;
     transform: scale(1.015);
     transition: opacity 0.65s cubic-bezier(0.25, 1, 0.5, 1), transform 0.75s cubic-bezier(0.25, 1, 0.5, 1);
@@ -1021,6 +1021,12 @@ body {
     transform: scale(1);
     z-index: 2;
     pointer-events: auto;
+}
+.hero-slide img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    display: block !important;
 }
 .hero-pagination {
     position: absolute;

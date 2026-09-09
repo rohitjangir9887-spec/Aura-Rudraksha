@@ -77,12 +77,12 @@ export async function connectDB() {
   // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const opts = {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
       socketTimeoutMS: 45000,
       maxIdleTimeMS: 60000,
-      maxPoolSize: 10,
-      minPoolSize: 0,
+      maxPoolSize: 20,
+      minPoolSize: 1,
       retryWrites: true,
       autoIndex: process.env.NODE_ENV !== "production"
     };

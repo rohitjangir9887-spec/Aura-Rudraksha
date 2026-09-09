@@ -80,14 +80,44 @@ export function Profile() {
   }, [location.search]);
 
   useEffect(() => {
-    const unsubscribe = authClient.onAuthStateChanged((user) => {
+    let isMounted = true;
+
+    async function verifyAndLoad() {
+      let user = authClient.getUser();
+      if (!user) {
+        user = await authClient.getCurrentUserAsync();
+      }
+      if (!isMounted) return;
       if (!user || user.isAnonymous) {
         navigate("/login", { state: { from: location.pathname + location.search + location.hash } });
       } else {
+        setEmail(user.email || "");
         loadProfileData();
       }
+    }
+
+    verifyAndLoad();
+
+    const unsubscribe = authClient.onAuthStateChanged((user) => {
+      if (!isMounted) return;
+      if (user && !user.isAnonymous) {
+        setEmail(user.email || "");
+        loadProfileData();
+      } else if (user === null) {
+        // Double check with async readiness before kicking user to login
+        authClient.getCurrentUserAsync().then((readyUser) => {
+          if (!isMounted) return;
+          if (!readyUser || readyUser.isAnonymous) {
+            navigate("/login", { state: { from: location.pathname + location.search + location.hash } });
+          }
+        });
+      }
     });
-    return () => unsubscribe();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [navigate, location]);
   
   async function loadProfileData() {

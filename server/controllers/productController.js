@@ -62,6 +62,15 @@ function normalizeProductStatus(rawStatus, defaultStatus = "Published") {
   return defaultStatus;
 }
 
+// Fast in-memory cache for public products list
+let publicProductsCache = null;
+let publicProductsCacheExpiry = 0;
+
+export function invalidateProductCache() {
+  publicProductsCache = null;
+  publicProductsCacheExpiry = 0;
+}
+
 export async function getProducts(req, res, next) {
   try {
     const isAdmin = await checkIsAdmin(req);
@@ -70,6 +79,10 @@ export async function getProducts(req, res, next) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
     } else {
       res.setHeader("Cache-Control", "no-cache, must-revalidate");
+      // Fast path: serve cached public products if valid (60s TTL)
+      if (publicProductsCache && Date.now() < publicProductsCacheExpiry && !req.query.status && !req.query.category) {
+        return res.json({ success: true, data: publicProductsCache, count: publicProductsCache.length });
+      }
     }
 
     if (!isDbConnected()) {
@@ -114,6 +127,12 @@ export async function getProducts(req, res, next) {
     }
 
     const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
+
+    if (!isAdmin && !req.query.status && !req.query.category) {
+      publicProductsCache = products;
+      publicProductsCacheExpiry = Date.now() + 60000;
+    }
+
     return res.json({ success: true, data: products, count: products.length });
   } catch (err) {
     console.warn("Error in getProducts:", err.message);
@@ -292,6 +311,7 @@ export async function createProduct(req, res, next) {
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
     invalidateRagCache();
+    invalidateProductCache();
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -395,6 +415,7 @@ export async function updateProduct(req, res, next) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
     invalidateRagCache();
+    invalidateProductCache();
 
     // Check for removed images to cleanup after successful product update
     if (oldProduct && Array.isArray(oldProduct.images) && Array.isArray(updatePayload.images)) {
@@ -505,6 +526,7 @@ export async function deleteProduct(req, res, next) {
     }
 
     invalidateRagCache();
+    invalidateProductCache();
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -550,6 +572,7 @@ export async function reorderProducts(req, res, next) {
 
     await Promise.all(updates);
     invalidateRagCache();
+    invalidateProductCache();
 
     return res.json({ success: true, message: "Product sequence updated successfully" });
   } catch (err) {

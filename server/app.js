@@ -32,19 +32,20 @@ import { errorHandler } from "./middleware/errorHandler.js";
 dotenv.config();
 
 // Rate limiters for production workloads
-const publicLimit = rateLimit({ windowMs: 60_000, max: 180, message: "Too many requests from your network. Please try again shortly.", prefix: "pub" });
-const strictLimit = rateLimit({ windowMs: 60_000, max: 30, message: "Too many attempts. Please wait a minute and try again.", prefix: "strict" });
-const loginLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Too many login attempts. Please try again later.", prefix: "login" });
-const adminLoginLimit = rateLimit({ windowMs: 60_000, max: 5, message: "Too many admin login attempts. Access temporarily restricted.", prefix: "admin_login" });
+const publicLimit = rateLimit({ windowMs: 60_000, max: 300, message: "Too many requests from your network. Please try again shortly.", prefix: "pub" });
+const userReadLimit = rateLimit({ windowMs: 60_000, max: 150, message: "Too many requests. Please wait a moment.", prefix: "user_read" });
+const strictLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Too many attempts. Please wait a minute and try again.", prefix: "strict" });
+const loginLimit = rateLimit({ windowMs: 60_000, max: 15, message: "Too many login attempts. Please try again later.", prefix: "login" });
+const adminLoginLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Too many admin login attempts. Access temporarily restricted.", prefix: "admin_login" });
 const auraAiLimit = rateLimit({ windowMs: 60_000, max: 100, message: "Aura AI rate limit reached. Please wait a moment before sending another prompt.", prefix: "aura_ai" });
-const searchLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Too many search queries. Please slow down.", prefix: "search" });
-const couponLimit = rateLimit({ windowMs: 60_000, max: 15, message: "Too many coupon validation requests. Please wait.", prefix: "coupon" });
-const orderLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Too many order creation attempts. Please verify your details.", prefix: "order" });
-const paymentLimit = rateLimit({ windowMs: 60_000, max: 15, message: "Too many payment requests.", prefix: "payment" });
-const reviewsLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Review submission limit reached.", prefix: "reviews" });
-const ticketsLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Support ticket submission limit reached.", prefix: "tickets" });
-const adminApiLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Admin API rate limit reached.", prefix: "admin_api" });
-const uploadLimit = rateLimit({ windowMs: 60_000, max: 60, message: "Media upload registration rate limit reached. Please wait a moment before uploading more images.", prefix: "upload_reg" });
+const searchLimit = rateLimit({ windowMs: 60_000, max: 100, message: "Too many search queries. Please slow down.", prefix: "search" });
+const couponLimit = rateLimit({ windowMs: 60_000, max: 30, message: "Too many coupon validation requests. Please wait.", prefix: "coupon" });
+const orderLimit = rateLimit({ windowMs: 60_000, max: 20, message: "Too many order creation attempts. Please verify your details.", prefix: "order" });
+const paymentLimit = rateLimit({ windowMs: 60_000, max: 30, message: "Too many payment requests.", prefix: "payment" });
+const reviewsLimit = rateLimit({ windowMs: 60_000, max: 20, message: "Review submission limit reached.", prefix: "reviews" });
+const ticketsLimit = rateLimit({ windowMs: 60_000, max: 20, message: "Support ticket submission limit reached.", prefix: "tickets" });
+const adminApiLimit = rateLimit({ windowMs: 60_000, max: 120, message: "Admin API rate limit reached.", prefix: "admin_api" });
+const uploadLimit = rateLimit({ windowMs: 60_000, max: 100, message: "Media upload registration rate limit reached. Please wait a moment before uploading more images.", prefix: "upload_reg" });
 
 // Allowed cross-origin frontends, per CORS_ORIGINS (comma-separated) in .env.
 // Empty = same-origin only, which matches the default single-server deploy
@@ -144,10 +145,10 @@ export function createApp() {
     app.use("/api/orders/payment", paymentLimit);
     app.use("/api/reviews", reviewsLimit);
     app.use("/api/tickets", ticketsLimit);
-    app.use("/api/addresses", strictLimit);
-    app.use("/api/wishlist", strictLimit);
-    app.use("/api/customers/me", strictLimit);
-    app.use("/api/auth", strictLimit);
+    app.use("/api/addresses", userReadLimit);
+    app.use("/api/wishlist", userReadLimit);
+    app.use("/api/customers/me", userReadLimit);
+    app.use("/api/auth", userReadLimit);
     app.use("/api/upload/register", uploadLimit);
     app.use("/api/upload/register-batch", uploadLimit);
     app.use("/api/analytics", adminApiLimit);
