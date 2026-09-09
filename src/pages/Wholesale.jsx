@@ -9,8 +9,15 @@ import {
 import { motion } from "framer-motion";
 import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
+import { useSeo } from "../hooks/useSeo";
 
 export function Wholesale() {
+  useSeo({
+    title: "Wholesale & Temple Trust Rudraksha Supply | Aura Rudraksha",
+    description: "Direct Nepal origin wholesale Rudraksha supply for temples, ashrams, astrologers, and retailers with individual lab X-ray certificates.",
+    canonical: "https://aurarudraksha.com/wholesale"
+  });
+
   const [form, setForm] = useState({
     businessName: "",
     contactPerson: "",

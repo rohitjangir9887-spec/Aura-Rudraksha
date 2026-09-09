@@ -7,9 +7,16 @@ import {
   Sparkles, Compass, HelpCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import { db } from "../lib/db";
+import { useSeo } from "../hooks/useSeo";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function ContactUs() {
+  useSeo({
+    title: "Contact Us & Astrological Support | Aura Rudraksha",
+    description: "Get in touch with Aura Rudraksha's Vedic astrologers and support team for Mukhi recommendations, order tracking, lab certification, and customer care.",
+    canonical: "https://aurarudraksha.com/contact"
+  });
+
   const [form, setForm] = useState({
     name: "",
     email: "",

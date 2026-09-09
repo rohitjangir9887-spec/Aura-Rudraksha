@@ -6,6 +6,7 @@ import {
   Flame, Gem, Layers
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useSeo } from "../hooks/useSeo";
 
 const CATEGORIES_DATA = [
   {
@@ -67,6 +68,12 @@ const CATEGORIES_DATA = [
 ];
 
 export function CategoriesPage() {
+  useSeo({
+    title: "Sacred Rudraksha Categories & Collections | Aura Rudraksha",
+    description: "Browse certified Nepali Rudraksha collections: Single Mukhi beads (1-21 Mukhi), Rare Collector Formations, 108+1 Japa Malas, and Consecrated Bracelets.",
+    canonical: "https://aurarudraksha.com/categories"
+  });
+
   return (
     <Shell>
       <div className="categories-directory-page" style={{ background: "#fdfbf7", minHeight: "100vh", padding: "40px 16px 80px" }}>

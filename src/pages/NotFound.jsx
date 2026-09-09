@@ -3,8 +3,15 @@ import { Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { Compass, ArrowLeft, ShoppingBag } from "lucide-react";
 import { motion } from "framer-motion";
+import { useSeo } from "../hooks/useSeo";
 
 export function NotFound() {
+  useSeo({
+    title: "Page Not Found | Aura Rudraksha",
+    description: "The sacred Rudraksha page you are looking for does not exist or has been moved.",
+    canonical: "https://aurarudraksha.com/404"
+  });
+
   return (
     <Shell>
       <main className="page" style={{ minHeight: "65vh", display: "grid", placeItems: "center", padding: "60px 16px" }}>

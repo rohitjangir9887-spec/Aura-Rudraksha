@@ -9,8 +9,15 @@ import {
 } from "lucide-react";
 import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
+import { useSeo } from "../hooks/useSeo";
 
 export function TrackOrder() {
+  useSeo({
+    title: "Track Your Sacred Order | Aura Rudraksha",
+    description: "Track live temple consecration, lab certification, and express air courier dispatch status for your Aura Rudraksha order.",
+    canonical: "https://aurarudraksha.com/track-order"
+  });
+
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("id") || searchParams.get("order") || "";
 

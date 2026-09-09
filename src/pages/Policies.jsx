@@ -6,6 +6,7 @@ import {
   ArrowLeft, Headphones, Ban, Lock, CheckCircle2 
 } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
+import { useSeo } from "../hooks/useSeo";
 
 export function Policies() {
   const location = useLocation();
@@ -18,6 +19,12 @@ export function Policies() {
   else if (path.includes("cancellation")) initialTab = "cancellation";
   else if (path.includes("secure-payment") || path.includes("payment")) initialTab = "payment";
   else if (path.includes("support") || path.includes("contact")) initialTab = "support";
+
+  useSeo({
+    title: "Store Policies & Devotee Assurance | Aura Rudraksha",
+    description: "Read Aura Rudraksha policies: Shipping, 7-Day Returns, Authenticity Guarantee, Privacy Policy, Terms of Service, and Secure Payments.",
+    canonical: "https://aurarudraksha.com/policies"
+  });
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [policies, setPolicies] = useState(() => db.getPolicies());

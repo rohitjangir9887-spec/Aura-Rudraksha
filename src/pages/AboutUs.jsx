@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { PanditjiBioSection } from "../components/PanditjiBioSection";
+import { useSeo } from "../hooks/useSeo";
 import { 
   ShieldCheck, Award, Flame, HeartHandshake, 
   Sparkles, CheckCircle2, ArrowRight, Compass,
@@ -10,6 +11,12 @@ import {
 import { motion } from "framer-motion";
 
 export function AboutUs() {
+  useSeo({
+    title: "About Aura Rudraksha - Sacred Origin, Vedic Heritage & Purity Promise",
+    description: "Learn about Aura Rudraksha's mission: 100% genuine Nepali Rudraksha beads, rigorous lab X-ray certification, and traditional Vedic Prana Pratishtha consecration.",
+    canonical: "https://aurarudraksha.com/about"
+  });
+
   return (
     <Shell>
       <div className="about-page-container" style={{ background: "#fdfbf7", minHeight: "100vh", paddingBottom: "80px" }}>
