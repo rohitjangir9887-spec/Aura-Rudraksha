@@ -247,7 +247,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
               exit={{ opacity: 0, x: -slideDirection * 10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               onError={(e) => {
-                if (!e.target.src.includes("product-5mukhi.jpg")) {
+                if (!e.target.src.includes("placeholder.svg")) {
                   e.target.src = "/images/placeholder.svg";
                 }
               }}

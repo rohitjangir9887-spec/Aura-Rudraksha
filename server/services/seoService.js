@@ -581,14 +581,13 @@ export async function generateMerchantFeedXml(req) {
  */
 export function generateRobotsTxt(req) {
   const baseUrl = getSiteBaseUrl(req);
-  return `# Aura Rudraksha Production Crawler Instructions
-User-agent: *
+  return `User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /account
-Disallow: /orders
-Disallow: /cart
 Disallow: /checkout
+Disallow: /cart
+Disallow: /orders
 Disallow: /payment
 Disallow: /api/
 
@@ -672,6 +671,16 @@ export async function resolveSeoData(pathname, req) {
     const product = await findProductForSeo(slugOrId);
 
     if (product) {
+      const isDraftOrInactive = ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"].includes(product.status);
+      if (isDraftOrInactive) {
+        return {
+          noindex: true,
+          title: "Product Unavailable | Aura Rudraksha",
+          description: "This product is currently inactive or unavailable.",
+          canonical: `${baseUrl}/product/${product.slug || product.id}`
+        };
+      }
+
       const canonical = `${baseUrl}/product/${product.slug || product.id}`;
       const imgRaw = (product.images && product.images[0]) || product.img || SEO_BRAND.defaultImage;
       const ogImage = imgRaw.startsWith("http") ? imgRaw : `${baseUrl}${imgRaw.startsWith("/") ? "" : "/"}${imgRaw}`;
@@ -740,6 +749,13 @@ export async function resolveSeoData(pathname, req) {
         h1: product.name,
         leadText: cleanHighlight,
         product
+      };
+    } else {
+      return {
+        noindex: true,
+        title: "Product Not Found | Aura Rudraksha",
+        description: "The requested sacred Rudraksha product could not be found.",
+        canonical: `${baseUrl}${cleanPath}`
       };
     }
   }
@@ -864,12 +880,15 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   }
 
   // OpenGraph Tags
+  const safeOgImage = escapeXml(seo.ogImage || SEO_BRAND.defaultImage);
   headInjections += `  <meta property="og:site_name" content="${escapeXml(SEO_BRAND.name)}" />\n`;
   headInjections += `  <meta property="og:type" content="${escapeXml(seo.ogType || "website")}" />\n`;
   headInjections += `  <meta property="og:title" content="${escapeXml(seo.title)}" />\n`;
   headInjections += `  <meta property="og:description" content="${escapeXml(seo.description)}" />\n`;
   headInjections += `  <meta property="og:url" content="${escapeXml(seo.canonical || baseUrl)}" />\n`;
-  headInjections += `  <meta property="og:image" content="${escapeXml(seo.ogImage || SEO_BRAND.defaultImage)}" />\n`;
+  headInjections += `  <meta property="og:image" content="${safeOgImage}" />\n`;
+  headInjections += `  <meta property="og:image:secure_url" content="${safeOgImage}" />\n`;
+  headInjections += `  <meta property="og:image:alt" content="${escapeXml(seo.title)}" />\n`;
   headInjections += `  <meta property="og:image:width" content="1200" />\n`;
   headInjections += `  <meta property="og:image:height" content="630" />\n`;
 
@@ -877,7 +896,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   headInjections += `  <meta name="twitter:card" content="summary_large_image" />\n`;
   headInjections += `  <meta name="twitter:title" content="${escapeXml(seo.title)}" />\n`;
   headInjections += `  <meta name="twitter:description" content="${escapeXml(seo.description)}" />\n`;
-  headInjections += `  <meta name="twitter:image" content="${escapeXml(seo.ogImage || SEO_BRAND.defaultImage)}" />\n`;
+  headInjections += `  <meta name="twitter:image" content="${safeOgImage}" />\n`;
 
   // Structured Data (JSON-LD)
   if (seo.schemas && seo.schemas.length > 0) {

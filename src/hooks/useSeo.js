@@ -46,6 +46,8 @@ export function useSeo({
 
     if (ogImage) {
       setMetaTag("property", "og:image", ogImage);
+      setMetaTag("property", "og:image:secure_url", ogImage);
+      if (title) setMetaTag("property", "og:image:alt", title);
       setMetaTag("name", "twitter:image", ogImage);
     }
 

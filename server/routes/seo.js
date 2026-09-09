@@ -12,7 +12,7 @@ const router = express.Router();
  * Dynamic XML Sitemap
  * Route: GET /sitemap.xml
  */
-router.get("/sitemap.xml", async (req, res, next) => {
+router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res, next) => {
   try {
     const xml = await generateSitemapXml(req);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
@@ -28,7 +28,7 @@ router.get("/sitemap.xml", async (req, res, next) => {
  * Dynamic Google Merchant Center RSS/XML Feed
  * Routes: GET /google-merchant-feed.xml, GET /merchant-feed.xml
  */
-router.get(["/google-merchant-feed.xml", "/merchant-feed.xml"], async (req, res, next) => {
+router.get(["/google-merchant-feed.xml", "/merchant-feed.xml", "/api/google-merchant-feed.xml", "/api/merchant-feed.xml"], async (req, res, next) => {
   try {
     const xml = await generateMerchantFeedXml(req);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
@@ -44,7 +44,7 @@ router.get(["/google-merchant-feed.xml", "/merchant-feed.xml"], async (req, res,
  * Dynamic Robots.txt
  * Route: GET /robots.txt
  */
-router.get("/robots.txt", (req, res) => {
+router.get(["/robots.txt", "/api/robots.txt"], (req, res) => {
   const txt = generateRobotsTxt(req);
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=86400");
@@ -55,7 +55,7 @@ router.get("/robots.txt", (req, res) => {
  * IndexNow Verification Key Route
  * Route: GET /indexnow-key.txt or /:key.txt
  */
-router.get(["/indexnow-key.txt", "/:key.txt"], (req, res, next) => {
+router.get(["/indexnow-key.txt", "/api/indexnow-key.txt", "/:key.txt", "/api/:key.txt"], (req, res, next) => {
   const currentKey = getIndexNowKey();
   const reqKey = req.params.key;
 

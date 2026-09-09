@@ -13,6 +13,7 @@ import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
+import { useSeo } from "../hooks/useSeo";
 
 // Dedicated Modular PDP Components
 import { ProductGallery } from "../components/product/ProductGallery";
@@ -221,6 +222,21 @@ export function Product() {
   const isOutOfStock = stockLimit <= 0 || p?.status === "Out of Stock";
   const isFav = p ? isWishlisted(rawP?.id || rawP?._id || p.id || p._id) : false;
 
+  // Dynamic SEO & OpenGraph Meta Tag Synchronization for Social Sharing Previews
+  const primaryImg = p?.img || (p?.images && p?.images[0]) || "/favicon.jpg";
+  const ogImgUrl = primaryImg.startsWith("http") 
+    ? primaryImg 
+    : (typeof window !== "undefined" ? `${window.location.origin}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}` : primaryImg);
+  const canonicalUrl = typeof window !== "undefined" ? `${window.location.origin}/product/${p?.slug || p?.id || id}` : undefined;
+
+  useSeo({
+    title: p ? (p.metaTitle || `${p.name} — Authentic Lab Certified | Aura Rudraksha`) : "Aura Rudraksha",
+    description: p ? (p.metaDescription || (p.highlight || p.description || "").slice(0, 160)) : undefined,
+    canonical: p ? canonicalUrl : undefined,
+    ogImage: ogImgUrl,
+    ogType: "product"
+  });
+
   // Cart & Buy Handlers
   const handleAddToCart = () => {
     if (!p || isOutOfStock) return;
@@ -274,17 +290,32 @@ export function Product() {
     window.open(waUrl, "_blank");
   };
 
-  const handleShareProduct = () => {
+  const handleShareProduct = async () => {
     if (!p) return;
+    const shareUrl = window.location.href;
+    const shareTitle = `${p.name} | Aura Rudraksha`;
+    const shareText = `Explore authentic lab-certified ${p.name} at Aura Rudraksha`;
+
     if (navigator.share) {
-      navigator.share({
-        title: p.name,
-        text: `Explore authentic ${p.name} at Aura Rudraksha`,
-        url: window.location.href,
-      }).catch(() => {});
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      emitToast("Product link copied to clipboard", "success");
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return;
+      }
+    }
+    
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        emitToast("Product link copied to clipboard! Share on WhatsApp / Socials ❤️", "success");
+      } catch (_) {
+        emitToast("Product link copied", "info");
+      }
     }
   };
 
@@ -361,26 +392,12 @@ export function Product() {
         {/* 1. Breadcrumb Navigation Bar with Back Button */}
         <div className="aura-pdp-breadcrumb-bar">
           <div className="aura-breadcrumb-inner">
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="aura-breadcrumb-left">
               <button
                 type="button"
                 onClick={handleBack}
                 className="aura-pdp-back-btn"
                 aria-label="Go back"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "3px",
-                  padding: "4px 8px",
-                  borderRadius: "6px",
-                  border: "1px solid #ebdccb",
-                  background: "#fffdfa",
-                  color: "#6b594d",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease"
-                }}
               >
                 <ChevronLeft size={14} />
                 <span>Back</span>
@@ -391,12 +408,12 @@ export function Product() {
                 <span className="aura-bc-sep">/</span>
                 <Link to="/shop">Shop</Link>
                 {p.category && (
-                  <>
+                  <span className="aura-bc-cat" style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
                     <span className="aura-bc-sep">/</span>
                     <Link to={`/shop?category=${encodeURIComponent(p.category)}`}>
                       {p.category}
                     </Link>
-                  </>
+                  </span>
                 )}
                 <span className="aura-bc-sep">/</span>
                 <span className="aura-bc-current">{p.name}</span>

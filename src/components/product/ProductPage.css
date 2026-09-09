@@ -41,7 +41,8 @@
 .aura-pdp-breadcrumb-bar {
   background: var(--aura-bg-cream);
   border-bottom: 1px solid var(--aura-border-subtle);
-  padding: 10px 16px;
+  padding: 8px 14px;
+  width: 100%;
 }
 
 .aura-breadcrumb-inner {
@@ -50,21 +51,37 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   font-size: 13px;
   color: var(--aura-text-muted);
+  width: 100%;
+}
+
+.aura-breadcrumb-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .aura-breadcrumb-links {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  flex-wrap: nowrap;
 }
 
 .aura-breadcrumb-links a {
   color: var(--aura-text-muted);
   text-decoration: none;
   transition: color 0.15s;
+  flex-shrink: 0;
 }
 
 .aura-breadcrumb-links a:hover {
@@ -74,35 +91,75 @@
 .aura-bc-sep {
   opacity: 0.4;
   font-size: 11px;
+  flex-shrink: 0;
 }
 
 .aura-bc-current {
   color: var(--aura-brown-dark);
   font-weight: 600;
-  max-width: 320px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.aura-pdp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #ebdccb;
+  background: #fffdfa;
+  color: #6b594d;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .aura-pdp-share-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: #ffffff;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 20px;
-  padding: 4px 12px;
+  padding: 4px 11px;
   font-size: 12px;
   font-weight: 600;
   color: var(--aura-brown-mid);
   cursor: pointer;
   transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .aura-pdp-share-btn:hover {
   background: var(--aura-gold-subtle);
   border-color: var(--aura-gold-bright);
+}
+
+@media (max-width: 480px) {
+  .aura-pdp-breadcrumb-bar {
+    padding: 6px 10px;
+  }
+  .aura-breadcrumb-inner {
+    gap: 6px;
+  }
+  .aura-breadcrumb-left {
+    gap: 6px;
+  }
+  .aura-breadcrumb-links .aura-bc-cat {
+    display: none;
+  }
+  .aura-pdp-share-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
 }
 
 /* Main 2-Column Product Grid */
