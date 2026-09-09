@@ -704,16 +704,16 @@ export function Orders() {
                                 <RotateCcw size={11} /> {o.refundStatus || (o.paymentStatus === 'Refunded' ? 'Refunded' : `Partially Refunded (₹${Number(o.amountRefunded || 0).toLocaleString()})`)}
                               </span>
                             )}
-                            <span className={`status ${isCancelled ? 'error' : isDelivered ? 'success' : 'pending'}`} style={{
-                              background: isCancelled ? '#ffebee' : isDelivered ? '#e5f6ea' : '#fff3e0',
-                              color: isCancelled ? '#c62828' : isDelivered ? '#1d9450' : '#b85d25',
+                            <span className={`status ${isCancelled || isFailed ? 'error' : isDelivered ? 'success' : 'pending'}`} style={{
+                              background: (isCancelled || isFailed) ? '#ffebee' : isDelivered ? '#e5f6ea' : '#fff3e0',
+                              color: (isCancelled || isFailed) ? '#c62828' : isDelivered ? '#1d9450' : '#b85d25',
                               padding: '2px 8px',
                               borderRadius: 4,
                               fontSize: 10.5,
                               fontWeight: 700,
                               display: 'inline-block'
                             }}>
-                              {o.status || "Confirmed"}
+                              {isFailed ? "Payment Failed" : (o.status || "Confirmed")}
                             </span>
                           </div>
 
