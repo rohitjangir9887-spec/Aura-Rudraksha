@@ -522,12 +522,12 @@ export async function calculateKundaliEndpoint(req, res, next) {
     }
 
     // 3. Generate Vedic Interpretation using NVIDIA NIM (nemotron-3-super-120b-a12b)
+    // Generate AI interpretation using NVIDIA NIM or Gemini (gemini-3.8-flash)
     let aiInterpretation = "";
     const nvidiaClient = getNvidiaClient();
+    const geminiClient = getGeminiClient();
 
-    if (nvidiaClient) {
-      try {
-        const astroPrompt = `You are AI Pandit Ji, the respectful, knowledgeable Vedic Astrology AI guide for Aura Rudraksha.
+    const astroPrompt = `You are AI Pandit Ji, the respectful, knowledgeable Vedic Astrology AI guide for Aura Rudraksha.
 You have been provided with authoritative sidereal astronomical calculations computed by the Vedic ephemeris engine for:
 Name: ${kundaliData.verifiedBirthData.name}
 DOB: ${kundaliData.verifiedBirthData.dob} at ${kundaliData.verifiedBirthData.birthTime}
@@ -552,6 +552,25 @@ Provide an authentic, respectful, spiritual, and uplifting Vedic analysis in war
 4. Conclude with traditional Dharan Vidhi and Beej Mantra.
 Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji persona. Keep predictions non-fatalistic and positive.`;
 
+    if (geminiClient && !aiInterpretation) {
+      try {
+        const geminiRes = await geminiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [{ role: 'user', parts: [{ text: astroPrompt }] }],
+          config: {
+            systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
+            temperature: 0.35,
+            maxOutputTokens: 1500
+          }
+        });
+        aiInterpretation = geminiRes.text || "";
+      } catch (gErr) {
+        console.warn("[Kundali Endpoint] Gemini notice:", gErr?.message || gErr);
+      }
+    }
+
+    if (nvidiaClient && !aiInterpretation) {
+      try {
         const completion = await nvidiaClient.chat.completions.create({
           model: PRIMARY_NIM_MODEL,
           messages: [
@@ -939,9 +958,65 @@ ${memoryContextText || "Guest shopper."}`;
 
       let fullStreamedText = "";
       let streamSucceeded = false;
+      const geminiClient = getGeminiClient();
       const nvidiaClient = getNvidiaClient();
 
-      if (nvidiaClient) {
+      // 1. Try Gemini 3.8 Flash streaming first for ultra-fast response
+      if (geminiClient && !clientDisconnected) {
+        try {
+          const geminiContents = [];
+          for (const h of history.slice(-6)) {
+            if (h.sender === "user" && h.text) {
+              geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
+            } else if (h.sender === "ai" && h.text) {
+              geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
+            }
+          }
+          if (message && message.trim()) {
+            geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
+          } else if (calculatedKundaliData) {
+            geminiContents.push({
+              role: "user",
+              parts: [{
+                text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+              }]
+            });
+          } else {
+            geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
+          }
+
+          const geminiStream = await geminiClient.models.generateContentStream({
+            model: 'gemini-3.8-flash',
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.35,
+              maxOutputTokens: 1800
+            }
+          });
+
+          for await (const chunk of geminiStream) {
+            if (clientDisconnected) break;
+            const deltaContent = chunk.text || "";
+            if (deltaContent) {
+              fullStreamedText += deltaContent;
+              res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+            }
+          }
+
+          if (fullStreamedText.trim()) {
+            streamSucceeded = true;
+          }
+        } catch (geminiStreamErr) {
+          if (geminiStreamErr.name === "AbortError" || clientDisconnected) {
+            return;
+          }
+          console.warn("[Aura AI Streaming] Gemini notice:", geminiStreamErr?.message || geminiStreamErr);
+        }
+      }
+
+      // 2. Fallback to NVIDIA NIM streaming if Gemini was not available or produced empty output
+      if (!streamSucceeded && nvidiaClient && !clientDisconnected) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
           try {
@@ -1073,30 +1148,77 @@ ${memoryContextText || "Guest shopper."}`;
 
     // 8. Non-Streaming Execution
     let aiResponseText = "";
-    let generatedViaNvidia = false;
+    let generatedSuccessfully = false;
 
-    const nvidiaClient = getNvidiaClient();
-    if (nvidiaClient) {
-      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
-        if (generatedViaNvidia) break;
-        try {
-          const completion = await nvidiaClient.chat.completions.create({
-            model: modelCandidate,
-            messages: nimMessages,
-            temperature: 0.35,
-            max_tokens: 1800,
-            chat_template_kwargs: { enable_thinking: false },
-            reasoning_effort: "none"
-          });
-
-          const outContent = completion.choices?.[0]?.message?.content || "";
-          if (outContent.trim()) {
-            aiResponseText = outContent;
-            generatedViaNvidia = true;
-            break;
+    // Try Gemini 3.8 Flash first
+    const nonStreamGeminiClient = getGeminiClient();
+    if (nonStreamGeminiClient) {
+      try {
+        const geminiContents = [];
+        for (const h of history.slice(-6)) {
+          if (h.sender === "user" && h.text) {
+            geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
+          } else if (h.sender === "ai" && h.text) {
+            geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
           }
-        } catch (nimErr) {
-          console.warn(`[Aura AI] NVIDIA NIM execution notice (${modelCandidate}):`, nimErr?.message || nimErr);
+        }
+        if (message && message.trim()) {
+          geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
+        } else if (calculatedKundaliData) {
+          geminiContents.push({
+            role: "user",
+            parts: [{
+              text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+            }]
+          });
+        } else {
+          geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
+        }
+
+        const geminiRes = await nonStreamGeminiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: geminiContents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.35,
+            maxOutputTokens: 1800
+          }
+        });
+        const outText = geminiRes.text || "";
+        if (outText.trim()) {
+          aiResponseText = outText;
+          generatedSuccessfully = true;
+        }
+      } catch (geminiErr) {
+        console.warn("[Aura AI Non-Stream] Gemini notice:", geminiErr?.message || geminiErr);
+      }
+    }
+
+    // Try NVIDIA NIM if Gemini was not available or failed
+    if (!generatedSuccessfully) {
+      const nvidiaClient = getNvidiaClient();
+      if (nvidiaClient) {
+        for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+          if (generatedSuccessfully) break;
+          try {
+            const completion = await nvidiaClient.chat.completions.create({
+              model: modelCandidate,
+              messages: nimMessages,
+              temperature: 0.35,
+              max_tokens: 1800,
+              chat_template_kwargs: { enable_thinking: false },
+              reasoning_effort: "none"
+            });
+
+            const outContent = completion.choices?.[0]?.message?.content || "";
+            if (outContent.trim()) {
+              aiResponseText = outContent;
+              generatedSuccessfully = true;
+              break;
+            }
+          } catch (nimErr) {
+            console.warn(`[Aura AI] NVIDIA NIM execution notice (${modelCandidate}):`, nimErr?.message || nimErr);
+          }
         }
       }
     }
@@ -1287,13 +1409,12 @@ export async function getAdminAiIntelligence(req, res, next) {
     const totalConvos = conversations.length;
     const escalatedConvos = conversations.filter(c => c.requiresHumanSupport || c.status === "Escalated").length;
 
-    // 2. Generate Real Executive Insights with NVIDIA NIM (with 7s timeout fallback)
+    // 2. Generate Real Executive Insights with Gemini or NVIDIA NIM
     let aiExecutiveReport = null;
+    const geminiClient = getGeminiClient();
     const nvidiaClient = getNvidiaClient();
 
-    if (nvidiaClient) {
-      try {
-        const adminPrompt = `You are the Lead Executive E-Commerce AI Strategist for Aura Rudraksha.
+    const adminPrompt = `You are the Lead Executive E-Commerce AI Strategist for Aura Rudraksha.
 Analyze the following REAL verified store database metrics:
 - Total Orders: ${totalOrders} (Completed: ${completedOrders}, Pending: ${pendingOrders}, Cancelled/Failed: ${cancelledOrders})
 - Total Store Revenue: ₹${totalRevenue.toLocaleString("en-IN")}
@@ -1317,6 +1438,26 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
   ]
 }`;
 
+    if (geminiClient && !aiExecutiveReport) {
+      try {
+        const geminiRes = await geminiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [{ role: 'user', parts: [{ text: adminPrompt }] }],
+          config: {
+            systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
+            temperature: 0.25,
+            responseMimeType: "application/json"
+          }
+        });
+        const rawText = geminiRes.text || "";
+        aiExecutiveReport = extractStructuredAiJson(rawText);
+      } catch (geminiErr) {
+        console.warn("[Admin AI Intelligence] Gemini analysis notice:", geminiErr?.message || geminiErr);
+      }
+    }
+
+    if (nvidiaClient && !aiExecutiveReport) {
+      try {
         const aiPromise = nvidiaClient.chat.completions.create({
           model: PRIMARY_NIM_MODEL,
           messages: [
@@ -1795,10 +1936,9 @@ Instructions:
 
     if (!nvidia) {
       // Fallback to Gemini if NVIDIA client not configured
-      const geminiApiKey = process.env.GEMINI_API_KEY;
-      if (geminiApiKey) {
+      const geminiClient = getGeminiClient();
+      if (geminiClient) {
         try {
-          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
           const geminiContents = formattedMessages
             .filter(m => m.role !== 'system' && m.role !== 'tool')
             .map(m => ({
@@ -1806,8 +1946,8 @@ Instructions:
               parts: [{ text: String(m.content || "") }]
             }));
 
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+          const response = await geminiClient.models.generateContent({
+            model: 'gemini-3.8-flash',
             contents: geminiContents,
             config: {
               systemInstruction: systemPrompt,
@@ -1872,14 +2012,39 @@ Instructions:
   }
 ];
 
-    let response = await nvidia.chat.completions.create({
-      model: PRIMARY_NIM_MODEL,
-      messages: formattedMessages,
-      temperature: 0.7,
-      max_tokens: 2500,
-      tools: tools,
-      tool_choice: "auto"
-    });
+    let response;
+    try {
+      response = await nvidia.chat.completions.create({
+        model: PRIMARY_NIM_MODEL,
+        messages: formattedMessages,
+        temperature: 0.7,
+        max_tokens: 2500,
+        tools: tools,
+        tool_choice: "auto"
+      });
+    } catch (nimErr) {
+      console.warn("[adminChatAuraAI] NVIDIA error, falling back to Gemini:", nimErr?.message);
+      const geminiClient = getGeminiClient();
+      if (geminiClient) {
+        const geminiContents = formattedMessages
+          .filter(m => m.role !== 'system' && m.role !== 'tool')
+          .map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: String(m.content || "") }]
+          }));
+
+        const geminiRes = await geminiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: geminiContents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.7,
+          }
+        });
+        return res.json({ text: geminiRes.text || "No response generated." });
+      }
+      throw nimErr;
+    }
 
     let responseMessage = response.choices[0]?.message;
     

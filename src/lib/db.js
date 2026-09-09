@@ -817,6 +817,35 @@ export const db = {
     };
   },
 
+  // Full Database Diagnostics & Error Logs (Admin)
+  getDbDiagnostics: async () => {
+    const res = await apiRequest("/admin/db-status", {
+      requiresAuth: true,
+      noCache: true
+    });
+    return res;
+  },
+
+  // Test / Reconnect MongoDB live (Admin)
+  testDbConnection: async () => {
+    const res = await apiRequest("/admin/db-status/test", {
+      method: "POST",
+      requiresAuth: true,
+      noCache: true
+    });
+    return res;
+  },
+
+  // Clear Database Error Logs (Admin)
+  clearDbErrorLogs: async () => {
+    const res = await apiRequest("/admin/db-status/clear-errors", {
+      method: "POST",
+      requiresAuth: true,
+      noCache: true
+    });
+    return res;
+  },
+
   // Manual Trigger to re-fetch from MongoDB
   syncFromBackend: async () => {
     await hydrateFromBackend();

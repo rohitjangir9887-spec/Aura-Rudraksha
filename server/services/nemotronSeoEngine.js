@@ -1,8 +1,24 @@
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { extractMukhiNumber, VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 
 export const NEMOTRON_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
+
+let cachedGeminiClient = null;
+
+export function getGeminiClient() {
+  if (cachedGeminiClient) return cachedGeminiClient;
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) return null;
+  try {
+    cachedGeminiClient = new GoogleGenAI({ apiKey });
+    return cachedGeminiClient;
+  } catch (err) {
+    console.warn("[Gemini Client] Initialization notice:", err?.message || err);
+    return null;
+  }
+}
 
 /**
  * Initialize NVIDIA NIM Client strictly configured for nvidia/nemotron-3-super-120b-a12b
@@ -509,27 +525,90 @@ Target Language: ${language}
 
 Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
 
-      const completion = await nvidiaClient.chat.completions.create({
-        model: NEMOTRON_NIM_MODEL,
-        messages: [
-          { role: "system", content: promptSystem },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 2200
-      });
+      const geminiClient = getGeminiClient();
+      if (geminiClient && !aiGenerationSuccess) {
+        try {
+          const geminiRes = await geminiClient.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            config: {
+              systemInstruction: promptSystem,
+              temperature: 0.2,
+              responseMimeType: "application/json"
+            }
+          });
+          const rawResponse = geminiRes.text || "";
+          aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+          if (aiOutputParsed && aiOutputParsed.seo) {
+            aiGenerationSuccess = true;
+          }
+        } catch (gErr) {
+          console.warn("[Nemotron Engine] Gemini call notice:", gErr?.message || gErr);
+        }
+      }
 
-      const rawResponse = completion.choices?.[0]?.message?.content || "";
-      aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-      if (aiOutputParsed && aiOutputParsed.seo) {
-        aiGenerationSuccess = true;
+      if (nvidiaClient && !aiGenerationSuccess) {
+        try {
+          const completion = await nvidiaClient.chat.completions.create({
+            model: NEMOTRON_NIM_MODEL,
+            messages: [
+              { role: "system", content: promptSystem },
+              { role: "user", content: userPrompt }
+            ],
+            temperature: 0.2,
+            max_tokens: 2200
+          });
+
+          const rawResponse = completion.choices?.[0]?.message?.content || "";
+          aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+          if (aiOutputParsed && aiOutputParsed.seo) {
+            aiGenerationSuccess = true;
+          }
+        } catch (err) {
+          console.warn("[Nemotron Engine] NIM call error:", err?.message || err);
+          aiWarningMessage = `NVIDIA NIM engine call notice: ${err?.message || "Unavailable"}. Populated from verified Vedic Knowledge Base.`;
+        }
       }
     } catch (err) {
-      console.warn("[Nemotron Engine] NIM call error:", err?.message || err);
-      aiWarningMessage = `NVIDIA NIM engine call notice: ${err?.message || "Unavailable"}. Populated from verified Vedic Knowledge Base.`;
+      console.warn("[Nemotron Engine] Generation error:", err?.message || err);
     }
   } else {
-    aiWarningMessage = "NVIDIA NIM API Key not configured. Populated from verified Vedic Knowledge Base without fabrication.";
+    // If nvidiaClient is not configured, try Gemini before knowledge base fallback
+    const geminiClient = getGeminiClient();
+    if (geminiClient) {
+      try {
+        const userPrompt = `Product Title: "${cleanName}"
+Category: ${category}
+Mukhi: ${mukhiNum || 'N/A'}
+Origin: ${origin}
+Price: ₹${price || ''} / MRP: ₹${mrp || ''}
+Existing Highlight: "${highlight || details || ''}"
+Existing Description: "${description.slice(0, 300)}"
+Target Language: ${language}
+
+Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
+
+        const geminiRes = await geminiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          config: {
+            systemInstruction: promptSystem,
+            temperature: 0.2,
+            responseMimeType: "application/json"
+          }
+        });
+        const rawResponse = geminiRes.text || "";
+        aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+        if (aiOutputParsed && aiOutputParsed.seo) {
+          aiGenerationSuccess = true;
+        }
+      } catch (gErr) {
+        console.warn("[Nemotron Engine] Gemini fallback notice:", gErr?.message || gErr);
+      }
+    }
+    if (!aiGenerationSuccess) {
+      aiWarningMessage = "AI API Key not configured. Populated from verified Vedic Knowledge Base without fabrication.";
+    }
   }
 
   // Fallback to verified Vedic Knowledge Base if AI output is not available

@@ -25,6 +25,7 @@ import cartRoute from "./routes/cart.js";
 import paymentRoute from "./routes/payment.js";
 import uploadRoute from "./routes/upload.js";
 import seoRoute from "./routes/seo.js";
+import adminDbStatusRoute from "./routes/adminDbStatus.js";
 import { handlePayuCallback } from "./controllers/paymentController.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -153,6 +154,7 @@ export function createApp() {
     app.use("/api/upload/register-batch", uploadLimit);
     app.use("/api/analytics", adminApiLimit);
     app.use("/api/settings", adminApiLimit);
+    app.use("/api/admin/db-status", adminApiLimit);
   }
 
   // Database Connection Middleware for Serverless & Long-running instances
@@ -214,6 +216,7 @@ export function createApp() {
   };
 
   // API Routes Mount
+  app.use("/api/admin/db-status", adminDbStatusRoute);
   app.use("/api/upload", requireDb, uploadRoute);
   app.use("/api/admin/storage", requireDb, uploadRoute);
   app.use("/api/admin/me", requireDb, authRoute);

@@ -14,6 +14,7 @@ import {
 import { Link } from "react-router-dom";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
+import { AdminMongoStatus } from "../../components/admin/AdminMongoStatus";
 import {
   ShoppingBag, DollarSign, Users, Boxes, Clock, Eye, Plus, Megaphone,
   TicketPercent, ChevronRight, TrendingUp, Sparkles, RefreshCw, CheckCircle2,
@@ -537,6 +538,15 @@ export function Admin() {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* MongoDB Connection Status & Troubleshooting Component */}
+        <div style={{ marginBottom: '24px' }}>
+          <AdminMongoStatus onStatusChange={(diag) => {
+            if (diag?.isConnected !== undefined) {
+              setDbStatus(diag.isConnected ? "connected" : "disconnected");
+            }
+          }} />
         </div>
 
         {/* Cloud Storage & Sync Health Monitoring Panel */}
