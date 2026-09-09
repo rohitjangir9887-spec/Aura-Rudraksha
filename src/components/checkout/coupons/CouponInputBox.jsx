@@ -15,6 +15,7 @@ export function CouponInputBox({
         <div style={{ position: "relative", flex: 1 }}>
           <input
             id="input-coupon-code"
+            aria-label="Coupon code"
             placeholder="Enter Coupon Code (e.g. AURA10)"
             value={couponInput}
             onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
