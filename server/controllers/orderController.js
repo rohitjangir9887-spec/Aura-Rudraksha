@@ -144,7 +144,8 @@ export async function getOrderById(req, res, next) {
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = isGuestOrder && (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
-      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
+      Boolean(req.user)
     );
 
     if (!isAdmin && !isOwner && !isGuestOwner) {
@@ -533,6 +534,12 @@ export async function updateOrder(req, res, next) {
       const cancellableStatuses = [ORDER_STATES.PENDING, ORDER_STATES.PAYMENT_PENDING, ORDER_STATES.CONFIRMED, ORDER_STATES.PROCESSING];
       
       if (data.status === "Cancelled" || data.orderStatus === "Cancelled") {
+        if (existing.paymentStatus === PAYMENT_STATES.PAID || existing.paymentStatus === "Refunded") {
+          return res.status(400).json({
+            success: false,
+            message: "Paid orders cannot be cancelled via this endpoint. Please contact customer support for refund/cancellation."
+          });
+        }
         if (!cancellableStatuses.includes(existing.orderStatus || existing.status)) {
           return res.status(400).json({
             success: false,
@@ -544,16 +551,7 @@ export async function updateOrder(req, res, next) {
         updateFields.cancelledAt = new Date().toISOString();
         updateFields.cancelReason = String(data.cancelReason || "Cancelled by customer").trim();
         updateFields.cancelledBy = "Customer";
-
-        // If customer cancels an already-paid order, flag for refund review
-        if (existing.paymentStatus === PAYMENT_STATES.PAID) {
-          updateFields.paymentStatus = PAYMENT_STATES.REFUND_PENDING;
-          updateFields.refundDetails = {
-            requestedAt: new Date().toISOString(),
-            reason: updateFields.cancelReason,
-            status: "Refund Pending Review"
-          };
-        }
+        updateFields.paymentStatus = "Cancelled";
       }
 
       if (data.address && cancellableStatuses.includes(existing.orderStatus || existing.status)) {
@@ -833,6 +831,62 @@ export async function getPaymentFailureAlert(req, res, next) {
       }
     });
 
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addOrderMessage(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+    const authUserId = req.user?.authUserId;
+
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database unavailable" });
+    }
+    if (!message || String(message).trim() === "") {
+      return res.status(400).json({ success: false, message: "Message cannot be empty" });
+    }
+
+    let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] });
+    if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(id);
+    }
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+
+    const { isInitialAdmin } = isAdminUser(req.user);
+    const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
+
+    const userEmail = (req.user?.email || "").trim().toLowerCase();
+    const userPhone = (req.user?.phone || "").trim();
+    const oEmail = (order.customerEmail || order.email || order.shippingAddress?.email || "").toLowerCase();
+    const oPhone = order.customerPhone || order.phone || order.shippingAddress?.phone || "";
+
+    const isOwner = authUserId && (
+      order.authUserId === authUserId ||
+      (userEmail && oEmail === userEmail) ||
+      (userPhone && oPhone === userPhone)
+    );
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ success: false, message: "Access Denied" });
+    }
+
+    const newMessage = {
+      sender: isAdmin ? 'admin' : 'customer',
+      senderName: isAdmin ? 'Admin' : (req.user?.name || order.customerName || 'Customer'),
+      message: String(message).trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    const messages = order.messages || [];
+    messages.push(newMessage);
+    order.messages = messages;
+
+    await order.save();
+
+    return res.json({ success: true, message: "Message added", data: newMessage });
   } catch (err) {
     next(err);
   }

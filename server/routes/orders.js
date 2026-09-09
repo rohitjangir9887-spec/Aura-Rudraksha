@@ -41,4 +41,7 @@ router.route("/:id")
   .get(optionalAuth, getOrderById)
   .put(requireAuth, updateOrder);
 
+import { addOrderMessage } from "../controllers/orderController.js";
+router.post("/:id/message", requireAuth, addOrderMessage);
+
 export default router;

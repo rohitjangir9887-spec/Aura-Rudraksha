@@ -9,6 +9,7 @@ import {
   Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2, Star,
   CheckCircle2, MessageSquare
 } from "lucide-react";
+import { OrderMessages } from "../../components/OrderMessages";
 import { Shell } from "../../components/Shell";
 import { db } from "../../lib/db";
 import { authClient } from "../../lib/authClient";

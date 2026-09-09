@@ -979,13 +979,16 @@ export async function verifyPaymentStatus(req, res, next) {
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
+    const isEmailOwner = req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase();
+    const isPhoneOwner = req.user?.phone && (order.customerPhone || order.phone) && String(req.user.phone).trim() === String(order.customerPhone || order.phone).trim();
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = isGuestOrder && (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
-      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
+      Boolean(req.user)
     );
 
-    if (!isAdmin && !isOwner && !isGuestOwner) {
+    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
@@ -994,14 +997,45 @@ export async function verifyPaymentStatus(req, res, next) {
       return res.status(200).json({ success: true, data: order });
     }
 
-    // If order is pending and has a transaction ID, perform live PayU server-to-server check
-    if (order.paymentStatus !== "Paid" && order.txnid) {
+    // If order is pending, perform live PayU server-to-server check for all pending attempts
+    if (order.paymentStatus !== "Paid" && (order.txnid || (order.paymentAttempts && order.paymentAttempts.length > 0))) {
       const { isConfigured } = getPayuConfig();
       if (isConfigured) {
-        const verifyRes = await verifyPayuPaymentServerSide(order.txnid);
-        const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
+        let isAnyAttemptPaid = false;
+        let successfulTxnid = "";
+        let finalVerifyRes = null;
+        let finalExpectedAmount = 0;
 
-        if (verifyRes.success && verifyRes.isPaid && Math.abs(verifyRes.amount - expectedAmount) < 0.01) {
+        const attemptsToCheck = order.paymentAttempts && order.paymentAttempts.length > 0 
+          ? [...order.paymentAttempts]
+          : [{ txnid: order.txnid }];
+
+        if (reqTxnid) {
+          const matchingAttempt = attemptsToCheck.find(a => a.txnid === reqTxnid);
+          if (matchingAttempt) {
+            attemptsToCheck.splice(attemptsToCheck.indexOf(matchingAttempt), 1);
+            attemptsToCheck.unshift(matchingAttempt);
+          } else {
+            attemptsToCheck.unshift({ txnid: reqTxnid });
+          }
+        }
+
+        for (const attempt of attemptsToCheck) {
+          if (!attempt.txnid || attempt.status === "success") continue;
+          const verifyRes = await verifyPayuPaymentServerSide(attempt.txnid);
+          const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
+
+          if (verifyRes.success && verifyRes.isPaid && Math.abs(verifyRes.amount - expectedAmount) < 0.01) {
+            isAnyAttemptPaid = true;
+            successfulTxnid = attempt.txnid;
+            finalVerifyRes = verifyRes;
+            finalExpectedAmount = expectedAmount;
+            break;
+          }
+        }
+
+        if (isAnyAttemptPaid) {
+          const verifyRes = finalVerifyRes;
           const updatedOrder = await Order.findOneAndUpdate(
             { _id: order._id, paymentStatus: { $ne: "Paid" } },
             {
@@ -1009,6 +1043,7 @@ export async function verifyPaymentStatus(req, res, next) {
                 paymentStatus: "Paid",
                 orderStatus: "Confirmed",
                 status: "Confirmed",
+                txnid: successfulTxnid,
                 mihpayid: verifyRes.mihpayid || order.mihpayid,
                 bankRefNum: verifyRes.bankRefNum || order.bankRefNum,
                 paymentMode: verifyRes.mode || order.paymentMode,
@@ -1027,17 +1062,17 @@ export async function verifyPaymentStatus(req, res, next) {
 
           if (updatedOrder) {
             const attempts = order.paymentAttempts || [];
-            const attemptIdx = attempts.findIndex(a => a.txnid === order.txnid);
+            const attemptIdx = attempts.findIndex(a => a.txnid === successfulTxnid);
             if (attemptIdx >= 0) {
               attempts[attemptIdx].status = "success";
               attempts[attemptIdx].mihpayid = verifyRes.mihpayid || attempts[attemptIdx].mihpayid || "";
               attempts[attemptIdx].bankRefNum = verifyRes.bankRefNum || attempts[attemptIdx].bankRefNum || "";
               attempts[attemptIdx].paymentMode = verifyRes.mode || attempts[attemptIdx].paymentMode || "";
               attempts[attemptIdx].updatedAt = new Date().toISOString();
-            } else if (order.txnid) {
+            } else if (successfulTxnid) {
               attempts.push({
-                txnid: order.txnid,
-                amount: expectedAmount,
+                txnid: successfulTxnid,
+                amount: finalExpectedAmount,
                 status: "success",
                 mihpayid: verifyRes.mihpayid || "",
                 bankRefNum: verifyRes.bankRefNum || "",
@@ -1052,6 +1087,7 @@ export async function verifyPaymentStatus(req, res, next) {
               { $set: { inventoryDeducted: true } },
               { new: false }
             );
+
             if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
               const bulkOps = [];
               for (const item of order.snapshotItems) {
@@ -1081,61 +1117,56 @@ export async function verifyPaymentStatus(req, res, next) {
               }
             }
           }
-        } else if (verifyRes.success) {
-          // PayU returned non-paid response (bounced, failed, usercancelled, dropped, etc.)
-          const rawStatus = (verifyRes.status || "").toLowerCase();
-          const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
-          let newPayuStatus = verifyRes.status || verifyRes.unmappedStatus || "Failed";
-          if (rawStatus === "bounced" || unmapped === "bounced") newPayuStatus = "Bounced";
-          else if (rawStatus === "usercancelled" || unmapped === "usercancelled") newPayuStatus = "userCancelled";
-          else if (rawStatus === "dropped" || unmapped === "dropped") newPayuStatus = "Dropped";
-          else if (rawStatus === "failed" || rawStatus === "failure" || unmapped === "failed") newPayuStatus = "Failed";
+        } else if (order.txnid) {
+          const txnidToSync = reqTxnid && order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid) ? reqTxnid : order.txnid;
+          const verifyRes = await verifyPayuPaymentServerSide(txnidToSync);
+          const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
+          
+          if (verifyRes.success) {
+            const rawStatus = (verifyRes.status || "").toLowerCase();
+            const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
+            let newPayuStatus = verifyRes.status || verifyRes.unmappedStatus || "Failed";
+            
+            if (rawStatus === "bounced" || unmapped === "bounced") newPayuStatus = "Bounced";
+            else if (rawStatus === "usercancelled" || unmapped === "usercancelled") newPayuStatus = "userCancelled";
+            else if (rawStatus === "dropped" || unmapped === "dropped") newPayuStatus = "Dropped";
+            else if (rawStatus === "failed" || rawStatus === "failure" || unmapped === "failed") newPayuStatus = "Failed";
 
-          let newPaymentStatus = "Failed";
-          if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
-            newPaymentStatus = "Cancelled";
-          } else if (rawStatus === "pending" || rawStatus === "initiated" || unmapped === "initiated") {
-            newPaymentStatus = "Pending";
-          }
-
-          const attempts = order.paymentAttempts || [];
-          const attemptIdx = attempts.findIndex(a => a.txnid === order.txnid);
-          if (attemptIdx >= 0) {
-            attempts[attemptIdx].mihpayid = verifyRes.mihpayid || attempts[attemptIdx].mihpayid || "";
-            attempts[attemptIdx].payuStatus = newPayuStatus;
-            attempts[attemptIdx].unmappedstatus = verifyRes.unmappedStatus || "";
-            attempts[attemptIdx].paymentStatus = newPaymentStatus;
-            attempts[attemptIdx].bankRefNum = verifyRes.bankRefNum || attempts[attemptIdx].bankRefNum || "";
-            attempts[attemptIdx].paymentMode = verifyRes.mode || attempts[attemptIdx].paymentMode || "";
-            attempts[attemptIdx].updatedAt = new Date().toISOString();
-          } else if (order.txnid) {
-            attempts.push({
-              txnid: order.txnid,
-              mihpayid: verifyRes.mihpayid || "",
-              payuStatus: newPayuStatus,
-              unmappedstatus: verifyRes.unmappedStatus || "",
-              paymentStatus: newPaymentStatus,
-              paymentMode: verifyRes.mode || "",
-              bankRefNum: verifyRes.bankRefNum || "",
-              amount: expectedAmount,
-              createdAt: new Date().toISOString()
-            });
-          }
-
-          await Order.updateOne(
-            { _id: order._id },
-            {
-              $set: {
-                paymentStatus: order.paymentStatus === "Paid" ? "Paid" : newPaymentStatus,
-                payuStatus: newPayuStatus,
-                unmappedstatus: verifyRes.unmappedStatus || "",
-                mihpayid: verifyRes.mihpayid || order.mihpayid || "",
-                bankRefNum: verifyRes.bankRefNum || order.bankRefNum || "",
-                paymentMode: verifyRes.mode || order.paymentMode || "",
-                paymentAttempts: attempts
-              }
+            let newPaymentStatus = "Failed";
+            if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
+              newPaymentStatus = "Cancelled";
+            } else if (rawStatus === "pending" || rawStatus === "initiated" || unmapped === "initiated") {
+              newPaymentStatus = "Pending";
             }
-          );
+
+            const attempts = order.paymentAttempts || [];
+            const attemptIdx = attempts.findIndex(a => a.txnid === txnidToSync);
+            
+            if (attemptIdx >= 0) {
+              attempts[attemptIdx].mihpayid = verifyRes.mihpayid || attempts[attemptIdx].mihpayid || "";
+              attempts[attemptIdx].payuStatus = newPayuStatus;
+              attempts[attemptIdx].unmappedstatus = verifyRes.unmappedStatus || "";
+              attempts[attemptIdx].paymentStatus = newPaymentStatus;
+              attempts[attemptIdx].bankRefNum = verifyRes.bankRefNum || attempts[attemptIdx].bankRefNum || "";
+              attempts[attemptIdx].paymentMode = verifyRes.mode || attempts[attemptIdx].paymentMode || "";
+              attempts[attemptIdx].updatedAt = new Date().toISOString();
+            }
+
+            await Order.updateOne(
+              { _id: order._id },
+              {
+                $set: {
+                  paymentStatus: order.paymentStatus === "Paid" ? "Paid" : newPaymentStatus,
+                  payuStatus: newPayuStatus,
+                  unmappedstatus: verifyRes.unmappedStatus || "",
+                  mihpayid: verifyRes.mihpayid || order.mihpayid || "",
+                  bankRefNum: verifyRes.bankRefNum || order.bankRefNum || "",
+                  paymentMode: verifyRes.mode || order.paymentMode || "",
+                  paymentAttempts: attempts
+                }
+              }
+            );
+          }
         }
       }
     }

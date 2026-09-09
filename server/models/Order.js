@@ -35,6 +35,7 @@ const orderSchema = new mongoose.Schema(
     paymentAttempts: { type: Array, default: [] },
     refundDetails: { type: mongoose.Schema.Types.Mixed, default: null },
     refundHistory: { type: Array, default: [] },
+    messages: { type: Array, default: [] },
     refundStatus: { type: String, default: "None", index: true }, // "None", "Refund Pending", "Partially Refunded", "Refunded"
     refundNote: { type: String, default: "" },
     refundNotes: { type: String, default: "" },
