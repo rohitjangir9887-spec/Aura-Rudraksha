@@ -42,9 +42,9 @@ export function PaymentResult() {
       }
       try {
         let res = await db.verifyPayment(orderId, txnid, guestToken);
-        // If query param indicated success or processing, but server state transition is mid-flight, poll with backoff
+        // If query param indicated success or processing, but server state transition is mid-flight, poll quickly
         if (res?.data?.paymentStatus !== "Paid" && (status === "success" || status === "processing")) {
-          const delays = [1500, 2000, 2500, 3000];
+          const delays = [500, 1000]; // drastically reduced wait times
           for (const delay of delays) {
             await new Promise((r) => setTimeout(r, delay));
             res = await db.verifyPayment(orderId, txnid, guestToken);

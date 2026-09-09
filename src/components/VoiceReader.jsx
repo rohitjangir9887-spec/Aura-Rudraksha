@@ -55,17 +55,34 @@ export function VoiceReader({ text }) {
     if (voices.length > 0) {
       let bestVoice = null;
       
+      // Keywords that typically denote a male voice in various OS TTS engines
+      const maleKeywords = ['male', 'man', 'rishi', 'neil', 'ravi', 'hemant', 'amit', 'prabhat', 'arvind', 'david', 'mark'];
+      const isMale = (v) => maleKeywords.some(kw => v.name.toLowerCase().includes(kw));
+      
       if (hasDevanagari) {
         utterance.lang = 'hi-IN';
-        bestVoice = voices.find(v => v.name.includes('Google हिन्दी') || v.name.includes('Google Hindi') || v.name.includes('Premium') && (v.lang === 'hi-IN' || v.lang === 'hi_IN')) || 
-                    voices.find(v => v.lang === 'hi-IN' || v.lang === 'hi_IN') ||
-                    voices.find(v => v.lang.includes('hi'));
+        const hiVoices = voices.filter(v => v.lang.includes('hi') || v.lang.includes('IN'));
+        
+        // 1. Prioritize Male Hindi voices
+        bestVoice = hiVoices.find(v => (v.lang === 'hi-IN' || v.lang === 'hi_IN') && isMale(v)) ||
+                    // 2. Prioritize Male Indian voices
+                    hiVoices.find(v => isMale(v)) ||
+                    // 3. Fallback to Premium/Google Hindi
+                    hiVoices.find(v => v.name.includes('Google हिन्दी') || v.name.includes('Google Hindi') || v.name.includes('Premium')) ||
+                    // 4. Any Hindi
+                    hiVoices.find(v => v.lang.includes('hi')) || hiVoices[0];
       } else {
-        // Hinglish / English - use Indian English to sound natural
+        // Hinglish / English
         utterance.lang = 'en-IN';
-        bestVoice = voices.find(v => (v.lang === 'en-IN' || v.lang === 'en_IN') && v.name.includes('Google')) ||
-                    voices.find(v => v.lang === 'en-IN' || v.lang === 'en_IN') ||
-                    voices.find(v => v.lang.includes('en'));
+        const enVoices = voices.filter(v => v.lang.includes('en'));
+        
+        // 1. Prioritize Male Indian English voices
+        bestVoice = enVoices.find(v => (v.lang === 'en-IN' || v.lang === 'en_IN') && isMale(v)) ||
+                    // 2. Prioritize Any Male English voice
+                    enVoices.find(v => isMale(v)) ||
+                    // 3. Fallback to Indian English
+                    enVoices.find(v => v.lang === 'en-IN' || v.lang === 'en_IN') ||
+                    enVoices[0];
       }
 
       if (bestVoice) {
@@ -75,8 +92,13 @@ export function VoiceReader({ text }) {
       utterance.lang = hasDevanagari ? 'hi-IN' : 'en-IN';
     }
 
-    utterance.rate = 0.95;
-    utterance.pitch = 0.95;
+    // Adjust rate and pitch to sound more authoritative but keep it natural enough
+    utterance.rate = 0.90;
+    
+    // If we couldn't find a specifically male voice, we drop the pitch to simulate one.
+    // However, if we DID find a native male voice, we keep the pitch near normal (0.8-1.0) so it doesn't sound distorted.
+    const isActuallyMale = bestVoice && ['male', 'man', 'rishi', 'neil', 'ravi', 'hemant', 'amit', 'prabhat', 'arvind', 'david', 'mark'].some(kw => bestVoice.name.toLowerCase().includes(kw));
+    utterance.pitch = isActuallyMale ? 0.9 : 0.4;
 
     utterance.onend = () => setIsPlaying(false);
     utterance.onerror = (e) => {
