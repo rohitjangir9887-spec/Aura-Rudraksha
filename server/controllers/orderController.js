@@ -129,6 +129,25 @@ export async function getOrderById(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     order = normalizeOrderState(order);
+    
+    // Timeout check for pending orders (20 minutes)
+    if (order.paymentStatus === "Pending") {
+      const orderDate = new Date(order.createdAt || order.date);
+      const now = new Date();
+      const diffMins = (now - orderDate) / (1000 * 60);
+      if (diffMins > 20) {
+        order.paymentStatus = "Failed";
+        order.status = "Cancelled";
+        order.orderStatus = "Cancelled";
+        
+        // Also update in DB lazily without awaiting to not block read
+        Order.updateOne(
+          { _id: order._id, paymentStatus: "Pending" },
+          { $set: { paymentStatus: "Failed", status: "Cancelled", orderStatus: "Cancelled", cancelReason: "Payment timeout after 20 minutes" } }
+        ).catch(err => console.error("Auto cancel timeout err", err));
+      }
+    }
+
 
     // Authorization check
     const { isInitialAdmin } = isAdminUser(req.user);
