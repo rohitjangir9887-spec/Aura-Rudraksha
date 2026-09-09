@@ -38,6 +38,7 @@ import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
+import { VoiceReader } from "../components/VoiceReader";
 import { useSeo } from "../hooks/useSeo";
 
 export function AuraAIPage() {
@@ -760,6 +761,11 @@ export function AuraAIPage() {
                         <div className="aura-ai-page-text">
                           <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                         </div>
+                        {m.sender === "ai" && mode === "panditji" && m.text && (
+                          <div style={{ marginTop: "4px" }}>
+                            <VoiceReader text={customerSafeAiText(m.text)} />
+                          </div>
+                        )}
 
                         {/* Inline Recommended Product Cards */}
                         {m.products && m.products.length > 0 && (

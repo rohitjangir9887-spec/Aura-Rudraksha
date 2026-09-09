@@ -38,6 +38,7 @@ import { authClient } from "../lib/authClient";
 import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
+import { VoiceReader } from "./VoiceReader";
 
 export function AuraAIFloating() {
   const [isOpenState, setIsOpenState] = useState(() => auraChatStore.isFloatingOpen());
@@ -1279,6 +1280,11 @@ export function AuraAIFloating() {
                           <div className="aura-ai-msg-text">
                             <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                           </div>
+                          {m.sender === "ai" && mode === "panditji" && m.text && (
+                            <div style={{ marginTop: "4px" }}>
+                              <VoiceReader text={customerSafeAiText(m.text)} />
+                            </div>
+                          )}
 
                           {/* Authentic Vedic Kundli Result Card */}
                           {m.kundali && (

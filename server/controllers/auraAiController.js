@@ -721,6 +721,16 @@ export async function chatAuraAI(req, res, next) {
     if (isDbConnected()) {
       try {
         existingConvDoc = await AuraAIConversation.findOne({ $or: [{ id: targetConversationId }, { conversationId: targetConversationId }] }).lean();
+        
+        // SECURITY AUTHORIZATION CHECK: User A cannot access User B's Kundli/Conversation
+        if (existingConvDoc) {
+          const isOwner = (effectiveUserId !== "guest" && existingConvDoc.userId === effectiveUserId) || 
+                          (effectiveUserId === "guest" && existingConvDoc.guestSessionId === effectiveGuestSessionId);
+          if (!isOwner) {
+            console.warn(`[Aura AI Security] Unauthorized conversation access blocked. ConvId: ${targetConversationId}, Requester: ${effectiveUserId}`);
+            existingConvDoc = null; // Deny access to this document
+          }
+        }
       } catch (_) {}
     }
 
@@ -961,8 +971,8 @@ ${memoryContextText || "Guest shopper."}`;
       const geminiClient = getGeminiClient();
       const nvidiaClient = getNvidiaClient();
 
-      // 1. Try Gemini 3.8 Flash streaming first for ultra-fast response
-      if (geminiClient && !clientDisconnected) {
+      // 1. Try Gemini 3.8 Flash streaming first for ultra-fast response (Skip for Pandit Ji)
+      if (mode !== "panditji" && geminiClient && !clientDisconnected) {
         try {
           const geminiContents = [];
           for (const h of history.slice(-6)) {
@@ -1150,9 +1160,9 @@ ${memoryContextText || "Guest shopper."}`;
     let aiResponseText = "";
     let generatedSuccessfully = false;
 
-    // Try Gemini 3.8 Flash first
+    // Try Gemini 3.8 Flash first (Skip for Pandit Ji)
     const nonStreamGeminiClient = getGeminiClient();
-    if (nonStreamGeminiClient) {
+    if (mode !== "panditji" && nonStreamGeminiClient) {
       try {
         const geminiContents = [];
         for (const h of history.slice(-6)) {
