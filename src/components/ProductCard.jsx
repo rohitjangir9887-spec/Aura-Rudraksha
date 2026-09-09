@@ -225,8 +225,8 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           {/* Rating */}
           <div className="aura-card-rating-row">
             <Star size={12} fill="#b45309" color="#b45309" />
-            <span>{p.rating || 4.9}</span>
-            <span className="aura-card-reviews-count">({p.reviews || 84})</span>
+            <span>{typeof p.rating === "number" ? p.rating.toFixed(1) : (p.rating || "4.9")}</span>
+            <span className="aura-card-reviews-count">({p.reviews !== undefined && p.reviews !== null ? p.reviews : (p.reviewCount !== undefined ? p.reviewCount : 0)})</span>
           </div>
 
           {/* Price & Discounts */}

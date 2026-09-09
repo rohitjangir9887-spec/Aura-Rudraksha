@@ -12,7 +12,9 @@ export function CheckoutAddressCard({
   saveAddressCheck,
   onToggleSaveAddressCheck,
   isLoading = false,
-  errors = {}
+  errors = {},
+  onSaveAddress,
+  isSavingAddress = false
 }) {
   const [isLookingUp, setIsLookingUp] = React.useState(false);
   const [pinLookupError, setPinLookupError] = React.useState(null);
@@ -568,7 +570,8 @@ export function CheckoutAddressCard({
               gap: "8px",
               cursor: "pointer",
               fontSize: "12px",
-              color: "#352015"
+              color: "#352015",
+              marginBottom: "14px"
             }}
           >
             <input 
@@ -578,8 +581,65 @@ export function CheckoutAddressCard({
               onChange={(e) => onToggleSaveAddressCheck(e.target.checked)}
               style={{ width: "16px", height: "16px", accentColor: "#b85d25", cursor: "pointer" }}
             />
-            <span>Save this address for fast future checkouts</span>
+            <span>Save this address to my account for future fast checkouts</span>
           </label>
+
+          {/* Explicit Save/Update Address Action Button */}
+          {onSaveAddress && (
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", paddingTop: "4px" }}>
+              <button
+                type="button"
+                id="btn-save-address-now"
+                onClick={onSaveAddress}
+                disabled={isSavingAddress}
+                style={{
+                  background: "linear-gradient(135deg, #b85d25 0%, #994c1a 100%)",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  cursor: isSavingAddress ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "7px",
+                  boxShadow: "0 2px 8px rgba(184, 93, 37, 0.25)",
+                  opacity: isSavingAddress ? 0.7 : 1
+                }}
+              >
+                {isSavingAddress ? (
+                  <>
+                    <div className="animate-spin" style={{ width: "14px", height: "14px", border: "2px solid #ffffff", borderTopColor: "transparent", borderRadius: "50%" }} />
+                    Saving Address...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} /> {savedAddress ? "Update & Save Address" : "Save & Use Address"}
+                  </>
+                )}
+              </button>
+
+              {savedAddress && (
+                <button
+                  type="button"
+                  onClick={onUseSavedAddress}
+                  style={{
+                    background: "#f7eee3",
+                    border: "1px solid #d4c5b9",
+                    color: "#5c4033",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    fontSize: "12.5px",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancel & Use Saved
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

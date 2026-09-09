@@ -5,10 +5,73 @@ import { isDbConnected } from "../config/db.js";
 import { evaluateDraftSimilarity, getExactTextHash, getNormalizedTextHash, checkDuplicateReview } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import { invalidateProductCache } from "./productController.js";
 import crypto from "crypto";
 import { getGeminiClient } from "./auraAiController.js";
 import { defaultReviews } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+
+/**
+ * Dynamically recompute product average rating & count of approved reviews
+ * and sync directly into MongoDB Product record.
+ */
+export async function syncProductReviewStats(productId) {
+  if (!productId || productId === "all") return;
+  const pIdStr = String(productId).trim();
+
+  if (!isDbConnected()) {
+    if (Array.isArray(inMemoryStore.products)) {
+      const activeReviews = (inMemoryStore.reviews || defaultReviews).filter(r => 
+        String(r.productId) === pIdStr && 
+        (r.status === "Approved" || r.status === "Published" || !r.status) &&
+        r.status !== "deleted" && r.status !== "Hidden" && r.status !== "Rejected" && r.status !== "draft"
+      );
+      const count = activeReviews.length;
+      let avg = 4.9;
+      if (count > 0) {
+        const sum = activeReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
+        avg = Number((sum / count).toFixed(1));
+      }
+      const prodIdx = inMemoryStore.products.findIndex(p => String(p.id) === pIdStr || String(p.slug) === pIdStr);
+      if (prodIdx !== -1) {
+        inMemoryStore.products[prodIdx].rating = avg;
+        inMemoryStore.products[prodIdx].reviews = count;
+        inMemoryStore.products[prodIdx].reviewCount = count;
+      }
+    }
+    return;
+  }
+
+  try {
+    const reviews = await Review.find({
+      productId: pIdStr,
+      status: { $in: ["Approved", "Published"] },
+      deletedAt: null
+    }).select("rating").lean();
+
+    const count = reviews.length;
+    let avgRating = 4.9;
+    if (count > 0) {
+      const sum = reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
+      avgRating = Number((sum / count).toFixed(1));
+    }
+
+    await Product.findOneAndUpdate(
+      { $or: [{ id: pIdStr }, { slug: pIdStr }] },
+      {
+        $set: {
+          rating: avgRating,
+          reviews: count,
+          reviewCount: count
+        }
+      }
+    );
+
+    invalidateProductCache();
+  } catch (err) {
+    console.warn(`[Review Sync] Failed to sync product stats for ${pIdStr}:`, err?.message || err);
+  }
+}
 
 // In-memory set of deleted review IDs for session isolation
 const deletedReviewIds = new Set();
@@ -230,6 +293,9 @@ export async function createReview(req, res, next) {
     }
 
     const created = await Review.create(payload);
+    if (created && created.productId) {
+      await syncProductReviewStats(created.productId);
+    }
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -258,6 +324,7 @@ export async function updateReview(req, res, next) {
       });
     }
 
+    const existing = await Review.findOne({ id: String(id) }).lean();
     const updated = await Review.findOneAndUpdate(
       { id: String(id) },
       { $set: data },
@@ -266,6 +333,14 @@ export async function updateReview(req, res, next) {
     if (!updated) {
       return res.status(404).json({ success: false, message: "Review not found" });
     }
+
+    if (updated.productId) {
+      await syncProductReviewStats(updated.productId);
+    }
+    if (existing && existing.productId && String(existing.productId) !== String(updated.productId)) {
+      await syncProductReviewStats(existing.productId);
+    }
+
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -286,6 +361,7 @@ export async function deleteReview(req, res, next) {
       });
     }
 
+    const existing = await Review.findOne({ id: reviewId }).lean();
     await Review.findOneAndUpdate(
       { id: reviewId },
       {
@@ -296,6 +372,11 @@ export async function deleteReview(req, res, next) {
         }
       }
     );
+
+    if (existing && existing.productId) {
+      await syncProductReviewStats(existing.productId);
+    }
+
     return res.json({ success: true, message: "Review permanently deleted", id: reviewId });
   } catch (err) {
     next(err);
@@ -1106,6 +1187,12 @@ export async function importExternalReviews(req, res, next) {
       existingCorpus.push(payload);
     }
 
+    // Sync all affected products
+    const distinctProductIds = new Set(importedList.map(s => String(s.productId)).filter(Boolean));
+    for (const pid of distinctProductIds) {
+      await syncProductReviewStats(pid);
+    }
+
     return res.status(200).json({
       success: true,
       message: `Imported ${importedList.length} external review(s). Skipped ${skippedList.length} duplicate(s).`,
@@ -1327,6 +1414,12 @@ export async function bulkSaveReviews(req, res, next) {
       savedList.push(saved);
 
       existingCorpus.push(payload);
+    }
+
+    // Sync all affected products
+    const distinctProductIds = new Set(savedList.map(s => String(s.productId)).filter(Boolean));
+    for (const pid of distinctProductIds) {
+      await syncProductReviewStats(pid);
     }
 
     return res.status(201).json({

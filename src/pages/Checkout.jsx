@@ -107,6 +107,7 @@ export function Checkout() {
   const [savedAddress, setSavedAddress] = useState(null);
   const [usingSavedAddress, setUsingSavedAddress] = useState(false);
   const [saveAddressCheck, setSaveAddressCheck] = useState(true);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
 
   // Local coupon form input state & messages
   const [couponInput, setCouponInput] = useState("");
@@ -259,14 +260,18 @@ export function Checkout() {
             setSavedAddress(chosenAddr);
             setUsingSavedAddress(true);
             setFormData({
+              id: chosenAddr.id || null,
               firstName: chosenAddr.firstName || addrNameParts[0] || autoFirstName,
               lastName: chosenAddr.lastName || addrNameParts.slice(1).join(" ") || autoLastName,
               phone: chosenAddr.phone || autoPhone,
               email: chosenAddr.email || autoEmail,
               address: chosenAddr.address || "",
+              landmark: chosenAddr.landmark || "",
+              locality: chosenAddr.locality || "",
               pincode: chosenAddr.pincode || "",
               city: chosenAddr.city || "",
-              state: chosenAddr.state || ""
+              state: chosenAddr.state || "",
+              isDefault: chosenAddr.isDefault ?? true
             });
           } else {
             setFormData(prev => ({
@@ -321,7 +326,21 @@ export function Checkout() {
 
   const handleUseSavedAddress = () => {
     if (savedAddress) {
-      setFormData(savedAddress);
+      const addrNameParts = (savedAddress.name || "").trim().split(/\s+/);
+      setFormData({
+        id: savedAddress.id || null,
+        firstName: savedAddress.firstName || addrNameParts[0] || "",
+        lastName: savedAddress.lastName || addrNameParts.slice(1).join(" ") || "",
+        phone: savedAddress.phone || "",
+        email: savedAddress.email || "",
+        address: savedAddress.address || "",
+        landmark: savedAddress.landmark || "",
+        locality: savedAddress.locality || "",
+        pincode: savedAddress.pincode || "",
+        city: savedAddress.city || "",
+        state: savedAddress.state || "",
+        isDefault: true
+      });
       setUsingSavedAddress(true);
       emitToast("Loaded default saved address", "info");
     }
@@ -331,15 +350,101 @@ export function Checkout() {
     setUsingSavedAddress(false);
     setFormData(prev => ({
       ...prev,
+      id: null,
       address: "",
+      landmark: "",
+      locality: "",
       pincode: "",
       city: "",
-      state: ""
+      state: "",
+      isDefault: true
     }));
   };
 
   const handleEditAddress = () => {
     setUsingSavedAddress(false);
+  };
+
+  // Explicit Save / Update Address Handler
+  const handleSaveEditedAddress = async (customFormData = null) => {
+    const dataToSave = customFormData || formData;
+    if (!dataToSave.firstName?.trim()) {
+      emitToast("First Name is required", "error");
+      return false;
+    }
+    if (!dataToSave.lastName?.trim()) {
+      emitToast("Last Name is required", "error");
+      return false;
+    }
+    if (!dataToSave.phone?.trim() || dataToSave.phone.trim().length < 10) {
+      emitToast("Valid 10-digit mobile number is required", "error");
+      return false;
+    }
+    if (!dataToSave.address?.trim()) {
+      emitToast("Full delivery address is required", "error");
+      return false;
+    }
+    if (!dataToSave.pincode?.trim() || dataToSave.pincode.trim().length !== 6) {
+      emitToast("Valid 6-digit Pincode is required", "error");
+      return false;
+    }
+    if (!dataToSave.city?.trim() || !dataToSave.state?.trim()) {
+      emitToast("City and State are required", "error");
+      return false;
+    }
+
+    setIsSavingAddress(true);
+    try {
+      const addressObj = {
+        id: dataToSave.id || savedAddress?.id || ("ADDR-" + Date.now()),
+        firstName: dataToSave.firstName.trim(),
+        lastName: dataToSave.lastName.trim(),
+        name: `${dataToSave.firstName.trim()} ${dataToSave.lastName.trim()}`,
+        phone: dataToSave.phone.trim(),
+        email: (dataToSave.email || "").trim().toLowerCase(),
+        address: dataToSave.address.trim(),
+        landmark: (dataToSave.landmark || "").trim(),
+        locality: (dataToSave.locality || "").trim(),
+        pincode: dataToSave.pincode.trim(),
+        city: dataToSave.city.trim(),
+        state: dataToSave.state.trim(),
+        isDefault: true
+      };
+
+      const res = await db.saveAddress(addressObj);
+      if (res?.success) {
+        let updatedAddr = addressObj;
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          updatedAddr = res.data.find(a => String(a.id) === String(addressObj.id)) || res.data.find(a => a.isDefault) || res.data[0];
+        }
+        setSavedAddress(updatedAddr);
+        setUsingSavedAddress(true);
+        setFormData({
+          id: updatedAddr.id || addressObj.id,
+          firstName: updatedAddr.firstName || addressObj.firstName,
+          lastName: updatedAddr.lastName || addressObj.lastName,
+          phone: updatedAddr.phone || addressObj.phone,
+          email: updatedAddr.email || addressObj.email,
+          address: updatedAddr.address || addressObj.address,
+          landmark: updatedAddr.landmark || addressObj.landmark,
+          locality: updatedAddr.locality || addressObj.locality,
+          pincode: updatedAddr.pincode || addressObj.pincode,
+          city: updatedAddr.city || addressObj.city,
+          state: updatedAddr.state || addressObj.state,
+          isDefault: true
+        });
+        emitToast("Delivery address updated and saved successfully!", "success");
+        return true;
+      } else {
+        throw new Error(res?.message || "Failed to save address");
+      }
+    } catch (err) {
+      console.error("Error saving address:", err);
+      emitToast("Error saving address: " + (err?.message || "Please try again"), "error");
+      return false;
+    } finally {
+      setIsSavingAddress(false);
+    }
   };
 
   // Synchronized Coupon Application
@@ -679,6 +784,8 @@ export function Checkout() {
             onToggleSaveAddressCheck={setSaveAddressCheck}
             isLoading={isUserDataLoading}
             errors={formErrors}
+            onSaveAddress={handleSaveEditedAddress}
+            isSavingAddress={isSavingAddress}
           />
 
           {/* 2. PRODUCTS LIST (Produced) */}

@@ -211,12 +211,16 @@ export function Product() {
   }, [rawP, isIndonesianActive]);
 
   // Rating & review summary from real approved devotee reviews in MongoDB
-  const realReviewsForRating = reviews.filter(r => !r.isAiGenerated && !r.isSample);
-  const reviewsCount = realReviewsForRating.length > 0 ? realReviewsForRating.length : (p?.reviews || 0);
+  const realReviewsForRating = reviews.filter(r => {
+    if (!r) return false;
+    const status = (r.status || "Approved").toLowerCase();
+    return status === "approved" || status === "published";
+  });
+  const reviewsCount = realReviewsForRating.length > 0 ? realReviewsForRating.length : (p?.reviews !== undefined && p?.reviews !== null ? p.reviews : 0);
   const totalRatingSum = realReviewsForRating.reduce((sum, r) => sum + (Number(r.rating) || 5), 0);
   const averageRating = realReviewsForRating.length > 0 
     ? (totalRatingSum / realReviewsForRating.length).toFixed(1) 
-    : (p?.rating ? Number(p.rating).toFixed(1) : "5.0");
+    : (p?.rating ? Number(p.rating).toFixed(1) : "4.9");
 
   const stockLimit = p?.stock !== undefined ? Number(p.stock) : (p?.status === "Out of Stock" ? 0 : 50);
   const isOutOfStock = stockLimit <= 0 || p?.status === "Out of Stock";

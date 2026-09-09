@@ -638,6 +638,7 @@ export async function fetchHomeData(force = false) {
             const deletedIds = getDeletedReviewIds();
             storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
             localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+            db.recalculateAllProductsReviewStats();
             emitStoreUpdate("reviews:synced", storeCache.reviews);
           }
         } catch (e) {
@@ -863,17 +864,87 @@ export const db = {
     return isHydrated;
   },
 
+  // REVIEWS CALCULATION HELPERS
+  getProductReviewStats: (productId) => {
+    if (!productId || productId === "all") return { count: 0, rating: null };
+    const pIdStr = String(productId).trim().toLowerCase();
+    const deletedIds = getDeletedReviewIds();
+    const prodReviews = (storeCache.reviews || []).filter(r => {
+      if (!r || deletedIds.has(String(r.id))) return false;
+      const status = (r.status || "Approved").toLowerCase();
+      if (status !== "approved" && status !== "published") return false;
+      const rPid = String(r.productId || "").trim().toLowerCase();
+      return rPid === pIdStr || rPid === `product-card-${pIdStr}`;
+    });
+
+    const count = prodReviews.length;
+    if (count === 0) {
+      return { count: 0, rating: null };
+    }
+    const sum = prodReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
+    const avg = Number((sum / count).toFixed(1));
+    return { count, rating: avg };
+  },
+
+  recalculateProductReviewStats: (productId) => {
+    if (!productId || productId === "all") return;
+    const pIdStr = String(productId).trim().toLowerCase();
+    const stats = db.getProductReviewStats(productId);
+    const idx = storeCache.products.findIndex(p => {
+      const pId = String(p.id || p._id || "").toLowerCase();
+      const pSlug = String(p.slug || "").toLowerCase();
+      return pId === pIdStr || pSlug === pIdStr;
+    });
+
+    if (idx !== -1) {
+      const current = storeCache.products[idx];
+      storeCache.products[idx] = {
+        ...current,
+        rating: stats.rating !== null ? stats.rating : (Number(current.rating) || 4.9),
+        reviews: stats.count > 0 ? stats.count : (current.reviews !== undefined ? current.reviews : 0),
+        reviewCount: stats.count > 0 ? stats.count : (current.reviewCount !== undefined ? current.reviewCount : 0)
+      };
+      emitStoreUpdate("product:updated", storeCache.products[idx]);
+    }
+    emitStoreUpdate("products:synced", storeCache.products);
+  },
+
+  recalculateAllProductsReviewStats: () => {
+    if (!Array.isArray(storeCache.products) || !Array.isArray(storeCache.reviews)) return;
+    storeCache.products = storeCache.products.map(p => {
+      const pId = String(p.id || p._id || "");
+      const stats = db.getProductReviewStats(pId);
+      return {
+        ...p,
+        rating: stats.rating !== null ? stats.rating : (Number(p.rating) || 4.9),
+        reviews: stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0),
+        reviewCount: stats.count > 0 ? stats.count : (p.reviewCount !== undefined ? p.reviewCount : 0)
+      };
+    });
+    emitStoreUpdate("products:synced", storeCache.products);
+  },
+
   // PRODUCTS
   getProducts: () => {
-    return storeCache.products.map(p => ({
-      ...p,
-      id: String(p.id || p._id),
-      mrp: p.mrp || p.comparePrice || p.price,
-      comparePrice: p.comparePrice || p.mrp || p.price,
-      images: (Array.isArray(p.images) && p.images.length > 0)
-        ? p.images
-        : getProductGalleryImages(p)
-    }));
+    return storeCache.products.map(p => {
+      const pId = String(p.id || p._id || "");
+      const stats = db.getProductReviewStats(pId);
+      const liveReviews = stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0);
+      const liveRating = stats.rating !== null ? stats.rating : (Number(p.rating) || 4.9);
+
+      return {
+        ...p,
+        id: pId,
+        rating: liveRating,
+        reviews: liveReviews,
+        reviewCount: liveReviews,
+        mrp: p.mrp || p.comparePrice || p.price,
+        comparePrice: p.comparePrice || p.mrp || p.price,
+        images: (Array.isArray(p.images) && p.images.length > 0)
+          ? p.images
+          : getProductGalleryImages(p)
+      };
+    });
   },
 
   getProduct: (idOrSlug) => {
@@ -944,10 +1015,18 @@ export const db = {
     }
 
     if (!p) return null;
+    const pId = String(p.id || p._id || "");
+    const stats = db.getProductReviewStats(pId);
+    const liveReviews = stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0);
+    const liveRating = stats.rating !== null ? stats.rating : (Number(p.rating) || 4.9);
+
     return {
       ...p,
-      id: String(p.id || p._id),
-      slug: p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : String(p.id || p._id)),
+      id: pId,
+      rating: liveRating,
+      reviews: liveReviews,
+      reviewCount: liveReviews,
+      slug: p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : pId),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
       images: (Array.isArray(p.images) && p.images.length > 0)
@@ -1604,41 +1683,56 @@ export const db = {
   },
 
   saveAddress: async (address) => {
+    const user = authClient.getUser();
     const cacheKey = db.getUserScopedKey("aura_addresses_cache");
     const id = address.id || ("ADDR-" + Date.now());
-    const finalAddr = { ...address, id };
+    const finalAddr = { 
+      ...address, 
+      id, 
+      isDefault: address.isDefault !== undefined ? address.isDefault : true 
+    };
     if (!storeCache.addresses) storeCache.addresses = [];
-    const idx = storeCache.addresses.findIndex(a => a.id === id);
+
+    if (finalAddr.isDefault) {
+      storeCache.addresses.forEach(a => { a.isDefault = false; });
+    }
+
+    const idx = storeCache.addresses.findIndex(a => String(a.id) === String(id));
     if (idx >= 0) storeCache.addresses[idx] = finalAddr;
-    else storeCache.addresses.push(finalAddr);
+    else storeCache.addresses.unshift(finalAddr);
 
-    try {
-      const endpoint = address.id ? `/addresses/${encodeURIComponent(address.id)}` : "/addresses";
-      const method = address.id ? "PUT" : "POST";
-      const res = await apiRequest(endpoint, {
-        method,
-        body: JSON.stringify(address),
-        requiresAuth: true,
-        noCache: true
-      });
-
-      if (res?.success) {
-        if (Array.isArray(res.data)) {
-          storeCache.addresses = res.data;
-        }
-        if (cacheKey) {
-          try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
-        }
-        emitStoreUpdate("addresses:synced", storeCache.addresses);
-        return { success: true, data: storeCache.addresses };
-      }
-    } catch (_) {}
-
-    if (cacheKey) {
+    if (cacheKey && typeof window !== "undefined") {
       try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
     }
+
+    if (user && !user.isAnonymous) {
+      try {
+        const endpoint = address.id ? `/addresses/${encodeURIComponent(address.id)}` : "/addresses";
+        const method = address.id ? "PUT" : "POST";
+        const res = await apiRequest(endpoint, {
+          method,
+          body: JSON.stringify(finalAddr),
+          requiresAuth: true,
+          noCache: true
+        });
+
+        if (res?.success) {
+          if (Array.isArray(res.data)) {
+            storeCache.addresses = res.data;
+          }
+          if (cacheKey && typeof window !== "undefined") {
+            try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.addresses)); } catch(_) {}
+          }
+          emitStoreUpdate("addresses:synced", storeCache.addresses);
+          return { success: true, data: storeCache.addresses, savedAddress: finalAddr };
+        }
+      } catch (err) {
+        console.warn("[db.saveAddress] API call failed, falling back to local cache:", err);
+      }
+    }
+
     emitStoreUpdate("addresses:synced", storeCache.addresses);
-    return { success: true, data: storeCache.addresses };
+    return { success: true, data: storeCache.addresses, savedAddress: finalAddr };
   },
 
   deleteAddress: async (id) => {
@@ -2585,8 +2679,17 @@ export const db = {
     }
 
     const saved = res.data || newRev;
-    storeCache.reviews.unshift(saved);
+    const existingIdx = storeCache.reviews.findIndex(r => String(r.id) === String(saved.id));
+    if (existingIdx !== -1) {
+      storeCache.reviews[existingIdx] = saved;
+    } else {
+      storeCache.reviews.unshift(saved);
+    }
+    if (saved.productId) {
+      db.recalculateProductReviewStats(saved.productId);
+    }
     emitStoreUpdate("review:saved", saved);
+    emitStoreUpdate("products:synced", storeCache.products);
     return saved;
   },
 
@@ -2600,14 +2703,18 @@ export const db = {
     }
 
     const serverUpdated = res.data;
-    const idx = storeCache.reviews.findIndex(r => String(r.id) === String(id));
+    const strId = String(id);
+    const idx = storeCache.reviews.findIndex(r => String(r.id) === strId || String(r._id) === strId);
+    let updated;
+    let oldProductId = null;
     if (idx !== -1) {
       const current = storeCache.reviews[idx];
+      oldProductId = current.productId;
       const images = updatedFields.images !== undefined
         ? (Array.isArray(updatedFields.images) ? updatedFields.images : (updatedFields.img ? [updatedFields.img] : []))
         : current.images;
 
-      const updated = {
+      updated = {
         ...current,
         ...updatedFields,
         ...(serverUpdated || {}),
@@ -2616,10 +2723,19 @@ export const db = {
       };
 
       storeCache.reviews[idx] = updated;
-      emitStoreUpdate("review:updated", updated);
-      return updated;
+    } else {
+      updated = serverUpdated || { id, ...updatedFields };
+      storeCache.reviews.unshift(updated);
     }
-    return serverUpdated || { id, ...updatedFields };
+
+    // Recompute product ratings and review count immediately
+    if (updated.productId) db.recalculateProductReviewStats(updated.productId);
+    if (oldProductId && String(oldProductId) !== String(updated.productId)) {
+      db.recalculateProductReviewStats(oldProductId);
+    }
+    emitStoreUpdate("review:updated", updated);
+    emitStoreUpdate("products:synced", storeCache.products);
+    return updated;
   },
 
   deleteReview: async (id) => {
@@ -2629,8 +2745,14 @@ export const db = {
       throw new Error(res?.message || "Failed to delete review. Database is unavailable.");
     }
     recordDeletedReviewId(strId);
-    storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== strId);
+    const targetRev = storeCache.reviews.find(r => String(r.id) === strId || String(r._id) === strId);
+    const targetProductId = targetRev?.productId;
+    storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== strId && String(r._id) !== strId);
+    if (targetProductId) {
+      db.recalculateProductReviewStats(targetProductId);
+    }
     emitStoreUpdate("review:deleted", { id: strId });
+    emitStoreUpdate("products:synced", storeCache.products);
     return true;
   },
 
@@ -2710,7 +2832,10 @@ export const db = {
           storeCache.reviews.unshift(saved);
         }
       });
+      const distinctProductIds = new Set(savedList.map(s => String(s.productId)).filter(Boolean));
+      distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
       emitStoreUpdate("review:bulk-saved", savedList);
+      emitStoreUpdate("products:synced", storeCache.products);
     }
     return { success: true, data: savedList, skipped: res.skipped || [] };
   },
@@ -2731,7 +2856,10 @@ export const db = {
         if (idx !== -1) storeCache.reviews[idx] = rev;
         else storeCache.reviews.unshift(rev);
       });
+      const distinctProductIds = new Set(importedList.map(s => String(s.productId)).filter(Boolean));
+      distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
       emitStoreUpdate("review:imported", importedList);
+      emitStoreUpdate("products:synced", storeCache.products);
     }
     return res;
   },

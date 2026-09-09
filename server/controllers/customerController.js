@@ -498,25 +498,50 @@ export async function addAddress(req, res, next) {
     }
 
     const address = req.body || {};
-    const addrId = address.id || ("ADDR-" + crypto.randomBytes(4).toString("hex").toUpperCase());
-    const newAddress = { ...address, id: addrId };
-
     const customer = await findCustomerForAuthUser(req.user);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: "Customer profile not found" });
+    }
     if (!Array.isArray(customer.addresses)) {
       customer.addresses = [];
     }
 
-    if (newAddress.isDefault) {
-      customer.addresses.forEach(a => { a.isDefault = false; });
-    } else if (customer.addresses.length === 0) {
-      newAddress.isDefault = true;
+    const addrId = address.id || ("ADDR-" + crypto.randomBytes(4).toString("hex").toUpperCase());
+    const existingIdx = customer.addresses.findIndex(a => String(a.id) === String(addrId));
+
+    if (existingIdx !== -1) {
+      customer.addresses[existingIdx] = {
+        ...customer.addresses[existingIdx],
+        ...address,
+        id: addrId
+      };
+      if (address.isDefault !== false) {
+        customer.addresses.forEach((a, i) => { a.isDefault = (i === existingIdx); });
+        customer.addresses[existingIdx].isDefault = true;
+      }
+    } else {
+      const newAddress = { ...address, id: addrId };
+      if (newAddress.isDefault !== false || customer.addresses.length === 0) {
+        customer.addresses.forEach(a => { a.isDefault = false; });
+        newAddress.isDefault = true;
+      }
+      customer.addresses.push(newAddress);
     }
 
-    customer.addresses.push(newAddress);
+    // Sync top-level customer address fields for convenience
+    const defaultAddr = customer.addresses.find(a => a.isDefault) || customer.addresses[0];
+    if (defaultAddr) {
+      if (defaultAddr.address) customer.address = defaultAddr.address;
+      if (defaultAddr.pincode) customer.pincode = defaultAddr.pincode;
+      if (defaultAddr.city) customer.city = defaultAddr.city;
+      if (defaultAddr.state) customer.state = defaultAddr.state;
+      if (defaultAddr.phone) customer.phone = defaultAddr.phone;
+    }
+
     customer.markModified('addresses');
     await customer.save();
 
-    return res.status(201).json({ success: true, data: customer.addresses, added: newAddress });
+    return res.status(201).json({ success: true, data: customer.addresses, added: address });
   } catch(err) { next(err); }
 }
 
@@ -535,6 +560,9 @@ export async function updateAddress(req, res, next) {
     const addressData = req.body || {};
 
     const customer = await findCustomerForAuthUser(req.user);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: "Customer profile not found" });
+    }
     if (!Array.isArray(customer.addresses)) {
       customer.addresses = [];
     }
@@ -555,11 +583,21 @@ export async function updateAddress(req, res, next) {
       targetIdx = customer.addresses.length - 1;
     }
 
-    if (addressData.isDefault) {
+    if (addressData.isDefault !== false) {
       customer.addresses.forEach((a, i) => {
-        if (i !== targetIdx) a.isDefault = false;
+        a.isDefault = (i === targetIdx);
       });
       customer.addresses[targetIdx].isDefault = true;
+    }
+
+    // Sync top-level customer address fields for convenience
+    const updatedAddr = customer.addresses[targetIdx];
+    if (updatedAddr) {
+      if (updatedAddr.address) customer.address = updatedAddr.address;
+      if (updatedAddr.pincode) customer.pincode = updatedAddr.pincode;
+      if (updatedAddr.city) customer.city = updatedAddr.city;
+      if (updatedAddr.state) customer.state = updatedAddr.state;
+      if (updatedAddr.phone) customer.phone = updatedAddr.phone;
     }
 
     customer.markModified('addresses');
