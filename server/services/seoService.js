@@ -23,8 +23,8 @@ import { getSiteBaseUrl } from "./indexNowService.js";
 export const SEO_BRAND = {
   name: "Aura Rudraksha",
   legalName: "Aura Rudraksha Enterprises",
-  logo: "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png",
-  defaultImage: "https://i.ibb.co/Pvb9qZy7/file-00000000310082118c0c939fa357349f.png",
+  logo: "https://aura-rudraksha.vercel.app/logo-header-horizontal.png",
+  defaultImage: "https://aura-rudraksha.vercel.app/og-image.jpg",
   supportEmail: "aurarudrakshaofficial@gmail.com",
   supportPhone: "+91 9672996531",
   address: {
@@ -903,8 +903,15 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     headInjections += `  <meta name="google-site-verification" content="${escapeXml(googleSiteVerification)}" />\n`;
   }
 
-  // OpenGraph Tags
-  const safeOgImage = escapeXml(seo.ogImage || SEO_BRAND.defaultImage);
+  // OpenGraph Tags formatted for WhatsApp, Facebook, Telegram, iMessage
+  let rawOgImage = seo.ogImage || SEO_BRAND.defaultImage;
+  if (rawOgImage && !rawOgImage.startsWith("http")) {
+    rawOgImage = `${baseUrl}${rawOgImage.startsWith("/") ? "" : "/"}${rawOgImage}`;
+  }
+  const safeOgImage = escapeXml(rawOgImage || SEO_BRAND.defaultImage);
+  const isPng = safeOgImage.toLowerCase().endsWith(".png");
+  const imageMimeType = isPng ? "image/png" : "image/jpeg";
+
   headInjections += `  <meta property="og:site_name" content="${escapeXml(SEO_BRAND.name)}" />\n`;
   headInjections += `  <meta property="og:type" content="${escapeXml(seo.ogType || "website")}" />\n`;
   headInjections += `  <meta property="og:title" content="${escapeXml(seo.title)}" />\n`;
@@ -912,12 +919,14 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   headInjections += `  <meta property="og:url" content="${escapeXml(seo.canonical || baseUrl)}" />\n`;
   headInjections += `  <meta property="og:image" content="${safeOgImage}" />\n`;
   headInjections += `  <meta property="og:image:secure_url" content="${safeOgImage}" />\n`;
-  headInjections += `  <meta property="og:image:alt" content="${escapeXml(seo.title)}" />\n`;
+  headInjections += `  <meta property="og:image:type" content="${imageMimeType}" />\n`;
   headInjections += `  <meta property="og:image:width" content="1200" />\n`;
   headInjections += `  <meta property="og:image:height" content="630" />\n`;
+  headInjections += `  <meta property="og:image:alt" content="${escapeXml(seo.title)}" />\n`;
 
   // Twitter Tags
   headInjections += `  <meta name="twitter:card" content="summary_large_image" />\n`;
+  headInjections += `  <meta name="twitter:site" content="@aurarudraksha" />\n`;
   headInjections += `  <meta name="twitter:title" content="${escapeXml(seo.title)}" />\n`;
   headInjections += `  <meta name="twitter:description" content="${escapeXml(seo.description)}" />\n`;
   headInjections += `  <meta name="twitter:image" content="${safeOgImage}" />\n`;
@@ -931,11 +940,8 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
 
   // Replace existing generic meta description, og tags
   result = result.replace(/<meta\s+name=["']description["'][^>]*>/gi, `<meta name="description" content="${escapeXml(seo.description)}" />`);
-  result = result.replace(/<meta\s+property=["']og:title["'][^>]*>/gi, "");
-  result = result.replace(/<meta\s+property=["']og:description["'][^>]*>/gi, "");
-  result = result.replace(/<meta\s+property=["']og:type["'][^>]*>/gi, "");
-  result = result.replace(/<meta\s+property=["']og:image["'][^>]*>/gi, "");
-  result = result.replace(/<meta\s+name=["']twitter:card["'][^>]*>/gi, "");
+  result = result.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, "");
+  result = result.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']canonical["'][^>]*>/gi, "");
 
   // Inject assembled tags right before </head>
