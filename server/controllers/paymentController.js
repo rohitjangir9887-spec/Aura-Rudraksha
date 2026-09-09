@@ -1190,20 +1190,23 @@ export async function retryPayuPayment(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Strict Ownership Check:
-    // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
-    // For guest orders, require a secure server-issued guestToken match or matching txnid.
+    // Ownership Check:
+    // For authenticated orders: match authUserId, customerEmail, or phone.
+    // For guest orders: match guestToken, txnid, or active session.
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || req.body?.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
+    const isEmailOwner = req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase();
+    const isPhoneOwner = req.user?.phone && (order.customerPhone || order.phone) && String(req.user.phone).trim() === String(order.customerPhone || order.phone).trim();
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = isGuestOrder && (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
-      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
+      Boolean(req.user)
     );
 
-    if (!isAdmin && !isOwner && !isGuestOwner) {
+    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
@@ -1211,8 +1214,14 @@ export async function retryPayuPayment(req, res, next) {
       return res.status(400).json({ success: false, message: "This order has already been paid successfully." });
     }
 
-    if (order.status === "Cancelled" || order.paymentStatus === "Refunded") {
-      return res.status(400).json({ success: false, message: "Cannot retry payment on a cancelled or refunded order." });
+    if (order.paymentStatus === "Refunded") {
+      return res.status(400).json({ success: false, message: "Cannot retry payment on a refunded order." });
+    }
+
+    // Reactivate order status if it was pending or cancelled due to unpaid checkout
+    if (order.status === "Cancelled" && order.paymentStatus !== "Paid") {
+      order.status = "Pending";
+      order.orderStatus = "Pending";
     }
 
     // Verify item stock availability before allowing retry payment
@@ -1559,16 +1568,22 @@ export async function processPayuRefund(req, res, next) {
     const newAmountRefunded = alreadyRefunded + currentRefundAmount;
     const isFullRefund = newAmountRefunded >= (orderTotal - 0.01);
 
+    // Custom note/SMS message for customer
+    const customCustomerNote = String(req.body.refundNotes || req.body.customNote || req.body.refundNote || reason || "Your refund has been successfully processed to your original payment account.").trim();
+    const customRefundStatus = String(req.body.refundStatus || (isFullRefund ? "Refunded" : "Partially Refunded")).trim();
+
     // Record Refund details in Order
     order.amountRefunded = newAmountRefunded;
     order.paymentStatus = "Paid";
-    order.refundStatus = isFullRefund ? "Refunded" : "Partially Refunded";
+    order.refundStatus = customRefundStatus;
+    order.refundNotes = customCustomerNote;
+    order.refundNote = customCustomerNote;
     
     if (isFullRefund) {
       order.status = "Cancelled";
       order.orderStatus = "Cancelled";
       order.cancelledBy = order.cancelledBy || "Seller";
-      order.cancelReason = reason || "Order cancelled & refund issued via PayU";
+      order.cancelReason = reason || customCustomerNote || "Order cancelled & refund issued via PayU";
       order.cancelledAt = order.cancelledAt || new Date().toISOString();
     }
 
@@ -1578,6 +1593,7 @@ export async function processPayuRefund(req, res, next) {
       amount: currentRefundAmount,
       status: "Success",
       reason: reason || "Admin Processed Refund via PayU",
+      notes: customCustomerNote,
       date: new Date().toISOString(),
       initiatedBy: req.user?.email || "Admin"
     };

@@ -509,6 +509,10 @@ export async function updateOrder(req, res, next) {
       if (data.shippingLink !== undefined) updateFields.shippingLink = String(data.shippingLink).trim();
       if (data.estimatedDeliveryDate !== undefined) updateFields.estimatedDeliveryDate = String(data.estimatedDeliveryDate).trim();
       if (data.notes !== undefined) updateFields.notes = String(data.notes).trim();
+      if (data.refundNotes !== undefined) updateFields.refundNotes = String(data.refundNotes).trim();
+      if (data.refundNote !== undefined) updateFields.refundNote = String(data.refundNote).trim();
+      if (data.refundStatus !== undefined) updateFields.refundStatus = String(data.refundStatus).trim();
+      if (data.amountRefunded !== undefined && !isNaN(Number(data.amountRefunded))) updateFields.amountRefunded = Number(data.amountRefunded);
       if (data.address !== undefined) updateFields.address = String(data.address).trim();
       if (data.shippingAddress) updateFields.shippingAddress = data.shippingAddress;
 

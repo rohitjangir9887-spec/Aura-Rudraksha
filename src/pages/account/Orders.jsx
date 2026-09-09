@@ -690,8 +690,9 @@ export function Orders() {
                             )}
                             {isRefunded && (
                               <span style={{
-                                background: '#f0f4ff',
-                                color: '#3730a3',
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                border: '1px solid #bbf7d0',
                                 padding: '2px 8px',
                                 borderRadius: 4,
                                 fontSize: 10.5,
@@ -700,7 +701,7 @@ export function Orders() {
                                 alignItems: 'center',
                                 gap: 3
                               }}>
-                                <RotateCcw size={11} /> {o.paymentStatus === 'Refunded' ? 'Refunded' : `Partially Refunded (₹${Number(o.amountRefunded || 0).toLocaleString()})`}
+                                <RotateCcw size={11} /> {o.refundStatus || (o.paymentStatus === 'Refunded' ? 'Refunded' : `Partially Refunded (₹${Number(o.amountRefunded || 0).toLocaleString()})`)}
                               </span>
                             )}
                             <span className={`status ${isCancelled ? 'error' : isDelivered ? 'success' : 'pending'}`} style={{
@@ -715,6 +716,12 @@ export function Orders() {
                               {o.status || "Confirmed"}
                             </span>
                           </div>
+
+                          {(o.refundNotes || o.refundNote) && (
+                            <div style={{ marginTop: 6, background: '#f0fdf4', border: '1px solid #86efac', color: '#14532d', borderRadius: 6, padding: '4px 10px', fontSize: 11.5, textAlign: 'left', lineHeight: 1.4 }}>
+                              <b style={{ color: '#15803d' }}>✓ रिफंड सूचना:</b> {o.refundNotes || o.refundNote}
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -786,8 +793,8 @@ export function Orders() {
                           
                           {/* Actions: Retry Payment / Track / Details */}
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            {/* PayU Retry Button for Pending/Failed Orders */}
-                            {(isPending || isFailed) && !isCancelled && (
+                            {/* PayU Retry Button for Unpaid Orders */}
+                            {!isPaid && !isRefunded && (
                               <button
                                 type="button"
                                 disabled={isRetrying}

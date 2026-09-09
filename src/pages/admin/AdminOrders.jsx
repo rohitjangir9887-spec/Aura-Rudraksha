@@ -98,6 +98,8 @@ export function AdminOrders() {
   const [refundModal, setRefundModal] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
+  const [refundNotes, setRefundNotes] = useState("");
+  const [refundStatusStage, setRefundStatusStage] = useState("Refunded");
   const [isRefunding, setIsRefunding] = useState(false);
 
   useEffect(() => {
@@ -394,6 +396,8 @@ export function AdminOrders() {
     const remaining = Math.max(0, total - already);
     setRefundAmount(String(remaining));
     setRefundReason("Customer Cancellation / Return");
+    setRefundNotes(order.refundNotes || `आपका ₹${remaining.toLocaleString('en-IN')} का रिफंड सफलतापूर्वक आपके मूल भुगतान खाते में भेज दिया गया है। (PayU Ref ID / Bank Verified)`);
+    setRefundStatusStage(order.refundStatus || "Refunded");
     setRefundModal(true);
   };
 
@@ -416,10 +420,12 @@ export function AdminOrders() {
     try {
       const res = await db.processRefund(viewing.id, {
         refundAmount: amt,
-        reason: refundReason || "Admin Initiated Instant Refund"
+        reason: refundReason || "Admin Initiated Instant Refund",
+        refundNotes: refundNotes,
+        refundStatus: refundStatusStage
       });
       if (res?.success) {
-        emitToast(`Instant PayU Refund of ₹${amt.toLocaleString('en-IN')} processed successfully!`, "success");
+        emitToast(`Instant PayU Refund of ₹${amt.toLocaleString('en-IN')} processed & customer note saved!`, "success");
         setRefundModal(false);
         await load();
         if (res.data) {
@@ -431,8 +437,11 @@ export function AdminOrders() {
             ...prev,
             amountRefunded: updatedTotalRefunded,
             paymentStatus: isFull ? "Refunded" : "Partially Refunded",
+            refundStatus: refundStatusStage || (isFull ? "Refunded" : "Partially Refunded"),
+            refundNotes: refundNotes,
+            refundNote: refundNotes,
             status: isFull ? "Cancelled" : prev.status,
-            refundDetails: res.refund || { amount: amt, status: "Success", reason: refundReason, timestamp: new Date().toISOString() }
+            refundDetails: res.refund || { amount: amt, status: "Success", reason: refundReason, notes: refundNotes, timestamp: new Date().toISOString() }
           } : null);
         }
       } else {
@@ -1093,9 +1102,9 @@ export function AdminOrders() {
                 />
               </div>
 
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#2b170d', marginBottom: 6 }}>
-                  Reason for Refund
+                  Reason for Refund (Internal)
                 </label>
                 <input 
                   type="text"
@@ -1109,6 +1118,56 @@ export function AdminOrders() {
                     borderRadius: 8,
                     border: '1px solid #dcd1c6',
                     fontSize: 13,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}>
+                  Refund Status / Stage (कस्टमर स्टेटस)
+                </label>
+                <select
+                  disabled={isRefunding}
+                  value={refundStatusStage}
+                  onChange={(e) => setRefundStatusStage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #86efac',
+                    background: '#f0fdf4',
+                    color: '#166534',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="Refunded">✓ Refunded (रिफंड स्वीकृत व ट्रांसफर हो गया)</option>
+                  <option value="Refund Processing">⏳ Refund Processing (रिफंड प्रक्रिया में है)</option>
+                  <option value="Refund Initiated">🚀 Refund Initiated (बैंक को भेजा गया)</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}>
+                  💬 SMS / Message Note for Customer (कस्टमर को दिखेगा - Green Note)
+                </label>
+                <textarea 
+                  rows={3}
+                  disabled={isRefunding}
+                  value={refundNotes}
+                  onChange={(e) => setRefundNotes(e.target.value)}
+                  placeholder="e.g. आपका रिफंड स्वीकृत हो गया है और आपके बैंक/मूल भुगतान खाते में 1-3 दिनों में क्रेडिट हो जाएगा।"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1.5px solid #86efac',
+                    background: '#f0fdf4',
+                    color: '#14532d',
+                    fontSize: 13,
+                    lineHeight: 1.5,
                     boxSizing: 'border-box'
                   }}
                 />

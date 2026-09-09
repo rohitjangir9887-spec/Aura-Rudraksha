@@ -6,7 +6,8 @@ import { motion } from "framer-motion";
 import { 
   ChevronLeft, Check, Package, MapPin, CreditCard, RotateCcw, 
   X, Edit3, MessageCircle, AlertCircle, Truck, ExternalLink, 
-  Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2, Star
+  Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2, Star,
+  CheckCircle2, MessageSquare
 } from "lucide-react";
 import { Shell } from "../../components/Shell";
 import { db } from "../../lib/db";
@@ -67,12 +68,13 @@ export function OrderDetail() {
   const [retryingPayment, setRetryingPayment] = useState(false);
 
   const handlePayuRetry = async () => {
-    if (!order?.id) return;
+    const targetOrderId = order?.orderNumber || order?.id || order?._id || id;
+    if (!targetOrderId) return;
     setRetryingPayment(true);
     try {
       const effectiveGuestToken = guestToken || order?.guestToken || "";
       const effectiveTxnid = txnid || order?.txnid || "";
-      const res = await db.retryPayment(order.id, effectiveTxnid, effectiveGuestToken);
+      const res = await db.retryPayment(targetOrderId, effectiveTxnid, effectiveGuestToken);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         emitToast("Redirecting to PayU Secure Gateway...", "info");
         const form = document.createElement("form");
@@ -425,35 +427,67 @@ export function OrderDetail() {
           </div>
         )}
 
-        {/* Cancellation & Refund Processing Banner */}
-        {isCancelled && (order.paymentStatus === 'Paid' || order.paymentStatus === 'Refund Pending' || order.refundStatus === 'Refund Pending' || Number(order.amountRefunded || 0) > 0) && (
+        {/* Refund Status & Customer Message Green Banner */}
+        {(Number(order.amountRefunded || 0) > 0 || order.refundNotes || order.refundNote || order.refundStatus === 'Refunded' || order.refundStatus === 'Refund Processing' || order.refundStatus === 'Refund Initiated' || order.paymentStatus === 'Refunded' || order.paymentStatus === 'Partially Refunded') && (
           <div style={{
-            background: '#fef3c7',
-            border: '1.5px solid #fde68a',
+            background: '#f0fdf4',
+            border: '1.5px solid #86efac',
             borderRadius: '14px',
-            padding: '16px 20px',
+            padding: '18px 20px',
             marginBottom: '24px',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '12px'
+            boxShadow: '0 4px 12px rgba(22, 101, 52, 0.08)'
           }}>
-            <AlertCircle size={22} color="#d97706" style={{ flexShrink: 0, marginTop: 2 }} />
-            <div>
-              <h4 style={{ margin: '0 0 6px', fontSize: '14.5px', color: '#92400e', fontWeight: 700 }}>
-                रिफंड स्टेटस एवं सूचना / Refund Processing Update
-              </h4>
-              <p style={{ margin: '0 0 6px', fontSize: '13px', color: '#92400e', lineHeight: 1.5 }}>
-                आपकी डिटेल हमारी टीम को मिल गई है, आपका पेमेंट जल्द ही 1-4 दिनों में आपके मूल भुगतान खाते में प्रोसेस कर दिया जाएगा।
-              </p>
-              <div style={{ fontSize: '12px', color: '#b45309', display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '6px' }}>
-                <span>रिफंड स्थिति: <b>{order.refundStatus || "Refund Processing"}</b></span>
-                {order.amountRefunded > 0 && <span>रिफंडेड राशि: <b>₹{Number(order.amountRefunded).toLocaleString('en-IN')}</b></span>}
-              </div>
-              {order.refundNotes && (
-                <div style={{ marginTop: '8px', padding: '8px 12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef08a', fontSize: '12px', color: '#78350f' }}>
-                  <b>सपोर्ट/एडमिन संदेश:</b> {order.refundNotes}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <CheckCircle2 size={24} color="#15803d" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', color: '#14532d', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    ✓ रिफंड सूचना व अपडेट / Refund Confirmation & Details
+                  </h4>
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    background: '#dcfce7',
+                    color: '#166534',
+                    border: '1px solid #bbf7d0'
+                  }}>
+                    {order.refundStatus || (order.paymentStatus === 'Refunded' ? 'Refunded' : 'Refund Processing')}
+                  </span>
                 </div>
-              )}
+
+                {Number(order.amountRefunded || 0) > 0 && (
+                  <p style={{ margin: '0 0 8px', fontSize: '13.5px', color: '#166534', fontWeight: 600 }}>
+                    रिफंड की गई कुल राशि: <b style={{ fontSize: '15px', color: '#15803d' }}>₹{Number(order.amountRefunded).toLocaleString('en-IN')}</b>
+                  </p>
+                )}
+
+                {/* Green SMS / Admin Note Box */}
+                {(order.refundNotes || order.refundNote || order.refundDetails?.notes || order.refundDetails?.reason || order.cancelReason) && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '12px 14px',
+                    background: '#ffffff',
+                    borderRadius: '10px',
+                    border: '1.5px solid #86efac',
+                    fontSize: '13px',
+                    color: '#14532d',
+                    lineHeight: '1.55',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <MessageSquare size={13} color="#15803d" />
+                      सपोर्ट / एडमिन नोट (SMS / Note):
+                    </div>
+                    {order.refundNotes || order.refundNote || order.refundDetails?.notes || order.refundDetails?.reason || order.cancelReason}
+                  </div>
+                )}
+
+                <div style={{ fontSize: '11.5px', color: '#166534', marginTop: '8px' }}>
+                  यह रिफंड आपके मूल भुगतान खाते (PayU UPI / Card / Bank) में 1-3 व्यावसायिक दिनों में क्रेडिट कर दिया जाता है।
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -550,8 +584,8 @@ export function OrderDetail() {
             )}
           </div>
 
-          {/* If Pending or Failed, provide live Retry PayU button */}
-          {(order.paymentStatus === "Pending" || order.paymentStatus === "Failed" || !order.paymentStatus) && !isCancelled && (
+          {/* If unpaid, provide live Retry PayU button */}
+          {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && (
             <button
               type="button"
               id="btn-order-retry-payu"
