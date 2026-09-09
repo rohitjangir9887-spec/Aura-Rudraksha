@@ -354,15 +354,32 @@ export function AdminCustomers() {
       {showEmailModal && (
         <div className="admin-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div className="admin-modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '500px', margin: '20px' }}>
+            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#2b170d' }}>Send Email ({emailTarget === 'all' ? 'All Customers' : emailTarget === 'viewing' ? viewing?.name : selectedCustomers.length + ' Selected'})</h2>
-              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#2b170d' }}>Send {messageType === 'email' ? 'Email' : 'SMS'} ({emailTarget === 'all' ? 'All Customers' : emailTarget === 'viewing' ? viewing?.name : selectedCustomers.length + ' Selected'})</h2>
+              <button type="button" onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
             </div>
+            
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
+                <input type="radio" name="msgType" checked={messageType === 'email'} onChange={() => setMessageType('email')} />
+                Email
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
+                <input type="radio" name="msgType" checked={messageType === 'sms'} onChange={() => setMessageType('sms')} />
+                SMS
+              </label>
+            </div>
+
             <form onSubmit={handleSendEmail}>
-              <div className="admin-form-group" style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Subject</label>
-                <input required type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
-              </div>
+              
+              {messageType === 'email' && (
+                <div className="admin-form-group" style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Subject</label>
+                  <input required type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+                </div>
+              )}
+
               <div className="admin-form-group" style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Message</label>
                 <textarea required rows="6" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', resize: 'vertical' }}></textarea>
@@ -370,7 +387,7 @@ export function AdminCustomers() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" className="admin-btn secondary" onClick={() => setShowEmailModal(false)}>Cancel</button>
                 <button type="submit" className="admin-btn primary" disabled={sendingEmail}>
-                  {sendingEmail ? 'Sending...' : 'Send Email'}
+                  {sendingEmail ? 'Sending...' : (messageType === 'email' ? 'Send Email' : 'Send SMS')}
                 </button>
               </div>
             </form>

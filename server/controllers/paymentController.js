@@ -18,7 +18,7 @@ import {
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
-import { sendRefundOtpEmail, maskEmail } from "../services/emailService.js";
+import { sendRefundOtpEmail, sendPaymentSuccessfulEmail, sendPaymentFailedEmail, sendRefundStatusEmail, sendOrderCancelledEmail, maskEmail } from "../services/emailService.js";
 import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService.js";
 
 /**

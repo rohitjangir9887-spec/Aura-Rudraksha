@@ -8,6 +8,7 @@ import { Banner } from "../models/Banner.js";
 import { Order } from "../models/Order.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
+import { sendSupportTicketCreatedEmail, sendSupportTicketReplyEmail } from "../services/emailService.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 

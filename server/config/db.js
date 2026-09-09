@@ -87,7 +87,7 @@ export function isValidMongoUri(rawUri) {
 }
 
 export function getMongoUri() {
-  const uri = (process.env.MONGODB_URI || "").trim();
+  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
   if (isValidMongoUri(uri)) {
     return uri;
   }
@@ -95,7 +95,7 @@ export function getMongoUri() {
 }
 
 export function getMaskedMongoUri() {
-  const uri = (process.env.MONGODB_URI || "").trim();
+  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
   if (!uri) return null;
   try {
     // Mask password in connection string: mongodb+srv://user:pass@host/db
@@ -113,7 +113,7 @@ export async function connectDB() {
   cached.lastAttempt = new Date().toISOString();
 
   if (!uri) {
-    const raw = (process.env.MONGODB_URI || "").trim();
+    const raw = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
     const errMsg = raw && raw !== "."
       ? "MONGODB_URI is provided but invalid (must start with 'mongodb://' or 'mongodb+srv://')."
       : "MONGODB_URI environment variable is not defined or unconfigured.";
@@ -219,7 +219,7 @@ export async function getDbDiagnostics() {
     }
   }
 
-  const rawUri = (process.env.MONGODB_URI || "").trim();
+  const rawUri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
   const uriConfigured = isValidMongoUri(rawUri);
 
   let uriScheme = "none";
