@@ -11,6 +11,13 @@ export function AdminCustomers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(() => (db.getCustomers() || []).length === 0);
   const [viewing, setViewing] = useState(null);
+  const [selectedCustomers, setSelectedCustomers] = useState([]);
+  const [emailTarget, setEmailTarget] = useState("all");
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [messageType, setMessageType] = useState("email");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [orders, setOrders] = useState(() => db.getOrders() || []);
 
   

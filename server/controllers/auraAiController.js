@@ -522,7 +522,7 @@ export async function calculateKundaliEndpoint(req, res, next) {
     }
 
     // 3. Generate Vedic Interpretation using NVIDIA NIM (nemotron-3-super-120b-a12b)
-    // Generate AI interpretation using NVIDIA NIM or Gemini (gemini-3.8-flash)
+    // Generate AI interpretation using NVIDIA NIM or Gemini (gemini-2.5-flash)
     let aiInterpretation = "";
     const nvidiaClient = getNvidiaClient();
     const geminiClient = getGeminiClient();
@@ -555,7 +555,7 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
     if (geminiClient && !aiInterpretation) {
       try {
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text: astroPrompt }] }],
           config: {
             systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
@@ -996,7 +996,7 @@ ${memoryContextText || "Guest shopper."}`;
           }
 
           const geminiStream = await geminiClient.models.generateContentStream({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-2.5-flash',
             contents: geminiContents,
             config: {
               systemInstruction: systemPrompt,
@@ -1186,7 +1186,7 @@ ${memoryContextText || "Guest shopper."}`;
         }
 
         const geminiRes = await nonStreamGeminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: geminiContents,
           config: {
             systemInstruction: systemPrompt,
@@ -1451,7 +1451,7 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
     if (geminiClient && !aiExecutiveReport) {
       try {
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text: adminPrompt }] }],
           config: {
             systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
@@ -1957,7 +1957,7 @@ Instructions:
             }));
 
           const response = await geminiClient.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-2.5-flash',
             contents: geminiContents,
             config: {
               systemInstruction: systemPrompt,
@@ -2044,7 +2044,7 @@ Instructions:
           }));
 
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: geminiContents,
           config: {
             systemInstruction: systemPrompt,

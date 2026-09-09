@@ -529,7 +529,7 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
       if (geminiClient && !aiGenerationSuccess) {
         try {
           const geminiRes = await geminiClient.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
             config: {
               systemInstruction: promptSystem,
@@ -589,7 +589,7 @@ Target Language: ${language}
 Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
 
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
           config: {
             systemInstruction: promptSystem,
