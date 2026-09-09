@@ -892,7 +892,7 @@ export async function resolveSeoData(pathname, req) {
 export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   const seo = await resolveSeoData(pathname, req);
   const baseUrl = getSiteBaseUrl(req);
-  const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION || "";
+  const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION || "4Q_xRsvuPJHU6BWKIWf2gFJYP9V-HMNwOhrRJ0bD3CY";
 
   let result = templateHtml;
 
