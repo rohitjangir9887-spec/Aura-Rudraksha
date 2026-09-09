@@ -18,6 +18,7 @@ import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Canonical Organization & Brand Details
 export const SEO_BRAND = {
@@ -418,7 +419,7 @@ export function escapeXml(str) {
  */
 export async function getPublicProductsForSeo() {
   if (!isDbConnected()) {
-    return [];
+    return (inMemoryStore.products || []).filter(p => !["Draft", "draft", "Inactive", "inactive", "Archived", "archived"].includes(p.status));
   }
   try {
     const products = await Product.find({
@@ -451,7 +452,24 @@ export async function findProductForSeo(idOrSlug) {
   const clean = String(idOrSlug).trim().toLowerCase();
 
   if (!isDbConnected()) {
-    return null;
+    let product = (inMemoryStore.products || []).find(p => 
+      String(p.id).toLowerCase() === clean || 
+      String(p.slug || "").toLowerCase() === clean
+    );
+    if (!product) {
+      product = (inMemoryStore.products || []).find(p => {
+        const pSlug = String(p.slug || "").toLowerCase();
+        const pName = String(p.name || "").toLowerCase();
+        const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        return pSlug === clean ||
+                pSlugifiedName === clean ||
+                (clean.length >= 3 && pSlug.includes(clean)) ||
+               (clean.length >= 3 && clean.includes(pSlug)) ||
+               (clean.length >= 3 && pSlugifiedName.includes(clean)) ||
+               (clean.length >= 3 && clean.includes(pSlugifiedName));
+      });
+    }
+    return product || null;
   }
 
   try {

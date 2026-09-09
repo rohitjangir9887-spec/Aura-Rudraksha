@@ -155,10 +155,23 @@ export async function getProductById(req, res, next) {
 
     if (!isDbConnected()) {
       const cleanTarget = cleanId.toLowerCase();
-      const product = (inMemoryStore.products || []).find(p => 
+      let product = (inMemoryStore.products || []).find(p => 
         String(p.id).toLowerCase() === cleanTarget || 
         String(p.slug || "").toLowerCase() === cleanTarget
       );
+      if (!product) {
+        product = (inMemoryStore.products || []).find(p => {
+          const pSlug = String(p.slug || "").toLowerCase();
+          const pName = String(p.name || "").toLowerCase();
+          const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+          return pSlug === cleanTarget ||
+                  pSlugifiedName === cleanTarget ||
+                  (cleanTarget.length >= 3 && pSlug.includes(cleanTarget)) ||
+                 (cleanTarget.length >= 3 && cleanTarget.includes(pSlug)) ||
+                 (cleanTarget.length >= 3 && pSlugifiedName.includes(cleanTarget)) ||
+                 (cleanTarget.length >= 3 && cleanTarget.includes(pSlugifiedName));
+        });
+      }
       if (product) {
         return res.json({ success: true, data: product, isFallback: true });
       }

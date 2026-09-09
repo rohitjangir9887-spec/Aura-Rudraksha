@@ -794,7 +794,7 @@ export function Orders() {
                           {/* Actions: Retry Payment / Track / Details */}
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                             {/* PayU Retry Button for Unpaid Orders */}
-                            {!isPaid && !isRefunded && (
+                            {!isPaid && !isRefunded && !isCancelled && (
                               <button
                                 type="button"
                                 disabled={isRetrying}
