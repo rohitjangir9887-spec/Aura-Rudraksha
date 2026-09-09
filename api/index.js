@@ -5,13 +5,11 @@ const app = createApp();
 
 export default async function handler(req, res) {
   // If Vercel rewrote to /api/index.js or /index.js, restore the original matched route
-  if (req.headers && req.headers["x-matched-path"] && (req.url === "/api/index.js" || req.url === "/index.js" || req.url === "/" || !req.url)) {
-    req.url = req.headers["x-matched-path"];
-  }
-
-  // Normalize URL if Vercel strips /api prefix during rewrites
-  if (req.url && !req.url.startsWith("/api") && !req.url.startsWith("/public")) {
-    req.url = `/api${req.url.startsWith("/") ? "" : "/"}${req.url}`;
+  if (req.headers && req.headers["x-matched-path"]) {
+    const matched = req.headers["x-matched-path"];
+    if (matched && matched !== "/api/index" && matched !== "/api/index.js") {
+      req.url = matched;
+    }
   }
 
   // Ensure database is connected for this serverless invocation
@@ -25,3 +23,4 @@ export default async function handler(req, res) {
 
   return app(req, res);
 }
+

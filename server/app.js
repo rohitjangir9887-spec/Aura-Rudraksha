@@ -27,6 +27,7 @@ import uploadRoute from "./routes/upload.js";
 import seoRoute from "./routes/seo.js";
 import adminDbStatusRoute from "./routes/adminDbStatus.js";
 import { handlePayuCallback } from "./controllers/paymentController.js";
+import { renderSsrHtml, getHtmlTemplate } from "./services/seoService.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -260,9 +261,42 @@ export function createApp() {
     next();
   });
 
-  // Fallback for unhandled API routes: return JSON 404 (prevents returning SPA HTML for failed API calls)
+  // Fallback for unhandled API routes: return JSON 404 (strictly prevents returning SPA HTML for any API call)
   app.use("/api", (req, res) => {
     res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
+  });
+
+  // Server-Side Rendered (SSR) HTML Handler for all public and private navigation routes
+  app.use(async (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      return next();
+    }
+
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
+    }
+
+    // Skip static asset files and internal dev bundling paths
+    if (
+      req.path.startsWith("/@") ||
+      req.path.startsWith("/src/") ||
+      req.path.startsWith("/node_modules/") ||
+      /\.(js|jsx|ts|tsx|mjs|cjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|json|txt|xml|map)$/i.test(req.path)
+    ) {
+      return next();
+    }
+
+    try {
+      const { html, status } = await renderSsrHtml(req.path, req);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.status(status).send(html);
+    } catch (err) {
+      console.warn("[SSR Page Rendering Notice]:", err?.message || err);
+      const template = getHtmlTemplate();
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.status(200).send(template);
+    }
   });
 
   // Mongoose / Database error handler

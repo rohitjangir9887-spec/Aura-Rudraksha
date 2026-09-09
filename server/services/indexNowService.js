@@ -16,34 +16,29 @@ export function getIndexNowKey() {
   return /^[A-Fa-f0-9-]{8,128}$/.test(configured) ? configured : DEFAULT_KEY;
 }
 
+export const DETERMINISTIC_CANONICAL_ORIGIN = "https://aura-rudraksha.vercel.app";
+export const DETERMINISTIC_CANONICAL_DOMAIN = "aura-rudraksha.vercel.app";
+
 export function getSiteDomain(req) {
   if (process.env.SITE_URL) {
     try {
       const u = new URL(process.env.SITE_URL);
-      return u.hostname;
+      if (!u.hostname.includes("localhost") && !u.hostname.includes("127.0.0.1")) {
+        return u.hostname;
+      }
     } catch (_) {}
   }
-  if (req) {
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-      return host.split(":")[0];
-    }
-  }
-  return "aurarudraksha.com";
+  return DETERMINISTIC_CANONICAL_DOMAIN;
 }
 
 export function getSiteBaseUrl(req) {
   if (process.env.SITE_URL) {
-    return process.env.SITE_URL.replace(/\/+$/, "");
-  }
-  if (req) {
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const proto = req.headers["x-forwarded-proto"] || "https";
-    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-      return `${proto}://${host}`.replace(/\/+$/, "");
+    const raw = process.env.SITE_URL.replace(/\/+$/, "");
+    if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
+      return raw;
     }
   }
-  return "https://aurarudraksha.com";
+  return DETERMINISTIC_CANONICAL_ORIGIN;
 }
 
 /**

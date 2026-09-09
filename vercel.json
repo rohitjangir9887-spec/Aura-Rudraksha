@@ -1,6 +1,12 @@
 {
   "version": 2,
   "regions": ["bom1"],
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "dist/**,index.html",
+      "maxDuration": 30
+    }
+  },
   "headers": [
     {
       "source": "/sw.js",
@@ -49,13 +55,13 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.js" },
     { "source": "/sitemap.xml", "destination": "/api/sitemap.js" },
+    { "source": "/65afe1e2dec4bf210d1a3ce75cb3c7a0.txt", "destination": "/api/indexnow-key.js" },
+    { "source": "/indexnow-key.txt", "destination": "/api/index.js" },
     { "source": "/robots.txt", "destination": "/api/index.js" },
     { "source": "/google-merchant-feed.xml", "destination": "/api/index.js" },
     { "source": "/merchant-feed.xml", "destination": "/api/index.js" },
-    { "source": "/indexnow-key.txt", "destination": "/api/index.js" },
-    { "source": "/65afe1e2dec4bf210d1a3ce75cb3c7a0.txt", "destination": "/api/indexnow-key.js" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
+    { "source": "/((?!assets/|images/|favicon\\.jpg|apple-touch-icon\\.png|manifest\\.json|sw\\.js|.*\\.(?:jpg|jpeg|png|gif|svg|webp|ico|woff2?|css|js|map)).*)", "destination": "/api/index.js" }
   ]
 }

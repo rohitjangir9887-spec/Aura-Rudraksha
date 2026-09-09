@@ -10,6 +10,8 @@
  * - Absolute HTTPS OpenGraph & Twitter cards for WhatsApp / Social previews
  */
 
+import fs from "fs";
+import path from "path";
 import { isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
@@ -62,7 +64,7 @@ export const CATEGORIES_SEO_REGISTRY = {
   "/rudraksha/nepali": {
     h1: "Authentic Nepali Rudraksha Beads (Himalayan Origin)",
     title: "Nepali Rudraksha Beads — Authentic Himalayan Origin | Aura Rudraksha",
-    description: "Buy large, deeply grooved Nepal Rudraksha beads known for high bio-electric resonance, distinct natural mukhi lines, and intense vibrational potency. Lab certified.",
+    description: "Buy authentic, large-sized Nepali Rudraksha beads directly harvested from Himalayan foothills with distinct natural mukhi lines and lab certificate.",
     categoryName: "Nepali Rudraksha",
     changefreq: "weekly",
     priority: "0.85",
@@ -71,15 +73,15 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Rudraksha", path: "/rudraksha" },
       { name: "Nepali Origin", path: "/rudraksha/nepali" }
     ],
-    intro: "Nepali Rudraksha beads grow in the high altitudes of the Himalayan foothills. Recognized worldwide for their bold size, deep natural grooves, and powerful bio-magnetic field.",
+    intro: "Nepali Rudraksha beads grow naturally in the high altitudes of the Himalayan foothills. Revered in Vedic scriptures for their prominent size, deep natural grooves, and sacred energy.",
     faqs: [
-      { q: "Why are Nepali Rudraksha beads considered superior?", a: "Nepali beads have naturally larger sizes (18mm to 28mm), pronounced thorny surfaces, and clearly defined internal seed chambers that produce measurable bio-electric resonance." },
-      { q: "Do Nepali Rudraksha beads come with authenticity certificates?", a: "Yes. Every single Nepali Rudraksha bead from Aura Rudraksha comes with an official government-recognized gemstone testing laboratory certificate." }
+      { q: "Why are Nepali Rudraksha beads considered special in Vedic tradition?", a: "Nepali beads have naturally larger sizes (18mm to 28mm), pronounced thorny surfaces, and clearly formed internal seed chambers that symbolize sacred Shiva energy in ancient texts." },
+      { q: "Do Nepali Rudraksha beads come with authenticity certificates?", a: "Yes. Every single Nepali Rudraksha bead from Aura Rudraksha is tested and certified by independent gemological laboratories." }
     ]
   },
   "/rudraksha/indonesian": {
     h1: "Indonesian Java Rudraksha Beads (Small & Smooth)",
-    title: "Indonesian Java Rudraksha Beads — Smooth & Subtle Energy | Aura Rudraksha",
+    title: "Indonesian Java Rudraksha Beads — Sacred Spiritual Beads | Aura Rudraksha",
     description: "Explore genuine Indonesian / Java Rudraksha beads. Lightweight, smooth-textured, comfortable for daily wear and ideal for 108+1 Japa meditation malas.",
     categoryName: "Indonesian Rudraksha",
     changefreq: "weekly",
@@ -89,9 +91,9 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Rudraksha", path: "/rudraksha" },
       { name: "Indonesian Origin", path: "/rudraksha/indonesian" }
     ],
-    intro: "Java beads originate from Indonesia. Characterized by a smoother texture, compact diameter (6mm to 12mm), and subtle spiritual frequency, they are especially comfortable for daily wear and Japa malas.",
+    intro: "Java beads originate from Indonesia. Characterized by a smoother texture, compact diameter (6mm to 12mm), and subtle spiritual elegance, they are especially comfortable for daily wear and Japa malas.",
     faqs: [
-      { q: "Are Indonesian Rudraksha beads genuine?", a: "Yes. Botanical research confirms that Elaeocarpus ganitrus roxburghii trees growing in Indonesia produce genuine Rudraksha beads with authentic spiritual and bio-electric properties." }
+      { q: "Are Indonesian Rudraksha beads genuine?", a: "Yes. Elaeocarpus ganitrus trees growing in Java, Indonesia produce naturally formed Rudraksha beads with authentic mukhi lines and seed chambers." }
     ]
   },
   "/rudraksha/mala": {
@@ -106,15 +108,15 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Rudraksha", path: "/rudraksha" },
       { name: "Japa Malas", path: "/rudraksha/mala" }
     ],
-    intro: "A sacred 108+1 Rudraksha Mala is the traditional rosary for Vedic chanting and mental stillness. The 108 beads represent the 108 energy channels meeting at the heart chakra, guided by the 1 Sumeru bead.",
+    intro: "A sacred 108+1 Rudraksha Mala is the traditional rosary for Vedic chanting and mental stillness. The 108 beads represent the sacred cosmic cycle, guided by the 1 Sumeru bead.",
     faqs: [
-      { q: "Why are there 108+1 beads in a Rudraksha Mala?", a: "The 108 beads signify the 108 sacred names of the divine and the cosmic distance ratio between Sun, Earth, and Moon. The 109th bead is the Bindu or Sumeru, symbolizing gratitude and self-realization." }
+      { q: "Why are there 108+1 beads in a Rudraksha Mala?", a: "The 108 beads signify the sacred repetition of divine mantras and cosmic harmony. The 109th bead is the Bindu or Sumeru, symbolizing gratitude and spiritual completion." }
     ]
   },
   "/rudraksha/bracelets": {
     h1: "Consecrated Rudraksha Bracelets & Silver Wristlets",
     title: "Consecrated Rudraksha Bracelets & Wristlets | Aura Rudraksha",
-    description: "Sacred Rudraksha bracelets crafted in sterling silver capping, Panchdhatu, and natural Sphatik beads for continuous pulse-point bio-resonance and spiritual shield.",
+    description: "Sacred Rudraksha bracelets crafted in sterling silver capping, Panchdhatu, and natural beads for daily spiritual grounding and peace.",
     categoryName: "Bracelets",
     changefreq: "weekly",
     priority: "0.8",
@@ -123,7 +125,7 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Rudraksha", path: "/rudraksha" },
       { name: "Bracelets", path: "/rudraksha/bracelets" }
     ],
-    intro: "Wearing Rudraksha on the wrist aligns directly with the radial artery and pulse meridian points, helping balance blood circulation, reduce restlessness, and maintain a protective energy cocoon."
+    intro: "Wearing Rudraksha on the wrist is a revered Vedic practice for maintaining continuous spiritual remembrance, peace of mind, and personal positive aura."
   },
   "/rudraksha/gauri-shankar": {
     h1: "Gauri Shankar Rudraksha — Sacred Shiva & Parvati Union",
@@ -200,16 +202,16 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Home", path: "/" },
       { name: "Sacred Guides", path: "/how-to-wear-rudraksha" }
     ],
-    intro: "Proper consecration and respectful wearing of Rudraksha enhances its bio-electric resonance with your human aura. Follow this authentic step-by-step Vedic guide.",
+    intro: "Proper consecration and respectful wearing of Rudraksha aligns with sacred Vedic tradition. Follow this authentic step-by-step guide for purification, mantra chanting, and daily care.",
     faqs: [
       { q: "Which day is best to wear Rudraksha for the first time?", a: "Monday morning during Brahma Muhurta, or on auspicious lunar days like Pradosh, Masik Shivratri, or Shravan month Mondays." },
       { q: "Can we wear Rudraksha while sleeping or bathing?", a: "It is recommended to remove Rudraksha before sleeping or taking a soap/chemical bath to prevent bead damage and maintain physical purity." }
     ]
   },
   "/rudraksha-benefits": {
-    h1: "Rudraksha Benefits — Spiritual, Scientific & Bio-Electric Energy",
-    title: "Rudraksha Benefits — Spiritual, Scientific & Health Energy | Aura Rudraksha",
-    description: "Scientific and Vedic benefits of wearing Rudraksha: stress relief, blood pressure stabilization, mind clarity, bio-magnetic balancing, and chakra activation.",
+    h1: "Rudraksha Benefits — Sacred Spiritual Significance & Vedic Lore",
+    title: "Rudraksha Benefits — Spiritual Significance & Vedic Lore | Aura Rudraksha",
+    description: "Discover the spiritual, meditative, and astrological significance of wearing Rudraksha according to Shiva Purana, Padma Purana, and Vedic traditions.",
     categoryName: "Spiritual Guide",
     changefreq: "monthly",
     priority: "0.8",
@@ -217,15 +219,15 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Home", path: "/" },
       { name: "Rudraksha Benefits", path: "/rudraksha-benefits" }
     ],
-    intro: "Scientific research conducted on Elaeocarpus ganitrus beads confirms distinct dielectric and capacitive properties that stabilize cardiac bio-electricity and soothe the central nervous system.",
+    intro: "In ancient Vedic scriptures like the Shiva Purana and Srimad Devi Bhagavatam, Rudraksha is celebrated as a divine gift of Lord Shiva, providing mental calmness, focus during meditation, and positive aura.",
     faqs: [
-      { q: "What does scientific research say about Rudraksha?", a: "Studies from Banaras Hindu University (BHU) show that Rudraksha beads possess bio-magnetic and inductive properties that act as continuous acupressure stabilizers on human pulse points." }
+      { q: "What are the spiritual benefits of wearing Rudraksha according to scriptures?", a: "Vedic texts state that wearing authentic Rudraksha assists in spiritual discipline, deepens meditation, pacifies mental restlessness, and helps balance planetary influences." }
     ]
   },
   "/rudraksha-authenticity": {
     h1: "Rudraksha Authenticity & Lab Testing Guide — Real vs Fake",
     title: "Rudraksha Authenticity & Lab Testing Guide — Real vs Fake | Aura Rudraksha",
-    description: "How to identify genuine Rudraksha: X-ray density radiography, copper coin test myths vs reality, natural mukhi continuity, and government lab certification.",
+    description: "How to identify genuine Rudraksha: laboratory X-ray radiography, internal seed compartments, natural mukhi continuity, and ISO gemological certification.",
     categoryName: "Authenticity Guide",
     changefreq: "monthly",
     priority: "0.8",
@@ -233,10 +235,10 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Home", path: "/" },
       { name: "Authenticity Guide", path: "/rudraksha-authenticity" }
     ],
-    intro: "With the rise of carved wooden beads and glued artificial lines, authentic verification is crucial. Learn why laboratory X-ray radiography is the only 100% conclusive proof of genuine Rudraksha.",
+    intro: "With the rise of carved wooden beads and glued artificial lines, authentic verification is crucial. Learn why laboratory X-ray radiography is the definitive proof of genuine Rudraksha.",
     faqs: [
-      { q: "Is the copper coin rotation test reliable?", a: "No. Copper coin rotation happens due to sweat, surface moisture, and slight hand tremors, not the bead's authenticity. Only non-destructive X-ray radiography is scientific proof." },
-      { q: "How does Aura Rudraksha guarantee purity?", a: "We test every rare bead in an ISO-certified gemological laboratory. Customers receive verifiable physical certificate cards with lab report numbers and QR codes." }
+      { q: "Is the copper coin rotation test reliable?", a: "No. Copper coin rotation happens due to surface moisture and slight hand tremors, not the bead's authenticity. Only laboratory X-ray radiography is scientific proof of internal seed chambers." },
+      { q: "How does Aura Rudraksha guarantee purity?", a: "We test every rare bead in recognized gemological laboratories. Customers receive verifiable physical certificate cards with lab report numbers and QR codes." }
     ]
   },
   "/rudraksha-care": {
@@ -584,11 +586,23 @@ export function generateRobotsTxt(req) {
   return `User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /admin/
 Disallow: /account
+Disallow: /account/
 Disallow: /checkout
+Disallow: /checkout/
 Disallow: /cart
+Disallow: /cart/
 Disallow: /orders
+Disallow: /orders/
 Disallow: /payment
+Disallow: /payment/
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /wishlist
+Disallow: /customer
+Disallow: /customer/
 Disallow: /api/
 
 Sitemap: ${baseUrl}/sitemap.xml
@@ -602,19 +616,24 @@ export async function resolveSeoData(pathname, req) {
   const baseUrl = getSiteBaseUrl(req);
   const cleanPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
 
-  // Check if private route requiring noindex
+  // Check if private route requiring noindex, nofollow
   if (
     cleanPath.startsWith("/admin") ||
     cleanPath.startsWith("/account") ||
     cleanPath.startsWith("/cart") ||
     cleanPath.startsWith("/checkout") ||
     cleanPath.startsWith("/payment") ||
-    cleanPath.startsWith("/login")
+    cleanPath.startsWith("/orders") ||
+    cleanPath.startsWith("/profile") ||
+    cleanPath.startsWith("/wishlist") ||
+    cleanPath.startsWith("/customer") ||
+    cleanPath === "/login" ||
+    cleanPath === "/register"
   ) {
     return {
       noindex: true,
-      title: "Secure Portal | Aura Rudraksha",
-      description: "Secure account and order checkout at Aura Rudraksha.",
+      title: "Aura Rudraksha — Sacred Vedic Store",
+      description: "Secure customer and administrative portal.",
       canonical: `${baseUrl}${cleanPath}`
     };
   }
@@ -685,7 +704,8 @@ export async function resolveSeoData(pathname, req) {
       const imgRaw = (product.images && product.images[0]) || product.img || SEO_BRAND.defaultImage;
       const ogImage = imgRaw.startsWith("http") ? imgRaw : `${baseUrl}${imgRaw.startsWith("/") ? "" : "/"}${imgRaw}`;
       const inStock = (product.stock === undefined || Number(product.stock) > 0) && product.status !== "Out of Stock";
-      const priceVal = Number(product.price) || 0;
+      const rawPrice = product.price !== undefined && product.price !== null ? Number(product.price) : null;
+      const hasValidPrice = typeof rawPrice === "number" && !isNaN(rawPrice) && rawPrice > 0;
 
       const title = product.metaTitle || `${product.name} — Authentic Lab Certified | Aura Rudraksha`;
       const cleanHighlight = (product.highlight || product.description || "100% authentic Nepali Rudraksha bead consecrated according to Vedic traditions.")
@@ -693,6 +713,21 @@ export async function resolveSeoData(pathname, req) {
       const description = product.metaDescription || `${cleanHighlight.slice(0, 150)} Free shipping & certificate included.`;
 
       // Product Schema
+      const offersObj = {
+        "@type": "Offer",
+        "url": canonical,
+        "priceCurrency": "INR",
+        "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "itemCondition": "https://schema.org/NewCondition",
+        "seller": {
+          "@type": "Organization",
+          "name": SEO_BRAND.name
+        }
+      };
+      if (hasValidPrice) {
+        offersObj.price = rawPrice;
+      }
+
       const productSchema = {
         "@context": "https://schema.org",
         "@type": "Product",
@@ -705,18 +740,7 @@ export async function resolveSeoData(pathname, req) {
           "name": SEO_BRAND.name
         },
         "category": product.category || "Rudraksha",
-        "offers": {
-          "@type": "Offer",
-          "url": canonical,
-          "priceCurrency": "INR",
-          "price": priceVal,
-          "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-          "itemCondition": "https://schema.org/NewCondition",
-          "seller": {
-            "@type": "Organization",
-            "name": SEO_BRAND.name
-          }
-        }
+        "offers": offersObj
       };
 
       // Only attach aggregateRating if real devotee reviews exist
@@ -930,11 +954,15 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
 
     if (seo.product) {
       const p = seo.product;
+      const rawP = p.price !== undefined && p.price !== null ? Number(p.price) : null;
+      const hasP = typeof rawP === "number" && !isNaN(rawP) && rawP > 0;
       crawlableHtml += `    <section style="margin-top:24px;padding:20px;border:1px solid #ebdccb;border-radius:8px;">\n`;
-      crawlableHtml += `      <p><strong>Price:</strong> ₹${p.price} <span style="text-decoration:line-through;color:#888;">₹${p.mrp || p.comparePrice}</span></p>\n`;
+      if (hasP) {
+        crawlableHtml += `      <p><strong>Price:</strong> ₹${rawP} ${p.mrp || p.comparePrice ? `<span style="text-decoration:line-through;color:#888;">₹${p.mrp || p.comparePrice}</span>` : ""}</p>\n`;
+      }
       crawlableHtml += `      <p><strong>Authenticity:</strong> 100% Genuine Lab Certified</p>\n`;
       crawlableHtml += `      <p><strong>Origin:</strong> ${escapeXml(p.origin || "Nepal")}</p>\n`;
-      crawlableHtml += `      <p><strong>Availability:</strong> ${(p.stock > 0 ? "In Stock" : "Out of Stock")}</p>\n`;
+      crawlableHtml += `      <p><strong>Availability:</strong> ${(p.stock === undefined || Number(p.stock) > 0 ? "In Stock" : "Out of Stock")}</p>\n`;
       crawlableHtml += `    </section>\n`;
     }
 
@@ -952,3 +980,70 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
 
   return result;
 }
+
+let cachedTemplate = "";
+
+/**
+ * Load HTML template from filesystem (dist/index.html or index.html) with embedded fallback
+ */
+export function getHtmlTemplate() {
+  if (cachedTemplate) return cachedTemplate;
+
+  const candidatePaths = [
+    path.join(process.cwd(), "dist", "index.html"),
+    path.join(process.cwd(), "index.html"),
+    path.resolve("./dist/index.html"),
+    path.resolve("./index.html")
+  ];
+
+  for (const p of candidatePaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const content = fs.readFileSync(p, "utf-8");
+        if (content && content.includes("<div id=\"root\"></div>")) {
+          cachedTemplate = content;
+          return cachedTemplate;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Fallback base HTML if filesystem is not directly accessible
+  cachedTemplate = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6f3518" />
+    <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Aura Rudraksha — 100% Authentic Nepal &amp; Indonesian Rudraksha | Lab Certified</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>`;
+
+  return cachedTemplate;
+}
+
+export function setHtmlTemplate(html) {
+  if (html && typeof html === "string") {
+    cachedTemplate = html;
+  }
+}
+
+/**
+ * High-level SSR Renderer that returns injected HTML and proper HTTP status
+ */
+export async function renderSsrHtml(pathname, req, customTemplate = null) {
+  const template = customTemplate || getHtmlTemplate();
+  const seo = await resolveSeoData(pathname, req);
+  const finalHtml = await injectSeoIntoHtml(template, pathname, req);
+  const isNotFound = Boolean((seo.title && seo.title.includes("Product Not Found")) || (seo.noindex && pathname.startsWith("/product/")));
+  const status = isNotFound ? 404 : 200;
+  return { html: finalHtml, status, seo };
+}
+
