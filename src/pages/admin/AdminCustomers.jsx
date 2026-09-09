@@ -13,7 +13,45 @@ export function AdminCustomers() {
   const [viewing, setViewing] = useState(null);
   const [orders, setOrders] = useState(() => db.getOrders() || []);
 
+  
+  const toggleSelectCustomer = (id) => {
+    setSelectedCustomers(prev => 
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
+  };
+  
+  const handleSendEmail = async (e) => {
+    e.preventDefault();
+    if (!emailSubject.trim() || !emailMessage.trim()) return alert("Subject and Message are required");
+    setSendingEmail(true);
+    try {
+      const res = await fetch("/api/customers/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: emailTarget === 'viewing' ? 'selected' : emailTarget,
+          customerIds: emailTarget === 'viewing' ? [viewing.id] : selectedCustomers,
+          subject: emailSubject,
+          message: emailMessage
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setShowEmailModal(false);
+        setEmailSubject('');
+        setEmailMessage('');
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch (err) {
+      alert("Error sending email: " + err.message);
+    }
+    setSendingEmail(false);
+  };
+  
   useEffect(() => {
+
     load();
     const unsub = onStoreUpdate(() => {
       const custs = db.getCustomers() || [];
@@ -183,6 +221,21 @@ export function AdminCustomers() {
           <h1>Customers Analytics</h1>
           <p className="admin-page-subtitle">{customers.length} store customers recorded</p>
         </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            className="admin-btn secondary" 
+            onClick={() => { setEmailTarget('selected'); setShowEmailModal(true); }}
+            disabled={selectedCustomers.length === 0}
+          >
+            <Mail size={16} /> Send Selected ({selectedCustomers.length})
+          </button>
+          <button 
+            className="admin-btn primary" 
+            onClick={() => { setEmailTarget('all'); setShowEmailModal(true); }}
+          >
+            <Mail size={16} /> Send All
+          </button>
+        </div>
       </div>
 
       <div className="admin-mobile-toolbar">
@@ -206,6 +259,7 @@ export function AdminCustomers() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th style={{width: 40}}></th>
                 <th>Name</th>
                 <th>Email / Phone</th>
                 <th>Role</th>
@@ -220,6 +274,9 @@ export function AdminCustomers() {
             <tbody>
               {filteredCustomers.map(c => (
                 <tr key={c.id}>
+                  <td>
+                    <input type="checkbox" checked={selectedCustomers.includes(c.id)} onChange={() => toggleSelectCustomer(c.id)} />
+                  </td>
                   <td>
                     <b>{c.name || 'Customer'}</b>
                     {c.address && <small style={{ display: 'block', color: '#806f62' }}>{c.address}</small>}
@@ -292,6 +349,33 @@ export function AdminCustomers() {
           ))}
         </div>
         </>
+      )}
+    
+      {showEmailModal && (
+        <div className="admin-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="admin-modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '500px', margin: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#2b170d' }}>Send Email ({emailTarget === 'all' ? 'All Customers' : emailTarget === 'viewing' ? viewing?.name : selectedCustomers.length + ' Selected'})</h2>
+              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSendEmail}>
+              <div className="admin-form-group" style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Subject</label>
+                <input required type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+              </div>
+              <div className="admin-form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Message</label>
+                <textarea required rows="6" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', resize: 'vertical' }}></textarea>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" className="admin-btn secondary" onClick={() => setShowEmailModal(false)}>Cancel</button>
+                <button type="submit" className="admin-btn primary" disabled={sendingEmail}>
+                  {sendingEmail ? 'Sending...' : 'Send Email'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </AdminLayout>
   );

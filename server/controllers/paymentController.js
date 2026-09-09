@@ -479,6 +479,16 @@ export async function handlePayuCallback(req, res) {
       order.mihpayid = params.mihpayid || order.mihpayid || "";
       order.paymentAttempts = attempts;
       await order.save();
+      try {
+        const email = order.customerEmail || order.email || order.shippingAddress?.email;
+        const name = order.customerName || order.firstName || 'Customer';
+        if (email) {
+          await sendPaymentFailedEmail({ to: email, name, order, reason: errorMsg });
+        }
+      } catch (err) {
+        console.error("[Email] Payment failed email error:", err.message);
+      }
+
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(hashMismatch ? "Payment hash verification failed" : errorMsg)}`);
     }
 
@@ -519,6 +529,16 @@ export async function handlePayuCallback(req, res) {
 
     if (updatedOrder) {
       // First time state transition - execute side effects strictly ONCE
+      try {
+        const email = updatedOrder.customerEmail || updatedOrder.email || updatedOrder.shippingAddress?.email;
+        const name = updatedOrder.customerName || updatedOrder.firstName || 'Customer';
+        if (email) {
+          await sendPaymentSuccessfulEmail({ to: email, name, order: updatedOrder });
+        }
+      } catch (err) {
+        console.error("[Email] Payment success email error:", err.message);
+      }
+
 
       // Update payment attempts array
       const attempts = order.paymentAttempts || [];
@@ -1661,6 +1681,17 @@ export async function processPayuRefund(req, res, next) {
 
     await order.save();
     await Order.updateOne({ _id: order._id }, { $unset: { isRefunding: 1 } });
+    
+    try {
+      const email = order.customerEmail || order.email || order.shippingAddress?.email;
+      const name = order.customerName || order.firstName || 'Customer';
+      if (email) {
+        await sendRefundStatusEmail({ to: email, name, order, amount: currentRefundAmount, status: order.paymentStatus });
+      }
+    } catch (err) {
+      console.error("[Email] Refund status email error:", err.message);
+    }
+
 
     // Update Payment Transaction record
     try {

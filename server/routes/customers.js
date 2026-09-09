@@ -5,7 +5,8 @@ import {
   saveCustomer,
   updateCustomer,
   getCustomerMe,
-  updateCustomerMe
+  updateCustomerMe,
+  sendAdminEmail
 } from "../controllers/customerController.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -22,5 +23,7 @@ router.route("/")
 router.route("/:id")
   .get(requireAdmin, getCustomerById)
   .put(requireAdmin, updateCustomer);
+
+router.post("/send-email", requireAdmin, sendAdminEmail);
 
 export default router;
