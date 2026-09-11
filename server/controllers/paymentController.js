@@ -4,7 +4,7 @@ import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { PaymentTransaction } from "../models/PaymentTransaction.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
-import { isDbConnected } from "../config/db.js";
+import { isDbConnected, connectDB } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
@@ -20,6 +20,18 @@ import { logAuditEvent } from "../services/auditService.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
 import { sendRefundOtpEmail, sendPaymentSuccessfulEmail, sendPaymentFailedEmail, sendRefundStatusEmail, sendOrderCancelledEmail, maskEmail } from "../services/emailService.js";
 import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService.js";
+
+/**
+ * Ensures MongoDB is connected, attempting reconnect if needed.
+ */
+export async function ensureDbReady() {
+  if (!isDbConnected()) {
+    try {
+      await connectDB();
+    } catch (_) {}
+  }
+  return isDbConnected();
+}
 
 /**
  * Safely parse and normalize incoming PayU callback/webhook body
@@ -133,11 +145,12 @@ function resolveAppBaseUrl(req) {
  */
 export async function initiatePayuPayment(req, res, next) {
   try {
-    // 1. Check DB Connection - NEVER allow payment initiation if DB is disconnected
-    if (!isDbConnected()) {
+    // 1. Ensure DB Connection - Auto-reconnects if temporarily offline/cold
+    const isReady = await ensureDbReady();
+    if (!isReady) {
       return res.status(503).json({
         success: false,
-        message: "Payment service temporarily unavailable. Please try again."
+        message: "Database connection is establishing. Please try again in a few moments."
       });
     }
 
@@ -382,8 +395,9 @@ export async function handlePayuCallback(req, res) {
   const clientBaseUrl = resolveAppBaseUrl(req);
 
   try {
-    if (!isDbConnected()) {
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=db_offline&reason=${encodeURIComponent("Payment service temporarily unavailable. Please try again.")}`);
+    const isReady = await ensureDbReady();
+    if (!isReady) {
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=db_offline&reason=${encodeURIComponent("Database is connecting. Please refresh in a moment.")}`);
     }
 
     const params = extractPayuParams(req);
@@ -684,7 +698,8 @@ export async function handlePayuCancel(req, res) {
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Invalid request signature")}`);
     }
 
-    if (orderId && isDbConnected()) {
+    if (orderId) {
+      await ensureDbReady();
       const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
       if (order && order.paymentStatus === "Paid") {
         const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
@@ -735,7 +750,8 @@ export async function handlePayuCancel(req, res) {
 
 export async function handlePayuWebhook(req, res) {
   try {
-    if (!isDbConnected()) {
+    const isReady = await ensureDbReady();
+    if (!isReady) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -979,8 +995,9 @@ export async function handlePayuWebhook(req, res) {
  */
 export async function verifyPaymentStatus(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Payment service temporarily unavailable. Please try again." });
+    const isReady = await ensureDbReady();
+    if (!isReady) {
+      return res.status(503).json({ success: false, message: "Database is connecting. Please try again." });
     }
 
     const { orderId } = req.params;
@@ -1230,8 +1247,9 @@ export async function verifyPaymentStatus(req, res, next) {
  */
 export async function retryPayuPayment(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.status(503).json({ success: false, message: "Payment service temporarily unavailable. Please try again." });
+    const isReady = await ensureDbReady();
+    if (!isReady) {
+      return res.status(503).json({ success: false, message: "Database is connecting. Please try again." });
     }
 
     const { orderId } = req.params;
@@ -1408,7 +1426,8 @@ export async function retryPayuPayment(req, res, next) {
  */
 export async function requestRefundOtp(req, res, next) {
   try {
-    if (!isDbConnected()) {
+    const isReady = await ensureDbReady();
+    if (!isReady) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -1506,7 +1525,8 @@ export async function requestRefundOtp(req, res, next) {
  */
 export async function processPayuRefund(req, res, next) {
   try {
-    if (!isDbConnected()) {
+    const isReady = await ensureDbReady();
+    if (!isReady) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -1746,7 +1766,8 @@ export async function processPayuRefund(req, res, next) {
  */
 export async function cancelUnpaidOrder(req, res, next) {
   try {
-    if (!isDbConnected()) {
+    const isReady = await ensureDbReady();
+    if (!isReady) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -1835,7 +1856,8 @@ export async function cancelUnpaidOrder(req, res, next) {
 export async function syncPayuOrder(req, res) {
   try {
     const { orderId } = req.params;
-    if (!orderId || !isDbConnected()) {
+    const isReady = await ensureDbReady();
+    if (!orderId || !isReady) {
       return res.status(503).json({ success: false, message: "Database offline" });
     }
 

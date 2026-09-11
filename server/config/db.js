@@ -79,23 +79,82 @@ if (!global.__mongoose_listeners_attached) {
 
 export function isValidMongoUri(rawUri) {
   if (!rawUri || typeof rawUri !== "string") return false;
-  const trimmed = rawUri.trim();
+  const trimmed = rawUri.trim().replace(/^['"]|['"]$/g, '').replace(/;+$/, '');
   return (
     trimmed.startsWith("mongodb://") ||
     trimmed.startsWith("mongodb+srv://")
   );
 }
 
+/**
+ * Normalizes MongoDB Connection String and safely percent-encodes credentials
+ * if special characters (such as @, #, $, %, &, +, =) were placed unencoded in password.
+ */
+export function normalizeMongoUri(rawUri) {
+  if (!rawUri || typeof rawUri !== "string") return null;
+  let uri = rawUri.trim().replace(/^['"]|['"]$/g, '').replace(/;+$/, '').trim();
+  if (!isValidMongoUri(uri)) return null;
+
+  try {
+    const srvPrefix = uri.startsWith("mongodb+srv://") ? "mongodb+srv://" : "mongodb://";
+    const rest = uri.slice(srvPrefix.length);
+    const atIndex = rest.lastIndexOf("@");
+    if (atIndex !== -1) {
+      const userinfo = rest.slice(0, atIndex);
+      const hostAndParams = rest.slice(atIndex + 1);
+      const colonIndex = userinfo.indexOf(":");
+      if (colonIndex !== -1) {
+        const rawUser = userinfo.slice(0, colonIndex);
+        const rawPassword = userinfo.slice(colonIndex + 1);
+
+        let safeUser = rawUser;
+        try {
+          if (decodeURIComponent(rawUser) === rawUser) {
+            safeUser = encodeURIComponent(rawUser);
+          }
+        } catch (_) {
+          safeUser = encodeURIComponent(rawUser);
+        }
+
+        let safePassword = rawPassword;
+        try {
+          if (decodeURIComponent(rawPassword) === rawPassword) {
+            safePassword = encodeURIComponent(rawPassword);
+          }
+        } catch (_) {
+          safePassword = encodeURIComponent(rawPassword);
+        }
+
+        return `${srvPrefix}${safeUser}:${safePassword}@${hostAndParams}`;
+      }
+    }
+  } catch (_) {}
+  return uri;
+}
+
 export function getMongoUri() {
-  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
-  if (isValidMongoUri(uri)) {
-    return uri;
+  const raw = (
+    process.env.MONGODB_URI || 
+    process.env.MONGO_URI || 
+    process.env.MONGODB_URL || 
+    process.env.DATABASE_URL || 
+    ""
+  ).trim().replace(/^['"]|['"]$/g, '').replace(/;+$/, '');
+  
+  if (isValidMongoUri(raw)) {
+    return normalizeMongoUri(raw) || raw;
   }
   return null;
 }
 
 export function getMaskedMongoUri() {
-  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
+  const uri = (
+    process.env.MONGODB_URI || 
+    process.env.MONGO_URI || 
+    process.env.MONGODB_URL || 
+    process.env.DATABASE_URL || 
+    ""
+  ).trim().replace(/^['"]|['"]$/g, '').replace(/;+$/, '');
   if (!uri) return null;
   try {
     // Mask password in connection string: mongodb+srv://user:pass@host/db
@@ -113,7 +172,13 @@ export async function connectDB() {
   cached.lastAttempt = new Date().toISOString();
 
   if (!uri) {
-    const raw = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim().replace(/^['"]|['"]$/g, '');
+    const raw = (
+      process.env.MONGODB_URI || 
+      process.env.MONGO_URI || 
+      process.env.MONGODB_URL || 
+      process.env.DATABASE_URL || 
+      ""
+    ).trim().replace(/^['"]|['"]$/g, '').replace(/;+$/, '');
     const errMsg = raw && raw !== "."
       ? "MONGODB_URI is provided but invalid (must start with 'mongodb://' or 'mongodb+srv://')."
       : "MONGODB_URI environment variable is not defined or unconfigured.";
@@ -140,6 +205,7 @@ export async function connectDB() {
       return mongoose.connection.readyState === 1;
     } catch (err) {
       recordConnectionError(err, "promise:await_inflight");
+      cached.promise = null;
       return false;
     }
   }
@@ -147,13 +213,14 @@ export async function connectDB() {
   // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const opts = {
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 20000,
+      connectTimeoutMS: 20000,
       socketTimeoutMS: 45000,
       maxIdleTimeMS: 60000,
       maxPoolSize: 20,
       minPoolSize: 1,
       retryWrites: true,
+      w: "majority",
       autoIndex: process.env.NODE_ENV !== "production"
     };
 
