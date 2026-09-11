@@ -115,7 +115,7 @@ export async function getSettings(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.json({ success: true, notificationStats, data: sanitizeSettingsForClient(defaultSettings, isAdmin), isFallback: true });
+      return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings, isAdmin), isFallback: true });
     }
 
     const settings = await fetchStoreSettings();

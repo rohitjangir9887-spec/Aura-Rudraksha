@@ -1968,10 +1968,18 @@ Instructions:
           const geminiText = response.text || "No response generated.";
           return res.json({ text: geminiText });
         } catch (geminiErr) {
-          console.error("Gemini fallback error in adminChatAuraAI:", geminiErr);
+          console.error("Gemini fallback error in adminChatAuraAI:", geminiErr?.message || geminiErr);
+          const isQuota = String(geminiErr?.message || "").toLowerCase().includes("quota") || String(geminiErr?.message || "").includes("429");
+          return res.json({
+            text: isQuota 
+              ? "⚠️ **AI Quota Notice:** Google Gemini API usage quota has been reached for the current key. Please check your plan at https://ai.google.dev or update your `GEMINI_API_KEY` in Settings > Environment Variables."
+              : `⚠️ **AI Service Notice:** AI service is momentarily unavailable (${geminiErr?.message || "Please retry in a moment"}).`
+          });
         }
       }
-      return res.status(503).json({ error: "AI Engine is initializing. Please retry in a moment." });
+      return res.json({ 
+        text: "⚠️ **AI Notice:** AI engine is initializing. Please ensure a valid `GEMINI_API_KEY` or `NVIDIA_API_KEY` is configured in Settings > Environment Variables."
+      });
     }
 
     const tools = [
@@ -2036,24 +2044,36 @@ Instructions:
       console.warn("[adminChatAuraAI] NVIDIA error, falling back to Gemini:", nimErr?.message);
       const geminiClient = getGeminiClient();
       if (geminiClient) {
-        const geminiContents = formattedMessages
-          .filter(m => m.role !== 'system' && m.role !== 'tool')
-          .map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: String(m.content || "") }]
-          }));
+        try {
+          const geminiContents = formattedMessages
+            .filter(m => m.role !== 'system' && m.role !== 'tool')
+            .map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: String(m.content || "") }]
+            }));
 
-        const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7,
-          }
-        });
-        return res.json({ text: geminiRes.text || "No response generated." });
+          const geminiRes = await geminiClient.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.7,
+            }
+          });
+          return res.json({ text: geminiRes.text || "No response generated." });
+        } catch (geminiFallbackErr) {
+          console.error("Gemini secondary fallback error in adminChatAuraAI:", geminiFallbackErr?.message || geminiFallbackErr);
+          const isQuota = String(geminiFallbackErr?.message || "").toLowerCase().includes("quota") || String(geminiFallbackErr?.message || "").includes("429");
+          return res.json({
+            text: isQuota
+              ? "⚠️ **AI Quota Notice:** Google Gemini API quota has been exceeded for your current key. Please check your plan at https://ai.google.dev or update your `GEMINI_API_KEY` in Settings > Environment Variables."
+              : `⚠️ **AI Service Notice:** AI service is momentarily unavailable (${geminiFallbackErr?.message || "Please retry in a moment"}).`
+          });
+        }
       }
-      throw nimErr;
+      return res.json({
+        text: `⚠️ **AI Service Notice:** NVIDIA service returned: ${nimErr?.message || "error"}. No Gemini fallback was available.`
+      });
     }
 
     let responseMessage = response.choices[0]?.message;
@@ -2101,7 +2121,12 @@ Instructions:
 
     return res.json({ text: aiText });
   } catch (error) {
-    console.error("Error in adminChatAuraAI:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("Error in adminChatAuraAI:", error?.message || error);
+    const isQuota = String(error?.message || "").toLowerCase().includes("quota") || String(error?.message || "").includes("429");
+    return res.json({ 
+      text: isQuota
+        ? "⚠️ **AI Quota Notice:** The AI model API usage limit has been exceeded. Please update your API key in Settings > Environment Variables."
+        : `⚠️ **AI Service Notice:** ${error?.message || "An unexpected error occurred while processing your request. Please try again."}`
+    });
   }
 }

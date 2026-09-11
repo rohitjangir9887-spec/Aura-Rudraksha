@@ -708,6 +708,10 @@ export async function sendAdminEmail(req, res, next) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, error: "Database unavailable", message: "Database connection required for sending bulk emails." });
+    }
+
     const { target, customerIds, subject, message } = req.body;
     if (!subject || !message) {
       return res.status(400).json({ success: false, message: "Subject and message are required" });
@@ -762,6 +766,10 @@ export async function sendAdminSms(req, res, next) {
     
     if (!isAdmin) {
       return res.status(403).json({ success: false, message: "Access Denied" });
+    }
+
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, error: "Database unavailable", message: "Database connection required for sending bulk SMS." });
     }
 
     const { target, customerIds, message } = req.body;

@@ -87,9 +87,9 @@ export function AdminCustomers() {
   useEffect(() => {
     if (searchTerm) {
       setFilteredCustomers(customers.filter(c => 
-        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.phone?.includes(searchTerm)
+        c?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        c?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c?.phone?.includes(searchTerm)
       ));
     } else {
       setFilteredCustomers(customers);
@@ -279,18 +279,18 @@ export function AdminCustomers() {
               </tr>
             </thead>
             <tbody>
-              {filteredCustomers.map(c => (
-                <tr key={c.id}>
+              {(filteredCustomers || []).map(c => (
+                <tr key={c?.id}>
                   <td>
-                    <input type="checkbox" checked={selectedCustomers.includes(c.id)} onChange={() => toggleSelectCustomer(c.id)} />
+                    <input type="checkbox" checked={selectedCustomers.includes(c?.id)} onChange={() => toggleSelectCustomer(c?.id)} />
                   </td>
                   <td>
-                    <b>{c.name || 'Customer'}</b>
-                    {c.address && <small style={{ display: 'block', color: '#806f62' }}>{c.address}</small>}
+                    <b>{c?.name || 'Customer'}</b>
+                    {c?.address && <small style={{ display: 'block', color: '#806f62' }}>{c?.address}</small>}
                   </td>
                   <td>
-                    {c.email && <span style={{ display: 'block' }}>{c.email}</span>}
-                    {c.phone && <small style={{ color: '#806f62' }}>{c.phone}</small>}
+                    {c?.email && <span style={{ display: 'block' }}>{c?.email}</span>}
+                    {c?.phone && <small style={{ color: '#806f62' }}>{c?.phone}</small>}
                   </td>
                   <td>
                     <span className={`admin-badge ${c.role === 'admin' ? 'info' : ''}`}>{c.role === 'admin' ? 'Admin' : 'Customer'}</span>
@@ -301,7 +301,7 @@ export function AdminCustomers() {
                   <td><small>{c.joined || c.firstSeen ? new Date(c.joined || c.firstSeen).toLocaleDateString() : '—'}</small></td>
                   <td><small>{c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : '—'}</small></td>
                   <td><b>{c.totalOrders || 0}</b></td>
-                  <td><b>₹{(c.totalSpent || 0).toLocaleString()}</b></td>
+                  <td><b>₹{(c?.totalSpent || 0).toLocaleString()}</b></td>
                   <td>
                     <button className="admin-btn secondary" style={{ padding: '5px 12px', fontSize: '12px' }} onClick={() => setViewing(c)}>
                       <Eye size={13} /> Profile
@@ -314,17 +314,17 @@ export function AdminCustomers() {
         </div>
 
         <div className="admin-mobile-cards">
-          {filteredCustomers.map(c => (
-            <div key={c.id} className="admin-mobile-card">
+          {(filteredCustomers || []).map(c => (
+            <div key={c?.id} className="admin-mobile-card">
               <div className="mobile-card-top">
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#fdf0e8', color: '#a54d2b', display: 'grid', placeItems: 'center', fontWeight: 'bold', fontSize: '16px' }}>
-                    {c.name?.charAt(0) || 'U'}
+                    {c?.name?.charAt(0) || 'U'}
                   </div>
                   <div>
-                    <span className="mobile-card-title">{c.name}</span>
+                    <span className="mobile-card-title">{c?.name}</span>
                     <div className="mobile-card-sub">
-                      {c.phone ? `📞 ${c.phone}` : ''} {c.email ? `• ✉️ ${c.email}` : ''}
+                      {c?.phone ? `📞 ${c?.phone}` : ''} {c?.email ? `• ✉️ ${c?.email}` : ''}
                     </div>
                     <div style={{ fontSize: '11px', color: '#806f62', marginTop: '2px' }}>
                       👀 Visits: <b>{c.visits || 1}</b> • Last Visit: {c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : 'Recent'}
@@ -349,7 +349,7 @@ export function AdminCustomers() {
 
                 <div>
                   <small style={{ color: '#806f62', fontSize: '11px', display: 'block' }}>Total Spent</small>
-                  <b style={{ fontSize: '15px', color: '#166534' }}>₹{(c.totalSpent || 0).toLocaleString()}</b>
+                  <b style={{ fontSize: '15px', color: '#166534' }}>₹{(c?.totalSpent || 0).toLocaleString()}</b>
                 </div>
               </div>
             </div>
