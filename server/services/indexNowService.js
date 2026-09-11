@@ -39,8 +39,17 @@ export function getSiteBaseUrl(req) {
     }
   }
   if (req) {
-    const host = req.get("x-forwarded-host") || req.get("host");
-    const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+    const getHeader = (name) => {
+      if (typeof req.get === "function") {
+        try { return req.get(name); } catch (_) {}
+      }
+      if (req.headers && typeof req.headers === "object") {
+        return req.headers[name.toLowerCase()] || req.headers[name];
+      }
+      return null;
+    };
+    const host = getHeader("x-forwarded-host") || getHeader("host");
+    const proto = getHeader("x-forwarded-proto") || req.protocol || "https";
     if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
       return `${proto}://${host}`;
     }

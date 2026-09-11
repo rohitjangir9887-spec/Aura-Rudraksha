@@ -110,8 +110,8 @@ function resolveAppBaseUrl(req) {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  const host = req ? (req.headers["x-forwarded-host"] || req.get("host")) : "";
-  const protocol = req && req.headers["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
+  const host = req ? (req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.["host"]) || "") : "";
+  const protocol = req?.headers?.["x-forwarded-proto"] || req?.protocol || "https";
   if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
     return `${protocol}://${host}`;
   }
