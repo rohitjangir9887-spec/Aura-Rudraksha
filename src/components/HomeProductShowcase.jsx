@@ -95,7 +95,7 @@ function PanditJiAvatar({ size = 34 }) {
           const fallback = target.parentElement.querySelector('svg');
           if (fallback) fallback.style.display = 'block';
         }}
-        loading="eager"
+        loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
       />
@@ -812,8 +812,8 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
             </Link>
           </div>
         ) : (
-          displayedProducts.map(p => (
-            <ProductCard key={p.id} p={p} onAdd={add} />
+          displayedProducts.map((p, index) => (
+            <ProductCard key={p.id} p={p} onAdd={add} priority={index < 2} index={index} />
           ))
         )}
       </div>

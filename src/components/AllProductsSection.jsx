@@ -69,8 +69,8 @@ export function AllProductsSection({ products = [], isLoading = false }) {
             </Link>
           </div>
         ) : (
-          allActiveProducts.map(p => (
-            <ProductCard key={p.id} p={p} onAdd={add} />
+          allActiveProducts.map((p, index) => (
+            <ProductCard key={p.id} p={p} onAdd={add} priority={false} index={index} />
           ))
         )}
       </div>

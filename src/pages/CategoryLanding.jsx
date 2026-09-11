@@ -227,8 +227,8 @@ export default function CategoryLanding() {
             </div>
           ) : matchingProducts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {matchingProducts.map(product => (
-                <ProductCard key={product.id || product._id} p={product} />
+              {matchingProducts.map((product, index) => (
+                <ProductCard key={product.id || product._id} p={product} priority={index < 2} index={index} />
               ))}
             </div>
           ) : (

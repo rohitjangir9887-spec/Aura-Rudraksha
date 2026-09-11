@@ -26,7 +26,7 @@ export function ProductCardSkeleton() {
   );
 }
 
-function ProductCardComponent({ p, onAdd, isShop = false }) {
+function ProductCardComponent({ p, onAdd, isShop = false, priority = false, index = 0 }) {
   if (!p) return null;
   const navigate = useNavigate();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -42,7 +42,6 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     : getProductGalleryImages(p);
   const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/placeholder.svg";
   const cardImgWidth = (typeof window !== "undefined" && window.innerWidth < 640) ? 360 : 440;
-  const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: cardImgWidth, quality: 80 });
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 
@@ -110,14 +109,17 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
       style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent", cursor: "pointer" }}
       id={`product-card-${p.id}`}
     >
-      {/* 1. Card Image Area */}
-      <div className="aura-card-media">
+      {/* 1. Card Image Area with Explicit Aspect Ratio for zero CLS */}
+      <div className="aura-card-media" style={{ width: "100%", aspectRatio: "1 / 1", position: "relative", overflow: "hidden", background: "#f8f3ed" }}>
         <OptimizedImage 
           src={rawDisplayImage} 
           alt={p.name}
           width={cardImgWidth}
+          height={cardImgWidth}
           quality={80}
+          priority={priority}
           className="aura-card-img"
+          aspectRatio="1 / 1"
         />
 
         {/* Floating Offer Badge (Top Left of image) */}

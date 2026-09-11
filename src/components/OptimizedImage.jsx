@@ -13,6 +13,7 @@ export function OptimizedImage({
   src,
   alt = "",
   width = 400,
+  height,
   quality = 80,
   priority = false,
   className = "",
@@ -32,12 +33,13 @@ export function OptimizedImage({
 
   const imgRef = useRef(null);
 
-  // Low-resolution placeholder (24px width blurred preview)
+  // Low-resolution placeholder (24px width blurred preview) - ONLY generate for non-priority images to save CPU & payload
   const placeholderSrc = React.useMemo(() => {
+    if (priority) return null; // Eager LCP candidates should paint immediately without blur distraction
     if (!src || typeof src !== "string") return "/images/placeholder.svg";
     if (src.startsWith("data:") || src.endsWith(".svg")) return src;
     return getOptimizedImageUrl(src, { width: 24, quality: 20 });
-  }, [src]);
+  }, [src, priority]);
 
   // Update image src when `src`, `width`, or `quality` change
   useEffect(() => {
@@ -90,18 +92,21 @@ export function OptimizedImage({
     position: "relative",
     overflow: "hidden",
     display: "block",
+    width: "100%",
     ...(aspectRatio ? { aspectRatio } : {}),
     ...customContainerStyle,
   };
 
   return (
     <span style={containerStyle} className={`aura-opt-img-container ${containerClassName}`.trim()}>
-      {/* Low-Res Blurred Placeholder */}
+      {/* Low-Res Blurred Placeholder for lazy images */}
       {!isLoaded && placeholderSrc && (
         <img
           src={placeholderSrc}
           alt=""
           aria-hidden="true"
+          loading="lazy"
+          decoding="async"
           style={{
             position: "absolute",
             inset: 0,
@@ -109,10 +114,9 @@ export function OptimizedImage({
             height: "100%",
             objectFit: style.objectFit || "cover",
             objectPosition: style.objectPosition || "center",
-            filter: "blur(12px) scale(1.05)",
-            transform: "scale(1.08)",
+            filter: "blur(10px) scale(1.04)",
             opacity: 0.85,
-            transition: "opacity 0.4s ease-out",
+            transition: "opacity 0.3s ease-out",
             pointerEvents: "none",
             zIndex: 1,
             background: "#f7f2eb",
@@ -120,11 +124,13 @@ export function OptimizedImage({
         />
       )}
 
-      {/* High-Res Actual Image */}
+      {/* High-Res Actual Image with native lazy loading & fetchpriority */}
       <img
         ref={imgRef}
         src={currentSrc}
         alt={alt}
+        width={width}
+        height={height}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
         fetchpriority={priority ? "high" : "low"}
@@ -135,9 +141,9 @@ export function OptimizedImage({
           ...style,
           position: "relative",
           zIndex: 2,
-          opacity: isLoaded ? 1 : 0,
-          transition: "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-          willChange: "opacity",
+          opacity: (isLoaded || priority) ? 1 : 0,
+          transition: priority ? "none" : "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+          willChange: priority ? "auto" : "opacity",
         }}
         {...restProps}
       />

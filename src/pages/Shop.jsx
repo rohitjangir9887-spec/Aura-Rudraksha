@@ -445,13 +445,13 @@ export function Shop() {
               }}
               id="shop-products-grid"
             >
-              {list.map((p) => (
+              {list.map((p, index) => (
                 <motion.div 
                   key={p.id} 
                   variants={{ hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } }}
                   transition={{ duration: 0.25 }}
                 >
-                  <ProductCard p={p} onAdd={add} isShop={true} />
+                  <ProductCard p={p} onAdd={add} isShop={true} priority={index < 2} index={index} />
                 </motion.div>
               ))}
             </motion.div>
