@@ -96,4 +96,47 @@ router.get(["/indexnow-key.txt", "/api/indexnow-key.txt", "/:key.txt", "/api/:ke
   return res.send(currentKey);
 });
 
+/**
+ * Trigger Instant Search Engine Ping & IndexNow Notification
+ * Route: POST /api/seo/ping
+ */
+router.post(["/ping", "/api/seo/ping"], async (req, res) => {
+  try {
+    const { submitToIndexNow } = await import("../services/indexNowService.js");
+    const { CATEGORIES_SEO_REGISTRY, getPublicProductsForSeo, getSiteBaseUrl } = await import("../services/seoService.js");
+    
+    const baseUrl = getSiteBaseUrl(req);
+    const coreUrls = [
+      `${baseUrl}/`,
+      `${baseUrl}/shop`,
+      `${baseUrl}/rudraksha-calculator`,
+      `${baseUrl}/rudraksha-for-rashi`,
+      `${baseUrl}/how-to-wear-rudraksha`,
+      `${baseUrl}/rudraksha-benefits`,
+      `${baseUrl}/rudraksha-authenticity`,
+      `${baseUrl}/rudraksha-guide`,
+      `${baseUrl}/about`,
+      `${baseUrl}/contact`,
+      `${baseUrl}/wholesale`,
+      `${baseUrl}/policies`
+    ];
+    const catUrls = Object.keys(CATEGORIES_SEO_REGISTRY || {}).map(p => `${baseUrl}${p}`);
+    const products = await getPublicProductsForSeo();
+    const prodUrls = (products || []).map(p => `${baseUrl}/product/${p.slug || p.id}`);
+    
+    const allUrls = Array.from(new Set([...coreUrls, ...catUrls, ...prodUrls]));
+    const result = await submitToIndexNow(allUrls, req);
+    
+    return res.json({
+      success: true,
+      message: "Dispatched search engine indexing notifications",
+      urlCount: allUrls.length,
+      indexNowResult: result
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;
+

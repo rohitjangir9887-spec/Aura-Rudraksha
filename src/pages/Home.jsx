@@ -15,9 +15,19 @@ import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { PaymentFailureAlert } from "../components/PaymentFailureAlert";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
+import { useSeo } from "../hooks/useSeo";
 
 export function Home() {
+  useSeo({
+    title: "Aura Rudraksha — 100% Authentic Nepal & Indonesian Rudraksha | Lab Certified",
+    description: "Shop genuine lab-tested Nepali Rudraksha beads (1 to 21 Mukhi), consecrated 108+1 Japa Malas, and Vedic jewelry energized with Prana Pratishtha. Free shipping across India.",
+    keywords: "Aura Rudraksha, original rudraksha, nepali rudraksha, lab certified rudraksha, 1 to 21 mukhi rudraksha, 1 mukhi rudraksha, 5 mukhi mala, gauri shankar rudraksha, buy rudraksha online, authentic rudraksha certificate, rudraksha for rashi",
+    canonical: "https://aura-rudraksha.vercel.app/",
+    ogImage: "https://aura-rudraksha.vercel.app/og-image.jpg"
+  });
+
   const [hero, setHero] = useState(0);
+
   const [isLoading, setIsLoading] = useState(false); 
   const { add, totals } = useCart();
   const shippingThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);

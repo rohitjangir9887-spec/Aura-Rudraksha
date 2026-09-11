@@ -9,6 +9,7 @@
     "start": "node dist/server.cjs",
     "server": "node server/server.js",
     "generate:sitemap": "node scripts/generate-sitemap.mjs",
+    "ping:seo": "node scripts/ping-search-engines.mjs",
     "lint": "vite build --mode production",
     "preview": "vite preview",
     "test": "vitest run"
