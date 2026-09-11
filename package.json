@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build --mode production && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build --mode production && node scripts/generate-sitemap.mjs && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "server": "node server/server.js",
+    "generate:sitemap": "node scripts/generate-sitemap.mjs",
     "lint": "vite build --mode production",
     "preview": "vite preview",
     "test": "vitest run"

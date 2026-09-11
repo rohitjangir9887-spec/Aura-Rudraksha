@@ -1,4 +1,6 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
 import { 
   generateSitemapXml, 
   generateMerchantFeedXml, 
@@ -12,15 +14,40 @@ const router = express.Router();
  * Dynamic XML Sitemap
  * Route: GET /sitemap.xml
  */
-router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res, next) => {
+router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res) => {
   try {
     const xml = await generateSitemapXml(req);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("X-Robots-Tag", "all");
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
-    return res.send(xml);
+    return res.status(200).send(xml);
   } catch (err) {
     console.error("[SEO] Error generating sitemap.xml:", err);
-    next(err);
+    
+    // Fallback: Read static file
+    const staticPaths = [
+      path.join(process.cwd(), "public", "sitemap.xml"),
+      path.join(process.cwd(), "dist", "sitemap.xml")
+    ];
+    for (const p of staticPaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const content = fs.readFileSync(p, "utf8");
+          res.setHeader("Content-Type", "application/xml; charset=utf-8");
+          res.setHeader("X-Robots-Tag", "all");
+          res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+          return res.status(200).send(content);
+        } catch (_) {}
+      }
+    }
+    
+    // Minimal valid XML fallback
+    const now = new Date().toISOString();
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://aura-rudraksha.vercel.app/</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
+</urlset>`);
   }
 });
 
