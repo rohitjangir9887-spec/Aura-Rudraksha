@@ -1709,42 +1709,6 @@ export function AuraAIFloating() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Smart Jump to Latest Button */}
-              {showJumpToBottom && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    userHasScrolledUpRef.current = false;
-                    setShowJumpToBottom(false);
-                    if (bodyScrollRef.current) {
-                      bodyScrollRef.current.scrollTo({ top: bodyScrollRef.current.scrollHeight, behavior: "smooth" });
-                    }
-                  }}
-                  className="aura-ai-jump-bottom-btn"
-                  style={{
-                    position: "absolute",
-                    bottom: "85px",
-                    right: "16px",
-                    zIndex: 35,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    padding: "5px 12px",
-                    borderRadius: "20px",
-                    background: "linear-gradient(135deg, #a54d2b 0%, #7d3318 100%)",
-                    color: "#ffffff",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    boxShadow: "0 4px 12px rgba(125, 51, 24, 0.35)",
-                    border: "1px solid #ffd700",
-                    cursor: "pointer"
-                  }}
-                >
-                  <ArrowDown size={12} />
-                  <span>Jump to latest</span>
-                </button>
-              )}
-
               {/* Input Footer */}
               <div className="aura-ai-footer">
                 {/* In-Chat Compact Action Strip */}
