@@ -1148,6 +1148,8 @@ export const db = {
       metaDescription: p.metaDescription || "",
       freeShipping: p.freeShipping !== false,
       shippingFee: Number(p.shippingFee) || 0,
+      variants: Array.isArray(p.variants) ? p.variants : [],
+      sizes: Array.isArray(p.sizes) ? p.sizes : [],
       mrp: Number(p.mrp) || Number(p.comparePrice) || Number(p.price) || 0,
       comparePrice: Number(p.comparePrice) || Number(p.mrp) || Number(p.price) || 0,
       price: Number(p.price) || 0,
@@ -1222,7 +1224,9 @@ export const db = {
       autoIncrementSales: savedData.autoIncrementSales !== undefined ? !!savedData.autoIncrementSales : finalProduct.autoIncrementSales,
       lastSalesUpdateDate: savedData.lastSalesUpdateDate || finalProduct.lastSalesUpdateDate || "",
       dailySalesMin: Number(savedData.dailySalesMin ?? finalProduct.dailySalesMin ?? 1),
-      dailySalesMax: Number(savedData.dailySalesMax ?? finalProduct.dailySalesMax ?? 10)
+      dailySalesMax: Number(savedData.dailySalesMax ?? finalProduct.dailySalesMax ?? 10),
+      variants: Array.isArray(savedData.variants) ? savedData.variants : (finalProduct.variants || []),
+      sizes: Array.isArray(savedData.sizes) ? savedData.sizes : (finalProduct.sizes || [])
     };
 
     if (currentIdx >= 0) {

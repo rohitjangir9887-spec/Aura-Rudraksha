@@ -207,30 +207,55 @@ export function Product() {
 
   const rawP = product;
 
-  // Dynamic Product derivation based on active Origin selection (Nepal vs Indonesia)
+  // Dynamic Product derivation based on active Origin or Variant selection
   const isIndonesianActive = selectedOrigin === "Indonesia" && rawP && (!!rawP.hasIndonesianVariant || Number(rawP.indonesianPrice) > 0);
   
+  // Find currently selected variant object if present
+  const activeVariantObj = React.useMemo(() => {
+    if (!rawP?.variants || !Array.isArray(rawP.variants) || rawP.variants.length === 0) return null;
+    return rawP.variants.find(v => {
+      const vName = typeof v === "string" ? v : (v.name || v.label || "");
+      return vName === selectedVariant;
+    }) || null;
+  }, [rawP?.variants, selectedVariant]);
+
   const p = React.useMemo(() => {
     if (!rawP) return null;
-    if (!isIndonesianActive) return rawP;
+    
+    if (isIndonesianActive) {
+      const indoImages = (Array.isArray(rawP.indonesianImages) && rawP.indonesianImages.length > 0)
+        ? rawP.indonesianImages
+        : (rawP.indonesianImg ? [rawP.indonesianImg] : rawP.images);
 
-    const indoImages = (Array.isArray(rawP.indonesianImages) && rawP.indonesianImages.length > 0)
-      ? rawP.indonesianImages
-      : (rawP.indonesianImg ? [rawP.indonesianImg] : rawP.images);
+      return {
+        ...rawP,
+        name: rawP.indonesianTitle || `${rawP.name} (Indonesian / Java Origin)`,
+        price: Number(rawP.indonesianPrice) || rawP.price,
+        mrp: Number(rawP.indonesianMrp) || Number(rawP.indonesianPrice) || rawP.mrp,
+        stock: rawP.indonesianStock !== undefined ? Number(rawP.indonesianStock) : rawP.stock,
+        images: indoImages,
+        img: rawP.indonesianImg || (indoImages && indoImages[0]) || rawP.img,
+        origin: "Java / Indonesia",
+        highlight: rawP.indonesianHighlight || rawP.highlight || "Authentic Java Rudraksha bead consecrated according to Vedic traditions.",
+        size: rawP.indonesianSize || "Small Java Bead (10–14 mm)"
+      };
+    }
 
-    return {
-      ...rawP,
-      name: rawP.indonesianTitle || `${rawP.name} (Indonesian / Java Origin)`,
-      price: Number(rawP.indonesianPrice) || rawP.price,
-      mrp: Number(rawP.indonesianMrp) || Number(rawP.indonesianPrice) || rawP.mrp,
-      stock: rawP.indonesianStock !== undefined ? Number(rawP.indonesianStock) : rawP.stock,
-      images: indoImages,
-      img: rawP.indonesianImg || (indoImages && indoImages[0]) || rawP.img,
-      origin: "Java / Indonesia",
-      highlight: rawP.indonesianHighlight || rawP.highlight || "Authentic Java Rudraksha bead consecrated according to Vedic traditions.",
-      size: rawP.indonesianSize || "Small Java Bead (10–14 mm)"
-    };
-  }, [rawP, isIndonesianActive]);
+    // When a custom variant with specific price is selected
+    if (activeVariantObj && typeof activeVariantObj === "object") {
+      const vPrice = Number(activeVariantObj.price);
+      const vMrp = Number(activeVariantObj.mrp);
+      const vStock = activeVariantObj.stock !== undefined && activeVariantObj.stock !== "" ? Number(activeVariantObj.stock) : undefined;
+      return {
+        ...rawP,
+        price: (vPrice && vPrice > 0) ? vPrice : rawP.price,
+        mrp: (vMrp && vMrp > 0) ? vMrp : ((vPrice && vPrice > 0 && (!rawP.mrp || rawP.mrp < vPrice)) ? vPrice : rawP.mrp),
+        ...(vStock !== undefined && !isNaN(vStock) ? { stock: vStock } : {})
+      };
+    }
+
+    return rawP;
+  }, [rawP, isIndonesianActive, activeVariantObj]);
 
   // Rating & review summary from real approved devotee reviews in MongoDB
   const realReviewsForRating = reviews.filter(r => {

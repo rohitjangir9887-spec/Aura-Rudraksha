@@ -504,7 +504,19 @@ export function AdminProducts() {
         salesCount: p.salesCount !== undefined && p.salesCount !== null ? Number(p.salesCount) : (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
         autoIncrementSales: p.autoIncrementSales !== undefined ? !!p.autoIncrementSales : true,
         dailySalesMin: p.dailySalesMin !== undefined ? Number(p.dailySalesMin) : 1,
-        dailySalesMax: p.dailySalesMax !== undefined ? Number(p.dailySalesMax) : 10
+        dailySalesMax: p.dailySalesMax !== undefined ? Number(p.dailySalesMax) : 10,
+        variants: Array.isArray(p.variants) ? p.variants.map((v, idx) => {
+          if (typeof v === "string") {
+            return { id: `var-${idx}-${Date.now()}`, name: v, price: "", mrp: "", stock: "" };
+          }
+          return {
+            id: v.id || `var-${idx}-${Date.now()}`,
+            name: v.name || v.label || "",
+            price: v.price !== undefined && v.price !== null ? v.price : "",
+            mrp: v.mrp !== undefined && v.mrp !== null ? v.mrp : "",
+            stock: v.stock !== undefined && v.stock !== null ? v.stock : ""
+          };
+        }) : []
       });
     } else {
       setEditing({
@@ -545,9 +557,62 @@ export function AdminProducts() {
         salesCount: 180,
         autoIncrementSales: true,
         dailySalesMin: 1,
-        dailySalesMax: 10
+        dailySalesMax: 10,
+        variants: []
       });
     }
+  };
+
+  // 🏷️ Variant Management Handlers
+  const handleAddVariant = (name = "") => {
+    if (!editing) return;
+    const currentVariants = Array.isArray(editing.variants) ? [...editing.variants] : [];
+    const newVariant = {
+      id: `var-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: name,
+      price: "",
+      mrp: "",
+      stock: ""
+    };
+    setEditing({ ...editing, variants: [...currentVariants, newVariant] });
+  };
+
+  const handleUpdateVariant = (index, field, value) => {
+    if (!editing) return;
+    const currentVariants = Array.isArray(editing.variants) ? [...editing.variants] : [];
+    if (!currentVariants[index]) return;
+    currentVariants[index] = { ...currentVariants[index], [field]: value };
+    setEditing({ ...editing, variants: currentVariants });
+  };
+
+  const handleRemoveVariant = (index) => {
+    if (!editing) return;
+    const currentVariants = Array.isArray(editing.variants) ? [...editing.variants] : [];
+    currentVariants.splice(index, 1);
+    setEditing({ ...editing, variants: currentVariants });
+  };
+
+  const handleQuickAddPresetVariant = (presetName, priceOffset = 0) => {
+    if (!editing) return;
+    const currentVariants = Array.isArray(editing.variants) ? [...editing.variants] : [];
+    const exists = currentVariants.some(v => (v.name || "").trim().toLowerCase() === presetName.trim().toLowerCase());
+    if (exists) {
+      emitToast(`"${presetName}" is already in variants list`, "info");
+      return;
+    }
+    const basePrice = Number(editing.price) || 0;
+    const baseMrp = Number(editing.mrp) || 0;
+    const calcPrice = priceOffset > 0 && basePrice > 0 ? basePrice + priceOffset : "";
+    const calcMrp = priceOffset > 0 && baseMrp > 0 ? baseMrp + priceOffset : "";
+    const newVariant = {
+      id: `var-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: presetName,
+      price: calcPrice,
+      mrp: calcMrp,
+      stock: ""
+    };
+    setEditing({ ...editing, variants: [...currentVariants, newVariant] });
+    emitToast(`Added variant: ${presetName}`, "success");
   };
 
   // Image Upload Handler using Puter Batch Media Storage
@@ -829,12 +894,32 @@ export function AdminProducts() {
     const rawStatus = editing.status || "Published";
     const finalStatus = (rawStatus === "Draft" || rawStatus === "draft" || rawStatus === "Inactive" || rawStatus === "inactive") ? "Draft" : "Published";
 
+    const cleanVariants = Array.isArray(editing.variants) 
+      ? editing.variants
+          .filter(v => v && (typeof v === "string" ? v.trim() : (v.name && v.name.trim())))
+          .map((v, idx) => {
+            if (typeof v === "string") return { name: v.trim() };
+            const vName = (v.name || "").trim();
+            const vPrice = v.price !== "" && v.price !== undefined && !isNaN(Number(v.price)) ? Number(v.price) : undefined;
+            const vMrp = v.mrp !== "" && v.mrp !== undefined && !isNaN(Number(v.mrp)) ? Number(v.mrp) : undefined;
+            const vStock = v.stock !== "" && v.stock !== undefined && !isNaN(Number(v.stock)) ? Number(v.stock) : undefined;
+            return {
+              id: v.id || `var-${idx}-${Date.now()}`,
+              name: vName,
+              ...(vPrice !== undefined ? { price: vPrice } : {}),
+              ...(vMrp !== undefined ? { mrp: vMrp } : {}),
+              ...(vStock !== undefined ? { stock: vStock } : {})
+            };
+          })
+      : [];
+
     const finalProduct = {
       ...editing,
       name: editing.name.trim(),
       price: Number(editing.price) || 0,
       mrp: Number(editing.mrp) || Number(editing.price) || 0,
       stock: Number(editing.stock) >= 0 ? Number(editing.stock) : 50,
+      variants: cleanVariants,
       img: primaryImg,
       images: currentImages.length > 0 ? currentImages : [primaryImg],
       category: editing.category || "Rudraksha",
@@ -1570,89 +1655,30 @@ export function AdminProducts() {
               </div>
             </div>
 
-            {/* 3. Category-Adaptive Vedic & Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण) */}
+            {/* 3. Spiritual & Rosary Attributes (पवित्र माला व जप विवरण) - STRICTLY Rudraksha category ONLY */}
             {(() => {
-              const currentCat = (editing.category || "").toLowerCase();
-              const isRudrakshaCat = currentCat.includes("rudraksha") || currentCat.includes("rudraksh") || currentCat === "" || !!editing.mukhi;
-              const isGemstoneCat = currentCat.includes("gem") || currentCat.includes("ratna");
-              const isMalaCat = currentCat.includes("mala") || currentCat.includes("rosary") || currentCat.includes("kanthi");
-              const isYantraCat = currentCat.includes("yantra") || currentCat.includes("kavach");
-              const isPujaCat = currentCat.includes("puja") || currentCat.includes("samagri") || currentCat.includes("sacred");
-              const isIdolCat = currentCat.includes("idol") || currentCat.includes("statue") || currentCat.includes("murti");
+              const currentCat = (editing.category || "").toLowerCase().trim();
+              const currentProductType = (editing.productType || "").toLowerCase().trim();
+              const isRudrakshaCat = currentCat.includes("rudraksha") || currentCat.includes("rudraksh") || currentProductType.includes("rudraksha") || currentProductType.includes("rudraksh") || (currentCat === "" && !editing.category);
 
-              // Determine category-specific labels and placeholders
-              let sectionHeader = "Vedic & Astrological Attributes (वैदिक एवं ज्योतिषीय विवरण - रुद्राक्ष)";
-              let field1Label = "Mukhi (मुखी संख्या)";
-              let field1Placeholder = "e.g. 5 Mukhi, Gauri Shankar, Siddha Mala";
-              let originOptions = [
+              // STRICT REQUIREMENT: Only Rudraksha category/option shows Spiritual & Rosary Attributes (पवित्र माला व जप विवरण).
+              // All other categories like Mala, Murti/Idol (मूर्ति), Puja Samagri (पूजा सामग्री), etc. must NEVER show this section.
+              if (!isRudrakshaCat) {
+                return null;
+              }
+
+              const sectionHeader = "Spiritual & Rosary Attributes (पवित्र माला व जप विवरण)";
+              const field1Label = "Mukhi (मुखी संख्या)";
+              const field1Placeholder = "e.g. 5 Mukhi, Gauri Shankar, Siddha Mala";
+              const originOptions = [
                 { value: "Nepal", label: "🇳🇵 Nepal (नेपाली - Default)" },
                 { value: "Java / Indonesia", label: "🇮🇩 Java / Indonesia (इंडोनेशियाई)" },
                 { value: "Haridwar", label: "🕉️ Haridwar (हरिद्वार)" },
                 { value: "Rameshwaram", label: "🔱 Rameshwaram" },
                 { value: "Himalayan", label: "🏔️ Himalayan Groves" }
               ];
-              let deityLabel = "Ruling Deity (अधिष्ठाता देवता)";
-              let planetLabel = "Ruling Planet (स्वामी ग्रह)";
-
-              if (isGemstoneCat) {
-                sectionHeader = "Astrological & Gemological Attributes (ज्योतिषीय व रत्न विवरण - राशि रत्न)";
-                field1Label = "Gemstone Type / Cut (रत्न का प्रकार)";
-                field1Placeholder = "e.g. Yellow Sapphire / Pukhraj, Ceylon Cut";
-                originOptions = [
-                  { value: "Sri Lanka / Ceylon", label: "🇱🇰 Sri Lanka / Ceylon (सिलोन)" },
-                  { value: "Bangkok / Thailand", label: "🇹🇭 Bangkok / Thailand" },
-                  { value: "Burma / Myanmar", label: "🇲🇲 Burma / Myanmar (बर्मा)" },
-                  { value: "Zambia", label: "🇿🇲 Zambia" },
-                  { value: "Jaipur / India", label: "🇮🇳 Jaipur / India" }
-                ];
-                deityLabel = "Associated Deity (इष्ट देवता)";
-                planetLabel = "Ruling Planet (स्वामी ग्रह)";
-              } else if (isMalaCat) {
-                sectionHeader = "Spiritual & Rosary Attributes (पवित्र माला व जप विवरण)";
-                field1Label = "Bead / Rosary Type (मनके का प्रकार)";
-                field1Placeholder = "e.g. 108 Sphatik Crystal, Tulsi Wood Mala";
-                originOptions = [
-                  { value: "Haridwar", label: "🕉️ Haridwar (हरिद्वार)" },
-                  { value: "Vrindavan", label: "🌺 Vrindavan (वृंदावन)" },
-                  { value: "Himalayan Groves", label: "🏔️ Himalayan Groves" },
-                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" }
-                ];
-                deityLabel = "Sanctified Deity (इष्ट देवता)";
-                planetLabel = "Ruling Planet / Energy (स्वामी ग्रह / ऊर्जा)";
-              } else if (isYantraCat) {
-                sectionHeader = "Sacred Yantra & Energy Attributes (पवित्र यंत्र व धातु विवरण)";
-                field1Label = "Yantra Type / Metal (यंत्र का प्रकार व धातु)";
-                field1Placeholder = "e.g. Pure Copper Shree Yantra 3x3";
-                originOptions = [
-                  { value: "Haridwar", label: "🕉️ Haridwar (हरिद्वार)" },
-                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" },
-                  { value: "Rishikesh", label: "🏔️ Rishikesh" }
-                ];
-                deityLabel = "Energized Deity (अधिष्ठात्री देवी / देवता)";
-                planetLabel = "Ruling Planet / Energy (स्वामी ग्रह / ऊर्जा)";
-              } else if (isPujaCat) {
-                sectionHeader = "Purity & Ritual Attributes (पूजा सामग्री व पवित्रता विवरण)";
-                field1Label = "Item Type & Purity (सामग्री प्रकार व शुद्धता)";
-                field1Placeholder = "e.g. 100% Pure Gangajal, Natural Camphor";
-                originOptions = [
-                  { value: "Haridwar / Gangotri", label: "🕉️ Haridwar / Gangotri" },
-                  { value: "Mathura", label: "🪔 Mathura" },
-                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" }
-                ];
-                deityLabel = "Sanctified Deity (पूजा इष्ट)";
-                planetLabel = "Ritual Energy (पवित्रता व ऊर्जा)";
-              } else if (isIdolCat) {
-                sectionHeader = "Devotional & Idol Attributes (दिव्य प्रतिमा व मूर्ति विवरण)";
-                field1Label = "Idol Form & Deity (प्रतिमा स्वरूप)";
-                field1Placeholder = "e.g. Lord Shiva Brass Statue, Ganesha Idol";
-                originOptions = [
-                  { value: "Mathura / Jaipur", label: "🪔 Mathura / Jaipur" },
-                  { value: "Haridwar", label: "🕉️ Haridwar" },
-                  { value: "Varanasi / Kashi", label: "🔱 Varanasi / Kashi" }
-                ];
-                deityLabel = "Idol Deity (प्रतिमा भगवान)";
-                planetLabel = "Blessing Energy (स्वामी ग्रह / आशीर्वाद)";
-              }
+              const deityLabel = "Ruling Deity (अधिष्ठाता देवता)";
+              const planetLabel = "Ruling Planet (स्वामी ग्रह)";
 
               return (
                 <div>
@@ -2005,6 +2031,303 @@ export function AdminProducts() {
                 </div>
               );
             })()}
+          </div>
+
+          {/* 🏷️ Choose your Variant / Product Options (विकल्प व वेरिएंट प्रबंधित करें) */}
+          <div style={{
+            background: 'linear-gradient(135deg, #fdfbf7 0%, #fff9f3 100%)',
+            border: '1.5px solid #fed7aa',
+            borderRadius: '14px',
+            padding: '20px',
+            marginBottom: '22px',
+            boxShadow: '0 2px 10px rgba(194, 65, 12, 0.05)'
+          }}>
+            {/* Header & Action */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #fed7aa' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800' }}>
+                  <Layers size={18} style={{ color: '#ea580c' }} />
+                  Choose your Variant / Product Options (विकल्प व वेरिएंट प्रबंधित करें)
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#78350f', lineHeight: '1.4' }}>
+                  Add options for this product (e.g. Capping, Bead Count, Size, Combos). Customers will see <strong>"Choose your Variant"</strong> on the website product page and can select their choice with updated prices!
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleAddVariant("")}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#ea580c',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '7px 14px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                }}
+              >
+                <Plus size={15} /> + Add Custom Variant (नया विकल्प जोड़ें)
+              </button>
+            </div>
+
+            {/* Quick-Add Popular Presets */}
+            <div style={{ marginBottom: '16px' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#9a3412', display: 'block', marginBottom: '6px' }}>
+                ⚡ 1-Click Quick Add Popular Presets (लोकप्रिय विकल्प तुरंत जोड़ें):
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {[
+                  { label: "With Silver Capping (चांदी कैपिंग)", offset: 500 },
+                  { label: "With 5 Mukhi Mala (5 मुखी माला)", offset: 350 },
+                  { label: "Pure Copper Capping (तांबा कैपिंग)", offset: 200 },
+                  { label: "Pendant Form (लॉकेट स्वरूप)", offset: 300 },
+                  { label: "Gold Plated (स्वर्ण पॉलिश)", offset: 450 },
+                  { label: "Raw Natural Bead (प्राकृतिक दाना)", offset: 0 },
+                  { label: "108 Beads Mala (108 मनके माला)", offset: 0 },
+                  { label: "54 Beads Kanthi (54 मनके कंठी)", offset: 0 },
+                  { label: "Pack of 2 (जोड़ी 2 पीस)", offset: 0 },
+                  { label: "Small Size (छोटा आकार)", offset: 0 },
+                  { label: "Medium Size (मध्यम आकार)", offset: 0 },
+                  { label: "Large Collector Bead (विशाल दाना)", offset: 0 }
+                ].map((preset, pIdx) => {
+                  const isAlreadyAdded = Array.isArray(editing.variants) && editing.variants.some(v => (v.name || "").trim().toLowerCase() === preset.label.toLowerCase());
+                  return (
+                    <button
+                      key={pIdx}
+                      type="button"
+                      disabled={isAlreadyAdded}
+                      onClick={() => handleQuickAddPresetVariant(preset.label, preset.offset)}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: '12px',
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        border: isAlreadyAdded ? '1px dashed #cbd5e1' : '1px solid #fed7aa',
+                        background: isAlreadyAdded ? '#f1f5f9' : '#fff',
+                        color: isAlreadyAdded ? '#94a3b8' : '#9a3412',
+                        cursor: isAlreadyAdded ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      {isAlreadyAdded ? <Check size={11} /> : "+"} {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* List of Added Variants */}
+            {(!editing.variants || editing.variants.length === 0) ? (
+              <div style={{
+                background: '#fff',
+                border: '1.5px dashed #cbd5e1',
+                borderRadius: '10px',
+                padding: '24px 16px',
+                textAlign: 'center',
+                color: '#64748b'
+              }}>
+                <Layers size={28} style={{ color: '#cbd5e1', margin: '0 auto 8px' }} />
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#475569' }}>
+                  No variants added yet for this product.
+                </p>
+                <p style={{ margin: '4px 0 12px', fontSize: '12px', color: '#94a3b8' }}>
+                  Click a popular preset above or click <strong>"+ Add Custom Variant"</strong> to add choices like Capping, Pack, or Bead types.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleAddVariant("")}
+                  style={{
+                    background: '#fed7aa',
+                    color: '#7c2d12',
+                    border: '1px solid #fdba74',
+                    borderRadius: '6px',
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  + Add First Variant
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2.5fr 1.2fr 1.2fr 1fr 40px',
+                  gap: '8px',
+                  padding: '0 8px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#78350f',
+                  textTransform: 'uppercase'
+                }}>
+                  <span>Variant / Option Title (विकल्प का नाम) *</span>
+                  <span>Price (₹ कीमत)</span>
+                  <span>MRP (₹ मूल दाम)</span>
+                  <span>Stock</span>
+                  <span></span>
+                </div>
+
+                {editing.variants.map((v, vIdx) => (
+                  <div
+                    key={v.id || vIdx}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2.5fr 1.2fr 1.2fr 1fr 40px',
+                      gap: '8px',
+                      alignItems: 'center',
+                      background: '#fff',
+                      border: '1px solid #fed7aa',
+                      borderRadius: '8px',
+                      padding: '8px 10px'
+                    }}
+                  >
+                    <div>
+                      <input
+                        type="text"
+                        value={v.name || ""}
+                        onChange={e => handleUpdateVariant(vIdx, "name", e.target.value)}
+                        placeholder="e.g. With Silver Capping / 108 Beads"
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12.5px',
+                          fontWeight: '600'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        value={v.price !== undefined ? v.price : ""}
+                        onChange={e => handleUpdateVariant(vIdx, "price", e.target.value)}
+                        placeholder={`Base (₹${editing.price || 0})`}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12.5px'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        value={v.mrp !== undefined ? v.mrp : ""}
+                        onChange={e => handleUpdateVariant(vIdx, "mrp", e.target.value)}
+                        placeholder={`Base (₹${editing.mrp || 0})`}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12.5px'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        value={v.stock !== undefined ? v.stock : ""}
+                        onChange={e => handleUpdateVariant(vIdx, "stock", e.target.value)}
+                        placeholder={`Stock (${editing.stock || 50})`}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12.5px'
+                        }}
+                      />
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVariant(vIdx)}
+                        title="Remove Variant"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#dc2626',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px'
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* 👁️ Customer Website Live Preview */}
+                <div style={{
+                  marginTop: '10px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  padding: '12px 16px'
+                }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
+                    👁️ Customer Website Preview (वेबसाइट पर ग्राहक को ऐसा दिखेगा):
+                  </span>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                    Choose your Variant (विकल्प चुनें):
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {editing.variants.filter(v => v && v.name && v.name.trim()).map((v, pIdx) => {
+                      const effPrice = (v.price !== "" && v.price !== undefined && Number(v.price) > 0) ? Number(v.price) : (Number(editing.price) || 0);
+                      const isFirst = pIdx === 0;
+                      return (
+                        <div
+                          key={pIdx}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            border: isFirst ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                            background: isFirst ? '#fff7ed' : '#fff',
+                            color: isFirst ? '#c2410c' : '#334155',
+                            fontWeight: isFirst ? '700' : '500',
+                            fontSize: '12px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                          }}
+                        >
+                          {isFirst && <Check size={12} strokeWidth={3} />}
+                          <span>{v.name}</span>
+                          {effPrice > 0 && (
+                            <span style={{
+                              fontWeight: '700',
+                              color: isFirst ? '#ea580c' : '#64748b',
+                              fontSize: '11.5px'
+                            }}>
+                              ₹{effPrice.toLocaleString("en-IN")}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="admin-form-group">

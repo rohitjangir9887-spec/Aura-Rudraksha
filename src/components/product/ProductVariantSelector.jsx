@@ -131,12 +131,13 @@ export function ProductVariantSelector({
       {hasVariants && (
         <div className="aura-variant-selector-block">
           <label className="aura-variant-label">
-            {isRudraksha ? "Select Bead / Option:" : "Select Pack / Quantity:"}
+            Choose your Variant (विकल्प चुनें):
           </label>
           <div className="aura-variant-chips">
             {product.variants.map((v, idx) => {
               const vName = typeof v === "string" ? v : (v.name || v.label || `Option ${idx + 1}`);
               const isSelected = selectedVariant === vName || (!selectedVariant && idx === 0);
+              const vPrice = typeof v === "object" && v.price ? Number(v.price) : null;
               return (
                 <button
                   key={idx}
@@ -146,7 +147,7 @@ export function ProductVariantSelector({
                 >
                   {isSelected && <Check size={13} strokeWidth={2.5} />}
                   <span>{vName}</span>
-                  {v.price && <span className="variant-price">₹{v.price}</span>}
+                  {vPrice ? <span className="variant-price">₹{vPrice.toLocaleString("en-IN")}</span> : null}
                 </button>
               );
             })}

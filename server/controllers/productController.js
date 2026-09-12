@@ -26,7 +26,8 @@ const PRODUCT_FIELDS = {
   indonesianStock: "number", indonesianImages: "url[]", indonesianImg: "url",
   indonesianSize: "string", indonesianHighlight: "string",
   mukhi: "string", rulingPlanet: "string", deity: "string",
-  zodiac: "string[]", metaTitle: "string", metaDescription: "string", freeShipping: "bool", shippingFee: "number"
+  zodiac: "string[]", metaTitle: "string", metaDescription: "string", freeShipping: "bool", shippingFee: "number",
+  variants: "array", sizes: "array"
 };
 
 /**
@@ -269,6 +270,8 @@ export async function createProduct(req, res, next) {
       id,
       slug: computedSlug,
       status: normalizedStatus,
+      variants: Array.isArray(data.variants) ? data.variants : [],
+      sizes: Array.isArray(data.sizes) ? data.sizes : [],
       tags: Array.isArray(data.tags) ? data.tags : [],
       keywords: Array.isArray(data.keywords) ? data.keywords : (Array.isArray(data.searchKeywords) ? data.searchKeywords : []),
       searchKeywords: Array.isArray(data.keywords) ? data.keywords : [],
@@ -378,6 +381,12 @@ export async function updateProduct(req, res, next) {
     }
     if (data.dailySalesMax !== undefined) {
       updatePayload.dailySalesMax = Number(data.dailySalesMax) || 10;
+    }
+    if (data.variants !== undefined) {
+      updatePayload.variants = Array.isArray(data.variants) ? data.variants : [];
+    }
+    if (data.sizes !== undefined) {
+      updatePayload.sizes = Array.isArray(data.sizes) ? data.sizes : [];
     }
 
     if (!isDbConnected()) {

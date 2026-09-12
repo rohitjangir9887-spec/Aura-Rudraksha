@@ -67,7 +67,9 @@ const productSchema = new mongoose.Schema(
     dailySalesMax: { type: Number, default: 10 },
     customOffer: { type: Object, default: null },
     freeShipping: { type: Boolean, default: true },
-    shippingFee: { type: Number, default: 0, min: 0 }
+    shippingFee: { type: Number, default: 0, min: 0 },
+    variants: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    sizes: { type: [mongoose.Schema.Types.Mixed], default: [] }
   },
   {
     timestamps: true,

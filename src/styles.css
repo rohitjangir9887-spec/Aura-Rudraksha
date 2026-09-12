@@ -16981,8 +16981,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 .aura-ai-floating-btn-wrap {
   position: fixed;
   bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-  right: 16px;
-  left: auto;
+  left: 16px;
+  right: auto;
   z-index: 10020;
   display: inline-flex;
   align-items: center;
@@ -16995,8 +16995,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 @media (min-width: 1024px) {
   .aura-ai-floating-btn-wrap {
     bottom: 28px;
-    right: 24px;
-    left: auto;
+    left: 24px;
+    right: auto;
   }
 }
 
@@ -17004,7 +17004,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 8px;
   /* Base living aura palette (Warm Gold / Classic) */
   --aura-core-color: rgba(245, 195, 110, 0.52);
@@ -17552,6 +17552,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   min-width: 200px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  transform-origin: bottom left;
 }
 
 .theme-dawn .aura-ai-quick-actions {
