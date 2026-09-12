@@ -689,6 +689,9 @@ export async function trackOrderPublic(req, res, next) {
     const cleanTerm = rawQuery.toUpperCase();
 
     if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+    if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
         error: "Database unavailable",
@@ -759,7 +762,10 @@ export async function trackOrderPublic(req, res, next) {
       items: (order.items || order.lines || []).map(item => ({
         id: item.id || item._id,
         name: item.name || item.title || "Sacred Rudraksha",
-        qty: item.quantity || item.qty || 1,
+        quantity: Number(item.quantity || item.qty || 1),
+        qty: Number(item.quantity || item.qty || 1),
+        price: Number(item.price || item.unitPrice || item.finalPrice || (item.total ? Number(item.total) / Number(item.quantity || item.qty || 1) : 0)),
+        total: Number(item.total || ((Number(item.price || item.unitPrice || item.finalPrice || 0)) * Number(item.quantity || item.qty || 1))),
         img: item.img || item.image || item.images?.[0] || "/images/product-5mukhi.jpg"
       })),
       timeline: order.timeline && order.timeline.length > 0 ? order.timeline : [

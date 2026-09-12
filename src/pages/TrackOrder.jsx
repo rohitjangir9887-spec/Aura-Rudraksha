@@ -395,20 +395,44 @@ export function TrackOrder() {
                 {/* Order Items Preview */}
                 {orderResult.items && orderResult.items.length > 0 && (
                   <div style={{ borderTop: "1px solid #f2e6da", paddingTop: "18px", marginTop: "18px" }}>
-                    <h4 style={{ fontSize: "13px", textTransform: "uppercase", letterSpacing: "1px", color: "#806f62", marginBottom: "12px" }}>
-                      Enclosed Sacred Artifacts
+                    <h4 style={{ fontSize: "13px", textTransform: "uppercase", letterSpacing: "1px", color: "#806f62", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>Enclosed Sacred Artifacts ({orderResult.items.length})</span>
+                      {orderResult.finalAmount ? (
+                        <span style={{ fontSize: "12px", color: "#a54d2b", fontWeight: 700 }}>Total: ₹{Number(orderResult.finalAmount).toLocaleString("en-IN")}</span>
+                      ) : null}
                     </h4>
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {orderResult.items.map((item, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fdfbf7", padding: "10px 14px", borderRadius: "8px", border: "1px solid #f2e6da" }}>
-                          <span style={{ fontSize: "13.5px", color: "#2b170d", fontWeight: 600 }}>
-                            {item.name || item.title} <span style={{ color: "#806f62", fontWeight: 400 }}>× {item.quantity || 1}</span>
-                          </span>
-                          <strong style={{ fontSize: "13.5px", color: "#a54d2b" }}>
-                            ₹{Number(item.price || item.total || 0).toLocaleString("en-IN")}
-                          </strong>
-                        </div>
-                      ))}
+                      {orderResult.items.map((item, i) => {
+                        const qty = Number(item.quantity || item.qty || 1);
+                        const unitPrice = Number(item.price || (item.total ? item.total / qty : 0));
+                        const itemTotal = Number(item.total || unitPrice * qty || 0);
+
+                        return (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fdfbf7", padding: "10px 14px", borderRadius: "8px", border: "1px solid #f2e6da" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                              {item.img && (
+                                <img 
+                                  src={item.img} 
+                                  alt={item.name || item.title} 
+                                  style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", border: "1px solid #ebdccb" }} 
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              )}
+                              <div>
+                                <span style={{ fontSize: "13.5px", color: "#2b170d", fontWeight: 600, display: "block" }}>
+                                  {item.name || item.title || "Sacred Rudraksha"}
+                                </span>
+                                <span style={{ fontSize: "12px", color: "#806f62" }}>
+                                  Qty: {qty} {unitPrice > 0 ? `× ₹${unitPrice.toLocaleString("en-IN")}` : ""}
+                                </span>
+                              </div>
+                            </div>
+                            <strong style={{ fontSize: "14px", color: "#a54d2b" }}>
+                              ₹{itemTotal > 0 ? itemTotal.toLocaleString("en-IN") : (orderResult.finalAmount ? Number(orderResult.finalAmount).toLocaleString("en-IN") : "—")}
+                            </strong>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

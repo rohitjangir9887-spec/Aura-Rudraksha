@@ -37,18 +37,25 @@ export function Profile() {
   const location = useLocation();
   const { count: wishlistCount } = useWishlist();
 
-  const [email, setEmail] = useState("");
-  const [profile, setProfile] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-    avatar: ""
+  const cachedMe = db.getCachedCustomerMe();
+  const cachedAddrs = db.getCachedAddresses();
+  const cachedOrders = db.getCachedMyOrders();
+
+  const [email, setEmail] = useState(() => cachedMe?.email || "");
+  const [profile, setProfile] = useState(() => ({
+    name: (cachedMe?.name && cachedMe?.name !== "Customer" && cachedMe?.name !== "Aura Devotee") ? cachedMe.name : "",
+    email: cachedMe?.email || "",
+    phone: cachedMe?.phone || "",
+    address: cachedMe?.address || "",
+    avatar: cachedMe?.avatar || ""
+  }));
+  const [addresses, setAddresses] = useState(() => Array.isArray(cachedAddrs) ? cachedAddrs : (cachedMe?.addresses || []));
+  const [ordersCount, setOrdersCount] = useState(() => Array.isArray(cachedOrders) ? cachedOrders.length : 0);
+  const [activeOrdersCount, setActiveOrdersCount] = useState(() => {
+    if (!Array.isArray(cachedOrders)) return 0;
+    return cachedOrders.filter(o => o.status !== "Delivered" && o.status !== "Cancelled" && o.orderStatus !== "Delivered" && o.orderStatus !== "Cancelled").length;
   });
-  const [addresses, setAddresses] = useState([]);
-  const [ordersCount, setOrdersCount] = useState(0);
-  const [activeOrdersCount, setActiveOrdersCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !(cachedMe && (cachedMe.email || cachedMe.name)));
   const [savingProfile, setSavingProfile] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 

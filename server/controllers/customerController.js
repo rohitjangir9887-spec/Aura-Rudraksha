@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { Customer } from "../models/Customer.js";
 import { Order } from "../models/Order.js";
-import { isDbConnected } from "../config/db.js";
+import { isDbConnected, connectDB } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { normalizePhoneNumber, buildPhoneQueryVariants, extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 
@@ -474,6 +474,9 @@ async function findCustomerForAuthUser(user) {
 export async function getAddresses(req, res, next) {
   try {
     if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+    if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
         error: "Database unavailable",
@@ -488,6 +491,9 @@ export async function getAddresses(req, res, next) {
 
 export async function addAddress(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
@@ -547,6 +553,9 @@ export async function addAddress(req, res, next) {
 
 export async function updateAddress(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
@@ -609,6 +618,9 @@ export async function updateAddress(req, res, next) {
 export async function deleteAddress(req, res, next) {
   try {
     if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+    if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
         error: "Database unavailable",
@@ -619,6 +631,9 @@ export async function deleteAddress(req, res, next) {
 
     const target = req.params.id || req.params.index;
     const customer = await findCustomerForAuthUser(req.user);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: "Customer profile not found" });
+    }
     
     if (Array.isArray(customer.addresses)) {
       const idx = customer.addresses.findIndex((a, i) => String(a.id) === String(target) || String(i) === String(target));

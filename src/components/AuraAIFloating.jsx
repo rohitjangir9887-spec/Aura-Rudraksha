@@ -1,6 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Sparkles, 
@@ -281,6 +281,54 @@ export function AuraAIFloating() {
       return () => window.removeEventListener("resize", handleResize);
     }
   }, []);
+
+  // Dynamic AI suggestion keywords generator based on conversation context
+  const dynamicSuggestions = useMemo(() => {
+    const lastAiMsg = [...messages].reverse().find(m => m.sender === "bot" || m.role === "assistant" || m.sender === "ai");
+    const lastText = (lastAiMsg?.text || "").toLowerCase();
+
+    if (mode === "panditji") {
+      const list = [];
+      if (lastText.includes("mukhi") || lastText.includes("rudraksha") || lastText.includes("रुद्राक्ष") || lastText.includes("धारण")) {
+        list.push({ label: "🕉️ शुद्ध धारण विधि", query: "रुद्राक्ष को शुद्ध और धारण करने की वैदिक विधि बताएं" });
+        list.push({ label: "📿 सिद्ध बीज मंत्र", query: "इस रुद्राक्ष का प्राण-प्रतिष्ठा और सिद्ध बीज मंत्र क्या है?" });
+        list.push({ label: "💎 चांदी पेंडेंट या धागा", query: "रुद्राक्ष को चांदी में धारण करना चाहिए या तांबे/लाल धागे में?" });
+      }
+      if (lastText.includes("kundli") || lastText.includes("kundali") || lastText.includes("दोष") || lastText.includes("rashi") || lastText.includes("राशि") || lastText.includes("शनि") || lastText.includes("राहु")) {
+        list.push({ label: "🪐 महादशा व ग्रह शांति", query: "मेरी वर्तमान दशा और ग्रह शांति के सर्वोत्तम वैदिक उपाय बताएं" });
+        list.push({ label: "🌙 जन्म राशि रुद्राक्ष", query: "मेरी जन्म राशि के अनुसार सबसे शुभ रुद्राक्ष कौन सा है?" });
+      }
+      if (list.length < 4) {
+        list.push({ label: "🌸 1 से 14 मुखी गाइड", query: "1 से 14 मुखी रुद्राक्ष के लाभ और महत्व बताएं" });
+        list.push({ label: "🙏 गौरी शंकर महत्व", query: "गौरी शंकर रुद्राक्ष के लाभ और वैवाहिक सुख के प्रभाव बताएं" });
+        list.push({ label: "✨ सिद्ध प्राण-प्रतिष्ठा", query: "ऑरा रुद्राक्ष की प्राण-प्रतिष्ठा और शुद्धता कैसे जांची जाती है?" });
+        list.push({ label: "🕉️ सावन व शिवरात्रि मुहूर्त", query: "रुद्राक्ष धारण करने का सबसे शुभ दिन और नक्षत्र कौन सा है?" });
+      }
+      return list.slice(0, 5);
+    } else {
+      const list = [];
+      if (lastText.includes("track") || lastText.includes("order") || lastText.includes("ऑर्डर") || lastText.includes("डिलीवरी")) {
+        list.push({ label: "📦 Track My Order", query: "Track my recent order status" });
+        list.push({ label: "🚚 Delivery Timeline", query: "Standard delivery time kitna lagta hai?" });
+      }
+      if (lastText.includes("coupon") || lastText.includes("offer") || lastText.includes("discount") || lastText.includes("छूट")) {
+        list.push({ label: "🎟️ Today's Coupons", query: "Aaj ke active discount coupon codes batao" });
+        list.push({ label: "🎁 Free Lab Certificate", query: "Free Lab Certificate and gift offers kya hain?" });
+      }
+      if (lastText.includes("mukhi") || lastText.includes("rudraksha") || lastText.includes("price") || lastText.includes("कीमत")) {
+        list.push({ label: "🏷️ Best Seller Beads", query: "Best selling original Nepali Rudraksha beads dikhao" });
+        list.push({ label: "🛡️ 100% Lab Tested", query: "Rudraksha lab testing and authenticity certificate details" });
+        list.push({ label: "🕉️ 108 Jaap Mala", query: "Original 108 bead Jaap Mala dikhao" });
+      }
+      if (list.length < 4) {
+        list.push({ label: "✨ Suggest Rudraksha", query: "Mujhe apne liye best Rudraksha suggest karein" });
+        list.push({ label: "📦 Track Order", query: "Track my order status" });
+        list.push({ label: "🎟️ Active Offers", query: "Active discount offers aur coupon codes dikhao" });
+        list.push({ label: "🕉️ Jaap Mala", query: "Original 108 bead Jaap Mala dikhao" });
+      }
+      return list.slice(0, 5);
+    }
+  }, [messages, mode]);
 
   const cart = useCart();
   const navigate = useNavigate();
@@ -797,6 +845,11 @@ export function AuraAIFloating() {
     setMessages(updated);
   };
 
+  const handleOpen = () => {
+    setIsFullWindow(false);
+    setIsOpen(true);
+  };
+
   // Dismissal across pages for this session
   const handleDismiss = (e) => {
     if (e) {
@@ -874,23 +927,18 @@ export function AuraAIFloating() {
               <div className="aura-ai-floating-pill">
                 <button
                   type="button"
-                  onClick={() => setShowQuickActions(!showQuickActions)}
+                  onClick={handleOpen}
                   className="aura-ai-floating-main-btn"
-                  aria-label="Open Aura AI Options"
+                  aria-label="Open Aura AI"
                 >
                   <div className="aura-ai-floating-icon">
                     <Sparkles size={14} strokeWidth={2.4} className={pillState === "thinking" ? "aura-ai-sparkle-spin" : ""} />
                   </div>
                   <div className="aura-ai-label-group">
                     <span className="aura-ai-floating-label" style={{ fontSize: '13px', fontWeight: 600, paddingLeft: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      AI {pillState === "thinking" ? "•••" : pillState === "ready" ? "✓" : ""}
+                      {mode === "panditji" ? "AI Panditji" : "Aura AI"} {pillState === "thinking" ? "•••" : pillState === "ready" ? "✓" : ""}
                     </span>
                   </div>
-                  {pillState === "default" && (
-                    <div className="aura-ai-chevron-icon">
-                      <ChevronRight size={14} style={{ transform: showQuickActions ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-                    </div>
-                  )}
                 </button>
                 
                 {pillState === "default" && (
@@ -901,7 +949,6 @@ export function AuraAIFloating() {
                       className="aura-ai-floating-dismiss-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowQuickActions(false);
                         handleDismiss(e);
                       }}
                       aria-label="Hide Aura AI"
@@ -1109,7 +1156,7 @@ export function AuraAIFloating() {
                 </button>
               </div>
 
-              {/* Quick Suggestion Strip */}
+              {/* Quick AI & Vedic Suggestion Strip with dynamic keywords */}
               <div className="aura-ai-nav-strip">
                 {mode === "panditji" ? (
                   <>
@@ -1118,40 +1165,37 @@ export function AuraAIFloating() {
                       className={`aura-ai-strip-btn ${showBirthForm ? "active" : ""}`}
                       style={{ background: "#fef3c7", color: "#78350f", border: "1.5px solid #f59e0b", fontWeight: 700 }}
                     >
-                      📋 {showBirthForm ? "✕ बंद करें" : "📋 जन्म विवरण भरें (Kundli Form)"}
+                      📋 {showBirthForm ? "✕ बंद करें" : "📋 Kundli Form"}
                     </button>
                     <button 
-                      onClick={() => handleSend("🌸 Mere Rashi ke liye kaunsa Rudraksha sabse uttam hai?")} 
+                      type="button"
+                      onClick={() => {
+                        fetchNotes();
+                        setShowNotepad(true);
+                      }}
                       className="aura-ai-strip-btn"
+                      title="Spiritual Notes"
                     >
-                      🌸 Rashi Rudraksha
+                      <Notebook size={11} />
+                      <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
                     </button>
-                    <button 
-                      onClick={() => handleSend("🕉️ Rudraksha dharan karne ki sahi Vedic Vidhi bataiye")} 
-                      className="aura-ai-strip-btn"
-                    >
-                      🕉️ Dharan Vidhi
-                    </button>
-                    <button 
-                      onClick={() => handleSend("📿 1 to 14 Mukhi Rudraksha ke traditional benefits")} 
-                      className="aura-ai-strip-btn"
-                    >
-                      📿 Mukhi Guide
-                    </button>
-                    <button 
-                      onClick={() => handleSend("🙏 Gauri Shankar Rudraksha ka kya mahatva hai?")} 
-                      className="aura-ai-strip-btn"
-                    >
-                      🙏 Gauri Shankar
-                    </button>
+                    {dynamicSuggestions.map((sug, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleSend(sug.query)} 
+                        className="aura-ai-strip-btn"
+                      >
+                        {sug.label}
+                      </button>
+                    ))}
                   </>
                 ) : (
                   <>
                     <button 
-                      onClick={() => handleSend("✨ Mujhe apne liye best Rudraksha suggest karein")} 
+                      onClick={() => handleSend("📦 Track my recent order status")} 
                       className="aura-ai-strip-btn"
                     >
-                      ✨ Find Rudraksha
+                      📦 Track Order
                     </button>
                     <button 
                       onClick={() => handleSend("🎁 Aaj ke active discount coupon codes batao")} 
@@ -1160,17 +1204,26 @@ export function AuraAIFloating() {
                       🎁 Today's Offers
                     </button>
                     <button 
-                      onClick={() => handleSend("📦 Track my recent order status")} 
+                      type="button"
+                      onClick={() => {
+                        fetchNotes();
+                        setShowNotepad(true);
+                      }}
                       className="aura-ai-strip-btn"
+                      title="Saved Notes"
                     >
-                      📦 Track Order
+                      <Notebook size={11} />
+                      <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
                     </button>
-                    <button 
-                      onClick={() => handleSend("🕉 Original 108 bead Jaap Mala dikhao")} 
-                      className="aura-ai-strip-btn"
-                    >
-                      🕉 Jaap Mala
-                    </button>
+                    {dynamicSuggestions.map((sug, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleSend(sug.query)} 
+                        className="aura-ai-strip-btn"
+                      >
+                        {sug.label}
+                      </button>
+                    ))}
                   </>
                 )}
                 <button 
@@ -1711,140 +1764,6 @@ export function AuraAIFloating() {
 
               {/* Input Footer */}
               <div className="aura-ai-footer">
-                {/* In-Chat Compact Action Strip */}
-                <div className="aura-ai-action-strip">
-                  {mode === "panditji" ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setShowBirthForm(true)}
-                        className="aura-ai-strip-btn highlight"
-                        title="Verified Birth Details Form"
-                      >
-                        <Calendar size={11} />
-                        <span>📋 Birth Details</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🪐 Mujhe apni sampurna Kundali ki graha sthiti aur rashi vishleshan bataiye")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🪐 Full Kundali</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🌙 Meri Janma Rashi aur Nakshatra ka vishleshan karein")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🌙 Rashi & Nakshatra</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🕉️ Meri vartaman Vimshottari Mahadasha aur Antardasha bataiye")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🕉️ Dasha & Graha</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("📿 Meri Kundali ke anusar konsa Rudraksha dharan karna chahiye?")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>📿 Rudraksha Guide</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🧘 Rudraksha dharan karne ki shuddh Vedic Vidhi bataiye")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🧘 Dharan Vidhi</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          fetchNotes();
-                          setShowNotepad(true);
-                        }}
-                        className="aura-ai-strip-btn"
-                        title="Open Spiritual Notepad"
-                      >
-                        <Notebook size={11} />
-                        <span>📝 Notes ({notesList.length})</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🛍️ Kundali ke anusar mere liye recommended Rudraksha products dikhaiye")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🛍️ Recommended Products</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("📦 Track my order")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>📦 Track Order</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("👤 Speak with customer support team")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>👤 Support</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🔎 Search store catalog")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🔎 Search Products</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("📦 Track my order")}
-                        className="aura-ai-strip-btn highlight"
-                      >
-                        <Package size={11} />
-                        <span>📦 Track Order</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🛒 Show my cart items")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🛒 Cart</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("🎟️ Aaj ke active coupons aur discount offers batao")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>🎟️ Offers & Coupons</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          fetchNotes();
-                          setShowNotepad(true);
-                        }}
-                        className="aura-ai-strip-btn"
-                      >
-                        <Notebook size={11} />
-                        <span>📝 Notes ({notesList.length})</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSend("👤 Speak with customer support team")}
-                        className="aura-ai-strip-btn"
-                      >
-                        <span>👤 Support</span>
-                      </button>
-                    </>
-                  )}
-                </div>
                 <form 
                   onSubmit={e => {
                     e.preventDefault();
