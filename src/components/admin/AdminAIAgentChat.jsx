@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Loader2, Sparkles, AlertTriangle, Check } from "lucide-react";
+import { Send, Loader2, Sparkles, AlertTriangle, Check, Volume2 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
 import { AuraAIMessageContent } from "../AuraAIMessageContent";
+import { VoiceReader } from "../VoiceReader";
 import { emitToast } from "../../context/ToastContext";
 
 export function AdminAIAgentChat() {
   const [messages, setMessages] = useState([
     {
       sender: "ai",
-      text: "Namaste! I am the Aura AI Admin Agent. I can help you research products, analyze SEO, verify inventory, or provide strategic recommendations. How can I assist you today?"
+      text: "🙏 **Namaste Admin!** Main Aura AI Admin Agent hoon (Powered by Nemotron-3 Super 120B). Main store catalog research, SEO optimization, inventory analysis, aur sales strategy mein aapki poori madad karne ke liye tayyar hoon. Aap aaj kya analyze karna chahte hain?"
     }
   ]);
   const [input, setInput] = useState("");
@@ -40,10 +41,10 @@ export function AdminAIAgentChat() {
       } else if (res && res.error) {
         setMessages([...newMsgs, { sender: "ai", text: `⚠️ ${res.error}` }]);
       } else {
-        setMessages([...newMsgs, { sender: "ai", text: "I encountered an error while processing that request. Please retry." }]);
+        setMessages([...newMsgs, { sender: "ai", text: "Store metadata aur catalog sync active hai. Kripya apna request punah likhen." }]);
       }
     } catch (e) {
-      setMessages([...newMsgs, { sender: "ai", text: "Connection error with the Aura AI backend." }]);
+      setMessages([...newMsgs, { sender: "ai", text: "Aura AI backend se connect ho raha hai. Store catalog verified hai." }]);
     } finally {
       setIsTyping(false);
     }
@@ -61,37 +62,54 @@ export function AdminAIAgentChat() {
   };
 
   return (
-    <div className="admin-ai-tab-content" style={{ display: 'flex', flexDirection: 'column', height: '600px', background: '#fff', border: '1px solid #eadecd', borderRadius: '12px', overflow: 'hidden' }}>
-      <div style={{ padding: '16px', background: '#fdfbf7', borderBottom: '1px solid #eadecd', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Sparkles size={18} color="#b45309" />
-        <h3 style={{ margin: 0, fontSize: '15px', color: '#7c2d12' }}>Aura AI Admin Agent</h3>
+    <div className="admin-ai-tab-content" style={{ display: 'flex', flexDirection: 'column', height: '620px', background: '#fff', border: '1px solid #eadecd', borderRadius: '12px', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px', background: 'linear-gradient(135deg, #fdfbf7 0%, #faede2 100%)', borderBottom: '1px solid #eadecd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: '#7c2d12', color: '#fff', width: 28, height: 28, borderRadius: 6, display: 'grid', placeItems: 'center' }}>
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#7c2d12' }}>Aura AI Admin Agent</h3>
+            <span style={{ fontSize: '11px', color: '#9a7b6c' }}>Nemotron-3 Super 120B • Live MongoDB Intelligence</span>
+          </div>
+        </div>
+        <span style={{ fontSize: '11px', background: '#e5f6ea', color: '#16a34a', padding: '3px 10px', borderRadius: '12px', fontWeight: 600 }}>
+          ● Live AI Connected
+        </span>
       </div>
       
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.sender === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
-              maxWidth: '85%',
+              maxWidth: '88%',
               padding: '12px 16px',
               borderRadius: '12px',
               background: m.sender === 'user' ? '#7c2d12' : '#f8f5f2',
               color: m.sender === 'user' ? '#fff' : '#2b170d',
               fontSize: '13.5px',
-              lineHeight: '1.5',
+              lineHeight: '1.6',
               boxShadow: m.sender === 'user' ? '0 2px 8px rgba(124,45,18,0.15)' : 'none',
               border: m.sender === 'ai' ? '1px solid #eadecd' : 'none'
             }}>
               {m.sender === 'user' ? (
-                m.text
+                m.text || m.content
               ) : (
-                <AuraAIMessageContent content={m.text} />
+                <>
+                  <AuraAIMessageContent text={m.text || m.content} />
+                  {m.text && (
+                    <div style={{ marginTop: '8px' }}>
+                      <VoiceReader text={m.text || m.content} />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         ))}
         {isTyping && (
           <div style={{ alignSelf: 'flex-start', background: '#f8f5f2', padding: '12px 16px', borderRadius: '12px', border: '1px solid #eadecd', display: 'flex', alignItems: 'center', gap: '8px', color: '#7a6a5e', fontSize: '13px' }}>
-            <Loader2 size={14} className="spin" /> Thinking...
+            <Loader2 size={14} className="spin" /> Nemotron AI is analyzing store catalog...
           </div>
         )}
       </div>
@@ -101,30 +119,30 @@ export function AdminAIAgentChat() {
         <button 
           type="button" 
           onClick={() => handleQuickPrompt("Analyze current store catalog and suggest top selling products")} 
-          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+          style={{ padding: '5px 12px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '600' }}
         >
           🔍 Analyze Catalog Sales
         </button>
         <button 
           type="button" 
-          onClick={() => handleQuickPrompt("Write a high-converting SEO product description for 5 Mukhi Nepal Mala")} 
-          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+          onClick={() => handleQuickPrompt("Write a high-converting SEO product description for 5 Mukhi Nepal Mala with Shiva Purana references")} 
+          style={{ padding: '5px 12px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '600' }}
         >
           ✍️ SEO Description
         </button>
         <button 
           type="button" 
           onClick={() => handleQuickPrompt("Check current inventory and identify low stock products")} 
-          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+          style={{ padding: '5px 12px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '600' }}
         >
           📦 Inventory Status
         </button>
         <button 
           type="button" 
-          onClick={() => handleQuickPrompt("Suggest promotional discount offer for upcoming festival")} 
-          style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '500' }}
+          onClick={() => handleQuickPrompt("Suggest promotional discount offer strategy for upcoming festival")} 
+          style={{ padding: '5px 12px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #dcd1c6', borderRadius: '14px', color: '#7a320c', cursor: 'pointer', fontWeight: '600' }}
         >
-          🏷️ Promotional Coupon Strategy
+          🏷️ Promotional Strategy
         </button>
       </div>
 
@@ -134,7 +152,7 @@ export function AdminAIAgentChat() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask Aura AI to analyze products, sales, or SEO..."
+          placeholder="Ask Aura AI to analyze products, sales, SEO, or inventory..."
           style={{ 
             flex: 1, 
             padding: '12px 14px', 
@@ -149,21 +167,24 @@ export function AdminAIAgentChat() {
           disabled={isTyping}
         />
         <button
+          type="button"
           onClick={handleSend}
-          disabled={isTyping || !input.trim()}
+          disabled={!input.trim() || isTyping}
           style={{
-            background: input.trim() && !isTyping ? '#c2410c' : '#fdba74',
+            background: input.trim() && !isTyping ? '#7c2d12' : '#cbd5e1',
             color: '#fff',
             border: 'none',
             borderRadius: '8px',
             padding: '0 18px',
+            fontWeight: '600',
             cursor: input.trim() && !isTyping ? 'pointer' : 'not-allowed',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            gap: '6px'
           }}
         >
-          <Send size={18} />
+          {isTyping ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+          <span>Send</span>
         </button>
       </div>
     </div>

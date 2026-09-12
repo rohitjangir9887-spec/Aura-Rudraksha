@@ -761,8 +761,8 @@ export function AuraAIPage() {
                         <div className="aura-ai-page-text">
                           <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                         </div>
-                        {m.sender === "ai" && mode === "panditji" && m.text && (
-                          <div style={{ marginTop: "4px" }}>
+                        {m.sender === "ai" && m.text && (
+                          <div style={{ marginTop: "6px" }}>
                             <VoiceReader text={customerSafeAiText(m.text)} />
                           </div>
                         )}

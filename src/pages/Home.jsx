@@ -13,7 +13,6 @@ import { PanditjiBioSection } from "../components/PanditjiBioSection";
 import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
-import { PaymentFailureAlert } from "../components/PaymentFailureAlert";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
 
 export function Home() {
@@ -280,7 +279,6 @@ export function Home() {
 
 
     <AuraTrustFeatureBar />
-    <PaymentFailureAlert />
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <motion.div    ><ShopByCategory /></motion.div>
 

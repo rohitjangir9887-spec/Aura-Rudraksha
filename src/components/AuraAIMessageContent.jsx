@@ -221,12 +221,13 @@ function isHeadingLine(line) {
   return false;
 }
 
-export function AuraAIMessageContent({ text, sender = "ai", className = "" }) {
-  if (!text) return null;
+export function AuraAIMessageContent({ text, content, sender = "ai", className = "" }) {
+  const actualText = text !== undefined && text !== null && text !== "" ? text : content;
+  if (!actualText) return null;
 
   // For User message: clean, high contrast with linebreaks
   if (sender === "user") {
-    const cleanUserText = sanitizeText(typeof text === "string" ? text : String(text));
+    const cleanUserText = sanitizeText(typeof actualText === "string" ? actualText : String(actualText));
     return (
       <div className={`aura-ai-msg-text-user ${className}`}>
         {cleanUserText.split("\n").map((p, idx) => (
@@ -239,7 +240,7 @@ export function AuraAIMessageContent({ text, sender = "ai", className = "" }) {
   }
 
   // For AI message: structured, rich semantic layout
-  const rawString = typeof text === "string" ? text : (text?.text || String(text));
+  const rawString = typeof actualText === "string" ? actualText : (actualText?.text || String(actualText));
   const sanitized = sanitizeText(rawString);
 
   // Group lines into semantic blocks (headings, key-value groups, lists, paragraphs)

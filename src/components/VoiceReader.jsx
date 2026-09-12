@@ -83,73 +83,100 @@ export function VoiceReader({ text }) {
     return cleaned;
   };
 
-  // Find the best natural Indian / Hindi Pandit Ji voice
+  // Find the best natural Indian / Hindi Male Pandit Ji voice
   const findPanditJiVoice = (voices, isHindiText) => {
-    if (!voices || voices.length === 0) return null;
+    if (!voices || voices.length === 0) return { voice: null, isExplicitMale: false };
 
     const lowerName = (v) => (v.name || '').toLowerCase();
     const lowerLang = (v) => (v.lang || '').toLowerCase();
 
-    // Preferred high-quality male Hindi / Indian voices across OS & browsers (Windows, Android, iOS, Chrome, macOS)
-    const maleHindiPreferredKeywords = [
-      'hemant',
-      'mohan',
-      'madhur',
-      'prabhat',
-      'ravi',
-      'rishi',
-      'aarav',
-      'neil',
-      'male',
-      'google हिन्दी',
-      'google hindi'
-    ];
-
+    // Comprehensive list of female voice keywords across Windows, Edge, Android, iOS, Chrome, macOS
     const femaleKeywords = [
-      'lekha', 'veena', 'zira', 'swara', 'kalpana', 'priya', 'anjali', 
-      'aditi', 'kavya', 'geeta', 'sita', 'female', 'woman', 'girl', 'catherine', 'susan', 'samantha'
+      'heera', 'kalpana', 'swara', 'lekha', 'veena', 'zira', 'priya', 'anjali', 
+      'aditi', 'kavya', 'geeta', 'sita', 'shreya', 'neerja', 'jaya', 'ananya', 
+      'shruti', 'female', 'woman', 'girl', 'catherine', 'susan', 'samantha', 
+      'karen', 'victoria', 'moira', 'tessa', 'fiona', 'serena', 'hazel', 'salli', 
+      'joanna', 'ivy', 'kendra', 'kimberly', 'amy', 'emma', 'stephanie', 'sonia', 
+      'priti', 'neha', 'pooja', 'sneha', 'alva', 'kanya'
     ];
 
     const isFemale = (v) => femaleKeywords.some(fk => lowerName(v).includes(fk));
 
-    if (isHindiText) {
-      // 1. Direct Hindi Male voice match
-      for (const kw of maleHindiPreferredKeywords) {
-        const match = voices.find(v => 
-          (lowerLang(v).includes('hi') || lowerLang(v).includes('in')) && 
-          lowerName(v).includes(kw) && 
-          !isFemale(v)
-        );
-        if (match) return match;
-      }
-      // 2. Any non-female Hindi voice
-      const maleHindi = voices.find(v => 
-        (lowerLang(v).startsWith('hi') || lowerLang(v).includes('hi-in') || lowerLang(v).includes('hi_in')) && 
+    // Male Hindi / Indian preferred voice signatures
+    const maleHindiPreferredKeywords = [
+      'madhur', // Microsoft Madhur Online (Natural) - Hindi (India) [Premium Male]
+      'hemant', // Microsoft Hemant Online - Hindi (India) [Male]
+      'prabhat', // eSpeak / Android / Linux Hindi Male
+      'rishi', // Apple Rishi / Indian English Male
+      'mohan', // Android / SVOX Hindi Male
+      'ravi', // Indian Male
+      'aarav', // Indian Male
+      'neil', // Indian Male
+      'male' // Generic explicit Male
+    ];
+
+    // Other high quality natural English male voices (for Hinglish)
+    const maleEnglishKeywords = [
+      'david', // Microsoft David - English Male
+      'george', // Microsoft George - English Male
+      'mark', // Microsoft Mark - English Male
+      'guy', // Microsoft Guy Online Natural
+      'ryan', // Microsoft Ryan Online Natural
+      'oliver', // Apple Oliver Male
+      'daniel', // Apple Daniel Male
+      'male'
+    ];
+
+    // 1. Try finding explicit Male Hindi voice
+    for (const kw of maleHindiPreferredKeywords) {
+      const match = voices.find(v => 
+        (lowerLang(v).includes('hi') || lowerLang(v).includes('in')) && 
+        lowerName(v).includes(kw) && 
         !isFemale(v)
       );
-      if (maleHindi) return maleHindi;
-
-      // 3. Any Hindi voice
-      const anyHindi = voices.find(v => lowerLang(v).startsWith('hi') || lowerLang(v).includes('hi-in') || lowerLang(v).includes('hi_in'));
-      if (anyHindi) return anyHindi;
+      if (match) return { voice: match, isExplicitMale: true };
     }
 
-    // Hinglish / Indian English Male preference
-    const indianEngMaleKeywords = ['prabhat', 'ravi', 'neil', 'rishi', 'mohan', 'male'];
-    for (const kw of indianEngMaleKeywords) {
-      const match = voices.find(v => (lowerLang(v).includes('in') || lowerLang(v).includes('hi')) && lowerName(v).includes(kw) && !isFemale(v));
-      if (match) return match;
+    // 2. Try any Hindi voice that is not marked female
+    const nonFemaleHindi = voices.find(v => 
+      (lowerLang(v).startsWith('hi') || lowerLang(v).includes('hi-in') || lowerLang(v).includes('hi_in')) && 
+      !isFemale(v)
+    );
+    if (nonFemaleHindi) return { voice: nonFemaleHindi, isExplicitMale: false };
+
+    // 3. Try Indian English Male voice
+    for (const kw of maleHindiPreferredKeywords) {
+      const match = voices.find(v => 
+        (lowerLang(v).includes('en-in') || lowerLang(v).includes('en_in') || lowerName(v).includes('india')) && 
+        lowerName(v).includes(kw) && 
+        !isFemale(v)
+      );
+      if (match) return { voice: match, isExplicitMale: true };
     }
 
-    // Any male voice available in Indian English or English
-    const anyMaleEng = voices.find(v => (lowerLang(v) === 'en-in' || lowerLang(v) === 'en_in' || lowerName(v).includes('india')) && !isFemale(v));
-    if (anyMaleEng) return anyMaleEng;
+    // 4. Try any Indian English voice not female
+    const nonFemaleIndEng = voices.find(v => 
+      (lowerLang(v).includes('en-in') || lowerLang(v).includes('en_in') || lowerName(v).includes('india')) && 
+      !isFemale(v)
+    );
+    if (nonFemaleIndEng) return { voice: nonFemaleIndEng, isExplicitMale: false };
 
-    // Fallback: any Hindi or English voice available
-    return voices.find(v => lowerLang(v).startsWith('hi') && !isFemale(v)) || 
-           voices.find(v => lowerLang(v).startsWith('hi')) || 
-           voices.find(v => lowerLang(v).startsWith('en') && !isFemale(v)) || 
-           voices[0];
+    // 5. Try standard English Male voice (Microsoft David, etc.)
+    for (const kw of maleEnglishKeywords) {
+      const match = voices.find(v => 
+        lowerLang(v).startsWith('en') && 
+        lowerName(v).includes(kw) && 
+        !isFemale(v)
+      );
+      if (match) return { voice: match, isExplicitMale: true };
+    }
+
+    // 6. Any voice that is strictly not female
+    const anyNonFemale = voices.find(v => !isFemale(v));
+    if (anyNonFemale) return { voice: anyNonFemale, isExplicitMale: false };
+
+    // 7. Fallback to first available
+    return { voice: voices[0] || null, isExplicitMale: false };
   };
 
   const handlePlayStop = () => {
@@ -194,7 +221,7 @@ export function VoiceReader({ text }) {
     // Detect Devanagari Hindi or Hinglish
     const hasDevanagari = /[\u0900-\u097F]/.test(cleanText);
     const voices = window.speechSynthesis.getVoices();
-    const selectedVoice = findPanditJiVoice(voices, hasDevanagari);
+    const { voice: selectedVoice, isExplicitMale } = findPanditJiVoice(voices, hasDevanagari);
 
     // Chrome keep-alive hack
     if (keepAliveTimerRef.current) clearInterval(keepAliveTimerRef.current);
@@ -221,9 +248,10 @@ export function VoiceReader({ text }) {
         utterance.lang = hasDevanagari ? 'hi-IN' : 'en-IN';
       }
 
-      // Calm, authentic, authoritative yet warm Vedic Pandit Ji cadence
-      utterance.rate = 0.90; // Serene, clear, respectful pacing
-      utterance.pitch = 0.98; // Natural resonance (never distorted at 0.4)
+      // Calm, authoritative, formal male Vedic Pandit Ji baritone resonance
+      utterance.rate = 0.88; // Dignified, calm Vedic chanting pace
+      // If voice is explicit male, pitch 0.90; if neutral/unknown voice, lower pitch to 0.82 to enforce deep male baritone
+      utterance.pitch = isExplicitMale ? 0.90 : 0.82;
       utterance.volume = 1.0;
 
       utterance.onstart = () => {
