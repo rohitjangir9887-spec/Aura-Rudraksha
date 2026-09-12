@@ -429,15 +429,37 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
 
   const { mainCore } = extractCoreHeadTerms(cleanName, category, mukhiNum);
 
-  // Initialize strictly NVIDIA NIM model
-  const nvidiaClient = getNvidiaNemotronClient();
-  let aiOutputParsed = null;
-  let aiGenerationSuccess = false;
-  let aiWarningMessage = "";
+  // Extract MongoDB store metadata if database is available
+  let mongoStoreContext = "";
+  try {
+    const { isDbConnected } = await import("../config/db.js");
+    if (isDbConnected()) {
+      const { Product } = await import("../models/Product.js");
+      const sampleProducts = await Product.find({
+        category: category,
+        status: { $nin: ["Draft", "Inactive"] }
+      }).limit(5).select("name category subCategory mukhi keywords tags rulingPlanet deity").lean();
 
-  if (nvidiaClient) {
-    try {
-      const promptSystem = `You are the Aura AI SEO & Vedic Keyword Generation Engine for Aura Rudraksha, powered strictly by NVIDIA Nemotron-3 Super 120B (nvidia/nemotron-3-super-120b-a12b).
+      if (sampleProducts && sampleProducts.length > 0) {
+        const topKeywords = [];
+        sampleProducts.forEach(p => {
+          if (Array.isArray(p.keywords)) {
+            p.keywords.forEach(k => {
+              const kwStr = typeof k === "string" ? k : (k?.keyword || "");
+              if (kwStr && !topKeywords.includes(kwStr)) topKeywords.push(kwStr);
+            });
+          }
+        });
+        mongoStoreContext = `\nSTORE METADATA & EXISTING POPULAR SEARCH SIGNALS:
+- Related Category Products: ${sampleProducts.map(p => p.name).join(", ")}
+- High-Converting Store Keywords: ${topKeywords.slice(0, 10).join(", ")}`;
+      }
+    }
+  } catch (mErr) {
+    console.warn("[Nemotron Engine] Mongo context extraction notice:", mErr?.message || mErr);
+  }
+
+  const promptSystem = `You are the Aura AI SEO & Vedic Keyword Generation Engine for Aura Rudraksha, powered strictly by NVIDIA Nemotron-3 Super 120B (nvidia/nemotron-3-super-120b-a12b).
 
 CRITICAL KEYWORD GENERATION RULES:
 1. DISCOVER REAL HUMAN SEARCH PHRASES: Do NOT mechanically copy, repeat, or concatenate the product title.
@@ -455,7 +477,7 @@ CRITICAL KEYWORD GENERATION RULES:
    - Do NOT force 35 keywords. Quality over quantity.
 5. SEARCH EVIDENCE & TREND RULES:
    - Set "evidenceType": "ai_suggestion" for all keywords.
-   - Set "trendLevel": "unknown" and "trendConfidence": "low" (no live search provider is connected). DO NOT fake search volume or trend percentages.
+   - Set "trendLevel": "unknown" and "trendConfidence": "low". DO NOT fake search volume or trend percentages.
    - Set "relevanceScore": an integer from 70 to 98 representing internal model relevance.
    - Set "scoreType": "model_relevance".
 6. OUTPUT JSON ONLY matching this exact schema:
@@ -476,11 +498,6 @@ CRITICAL KEYWORD GENERATION RULES:
     "isRudraksha": true
   },
   "seo": {
-    "recommendedTitle": "Recommended SEO Title without clickbait",
-    "metaTitle": "Meta Title (under 60 chars)",
-    "metaDescription": "Meta Description (under 160 chars)",
-    "seoDescription": "Clean HTML product description with h2 headings"
-  },
     "recommendedTitle": "Recommended SEO Title without clickbait",
     "metaTitle": "Meta Title (under 60 chars)",
     "metaDescription": "Meta Description (under 160 chars)",
@@ -523,7 +540,7 @@ CRITICAL KEYWORD GENERATION RULES:
   "missingData": ${JSON.stringify(missingData)}
 }`;
 
-      const userPrompt = `Product Title: "${cleanName}"
+  const userPrompt = `Product Title: "${cleanName}"
 Category: ${category}
 Mukhi: ${mukhiNum || 'N/A'}
 Origin: ${origin}
@@ -531,78 +548,47 @@ Price: ₹${price || ''} / MRP: ₹${mrp || ''}
 Existing Highlight: "${highlight || details || ''}"
 Existing Description: "${description.slice(0, 300)}"
 Target Language: ${language}
+${mongoStoreContext}
 
 Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
 
-      const geminiClient = getGeminiClient();
-      if (geminiClient && !aiGenerationSuccess) {
-        for (const gModel of GEMINI_MODELS) {
-          if (aiGenerationSuccess) break;
-          try {
-            const geminiRes = await geminiClient.models.generateContent({
-              model: gModel,
-              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-              config: {
-                systemInstruction: promptSystem,
-                temperature: 0.2,
-                responseMimeType: "application/json"
-              }
-            });
-            const rawResponse = geminiRes.text || "";
-            aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-            if (aiOutputParsed && aiOutputParsed.seo) {
-              aiGenerationSuccess = true;
-              break;
-            }
-          } catch (gErr) {
-            console.warn(`[Nemotron Engine] Gemini call notice (${gModel}):`, gErr?.message || gErr);
-          }
-        }
-      }
+  // Initialize strictly NVIDIA NIM model
+  const nvidiaClient = getNvidiaNemotronClient();
+  let aiOutputParsed = null;
+  let aiGenerationSuccess = false;
+  let aiWarningMessage = "";
 
-      if (nvidiaClient && !aiGenerationSuccess) {
-        try {
-          const completion = await nvidiaClient.chat.completions.create({
-            model: NEMOTRON_NIM_MODEL,
-            messages: [
-              { role: "system", content: promptSystem },
-              { role: "user", content: userPrompt }
-            ],
-            temperature: 0.2,
-            max_tokens: 2200
-          });
+  // 1. Try NVIDIA NIM (nemotron-3-super-120b-a12b)
+  if (nvidiaClient) {
+    try {
+      const completion = await nvidiaClient.chat.completions.create({
+        model: NEMOTRON_NIM_MODEL,
+        messages: [
+          { role: "system", content: promptSystem },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 2200
+      });
 
-          const rawResponse = completion.choices?.[0]?.message?.content || "";
-          aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-          if (aiOutputParsed && aiOutputParsed.seo) {
-            aiGenerationSuccess = true;
-          }
-        } catch (err) {
-          console.warn("[Nemotron Engine] NIM call error:", err?.message || err);
-          aiWarningMessage = `NVIDIA NIM engine call notice: ${err?.message || "Unavailable"}. Populated from verified Vedic Knowledge Base.`;
-        }
+      const rawResponse = completion.choices?.[0]?.message?.content || "";
+      aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+      if (aiOutputParsed && aiOutputParsed.seo) {
+        aiGenerationSuccess = true;
       }
     } catch (err) {
-      console.warn("[Nemotron Engine] Generation error:", err?.message || err);
+      console.warn("[Nemotron Engine] NIM call error, attempting Gemini:", err?.message || err);
+      aiWarningMessage = `NVIDIA NIM notice: ${err?.message || "Unavailable"}.`;
     }
-  } else {
-    // If nvidiaClient is not configured, try Gemini before knowledge base fallback
+  }
+
+  // 2. Fallback to Gemini if NVIDIA NIM was not available or failed
+  if (!aiGenerationSuccess) {
     const geminiClient = getGeminiClient();
     if (geminiClient) {
       for (const gModel of GEMINI_MODELS) {
         if (aiGenerationSuccess) break;
         try {
-          const userPrompt = `Product Title: "${cleanName}"
-Category: ${category}
-Mukhi: ${mukhiNum || 'N/A'}
-Origin: ${origin}
-Price: ₹${price || ''} / MRP: ₹${mrp || ''}
-Existing Highlight: "${highlight || details || ''}"
-Existing Description: "${description.slice(0, 300)}"
-Target Language: ${language}
-
-Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
-
           const geminiRes = await geminiClient.models.generateContent({
             model: gModel,
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
@@ -619,12 +605,9 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
             break;
           }
         } catch (gErr) {
-          console.warn(`[Nemotron Engine] Gemini fallback notice (${gModel}):`, gErr?.message || gErr);
+          console.warn(`[Nemotron Engine] Gemini call notice (${gModel}):`, gErr?.message || gErr);
         }
       }
-    }
-    if (!aiGenerationSuccess) {
-      aiWarningMessage = "AI API Key not configured. Populated from verified Vedic Knowledge Base without fabrication.";
     }
   }
 

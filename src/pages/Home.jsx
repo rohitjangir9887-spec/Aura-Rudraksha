@@ -69,6 +69,7 @@ export function Home() {
             a.name !== b.name ||
             a.price !== b.price ||
             a.salesCount !== b.salesCount ||
+            a.totalSold !== b.totalSold ||
             a.stock !== b.stock ||
             a.badge !== b.badge ||
             a.status !== b.status ||

@@ -1296,11 +1296,27 @@ export const db = {
     try {
       const res = await apiRequest("/products/increment-daily-sales", { method: "POST" });
       if (res?.success) {
-        await revalidateProducts(true);
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          storeCache.products = res.data.map(p => ({
+            ...p,
+            id: String(p.id || p._id),
+            salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+            totalSold: p.totalSold || (p.salesCount ? `${p.salesCount}+ Sold` : "")
+          }));
+          try {
+            localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+            localStorage.setItem("aura_cache_hydrated", "true");
+            localStorage.setItem("aura_last_product_fetch_time", String(Date.now()));
+          } catch (_) {}
+          emitStoreUpdate("product:bulk_updated", storeCache.products);
+        }
+        await revalidateProducts(true).catch(() => {});
+        await fetchHomeData(true).catch(() => {});
         return res;
       }
     } catch (err) {
       console.warn("Notice in triggerDailySalesIncrement:", err.message);
+      throw err;
     }
     return { success: false };
   },

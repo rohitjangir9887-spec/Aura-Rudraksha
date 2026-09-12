@@ -88,11 +88,11 @@ export function AdminProducts() {
     setFilteredProducts(result);
   }, [searchTerm, selectedCategory, homeFilter, products]);
 
-  const load = async () => {
-    if ((db.getProducts() || []).length === 0) {
+  const load = async (force = false) => {
+    if (force || (db.getProducts() || []).length === 0) {
       setLoading(true);
       try {
-        await db.fetchProducts();
+        await db.revalidateProducts(true);
       } catch (e) {}
     }
     const list = db.getProducts() || [];
@@ -153,7 +153,7 @@ export function AdminProducts() {
       const res = await db.triggerDailySalesIncrement();
       if (res?.success) {
         emitToast(`⚡ Daily sales updated! 1-10 new sales added to active products.`, "success");
-        load();
+        await load(true);
       } else {
         emitToast("Sales are already up to date for today.", "info");
       }

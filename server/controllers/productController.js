@@ -585,6 +585,9 @@ export async function reorderProducts(req, res, next) {
 export async function triggerDailySalesIncrement(req, res, next) {
   try {
     if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+    if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
         databaseUnavailable: true,
@@ -604,7 +607,7 @@ export async function triggerDailySalesIncrement(req, res, next) {
       const maxInc = Number(p.dailySalesMax) || 10;
       const dailyInc = Math.floor(Math.random() * (maxInc - minInc + 1)) + minInc;
       const curCount = Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
-      const newCount = (curCount > 0 ? curCount : 240) + dailyInc;
+      const newCount = (curCount > 0 ? curCount : 180) + dailyInc;
       const formattedTotalSold = `${newCount.toLocaleString("en-IN")}+ Sold`;
 
       p.salesCount = newCount;
@@ -614,12 +617,13 @@ export async function triggerDailySalesIncrement(req, res, next) {
 
       bulkOps.push({
         updateOne: {
-          filter: { id: p.id },
+          filter: { $or: [{ id: p.id }, { _id: p._id }] },
           update: {
             $set: {
               salesCount: newCount,
               totalSold: formattedTotalSold,
-              lastSalesUpdateDate: todayStr
+              lastSalesUpdateDate: todayStr,
+              updatedAt: new Date().toISOString()
             }
           }
         }
@@ -630,13 +634,16 @@ export async function triggerDailySalesIncrement(req, res, next) {
       await Product.bulkWrite(bulkOps);
     }
 
+    invalidateProductCache();
     invalidateRagCache();
+
+    const freshProducts = await Product.find({}).sort({ displayOrder: 1, sortOrder: 1, createdAt: -1 }).lean();
 
     return res.json({
       success: true,
       message: `Daily sales successfully incremented by 1-10 for ${updatedCount} products.`,
       updatedCount,
-      data: allProds
+      data: freshProducts
     });
   } catch (err) {
     next(err);

@@ -225,11 +225,18 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
             </Link>
           </h3>
 
-          {/* Rating */}
-          <div className="aura-card-rating-row">
-            <Star size={12} fill="#b45309" color="#b45309" />
-            <span>{typeof p.rating === "number" ? p.rating.toFixed(1) : (p.rating || "4.9")}</span>
-            <span className="aura-card-reviews-count">({p.reviews !== undefined && p.reviews !== null ? p.reviews : (p.reviewCount !== undefined ? p.reviewCount : 0)})</span>
+          {/* Rating & Sales */}
+          <div className="aura-card-rating-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <Star size={12} fill="#b45309" color="#b45309" />
+              <span>{typeof p.rating === "number" ? p.rating.toFixed(1) : (p.rating || "4.9")}</span>
+              <span className="aura-card-reviews-count">({p.reviews !== undefined && p.reviews !== null ? p.reviews : (p.reviewCount !== undefined ? p.reviewCount : 0)})</span>
+            </div>
+            {(p.totalSold || (p.salesCount && p.salesCount > 0)) && (
+              <span style={{ fontSize: "11px", fontWeight: "600", color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", padding: "1px 6px", borderRadius: "10px", display: "inline-flex", alignItems: "center", gap: "2px" }}>
+                🔥 {p.totalSold || `${p.salesCount}+ Sold`}
+              </span>
+            )}
           </div>
 
           {/* Price & Discounts */}

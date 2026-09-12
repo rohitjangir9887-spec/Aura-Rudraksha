@@ -2031,11 +2031,14 @@ export async function deleteUserNoteEndpoint(req, res) {
 // Helper function to extract relevant product catalog data for context
 async function getCatalogSummary() {
   try {
-    const products = await Product.find({ isPublic: true }).select("name price category stock status origin mukhi").lean();
+    const products = await Product.find({ status: { $nin: ["Draft", "Inactive"] } })
+      .select("name price category subCategory stock status origin mukhi salesCount totalSold rulingPlanet deity")
+      .limit(50)
+      .lean();
     if (!products || products.length === 0) return "No products found.";
     
     return products.map(p => 
-      `- ${p.name} | Cat: ${p.category} | Price: ₹${p.price} | Stock: ${p.stock} | Origin: ${p.origin || "Unknown"}`
+      `- ${p.name} | Cat: ${p.category}${p.mukhi ? ` (${p.mukhi})` : ''} | Price: ₹${p.price} | Stock: ${p.stock} | Origin: ${p.origin || "Nepal"} | Planet: ${p.rulingPlanet || "Universal"} | Sales: ${p.totalSold || p.salesCount || 0}`
     ).join("\n");
   } catch (e) {
     return "Failed to fetch catalog.";
