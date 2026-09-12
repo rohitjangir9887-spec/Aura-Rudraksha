@@ -88,7 +88,7 @@ var). The frontend never sees it.
 
 | Variable | Purpose |
 |---|---|
-| `VITE_API_BASE_URL` | Full origin+path of the API, e.g. `https://api.aurarudraksha.com/api`. Leave unset for single-host Option A. |
+| `VITE_API_BASE_URL` | Full origin+path of the API, e.g. `https://api.aurarudraksha.bond/api`. Leave unset for single-host Option A. |
 
 ---
 

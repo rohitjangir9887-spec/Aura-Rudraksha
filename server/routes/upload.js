@@ -219,8 +219,8 @@ router.get("/pcloud/connect", requireAdmin, async (req, res) => {
       });
     }
 
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const reqHost = req.get("host");
+    const protocol = req.headers?.["x-forwarded-proto"] || req.protocol || "https";
+    const reqHost = req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.host) || "aurarudraksha.bond";
     const redirectUri = process.env.PCLOUD_REDIRECT_URI || `${protocol}://${reqHost}${req.baseUrl}/pcloud/callback`;
     const state = generateOauthState(req.user?.authUserId || "admin");
     const authUrl = `https://my.pcloud.com/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
@@ -278,8 +278,8 @@ router.get("/pcloud/callback", async (req, res) => {
       return res.status(403).send("OAuth State Verification Failed: Potential CSRF or expired session.");
     }
 
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const reqHost = req.get("host");
+    const protocol = req.headers?.["x-forwarded-proto"] || req.protocol || "https";
+    const reqHost = req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.host) || "aurarudraksha.bond";
     const redirectUri = process.env.PCLOUD_REDIRECT_URI || `${protocol}://${reqHost}${req.baseUrl}/pcloud/callback`;
 
     await exchangePcloudCode(code, redirectUri);

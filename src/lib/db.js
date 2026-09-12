@@ -199,15 +199,24 @@ async function apiRequest(endpoint, options = {}) {
 
       clearTimeout(timeoutId);
 
-      const contentType = res.headers?.get("content-type") || "";
       let data = {};
-      if (contentType.includes("application/json")) {
-        data = await res.json().catch(() => ({}));
-      } else {
+      let isJson = false;
+
+      // Try parsing JSON directly first regardless of Content-Type variations
+      try {
+        data = await res.json();
+        isJson = true;
+      } catch (_) {
+        isJson = false;
+      }
+
+      if (!isJson) {
         return {
           success: false,
           status: res.status,
-          message: `Endpoint unavailable (${res.status})`
+          message: res.status === 200 
+            ? "Server connection syncing. Please try again or refresh shortly." 
+            : `Endpoint unavailable (${res.status})`
         };
       }
 
@@ -1366,6 +1375,18 @@ export const db = {
         }
         return res;
       }
+
+      // If server returned error or unavailable, check if user has cached orders locally
+      const cached = db.getCachedMyOrders();
+      if (Array.isArray(cached) && cached.length > 0) {
+        return {
+          success: true,
+          data: cached,
+          fromCache: true,
+          message: res?.message
+        };
+      }
+
       return { 
         success: false, 
         message: res?.message || "Failed to fetch orders from server", 
@@ -1373,6 +1394,15 @@ export const db = {
       };
     } catch (err) {
       console.error("[DB] getMyOrders API error:", err);
+      const cached = db.getCachedMyOrders();
+      if (Array.isArray(cached) && cached.length > 0) {
+        return {
+          success: true,
+          data: cached,
+          fromCache: true,
+          message: err?.message
+        };
+      }
       return { 
         success: false, 
         message: err?.message || "Network error while loading your orders", 

@@ -1,3 +1,5 @@
+import { extractKeywordString } from "./keywordUtils.js";
+
 /**
  * Aura Rudraksha Advanced Search & Keyword Matching Engine
  * 
@@ -34,8 +36,6 @@ const HINDI_NUMBER_SYNONYMS = {
   "20": ["bees", "vimshati", "20", "twenty", "बीस"],
   "21": ["ikkis", "ekavimshati", "21", "twenty-one", "इक्कीस"]
 };
-
-import { extractKeywordString } from "./keywordUtils.js";
 
 /**
  * Normalizes text for lenient searching (lowercases, removes accents, trims)

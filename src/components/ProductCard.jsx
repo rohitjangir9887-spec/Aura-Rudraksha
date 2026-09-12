@@ -5,6 +5,7 @@ import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck } from "lucide-react";
+import { motion } from "framer-motion";
 import { money, pct } from "../data";
 import { db } from "../lib/db";
 import { useWishlist } from "../hooks/useWishlist";
@@ -99,7 +100,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   };
 
   return (
-    <div 
+    <motion.div 
       className="aura-shop-card" 
       onClick={handleCardClick}
       onPointerEnter={handlePreload}
@@ -107,6 +108,8 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
       role="link"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter") handleCardClick(e); }}
+      whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
+      whileTap={{ scale: 0.985 }}
       style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent", cursor: "pointer" }}
       id={`product-card-${p.id}`}
     >
@@ -274,7 +277,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           )}
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

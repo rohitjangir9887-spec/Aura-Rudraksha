@@ -6,6 +6,8 @@ import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateRagCache } from "../services/ragService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { logAuditEvent } from "../services/auditService.js";
+import { submitToIndexNow } from "../services/indexNowService.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -215,9 +217,6 @@ export async function getProductById(req, res, next) {
     });
   }
 }
-
-import { logAuditEvent } from "../services/auditService.js";
-import { submitToIndexNow } from "../services/indexNowService.js";
 
 function extractStringValue(item) {
   if (item === null || item === undefined) return "";

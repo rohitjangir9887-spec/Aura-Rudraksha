@@ -76,7 +76,7 @@ export function createApp(options = {}) {
     const host = rawHost.toLowerCase().split(":")[0];
     if (host === "www.aurarudraksha.bond" || host === "www.aurarudraksha.com" || host === "aurarudraksha.com") {
       const targetUrl = `https://aurarudraksha.bond${req.originalUrl || req.url}`;
-      return res.redirect(301, targetUrl);
+      return res.redirect(308, targetUrl);
     }
     next();
   });

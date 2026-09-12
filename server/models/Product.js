@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 
 const productSchema = new mongoose.Schema(
   {
-    id: { type: String, required: true, unique: true, index: true },
+    id: { type: String, required: true, unique: true },
     name: { type: String, required: true, trim: true },
-    slug: { type: String, trim: true, index: true },
+    slug: { type: String, trim: true },
     price: { type: Number, required: true, min: 0 },
     comparePrice: { type: Number, default: 0 },
     mrp: { type: Number, default: 0 },

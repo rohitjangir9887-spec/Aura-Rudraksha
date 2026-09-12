@@ -12,7 +12,7 @@ The following versions of Aura Rudraksha are currently supported with security u
 
 We take the security of Aura Rudraksha and our users' data extremely seriously. If you discover a security vulnerability, please report it privately.
 
-- **Email**: security@aurarudraksha.com
+- **Email**: security@aurarudraksha.bond
 - **Scope**: Any potential vulnerabilities including IDOR, authentication bypass, payment tampering, rate limit evasion, or data exposure.
 
 Please do not disclose security issues publicly until our security team has addressed and resolved them.

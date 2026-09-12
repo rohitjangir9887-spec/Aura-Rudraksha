@@ -40,9 +40,11 @@ const auraAIMessageSchema = new mongoose.Schema({
 const auraAIConversationSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    conversationId: { type: String, index: true },
     userId: { type: String, default: "guest", index: true },
     guestSessionId: { type: String, default: "", index: true },
     ipHash: { type: String, default: "" },
+    hashedIp: { type: String, default: "" },
     userEmail: { type: String, default: "" },
     userName: { type: String, default: "Devotee" },
     title: { type: String, default: "Rudraksha Consultation" },
@@ -58,6 +60,7 @@ const auraAIConversationSchema = new mongoose.Schema(
     sentiment: { type: String, default: "Positive" },
     verifiedBirthDetails: { type: Object, default: null },
     authoritativeKundali: { type: Object, default: null },
+    lastMessageText: { type: String, default: "" },
     lastMessageAt: { type: String, default: () => new Date().toISOString() }
   },
   { timestamps: true }

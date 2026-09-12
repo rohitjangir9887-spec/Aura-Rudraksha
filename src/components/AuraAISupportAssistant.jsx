@@ -164,7 +164,7 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
         category: ticketCategory || "Order Issue",
         attachments: ticketAttachments || [],
         orderId: selectedOrder?.id || "",
-        email: u?.email || "devotee@aurarudraksha.com",
+        email: u?.email || "devotee@aurarudraksha.bond",
         name: u?.displayName || u?.name || "Devotee",
         phone: u?.phone || "",
         status: "Open",

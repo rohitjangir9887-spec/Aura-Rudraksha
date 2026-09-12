@@ -161,6 +161,9 @@ export async function connectDB() {
       console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
       cached.conn = mongooseInstance;
       cached.lastConnected = new Date().toISOString();
+      import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
+        ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
+      }).catch(() => {});
       return mongooseInstance;
     }).catch((error) => {
       cached.promise = null;

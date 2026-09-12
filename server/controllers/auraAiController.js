@@ -659,8 +659,8 @@ export async function chatAuraAI(req, res, next) {
       cartActions: true,
       orderSupport: true,
       humanSupport: true,
-      supportPhone: "+91 98765 43210",
-      supportEmail: "support@aurarudraksha.com"
+      supportPhone: "+91 9672996531",
+      supportEmail: "aurarudrakshaofficial@gmail.com"
     };
 
     if (isDbConnected()) {
@@ -769,12 +769,6 @@ export async function chatAuraAI(req, res, next) {
     }
 
     // 4. Fetch Live Catalog Products & RAG Context
-    let matchedProducts = [];
-    if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
-      matchedProducts = await searchRelevantCatalogProducts(message || "", targetMukhi);
-    }
-
-    // Fetch store products for prompt context
     let allStoreProds = [];
     if (isDbConnected()) {
       try {
@@ -782,6 +776,12 @@ export async function chatAuraAI(req, res, next) {
       } catch (_) {
         allStoreProds = [];
       }
+    }
+
+    let matchedProducts = [];
+    if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
+      const foundProds = searchRelevantCatalogProducts(message || "", allStoreProds);
+      matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean);
     }
 
     // If we have calculated Kundali, match recommended beads to catalog
@@ -833,6 +833,131 @@ LINK FORMAT RULES:
 
     const userMemories = await getUserMemories({ userId: effectiveUserId, guestSessionId: effectiveGuestSessionId });
     const memoryContextText = userMemories.map(m => `- ${m.memoryKey}: ${m.memoryValue}`).join("\n");
+
+    // 5.5 Check for Order Inquiries in Standard Mode
+    const isOrderInquiry = intent === "ORDER_TRACKING" || intent === "ORDER_HISTORY" || 
+      (message || "").toLowerCase().includes("track") || 
+      (message || "").toLowerCase().includes("order");
+
+    if (isOrderInquiry && mode !== "panditji") {
+      if (!userIsAuthenticated || effectiveUserId === "guest") {
+        const guestOrderText = "🙏 Apne order ki sthiti janne ke liye kripya pehle apne account mein Login karein ya seedhe hamare [Track Order](/track-order) page par jakar apna Order ID daalein.";
+        const guestPayload = {
+          text: guestOrderText,
+          products: [],
+          orderInfo: null,
+          quickReplies: ["🔐 Login to View Orders", "📦 Track Order Page", "🛒 View Store"],
+          conversationId: targetConversationId,
+          guestSessionId: effectiveGuestSessionId
+        };
+        if (isDbConnected()) {
+          try {
+            await AuraAIConversation.findOneAndUpdate(
+              { $or: [{ id: targetConversationId }, { conversationId: targetConversationId }] },
+              {
+                $setOnInsert: {
+                  id: targetConversationId,
+                  conversationId: targetConversationId,
+                  userId: effectiveUserId,
+                  userEmail: verifiedEmail,
+                  userName: verifiedName,
+                  guestSessionId: effectiveGuestSessionId,
+                  hashedIp: clientIp,
+                  createdAt: new Date()
+                },
+                $push: {
+                  messages: {
+                    $each: [
+                      { id: `msg_${Date.now()}_u`, sender: "user", text: message || "", timestamp: new Date() },
+                      { id: `msg_${Date.now()}_a`, sender: "ai", text: guestOrderText, timestamp: new Date() }
+                    ]
+                  }
+                },
+                $set: { updatedAt: new Date(), lastMessageText: guestOrderText.slice(0, 150) }
+              },
+              { upsert: true, returnDocument: "after" }
+            );
+          } catch (_) {}
+        }
+        if (isStreamingRequest) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache, no-transform");
+          res.setHeader("Connection", "keep-alive");
+          res.write(`data: ${JSON.stringify({ type: "final", data: guestPayload })}\n\n`);
+          res.write("data: [DONE]\n\n");
+          return res.end();
+        }
+        return res.json({ success: true, data: guestPayload });
+      } else {
+        let userOrderContext = null;
+        if (isDbConnected()) {
+          try {
+            userOrderContext = await Order.findOne({
+              $or: [
+                { customerId: effectiveUserId },
+                { userId: effectiveUserId },
+                ...(verifiedEmail ? [{ customerEmail: verifiedEmail.toLowerCase() }] : [])
+              ]
+            }).sort({ createdAt: -1 }).lean();
+          } catch (_) {}
+        }
+        if (userOrderContext) {
+          const orderIdStr = userOrderContext.orderNumber || userOrderContext.id || String(userOrderContext._id);
+          const orderFoundText = `📦 **Order Status Found:**\n\nAapka order #${orderIdStr} mil gaya hai.\n- **Status:** ${userOrderContext.status || 'Processing'}\n- **Amount:** ₹${userOrderContext.finalAmount || userOrderContext.total || 0}\n${userOrderContext.trackingNumber ? `- **Tracking No:** ${userOrderContext.trackingNumber} (${userOrderContext.courierName || 'Courier'})\n` : ""}\nAap full tracking details ke liye [Track Order](/track-order) par bhi dekh sakte hain.`;
+          const orderPayload = {
+            text: orderFoundText,
+            products: [],
+            orderInfo: {
+              id: orderIdStr,
+              status: userOrderContext.status || 'Processing',
+              finalAmount: userOrderContext.finalAmount || userOrderContext.total || 0,
+              trackingNumber: userOrderContext.trackingNumber || ""
+            },
+            quickReplies: ["📦 Track Order Page", "📿 Shop Rudraksha", "📞 Support"],
+            conversationId: targetConversationId,
+            guestSessionId: effectiveGuestSessionId
+          };
+          if (isDbConnected()) {
+            try {
+              await AuraAIConversation.findOneAndUpdate(
+                { $or: [{ id: targetConversationId }, { conversationId: targetConversationId }] },
+                {
+                  $setOnInsert: {
+                    id: targetConversationId,
+                    conversationId: targetConversationId,
+                    userId: effectiveUserId,
+                    userEmail: verifiedEmail,
+                    userName: verifiedName,
+                    guestSessionId: effectiveGuestSessionId,
+                    hashedIp: clientIp,
+                    createdAt: new Date()
+                  },
+                  $push: {
+                    messages: {
+                      $each: [
+                        { id: `msg_${Date.now()}_u`, sender: "user", text: message || "", timestamp: new Date() },
+                        { id: `msg_${Date.now()}_a`, sender: "ai", text: orderFoundText, timestamp: new Date() }
+                      ]
+                    }
+                  },
+                  $set: { updatedAt: new Date(), lastMessageText: orderFoundText.slice(0, 150) }
+                },
+                { upsert: true, returnDocument: "after" }
+              );
+            } catch (_) {}
+          }
+          if (isStreamingRequest) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache, no-transform");
+            res.setHeader("Connection", "keep-alive");
+            res.write(`data: ${JSON.stringify({ type: "final", data: orderPayload })}\n\n`);
+            res.write("data: [DONE]\n\n");
+            return res.end();
+          }
+          return res.json({ success: true, data: orderPayload });
+        }
+      }
+    }
 
     // 6. Build High-Integrity Persona System Prompt for NVIDIA NIM (nemotron-3-super-120b-a12b)
     let systemPrompt = "";
@@ -1112,9 +1237,10 @@ ${memoryContextText || "Guest shopper."}`;
 
       if (isDbConnected()) {
         AuraAIConversation.findOneAndUpdate(
-          { conversationId: targetConversationId },
+          { $or: [{ id: targetConversationId }, { conversationId: targetConversationId }] },
           {
             $setOnInsert: {
+              id: targetConversationId,
               conversationId: targetConversationId,
               userId: effectiveUserId,
               userEmail: verifiedEmail,
@@ -1233,7 +1359,7 @@ ${memoryContextText || "Guest shopper."}`;
     }
 
     // Deterministic Vedic / Store Fallback if AI models are momentarily disconnected
-    if (!generatedViaNvidia || !aiResponseText.trim()) {
+    if (!generatedSuccessfully || !aiResponseText.trim()) {
       if (mode === "panditji") {
         if (calculatedKundaliData) {
           aiResponseText = `🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विश्लेषण के अनुसार:\n- **लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (पद ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n- **वर्तमान महादशा:** ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi}\n\n**वैदिक रुद्राक्ष परामर्श:**\nआपके लग्न एवं संकल्प की सिद्धि हेतु **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** धारण करना सर्वोत्तम रहेगा। यह आपके आत्मबल, स्वास्थ्य एवं ग्रह शांति के लिए अत्यंत लाभकारी है।`;
@@ -1243,7 +1369,11 @@ ${memoryContextText || "Guest shopper."}`;
           aiResponseText = `🙏 **प्रणाम! Main AI Pandit Ji hoon — Aura Rudraksha का वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।**\n\nआप अपनी जन्म कुंडली विश्लेषण, राशि अनुसार रुद्राक्ष चयन, ग्रह शांति उपाय या किसी विशेष संकल्प हेतु परामर्श ले सकते हैं। आज मैं आपकी क्या सहायता करूँ?`;
         }
       } else {
-        aiResponseText = `🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka shopping aur support assistant.**\n\nMain aapki 100% authentic Nepali Rudraksha, Jaap Mala, discount coupons aur order tracking mein madad kar sakta hoon. Aaj aap kya dekhna chahte hain?`;
+        if (matchedProducts.length > 0) {
+          aiResponseText = `🙏 **Namaste! Main Aura AI hoon.**\n\nAapki pasand ke anusaar maine hamare certified store se yeh sacred Rudraksha select kiya hai:\n\n${matchedProducts.map(p => `• **${p.name}** - ₹${p.price}`).join('\n')}\n\nYeh sabhi 100% authentic Nepali Rudraksha hain jo Vedic Shiva mantro dwara Pran-Pratishthit hain. Aap inhe seedhe cart mein add kar sakte hain.`;
+        } else {
+          aiResponseText = `🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka shopping aur support assistant.**\n\nMain aapki 100% authentic Nepali Rudraksha, Jaap Mala, discount coupons aur order tracking mein madad kar sakta hoon. Aaj aap kya dekhna chahte hain?`;
+        }
       }
     }
 
@@ -1277,9 +1407,10 @@ ${memoryContextText || "Guest shopper."}`;
     if (isDbConnected()) {
       try {
         await AuraAIConversation.findOneAndUpdate(
-          { conversationId: targetConversationId },
+          { $or: [{ id: targetConversationId }, { conversationId: targetConversationId }] },
           {
             $setOnInsert: {
+              id: targetConversationId,
               conversationId: targetConversationId,
               userId: effectiveUserId,
               userEmail: verifiedEmail,
@@ -1662,7 +1793,7 @@ export async function updateAuraAISettings(req, res, next) {
       const updated = await AuraAISetting.findOneAndUpdate(
         {},
         { $set: cleanUpdates },
-        { upsert: true, new: true, returnDocument: "after" }
+        { upsert: true, returnDocument: "after" }
       ).lean();
       return res.json({ success: true, data: updated });
     }
@@ -1704,7 +1835,7 @@ export async function getAuraAIConversations(req, res, next) {
     }
 
     const list = await AuraAIConversation.find(query).sort({ updatedAt: -1 }).limit(100).lean();
-    return res.json({ success: true, data: list });
+    return res.json({ success: true, count: list.length, data: list });
   } catch (err) {
     next(err);
   }

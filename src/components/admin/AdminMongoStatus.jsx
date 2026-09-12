@@ -522,7 +522,7 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
               <strong>Database User & Password:</strong> Verify that the database user exists in <em>MongoDB Atlas &gt; Database Access</em> and has <code>readWriteAnyDatabase</code> permissions. If the password has special characters (e.g. <code>@</code>, <code>#</code>, <code>%</code>), make sure they are properly URL-encoded.
             </li>
             <li>
-              <strong>Connection String Format:</strong> Use standard SRV format: <code>mongodb+srv://&lt;username&gt;:&lt;password&gt;@&lt;cluster-name&gt;.mongodb.net/&lt;dbname&gt;?retryWrites=true&amp;w=majority</code>.
+              <strong>Connection String Format:</strong> Use standard SRV format: <code>mongodb:// or srv format &lt;username&gt;:&lt;password&gt;@&lt;cluster-name&gt;.mongodb.net/&lt;dbname&gt;?retryWrites=true&amp;w=majority</code>.
             </li>
             <li>
               <strong>Connection Pooling:</strong> Mongoose is configured with <code>serverSelectionTimeoutMS: 15000</code>, <code>maxPoolSize: 20</code>, and <code>minPoolSize: 1</code> for cloud container reliability.

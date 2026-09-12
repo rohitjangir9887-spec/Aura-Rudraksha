@@ -51,16 +51,19 @@ export function useSeo({
       setMetaTag("name", "twitter:image", ogImage);
     }
 
-    // Canonical link
+    // Canonical link & OG URL
     if (canonical) {
+      const cleanCanonical = canonical
+        .replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app)/i, "https://aurarudraksha.bond")
+        .replace(/^http:\/\/aurarudraksha\.bond/i, "https://aurarudraksha.bond");
       let link = document.querySelector('link[rel="canonical"]');
       if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "canonical");
         document.head.appendChild(link);
       }
-      link.setAttribute("href", canonical);
-      setMetaTag("property", "og:url", canonical);
+      link.setAttribute("href", cleanCanonical);
+      setMetaTag("property", "og:url", cleanCanonical);
     }
   }, [title, description, canonical, ogImage, ogType]);
 }

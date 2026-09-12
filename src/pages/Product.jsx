@@ -230,13 +230,13 @@ export function Product() {
   const primaryImg = p?.img || (p?.images && p?.images[0]) || "/favicon.jpg";
   const ogImgUrl = primaryImg.startsWith("http") 
     ? primaryImg 
-    : (typeof window !== "undefined" ? `${window.location.origin}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}` : primaryImg);
-  const canonicalUrl = typeof window !== "undefined" ? `${window.location.origin}/product/${p?.slug || p?.id || id}` : undefined;
+    : `https://aurarudraksha.bond${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
+  const canonicalUrl = p ? `https://aurarudraksha.bond/product/${p.slug || p.id || id}` : undefined;
 
   useSeo({
     title: p ? (p.metaTitle || `${p.name} — Authentic Lab Certified | Aura Rudraksha`) : "Aura Rudraksha",
     description: p ? (p.metaDescription || (p.highlight || p.description || "").slice(0, 160)) : undefined,
-    canonical: p ? canonicalUrl : undefined,
+    canonical: canonicalUrl,
     ogImage: ogImgUrl,
     ogType: "product"
   });
@@ -289,14 +289,15 @@ export function Product() {
     const supportPhone = settings.supportPhone || "+91 9672996531";
     const waCleanPhone = supportPhone.replace(/[^0-9]/g, "");
     const price = Number(p.price) || 0;
-    const message = `Namaste Aura Rudraksha,\n\nI would like to order:\n\n*Product:* ${p.name}\n*Variant:* ${selectedVariant || selectedSize}\n*Quantity:* ${qty}\n*Total Price:* ${money(price * qty)}\n*Link:* ${window.location.href}\n\nPlease confirm availability and dispatch details.\n\nDhanyawad!`;
+    const productUrl = `https://aurarudraksha.bond/product/${p.slug || p.id || id}`;
+    const message = `Namaste Aura Rudraksha,\n\nI would like to order:\n\n*Product:* ${p.name}\n*Variant:* ${selectedVariant || selectedSize}\n*Quantity:* ${qty}\n*Total Price:* ${money(price * qty)}\n*Link:* ${productUrl}\n\nPlease confirm availability and dispatch details.\n\nDhanyawad!`;
     const waUrl = `https://wa.me/${waCleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(waUrl, "_blank");
   };
 
   const handleShareProduct = async () => {
     if (!p) return;
-    const shareUrl = window.location.href;
+    const shareUrl = `https://aurarudraksha.bond/product/${p.slug || p.id || id}`;
     const shareTitle = `${p.name} | Aura Rudraksha`;
     const shareText = `Explore authentic lab-certified ${p.name} at Aura Rudraksha`;
 

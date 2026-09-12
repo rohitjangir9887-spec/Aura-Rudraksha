@@ -101,23 +101,24 @@ export function sanitizePaymentDetails(details) {
  * Helper to resolve authoritative base URL for PayU redirects & webhooks
  */
 function resolveAppBaseUrl(req) {
-  if (process.env.APP_URL) {
-    return process.env.APP_URL.replace(/\/+$/, "");
-  }
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  const host = req ? (req.headers["x-forwarded-host"] || req.get("host")) : "";
-  const protocol = req && req.headers["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
-  if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-    let cleanHost = host;
-    if (cleanHost.toLowerCase().startsWith("www.aurarudraksha.bond")) {
-      cleanHost = "aurarudraksha.bond";
+  if (process.env.SITE_URL) {
+    let raw = process.env.SITE_URL.replace(/\/+$/, "");
+    if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
+      raw = raw.replace(/^https?:\/\/www\./i, "https://");
+      return raw;
     }
-    return `${protocol}://${cleanHost}`;
+  }
+  if (process.env.APP_URL) {
+    let raw = process.env.APP_URL.replace(/\/+$/, "");
+    if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
+      raw = raw.replace(/^https?:\/\/www\./i, "https://");
+      return raw;
+    }
+  }
+  const host = req ? (req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.host) || "") : "";
+  const protocol = req && req.headers?.["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
+  if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
+    return `${protocol}://${host}`;
   }
   return "https://aurarudraksha.bond";
 }
@@ -1290,7 +1291,7 @@ export async function retryPayuPayment(req, res, next) {
     const newTxnid = `TXN_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     const amount = Number(order.finalAmount || order.total || order.amount || 0);
 
-    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.com").trim().toLowerCase();
+    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.bond").trim().toLowerCase();
     const firstname = (order.customerName || order.firstName || req.user?.name || "Devotee").trim();
     const phone = (order.phone || order.customerPhone || "").trim();
     const productinfo = `Aura Rudraksha Order Retry (${order.orderNumber || order.id})`;

@@ -13,6 +13,7 @@ import { isValidOrderTransition, isValidPaymentTransition, createStateHistoryEnt
 import { normalizeOrderState } from "../services/orderReconciliationService.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { buildPhoneQueryVariants, normalizePhoneNumber } from "../utils/phoneUtils.js";
+import { verifyPayuPaymentServerSide } from "../services/payuService.js";
 import crypto from "crypto";
 
 // Allowed customer input fields during order creation
@@ -681,8 +682,6 @@ export async function trackOrderPublic(req, res, next) {
     next(err);
   }
 }
-
-import { verifyPayuPaymentServerSide } from "../services/payuService.js";
 
 export async function getPaymentFailureAlert(req, res, next) {
   try {

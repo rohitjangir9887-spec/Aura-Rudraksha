@@ -32,31 +32,16 @@ export function OrderSummaryPriceDetails({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12.5px" }}>
-        {/* Subtotal Row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "#4a3528" }}>
-            Subtotal {count > 0 ? `(${count} item${count !== 1 ? "s" : ""})` : ""}
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            {totalMrp > subtotal && (
-              <span
-                style={{
-                  fontSize: "11.5px",
-                  color: "#8a7566",
-                  textDecoration: "line-through"
-                }}
-              >
-                {money(totalMrp)}
-              </span>
-            )}
-            <span style={{ fontSize: "13.5px", fontWeight: "700", color: "#2b170d" }}>
-              {money(subtotal)}
-            </span>
+        {/* Total MRP Row (if MRP > Subtotal) */}
+        {totalMrp > subtotal && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "#5a483c" }}>Total MRP</span>
+            <span style={{ color: "#2b170d", fontWeight: "600" }}>{money(totalMrp)}</span>
           </div>
-        </div>
+        )}
 
-        {/* Product Savings / Discount (if any) */}
-        {productSavings > 0 && (
+        {/* Product MRP Discount (if any) */}
+        {productSavings > 0 && totalMrp > subtotal && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ color: "#166534", display: "inline-flex", alignItems: "center", gap: "5px" }}>
               <span>Product MRP Discount</span>
@@ -66,6 +51,16 @@ export function OrderSummaryPriceDetails({
             </span>
           </div>
         )}
+
+        {/* Subtotal Row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: totalMrp > subtotal ? "1px dashed #e8dacb" : "none", paddingTop: totalMrp > subtotal ? "6px" : "0" }}>
+          <span style={{ color: "#4a3528", fontWeight: "600" }}>
+            Subtotal {count > 0 ? `(${count} item${count !== 1 ? "s" : ""})` : ""}
+          </span>
+          <span style={{ fontSize: "13.5px", fontWeight: "700", color: "#2b170d" }}>
+            {money(subtotal)}
+          </span>
+        </div>
 
         {/* Shipping Charges Row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
