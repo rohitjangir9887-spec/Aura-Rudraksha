@@ -2,12 +2,12 @@ import mongoose from "mongoose";
 
 const orderSchema = new mongoose.Schema(
   {
-    id: { type: String, required: true, unique: true, index: true },
-    orderId: { type: String, index: true },
-    orderNumber: { type: String, index: true },
-    authUserId: { type: String, index: true },
-    guestToken: { type: String, default: "", index: true },
-    customerId: { type: String, index: true },
+    id: { type: String, required: true, unique: true },
+    orderId: { type: String },
+    orderNumber: { type: String },
+    authUserId: { type: String },
+    guestToken: { type: String, default: "" },
+    customerId: { type: String },
     customerName: { type: String, default: "Customer" },
     customerEmail: { type: String, default: "" },
     customerPhone: { type: String, default: "" },
@@ -27,8 +27,8 @@ const orderSchema = new mongoose.Schema(
     amountRefunded: { type: Number, default: 0 },
     paymentMethod: { type: String, default: "PayU Hosted Checkout (UPI / Cards / NetBanking)" },
     paymentStatus: { type: String, default: "Pending" }, // "Pending", "Paid", "Failed", "Refunded", "Partially Refunded"
-    txnid: { type: String, default: "", index: true },
-    mihpayid: { type: String, default: "", index: true },
+    txnid: { type: String, default: "" },
+    mihpayid: { type: String, default: "" },
     bankRefNum: { type: String, default: "" },
     paymentMode: { type: String, default: "" },
     paymentDetails: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -36,13 +36,13 @@ const orderSchema = new mongoose.Schema(
     refundDetails: { type: mongoose.Schema.Types.Mixed, default: null },
     refundHistory: { type: Array, default: [] },
     messages: { type: Array, default: [] },
-    refundStatus: { type: String, default: "None", index: true }, // "None", "Refund Pending", "Partially Refunded", "Refunded"
+    refundStatus: { type: String, default: "None" }, // "None", "Refund Pending", "Partially Refunded", "Refunded"
     refundNote: { type: String, default: "" },
     refundNotes: { type: String, default: "" },
     cancelledBy: { type: String, default: "" }, // "Seller", "Customer", "System"
     cancelReason: { type: String, default: "" },
     cancelledAt: { type: String, default: "" },
-    orderStatus: { type: String, default: "Pending", index: true }, // "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"
+    orderStatus: { type: String, default: "Pending" }, // "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"
     status: { type: String, default: "Pending" },
     address: { type: String, default: "" },
     shippingAddress: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -50,7 +50,7 @@ const orderSchema = new mongoose.Schema(
     state: { type: String, default: "" },
     pincode: { type: String, default: "" },
     notes: { type: String, default: "" },
-    orderSource: { type: String, default: "website", index: true },
+    orderSource: { type: String, default: "website" },
     source: { type: String, default: "website" },
     trackingNumber: { type: String, default: "" },
     trackingId: { type: String, default: "" },
@@ -69,20 +69,25 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+orderSchema.index({ orderId: 1 });
 orderSchema.index({ orderNumber: 1 });
-orderSchema.index({ txnid: 1 });
-orderSchema.index({ mihpayid: 1 });
 orderSchema.index({ authUserId: 1 });
-orderSchema.index({ customerEmail: 1 });
 orderSchema.index({ email: 1 });
+orderSchema.index({ customerEmail: 1 });
 orderSchema.index({ phone: 1 });
 orderSchema.index({ customerPhone: 1 });
 orderSchema.index({ "shippingAddress.email": 1 });
 orderSchema.index({ "shippingAddress.phone": 1 });
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ guestToken: 1 });
+orderSchema.index({ customerId: 1 });
+orderSchema.index({ txnid: 1 });
+orderSchema.index({ mihpayid: 1 });
 orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ orderStatus: 1 });
+orderSchema.index({ refundStatus: 1 });
+orderSchema.index({ orderSource: 1 });
 orderSchema.index({ "paymentAttempts.txnid": 1 });
-orderSchema.index({ id: 1 });
 
 orderSchema.pre("save", function () {
   if (!this.orderId && this.id) {
