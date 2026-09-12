@@ -318,10 +318,8 @@ export function Product() {
   };
 
   const getProductShareUrl = () => {
-    if (!p) return "https://aurarudraksha.bond";
-    const origin = (typeof window !== "undefined" && window.location.hostname && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1"))
-      ? window.location.origin
-      : "https://aurarudraksha.bond";
+    if (!p) return typeof window !== "undefined" ? window.location.href : "https://aurarudraksha.bond";
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://aurarudraksha.bond";
     return `${origin}/product/${p.slug || p.id || id}`;
   };
 
@@ -352,7 +350,7 @@ export function Product() {
     if (!p) return;
     const shareUrl = getProductShareUrl();
     const priceStr = p.price ? `₹${Number(p.price).toLocaleString("en-IN")}` : "";
-    const text = `*${p.name}* ${priceStr ? `(${priceStr})` : ""}\n100% Authentic Lab Certified Nepali Rudraksha bead from Aura Rudraksha.\n\n🔗 ${shareUrl}`;
+    const text = `🌸 *${p.name}* ${priceStr ? `(${priceStr})` : ""}\n100% Authentic Lab Certified Rudraksha from Aura Rudraksha.\n\n👇 *View Consecrated Product & Certificate:* \n${shareUrl}`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(waUrl, "_blank", "noopener,noreferrer");
     setShareOpen(false);

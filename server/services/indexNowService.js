@@ -34,6 +34,14 @@ export function getSiteDomain(req) {
 }
 
 export function getSiteBaseUrl(req) {
+  if (req && req.headers) {
+    const rawHost = req.headers['x-forwarded-host'] || req.headers.host;
+    if (rawHost && typeof rawHost === "string" && !rawHost.includes("localhost") && !rawHost.includes("127.0.0.1")) {
+      const cleanHost = rawHost.split(",")[0].trim();
+      const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'https');
+      return `${proto}://${cleanHost}`;
+    }
+  }
   if (process.env.SITE_URL) {
     let raw = process.env.SITE_URL.trim().replace(/\/+$/, "");
     if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {

@@ -16943,7 +16943,20 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   background-color: #f7f1e8 !important;
 }
 
-/* Targeted Selector Enhancements for Sacred Vedic Collection Showcase */
+/* Ultra-Crisp High Definition Image Rendering */
+img,
+.aura-card-img,
+.aura-gallery-hero-img,
+.product-detail img,
+.product-card img,
+.aura-opt-img-container img,
+div[id^="product-card-"] img {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: auto !important;
+  backface-visibility: hidden !important;
+  transform: translateZ(0) !important;
+}
 div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > section#sacred-vedic-collection-section:nth-of-type(1) > div:nth-of-type(3) > div#product-card-1:nth-of-type(1) > div:nth-of-type(2) {
   padding: 16px 14px 18px !important;
   background: linear-gradient(180deg, #ffffff 0%, #fffcf9 100%) !important;

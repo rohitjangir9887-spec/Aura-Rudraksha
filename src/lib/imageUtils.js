@@ -73,8 +73,9 @@ export function markProxyFailed(url) {
 
 /**
  * Append CDN sizing parameters if using supported image delivery services (e.g. ImageKit, Unsplash)
+ * Supports 2x/3x Retina high-DPI displays to ensure ultra-sharp crisp rendering without blurriness.
  */
-export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
+export function getOptimizedImageUrl(url, { width = 1200, quality = 92 } = {}) {
   if (!url || typeof url !== "string") return "/images/placeholder.svg";
   const clean = url.trim();
   if (!clean) return "/images/placeholder.svg";
@@ -84,16 +85,20 @@ export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
     return clean;
   }
 
+  // Multiply target width by 2x for Retina High-DPI crisp displays (capped at 2400px)
+  const targetWidth = Math.min(Math.max(width * 2, 800), 2400);
+  const targetQuality = Math.max(quality, 90);
+
   // If ImageKit URL, apply progressive transformation parameters (auto WebP, progressive render)
   if (clean.includes("ik.imagekit.io")) {
     const separator = clean.includes("?") ? "&" : "?";
-    return `${clean}${separator}tr=w-${width},q-${quality},f-auto,pr-true`;
+    return `${clean}${separator}tr=w-${targetWidth},q-${targetQuality},f-auto,pr-true`;
   }
 
   // If Unsplash URL, apply dimension and quality parameters
   if (clean.includes("images.unsplash.com")) {
     const separator = clean.includes("?") ? "&" : "?";
-    return `${clean}${separator}auto=format&fit=crop&w=${width}&q=${quality}`;
+    return `${clean}${separator}auto=format&fit=crop&w=${targetWidth}&q=${targetQuality}`;
   }
 
   // If direct image URL, Google User photo, or Firebase/Cloud storage, return directly
@@ -109,7 +114,7 @@ export function getOptimizedImageUrl(url, { width = 400, quality = 82 } = {}) {
   }
 
   // If ibb.co, imgur, or generic external image URL -> transform & compress to WebP via wsrv.nl CDN proxy
-  return `https://wsrv.nl/?url=${encodeURIComponent(clean)}&w=${width}&q=${quality}&output=webp`;
+  return `https://wsrv.nl/?url=${encodeURIComponent(clean)}&w=${targetWidth}&q=${targetQuality}&output=webp`;
 }
 
 /**
@@ -138,7 +143,7 @@ export async function cacheImageLocally(url) {
  * maintaining pristine original visual quality (84% WebP quality, high bicubic smoothing)
  * while reducing file size by 70% to 85% (e.g. 5MB-10MB -> ~120KB-250KB) for lightning-fast UI loading.
  */
-export async function compressImage(file, maxDimension = 1600, quality = 0.84) {
+export async function compressImage(file, maxDimension = 2400, quality = 0.92) {
   if (!file || !file.type || !file.type.startsWith("image/")) {
     return file;
   }
