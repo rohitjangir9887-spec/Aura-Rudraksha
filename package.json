@@ -49,5 +49,6 @@
     "@types/nodemailer": "^8.0.1",
     "mongodb-memory-server": "^11.2.0",
     "vitest": "^5.0.0"
-  }
+  },
+  "packageManager": "pnpm@9.15.4"
 }

@@ -188,17 +188,19 @@ export async function connectDB() {
 
   // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.K_SERVICE);
     const opts = {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       maxIdleTimeMS: 30000,
-      maxPoolSize: 25,
-      minPoolSize: 2,
+      maxPoolSize: isServerless ? 10 : 25,
+      minPoolSize: isServerless ? 0 : 2,
       heartbeatFrequencyMS: 10000,
       retryWrites: true,
       retryReads: true,
-      autoIndex: process.env.NODE_ENV !== "production"
+      autoIndex: process.env.NODE_ENV !== "production",
+      family: 4
     };
 
     const doConnect = async () => {
