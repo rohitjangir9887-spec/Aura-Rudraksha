@@ -15,9 +15,11 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 // only counter that matters for abuse (incremented server-side only, in
 // orderController, never from this admin form).
 const COUPON_FIELDS = {
+  id: "string",
   code: "string", discount: "number", value: "number", type: "string", limit: "number",
   usage: "number", minAmount: "number", minOrder: "number", minOrderValue: "number",
-  expiry: "nullableString", status: "string", description: "string", targetType: "string", selectedProducts: "string[]", excludedProducts: "string[]", targetCategories: "string[]", targetSubcategories: "string[]", maxDiscount: "number", perCustomerLimit: "number"
+  expiry: "nullableString", status: "string", description: "string", targetType: "string", selectedProducts: "string[]", excludedProducts: "string[]", targetCategories: "string[]", targetSubcategories: "string[]", maxDiscount: "number", perCustomerLimit: "number",
+  showOnHome: "boolean"
 };
 
 // Fields safe to show to unauthenticated shoppers on cart/checkout (no usage
@@ -28,10 +30,15 @@ function toPublicCoupon(c) {
     code: c.code,
     discount: c.discount ?? c.value ?? 0,
     type: c.type || "percentage",
-    minAmount: c.minAmount ?? c.minOrder ?? 0,
+    minAmount: c.minAmount ?? c.minOrder ?? c.minOrderValue ?? 0,
+    maxDiscount: c.maxDiscount ?? 0,
     expiry: c.expiry || c.expiresAt || null,
     status: c.status,
-    description: c.description || ""
+    description: c.description || "",
+    targetType: c.targetType || "all",
+    selectedProducts: Array.isArray(c.selectedProducts) ? c.selectedProducts : [],
+    excludedProducts: Array.isArray(c.excludedProducts) ? c.excludedProducts : [],
+    showOnHome: Boolean(c.showOnHome)
   };
 }
 
@@ -170,10 +177,11 @@ export async function getCoupons(req, res, next) {
       const { isInitialAdmin } = isAdminUser(req.user);
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
     }
+    const isExplicitAdminQuery = req.query?.scope === "admin" || req.query?.admin === "true";
 
     if (!isDbConnected()) {
       const list = inMemoryStore.coupons || defaultCoupons;
-      if (isAdmin) {
+      if (isAdmin || isExplicitAdminQuery) {
         return res.json({ success: true, data: list, count: list.length, isFallback: true });
       }
       const publicCoupons = list.filter(c => c.status === "Active").map(toPublicCoupon);
@@ -190,7 +198,7 @@ export async function getCoupons(req, res, next) {
     }
     inMemoryStore.coupons = coupons;
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    if (isAdmin) {
+    if (isAdmin || isExplicitAdminQuery) {
       return res.json({ success: true, data: coupons, count: coupons.length });
     }
     const publicCoupons = coupons.filter(c => c.status === "Active").map(toPublicCoupon);
@@ -209,19 +217,27 @@ export async function createCoupon(req, res, next) {
       return res.status(400).json({ success: false, message: "Code and discount are required" });
     }
 
-    const id = "COUP-" + Date.now();
+    const cleanCode = String(data.code).trim().toUpperCase();
+    const existingId = req.body.id || req.body._id || data.id;
+    const id = existingId ? String(existingId) : ("COUP-" + Date.now());
+
     const payload = {
       ...data,
       id,
-      code: data.code.trim().toUpperCase(),
+      code: cleanCode,
       discount: resolvedDiscount,
       type: data.type || "percentage",
       limit: Number(data.limit) || 1000,
       usage: Number(data.usage) || 0,
       minAmount: Number(data.minAmount || data.minOrder || data.minOrderValue || 0),
+      maxDiscount: Number(data.maxDiscount || 0),
       expiry: data.expiry || null,
       status: data.status === "Disabled" ? "Inactive" : (data.status || "Active"),
-      description: (data.description || (data.type === "fixed" ? `Flat ₹${resolvedDiscount} Off` : `${resolvedDiscount}% Off`)).trim()
+      description: (data.description || (data.type === "fixed" ? `Flat ₹${resolvedDiscount} Off` : `${resolvedDiscount}% Off`)).trim(),
+      targetType: data.targetType || "all",
+      selectedProducts: Array.isArray(data.selectedProducts) ? data.selectedProducts : [],
+      excludedProducts: Array.isArray(data.excludedProducts) ? data.excludedProducts : [],
+      showOnHome: Boolean(data.showOnHome)
     };
 
     if (!isDbConnected()) {
@@ -233,11 +249,68 @@ export async function createCoupon(req, res, next) {
       });
     }
 
+    const query = existingId
+      ? { $or: [{ id }, { code: cleanCode }] }
+      : { code: cleanCode };
+
+    const oldCoupon = await Coupon.findOne(query).lean();
+    const oldCode = oldCoupon?.code ? String(oldCoupon.code).toUpperCase() : "";
+
     const created = await Coupon.findOneAndUpdate(
-      { $or: [{ id: payload.id }, { code: payload.code }] },
-      payload,
+      query,
+      { $set: payload },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+
+    // Sync Home Banner & Offers in MongoDB
+    if (payload.showOnHome && payload.status === "Active") {
+      const offerTitle = payload.type === 'fixed' ? `Flat ₹${resolvedDiscount} OFF` : `Flat ${resolvedDiscount}% OFF`;
+      const offerData = {
+        title: offerTitle,
+        label: "Special Coupon Offer",
+        description: `Use coupon code ${cleanCode} at checkout.`,
+        buttonText: "Shop Now",
+        link: "/shop",
+        couponCode: cleanCode,
+        type: payload.type === 'fixed' ? "Flat Amount" : "Percentage",
+        discountValue: resolvedDiscount,
+        shownOn: "Home Banner",
+        status: "Active",
+        image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png"
+      };
+      await Offer.findOneAndUpdate(
+        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+        { $set: offerData, $setOnInsert: { id: "OFFER-" + Date.now() } },
+        { upsert: true, returnDocument: "after" }
+      ).catch(() => {});
+
+      await ActiveOffer.updateMany(
+        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+        { $set: { couponCode: cleanCode, status: "Active", title: offerTitle, discountValue: resolvedDiscount } }
+      ).catch(() => {});
+    } else {
+      await Offer.updateMany(
+        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+        { $set: { status: "Inactive" } }
+      ).catch(() => {});
+      await ActiveOffer.updateMany(
+        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+        { $set: { status: "Inactive", enabled: false } }
+      ).catch(() => {});
+    }
+
+    if (oldCode && oldCode !== cleanCode) {
+      await Offer.updateMany({ couponCode: oldCode }, { $set: { couponCode: cleanCode } }).catch(() => {});
+      await ActiveOffer.updateMany({ couponCode: oldCode }, { $set: { couponCode: cleanCode } }).catch(() => {});
+      await Promotion.updateMany({ $or: [{ code: oldCode }, { couponCode: oldCode }] }, { $set: { code: cleanCode, couponCode: cleanCode } }).catch(() => {});
+    }
+
+    // Keep inMemoryStore in sync
+    if (inMemoryStore.coupons) {
+      const idx = inMemoryStore.coupons.findIndex(c => c.id === created.id || c.code === created.code);
+      if (idx >= 0) inMemoryStore.coupons[idx] = created.toObject ? created.toObject() : created;
+      else inMemoryStore.coupons.unshift(created.toObject ? created.toObject() : created);
+    }
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -270,11 +343,26 @@ export async function updateCoupon(req, res, next) {
       });
     }
 
-    const oldCoupon = await Coupon.findOne({ $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] }).lean();
+    const cleanId = String(id).trim();
+    const queryConditions = [
+      { id: cleanId },
+      { code: cleanId.toUpperCase() }
+    ];
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      queryConditions.push({ _id: cleanId });
+    }
+
+    const oldCoupon = await Coupon.findOne({ $or: queryConditions }).lean();
+    if (!oldCoupon && !data.code) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+
+    const targetQuery = oldCoupon ? { _id: oldCoupon._id } : { $or: queryConditions };
+
     const updated = await Coupon.findOneAndUpdate(
-      { $or: [{ id: String(id) }, { code: String(id).toUpperCase() }] },
+      targetQuery,
       { $set: data },
-      { returnDocument: "after" }
+      { returnDocument: "after", upsert: !oldCoupon, setDefaultsOnInsert: true }
     );
     if (!updated) {
       return res.status(404).json({ success: false, message: "Coupon not found" });
@@ -282,9 +370,35 @@ export async function updateCoupon(req, res, next) {
 
     const oldCode = oldCoupon?.code ? String(oldCoupon.code).toUpperCase() : "";
     const newCode = updated?.code ? String(updated.code).toUpperCase() : oldCode;
+    const discountVal = Number(updated.discount !== undefined ? updated.discount : updated.value ?? 0);
 
-    // Sync any linked Offers, ActiveOffers, and Promotions so home page UI updates immediately
-    if (data.status === "Inactive" || data.status === "Disabled" || data.status === "Expired") {
+    // Sync Home Banner & Offers in MongoDB
+    if (updated.showOnHome && updated.status === "Active") {
+      const offerTitle = updated.type === 'fixed' ? `Flat ₹${discountVal} OFF` : `Flat ${discountVal}% OFF`;
+      const offerData = {
+        title: offerTitle,
+        label: "Special Coupon Offer",
+        description: `Use coupon code ${newCode} at checkout.`,
+        buttonText: "Shop Now",
+        link: "/shop",
+        couponCode: newCode,
+        type: updated.type === 'fixed' ? "Flat Amount" : "Percentage",
+        discountValue: discountVal,
+        shownOn: "Home Banner",
+        status: "Active",
+        image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png"
+      };
+      await Offer.findOneAndUpdate(
+        { $or: [{ couponCode: newCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+        { $set: offerData, $setOnInsert: { id: "OFFER-" + Date.now() } },
+        { upsert: true, returnDocument: "after" }
+      ).catch(() => {});
+
+      await ActiveOffer.updateMany(
+        { $or: [{ couponCode: newCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+        { $set: { couponCode: newCode, status: "Active", title: offerTitle, discountValue: discountVal } }
+      ).catch(() => {});
+    } else {
       await Offer.updateMany(
         { $or: [{ couponCode: oldCode }, { couponCode: newCode }] },
         { $set: { status: "Inactive" } }
@@ -293,10 +407,19 @@ export async function updateCoupon(req, res, next) {
         { $or: [{ couponCode: oldCode }, { couponCode: newCode }] },
         { $set: { status: "Inactive", enabled: false } }
       ).catch(() => {});
-    } else if (newCode && oldCode && newCode !== oldCode) {
+    }
+
+    if (newCode && oldCode && newCode !== oldCode) {
       await Offer.updateMany({ couponCode: oldCode }, { $set: { couponCode: newCode } }).catch(() => {});
       await ActiveOffer.updateMany({ couponCode: oldCode }, { $set: { couponCode: newCode } }).catch(() => {});
       await Promotion.updateMany({ $or: [{ code: oldCode }, { couponCode: oldCode }] }, { $set: { code: newCode, couponCode: newCode } }).catch(() => {});
+    }
+
+    // Keep inMemoryStore in sync
+    if (inMemoryStore.coupons) {
+      const idx = inMemoryStore.coupons.findIndex(c => String(c.id) === String(updated.id) || String(c._id) === String(updated._id) || c.code === updated.code);
+      if (idx >= 0) inMemoryStore.coupons[idx] = updated.toObject ? updated.toObject() : updated;
+      else inMemoryStore.coupons.unshift(updated.toObject ? updated.toObject() : updated);
     }
 
     await logAuditEvent({
@@ -306,7 +429,7 @@ export async function updateCoupon(req, res, next) {
       entityType: "Coupon",
       entityId: String(id),
       oldState: oldCoupon,
-      newState: data,
+      newState: updated,
       req
     });
 

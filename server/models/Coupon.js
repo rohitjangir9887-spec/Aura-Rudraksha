@@ -19,7 +19,8 @@ const couponSchema = new mongoose.Schema(
     targetSubcategories: { type: [String], default: [] },
     maxDiscount: { type: Number, default: 0 },
     perCustomerLimit: { type: Number, default: 0 },
-
+    showOnHome: { type: Boolean, default: false },
+    description: { type: String, default: "" }
   },
   {
     timestamps: true,

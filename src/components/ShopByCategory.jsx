@@ -275,10 +275,13 @@ export function ShopByCategory() {
               <div 
                 style={{ 
                   width: "100%", 
-                  aspectRatio: "1.15 / 1", 
+                  aspectRatio: "1 / 1", 
                   overflow: "hidden",
                   background: "#f4eee6",
-                  position: "relative"
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
                 }}
               >
                 <OptimizedImage
@@ -289,8 +292,10 @@ export function ShopByCategory() {
                   style={{
                     width: "100%",
                     height: "100%",
-                    objectFit: "cover",
+                    objectFit: "contain",
                     display: "block",
+                    padding: "6px",
+                    boxSizing: "border-box",
                     transition: "transform 0.35s ease"
                   }}
                 />

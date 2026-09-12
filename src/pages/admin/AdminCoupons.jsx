@@ -4,7 +4,7 @@ import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal";
-import { Edit, Trash2, Plus, ArrowLeft, Tag, Check, AlertCircle, ShoppingBag, ShieldAlert } from "lucide-react";
+import { Edit, Trash2, Plus, ArrowLeft, Tag, Check, AlertCircle, ShoppingBag, ShieldAlert, RefreshCw } from "lucide-react";
 import { AdminProductMultiSelector } from "../../components/admin/AdminProductMultiSelector";
 import "./admin-pages.css";
 
@@ -13,22 +13,52 @@ export function AdminCoupons() {
   const [editing, setEditing] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [deleteId, setDeleteId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [dbStatus, setDbStatus] = useState("connected");
 
   useEffect(() => {
     load();
-    const unsub = onStoreUpdate(() => setCoupons(db.getCoupons()));
+    const unsub = onStoreUpdate(() => {
+      setCoupons(db.getCoupons() || []);
+    });
     return () => unsub();
   }, []);
 
   const load = async () => {
-    if ((db.getCoupons() || []).length === 0 && db.fetchCoupons) {
-      try { await db.fetchCoupons(); } catch(e) {}
+    setLoading(true);
+    try {
+      if (db.fetchCoupons) {
+        const fresh = await db.fetchCoupons();
+        if (Array.isArray(fresh)) {
+          setCoupons(fresh);
+          setDbStatus("connected");
+          setLoading(false);
+          return;
+        }
+      }
+      setDbStatus("connected");
+    } catch (e) {
+      console.warn("Failed fetching fresh coupons from MongoDB:", e);
+      setDbStatus("offline");
     }
     setCoupons(db.getCoupons() || []);
+    setLoading(false);
   };
 
   const isExpired = (c) => Boolean(c.expiry && new Date(c.expiry).getTime() < Date.now());
   const effectiveStatus = (c) => (c.status === "Active" && isExpired(c)) ? "Expired" : (c.status === "Disabled" ? "Inactive" : c.status || "Active");
+
+  const handleStartEdit = (coupon) => {
+    const isLinkedToOffer = (db.getOffers() || []).some(
+      o => o.couponCode && String(o.couponCode).toUpperCase() === String(coupon.code).toUpperCase() && o.status === "Active"
+    );
+    setEditing({
+      ...coupon,
+      _originalCode: coupon.code,
+      showOnHome: Boolean(coupon.showOnHome || isLinkedToOffer)
+    });
+    setErrorMsg("");
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -68,12 +98,15 @@ export function AdminCoupons() {
     };
 
     try {
+      setLoading(true);
       await db.saveCoupon(savedCoupon);
+
+      const oldCode = editing._originalCode || code;
 
       // Sync to Home Banner if checked
       if (savedCoupon.showOnHome && savedCoupon.status === "Active") {
         const existingOffers = db.getOffers() || [];
-        const existing = existingOffers.find(o => o.couponCode === code);
+        const existing = existingOffers.find(o => o.couponCode === code || o.couponCode === oldCode);
         const offerTitle = savedCoupon.type === 'fixed' ? `Flat ₹${discountVal} OFF` : `Flat ${discountVal}% OFF`;
 
         await db.saveOffer({
@@ -93,7 +126,7 @@ export function AdminCoupons() {
       } else {
         // If unchecked or inactive, remove from home offers immediately
         const existingOffers = db.getOffers() || [];
-        const existing = existingOffers.find(o => o.couponCode === code);
+        const existing = existingOffers.find(o => o.couponCode === code || o.couponCode === oldCode);
         if (existing) {
           try {
             await db.deleteOffer(existing.id);
@@ -103,9 +136,11 @@ export function AdminCoupons() {
 
       emitToast(editing.id ? "Coupon updated successfully" : "Coupon created successfully", "success");
       setEditing(null);
-      load();
+      await load();
     } catch (err) {
       emitToast(err.message || "Failed to save coupon to database", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -338,9 +373,42 @@ export function AdminCoupons() {
           <h1>Coupons</h1>
           <p className="admin-page-subtitle">Manage promotional discount codes for store checkout</p>
         </div>
-        <button className="admin-btn" onClick={() => setEditing({ code: '', discount: 10, type: 'percentage', limit: '', minAmount: '', maxDiscount: '', targetType: 'all', selectedProducts: [], excludedProducts: [], expiry: '', status: 'Active', showOnHome: false })}>
-          <Plus size={16}/> Add Coupon
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            padding: '5px 12px',
+            borderRadius: '20px',
+            background: dbStatus === "connected" ? "#e6f4ea" : "#fce8e6",
+            color: dbStatus === "connected" ? "#137333" : "#c5221f",
+            fontWeight: 600,
+            border: `1px solid ${dbStatus === "connected" ? "#ceead6" : "#fad2cf"}`
+          }}>
+            <span style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              background: dbStatus === "connected" ? "#137333" : "#c5221f"
+            }} />
+            {dbStatus === "connected" ? "MongoDB Live" : "Offline Cache"}
+          </div>
+          <button 
+            type="button"
+            className="admin-btn secondary" 
+            onClick={() => load()} 
+            disabled={loading}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px' }}
+            title="Fetch fresh data from MongoDB"
+          >
+            <RefreshCw size={15} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} /> 
+            {loading ? "Syncing..." : "Refresh"}
+          </button>
+          <button className="admin-btn" onClick={() => setEditing({ code: '', discount: 10, type: 'percentage', limit: '', minAmount: '', maxDiscount: '', targetType: 'all', selectedProducts: [], excludedProducts: [], expiry: '', status: 'Active', showOnHome: false })}>
+            <Plus size={16}/> Add Coupon
+          </button>
+        </div>
       </div>
 
       {coupons.length === 0 ? (
@@ -383,7 +451,7 @@ export function AdminCoupons() {
                     <td>{c.showOnHome ? <span className="admin-badge info">Synced</span> : "—"}</td>
                     <td>
                       <div className="admin-actions-cell">
-                        <button className="admin-icon-btn" onClick={() => setEditing(c)} title="Edit Coupon">
+                        <button className="admin-icon-btn" onClick={() => handleStartEdit(c)} title="Edit Coupon">
                           <Edit size={16} />
                         </button>
                         <button className="admin-icon-btn danger" onClick={() => setDeleteId(c.id)} title="Delete Coupon">
@@ -426,7 +494,7 @@ export function AdminCoupons() {
 
               <div className="mobile-card-body">
                 <div className="mobile-card-actions" style={{ width: '100%', justifyContent: 'flex-end' }}>
-                  <button className="admin-btn secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => setEditing(c)}>
+                  <button className="admin-btn secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleStartEdit(c)}>
                     <Edit size={14} /> Edit
                   </button>
                   <button className="admin-icon-btn danger" style={{ width: 34, height: 34 }} onClick={() => setDeleteId(c.id)} title="Delete Coupon">

@@ -124,14 +124,14 @@ export function Wishlist() {
                           boxShadow: "0 4px 15px rgba(0,0,0,0.02)",
                         }}
                       >
-                        <div style={{ height: "180px", background: "#f5eee6", overflow: "hidden" }}>
-                          <Link to={getProductRoute(p)}>
+                        <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#f5eee6", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Link to={getProductRoute(p)} style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <OptimizedImage
                               src={displayImage}
                               alt={p.name}
                               width={320}
                               quality={80}
-                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              style={{ width: "100%", height: "100%", objectFit: "contain", padding: "6px", boxSizing: "border-box" }}
                             />
                           </Link>
                         </div>
@@ -204,8 +204,8 @@ export function Wishlist() {
                     position: "relative",
                   }}
                 >
-                  <div style={{ position: "relative", height: "220px", background: "#f5eee6", overflow: "hidden" }}>
-                    <Link to={getProductRoute(p)}>
+                  <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", background: "#f5eee6", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Link to={getProductRoute(p)} style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <img
                         src={displayImage}
                         alt={p.name}
@@ -214,7 +214,7 @@ export function Wishlist() {
                         onError={(e) => {
                           e.target.src = "/images/placeholder.svg";
                         }}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        style={{ width: "100%", height: "100%", objectFit: "contain", padding: "6px", boxSizing: "border-box" }}
                       />
                     </Link>
                     {p.badge && (

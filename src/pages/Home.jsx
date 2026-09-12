@@ -123,16 +123,7 @@ export function Home() {
       return true;
     }).sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    setOffers((prev) => {
-      if (
-        prev &&
-        prev.length === allOffers.length &&
-        prev.every((o, i) => o.id === allOffers[i]?.id && o.status === allOffers[i]?.status)
-      ) {
-        return prev;
-      }
-      return allOffers;
-    });
+    setOffers(allOffers);
     setIsLoading(false);
   };
 
@@ -140,7 +131,10 @@ export function Home() {
     // 1. Instantly render from local cache
     updateLocalState();
 
-    // 2. Background fetch for home dataset (products, banners, offers)
+    // 2. Background fetch for home dataset & coupons
+    if (db.fetchCoupons) {
+      db.fetchCoupons().then(() => updateLocalState()).catch(() => {});
+    }
     db.fetchHomeData().then(() => {
       updateLocalState();
     }).catch(() => {});
@@ -279,6 +273,7 @@ export function Home() {
 
 
     <AuraTrustFeatureBar />
+
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <motion.div    ><ShopByCategory /></motion.div>
 

@@ -1941,10 +1941,13 @@ export const db = {
     return storeCache.settings;
   },
   fetchCoupons: async () => {
-    const res = await apiRequest("/coupons");
+    const res = await apiRequest("/coupons?scope=admin", { noCache: true });
     if (res?.success && Array.isArray(res.data)) {
       storeCache.coupons = res.data;
-      // emitStoreUpdate (removed to prevent infinite fetch loop)
+      try {
+        localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+      } catch (_) {}
+      emitStoreUpdate("coupons:synced", storeCache.coupons);
     }
     return storeCache.coupons;
   },
@@ -2579,6 +2582,7 @@ export const db = {
   },
 
   saveCoupon: async (c) => {
+    const isUpdate = Boolean(c.id && !String(c.id).startsWith("temp_"));
     const id = c.id || ("COUP-" + Date.now());
     const finalCoupon = {
       ...c,
@@ -2587,25 +2591,47 @@ export const db = {
       discount: Number(c.discount) || 0,
       usage: Number(c.usage) || 0,
       limit: Number(c.limit) || 1000,
-      status: c.status || "Active"
+      minAmount: Number(c.minAmount || c.minOrder || 0),
+      maxDiscount: Number(c.maxDiscount || 0),
+      status: c.status || "Active",
+      showOnHome: Boolean(c.showOnHome),
+      targetType: c.targetType || "all",
+      selectedProducts: Array.isArray(c.selectedProducts) ? c.selectedProducts : [],
+      excludedProducts: Array.isArray(c.excludedProducts) ? c.excludedProducts : []
     };
 
-    const res = await apiRequest("/coupons", {
-      method: "POST",
-      body: JSON.stringify(finalCoupon)
-    });
+    let res;
+    if (isUpdate) {
+      res = await apiRequest(`/coupons/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(finalCoupon)
+      });
+      if (res?.status === 404 || (!res?.success && res?.message === "Coupon not found")) {
+        res = await apiRequest("/coupons", {
+          method: "POST",
+          body: JSON.stringify(finalCoupon)
+        });
+      }
+    } else {
+      res = await apiRequest("/coupons", {
+        method: "POST",
+        body: JSON.stringify(finalCoupon)
+      });
+    }
+
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save coupon. Database is unavailable.");
     }
 
     const saved = res.data || finalCoupon;
-    const curIdx = storeCache.coupons.findIndex(x => x.id === id || x.code === finalCoupon.code);
+    const curIdx = storeCache.coupons.findIndex(x => x.id === id || String(x._id) === id || x.code === finalCoupon.code);
     if (curIdx >= 0) storeCache.coupons[curIdx] = saved;
-    else storeCache.coupons.push(saved);
+    else storeCache.coupons.unshift(saved);
     try {
       localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
     } catch (_) {}
     emitStoreUpdate("coupon:saved", saved);
+    emitStoreUpdate("coupons:synced", storeCache.coupons);
     return saved;
   },
 
@@ -2640,15 +2666,20 @@ export const db = {
 
     // If active offer was using this coupon code, deactivate and clear it
     if (storeCache.activeOffer && String(storeCache.activeOffer.couponCode || "").toUpperCase() === targetCode) {
-      storeCache.activeOffer = { ...storeCache.activeOffer, enabled: false, status: "Inactive", couponCode: "" };
+      storeCache.activeOffer = {
+        ...storeCache.activeOffer,
+        enabled: false,
+        status: "Inactive",
+        couponCode: ""
+      };
       try {
         localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
       } catch (_) {}
-      emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
     }
+
+    emitStoreUpdate("coupon:deleted", cleanId);
     emitStoreUpdate("coupons:synced", storeCache.coupons);
     emitStoreUpdate("offers:synced", storeCache.offers);
-    emitStoreUpdate("coupon:deleted", targetId);
     return true;
   },
 
