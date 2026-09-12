@@ -18,6 +18,8 @@ import {
   Package, 
   ShieldCheck, 
   GripVertical,
+  MessageCircle,
+  Search,
   Calendar,
   Clock,
   MapPin,
@@ -46,7 +48,36 @@ export function AuraAIFloating() {
   const [isDismissed, setIsDismissed] = useState(() => auraChatStore.isFloatingDismissed());
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [settings, setSettings] = useState({ enabled: true, showFloatingButton: true });
-  const [mode, setMode] = useState("standard"); // "standard" | "panditji"
+  const [mode, setMode] = useState("standard");
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [timeTheme, setTimeTheme] = useState("theme-classic");
+  const [pillState, setPillState] = useState("default");
+
+  const executeQuickAction = (prompt) => {
+    setShowQuickActions(false);
+    setIsFullWindow(false);
+    setIsOpen(true);
+    if (prompt) {
+      setTimeout(() => {
+        handleSend(prompt);
+      }, 50);
+    }
+  };
+
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const hour = new Date().getHours();
+      if (hour >= 5 && hour < 12) setTimeTheme("theme-dawn");
+      else if (hour >= 12 && hour < 17) setTimeTheme("theme-classic");
+      else if (hour >= 17 && hour < 21) setTimeTheme("theme-sunset");
+      else setTimeTheme("theme-night");
+    };
+    updateTheme();
+    const interval = setInterval(updateTheme, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
 
   // Unified persistent setIsOpen that updates global store
   const setIsOpen = useCallback((val) => {
@@ -467,6 +498,12 @@ export function AuraAIFloating() {
   if (!isAiEnabled || isAdminPage || isDedicatedAiPage) {
     return null;
   }
+
+  // ONLY show on Home page
+  if (path !== "/") {
+    return null;
+  }
+
   if (!isOpen && !isFloatingVisible) {
     return null;
   }
@@ -816,46 +853,68 @@ export function AuraAIFloating() {
             exit={{ scale: 0.85, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <div className="aura-ai-floating-pill">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsFullWindow(false);
-                  setIsOpen(true);
-                }}
-                className="aura-ai-floating-main-btn"
-                aria-label="Open Aura AI Shopping Guide"
-                title="Chat with Aura AI (रुद्राक्ष व ज्योतिष सहायक)"
-              >
-                <div className="aura-ai-floating-pulse" />
-                <div className="aura-ai-floating-icon">
-                  <Sparkles size={13} strokeWidth={2.4} className="aura-ai-sparkle-spin" />
-                  <span className="aura-ai-live-dot" title="Aura AI Online" />
-                </div>
-                <div className="aura-ai-label-group">
-                  <span className="aura-ai-floating-label">Aura AI</span>
-                  <span className="aura-ai-floating-sub">Ask AI</span>
-                </div>
-              </button>
-              <div className="aura-ai-floating-divider" />
-              <button
-                id="aura-ai-floating-dismiss"
-                type="button"
-                className="aura-ai-floating-dismiss-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDismiss(e);
-                }}
-                title="Hide floating button / बंद करें"
-                aria-label="Hide Aura AI floating button"
-              >
-                <X size={13} strokeWidth={2.2} />
-              </button>
+            <div className={`aura-ai-floating-pill-container ${timeTheme}`}>
+              <AnimatePresence>
+                {showQuickActions && (
+                  <motion.div 
+                    className="aura-ai-quick-actions"
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <button className="aura-qa-btn" onClick={() => executeQuickAction("")}><MessageCircle size={16} className="qa-icon" /> Ask anything</button>
+                    <button className="aura-qa-btn" onClick={() => executeQuickAction("Find a product")}><Search size={16} className="qa-icon" /> Find a product</button>
+                    <button className="aura-qa-btn" onClick={() => executeQuickAction("Track my order")}><Package size={16} className="qa-icon" /> Track order</button>
+                    <button className="aura-qa-btn" onClick={() => executeQuickAction("I need Rudraksha guidance")}><Sparkles size={16} className="qa-icon" /> Rudraksha guidance</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            
+              <div className="aura-ai-floating-pill">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickActions(!showQuickActions)}
+                  className="aura-ai-floating-main-btn"
+                  aria-label="Open Aura AI Options"
+                >
+                  <div className="aura-ai-floating-icon">
+                    <Sparkles size={14} strokeWidth={2.4} className={pillState === "thinking" ? "aura-ai-sparkle-spin" : ""} />
+                  </div>
+                  <div className="aura-ai-label-group">
+                    <span className="aura-ai-floating-label" style={{ fontSize: '13px', fontWeight: 600, paddingLeft: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      AI {pillState === "thinking" ? "•••" : pillState === "ready" ? "✓" : ""}
+                    </span>
+                  </div>
+                  {pillState === "default" && (
+                    <div className="aura-ai-chevron-icon">
+                      <ChevronRight size={14} style={{ transform: showQuickActions ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+                    </div>
+                  )}
+                </button>
+                
+                {pillState === "default" && (
+                  <>
+                    <div className="aura-ai-floating-divider" />
+                    <button
+                      type="button"
+                      className="aura-ai-floating-dismiss-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowQuickActions(false);
+                        handleDismiss(e);
+                      }}
+                      aria-label="Hide Aura AI"
+                    >
+                      <X size={13} strokeWidth={2.2} />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
       {/* 2. Toast when user dismisses the button */}
       <AnimatePresence>
         {showUndoToast && !isOpen && (
@@ -1305,7 +1364,7 @@ export function AuraAIFloating() {
                           <div className="aura-ai-msg-text">
                             <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                           </div>
-                          {m.sender === "ai" && mode === "panditji" && m.text && (
+                          {m.sender === "ai" && m.text && (
                             <div style={{ marginTop: "4px" }}>
                               <VoiceReader text={customerSafeAiText(m.text)} />
                             </div>

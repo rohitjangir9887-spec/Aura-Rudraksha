@@ -16976,3 +16976,97 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 
 
+
+/* --- Premium Aura AI Floating Refinement --- */
+.aura-ai-floating-pill-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* Time-based Themes */
+.theme-dawn .aura-ai-floating-pill {
+  background: linear-gradient(135deg, #fdfbf7 0%, #f7f1e3 100%);
+  color: #5c4033;
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 0 14px rgba(212, 175, 55, 0.1);
+}
+.theme-dawn .aura-ai-floating-main-btn { color: #5c4033; }
+.theme-dawn .aura-ai-floating-divider { background: rgba(92, 64, 51, 0.1); }
+.theme-dawn .aura-ai-floating-dismiss-btn { color: #5c4033; border-color: rgba(92, 64, 51, 0.2); background: transparent; }
+
+.theme-classic .aura-ai-floating-pill {
+  background: linear-gradient(135deg, #4a3325 0%, #362216 100%);
+  color: #fffdf9;
+  border-color: rgba(245, 158, 11, 0.5);
+}
+.theme-classic .aura-ai-floating-main-btn { color: #fffdf9; }
+
+.theme-sunset .aura-ai-floating-pill {
+  background: linear-gradient(135deg, #3d2314 0%, #291207 100%);
+  color: #fffdf9;
+  border-color: rgba(251, 191, 36, 0.6);
+}
+.theme-sunset .aura-ai-floating-main-btn { color: #fffdf9; }
+
+.theme-night .aura-ai-floating-pill {
+  background: linear-gradient(135deg, #1c110a 0%, #0d0704 100%);
+  color: #e5e5e5;
+  border-color: rgba(180, 150, 80, 0.4);
+}
+.theme-night .aura-ai-floating-main-btn { color: #e5e5e5; }
+
+/* Quick Actions Panel */
+.aura-ai-quick-actions {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 0 12px rgba(212, 175, 55, 0.08);
+  min-width: 180px;
+}
+.theme-night .aura-ai-quick-actions, .theme-sunset .aura-ai-quick-actions, .theme-classic .aura-ai-quick-actions {
+  background: #2a1a11;
+  border-color: rgba(212, 175, 55, 0.2);
+}
+
+.aura-qa-btn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #4a3325;
+  text-align: left;
+  transition: background 0.2s, color 0.2s;
+}
+.theme-night .aura-qa-btn, .theme-sunset .aura-qa-btn, .theme-classic .aura-qa-btn {
+  color: #f3e8d5;
+}
+
+.aura-qa-btn:hover {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.qa-icon {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+.aura-ai-chevron-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+}
