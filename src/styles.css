@@ -16851,13 +16851,18 @@ button:active, .primary-btn:active, .outline-btn:active {
 .aura-card-img,
 .product-card img,
 .product-image img,
-[id^="product-card-"] img {
+.product-card-img,
+div[id^="product-card-"] img,
+div[id^="product-card-"] span img {
   object-fit: contain !important;
   object-position: center !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
   display: block !important;
   margin: auto !important;
+  background-color: transparent !important;
 }
 
 @media (max-width: 480px) {

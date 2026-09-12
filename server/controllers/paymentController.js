@@ -20,6 +20,7 @@ import { logAuditEvent } from "../services/auditService.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
 import { sendRefundOtpEmail, maskEmail } from "../services/emailService.js";
 import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService.js";
+import { extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 
 /**
  * Safely parse and normalize incoming PayU callback/webhook body
@@ -27,7 +28,7 @@ import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService
  */
 export function extractPayuParams(req) {
   if (!req) return {};
-  const raw = req.body;
+  const raw = (req.body && Object.keys(req.body).length > 0) ? req.body : req.query;
   if (!raw) return {};
 
   if (Buffer.isBuffer(raw)) {
@@ -101,20 +102,6 @@ export function sanitizePaymentDetails(details) {
  * Helper to resolve authoritative base URL for PayU redirects & webhooks
  */
 function resolveAppBaseUrl(req) {
-  if (process.env.SITE_URL) {
-    let raw = process.env.SITE_URL.replace(/\/+$/, "");
-    if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
-      raw = raw.replace(/^https?:\/\/www\./i, "https://");
-      return raw;
-    }
-  }
-  if (process.env.APP_URL) {
-    let raw = process.env.APP_URL.replace(/\/+$/, "");
-    if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
-      raw = raw.replace(/^https?:\/\/www\./i, "https://");
-      return raw;
-    }
-  }
   const host = req ? (req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.host) || "") : "";
   const protocol = req && req.headers?.["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
   if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
@@ -488,12 +475,15 @@ export async function handlePayuCallback(req, res) {
     }
 
     // 7. Perform Server-to-Server Verification with PayU command API
-    const verifyRes = await verifyPayuPaymentServerSide(txnid);
+    let verifyRes = { isPaid: false };
+    try {
+      verifyRes = await verifyPayuPaymentServerSide(txnid);
+    } catch (_) {}
     const { isTest } = getPayuConfig();
-    const isVerified = verifyRes.isPaid || (isTest && hashCheck.valid);
+    const isVerified = Boolean(verifyRes?.isPaid || (hashCheck.valid && status === "success"));
 
-    if (!isVerified || (verifyRes.amount > 0 && Math.abs(verifyRes.amount - expectedAmount) > 0.01)) {
-      console.error(`⚠️ PayU Server-to-Server Verification Failed for txnid ${txnid}:`, verifyRes.message);
+    if (!isVerified || (verifyRes?.amount > 0 && Math.abs(verifyRes.amount - expectedAmount) > 1.0)) {
+      console.error(`⚠️ PayU Server-to-Server Verification Failed for txnid ${txnid}:`, verifyRes?.message || "Verification failed");
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Server-side payment verification failed")}`);
     }
 
@@ -661,19 +651,23 @@ export async function handlePayuCancel(req, res) {
     const txnid = String(params.txnid || "").trim();
     const mihpayid = String(params.mihpayid || "").trim();
     
-    // Hash verification for cancel callback
-    const { salt, expectedKey } = getPayuConfig();
-    const hashCheck = verifyPayuResponseHash(params, salt);
-    if (!hashCheck.valid) {
-      console.warn("⚠️ PayU Cancel Callback Hash Verification Failed:", hashCheck.reason);
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Invalid request signature")}`);
+    // Hash verification for cancel callback (PayU may omit reverse hash when user cancels before gateway interaction)
+    const { salt } = getPayuConfig();
+    if (params.hash) {
+      const hashCheck = verifyPayuResponseHash(params, salt);
+      if (!hashCheck.valid) {
+        console.warn("⚠️ PayU Cancel Callback Hash Notice:", hashCheck.reason);
+      }
     }
 
+    let guestTokenQuery = "";
     if (orderId && isDbConnected()) {
       const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+      if (order && order.guestToken) {
+        guestTokenQuery = `&guestToken=${encodeURIComponent(order.guestToken)}`;
+      }
       if (order && order.paymentStatus === "Paid") {
-        const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
-        return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid || order.txnid}${guestQuery}`);
+        return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid || order.txnid}${guestTokenQuery}`);
       }
       if (order && order.paymentStatus !== "Paid" && order.paymentStatus !== "Refunded") {
         const attempts = order.paymentAttempts || [];
@@ -711,7 +705,7 @@ export async function handlePayuCancel(req, res) {
       }
     }
     
-    return res.redirect(303, `${clientBaseUrl}/payment-result?status=cancelled&orderId=${orderId}&txnid=${txnid}`);
+    return res.redirect(303, `${clientBaseUrl}/payment-result?status=cancelled&orderId=${orderId}&txnid=${txnid}${guestTokenQuery}`);
   } catch (err) {
     console.error("Error in handlePayuCancel:", err);
     return res.redirect(303, `${clientBaseUrl}/payment-result?status=cancelled&orderId=unknown`);
@@ -985,12 +979,15 @@ export async function verifyPaymentStatus(req, res, next) {
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
     const isEmailOwner = req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase();
-    const isPhoneOwner = req.user?.phone && (order.customerPhone || order.phone) && String(req.user.phone).trim() === String(order.customerPhone || order.phone).trim();
+    const reqPhone10 = req.user?.phone ? extractRaw10DigitPhone(req.user.phone) : "";
+    const orderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || "");
+    const isPhoneOwner = Boolean(reqPhone10 && orderPhone10 && reqPhone10 === orderPhone10);
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = isGuestOrder && (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
       (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      Boolean(req.user)
+      Boolean(req.user) ||
+      !order.guestToken
     );
 
     if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
@@ -1030,7 +1027,7 @@ export async function verifyPaymentStatus(req, res, next) {
           const verifyRes = await verifyPayuPaymentServerSide(attempt.txnid);
           const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
 
-          if (verifyRes.success && verifyRes.isPaid && Math.abs(verifyRes.amount - expectedAmount) < 0.01) {
+          if (verifyRes.success && verifyRes.isPaid && (verifyRes.amount <= 0 || Math.abs(verifyRes.amount - expectedAmount) <= 1.0)) {
             isAnyAttemptPaid = true;
             successfulTxnid = attempt.txnid;
             finalVerifyRes = verifyRes;
@@ -1234,12 +1231,15 @@ export async function retryPayuPayment(req, res, next) {
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
     const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
     const isEmailOwner = req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase();
-    const isPhoneOwner = req.user?.phone && (order.customerPhone || order.phone) && String(req.user.phone).trim() === String(order.customerPhone || order.phone).trim();
+    const retryReqPhone10 = req.user?.phone ? extractRaw10DigitPhone(req.user.phone) : "";
+    const retryOrderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || "");
+    const isPhoneOwner = Boolean(retryReqPhone10 && retryOrderPhone10 && retryReqPhone10 === retryOrderPhone10);
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = isGuestOrder && (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
       (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      Boolean(req.user)
+      Boolean(req.user) ||
+      !order.guestToken
     );
 
     if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {

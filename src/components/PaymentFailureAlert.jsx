@@ -101,7 +101,7 @@ export function PaymentFailureAlert() {
     if (!alertData?.orderNumber) return;
     setIsRetrying(true);
     try {
-      const res = await db.retryPayment(alertData.orderNumber);
+      const res = await db.retryPayment(alertData.orderNumber, alertData.txnid || "", alertData.guestToken || "");
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         const form = document.createElement("form");
         form.method = "POST";

@@ -240,8 +240,20 @@ export async function verifyPayuPaymentServerSide(txnid) {
       };
     }
 
-    if (data && (data.status === 1 || data.status === "1" || data.status === "success") && data.transaction_details && data.transaction_details[txnid]) {
-      const txn = data.transaction_details[txnid];
+    let txn = null;
+    if (data && (data.status === 1 || data.status === "1" || data.status === "success") && data.transaction_details) {
+      if (data.transaction_details[txnid]) {
+        txn = data.transaction_details[txnid];
+      } else if (typeof data.transaction_details === "object") {
+        const cleanTxnid = String(txnid).trim().toLowerCase();
+        const foundKey = Object.keys(data.transaction_details).find(k => String(k).trim().toLowerCase() === cleanTxnid);
+        if (foundKey) {
+          txn = data.transaction_details[foundKey];
+        }
+      }
+    }
+
+    if (txn) {
       const txnStatus = (txn.status || txn.transaction_status || "").toLowerCase();
       const unmappedStatus = (txn.unmappedstatus || "").toLowerCase();
       const isPaid = txnStatus === "success" || unmappedStatus === "captured";

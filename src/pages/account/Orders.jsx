@@ -241,12 +241,15 @@ export function Orders() {
     navigate(`/track-order?id=${encodeURIComponent(val)}`);
   };
 
-  const handlePayuRetry = async (e, orderId) => {
+  const handlePayuRetry = async (e, orderObjOrId) => {
     e.stopPropagation();
+    const orderId = typeof orderObjOrId === "object" ? (orderObjOrId.orderNumber || orderObjOrId.id) : orderObjOrId;
+    const orderTxnid = typeof orderObjOrId === "object" ? (orderObjOrId.txnid || "") : "";
+    const orderGuestToken = typeof orderObjOrId === "object" ? (orderObjOrId.guestToken || "") : "";
     if (!orderId) return;
     setRetryingOrderId(orderId);
     try {
-      const res = await db.retryPayment(orderId);
+      const res = await db.retryPayment(orderId, orderTxnid, orderGuestToken);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         emitToast("Connecting to PayU Secure Gateway...", "info");
         const form = document.createElement("form");
@@ -798,7 +801,7 @@ export function Orders() {
                               <button
                                 type="button"
                                 disabled={isRetrying}
-                                onClick={(e) => handlePayuRetry(e, o.orderNumber || o.id)}
+                                onClick={(e) => handlePayuRetry(e, o)}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',

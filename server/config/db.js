@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Disable command buffering so queries fail fast and allow graceful fallbacks when offline
-mongoose.set("bufferCommands", false);
+// Enable command buffering so temporary reconnects do not throw fatal query exceptions
+mongoose.set("bufferCommands", true);
 
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
@@ -61,15 +61,27 @@ export function clearDbErrorLogs() {
   return true;
 }
 
-// Ensure state listeners are attached once without manual recursive reconnect loops (Mongoose driver manages reconnection internally)
+// Ensure state listeners are attached once with auto-reconnect capability
 if (!global.__mongoose_listeners_attached) {
   global.__mongoose_listeners_attached = true;
   mongoose.connection.on("connected", () => {
     cached.lastConnected = new Date().toISOString();
+    console.log("⚡ [MongoDB] Connection established / restored.");
   });
   mongoose.connection.on("disconnected", () => {
     cached.conn = null;
     recordConnectionError(new Error("MongoDB connection was dropped or disconnected."), "event:disconnected");
+    // Proactively attempt reconnection if URI exists and not already connecting
+    const uri = getMongoUri();
+    if (uri && mongoose.connection.readyState === 0 && !global.__mongo_reconnecting) {
+      global.__mongo_reconnecting = true;
+      setTimeout(() => {
+        global.__mongo_reconnecting = false;
+        if (mongoose.connection.readyState === 0) {
+          connectDB().catch(e => console.warn("⚠️ [MongoDB Auto-Reconnect]:", e.message));
+        }
+      }, 3000);
+    }
   });
   mongoose.connection.on("error", (err) => {
     console.warn("⚠️ [MongoDB] Connection error:", err.message);
@@ -150,22 +162,39 @@ export async function connectDB() {
       serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 15000,
       socketTimeoutMS: 45000,
-      maxIdleTimeMS: 60000,
-      maxPoolSize: 20,
-      minPoolSize: 1,
+      maxIdleTimeMS: 30000,
+      maxPoolSize: 25,
+      minPoolSize: 2,
+      heartbeatFrequencyMS: 10000,
       retryWrites: true,
+      retryReads: true,
       autoIndex: process.env.NODE_ENV !== "production"
     };
 
-    cached.promise = mongoose.connect(uri, opts).then((mongooseInstance) => {
-      console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
-      cached.conn = mongooseInstance;
-      cached.lastConnected = new Date().toISOString();
-      import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-        ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
-      }).catch(() => {});
-      return mongooseInstance;
-    }).catch((error) => {
+    const doConnect = async () => {
+      let lastErr = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const mongooseInstance = await mongoose.connect(uri, opts);
+          console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
+          cached.conn = mongooseInstance;
+          cached.lastConnected = new Date().toISOString();
+          import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
+            ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
+          }).catch(() => {});
+          return mongooseInstance;
+        } catch (err) {
+          lastErr = err;
+          if (attempt === 1) {
+            console.warn(`⚠️ [MongoDB] Initial connection attempt failed, retrying in 1.5s... (${err.message})`);
+            await new Promise(r => setTimeout(r, 1500));
+          }
+        }
+      }
+      throw lastErr;
+    };
+
+    cached.promise = doConnect().catch((error) => {
       cached.promise = null;
       cached.conn = null;
       recordConnectionError(error, "connect:handshake_failed");

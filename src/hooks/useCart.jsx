@@ -547,6 +547,18 @@ export function CartProvider({ children }) {
     const clear = () => {
       persistLines([]);
       persistCouponCode("");
+      try {
+        sessionStorage.removeItem("aura_buy_now_intent");
+        sessionStorage.removeItem("aura_cart_lines");
+        localStorage.removeItem("aura-cart-guest");
+        localStorage.removeItem("aura_cart_lines");
+        localStorage.removeItem("aura_cart_coupon");
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith("aura-cart-") || k.startsWith("aura-applied-coupon-code-")) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch (_) {}
     };
 
     const refreshTotals = () => fetchAuthoritativeTotals(lines, couponCode);

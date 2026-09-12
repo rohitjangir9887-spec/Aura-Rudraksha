@@ -54,9 +54,11 @@ export function PaymentResult() {
 
         if (res?.success && res.data) {
           setOrder(res.data);
-          if (res.data.paymentStatus === "Paid") {
-            clear(); // Clear cart only on confirmed success
+          if (res.data.paymentStatus === "Paid" || status === "success") {
+            clear();
           }
+        } else if (status === "success") {
+          clear();
         }
       } catch (err) {
         console.error("Verification failed:", err);
@@ -146,7 +148,7 @@ export function PaymentResult() {
       const res = await db.verifyPayment(orderId, txnid, guestToken);
       if (res?.success && res.data) {
         setOrder(res.data);
-        if (res.data.paymentStatus === "Paid") {
+        if (res.data.paymentStatus === "Paid" || status === "success") {
           clear();
           emitToast("Payment confirmed successfully!", "success");
         } else {

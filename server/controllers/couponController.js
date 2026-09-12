@@ -187,6 +187,7 @@ export async function getCoupons(req, res, next) {
         c.status = "Expired";
       }
     }
+    inMemoryStore.coupons = coupons;
     if (isAdmin) {
       return res.json({ success: true, data: coupons, count: coupons.length });
     }
@@ -312,6 +313,10 @@ export async function deleteCoupon(req, res, next) {
     await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });
     await ActiveOffer.deleteMany({ couponCode: cleanCode });
     await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }] });
+
+    if (inMemoryStore.coupons) {
+      inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== cleanId && String(c.code).toUpperCase() !== cleanCode);
+    }
 
     await logAuditEvent({
       actor: req.user?.email || "admin",

@@ -435,11 +435,14 @@ export function AuraAIFloating() {
   const path = location.pathname || "";
   const isAdminPage = path.startsWith("/admin");
   const isDedicatedAiPage = path === "/aura-ai";
+  const isCartPage = path === "/cart" || path.startsWith("/cart");
+  const isCheckoutPage = path === "/checkout" || path.startsWith("/checkout");
+  const isPaymentPage = path === "/payment" || path.startsWith("/payment") || path === "/payment-result" || path.startsWith("/payment-result");
 
   const isAiEnabled = settings?.enabled !== false;
   const isFloatingVisible = settings?.showFloatingButton !== false;
 
-  if (!isAiEnabled || isAdminPage || isDedicatedAiPage) {
+  if (!isAiEnabled || isAdminPage || isDedicatedAiPage || isCartPage || isCheckoutPage || isPaymentPage) {
     return null;
   }
   if (!isOpen && !isFloatingVisible) {
