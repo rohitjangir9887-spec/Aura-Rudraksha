@@ -45,7 +45,7 @@ try {
 }
 
 // Canonical production origin for Aura Rudraksha
-export const CANONICAL_APP_ORIGIN = "https://aura-rudraksha.vercel.app";
+export const CANONICAL_APP_ORIGIN = "https://aurarudraksha.bond";
 
 /**
  * Returns the active or canonical application origin.
@@ -53,13 +53,16 @@ export const CANONICAL_APP_ORIGIN = "https://aura-rudraksha.vercel.app";
  */
 export function getAppOrigin() {
   if (typeof window !== "undefined" && window.location && window.location.origin) {
-    const origin = window.location.origin;
+    let origin = window.location.origin;
     if (
       !origin.includes("localhost") && 
       !origin.includes("127.0.0.1") && 
       !origin.includes("0.0.0.0") &&
       origin.startsWith("http")
     ) {
+      if (origin.includes("www.aurarudraksha.bond")) {
+        return "https://aurarudraksha.bond";
+      }
       return origin;
     }
   }

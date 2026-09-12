@@ -20,7 +20,7 @@ export default function RudrakshaCalculator() {
   useSeo({
     title: "Vedic Rudraksha Recommendation Calculator & Rashi Guide | Aura Rudraksha",
     description: "Calculate your authentic Mukhi Rudraksha recommendation based on your Janma Rashi (Moon Sign), ruling planet, and life goals according to Vedic scriptures.",
-    canonical: "https://aurarudraksha.com/rudraksha-calculator"
+    canonical: "https://aurarudraksha.bond/rudraksha-calculator"
   });
 
   const [activeMode, setActiveMode] = useState("rashi"); // "rashi" or "goal"

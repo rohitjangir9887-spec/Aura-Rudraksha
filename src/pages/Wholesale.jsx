@@ -15,7 +15,7 @@ export function Wholesale() {
   useSeo({
     title: "Wholesale & Temple Trust Rudraksha Supply | Aura Rudraksha",
     description: "Direct Nepal origin wholesale Rudraksha supply for temples, ashrams, astrologers, and retailers with individual lab X-ray certificates.",
-    canonical: "https://aurarudraksha.com/wholesale"
+    canonical: "https://aurarudraksha.bond/wholesale"
   });
 
   const [form, setForm] = useState({

@@ -62,9 +62,9 @@ describe('Auth Client Utilities', () => {
   });
 
   describe('ActionCodeSettings', () => {
-    test('canonical origin defaults to aura-rudraksha.vercel.app', () => {
-      assert.strictEqual(CANONICAL_APP_ORIGIN, 'https://aura-rudraksha.vercel.app');
-      assert.strictEqual(getAppOrigin(), 'https://aura-rudraksha.vercel.app');
+    test('canonical origin defaults to aurarudraksha.bond', () => {
+      assert.strictEqual(CANONICAL_APP_ORIGIN, 'https://aurarudraksha.bond');
+      assert.strictEqual(getAppOrigin(), 'https://aurarudraksha.bond');
     });
 
     test('password reset settings include verified url and handleCodeInApp: false', () => {
@@ -72,7 +72,7 @@ describe('Auth Client Utilities', () => {
       assert.strictEqual(settings.handleCodeInApp, false);
       assert.strictEqual(
         settings.url,
-        'https://aura-rudraksha.vercel.app/login?mode=resetPassword'
+        'https://aurarudraksha.bond/login?mode=resetPassword'
       );
     });
 
@@ -81,7 +81,7 @@ describe('Auth Client Utilities', () => {
       assert.strictEqual(settings.handleCodeInApp, false);
       assert.strictEqual(
         settings.url,
-        'https://aura-rudraksha.vercel.app/login?mode=verifyEmail'
+        'https://aurarudraksha.bond/login?mode=verifyEmail'
       );
     });
   });

@@ -8,4 +8,4 @@ Disallow: /orders
 Disallow: /payment
 Disallow: /api/
 
-Sitemap: https://aura-rudraksha.vercel.app/sitemap.xml
+Sitemap: https://aurarudraksha.bond/sitemap.xml

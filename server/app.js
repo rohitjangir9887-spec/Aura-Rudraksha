@@ -70,6 +70,17 @@ export function createApp(options = {}) {
   const proxyHops = parseInt(process.env.TRUST_PROXY_HOPS || "1", 10);
   app.set("trust proxy", isNaN(proxyHops) ? 1 : proxyHops);
 
+  // Canonical Host Redirection Middleware
+  app.use((req, res, next) => {
+    const rawHost = req.headers["x-forwarded-host"] || req.headers.host || "";
+    const host = rawHost.toLowerCase().split(":")[0];
+    if (host === "www.aurarudraksha.bond" || host === "www.aurarudraksha.com" || host === "aurarudraksha.com") {
+      const targetUrl = `https://aurarudraksha.bond${req.originalUrl || req.url}`;
+      return res.redirect(301, targetUrl);
+    }
+    next();
+  });
+
   // CORS Middleware - strictly enforce allowed origins allowlist & handle preflights
   app.use((req, res, next) => {
     const origin = req.headers.origin;

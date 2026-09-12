@@ -113,9 +113,13 @@ function resolveAppBaseUrl(req) {
   const host = req ? (req.headers["x-forwarded-host"] || req.get("host")) : "";
   const protocol = req && req.headers["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
   if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-    return `${protocol}://${host}`;
+    let cleanHost = host;
+    if (cleanHost.toLowerCase().startsWith("www.aurarudraksha.bond")) {
+      cleanHost = "aurarudraksha.bond";
+    }
+    return `${protocol}://${cleanHost}`;
   }
-  return "https://aura-rudraksha.vercel.app";
+  return "https://aurarudraksha.bond";
 }
 
 /**

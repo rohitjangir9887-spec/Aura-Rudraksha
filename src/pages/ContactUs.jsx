@@ -14,7 +14,7 @@ export function ContactUs() {
   useSeo({
     title: "Contact Us & Astrological Support | Aura Rudraksha",
     description: "Get in touch with Aura Rudraksha's Vedic astrologers and support team for Mukhi recommendations, order tracking, lab certification, and customer care.",
-    canonical: "https://aurarudraksha.com/contact"
+    canonical: "https://aurarudraksha.bond/contact"
   });
 
   const [form, setForm] = useState({

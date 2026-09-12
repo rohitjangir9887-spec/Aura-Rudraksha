@@ -89,13 +89,10 @@ export function AuraEditorialSection() {
           >
             <div className="absolute inset-0 overflow-hidden">
               <img
-                src="https://aurarudraksha.com/wp-content/uploads/2024/02/IMG_1020.jpg"
+                src="/images/product-11mukhi.jpg"
                 alt="Sacred Wrist Bracelets"
                 className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500 ease-out"
                 loading="lazy"
-                onError={(e) => {
-                  if (!e.currentTarget.src.includes("product-11mukhi.jpg")) { e.currentTarget.src = "/images/product-11mukhi.jpg"; }
-                }}
               />
             </div>
           </Link>

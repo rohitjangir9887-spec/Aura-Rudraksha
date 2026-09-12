@@ -71,7 +71,7 @@ export function CategoriesPage() {
   useSeo({
     title: "Sacred Rudraksha Categories & Collections | Aura Rudraksha",
     description: "Browse certified Nepali Rudraksha collections: Single Mukhi beads (1-21 Mukhi), Rare Collector Formations, 108+1 Japa Malas, and Consecrated Bracelets.",
-    canonical: "https://aurarudraksha.com/categories"
+    canonical: "https://aurarudraksha.bond/categories"
   });
 
   return (

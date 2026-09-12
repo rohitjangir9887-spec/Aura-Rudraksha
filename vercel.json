@@ -54,6 +54,41 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.aurarudraksha.bond"
+        }
+      ],
+      "destination": "https://aurarudraksha.bond/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.aurarudraksha.com"
+        }
+      ],
+      "destination": "https://aurarudraksha.bond/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "aurarudraksha.com"
+        }
+      ],
+      "destination": "https://aurarudraksha.bond/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.js" },
     { "source": "/65afe1e2dec4bf210d1a3ce75cb3c7a0.txt", "destination": "/api/indexnow-key.js" },

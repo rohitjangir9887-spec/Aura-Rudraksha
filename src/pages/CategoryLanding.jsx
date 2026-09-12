@@ -51,7 +51,7 @@ export default function CategoryLanding() {
   useSeo({
     title: pageTitle,
     description: pageDescription,
-    canonical: `https://aurarudraksha.com/rudraksha${slug ? `/${slug}` : ""}`,
+    canonical: `https://aurarudraksha.bond/rudraksha${slug ? `/${slug}` : ""}`,
     ogType: "website"
   });
 

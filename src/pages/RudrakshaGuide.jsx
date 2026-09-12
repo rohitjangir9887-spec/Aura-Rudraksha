@@ -29,7 +29,7 @@ export default function RudrakshaGuide() {
     h1: "How to Wear Rudraksha — Vedic Consecration, Mantras & Rules",
     title: "How to Wear Rudraksha — Consecration, Mantras & Rules | Aura Rudraksha",
     description: "Complete Vedic guide on wearing Rudraksha: auspicious days, Prana Pratishtha purification ritual, Beej mantras, and daily sacred guidelines.",
-    canonical: "https://aurarudraksha.com/how-to-wear-rudraksha"
+    canonical: "https://aurarudraksha.bond/how-to-wear-rudraksha"
   };
 
   if (path.includes("benefits")) {
@@ -38,7 +38,7 @@ export default function RudrakshaGuide() {
       h1: "Rudraksha Benefits — Spiritual, Scientific & Bio-Electric Energy",
       title: "Rudraksha Benefits — Spiritual, Scientific & Health Energy | Aura Rudraksha",
       description: "Discover the spiritual and bio-magnetic benefits of Rudraksha: stress reduction, cardiac bio-frequency stabilization, mind focus, and planetary dosha pacification.",
-      canonical: "https://aurarudraksha.com/rudraksha-benefits"
+      canonical: "https://aurarudraksha.bond/rudraksha-benefits"
     };
   } else if (path.includes("authenticity")) {
     guide = {
@@ -46,7 +46,7 @@ export default function RudrakshaGuide() {
       h1: "Rudraksha Authenticity & Lab Testing Guide — Real vs Fake",
       title: "Rudraksha Authenticity & Lab Testing Guide — Real vs Fake | Aura Rudraksha",
       description: "How to identify genuine Rudraksha: X-ray density radiography, copper coin myths vs science, natural mukhi continuity, and laboratory certificates.",
-      canonical: "https://aurarudraksha.com/rudraksha-authenticity"
+      canonical: "https://aurarudraksha.bond/rudraksha-authenticity"
     };
   } else if (path.includes("care")) {
     guide = {
@@ -54,7 +54,7 @@ export default function RudrakshaGuide() {
       h1: "Rudraksha Care, Cleaning & Oiling Guide",
       title: "Rudraksha Care, Cleaning & Oiling Guide | Aura Rudraksha",
       description: "How to maintain, clean, oil, and store your sacred Rudraksha beads. Proper methods using Gangajal, natural mustard/sandalwood oil, and soft copper-bristle cleaning.",
-      canonical: "https://aurarudraksha.com/rudraksha-care"
+      canonical: "https://aurarudraksha.bond/rudraksha-care"
     };
   }
 

@@ -16,15 +16,17 @@ export function getIndexNowKey() {
   return /^[A-Fa-f0-9-]{8,128}$/.test(configured) ? configured : DEFAULT_KEY;
 }
 
-export const DETERMINISTIC_CANONICAL_ORIGIN = "https://aura-rudraksha.vercel.app";
-export const DETERMINISTIC_CANONICAL_DOMAIN = "aura-rudraksha.vercel.app";
+export const DETERMINISTIC_CANONICAL_ORIGIN = "https://aurarudraksha.bond";
+export const DETERMINISTIC_CANONICAL_DOMAIN = "aurarudraksha.bond";
 
 export function getSiteDomain(req) {
   if (process.env.SITE_URL) {
     try {
       const u = new URL(process.env.SITE_URL);
       if (!u.hostname.includes("localhost") && !u.hostname.includes("127.0.0.1")) {
-        return u.hostname;
+        let host = u.hostname.toLowerCase();
+        if (host.startsWith("www.")) host = host.slice(4);
+        return host;
       }
     } catch (_) {}
   }
@@ -33,8 +35,9 @@ export function getSiteDomain(req) {
 
 export function getSiteBaseUrl(req) {
   if (process.env.SITE_URL) {
-    const raw = process.env.SITE_URL.replace(/\/+$/, "");
+    let raw = process.env.SITE_URL.replace(/\/+$/, "");
     if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
+      raw = raw.replace(/^https?:\/\/www\./i, "https://");
       return raw;
     }
   }
