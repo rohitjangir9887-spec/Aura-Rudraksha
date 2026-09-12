@@ -78,8 +78,6 @@ function PanditJiAvatar({ size = 34 }) {
       <img
         src={getOptimizedImageUrl("https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png", { width: 160, quality: 80 })}
         alt="AI Pandit Ji"
-        width={size}
-        height={size}
         style={{
           width: '100%',
           height: '100%',
@@ -97,7 +95,7 @@ function PanditJiAvatar({ size = 34 }) {
           const fallback = target.parentElement.querySelector('svg');
           if (fallback) fallback.style.display = 'block';
         }}
-        loading="lazy"
+        loading="eager"
         decoding="async"
         referrerPolicy="no-referrer"
       />
@@ -814,8 +812,8 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
             </Link>
           </div>
         ) : (
-          displayedProducts.map((p, index) => (
-            <ProductCard key={p.id} p={p} onAdd={add} priority={index < 2} index={index} />
+          displayedProducts.map(p => (
+            <ProductCard key={p.id} p={p} onAdd={add} />
           ))
         )}
       </div>

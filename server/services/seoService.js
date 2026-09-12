@@ -18,14 +18,13 @@ import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
-import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Canonical Organization & Brand Details
 export const SEO_BRAND = {
   name: "Aura Rudraksha",
   legalName: "Aura Rudraksha Enterprises",
-  logo: "/logo-header-horizontal.png",
-  defaultImage: "/og-image.jpg",
+  logo: "https://aura-rudraksha.vercel.app/logo-header-horizontal.png",
+  defaultImage: "https://aura-rudraksha.vercel.app/og-image.jpg",
   supportEmail: "aurarudrakshaofficial@gmail.com",
   supportPhone: "+91 9672996531",
   address: {
@@ -419,7 +418,7 @@ export function escapeXml(str) {
  */
 export async function getPublicProductsForSeo() {
   if (!isDbConnected()) {
-    return (inMemoryStore.products || []).filter(p => !["Draft", "draft", "Inactive", "inactive", "Archived", "archived"].includes(p.status));
+    return [];
   }
   try {
     const products = await Product.find({
@@ -452,24 +451,7 @@ export async function findProductForSeo(idOrSlug) {
   const clean = String(idOrSlug).trim().toLowerCase();
 
   if (!isDbConnected()) {
-    let product = (inMemoryStore.products || []).find(p => 
-      String(p.id).toLowerCase() === clean || 
-      String(p.slug || "").toLowerCase() === clean
-    );
-    if (!product) {
-      product = (inMemoryStore.products || []).find(p => {
-        const pSlug = String(p.slug || "").toLowerCase();
-        const pName = String(p.name || "").toLowerCase();
-        const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-        return pSlug === clean ||
-                pSlugifiedName === clean ||
-                (clean.length >= 3 && pSlug.includes(clean)) ||
-               (clean.length >= 3 && clean.includes(pSlug)) ||
-               (clean.length >= 3 && pSlugifiedName.includes(clean)) ||
-               (clean.length >= 3 && clean.includes(pSlugifiedName));
-      });
-    }
-    return product || null;
+    return null;
   }
 
   try {
@@ -892,7 +874,7 @@ export async function resolveSeoData(pathname, req) {
 export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   const seo = await resolveSeoData(pathname, req);
   const baseUrl = getSiteBaseUrl(req);
-  const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION || "4Q_xRsvuPJHU6BWKIWf2gFJYP9V-HMNwOhrRJ0bD3CY";
+  const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION || "";
 
   let result = templateHtml;
 

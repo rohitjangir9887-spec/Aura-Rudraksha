@@ -1,6 +1,4 @@
 import express from "express";
-import fs from "fs";
-import path from "path";
 import { 
   generateSitemapXml, 
   generateMerchantFeedXml, 
@@ -14,40 +12,15 @@ const router = express.Router();
  * Dynamic XML Sitemap
  * Route: GET /sitemap.xml
  */
-router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res) => {
+router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res, next) => {
   try {
     const xml = await generateSitemapXml(req);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
-    res.setHeader("X-Robots-Tag", "all");
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
-    return res.status(200).send(xml);
+    return res.send(xml);
   } catch (err) {
     console.error("[SEO] Error generating sitemap.xml:", err);
-    
-    // Fallback: Read static file
-    const staticPaths = [
-      path.join(process.cwd(), "public", "sitemap.xml"),
-      path.join(process.cwd(), "dist", "sitemap.xml")
-    ];
-    for (const p of staticPaths) {
-      if (fs.existsSync(p)) {
-        try {
-          const content = fs.readFileSync(p, "utf8");
-          res.setHeader("Content-Type", "application/xml; charset=utf-8");
-          res.setHeader("X-Robots-Tag", "all");
-          res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
-          return res.status(200).send(content);
-        } catch (_) {}
-      }
-    }
-    
-    // Minimal valid XML fallback
-    const now = new Date().toISOString();
-    res.setHeader("Content-Type", "application/xml; charset=utf-8");
-    return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://www.aurarudraksha.bond/</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
-</urlset>`);
+    next(err);
   }
 });
 
@@ -96,47 +69,4 @@ router.get(["/indexnow-key.txt", "/api/indexnow-key.txt", "/:key.txt", "/api/:ke
   return res.send(currentKey);
 });
 
-/**
- * Trigger Instant Search Engine Ping & IndexNow Notification
- * Route: POST /api/seo/ping
- */
-router.post(["/ping", "/api/seo/ping"], async (req, res) => {
-  try {
-    const { submitToIndexNow } = await import("../services/indexNowService.js");
-    const { CATEGORIES_SEO_REGISTRY, getPublicProductsForSeo, getSiteBaseUrl } = await import("../services/seoService.js");
-    
-    const baseUrl = getSiteBaseUrl(req);
-    const coreUrls = [
-      `${baseUrl}/`,
-      `${baseUrl}/shop`,
-      `${baseUrl}/rudraksha-calculator`,
-      `${baseUrl}/rudraksha-for-rashi`,
-      `${baseUrl}/how-to-wear-rudraksha`,
-      `${baseUrl}/rudraksha-benefits`,
-      `${baseUrl}/rudraksha-authenticity`,
-      `${baseUrl}/rudraksha-guide`,
-      `${baseUrl}/about`,
-      `${baseUrl}/contact`,
-      `${baseUrl}/wholesale`,
-      `${baseUrl}/policies`
-    ];
-    const catUrls = Object.keys(CATEGORIES_SEO_REGISTRY || {}).map(p => `${baseUrl}${p}`);
-    const products = await getPublicProductsForSeo();
-    const prodUrls = (products || []).map(p => `${baseUrl}/product/${p.slug || p.id}`);
-    
-    const allUrls = Array.from(new Set([...coreUrls, ...catUrls, ...prodUrls]));
-    const result = await submitToIndexNow(allUrls, req);
-    
-    return res.json({
-      success: true,
-      message: "Dispatched search engine indexing notifications",
-      urlCount: allUrls.length,
-      indexNowResult: result
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 export default router;
-

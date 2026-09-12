@@ -15,20 +15,9 @@ import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { PaymentFailureAlert } from "../components/PaymentFailureAlert";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
-import { useSeo } from "../hooks/useSeo";
-import { getCanonicalUrl, DEFAULT_OG_IMAGE } from "../config/site";
 
 export function Home() {
-  useSeo({
-    title: "Aura Rudraksha — 100% Authentic Nepal & Indonesian Rudraksha | Lab Certified",
-    description: "Shop genuine lab-tested Nepali Rudraksha beads (1 to 21 Mukhi), consecrated 108+1 Japa Malas, and Vedic jewelry energized with Prana Pratishtha. Free shipping across India.",
-    keywords: "Aura Rudraksha, original rudraksha, nepali rudraksha, lab certified rudraksha, 1 to 21 mukhi rudraksha, 1 mukhi rudraksha, 5 mukhi mala, gauri shankar rudraksha, buy rudraksha online, authentic rudraksha certificate, rudraksha for rashi",
-    canonical: getCanonicalUrl("/"),
-    ogImage: DEFAULT_OG_IMAGE
-  });
-
   const [hero, setHero] = useState(0);
-
   const [isLoading, setIsLoading] = useState(false); 
   const { add, totals } = useCart();
   const shippingThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
@@ -226,10 +215,11 @@ export function Home() {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       aria-label="Aura Sacred Hero Banners"
-      style={{ overflow: 'hidden', borderRadius: '12px', margin: '0 0 16px 0', width: '100%', height: 'auto', minHeight: '190px' }}
+      style={{ overflow: 'hidden', borderRadius: '12px', margin: '0 0 16px 0' }}
     >
-      <div className="hero-slides" style={{ minHeight: "190px", width: "100%", aspectRatio: isMobile ? "16 / 9" : "21 / 9", background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
+      <div className="hero-slides" style={{ minHeight: "220px", background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => {
+          const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
           const bannerWidth = isMobile ? 640 : 1200;
           const bannerQuality = isMobile ? 78 : 84;
 
@@ -241,7 +231,6 @@ export function Home() {
               width={bannerWidth}
               quality={bannerQuality}
               priority={i === 0}
-              aspectRatio={isMobile ? "16 / 9" : "21 / 9"}
               containerClassName={`hero-slide ${i === hero ? 'active' : ''}`}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />

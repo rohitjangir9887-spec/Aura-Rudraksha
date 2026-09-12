@@ -348,7 +348,7 @@ export function buildMultiSourceVedicReferences(productInput, mukhiNum, beadKnow
 
     sources.push({
       name: "Aura Certified Gemological & Vedic Laboratory Reference",
-      url: "https://www.aurarudraksha.bond/rudraksha-authenticity",
+      url: "https://aurarudraksha.com/authenticity",
       claimSupported: `100% Authentic ${origin} origin bead with natural Mukhi contours, X-Ray verification & Prana Pratishtha.`,
       researchedAt: currentDate,
       confidence: "high"
@@ -529,7 +529,7 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
       if (geminiClient && !aiGenerationSuccess) {
         try {
           const geminiRes = await geminiClient.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
             config: {
               systemInstruction: promptSystem,
@@ -589,7 +589,7 @@ Target Language: ${language}
 Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
 
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
           config: {
             systemInstruction: promptSystem,

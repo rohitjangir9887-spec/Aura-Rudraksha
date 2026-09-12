@@ -2,14 +2,7 @@ import React from "react";
 
 export function PanditjiPortraitSVG() {
   return (
-    <svg 
-      viewBox="0 0 100 100" 
-      width="100%" 
-      height="100%" 
-      style={{ display: "block" }}
-      role="img"
-      aria-label="Acharya Shri Vidyadhar Shastri"
-    >
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block" }}>
       <defs>
         <radialGradient id="bioHalo" cx="50%" cy="40%" r="50%">
           <stop offset="0%" stopColor="#FFF9E6" />

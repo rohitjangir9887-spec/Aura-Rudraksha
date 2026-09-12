@@ -4,7 +4,7 @@ import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { PaymentTransaction } from "../models/PaymentTransaction.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
-import { isDbConnected, connectDB } from "../config/db.js";
+import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
@@ -18,20 +18,8 @@ import {
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashPayload } from "../services/idempotencyService.js";
-import { sendRefundOtpEmail, sendPaymentSuccessfulEmail, sendPaymentFailedEmail, sendRefundStatusEmail, sendOrderCancelledEmail, maskEmail } from "../services/emailService.js";
+import { sendRefundOtpEmail, maskEmail } from "../services/emailService.js";
 import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService.js";
-
-/**
- * Ensures MongoDB is connected, attempting reconnect if needed.
- */
-export async function ensureDbReady() {
-  if (!isDbConnected()) {
-    try {
-      await connectDB();
-    } catch (_) {}
-  }
-  return isDbConnected();
-}
 
 /**
  * Safely parse and normalize incoming PayU callback/webhook body
@@ -122,12 +110,12 @@ function resolveAppBaseUrl(req) {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  const host = req ? (req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.["host"]) || "") : "";
-  const protocol = req?.headers?.["x-forwarded-proto"] || req?.protocol || "https";
+  const host = req ? (req.headers["x-forwarded-host"] || req.get("host")) : "";
+  const protocol = req && req.headers["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
   if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
     return `${protocol}://${host}`;
   }
-  return "https://www.aurarudraksha.bond";
+  return "https://aura-rudraksha.vercel.app";
 }
 
 /**
@@ -145,12 +133,11 @@ function resolveAppBaseUrl(req) {
  */
 export async function initiatePayuPayment(req, res, next) {
   try {
-    // 1. Ensure DB Connection - Auto-reconnects if temporarily offline/cold
-    const isReady = await ensureDbReady();
-    if (!isReady) {
+    // 1. Check DB Connection - NEVER allow payment initiation if DB is disconnected
+    if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
-        message: "Database connection is establishing. Please try again in a few moments."
+        message: "Payment service temporarily unavailable. Please try again."
       });
     }
 
@@ -395,9 +382,8 @@ export async function handlePayuCallback(req, res) {
   const clientBaseUrl = resolveAppBaseUrl(req);
 
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=db_offline&reason=${encodeURIComponent("Database is connecting. Please refresh in a moment.")}`);
+    if (!isDbConnected()) {
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=db_offline&reason=${encodeURIComponent("Payment service temporarily unavailable. Please try again.")}`);
     }
 
     const params = extractPayuParams(req);
@@ -493,16 +479,6 @@ export async function handlePayuCallback(req, res) {
       order.mihpayid = params.mihpayid || order.mihpayid || "";
       order.paymentAttempts = attempts;
       await order.save();
-      try {
-        const email = order.customerEmail || order.email || order.shippingAddress?.email;
-        const name = order.customerName || order.firstName || 'Customer';
-        if (email) {
-          await sendPaymentFailedEmail({ to: email, name, order, reason: errorMsg });
-        }
-      } catch (err) {
-        console.error("[Email] Payment failed email error:", err.message);
-      }
-
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(hashMismatch ? "Payment hash verification failed" : errorMsg)}`);
     }
 
@@ -543,16 +519,6 @@ export async function handlePayuCallback(req, res) {
 
     if (updatedOrder) {
       // First time state transition - execute side effects strictly ONCE
-      try {
-        const email = updatedOrder.customerEmail || updatedOrder.email || updatedOrder.shippingAddress?.email;
-        const name = updatedOrder.customerName || updatedOrder.firstName || 'Customer';
-        if (email) {
-          await sendPaymentSuccessfulEmail({ to: email, name, order: updatedOrder });
-        }
-      } catch (err) {
-        console.error("[Email] Payment success email error:", err.message);
-      }
-
 
       // Update payment attempts array
       const attempts = order.paymentAttempts || [];
@@ -698,8 +664,7 @@ export async function handlePayuCancel(req, res) {
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&reason=${encodeURIComponent("Invalid request signature")}`);
     }
 
-    if (orderId) {
-      await ensureDbReady();
+    if (orderId && isDbConnected()) {
       const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
       if (order && order.paymentStatus === "Paid") {
         const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
@@ -750,8 +715,7 @@ export async function handlePayuCancel(req, res) {
 
 export async function handlePayuWebhook(req, res) {
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
+    if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -995,9 +959,8 @@ export async function handlePayuWebhook(req, res) {
  */
 export async function verifyPaymentStatus(req, res, next) {
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
-      return res.status(503).json({ success: false, message: "Database is connecting. Please try again." });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Payment service temporarily unavailable. Please try again." });
     }
 
     const { orderId } = req.params;
@@ -1025,11 +988,9 @@ export async function verifyPaymentStatus(req, res, next) {
       Boolean(req.user)
     );
 
-    // Relaxed security for retry payment: Since Order IDs are unguessable, 
-    // and retrying payment just allows them to pay for the order, we allow it.
-    // if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
-    //   return res.status(403).json({ success: false, message: "Access Denied" });
-    // }
+    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
+      return res.status(403).json({ success: false, message: "Access Denied" });
+    }
 
     // If order is already confirmed as Paid, return immediately with authoritative data
     if (order.paymentStatus === "Paid") {
@@ -1247,9 +1208,8 @@ export async function verifyPaymentStatus(req, res, next) {
  */
 export async function retryPayuPayment(req, res, next) {
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
-      return res.status(503).json({ success: false, message: "Database is connecting. Please try again." });
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Payment service temporarily unavailable. Please try again." });
     }
 
     const { orderId } = req.params;
@@ -1277,11 +1237,9 @@ export async function retryPayuPayment(req, res, next) {
       Boolean(req.user)
     );
 
-    // Relaxed security for retry payment: Since Order IDs are unguessable, 
-    // and retrying payment just allows them to pay for the order, we allow it.
-    // if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
-    //   return res.status(403).json({ success: false, message: "Access Denied" });
-    // }
+    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
+      return res.status(403).json({ success: false, message: "Access Denied" });
+    }
 
     if (order.paymentStatus === "Paid") {
       return res.status(400).json({ success: false, message: "This order has already been paid successfully." });
@@ -1328,7 +1286,7 @@ export async function retryPayuPayment(req, res, next) {
     const newTxnid = `TXN_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     const amount = Number(order.finalAmount || order.total || order.amount || 0);
 
-    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.bond").trim().toLowerCase();
+    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.com").trim().toLowerCase();
     const firstname = (order.customerName || order.firstName || req.user?.name || "Devotee").trim();
     const phone = (order.phone || order.customerPhone || "").trim();
     const productinfo = `Aura Rudraksha Order Retry (${order.orderNumber || order.id})`;
@@ -1426,8 +1384,7 @@ export async function retryPayuPayment(req, res, next) {
  */
 export async function requestRefundOtp(req, res, next) {
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
+    if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -1525,8 +1482,7 @@ export async function requestRefundOtp(req, res, next) {
  */
 export async function processPayuRefund(req, res, next) {
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
+    if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -1701,17 +1657,6 @@ export async function processPayuRefund(req, res, next) {
 
     await order.save();
     await Order.updateOne({ _id: order._id }, { $unset: { isRefunding: 1 } });
-    
-    try {
-      const email = order.customerEmail || order.email || order.shippingAddress?.email;
-      const name = order.customerName || order.firstName || 'Customer';
-      if (email) {
-        await sendRefundStatusEmail({ to: email, name, order, amount: currentRefundAmount, status: order.paymentStatus });
-      }
-    } catch (err) {
-      console.error("[Email] Refund status email error:", err.message);
-    }
-
 
     // Update Payment Transaction record
     try {
@@ -1766,8 +1711,7 @@ export async function processPayuRefund(req, res, next) {
  */
 export async function cancelUnpaidOrder(req, res, next) {
   try {
-    const isReady = await ensureDbReady();
-    if (!isReady) {
+    if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database unavailable" });
     }
 
@@ -1856,8 +1800,7 @@ export async function cancelUnpaidOrder(req, res, next) {
 export async function syncPayuOrder(req, res) {
   try {
     const { orderId } = req.params;
-    const isReady = await ensureDbReady();
-    if (!orderId || !isReady) {
+    if (!orderId || !isDbConnected()) {
       return res.status(503).json({ success: false, message: "Database offline" });
     }
 

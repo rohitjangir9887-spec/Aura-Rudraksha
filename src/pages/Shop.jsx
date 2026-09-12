@@ -8,7 +8,6 @@ import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
 import { sortProductsByCatalogOrder } from "../lib/productHelper";
 import { useSeo } from "../hooks/useSeo";
-import { getCanonicalUrl } from "../config/site";
 import { 
   ChevronLeft, 
   ChevronDown, 
@@ -111,7 +110,7 @@ export function Shop() {
   useSeo({
     title: q ? `Search Results for "${q}" | Aura Rudraksha Shop` : "Sacred Rudraksha Shop - Authentic Nepali Rudraksha, Malas & Silver Capped Beads | Aura Rudraksha",
     description: "Explore lab-certified 100% genuine Nepali Rudraksha beads (1 to 21 Mukhi), Gauri Shankar, energized Japa Malas, Siddha Malas & sterling silver capped jewelry.",
-    canonical: getCanonicalUrl("/shop")
+    canonical: "https://aurarudraksha.com/shop"
   });
 
   const updateProductsState = () => {
@@ -446,13 +445,13 @@ export function Shop() {
               }}
               id="shop-products-grid"
             >
-              {list.map((p, index) => (
+              {list.map((p) => (
                 <motion.div 
                   key={p.id} 
                   variants={{ hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } }}
                   transition={{ duration: 0.25 }}
                 >
-                  <ProductCard p={p} onAdd={add} isShop={true} priority={index < 2} index={index} />
+                  <ProductCard p={p} onAdd={add} isShop={true} />
                 </motion.div>
               ))}
             </motion.div>

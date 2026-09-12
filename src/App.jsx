@@ -3,29 +3,29 @@ import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
+import { AuraAIFloating } from "./components/AuraAIFloating";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AdminErrorBoundary } from "./components/admin/AdminErrorBoundary";
 import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "./lib/routes";
 
 // ---------------------------------------------------------------------------
-// Code splitting: Customer secondary pages, Admin pages & heavy widgets are
-// lazy-loaded so the Home bundle stays lean and first-paint / LCP stays fast.
+// Code splitting: Customer secondary pages & Admin pages are lazy-loaded so
+// the Home bundle stays lean and first-paint stays fast.
 // ---------------------------------------------------------------------------
-import { DeferredAuraAIFloating } from "./components/DeferredAuraAIFloating";
-const Shop = lazy(() => import("./pages/Shop").then(m => ({ default: m.Shop })));
+import { Shop } from "./pages/Shop";
 const Wishlist = lazy(() => import("./pages/Wishlist").then(m => ({ default: m.Wishlist })));
-const Product = lazy(() => import("./pages/Product").then(m => ({ default: m.Product })));
-const Cart = lazy(() => import("./pages/Cart").then(m => ({ default: m.Cart })));
-const Checkout = lazy(() => import("./pages/Checkout").then(m => ({ default: m.Checkout })));
-const PaymentResult = lazy(() => import("./pages/PaymentResult").then(m => ({ default: m.PaymentResult })));
+import { Product } from "./pages/Product";
+import { Cart } from "./pages/Cart";
+import { Checkout } from "./pages/Checkout";
+import { PaymentResult } from "./pages/PaymentResult";
 const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
 const Policies = lazy(() => import("./pages/Policies").then(m => ({ default: m.Policies })));
 const NotFound = lazy(() => import("./pages/NotFound").then(m => ({ default: m.NotFound })));
 const Account = lazy(() => import("./pages/account/Account").then(m => ({ default: m.Account })));
 const Profile = lazy(() => import("./pages/account/Profile").then(m => ({ default: m.Profile })));
-const Orders = lazy(() => import("./pages/account/Orders").then(m => ({ default: m.Orders })));
-const OrderDetail = lazy(() => import("./pages/account/OrderDetail").then(m => ({ default: m.OrderDetail })));
+import { Orders } from "./pages/account/Orders";
+import { OrderDetail } from "./pages/account/OrderDetail";
 const AuraAIPage = lazy(() => import("./pages/AuraAIPage").then(m => ({ default: m.AuraAIPage })));
 const AboutUs = lazy(() => import("./pages/AboutUs").then(m => ({ default: m.AboutUs })));
 const TrackOrder = lazy(() => import("./pages/TrackOrder").then(m => ({ default: m.TrackOrder })));
@@ -213,7 +213,7 @@ export function App() {
       </Suspense>
       </ErrorBoundary>
       <ErrorBoundary isolate fallback={null}>
-        <DeferredAuraAIFloating />
+        <AuraAIFloating />
       </ErrorBoundary>
     </>
   );

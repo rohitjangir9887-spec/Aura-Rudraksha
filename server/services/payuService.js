@@ -12,21 +12,9 @@ import crypto from "crypto";
  */
 
 export function getPayuConfig() {
-  const key = (
-    process.env.PAYU_MERCHANT_KEY || 
-    process.env.PAYU_KEY || 
-    process.env.VITE_PAYU_KEY || 
-    ""
-  ).trim().replace(/^['"]|['"]$/g, '');
-
-  const salt = (
-    process.env.PAYU_MERCHANT_SALT || 
-    process.env.PAYU_SALT || 
-    process.env.VITE_PAYU_SALT || 
-    ""
-  ).trim().replace(/^['"]|['"]$/g, '');
-
-  const env = (process.env.PAYU_ENV || "prod").toLowerCase().trim().replace(/^['"]|['"]$/g, '');
+  const key = (process.env.PAYU_MERCHANT_KEY || "").trim();
+  const salt = (process.env.PAYU_MERCHANT_SALT || "").trim();
+  const env = (process.env.PAYU_ENV || "prod").toLowerCase().trim();
   const isTest = env === "test" || env === "sandbox";
 
   // Strict separation of Test vs Production endpoints:
@@ -38,7 +26,7 @@ export function getPayuConfig() {
   let paymentUrl = isTest ? testPaymentUrl : prodPaymentUrl;
 
   if (process.env.PAYU_PAYMENT_URL) {
-    const customUrl = process.env.PAYU_PAYMENT_URL.trim().replace(/^['"]|['"]$/g, '');
+    const customUrl = process.env.PAYU_PAYMENT_URL.trim();
     if (!isTest && customUrl === prodPaymentUrl) {
       paymentUrl = prodPaymentUrl;
     } else if (isTest && customUrl === testPaymentUrl) {

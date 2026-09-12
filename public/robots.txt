@@ -1,42 +1,11 @@
-# Aura Rudraksha Robots Configuration
-User-agent: Googlebot
-Allow: /
-Allow: /sitemap.xml
-Allow: /api/sitemap.xml
-Allow: /api/sitemap
-Disallow: /admin/
-Disallow: /account/
-Disallow: /checkout/
-Disallow: /cart/
-Disallow: /orders/
-Disallow: /payment/
-
-User-agent: Bingbot
-Allow: /
-Allow: /sitemap.xml
-Allow: /api/sitemap.xml
-Allow: /api/sitemap
-Disallow: /admin/
-Disallow: /account/
-Disallow: /checkout/
-Disallow: /cart/
-Disallow: /orders/
-Disallow: /payment/
-
 User-agent: *
 Allow: /
-Allow: /sitemap.xml
-Allow: /api/sitemap.xml
-Allow: /api/sitemap
-Disallow: /admin/
-Disallow: /account/
-Disallow: /checkout/
-Disallow: /cart/
-Disallow: /orders/
-Disallow: /payment/
-Disallow: /api/auth/
-Disallow: /api/admin/
+Disallow: /admin
+Disallow: /account
+Disallow: /checkout
+Disallow: /cart
+Disallow: /orders
+Disallow: /payment
+Disallow: /api/
 
-Sitemap: https://www.aurarudraksha.bond/sitemap.xml
-Sitemap: https://www.aurarudraksha.bond/api/sitemap.xml
-
+Sitemap: https://aura-rudraksha.vercel.app/sitemap.xml

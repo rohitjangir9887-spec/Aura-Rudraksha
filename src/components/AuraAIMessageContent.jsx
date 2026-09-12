@@ -59,12 +59,12 @@ function renderInlineContent(text) {
       let url = mdLinkMatch[2].trim();
 
       // Normalize internal domains to relative route
-      if (url.includes("aurarudraksha.bond") || url.includes("aura-rudraksha.vercel.app") || url.includes("aurarudraksha.com")) {
+      if (url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
         try {
           const parsed = new URL(url);
           url = parsed.pathname + parsed.search;
         } catch (_) {
-          url = url.replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app)/i, "") || "/";
+          url = url.replace(/^https?:\/\/(www\.)?(aurarudraksha\.com|aura-rudraksha\.vercel\.app)/i, "") || "/";
         }
       }
 
@@ -86,7 +86,7 @@ function renderInlineContent(text) {
     // 2. Direct Raw HTTP / HTTPS URL
     if (part.startsWith("http://") || part.startsWith("https://")) {
       let url = part;
-      if (url.includes("aurarudraksha.bond") || url.includes("aura-rudraksha.vercel.app") || url.includes("aurarudraksha.com")) {
+      if (url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
         try {
           const parsed = new URL(url);
           const relPath = parsed.pathname + parsed.search;

@@ -1361,15 +1361,15 @@ export function Admin() {
               </Link>
             </div>
 
-            {(recentOrders || []).length === 0 ? (
+            {recentOrders.length === 0 ? (
               <p style={{ color: '#888', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
                 {connected ? "No orders yet. New orders will appear here the moment customers place them." : "No orders in demo mode. Connect MongoDB for live order data."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(recentOrders || []).map((x) => (
+                {recentOrders.map((x) => (
                   <div
-                    key={x?.id}
+                    key={x.id}
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1381,11 +1381,11 @@ export function Admin() {
                     }}
                   >
                     <div>
-                      <b style={{ display: 'block', fontSize: '13px', color: '#2b170d' }}>Order #{x?.id}</b>
-                      <small style={{ color: '#806f62', fontSize: '11px' }}>{x?.customerName || 'Customer'} • ₹{(x?.finalAmount || x?.amount || 0).toLocaleString()}</small>
+                      <b style={{ display: 'block', fontSize: '13px', color: '#2b170d' }}>Order #{x.id}</b>
+                      <small style={{ color: '#806f62', fontSize: '11px' }}>{x.customerName || 'Customer'} • ₹{(x.finalAmount || x.amount || 0).toLocaleString()}</small>
                     </div>
-                    <span className={`admin-badge ${x?.status === 'Pending' ? 'warning' : x?.status === 'Delivered' ? 'success' : x?.status === 'Cancelled' ? 'error' : 'info'}`}>
-                      {x?.status}
+                    <span className={`admin-badge ${x.status === 'Pending' ? 'warning' : x.status === 'Delivered' ? 'success' : x.status === 'Cancelled' ? 'error' : 'info'}`}>
+                      {x.status}
                     </span>
                   </div>
                 ))}
@@ -1402,15 +1402,15 @@ export function Admin() {
               </Link>
             </div>
 
-            {(topProducts || []).length === 0 ? (
+            {topProducts.length === 0 ? (
               <p style={{ color: '#888', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
                 {connected ? "No products yet. Add your first product to start selling." : "No products in demo mode. Connect MongoDB for live catalog data."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(topProducts || []).map((p) => (
+                {topProducts.map((p) => (
                   <div
-                    key={p?.id}
+                    key={p.id}
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1424,11 +1424,11 @@ export function Admin() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <img src={getProductPrimaryImage(p)} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
                       <div>
-                        <span style={{ fontSize: '13px', fontWeight: '600', display: 'block', color: '#2b170d' }}>{p?.name}</span>
-                        <small style={{ color: '#806f62', fontSize: '11px' }}>Stock: {p?.stock}</small>
+                        <span style={{ fontSize: '13px', fontWeight: '600', display: 'block', color: '#2b170d' }}>{p.name}</span>
+                        <small style={{ color: '#806f62', fontSize: '11px' }}>Stock: {p.stock}</small>
                       </div>
                     </div>
-                    <b style={{ fontSize: '13px', color: '#2b170d' }}>₹{Number(p?.price).toLocaleString()}</b>
+                    <b style={{ fontSize: '13px', color: '#2b170d' }}>₹{Number(p.price).toLocaleString()}</b>
                   </div>
                 ))}
               </div>

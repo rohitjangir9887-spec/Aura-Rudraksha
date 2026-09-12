@@ -26,7 +26,7 @@ export function ProductCardSkeleton() {
   );
 }
 
-function ProductCardComponent({ p, onAdd, isShop = false, priority = false, index = 0 }) {
+function ProductCardComponent({ p, onAdd, isShop = false }) {
   if (!p) return null;
   const navigate = useNavigate();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -42,6 +42,7 @@ function ProductCardComponent({ p, onAdd, isShop = false, priority = false, inde
     : getProductGalleryImages(p);
   const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/placeholder.svg";
   const cardImgWidth = (typeof window !== "undefined" && window.innerWidth < 640) ? 360 : 440;
+  const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: cardImgWidth, quality: 80 });
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 
@@ -109,17 +110,14 @@ function ProductCardComponent({ p, onAdd, isShop = false, priority = false, inde
       style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent", cursor: "pointer" }}
       id={`product-card-${p.id}`}
     >
-      {/* 1. Card Image Area with Explicit Aspect Ratio for zero CLS */}
-      <div className="aura-card-media" style={{ width: "100%", aspectRatio: "1 / 1", position: "relative", overflow: "hidden", background: "#f8f3ed" }}>
+      {/* 1. Card Image Area */}
+      <div className="aura-card-media">
         <OptimizedImage 
           src={rawDisplayImage} 
           alt={p.name}
           width={cardImgWidth}
-          height={cardImgWidth}
           quality={80}
-          priority={priority}
           className="aura-card-img"
-          aspectRatio="1 / 1"
         />
 
         {/* Floating Offer Badge (Top Left of image) */}
@@ -152,7 +150,7 @@ function ProductCardComponent({ p, onAdd, isShop = false, priority = false, inde
 
         {/* Auspicious / Curated Badge (Bottom Left) */}
         {p.badge && !isOutOfStock && (
-          <span className="aura-card-badge-pill" style={{ display: 'none' }}>
+          <span className="aura-card-badge-pill">
             {p.badge}
           </span>
         )}
@@ -192,7 +190,7 @@ function ProductCardComponent({ p, onAdd, isShop = false, priority = false, inde
       </div>
 
       {/* 2. Card Content Area */}
-      <div className="aura-card-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <div className="aura-card-body">
         <div>
           {/* Category Tag */}
           {p.category && (
@@ -261,7 +259,6 @@ function ProductCardComponent({ p, onAdd, isShop = false, priority = false, inde
           className={`aura-card-add-btn ${added ? "added" : ""}`}
           onClick={handleAddToCart}
           disabled={isOutOfStock}
-          aria-label={isOutOfStock ? `${p.name} is out of stock` : added ? `${p.name} added to cart` : `Add ${p.name} to cart`}
           id={`add-to-cart-btn-${p.id}`}
         >
           {added ? (

@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
 import { useSeo } from "../hooks/useSeo";
-import { getCanonicalUrl } from "../config/site";
 
 export function Policies() {
   const location = useLocation();
@@ -24,7 +23,7 @@ export function Policies() {
   useSeo({
     title: "Store Policies & Devotee Assurance | Aura Rudraksha",
     description: "Read Aura Rudraksha policies: Shipping, 7-Day Returns, Authenticity Guarantee, Privacy Policy, Terms of Service, and Secure Payments.",
-    canonical: getCanonicalUrl("/policies")
+    canonical: "https://aurarudraksha.com/policies"
   });
 
   const [activeTab, setActiveTab] = useState(initialTab);

@@ -44,24 +44,14 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   const activeIndex = currentIndex >= 0 ? currentIndex : 0;
   const discountPct = pct(product);
 
-  // Non-blocking idle pre-warm for secondary gallery images
+  // Preload images
   useEffect(() => {
-    if (typeof window === "undefined" || images.length <= 1) return;
-    const idleWarm = () => {
-      images.slice(1, 4).forEach(src => {
-        if (src) {
-          const img = new Image();
-          img.src = getOptimizedImageUrl(src, { width: 800, quality: 84 });
-        }
-      });
-    };
-    if ("requestIdleCallback" in window) {
-      const handle = window.requestIdleCallback(idleWarm, { timeout: 2000 });
-      return () => window.cancelIdleCallback(handle);
-    } else {
-      const timer = setTimeout(idleWarm, 1500);
-      return () => clearTimeout(timer);
-    }
+    images.forEach(src => {
+      if (src) {
+        const img = new Image();
+        img.src = src;
+      }
+    });
   }, [images]);
 
   const handlePrev = (e) => {

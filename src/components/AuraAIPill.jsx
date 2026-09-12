@@ -32,7 +32,6 @@ export function AuraAIPill({ className = "" }) {
       to="/aura-ai"
       id="aura-ai-header-pill"
       className={`aura-ai-pill-btn ${className}`}
-      aria-label="Open Aura AI Spiritual Shopping & Support Guide"
       title="Open Aura AI Spiritual Shopping & Support Guide"
       onClick={handleClick}
       onPointerEnter={handlePreload}

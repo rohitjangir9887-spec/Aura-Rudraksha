@@ -414,10 +414,6 @@ export function OrderDetail() {
               <span style={{background: '#ffebee', color: '#c62828', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6}}>
                 <X size={16} /> Cancelled
               </span>
-            ) : order.paymentStatus === "Failed" ? (
-              <span style={{background: '#ffebee', color: '#c62828', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6}}>
-                <X size={16} /> Payment Failed
-              </span>
             ) : (
               <span style={{background: '#e5f6ea', color: '#1d9450', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6}}>
                 <Check size={16} /> {order.status}
@@ -572,21 +568,6 @@ export function OrderDetail() {
             </div>
 
             {/* Refund history / status banner */}
-            {order.paymentStatus === 'Failed' && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#991b1b', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 18 }}>⚠️</span>
-                <div>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>Payment Failed or Timeout</div>
-                  <div style={{ lineHeight: 1.4 }}>
-                    Your payment was not completed successfully. If money was deducted from your bank account, it will automatically be refunded by your bank within 3-5 business days (as per RBI guidelines).
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <a href="/contact" style={{ color: '#a54d2b', textDecoration: 'underline', fontWeight: 600 }}>Contact Support / Raise Ticket</a>
-                  </div>
-                </div>
-              </div>
-            )}
-            
             {order.amountRefunded > 0 && (
               <div style={{ marginTop: 8, padding: '8px 12px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 8, fontSize: 12, color: '#1e40af' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
@@ -605,7 +586,7 @@ export function OrderDetail() {
           </div>
 
           {/* If unpaid, provide live Retry PayU button */}
-          {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && order?.status !== "Cancelled" && (
+          {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && (
             <button
               type="button"
               id="btn-order-retry-payu"

@@ -69,8 +69,6 @@ export function Footer() {
             src={getOptimizedImageUrl("https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png", { width: 360, quality: 85 })} 
             alt="Aura Rudraksha Logo" 
             className="nf-logo"
-            width="180"
-            height="48"
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
@@ -90,10 +88,10 @@ export function Footer() {
             Carefully selected, lab-tested and energised Rudraksha for your spiritual journey. Bringing balance, peace and positivity into your life.
           </p>
           <div className="nf-socials">
-            <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Follow Aura Rudraksha on Instagram"><Instagram size={18} strokeWidth={1.5} /></a>
-            <a href={facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Follow Aura Rudraksha on Facebook"><Facebook size={18} strokeWidth={1.5} /></a>
-            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label="Connect with Aura Rudraksha on WhatsApp"><Send size={18} strokeWidth={1.5} /></a>
-            <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="Subscribe to Aura Rudraksha YouTube Channel"><Youtube size={18} strokeWidth={1.5} /></a>
+            <a href={instagramUrl} target="_blank" rel="noreferrer"><Instagram size={18} strokeWidth={1.5} /></a>
+            <a href={facebookUrl} target="_blank" rel="noreferrer"><Facebook size={18} strokeWidth={1.5} /></a>
+            <a href={whatsappUrl} target="_blank" rel="noreferrer"><Send size={18} strokeWidth={1.5} /></a>
+            <a href={youtubeUrl} target="_blank" rel="noreferrer"><Youtube size={18} strokeWidth={1.5} /></a>
           </div>
         </div>
 
@@ -193,7 +191,7 @@ export function Footer() {
 
       {/* 7. Bottom Copyright */}
       <div className="n-footer-copyright">
-        <p>© {new Date().getFullYear()} Aura Rudraksha. All Rights Reserved.</p>
+        <p>© 2025 Aura Rudraksha. All Rights Reserved.</p>
         <p>Made with ❤️ for your spiritual journey.</p>
       </div>
       

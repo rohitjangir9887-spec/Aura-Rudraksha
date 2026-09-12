@@ -369,7 +369,7 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
           returnWindow: "7 Days Easy Replacement & Refund",
           conditions: "Full refund or exchange if damaged, defective, or incorrect item received",
           authenticityGuarantee: "100% Original Nepali Origin with Official Government-Approved Gemological Lab Test Certificate",
-          process: "Contact Aura Support via AI Chat or email support@aurarudraksha.bond"
+          process: "Contact Aura Support via AI Chat or email support@aurarudraksha.com"
         };
         if (isDbConnected()) {
            try {

@@ -16,7 +16,6 @@ import reviewsRoute from "./routes/reviews.js";
 import settingsRoute from "./routes/settings.js";
 import ticketsRoute from "./routes/tickets.js";
 import analyticsRoute from "./routes/analytics.js";
-import webhooksRoute from "./routes/webhooks.js";
 import seedRoute from "./routes/seed.js";
 import addressesRoute from "./routes/addresses.js";
 import wishlistRoute from "./routes/wishlist.js";
@@ -226,7 +225,6 @@ export function createApp(options = {}) {
   app.use("/api/cart", requireDb, cartRoute);
   app.use("/api/products", requireDb, productsRoute);
   app.use("/api/orders", requireDb, noCacheMiddleware, ordersRoute);
-  app.use("/api/webhooks", webhooksRoute);
   app.use("/api/customers", requireDb, customersRoute);
   app.use("/api/coupons", requireDb, couponsRoute);
   app.use("/api/promotions", requireDb, promotionsRoute);

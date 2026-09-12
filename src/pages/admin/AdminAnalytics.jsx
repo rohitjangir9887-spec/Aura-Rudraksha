@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db } from "../../lib/db";
-import { BarChart3, Sparkles, ShoppingBag, Globe, TrendingUp, RotateCcw, AlertCircle, Mail, MessageSquare } from "lucide-react";
+import { BarChart3, Sparkles, ShoppingBag, Globe, TrendingUp, RotateCcw, AlertCircle } from "lucide-react";
 import "./admin-pages.css";
 
 export function AdminAnalytics() {

@@ -111,10 +111,6 @@ export function Shell({children}) {
                 src={getOptimizedImageUrl("https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png", { width: 360, quality: 85 })} 
                 alt="Aura Rudraksha" 
                 className="brand-logo-img" 
-                width="180"
-                height="48"
-                fetchpriority="high"
-                decoding="async"
                 referrerPolicy="no-referrer"
                 onError={(e) => { 
                   const raw = "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";

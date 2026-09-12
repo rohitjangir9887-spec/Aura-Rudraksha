@@ -522,7 +522,7 @@ export async function calculateKundaliEndpoint(req, res, next) {
     }
 
     // 3. Generate Vedic Interpretation using NVIDIA NIM (nemotron-3-super-120b-a12b)
-    // Generate AI interpretation using NVIDIA NIM or Gemini (gemini-2.5-flash)
+    // Generate AI interpretation using NVIDIA NIM or Gemini (gemini-3.8-flash)
     let aiInterpretation = "";
     const nvidiaClient = getNvidiaClient();
     const geminiClient = getGeminiClient();
@@ -555,7 +555,7 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
     if (geminiClient && !aiInterpretation) {
       try {
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: [{ role: 'user', parts: [{ text: astroPrompt }] }],
           config: {
             systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
@@ -659,8 +659,8 @@ export async function chatAuraAI(req, res, next) {
       cartActions: true,
       orderSupport: true,
       humanSupport: true,
-      supportPhone: "+91 96729 96531",
-      supportEmail: "support@aurarudraksha.bond"
+      supportPhone: "+91 98765 43210",
+      supportEmail: "support@aurarudraksha.com"
     };
 
     if (isDbConnected()) {
@@ -681,7 +681,7 @@ export async function chatAuraAI(req, res, next) {
 
     // 2. Intent Routing in Pandit Ji Mode for Order/Delivery Questions
     if (mode === "panditji" && (intent === "ORDER_TRACKING" || intent === "ORDER_HISTORY" || intent === "ORDER_CANCEL" || intent === "SHIPPING")) {
-      const handoffText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nOrder status, parcel tracking aur delivery updates ke liye **Aura AI Support** aapki behtar madad karega.\n\nAap niche diye gaye button par click karke **Aura AI Shopping & Support** mode mein switch kar sakte hain, ya seedhe [Track Order](/track-order) page par apna Order Number daal kar live status dekh sakte hain:\n\n📦 **Direct Order Tracking:** [https://www.aurarudraksha.bond/track-order](/track-order)`;
+      const handoffText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nOrder status, parcel tracking aur delivery updates ke liye **Aura AI Support** aapki behtar madad karega.\n\nAap niche diye gaye button par click karke **Aura AI Shopping & Support** mode mein switch kar sakte hain, ya seedhe [Track Order](/track-order) page par apna Order Number daal kar live status dekh sakte hain:\n\n📦 **Direct Order Tracking:** [https://aurarudraksha.com/track-order](/track-order)`;
 
       const handoffPayload = {
         text: handoffText,
@@ -805,16 +805,16 @@ export async function chatAuraAI(req, res, next) {
     const urlAndCatalogRulesText = `
 WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
 - Official Store Website URLs:
-  - https://www.aurarudraksha.bond (Live Web Application)
-  - https://www.aurarudraksha.bond (Official Domain)
+  - https://aura-rudraksha.vercel.app (Live Web Application)
+  - https://aurarudraksha.com (Official Domain)
 - Main Page Routes:
-  - Official Homepage: https://www.aurarudraksha.bond (or /)
-  - Shop All Products: https://www.aurarudraksha.bond/shop (or /shop)
-  - Order Tracking: https://www.aurarudraksha.bond/track-order (or /track-order)
-  - Contact Us: https://www.aurarudraksha.bond/contact (or /contact)
-  - Cart / Checkout: https://www.aurarudraksha.bond/cart (or /cart)
-  - Free Kundali & Zodiac Analysis: https://www.aurarudraksha.bond/zodiac (or /zodiac)
-- When user asks "What is the website URL?", "Website link do", or "Where to buy?", ALWAYS provide: https://www.aurarudraksha.bond.
+  - Official Homepage: https://aura-rudraksha.vercel.app (or /)
+  - Shop All Products: https://aura-rudraksha.vercel.app/shop (or /shop)
+  - Order Tracking: https://aura-rudraksha.vercel.app/track-order (or /track-order)
+  - Contact Us: https://aura-rudraksha.vercel.app/contact (or /contact)
+  - Cart / Checkout: https://aura-rudraksha.vercel.app/cart (or /cart)
+  - Free Kundali & Zodiac Analysis: https://aura-rudraksha.vercel.app/zodiac (or /zodiac)
+- When user asks "What is the website URL?", "Website link do", or "Where to buy?", ALWAYS provide: https://aura-rudraksha.vercel.app (or https://aurarudraksha.com).
 - NEVER generate or hallucinate fake external domain URLs (like example.com or random fake links).
 - STRICT PRODUCT CATALOG & LINKING MANDATE:
   - NEVER invent, hallucinate, or suggest fake product names, fake prices, or fake links.
@@ -839,7 +839,7 @@ LINK FORMAT RULES:
     let systemPrompt = "";
 
     if (mode === "panditji") {
-      systemPrompt = `You are AI Pandit Ji, the revered Vedic Astrology (Jyotish) & Spiritual Guide for Aura Rudraksha (https://www.aurarudraksha.bond).
+      systemPrompt = `You are AI Pandit Ji, the revered Vedic Astrology (Jyotish) & Spiritual Guide for Aura Rudraksha (https://aurarudraksha.com).
 
 CORE IDENTITY & TRANSPARENCY:
 - You are an authentic Vedic spiritual AI assistant ("AI Pandit Ji"). Always maintain high respect, calm demeanor, and deep traditional knowledge.
@@ -885,7 +885,7 @@ DEVOTEE PROFILE & CONSULTATION NOTES:
 ${memoryContextText || "New devotee consultation."}
 ${notesContext ? `Active Notepad Context: ${notesContext}` : ""}`;
     } else {
-      systemPrompt = `You are Aura AI, the intelligent personal shopping, Vedic bead specialist, and order support assistant for Aura Rudraksha (https://www.aurarudraksha.bond).
+      systemPrompt = `You are Aura AI, the intelligent personal shopping, Vedic bead specialist, and order support assistant for Aura Rudraksha (https://aurarudraksha.com).
 
 CORE MISSION:
 - Guide devotees to the most authentic, 100% Nepali Rudraksha beads, 108 Jaap Malas, Gauri Shankar beads, and sacred bracelets.
@@ -996,7 +996,7 @@ ${memoryContextText || "Guest shopper."}`;
           }
 
           const geminiStream = await geminiClient.models.generateContentStream({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: geminiContents,
             config: {
               systemInstruction: systemPrompt,
@@ -1186,7 +1186,7 @@ ${memoryContextText || "Guest shopper."}`;
         }
 
         const geminiRes = await nonStreamGeminiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: geminiContents,
           config: {
             systemInstruction: systemPrompt,
@@ -1451,7 +1451,7 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
     if (geminiClient && !aiExecutiveReport) {
       try {
         const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: [{ role: 'user', parts: [{ text: adminPrompt }] }],
           config: {
             systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
@@ -1957,7 +1957,7 @@ Instructions:
             }));
 
           const response = await geminiClient.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: geminiContents,
             config: {
               systemInstruction: systemPrompt,
@@ -1968,18 +1968,10 @@ Instructions:
           const geminiText = response.text || "No response generated.";
           return res.json({ text: geminiText });
         } catch (geminiErr) {
-          console.error("Gemini fallback error in adminChatAuraAI:", geminiErr?.message || geminiErr);
-          const isQuota = String(geminiErr?.message || "").toLowerCase().includes("quota") || String(geminiErr?.message || "").includes("429");
-          return res.json({
-            text: isQuota 
-              ? "⚠️ **AI Quota Notice:** Google Gemini API usage quota has been reached for the current key. Please check your plan at https://ai.google.dev or update your `GEMINI_API_KEY` in Settings > Environment Variables."
-              : `⚠️ **AI Service Notice:** AI service is momentarily unavailable (${geminiErr?.message || "Please retry in a moment"}).`
-          });
+          console.error("Gemini fallback error in adminChatAuraAI:", geminiErr);
         }
       }
-      return res.json({ 
-        text: "⚠️ **AI Notice:** AI engine is initializing. Please ensure a valid `GEMINI_API_KEY` or `NVIDIA_API_KEY` is configured in Settings > Environment Variables."
-      });
+      return res.status(503).json({ error: "AI Engine is initializing. Please retry in a moment." });
     }
 
     const tools = [
@@ -2044,36 +2036,24 @@ Instructions:
       console.warn("[adminChatAuraAI] NVIDIA error, falling back to Gemini:", nimErr?.message);
       const geminiClient = getGeminiClient();
       if (geminiClient) {
-        try {
-          const geminiContents = formattedMessages
-            .filter(m => m.role !== 'system' && m.role !== 'tool')
-            .map(m => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: String(m.content || "") }]
-            }));
+        const geminiContents = formattedMessages
+          .filter(m => m.role !== 'system' && m.role !== 'tool')
+          .map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: String(m.content || "") }]
+          }));
 
-          const geminiRes = await geminiClient.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: geminiContents,
-            config: {
-              systemInstruction: systemPrompt,
-              temperature: 0.7,
-            }
-          });
-          return res.json({ text: geminiRes.text || "No response generated." });
-        } catch (geminiFallbackErr) {
-          console.error("Gemini secondary fallback error in adminChatAuraAI:", geminiFallbackErr?.message || geminiFallbackErr);
-          const isQuota = String(geminiFallbackErr?.message || "").toLowerCase().includes("quota") || String(geminiFallbackErr?.message || "").includes("429");
-          return res.json({
-            text: isQuota
-              ? "⚠️ **AI Quota Notice:** Google Gemini API quota has been exceeded for your current key. Please check your plan at https://ai.google.dev or update your `GEMINI_API_KEY` in Settings > Environment Variables."
-              : `⚠️ **AI Service Notice:** AI service is momentarily unavailable (${geminiFallbackErr?.message || "Please retry in a moment"}).`
-          });
-        }
+        const geminiRes = await geminiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: geminiContents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.7,
+          }
+        });
+        return res.json({ text: geminiRes.text || "No response generated." });
       }
-      return res.json({
-        text: `⚠️ **AI Service Notice:** NVIDIA service returned: ${nimErr?.message || "error"}. No Gemini fallback was available.`
-      });
+      throw nimErr;
     }
 
     let responseMessage = response.choices[0]?.message;
@@ -2121,12 +2101,7 @@ Instructions:
 
     return res.json({ text: aiText });
   } catch (error) {
-    console.error("Error in adminChatAuraAI:", error?.message || error);
-    const isQuota = String(error?.message || "").toLowerCase().includes("quota") || String(error?.message || "").includes("429");
-    return res.json({ 
-      text: isQuota
-        ? "⚠️ **AI Quota Notice:** The AI model API usage limit has been exceeded. Please update your API key in Settings > Environment Variables."
-        : `⚠️ **AI Service Notice:** ${error?.message || "An unexpected error occurred while processing your request. Please try again."}`
-    });
+    console.error("Error in adminChatAuraAI:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }

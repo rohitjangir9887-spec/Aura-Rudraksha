@@ -19,7 +19,6 @@ import {
 import { db } from "../lib/db";
 import { MUKHI_CATALOG } from "../data/seoCatalogData";
 import { useSeo } from "../hooks/useSeo";
-import { getCanonicalUrl } from "../config/site";
 import ProductCard from "../components/ProductCard";
 import { Shell } from "../components/Shell";
 
@@ -52,7 +51,7 @@ export default function CategoryLanding() {
   useSeo({
     title: pageTitle,
     description: pageDescription,
-    canonical: getCanonicalUrl(`/rudraksha${slug ? `/${slug}` : ""}`),
+    canonical: `https://aurarudraksha.com/rudraksha${slug ? `/${slug}` : ""}`,
     ogType: "website"
   });
 
@@ -228,8 +227,8 @@ export default function CategoryLanding() {
             </div>
           ) : matchingProducts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {matchingProducts.map((product, index) => (
-                <ProductCard key={product.id || product._id} p={product} priority={index < 2} index={index} />
+              {matchingProducts.map(product => (
+                <ProductCard key={product.id || product._id} p={product} />
               ))}
             </div>
           ) : (

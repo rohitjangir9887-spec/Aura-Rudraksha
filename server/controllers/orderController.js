@@ -2,7 +2,6 @@ import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { isDbConnected } from "../config/db.js";
-import { sendOrderConfirmationEmail, sendOrderCancelledEmail, sendOrderShippedEmail, sendOrderDeliveredEmail } from "../services/emailService.js";
 import { recordCustomerOrder } from "./customerController.js";
 import Customer from "../models/Customer.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
@@ -129,25 +128,6 @@ export async function getOrderById(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     order = normalizeOrderState(order);
-    
-    // Timeout check for pending orders (20 minutes)
-    if (order.paymentStatus === "Pending") {
-      const orderDate = new Date(order.createdAt || order.date);
-      const now = new Date();
-      const diffMins = (now - orderDate) / (1000 * 60);
-      if (diffMins > 20) {
-        order.paymentStatus = "Failed";
-        order.status = "Cancelled";
-        order.orderStatus = "Cancelled";
-        
-        // Also update in DB lazily without awaiting to not block read
-        Order.updateOne(
-          { _id: order._id, paymentStatus: "Pending" },
-          { $set: { paymentStatus: "Failed", status: "Cancelled", orderStatus: "Cancelled", cancelReason: "Payment timeout after 20 minutes" } }
-        ).catch(err => console.error("Auto cancel timeout err", err));
-      }
-    }
-
 
     // Authorization check
     const { isInitialAdmin } = isAdminUser(req.user);
@@ -423,15 +403,6 @@ export async function createOrder(req, res, next) {
 
     const responsePayload = { success: true, data: created };
 
-    try {
-      if (email) {
-        await sendOrderConfirmationEmail({ to: email, name: name, order: created });
-      }
-    } catch (err) {
-      console.error("[Email] Failed to send order confirmation:", err.message);
-    }
-
-
     if (idempotencyKey) {
       await commitIdempotency({
         key: idempotencyKey,
@@ -596,28 +567,6 @@ export async function updateOrder(req, res, next) {
     }
 
     const updated = await Order.findByIdAndUpdate(existing._id, { $set: updateFields }, { returnDocument: "after" });
-
-    try {
-      if (updated && updateFields && Object.keys(updateFields).length > 0) {
-        const email = updated.customerEmail || updated.email || updated.shippingAddress?.email;
-        const name = updated.customerName || updated.firstName || 'Customer';
-        
-        if (email) {
-          if (updateFields.orderStatus && existing.orderStatus !== updateFields.orderStatus) {
-            if (updateFields.orderStatus === 'Cancelled' || updateFields.status === 'Cancelled') {
-              await sendOrderCancelledEmail({ to: email, name, order: updated });
-            } else if (updateFields.orderStatus === 'Shipped') {
-              await sendOrderShippedEmail({ to: email, name, order: updated });
-            } else if (updateFields.orderStatus === 'Delivered') {
-              await sendOrderDeliveredEmail({ to: email, name, order: updated });
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error("[Email] Error sending status update email:", err.message);
-    }
-
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);

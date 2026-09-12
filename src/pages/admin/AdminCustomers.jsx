@@ -11,54 +11,9 @@ export function AdminCustomers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(() => (db.getCustomers() || []).length === 0);
   const [viewing, setViewing] = useState(null);
-  const [selectedCustomers, setSelectedCustomers] = useState([]);
-  const [emailTarget, setEmailTarget] = useState("all");
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [messageType, setMessageType] = useState("email");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailMessage, setEmailMessage] = useState("");
-  const [sendingEmail, setSendingEmail] = useState(false);
   const [orders, setOrders] = useState(() => db.getOrders() || []);
 
-  
-  const toggleSelectCustomer = (id) => {
-    setSelectedCustomers(prev => 
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-    );
-  };
-  
-  const handleSendEmail = async (e) => {
-    e.preventDefault();
-    if (!emailSubject.trim() || !emailMessage.trim()) return alert("Subject and Message are required");
-    setSendingEmail(true);
-    try {
-      const res = await fetch("/api/customers/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target: emailTarget === 'viewing' ? 'selected' : emailTarget,
-          customerIds: emailTarget === 'viewing' ? [viewing.id] : selectedCustomers,
-          subject: emailSubject,
-          message: emailMessage
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(data.message);
-        setShowEmailModal(false);
-        setEmailSubject('');
-        setEmailMessage('');
-      } else {
-        alert("Error: " + data.message);
-      }
-    } catch (err) {
-      alert("Error sending email: " + err.message);
-    }
-    setSendingEmail(false);
-  };
-  
   useEffect(() => {
-
     load();
     const unsub = onStoreUpdate(() => {
       const custs = db.getCustomers() || [];
@@ -87,9 +42,9 @@ export function AdminCustomers() {
   useEffect(() => {
     if (searchTerm) {
       setFilteredCustomers(customers.filter(c => 
-        c?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c?.phone?.includes(searchTerm)
+        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.phone?.includes(searchTerm)
       ));
     } else {
       setFilteredCustomers(customers);
@@ -228,21 +183,6 @@ export function AdminCustomers() {
           <h1>Customers Analytics</h1>
           <p className="admin-page-subtitle">{customers.length} store customers recorded</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            className="admin-btn secondary" 
-            onClick={() => { setEmailTarget('selected'); setShowEmailModal(true); }}
-            disabled={selectedCustomers.length === 0}
-          >
-            <Mail size={16} /> Send Selected ({selectedCustomers.length})
-          </button>
-          <button 
-            className="admin-btn primary" 
-            onClick={() => { setEmailTarget('all'); setShowEmailModal(true); }}
-          >
-            <Mail size={16} /> Send All
-          </button>
-        </div>
       </div>
 
       <div className="admin-mobile-toolbar">
@@ -266,7 +206,6 @@ export function AdminCustomers() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{width: 40}}></th>
                 <th>Name</th>
                 <th>Email / Phone</th>
                 <th>Role</th>
@@ -279,18 +218,15 @@ export function AdminCustomers() {
               </tr>
             </thead>
             <tbody>
-              {(filteredCustomers || []).map(c => (
-                <tr key={c?.id}>
+              {filteredCustomers.map(c => (
+                <tr key={c.id}>
                   <td>
-                    <input type="checkbox" checked={selectedCustomers.includes(c?.id)} onChange={() => toggleSelectCustomer(c?.id)} />
+                    <b>{c.name || 'Customer'}</b>
+                    {c.address && <small style={{ display: 'block', color: '#806f62' }}>{c.address}</small>}
                   </td>
                   <td>
-                    <b>{c?.name || 'Customer'}</b>
-                    {c?.address && <small style={{ display: 'block', color: '#806f62' }}>{c?.address}</small>}
-                  </td>
-                  <td>
-                    {c?.email && <span style={{ display: 'block' }}>{c?.email}</span>}
-                    {c?.phone && <small style={{ color: '#806f62' }}>{c?.phone}</small>}
+                    {c.email && <span style={{ display: 'block' }}>{c.email}</span>}
+                    {c.phone && <small style={{ color: '#806f62' }}>{c.phone}</small>}
                   </td>
                   <td>
                     <span className={`admin-badge ${c.role === 'admin' ? 'info' : ''}`}>{c.role === 'admin' ? 'Admin' : 'Customer'}</span>
@@ -301,7 +237,7 @@ export function AdminCustomers() {
                   <td><small>{c.joined || c.firstSeen ? new Date(c.joined || c.firstSeen).toLocaleDateString() : '—'}</small></td>
                   <td><small>{c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : '—'}</small></td>
                   <td><b>{c.totalOrders || 0}</b></td>
-                  <td><b>₹{(c?.totalSpent || 0).toLocaleString()}</b></td>
+                  <td><b>₹{(c.totalSpent || 0).toLocaleString()}</b></td>
                   <td>
                     <button className="admin-btn secondary" style={{ padding: '5px 12px', fontSize: '12px' }} onClick={() => setViewing(c)}>
                       <Eye size={13} /> Profile
@@ -314,17 +250,17 @@ export function AdminCustomers() {
         </div>
 
         <div className="admin-mobile-cards">
-          {(filteredCustomers || []).map(c => (
-            <div key={c?.id} className="admin-mobile-card">
+          {filteredCustomers.map(c => (
+            <div key={c.id} className="admin-mobile-card">
               <div className="mobile-card-top">
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#fdf0e8', color: '#a54d2b', display: 'grid', placeItems: 'center', fontWeight: 'bold', fontSize: '16px' }}>
-                    {c?.name?.charAt(0) || 'U'}
+                    {c.name?.charAt(0) || 'U'}
                   </div>
                   <div>
-                    <span className="mobile-card-title">{c?.name}</span>
+                    <span className="mobile-card-title">{c.name}</span>
                     <div className="mobile-card-sub">
-                      {c?.phone ? `📞 ${c?.phone}` : ''} {c?.email ? `• ✉️ ${c?.email}` : ''}
+                      {c.phone ? `📞 ${c.phone}` : ''} {c.email ? `• ✉️ ${c.email}` : ''}
                     </div>
                     <div style={{ fontSize: '11px', color: '#806f62', marginTop: '2px' }}>
                       👀 Visits: <b>{c.visits || 1}</b> • Last Visit: {c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : 'Recent'}
@@ -349,57 +285,13 @@ export function AdminCustomers() {
 
                 <div>
                   <small style={{ color: '#806f62', fontSize: '11px', display: 'block' }}>Total Spent</small>
-                  <b style={{ fontSize: '15px', color: '#166534' }}>₹{(c?.totalSpent || 0).toLocaleString()}</b>
+                  <b style={{ fontSize: '15px', color: '#166534' }}>₹{(c.totalSpent || 0).toLocaleString()}</b>
                 </div>
               </div>
             </div>
           ))}
         </div>
         </>
-      )}
-    
-      {showEmailModal && (
-        <div className="admin-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="admin-modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '100%', maxWidth: '500px', margin: '20px' }}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#2b170d' }}>Send {messageType === 'email' ? 'Email' : 'SMS'} ({emailTarget === 'all' ? 'All Customers' : emailTarget === 'viewing' ? viewing?.name : selectedCustomers.length + ' Selected'})</h2>
-              <button type="button" onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
-                <input type="radio" name="msgType" checked={messageType === 'email'} onChange={() => setMessageType('email')} />
-                Email
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
-                <input type="radio" name="msgType" checked={messageType === 'sms'} onChange={() => setMessageType('sms')} />
-                SMS
-              </label>
-            </div>
-
-            <form onSubmit={handleSendEmail}>
-              
-              {messageType === 'email' && (
-                <div className="admin-form-group" style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Subject</label>
-                  <input required type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
-                </div>
-              )}
-
-              <div className="admin-form-group" style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold' }}>Message</label>
-                <textarea required rows="6" value={emailMessage} onChange={e => setEmailMessage(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', resize: 'vertical' }}></textarea>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" className="admin-btn secondary" onClick={() => setShowEmailModal(false)}>Cancel</button>
-                <button type="submit" className="admin-btn primary" disabled={sendingEmail}>
-                  {sendingEmail ? 'Sending...' : (messageType === 'email' ? 'Send Email' : 'Send SMS')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </AdminLayout>
   );

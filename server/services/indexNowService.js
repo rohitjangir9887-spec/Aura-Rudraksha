@@ -16,8 +16,8 @@ export function getIndexNowKey() {
   return /^[A-Fa-f0-9-]{8,128}$/.test(configured) ? configured : DEFAULT_KEY;
 }
 
-export const DETERMINISTIC_CANONICAL_ORIGIN = "https://www.aurarudraksha.bond";
-export const DETERMINISTIC_CANONICAL_DOMAIN = "www.aurarudraksha.bond";
+export const DETERMINISTIC_CANONICAL_ORIGIN = "https://aura-rudraksha.vercel.app";
+export const DETERMINISTIC_CANONICAL_DOMAIN = "aura-rudraksha.vercel.app";
 
 export function getSiteDomain(req) {
   if (process.env.SITE_URL) {
@@ -36,22 +36,6 @@ export function getSiteBaseUrl(req) {
     const raw = process.env.SITE_URL.replace(/\/+$/, "");
     if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
       return raw;
-    }
-  }
-  if (req) {
-    const getHeader = (name) => {
-      if (typeof req.get === "function") {
-        try { return req.get(name); } catch (_) {}
-      }
-      if (req.headers && typeof req.headers === "object") {
-        return req.headers[name.toLowerCase()] || req.headers[name];
-      }
-      return null;
-    };
-    const host = getHeader("x-forwarded-host") || getHeader("host");
-    const proto = getHeader("x-forwarded-proto") || req.protocol || "https";
-    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-      return `${proto}://${host}`;
     }
   }
   return DETERMINISTIC_CANONICAL_ORIGIN;
