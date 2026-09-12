@@ -120,6 +120,37 @@
   flex-shrink: 0;
 }
 
+.aura-pdp-share-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.aura-pdp-share-wa-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #25d366;
+  color: #ffffff;
+  border: 1px solid #20ba5a;
+  border-radius: 20px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(37, 211, 102, 0.25);
+}
+
+.aura-pdp-share-wa-pill:hover {
+  background: #20ba5a;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 211, 102, 0.35);
+}
+
 .aura-pdp-share-btn {
   display: inline-flex;
   align-items: center;
@@ -132,14 +163,66 @@
   font-weight: 600;
   color: var(--aura-brown-mid);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
   white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .aura-pdp-share-btn:hover {
   background: var(--aura-gold-subtle);
   border-color: var(--aura-gold-bright);
+  color: var(--aura-brown-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.06);
+}
+
+.aura-pdp-share-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--aura-border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(42, 22, 13, 0.15), 0 8px 10px -6px rgba(42, 22, 13, 0.1);
+  padding: 6px;
+  width: 220px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: auraShareFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes auraShareFade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.aura-pdp-share-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--aura-brown-dark);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  text-align: left;
+}
+
+.aura-pdp-share-menu-item:hover {
+  background: var(--aura-gold-subtle);
+}
+
+.aura-pdp-share-menu-item.wa:hover {
+  background: #f0fdf4;
+  color: #15803d;
 }
 
 @media (max-width: 480px) {
@@ -156,6 +239,11 @@
     display: none;
   }
   .aura-pdp-share-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  .aura-pdp-share-wa-pill {
     padding: 3px 8px;
     font-size: 11px;
     gap: 4px;

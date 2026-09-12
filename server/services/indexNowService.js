@@ -35,9 +35,13 @@ export function getSiteDomain(req) {
 
 export function getSiteBaseUrl(req) {
   if (process.env.SITE_URL) {
-    let raw = process.env.SITE_URL.replace(/\/+$/, "");
+    let raw = process.env.SITE_URL.trim().replace(/\/+$/, "");
     if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
-      raw = raw.replace(/^https?:\/\/www\./i, "https://");
+      raw = raw.replace(/^http:\/\//i, "https://");
+      raw = raw.replace(/^https:\/\/www\./i, "https://");
+      if (!raw.startsWith("https://")) {
+        raw = `https://${raw}`;
+      }
       return raw;
     }
   }

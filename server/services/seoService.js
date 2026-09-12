@@ -16,6 +16,7 @@ import { isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
+import { defaultProducts } from "../data/defaultData.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
 
@@ -444,32 +445,104 @@ export async function getPublicProductsForSeo() {
 }
 
 /**
+ * Resolves a product from an in-memory or seed catalog by ID, slug, or slugified name
+ */
+export function matchProductFromCatalog(catalog = [], idOrSlug) {
+  if (!Array.isArray(catalog) || !idOrSlug) return null;
+  let raw = String(idOrSlug).trim();
+  try {
+    raw = decodeURIComponent(raw);
+  } catch (_) {}
+  const target = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
+  const cleanId = target.replace(/^(product-card-|product-)/, "");
+
+  // 1. Direct exact match on id, _id, or slug
+  let match = catalog.find(p => p && (
+    String(p.id).toLowerCase() === target ||
+    String(p.id).toLowerCase() === cleanId ||
+    String(p._id || "").toLowerCase() === target ||
+    (p.slug && String(p.slug).toLowerCase() === target)
+  ));
+  if (match) return match;
+
+  // 2. Slugified name match (e.g. "5-mukhi-rudraksha" or "original-14-mukhi-rudraksha")
+  match = catalog.find(p => {
+    if (!p || !p.name) return false;
+    const slugName = String(p.name).toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return slugName === target || slugName.startsWith(target) || target.startsWith(slugName);
+  });
+  if (match) return match;
+
+  // 3. Mukhi number extraction (e.g. "5-mukhi", "5-mukhi-rudraksha" -> "5")
+  const numMatch = target.match(/^(\d+)(?:-mukhi|$)/i) || target.match(/(\d+)-mukhi/i);
+  if (numMatch && numMatch[1]) {
+    const mukhiNum = numMatch[1];
+    match = catalog.find(p => String(p.id) === mukhiNum || (p.slug && p.slug.includes(mukhiNum)));
+    if (match) return match;
+  }
+
+  // 4. Keyword match for mala or special items
+  if (target.includes("mala")) {
+    match = catalog.find(p => String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala")));
+    if (match) return match;
+  }
+
+  return null;
+}
+
+/**
  * Find single product for SEO metadata by ID or Slug
  */
 export async function findProductForSeo(idOrSlug) {
   if (!idOrSlug) return null;
-  const clean = String(idOrSlug).trim().toLowerCase();
-
-  if (!isDbConnected()) {
-    return null;
-  }
-
+  let raw = String(idOrSlug).trim();
   try {
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean);
-    const query = {
-      $or: [
-        { id: clean },
-        { slug: clean },
-        ...(isMongoId ? [{ _id: clean }] : [])
-      ]
-    };
-    const product = await Product.findOne(query).lean();
-    if (product) return product;
-    return null;
-  } catch (err) {
-    console.warn("[SEO] Notice in findProductForSeo:", err.message);
-    return null;
+    raw = decodeURIComponent(raw);
+  } catch (_) {}
+  const clean = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
+  const cleanId = clean.replace(/^(product-card-|product-)/, "");
+
+  if (isDbConnected()) {
+    try {
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean);
+      const query = {
+        $or: [
+          { id: clean },
+          { id: cleanId },
+          { slug: clean },
+          ...(isMongoId ? [{ _id: clean }] : [])
+        ]
+      };
+      let product = await Product.findOne(query).lean();
+      if (product) return product;
+
+      // Match by numeric id e.g. "5-mukhi-rudraksha" -> id: "5"
+      const numMatch = clean.match(/^(\d+)(?:-mukhi|$)/i) || clean.match(/(\d+)-mukhi/i);
+      if (numMatch && numMatch[1]) {
+        product = await Product.findOne({ id: numMatch[1] }).lean();
+        if (product) return product;
+      }
+      if (clean.includes("mala")) {
+        product = await Product.findOne({ id: "mala" }).lean();
+        if (product) return product;
+      }
+      // Match by name regex
+      const cleanWords = clean.replace(/[-_]+/g, " ").trim();
+      if (cleanWords.length >= 3) {
+        product = await Product.findOne({
+          name: { $regex: new RegExp(cleanWords.replace(/\s+/g, ".*"), "i") }
+        }).lean();
+        if (product) return product;
+      }
+    } catch (err) {
+      console.warn("[SEO] Notice in findProductForSeo DB query:", err.message);
+    }
   }
+
+  // Resilient fallback to defaultProducts catalog
+  return matchProductFromCatalog(defaultProducts, clean);
 }
 
 /**
@@ -923,6 +996,10 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   headInjections += `  <meta property="og:image:width" content="1200" />\n`;
   headInjections += `  <meta property="og:image:height" content="630" />\n`;
   headInjections += `  <meta property="og:image:alt" content="${escapeXml(seo.title)}" />\n`;
+  headInjections += `  <link rel="image_src" href="${safeOgImage}" />\n`;
+  headInjections += `  <meta itemprop="name" content="${escapeXml(seo.title)}" />\n`;
+  headInjections += `  <meta itemprop="description" content="${escapeXml(seo.description)}" />\n`;
+  headInjections += `  <meta itemprop="image" content="${safeOgImage}" />\n`;
 
   // Twitter Tags
   headInjections += `  <meta name="twitter:card" content="summary_large_image" />\n`;
@@ -943,9 +1020,15 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   result = result.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']canonical["'][^>]*>/gi, "");
+  result = result.replace(/<link\s+rel=["']image_src["'][^>]*>/gi, "");
+  result = result.replace(/<meta\s+itemprop=["']image["'][^>]*>/gi, "");
 
-  // Inject assembled tags right before </head>
-  result = result.replace("</head>", `${headInjections}</head>`);
+  // Inject assembled tags near the top of <head> right after viewport for fast crawler ingestion
+  if (result.includes('name="viewport"')) {
+    result = result.replace(/(<meta\s+name=["']viewport["'][^>]*>)/i, `$1\n${headInjections}`);
+  } else {
+    result = result.replace("<head>", `<head>\n${headInjections}`);
+  }
 
   // 3. Pre-render Crawlable Semantic HTML inside <div id="root"></div> for non-JS search crawlers
   // When React mounts, hydrate or render will replace this cleanly.

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
-  Star, Share2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Loader2
+  Star, Share2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Loader2,
+  MessageCircle, Copy, Check
 } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
@@ -78,6 +79,27 @@ export function Product() {
   // Sticky bar visibility tracking
   const [showStickyBar, setShowStickyBar] = useState(false);
   const ctaSectionRef = useRef(null);
+
+  // Share dropdown state
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const shareMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target)) {
+        setShareOpen(false);
+      }
+    };
+    if (shareOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [shareOpen]);
 
   // Load and subscribe to database updates
   const loadData = async (silent = true) => {
@@ -295,32 +317,105 @@ export function Product() {
     window.open(waUrl, "_blank");
   };
 
-  const handleShareProduct = async () => {
+  const getProductShareUrl = () => {
+    if (!p) return "https://aurarudraksha.bond";
+    const origin = (typeof window !== "undefined" && window.location.hostname && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1"))
+      ? window.location.origin
+      : "https://aurarudraksha.bond";
+    return `${origin}/product/${p.slug || p.id || id}`;
+  };
+
+  const handleCopyLink = async () => {
     if (!p) return;
-    const shareUrl = `https://aurarudraksha.bond/product/${p.slug || p.id || id}`;
+    const shareUrl = getProductShareUrl();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const input = document.createElement("input");
+        input.value = shareUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      }
+      setCopiedLink(true);
+      emitToast("Product link copied! Live image preview ready for WhatsApp ❤️", "success");
+      setTimeout(() => setCopiedLink(false), 2500);
+      setShareOpen(false);
+    } catch (_) {
+      emitToast("Link copied", "info");
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!p) return;
+    const shareUrl = getProductShareUrl();
+    const priceStr = p.price ? `₹${Number(p.price).toLocaleString("en-IN")}` : "";
+    const text = `*${p.name}* ${priceStr ? `(${priceStr})` : ""}\n100% Authentic Lab Certified Nepali Rudraksha bead from Aura Rudraksha.\n\n🔗 ${shareUrl}`;
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+    setShareOpen(false);
+  };
+
+  const handleNativeShare = async () => {
+    if (!p) return;
+    const shareUrl = getProductShareUrl();
     const shareTitle = `${p.name} | Aura Rudraksha`;
     const shareText = `Explore authentic lab-certified ${p.name} at Aura Rudraksha`;
+
+    // Attempt native file sharing so WhatsApp attaches the full product photo directly
+    const primaryImgUrl = p.img || (Array.isArray(p.images) && p.images[0]) || "";
+    if (primaryImgUrl && typeof fetch === "function" && navigator.canShare) {
+      try {
+        const fullImgUrl = primaryImgUrl.startsWith("http")
+          ? primaryImgUrl
+          : `${window.location.origin}${primaryImgUrl.startsWith("/") ? "" : "/"}${primaryImgUrl}`;
+        const res = await fetch(fullImgUrl, { mode: "cors" });
+        if (res.ok) {
+          const blob = await res.blob();
+          const ext = blob.type === "image/png" ? "png" : "jpg";
+          const file = new File([blob], `aura-${p.slug || p.id || "product"}.${ext}`, {
+            type: blob.type || "image/jpeg"
+          });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: shareTitle,
+              text: `${shareText}\n${shareUrl}`,
+              files: [file]
+            });
+            setShareOpen(false);
+            return;
+          }
+        }
+      } catch (_) {
+        // Fall through to standard share
+      }
+    }
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: shareTitle,
-          text: shareText,
+          text: `${shareText}\n${shareUrl}`,
           url: shareUrl,
         });
+        setShareOpen(false);
         return;
       } catch (err) {
         if (err.name === "AbortError") return;
       }
     }
-    
-    if (navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        emitToast("Product link copied to clipboard! Share on WhatsApp / Socials ❤️", "success");
-      } catch (_) {
-        emitToast("Product link copied", "info");
-      }
+
+    await handleCopyLink();
+  };
+
+  const handleShareProduct = () => {
+    // If mobile with file sharing support, try native directly; otherwise toggle menu
+    if (window.innerWidth < 768 && navigator.share) {
+      handleNativeShare();
+    } else {
+      setShareOpen(prev => !prev);
     }
   };
 
@@ -425,15 +520,62 @@ export function Product() {
               </nav>
             </div>
 
-            <button
-              type="button"
-              className="aura-pdp-share-btn"
-              onClick={handleShareProduct}
-              aria-label="Share product"
-            >
-              <Share2 size={13} />
-              <span>Share</span>
-            </button>
+            <div className="aura-pdp-share-wrap" ref={shareMenuRef}>
+              <button
+                type="button"
+                className="aura-pdp-share-wa-pill"
+                onClick={handleShareWhatsApp}
+                aria-label="Share product on WhatsApp"
+                title="Share on WhatsApp with Live Image Preview"
+              >
+                <MessageCircle size={13} />
+                <span>WhatsApp</span>
+              </button>
+
+              <button
+                type="button"
+                className="aura-pdp-share-btn"
+                onClick={handleShareProduct}
+                aria-label="Share product"
+                aria-expanded={shareOpen}
+              >
+                <Share2 size={13} />
+                <span>Share</span>
+              </button>
+
+              {shareOpen && (
+                <div className="aura-pdp-share-dropdown" role="menu">
+                  <button
+                    type="button"
+                    className="aura-pdp-share-menu-item wa"
+                    onClick={handleShareWhatsApp}
+                  >
+                    <MessageCircle size={15} style={{ color: "#25d366" }} />
+                    <span>Share on WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="aura-pdp-share-menu-item"
+                    onClick={handleCopyLink}
+                  >
+                    {copiedLink ? <Check size={15} style={{ color: "#16a34a" }} /> : <Copy size={15} />}
+                    <span>{copiedLink ? "Link Copied!" : "Copy Product Link"}</span>
+                  </button>
+
+                  {navigator?.share && (
+                    <button
+                      type="button"
+                      className="aura-pdp-share-menu-item"
+                      onClick={handleNativeShare}
+                    >
+                      <Share2 size={15} />
+                      <span>More Apps (Native)</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

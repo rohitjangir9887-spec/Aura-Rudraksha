@@ -3,8 +3,8 @@ import { generateSitemapXml } from "../server/services/seoService.js";
 
 export default async function handler(req, res) {
   try {
-    if (req.method && req.method !== "GET") {
-      res.setHeader("Allow", "GET");
+    if (req.method && req.method !== "GET" && req.method !== "HEAD") {
+      res.setHeader("Allow", "GET, HEAD");
       return res.status(405).send("Method Not Allowed");
     }
 
@@ -19,6 +19,9 @@ export default async function handler(req, res) {
     const xml = await generateSitemapXml(req);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+    if (req.method === "HEAD") {
+      return res.status(200).end();
+    }
     return res.status(200).send(xml);
   } catch (err) {
     console.error("[Sitemap Function] Error generating sitemap.xml:", err);
