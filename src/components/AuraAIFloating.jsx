@@ -15,6 +15,7 @@ import {
   PhoneCall, 
   Check, 
   ChevronRight, 
+  ChevronDown,
   Package, 
   ShieldCheck, 
   GripVertical,
@@ -29,7 +30,10 @@ import {
   ArrowDown,
   Notebook,
   Plus,
-  Trash2
+  Trash2,
+  LayoutGrid,
+  SlidersHorizontal,
+  Compass
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -43,6 +47,7 @@ import { AuraAIMessageContent } from "./AuraAIMessageContent";
 import { VoiceReader } from "./VoiceReader";
 
 export function AuraAIFloating() {
+  const location = useLocation();
   const [isOpenState, setIsOpenState] = useState(() => auraChatStore.isFloatingOpen());
   const [isFullWindow, setIsFullWindow] = useState(false);
   const [isDismissed, setIsDismissed] = useState(() => auraChatStore.isFloatingDismissed());
@@ -94,6 +99,19 @@ export function AuraAIFloating() {
   const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Keep pill state in sync with assistant thinking & answer ready states
+  useEffect(() => {
+    if (loading) {
+      setPillState("thinking");
+    } else if (pillState === "thinking") {
+      setPillState("ready");
+      const readyTimer = setTimeout(() => {
+        setPillState("default");
+      }, 3000);
+      return () => clearTimeout(readyTimer);
+    }
+  }, [loading]);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
   const [addedItems, setAddedItems] = useState({});
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -332,7 +350,6 @@ export function AuraAIFloating() {
 
   const cart = useCart();
   const navigate = useNavigate();
-  const location = useLocation();
 
   // Automatically close AI assistant & clear background modal/overlay when user navigates to another page
   const prevPathnameRef = useRef(location.pathname);
@@ -879,6 +896,11 @@ export function AuraAIFloating() {
     setIsDismissed(false);
   };
 
+  // Aura AI must appear ONLY on the Home page ("/")
+  if (location.pathname !== "/") {
+    return null;
+  }
+
   return (
     <>
       {/* Safe viewport bounds overlay: strictly protects bottom navigation icons (Home, Shop, Cart, Orders, Account) */}
@@ -895,68 +917,128 @@ export function AuraAIFloating() {
         }} 
       />
 
-      {/* 1. Floating Action Button - Modern, compact, sleek AI assistant trigger */}
+      {/* 1. Floating Action Pill - Modern, compact, developer-grade Aura AI pill */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
             id="aura-ai-floating-trigger"
             className="aura-ai-floating-btn-wrap"
-            initial={{ scale: 0.85, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.85, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            initial={{ scale: 0.88, opacity: 0, y: 6 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.88, opacity: 0, y: 6 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className={`aura-ai-floating-pill-container ${timeTheme}`}>
+              {/* Compact Quick Actions Menu */}
               <AnimatePresence>
                 {showQuickActions && (
                   <motion.div 
                     className="aura-ai-quick-actions"
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
                   >
-                    <button className="aura-qa-btn" onClick={() => executeQuickAction("")}><MessageCircle size={16} className="qa-icon" /> Ask anything</button>
-                    <button className="aura-qa-btn" onClick={() => executeQuickAction("Find a product")}><Search size={16} className="qa-icon" /> Find a product</button>
-                    <button className="aura-qa-btn" onClick={() => executeQuickAction("Track my order")}><Package size={16} className="qa-icon" /> Track order</button>
-                    <button className="aura-qa-btn" onClick={() => executeQuickAction("I need Rudraksha guidance")}><Sparkles size={16} className="qa-icon" /> Rudraksha guidance</button>
+                    <div className="aura-qa-header">
+                      <span className="aura-qa-header-title">✦ Aura Assistant</span>
+                      <button
+                        type="button"
+                        className="aura-qa-header-close"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowQuickActions(false);
+                        }}
+                        aria-label="Close menu"
+                      >
+                        <X size={12} strokeWidth={2.4} />
+                      </button>
+                    </div>
+                    <button type="button" className="aura-qa-btn" onClick={() => executeQuickAction("")}>
+                      <MessageCircle size={15} className="qa-icon" />
+                      <span>Ask anything</span>
+                    </button>
+                    <button type="button" className="aura-qa-btn" onClick={() => executeQuickAction("Find a product")}>
+                      <Search size={15} className="qa-icon" />
+                      <span>Find a product</span>
+                    </button>
+                    <button type="button" className="aura-qa-btn" onClick={() => executeQuickAction("Track my order")}>
+                      <Package size={15} className="qa-icon" />
+                      <span>Track order</span>
+                    </button>
+                    <button type="button" className="aura-qa-btn" onClick={() => executeQuickAction("I need Rudraksha guidance")}>
+                      <Sparkles size={15} className="qa-icon" />
+                      <span>Rudraksha guidance</span>
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             
-              <div className="aura-ai-floating-pill">
+              {/* Refined Floating Pill Component */}
+              <div 
+                className={`aura-ai-floating-pill ${pillState !== "default" ? `pill-state-${pillState}` : ""}`}
+                role="region"
+                aria-label="Aura AI Floating Assistant"
+              >
+                {/* Main Interactive Button */}
                 <button
                   type="button"
                   onClick={handleOpen}
                   className="aura-ai-floating-main-btn"
-                  aria-label="Open Aura AI"
+                  aria-expanded={isOpen}
+                  aria-label="Open Aura AI Shopping and Vedic Guide"
                 >
-                  <div className="aura-ai-floating-icon">
-                    <Sparkles size={14} strokeWidth={2.4} className={pillState === "thinking" ? "aura-ai-sparkle-spin" : ""} />
-                  </div>
-                  <div className="aura-ai-label-group">
-                    <span className="aura-ai-floating-label" style={{ fontSize: '13px', fontWeight: 600, paddingLeft: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {mode === "panditji" ? "AI Panditji" : "Aura AI"} {pillState === "thinking" ? "•••" : pillState === "ready" ? "✓" : ""}
-                    </span>
-                  </div>
+                  <span className="aura-ai-sparkle-glyph" aria-hidden="true">
+                    <Sparkles size={13} strokeWidth={2.2} className={pillState === "thinking" ? "aura-ai-sparkle-spin" : ""} />
+                  </span>
+                  <span className="aura-ai-floating-label">
+                    AI
+                  </span>
+                  <span className="aura-ai-state-indicator" aria-hidden="true">
+                    {pillState === "thinking" ? (
+                      <span className="aura-ai-dots-anim">•••</span>
+                    ) : pillState === "ready" ? (
+                      <Check size={13} strokeWidth={2.8} className="aura-ai-check-ready" />
+                    ) : isOpen ? (
+                      <ChevronDown size={13} strokeWidth={2.5} />
+                    ) : (
+                      <span className="aura-ai-chevron-glyph">›</span>
+                    )}
+                  </span>
                 </button>
-                
-                {pillState === "default" && (
-                  <>
-                    <div className="aura-ai-floating-divider" />
-                    <button
-                      type="button"
-                      className="aura-ai-floating-dismiss-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDismiss(e);
-                      }}
-                      aria-label="Hide Aura AI"
-                    >
-                      <X size={13} strokeWidth={2.2} />
-                    </button>
-                  </>
-                )}
+
+                {/* Refined Quick Actions Option Trigger */}
+                <button
+                  type="button"
+                  className={`aura-ai-floating-menu-trigger ${showQuickActions ? "active" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowQuickActions((prev) => !prev);
+                  }}
+                  title="Quick Actions"
+                  aria-label="Toggle Aura AI Quick Actions Menu"
+                  aria-expanded={showQuickActions}
+                >
+                  {showQuickActions ? (
+                    <X size={12} strokeWidth={2.4} />
+                  ) : (
+                    <LayoutGrid size={12} strokeWidth={2.2} className="aura-ai-option-grid-icon" />
+                  )}
+                </button>
+
+                {/* Dismiss / Close Button with Divider */}
+                <div className="aura-ai-floating-divider" />
+                <button
+                  type="button"
+                  className="aura-ai-floating-dismiss-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDismiss(e);
+                  }}
+                  title="Hide Aura AI Assistant"
+                  aria-label="Close Aura AI"
+                >
+                  <X size={12} strokeWidth={2.2} />
+                </button>
               </div>
             </div>
           </motion.div>

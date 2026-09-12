@@ -27,7 +27,7 @@ export function getGeminiClient() {
   }
 }
 
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
 
 /**
  * Initialize NVIDIA NIM Client strictly configured for nvidia/nemotron-3-super-120b-a12b

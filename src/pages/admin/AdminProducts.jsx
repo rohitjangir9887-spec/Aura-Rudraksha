@@ -176,11 +176,16 @@ export function AdminProducts() {
     setIsGeneratingDesc(true);
     setShowAiOverwriteConfirm(false);
     try {
+      let token = "";
+      try {
+        token = await authClient.getToken();
+      } catch (_) {}
+
       const res = await fetch("/api/aura-ai/generate-description", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + (await authClient.getToken())
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           name: editing.name,
@@ -192,17 +197,53 @@ export function AdminProducts() {
           details: editing.highlight || editing.shortDesc || ""
         })
       });
-      const data = await res.json();
-      if (data.success && data.description) {
-        setEditing(prev => ({
-          ...prev,
-          description: data.description,
-          category: data.category || prev.category || "Rudraksha",
-          highlight: data.highlight || prev.highlight || "",
-          badge: data.badge || prev.badge || prev.homeBadge || "Best Seller",
-          homeBadge: data.badge || prev.homeBadge || prev.badge || "Best Seller",
-          tags: Array.isArray(data.tags) ? data.tags : prev.tags
-        }));
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && (data.description || data.data)) {
+        const payload = data.data || data;
+        const subCategory = payload.subCategory || data.subCategory || "";
+        const mukhi = payload.mukhi || data.mukhi || "";
+        const rulingPlanet = payload.rulingPlanet || data.rulingPlanet || "";
+        const deity = payload.deity || data.deity || "";
+        const origin = payload.origin || data.origin || "Nepal";
+        const zodiac = payload.zodiac || data.zodiac || [];
+        const highlight = payload.highlight || data.highlight || "";
+        const badge = payload.badge || data.badge || "Best Seller";
+        const rawKeywords = Array.isArray(data.keywords) ? data.keywords : (Array.isArray(payload.keywords) ? payload.keywords : []);
+        const rawTags = Array.isArray(data.tags) ? data.tags : (Array.isArray(payload.tags) ? payload.tags : []);
+        const richMetadata = (Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(data.seoKeywordsDetails) ? data.seoKeywordsDetails : []))
+          .filter(item => typeof item === "object" && item !== null);
+        const detectedCategory = payload.classification?.category || data.category || "";
+        const productType = payload.classification?.productType || data.productType || "";
+
+        setEditing(prev => {
+          if (!prev) return prev;
+          const currentKw = normalizeKeywordItems(prev.keywords);
+          const currentTags = normalizeKeywordItems(prev.tags);
+          const currentZodiac = normalizeKeywordItems(prev.zodiac);
+          const newKw = normalizeKeywordItems([...currentKw, ...normalizeKeywordItems(rawKeywords)]);
+          const newTags = normalizeKeywordItems([...currentTags, ...normalizeKeywordItems(rawTags)]);
+          const newZodiac = normalizeKeywordItems([...currentZodiac, ...normalizeKeywordItems(zodiac)]);
+
+          return {
+            ...prev,
+            description: data.description || payload.seo?.seoDescription || prev.description,
+            category: detectedCategory || prev.category || "Rudraksha",
+            productType: productType || prev.productType || "Rudraksha",
+            subCategory: subCategory || prev.subCategory || "",
+            mukhi: mukhi || prev.mukhi || "",
+            rulingPlanet: rulingPlanet || prev.rulingPlanet || "",
+            deity: deity || prev.deity || "",
+            origin: origin || prev.origin || "Nepal",
+            zodiac: newZodiac.length > 0 ? newZodiac : prev.zodiac,
+            highlight: highlight || prev.highlight || "",
+            badge: badge || prev.badge || prev.homeBadge || "Best Seller",
+            homeBadge: badge || prev.homeBadge || prev.badge || "Best Seller",
+            tags: newTags.length > 0 ? newTags : prev.tags,
+            keywords: newKw.length > 0 ? newKw : prev.keywords,
+            searchKeywords: newKw.length > 0 ? newKw : prev.searchKeywords,
+            seoKeywordsDetails: richMetadata.length > 0 ? richMetadata : (prev.seoKeywordsDetails || [])
+          };
+        });
         emitToast("AI auto-generated product details and description from title! ✨", "success");
       } else {
         emitToast(data.message || "Failed to generate details. Please try again.", "error");
@@ -240,11 +281,16 @@ export function AdminProducts() {
     }
 
     try {
+      let token = "";
+      try {
+        token = await authClient.getToken();
+      } catch (_) {}
+
       const res = await fetch("/api/aura-ai/generate-keywords", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + (await authClient.getToken())
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           name: targetProduct.name,
@@ -257,9 +303,9 @@ export function AdminProducts() {
           details: targetProduct.highlight || ""
         })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       const payload = data.data || data;
-      if (data.success && payload) {
+      if (res.ok && data.success && payload) {
         const rawKeywords = Array.isArray(data.keywords) ? data.keywords : (Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(payload.searchKeywords) ? payload.searchKeywords : []));
         const rawTags = Array.isArray(data.tags) ? data.tags : (Array.isArray(payload.tags) ? payload.tags : []);
         const richMetadata = (Array.isArray(payload.keywords) ? payload.keywords : (Array.isArray(data.seoKeywordsDetails) ? data.seoKeywordsDetails : []))

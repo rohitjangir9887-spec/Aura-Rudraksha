@@ -119,7 +119,7 @@ export function getGeminiClient() {
 }
 
 // Resilient Gemini text models fallback list in order of preference
-export const GEMINI_TEXT_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+export const GEMINI_TEXT_MODELS = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
 
 // Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
