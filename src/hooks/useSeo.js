@@ -65,9 +65,20 @@ export function useSeo({
     setMetaTag("name", "googlebot", robotsDirective);
     setMetaTag("name", "bingbot", robotsDirective);
 
-    const safeOgImage = ogImage || `${SITE_URL}/og-image.jpg`;
+    const ensureAbsoluteUrl = (img) => {
+      if (!img) return `${SITE_URL}/og-image.jpg`;
+      if (img.startsWith("http://") || img.startsWith("https://")) return img;
+      return `${SITE_URL}${img.startsWith("/") ? "" : "/"}${img}`;
+    };
+
+    const safeOgImage = ensureAbsoluteUrl(ogImage);
+    const isPng = safeOgImage.toLowerCase().endsWith(".png");
     setMetaTag("property", "og:image", safeOgImage);
     setMetaTag("property", "og:image:secure_url", safeOgImage);
+    setMetaTag("property", "og:image:type", isPng ? "image/png" : "image/jpeg");
+    setMetaTag("property", "og:image:width", "1200");
+    setMetaTag("property", "og:image:height", "630");
+    setMetaTag("property", "og:locale", "en_US");
     if (title) setMetaTag("property", "og:image:alt", title);
     setMetaTag("name", "twitter:image", safeOgImage);
 
