@@ -7,7 +7,7 @@ import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateProductCache } from "./productController.js";
 import crypto from "crypto";
-import { getGeminiClient } from "./auraAiController.js";
+import { getGeminiClient, GEMINI_TEXT_MODELS } from "./auraAiController.js";
 import { defaultReviews } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 
@@ -916,70 +916,74 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
       }
     }
 
-    // Secondary Engine: Google Gemini 2.5 Flash if NVIDIA NIM key is not configured or fails
+    // Secondary Engine: Google Gemini if NVIDIA NIM key is not configured or fails
     if (!rawDrafts || rawDrafts.length === 0) {
-      try {
-        const gemini = getGeminiClient();
-        if (gemini) {
-          const geminiRes = await gemini.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: `${systemPrompt}\n\n${userPrompt}`,
-            config: {
-              responseMimeType: "application/json",
-              temperature: 0.95
-            }
-          });
-          const responseText = geminiRes.text || "";
-          const cleaned = responseText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          const parsed = JSON.parse(cleaned);
-
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const usedNamesInGemini = new Set();
-            rawDrafts = parsed.map((item, idx) => {
-              let cleanText = (item.text || item.body || "")
-                .replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "")
-                .replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "")
-                .replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "")
-                .trim();
-
-              let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2 && !usedNamesInGemini.has(item.name.trim()))
-                ? item.name.trim()
-                : "";
-
-              if (!assignedName || usedCustomerNamesInCorpus.has(assignedName)) {
-                assignedName = generateUniqueDevoteeName(usedNamesInGemini);
+      const gemini = getGeminiClient();
+      if (gemini) {
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          if (rawDrafts && rawDrafts.length > 0) break;
+          try {
+            const geminiRes = await gemini.models.generateContent({
+              model: gModel,
+              contents: `${systemPrompt}\n\n${userPrompt}`,
+              config: {
+                responseMimeType: "application/json",
+                temperature: 0.95
               }
-              usedNamesInGemini.add(assignedName);
-
-              return {
-                id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 5)}`,
-                title: item.title || `${resolvedProductName} Blessed Review`,
-                text: cleanText,
-                rating: Number(item.rating) || 5,
-                name: assignedName,
-                city: item.city || INDIAN_DEVOTEE_CITIES[Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length)],
-                date: RELATIVE_DATES[Math.floor(Math.random() * RELATIVE_DATES.length)],
-                verified: true,
-                featured: false,
-                status: "draft",
-                source: "customer",
-                helpfulUp: Math.floor(Math.random() * 6) + 1,
-                helpfulDown: 0,
-                productId: targetProductId,
-                productName: resolvedProductName,
-                type: targetProductId === "all" ? "store" : "product",
-                language: item.language || effectiveLanguage,
-                isAiGenerated: false,
-                isSample: false,
-                sampleLabel: "",
-                images: []
-              };
             });
-            console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via Google Gemini`);
+            const responseText = geminiRes.text || "";
+            const cleaned = responseText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+            const parsed = JSON.parse(cleaned);
+
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const usedNamesInGemini = new Set();
+              rawDrafts = parsed.map((item, idx) => {
+                let cleanText = (item.text || item.body || "")
+                  .replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "")
+                  .replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "")
+                  .replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "")
+                  .trim();
+
+                let assignedName = (item.name && item.name !== "AI DRAFT" && item.name !== "Anonymous" && item.name.trim().length > 2 && !usedNamesInGemini.has(item.name.trim()))
+                  ? item.name.trim()
+                  : "";
+
+                if (!assignedName || usedCustomerNamesInCorpus.has(assignedName)) {
+                  assignedName = generateUniqueDevoteeName(usedNamesInGemini);
+                }
+                usedNamesInGemini.add(assignedName);
+
+                return {
+                  id: `DRAFT-${Date.now()}-${idx + 1}-${Math.random().toString(36).substr(2, 5)}`,
+                  title: item.title || `${resolvedProductName} Blessed Review`,
+                  text: cleanText,
+                  rating: Number(item.rating) || 5,
+                  name: assignedName,
+                  city: item.city || INDIAN_DEVOTEE_CITIES[Math.floor(Math.random() * INDIAN_DEVOTEE_CITIES.length)],
+                  date: RELATIVE_DATES[Math.floor(Math.random() * RELATIVE_DATES.length)],
+                  verified: true,
+                  featured: false,
+                  status: "draft",
+                  source: "customer",
+                  helpfulUp: Math.floor(Math.random() * 6) + 1,
+                  helpfulDown: 0,
+                  productId: targetProductId,
+                  productName: resolvedProductName,
+                  type: targetProductId === "all" ? "store" : "product",
+                  language: item.language || effectiveLanguage,
+                  isAiGenerated: false,
+                  isSample: false,
+                  sampleLabel: "",
+                  images: []
+                };
+              });
+              console.log(`[Aura AI Reviews] Successfully generated ${rawDrafts.length} drafts via Google Gemini (${gModel})`);
+              break;
+            }
+          } catch (err) {
+            console.warn(`[Aura AI Reviews] Gemini generation notice (${gModel}):`, err?.message || err);
           }
         }
-      } catch (err) {
-        console.warn("[Aura AI Reviews] Gemini generation notice:", err?.message || err);
       }
     }
 

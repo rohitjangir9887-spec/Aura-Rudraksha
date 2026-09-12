@@ -118,6 +118,9 @@ export function getGeminiClient() {
   }
 }
 
+// Resilient Gemini text models fallback list in order of preference
+export const GEMINI_TEXT_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+
 // Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
   if (!p) return null;
@@ -553,19 +556,22 @@ Provide an authentic, respectful, spiritual, and uplifting Vedic analysis in war
 Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji persona. Keep predictions non-fatalistic and positive.`;
 
     if (geminiClient && !aiInterpretation) {
-      try {
-        const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [{ role: 'user', parts: [{ text: astroPrompt }] }],
-          config: {
-            systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
-            temperature: 0.35,
-            maxOutputTokens: 1500
-          }
-        });
-        aiInterpretation = geminiRes.text || "";
-      } catch (gErr) {
-        console.warn("[Kundali Endpoint] Gemini notice:", gErr?.message || gErr);
+      for (const gModel of GEMINI_TEXT_MODELS) {
+        if (aiInterpretation) break;
+        try {
+          const geminiRes = await geminiClient.models.generateContent({
+            model: gModel,
+            contents: [{ role: 'user', parts: [{ text: astroPrompt }] }],
+            config: {
+              systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
+              temperature: 0.35,
+              maxOutputTokens: 1500
+            }
+          });
+          aiInterpretation = geminiRes.text || "";
+        } catch (gErr) {
+          console.warn(`[Kundali Endpoint] Gemini notice (${gModel}):`, gErr?.message || gErr);
+        }
       }
     }
 
@@ -1095,57 +1101,61 @@ ${memoryContextText || "Guest shopper."}`;
       const geminiClient = getGeminiClient();
       const nvidiaClient = getNvidiaClient();
 
-      // 1. Try Gemini 3.8 Flash streaming first for ultra-fast response (Skip for Pandit Ji)
+      // 1. Try Gemini streaming with resilient multi-model fallback (Skip for Pandit Ji)
       if (mode !== "panditji" && geminiClient && !clientDisconnected) {
-        try {
-          const geminiContents = [];
-          for (const h of history.slice(-6)) {
-            if (h.sender === "user" && h.text) {
-              geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
-            } else if (h.sender === "ai" && h.text) {
-              geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          if (streamSucceeded || clientDisconnected) break;
+          try {
+            const geminiContents = [];
+            for (const h of history.slice(-6)) {
+              if (h.sender === "user" && h.text) {
+                geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
+              } else if (h.sender === "ai" && h.text) {
+                geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
+              }
             }
-          }
-          if (message && message.trim()) {
-            geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
-          } else if (calculatedKundaliData) {
-            geminiContents.push({
-              role: "user",
-              parts: [{
-                text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
-              }]
+            if (message && message.trim()) {
+              geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
+            } else if (calculatedKundaliData) {
+              geminiContents.push({
+                role: "user",
+                parts: [{
+                  text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+                }]
+              });
+            } else {
+              geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
+            }
+
+            const geminiStream = await geminiClient.models.generateContentStream({
+              model: gModel,
+              contents: geminiContents,
+              config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.35,
+                maxOutputTokens: 1800
+              }
             });
-          } else {
-            geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
-          }
 
-          const geminiStream = await geminiClient.models.generateContentStream({
-            model: 'gemini-3.8-flash',
-            contents: geminiContents,
-            config: {
-              systemInstruction: systemPrompt,
-              temperature: 0.35,
-              maxOutputTokens: 1800
+            for await (const chunk of geminiStream) {
+              if (clientDisconnected) break;
+              const deltaContent = chunk.text || "";
+              if (deltaContent) {
+                fullStreamedText += deltaContent;
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+              }
             }
-          });
 
-          for await (const chunk of geminiStream) {
-            if (clientDisconnected) break;
-            const deltaContent = chunk.text || "";
-            if (deltaContent) {
-              fullStreamedText += deltaContent;
-              res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+            if (fullStreamedText.trim()) {
+              streamSucceeded = true;
+              break;
             }
+          } catch (geminiStreamErr) {
+            if (geminiStreamErr.name === "AbortError" || clientDisconnected) {
+              return;
+            }
+            console.warn(`[Aura AI Streaming] Gemini notice (${gModel}):`, geminiStreamErr?.message || geminiStreamErr);
           }
-
-          if (fullStreamedText.trim()) {
-            streamSucceeded = true;
-          }
-        } catch (geminiStreamErr) {
-          if (geminiStreamErr.name === "AbortError" || clientDisconnected) {
-            return;
-          }
-          console.warn("[Aura AI Streaming] Gemini notice:", geminiStreamErr?.message || geminiStreamErr);
         }
       }
 
@@ -1285,47 +1295,51 @@ ${memoryContextText || "Guest shopper."}`;
     let aiResponseText = "";
     let generatedSuccessfully = false;
 
-    // Try Gemini 3.8 Flash first (Skip for Pandit Ji)
+    // Try Gemini models first (Skip for Pandit Ji)
     const nonStreamGeminiClient = getGeminiClient();
     if (mode !== "panditji" && nonStreamGeminiClient) {
-      try {
-        const geminiContents = [];
-        for (const h of history.slice(-6)) {
-          if (h.sender === "user" && h.text) {
-            geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
-          } else if (h.sender === "ai" && h.text) {
-            geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
+      for (const gModel of GEMINI_TEXT_MODELS) {
+        if (generatedSuccessfully) break;
+        try {
+          const geminiContents = [];
+          for (const h of history.slice(-6)) {
+            if (h.sender === "user" && h.text) {
+              geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
+            } else if (h.sender === "ai" && h.text) {
+              geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
+            }
           }
-        }
-        if (message && message.trim()) {
-          geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
-        } else if (calculatedKundaliData) {
-          geminiContents.push({
-            role: "user",
-            parts: [{
-              text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
-            }]
-          });
-        } else {
-          geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
-        }
+          if (message && message.trim()) {
+            geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
+          } else if (calculatedKundaliData) {
+            geminiContents.push({
+              role: "user",
+              parts: [{
+                text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+              }]
+            });
+          } else {
+            geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
+          }
 
-        const geminiRes = await nonStreamGeminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.35,
-            maxOutputTokens: 1800
+          const geminiRes = await nonStreamGeminiClient.models.generateContent({
+            model: gModel,
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.35,
+              maxOutputTokens: 1800
+            }
+          });
+          const outText = geminiRes.text || "";
+          if (outText.trim()) {
+            aiResponseText = outText;
+            generatedSuccessfully = true;
+            break;
           }
-        });
-        const outText = geminiRes.text || "";
-        if (outText.trim()) {
-          aiResponseText = outText;
-          generatedSuccessfully = true;
+        } catch (geminiErr) {
+          console.warn(`[Aura AI Non-Stream] Gemini notice (${gModel}):`, geminiErr?.message || geminiErr);
         }
-      } catch (geminiErr) {
-        console.warn("[Aura AI Non-Stream] Gemini notice:", geminiErr?.message || geminiErr);
       }
     }
 
@@ -1579,20 +1593,24 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
 }`;
 
     if (geminiClient && !aiExecutiveReport) {
-      try {
-        const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [{ role: 'user', parts: [{ text: adminPrompt }] }],
-          config: {
-            systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
-            temperature: 0.25,
-            responseMimeType: "application/json"
-          }
-        });
-        const rawText = geminiRes.text || "";
-        aiExecutiveReport = extractStructuredAiJson(rawText);
-      } catch (geminiErr) {
-        console.warn("[Admin AI Intelligence] Gemini analysis notice:", geminiErr?.message || geminiErr);
+      for (const gModel of GEMINI_TEXT_MODELS) {
+        if (aiExecutiveReport) break;
+        try {
+          const geminiRes = await geminiClient.models.generateContent({
+            model: gModel,
+            contents: [{ role: 'user', parts: [{ text: adminPrompt }] }],
+            config: {
+              systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
+              temperature: 0.25,
+              responseMimeType: "application/json"
+            }
+          });
+          const rawText = geminiRes.text || "";
+          aiExecutiveReport = extractStructuredAiJson(rawText);
+          if (aiExecutiveReport) break;
+        } catch (geminiErr) {
+          console.warn(`[Admin AI Intelligence] Gemini analysis notice (${gModel}):`, geminiErr?.message || geminiErr);
+        }
       }
     }
 
@@ -2078,27 +2096,31 @@ Instructions:
       // Fallback to Gemini if NVIDIA client not configured
       const geminiClient = getGeminiClient();
       if (geminiClient) {
-        try {
-          const geminiContents = formattedMessages
-            .filter(m => m.role !== 'system' && m.role !== 'tool')
-            .map(m => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: String(m.content || "") }]
-            }));
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          try {
+            const geminiContents = formattedMessages
+              .filter(m => m.role !== 'system' && m.role !== 'tool')
+              .map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: String(m.content || "") }]
+              }));
 
-          const response = await geminiClient.models.generateContent({
-            model: 'gemini-3.8-flash',
-            contents: geminiContents,
-            config: {
-              systemInstruction: systemPrompt,
-              temperature: 0.7,
+            const response = await geminiClient.models.generateContent({
+              model: gModel,
+              contents: geminiContents,
+              config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.7,
+              }
+            });
+
+            const geminiText = response.text || "";
+            if (geminiText.trim()) {
+              return res.json({ text: geminiText });
             }
-          });
-
-          const geminiText = response.text || "No response generated.";
-          return res.json({ text: geminiText });
-        } catch (geminiErr) {
-          console.error("Gemini fallback error in adminChatAuraAI:", geminiErr);
+          } catch (geminiErr) {
+            console.warn(`Gemini fallback error (${gModel}) in adminChatAuraAI:`, geminiErr?.message || geminiErr);
+          }
         }
       }
       return res.status(503).json({ error: "AI Engine is initializing. Please retry in a moment." });
@@ -2166,22 +2188,31 @@ Instructions:
       console.warn("[adminChatAuraAI] NVIDIA error, falling back to Gemini:", nimErr?.message);
       const geminiClient = getGeminiClient();
       if (geminiClient) {
-        const geminiContents = formattedMessages
-          .filter(m => m.role !== 'system' && m.role !== 'tool')
-          .map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: String(m.content || "") }]
-          }));
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          try {
+            const geminiContents = formattedMessages
+              .filter(m => m.role !== 'system' && m.role !== 'tool')
+              .map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: String(m.content || "") }]
+              }));
 
-        const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7,
+            const geminiRes = await geminiClient.models.generateContent({
+              model: gModel,
+              contents: geminiContents,
+              config: {
+                systemInstruction: systemPrompt,
+                temperature: 0.7,
+              }
+            });
+            const outText = geminiRes.text || "";
+            if (outText.trim()) {
+              return res.json({ text: outText });
+            }
+          } catch (gErr) {
+            console.warn(`[adminChatAuraAI] Gemini fallback error (${gModel}):`, gErr?.message || gErr);
           }
-        });
-        return res.json({ text: geminiRes.text || "No response generated." });
+        }
       }
       throw nimErr;
     }

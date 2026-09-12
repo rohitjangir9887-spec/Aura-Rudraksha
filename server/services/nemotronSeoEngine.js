@@ -12,13 +12,22 @@ export function getGeminiClient() {
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) return null;
   try {
-    cachedGeminiClient = new GoogleGenAI({ apiKey });
+    cachedGeminiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
     return cachedGeminiClient;
   } catch (err) {
     console.warn("[Gemini Client] Initialization notice:", err?.message || err);
     return null;
   }
 }
+
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
 /**
  * Initialize NVIDIA NIM Client strictly configured for nvidia/nemotron-3-super-120b-a12b
@@ -527,23 +536,27 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
 
       const geminiClient = getGeminiClient();
       if (geminiClient && !aiGenerationSuccess) {
-        try {
-          const geminiRes = await geminiClient.models.generateContent({
-            model: 'gemini-3.8-flash',
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            config: {
-              systemInstruction: promptSystem,
-              temperature: 0.2,
-              responseMimeType: "application/json"
+        for (const gModel of GEMINI_MODELS) {
+          if (aiGenerationSuccess) break;
+          try {
+            const geminiRes = await geminiClient.models.generateContent({
+              model: gModel,
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              config: {
+                systemInstruction: promptSystem,
+                temperature: 0.2,
+                responseMimeType: "application/json"
+              }
+            });
+            const rawResponse = geminiRes.text || "";
+            aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+            if (aiOutputParsed && aiOutputParsed.seo) {
+              aiGenerationSuccess = true;
+              break;
             }
-          });
-          const rawResponse = geminiRes.text || "";
-          aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-          if (aiOutputParsed && aiOutputParsed.seo) {
-            aiGenerationSuccess = true;
+          } catch (gErr) {
+            console.warn(`[Nemotron Engine] Gemini call notice (${gModel}):`, gErr?.message || gErr);
           }
-        } catch (gErr) {
-          console.warn("[Nemotron Engine] Gemini call notice:", gErr?.message || gErr);
         }
       }
 
@@ -576,8 +589,10 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
     // If nvidiaClient is not configured, try Gemini before knowledge base fallback
     const geminiClient = getGeminiClient();
     if (geminiClient) {
-      try {
-        const userPrompt = `Product Title: "${cleanName}"
+      for (const gModel of GEMINI_MODELS) {
+        if (aiGenerationSuccess) break;
+        try {
+          const userPrompt = `Product Title: "${cleanName}"
 Category: ${category}
 Mukhi: ${mukhiNum || 'N/A'}
 Origin: ${origin}
@@ -588,22 +603,24 @@ Target Language: ${language}
 
 Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natural search keywords.`;
 
-        const geminiRes = await geminiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          config: {
-            systemInstruction: promptSystem,
-            temperature: 0.2,
-            responseMimeType: "application/json"
+          const geminiRes = await geminiClient.models.generateContent({
+            model: gModel,
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            config: {
+              systemInstruction: promptSystem,
+              temperature: 0.2,
+              responseMimeType: "application/json"
+            }
+          });
+          const rawResponse = geminiRes.text || "";
+          aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+          if (aiOutputParsed && aiOutputParsed.seo) {
+            aiGenerationSuccess = true;
+            break;
           }
-        });
-        const rawResponse = geminiRes.text || "";
-        aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-        if (aiOutputParsed && aiOutputParsed.seo) {
-          aiGenerationSuccess = true;
+        } catch (gErr) {
+          console.warn(`[Nemotron Engine] Gemini fallback notice (${gModel}):`, gErr?.message || gErr);
         }
-      } catch (gErr) {
-        console.warn("[Nemotron Engine] Gemini fallback notice:", gErr?.message || gErr);
       }
     }
     if (!aiGenerationSuccess) {
