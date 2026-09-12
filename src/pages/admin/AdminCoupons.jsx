@@ -112,7 +112,7 @@ export function AdminCoupons() {
   const confirmDeleteCoupon = async () => {
     if (!deleteId) return;
     try {
-      const couponToDelete = (db.getCoupons() || []).find(c => c.id === deleteId || c.code === deleteId);
+      const couponToDelete = (db.getCoupons() || []).find(c => c.id === deleteId || c._id === deleteId || c.code === deleteId);
       const codeToDelete = couponToDelete?.code ? String(couponToDelete.code).toUpperCase() : String(deleteId).toUpperCase();
 
       await db.deleteCoupon(deleteId);
@@ -129,6 +129,7 @@ export function AdminCoupons() {
 
       emitToast("Coupon and associated home offers deleted successfully", "success");
       setDeleteId(null);
+      setCoupons(db.getCoupons() || []);
       load();
     } catch (err) {
       emitToast(err.message || "Failed to delete coupon", "error");

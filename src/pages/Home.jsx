@@ -31,12 +31,22 @@ export function Home() {
   });
   const [offers, setOffers] = useState(() => {
     try {
+      const allCoupons = db.getCoupons ? db.getCoupons() : [];
+      const activeCouponCodes = new Set(
+        allCoupons
+          .filter(c => c.status === "Active" && (!c.expiry || new Date(c.expiry).getTime() > Date.now()))
+          .map(c => String(c.code || "").trim().toUpperCase())
+      );
       return db.getOffers().filter(o => {
         if (o.offerType === 'badge') return false;
         if (o.status !== 'Active') return false;
         if (o.shownOn && o.shownOn !== 'Home Banner') return false;
         if (o.expiry && new Date(o.expiry) < new Date()) return false;
         if (o.startDate && new Date(o.startDate) > new Date()) return false;
+        if (o.couponCode) {
+          const code = String(o.couponCode).trim().toUpperCase();
+          if (code && !activeCouponCodes.has(code)) return false;
+        }
         return true;
       }).sort((a,b) => (a.order || 0) - (b.order || 0));
     } catch {
@@ -93,12 +103,23 @@ export function Home() {
       });
     }
 
+    const allCoupons = db.getCoupons ? db.getCoupons() : [];
+    const activeCouponCodes = new Set(
+      allCoupons
+        .filter(c => c.status === "Active" && (!c.expiry || new Date(c.expiry).getTime() > Date.now()))
+        .map(c => String(c.code || "").trim().toUpperCase())
+    );
+
     const allOffers = db.getOffers().filter((o) => {
       if (o.offerType === "badge") return false;
       if (o.status !== "Active") return false;
       if (o.shownOn && o.shownOn !== "Home Banner") return false;
       if (o.expiry && new Date(o.expiry) < new Date()) return false;
       if (o.startDate && new Date(o.startDate) > new Date()) return false;
+      if (o.couponCode) {
+        const code = String(o.couponCode).trim().toUpperCase();
+        if (code && !activeCouponCodes.has(code)) return false;
+      }
       return true;
     }).sort((a, b) => (a.order || 0) - (b.order || 0));
 

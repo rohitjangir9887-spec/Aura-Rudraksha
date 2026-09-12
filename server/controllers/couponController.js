@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Coupon } from "../models/Coupon.js";
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
@@ -319,7 +320,6 @@ export async function deleteCoupon(req, res, next) {
   try {
     const { id } = req.params;
     const cleanId = String(id).trim();
-    const cleanCode = cleanId.toUpperCase();
 
     if (!isDbConnected()) {
       return res.status(503).json({
@@ -330,26 +330,65 @@ export async function deleteCoupon(req, res, next) {
       });
     }
 
-    // 1. Delete the coupon from Coupon collection
-    await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });
+    // 1. Find target coupon to resolve exact code, id, and _id
+    const findConditions = [
+      { id: cleanId },
+      { code: { $regex: `^${cleanId}$`, $options: "i" } }
+    ];
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      findConditions.push({ _id: cleanId });
+    }
 
-    // 2. Remove all matching promotional deals from Offer and Promotion collections so they disappear from Home UI
-    await Offer.deleteMany({ $or: [{ couponCode: cleanCode }, { code: cleanCode }, { id: cleanId }] }).catch(() => {});
-    await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }, { id: cleanId }] }).catch(() => {});
+    const existingCoupon = await Coupon.findOne({ $or: findConditions }).lean();
+    const targetCode = (existingCoupon?.code || cleanId).trim().toUpperCase();
+    const targetId = existingCoupon?.id || cleanId;
+    const targetDbId = existingCoupon?._id ? String(existingCoupon._id) : null;
 
-    // 3. If the central active offer was referencing this deleted coupon, deactivate it and clear code instead of leaving stale banner
+    // 2. Delete coupon from Coupon collection across all identifier matches
+    const deleteConditions = [
+      { id: cleanId },
+      { id: targetId },
+      { code: { $regex: `^${targetCode}$`, $options: "i" } }
+    ];
+    if (targetDbId) deleteConditions.push({ _id: targetDbId });
+    if (mongoose.Types.ObjectId.isValid(cleanId)) deleteConditions.push({ _id: cleanId });
+
+    await Coupon.deleteMany({ $or: deleteConditions });
+
+    // 3. Delete matching offers and promotions from Offer/Promotion collections so they vanish from Home UI
+    const offerDeleteConditions = [
+      { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
+      { code: { $regex: `^${targetCode}$`, $options: "i" } },
+      { id: targetId },
+      { id: cleanId }
+    ];
+    await Offer.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
+    await Promotion.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
+
+    // 4. Deactivate ActiveOffer if it referenced this deleted coupon
     await ActiveOffer.updateMany(
-      { couponCode: cleanCode },
+      {
+        $or: [
+          { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
+          { id: targetId },
+          { id: cleanId }
+        ]
+      },
       { $set: { enabled: false, status: "Inactive", couponCode: "" } }
     ).catch(() => {});
 
+    // 5. Clean up in-memory store
     if (inMemoryStore.coupons) {
-      inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== cleanId && String(c.code).toUpperCase() !== cleanCode);
+      inMemoryStore.coupons = inMemoryStore.coupons.filter(
+        c => String(c.id) !== cleanId && String(c.id) !== targetId && String(c._id) !== targetDbId && String(c.code || "").toUpperCase() !== targetCode
+      );
     }
     if (inMemoryStore.offers) {
-      inMemoryStore.offers = inMemoryStore.offers.filter(o => String(o.couponCode || "").toUpperCase() !== cleanCode);
+      inMemoryStore.offers = inMemoryStore.offers.filter(
+        o => String(o.couponCode || "").toUpperCase() !== targetCode && String(o.id) !== targetId && String(o.id) !== cleanId
+      );
     }
-    if (inMemoryStore.activeOffer && String(inMemoryStore.activeOffer.couponCode || "").toUpperCase() === cleanCode) {
+    if (inMemoryStore.activeOffer && String(inMemoryStore.activeOffer.couponCode || "").toUpperCase() === targetCode) {
       inMemoryStore.activeOffer.enabled = false;
       inMemoryStore.activeOffer.status = "Inactive";
       inMemoryStore.activeOffer.couponCode = "";
@@ -360,11 +399,16 @@ export async function deleteCoupon(req, res, next) {
       actorRole: "admin",
       action: "COUPON_DELETED",
       entityType: "Coupon",
-      entityId: cleanCode,
+      entityId: targetCode,
       req
     });
 
-    return res.json({ success: true, message: "Coupon and associated home offers deleted successfully", id: cleanId });
+    return res.json({
+      success: true,
+      message: "Coupon and associated home offers deleted successfully",
+      id: targetId,
+      code: targetCode
+    });
   } catch (err) {
     next(err);
   }

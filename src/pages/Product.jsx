@@ -249,7 +249,7 @@ export function Product() {
   const isFav = p ? isWishlisted(rawP?.id || rawP?._id || p.id || p._id) : false;
 
   // Dynamic SEO & OpenGraph Meta Tag Synchronization for Social Sharing Previews
-  const primaryImg = p?.img || (p?.images && p?.images[0]) || "/favicon.jpg";
+  const primaryImg = p?.img || (p?.images && p?.images[0]) || "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
   const ogImgUrl = primaryImg.startsWith("http") 
     ? primaryImg 
     : `https://aurarudraksha.bond${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
@@ -359,43 +359,51 @@ export function Product() {
   const handleNativeShare = async () => {
     if (!p) return;
     const shareUrl = getProductShareUrl();
-    const shareTitle = `${p.name} | Aura Rudraksha`;
-    const shareText = `Explore authentic lab-certified ${p.name} at Aura Rudraksha`;
+    const priceStr = p.price ? ` (₹${Number(p.price).toLocaleString("en-IN")})` : "";
+    const shareTitle = `${p.name}${priceStr} | Aura Rudraksha`;
+    const shareText = `Explore authentic lab-certified ${p.name} at Aura Rudraksha.\n${shareUrl}`;
 
-    // Attempt native file sharing so WhatsApp attaches the full product photo directly
+    // 1. Attempt Native Web Share API with High-Resolution Image File Attachment
     const primaryImgUrl = p.img || (Array.isArray(p.images) && p.images[0]) || "";
-    if (primaryImgUrl && typeof fetch === "function" && navigator.canShare) {
+    if (primaryImgUrl && typeof fetch === "function" && typeof navigator !== "undefined" && navigator.canShare) {
       try {
         const fullImgUrl = primaryImgUrl.startsWith("http")
-          ? primaryImgUrl
+          ? getOptimizedImageUrl(primaryImgUrl, { width: 1600, quality: 95 })
           : `${window.location.origin}${primaryImgUrl.startsWith("/") ? "" : "/"}${primaryImgUrl}`;
+
         const res = await fetch(fullImgUrl, { mode: "cors" });
         if (res.ok) {
           const blob = await res.blob();
-          const ext = blob.type === "image/png" ? "png" : "jpg";
-          const file = new File([blob], `aura-${p.slug || p.id || "product"}.${ext}`, {
-            type: blob.type || "image/jpeg"
-          });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              title: shareTitle,
-              text: `${shareText}\n${shareUrl}`,
-              files: [file]
-            });
+          const mimeType = blob.type || "image/jpeg";
+          const ext = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
+          const sanitizedName = (p.name || "aura-rudraksha").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+          const imageFile = new File([blob], `${sanitizedName}-certified.${ext}`, { type: mimeType });
+
+          const sharePayload = {
+            title: shareTitle,
+            text: `🌸 *${p.name}*${priceStr}\n100% Authentic Lab Certified Rudraksha from Aura Rudraksha.\n\n👇 *View Product & Certificate:*\n${shareUrl}`,
+            url: shareUrl,
+            files: [imageFile]
+          };
+
+          if (navigator.canShare(sharePayload)) {
+            await navigator.share(sharePayload);
             setShareOpen(false);
             return;
           }
         }
-      } catch (_) {
-        // Fall through to standard share
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        // Downfall to standard text/URL Web Share API
       }
     }
 
-    if (navigator.share) {
+    // 2. Standard Native Web Share API (Link & Text Preview)
+    if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
           title: shareTitle,
-          text: `${shareText}\n${shareUrl}`,
+          text: `Explore authentic 100% lab-certified ${p.name} at Aura Rudraksha.\n\n${shareUrl}`,
           url: shareUrl,
         });
         setShareOpen(false);
@@ -405,12 +413,12 @@ export function Product() {
       }
     }
 
+    // 3. Desktop/Unsupported Browser Fallback (Copy Link)
     await handleCopyLink();
   };
 
   const handleShareProduct = () => {
-    // If mobile with file sharing support, try native directly; otherwise toggle menu
-    if (window.innerWidth < 768 && navigator.share) {
+    if (typeof navigator !== "undefined" && navigator.share) {
       handleNativeShare();
     } else {
       setShareOpen(prev => !prev);
