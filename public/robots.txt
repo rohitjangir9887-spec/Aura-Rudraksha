@@ -37,6 +37,6 @@ Disallow: /payment/
 Disallow: /api/auth/
 Disallow: /api/admin/
 
-Sitemap: https://aura-rudraksha.vercel.app/sitemap.xml
-Sitemap: https://aura-rudraksha.vercel.app/api/sitemap.xml
+Sitemap: https://www.aurarudraksha.bond/sitemap.xml
+Sitemap: https://www.aurarudraksha.bond/api/sitemap.xml
 

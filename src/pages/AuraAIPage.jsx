@@ -40,12 +40,13 @@ import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 import { VoiceReader } from "../components/VoiceReader";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 
 export function AuraAIPage() {
   useSeo({
     title: "Aura AI Astrologer - Live Vedic Rudraksha Recommendation | Aura Rudraksha",
     description: "Consult Aura AI Vedic Astrologer for personalized Rudraksha recommendations based on your birth date, zodiac Rashi, career aspirations, and spiritual goals.",
-    canonical: "https://aura-rudraksha.vercel.app/aura-ai"
+    canonical: getCanonicalUrl("/aura-ai")
   });
 
   const [mode, setMode] = useState("standard"); // "standard" | "panditji"

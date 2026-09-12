@@ -1,4 +1,5 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
+import { OptimizedImage } from "../OptimizedImage";
 import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, Check, ShoppingCart, Sparkles, CheckCircle2 } from "lucide-react";
@@ -89,14 +90,16 @@ export function FrequentlyBoughtTogether({ currentProduct, allProducts = [], onA
                   onClick={() => toggleSelect(item.id)}
                 >
                   <div className="bundle-item-img-frame">
-                    <img 
+                    <OptimizedImage 
                       src={img} 
                       alt={item.name} 
-                      loading="lazy"
-                      onError={(e) => {
-                        if (!e.target.src.includes("product-5mukhi.jpg")) {
-                          e.target.src = "/images/placeholder.svg";
-                        }
+                      width={160}
+                      quality={75}
+                      aspectRatio="1 / 1"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover"
                       }}
                     />
                     <div className={`bundle-checkbox ${isSelected ? "checked" : ""}`}>

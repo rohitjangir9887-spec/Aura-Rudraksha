@@ -19,6 +19,7 @@ import {
 import { db } from "../lib/db";
 import { MUKHI_CATALOG } from "../data/seoCatalogData";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 import ProductCard from "../components/ProductCard";
 import { Shell } from "../components/Shell";
 
@@ -51,7 +52,7 @@ export default function CategoryLanding() {
   useSeo({
     title: pageTitle,
     description: pageDescription,
-    canonical: `https://aura-rudraksha.vercel.app/rudraksha${slug ? `/${slug}` : ""}`,
+    canonical: getCanonicalUrl(`/rudraksha${slug ? `/${slug}` : ""}`),
     ogType: "website"
   });
 

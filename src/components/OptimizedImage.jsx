@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
+import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
 
 /**
  * OptimizedImage Component
  * Features:
+ * - IntersectionObserver-based lazy loading with pre-buffering (250px rootMargin)
  * - Automatic low-res blur placeholder (LQIP)
  * - Smooth opacity fade-in transition once high-res image finishes loading
- * - Native lazy-loading & priority fetch hints to optimize LCP
+ * - Priority mode bypass for instant LCP rendering
  * - Robust proxy error handling & fallbacks
  */
 export function OptimizedImage({
@@ -21,14 +23,29 @@ export function OptimizedImage({
   containerClassName = "",
   containerStyle: customContainerStyle = {},
   aspectRatio,
+  rootMargin = "250px 0px",
+  threshold = 0.01,
+  intersectionThreshold,
   onError,
   onLoad,
   ...restProps
 }) {
+  const containerRef = useRef(null);
+  
+  // If priority is true, consider it immediately visible to optimize LCP
+  const isIntersecting = useIntersectionObserver(containerRef, {
+    rootMargin,
+    threshold: intersectionThreshold ?? threshold,
+    enabled: !priority,
+    freezeOnceVisible: true,
+  });
+
+  const isVisible = priority || isIntersecting;
+
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState(() =>
-    getOptimizedImageUrl(src, { width, quality })
+    isVisible ? getOptimizedImageUrl(src, { width, quality }) : ""
   );
 
   const imgRef = useRef(null);
@@ -41,13 +58,15 @@ export function OptimizedImage({
     return getOptimizedImageUrl(src, { width: 24, quality: 20 });
   }, [src, priority]);
 
-  // Update image src when `src`, `width`, or `quality` change
+  // Update image src when `src`, `width`, `quality`, or visibility changes
   useEffect(() => {
-    setIsLoaded(false);
-    setHasError(false);
-    const newOptimizedSrc = getOptimizedImageUrl(src, { width, quality });
-    setCurrentSrc(newOptimizedSrc);
-  }, [src, width, quality]);
+    if (isVisible) {
+      setIsLoaded(false);
+      setHasError(false);
+      const newOptimizedSrc = getOptimizedImageUrl(src, { width, quality });
+      setCurrentSrc(newOptimizedSrc);
+    }
+  }, [src, width, quality, isVisible]);
 
   // Handle cached image instant loads & complete status
   useEffect(() => {
@@ -98,7 +117,11 @@ export function OptimizedImage({
   };
 
   return (
-    <span style={containerStyle} className={`aura-opt-img-container ${containerClassName}`.trim()}>
+    <span
+      ref={containerRef}
+      style={containerStyle}
+      className={`aura-opt-img-container ${containerClassName}`.trim()}
+    >
       {/* Low-Res Blurred Placeholder for lazy images */}
       {!isLoaded && placeholderSrc && (
         <img
@@ -124,29 +147,31 @@ export function OptimizedImage({
         />
       )}
 
-      {/* High-Res Actual Image with native lazy loading & fetchpriority */}
-      <img
-        ref={imgRef}
-        src={currentSrc}
-        alt={alt}
-        width={width}
-        height={height}
-        loading={priority ? "eager" : "lazy"}
-        decoding="async"
-        fetchpriority={priority ? "high" : "low"}
-        onLoad={handleImageLoad}
-        onError={handleImageError}
-        className={className}
-        style={{
-          ...style,
-          position: "relative",
-          zIndex: 2,
-          opacity: (isLoaded || priority) ? 1 : 0,
-          transition: priority ? "none" : "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-          willChange: priority ? "auto" : "opacity",
-        }}
-        {...restProps}
-      />
+      {/* High-Res Actual Image with IntersectionObserver lazy loading & fetchpriority */}
+      {isVisible && (
+        <img
+          ref={imgRef}
+          src={currentSrc || getOptimizedImageUrl(src, { width, quality })}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          fetchpriority={priority ? "high" : "low"}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          className={className}
+          style={{
+            ...style,
+            position: "relative",
+            zIndex: 2,
+            opacity: (isLoaded || priority) ? 1 : 0,
+            transition: priority ? "none" : "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+            willChange: priority ? "auto" : "opacity",
+          }}
+          {...restProps}
+        />
+      )}
     </span>
   );
 }

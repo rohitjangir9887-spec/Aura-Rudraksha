@@ -6,7 +6,7 @@
  *
  * Usage:
  *   node scripts/generate-sitemap.mjs
- *   node scripts/generate-sitemap.mjs --base-url https://aura-rudraksha.vercel.app
+ *   node scripts/generate-sitemap.mjs --base-url https://www.aurarudraksha.bond
  */
 
 import fs from "fs";
@@ -35,7 +35,7 @@ const baseUrl = (
   process.env.VITE_SITE_URL ||
   process.env.SITE_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-  "https://aura-rudraksha.vercel.app"
+  "https://www.aurarudraksha.bond"
 ).replace(/\/+$/, "");
 
 console.log(`[Sitemap Generator] Base URL: ${baseUrl}`);

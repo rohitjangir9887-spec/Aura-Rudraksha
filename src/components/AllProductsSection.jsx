@@ -70,7 +70,7 @@ export function AllProductsSection({ products = [], isLoading = false }) {
           </div>
         ) : (
           allActiveProducts.map((p, index) => (
-            <ProductCard key={p.id} p={p} onAdd={add} priority={false} index={index} />
+            <ProductCard key={p.id} p={p} onAdd={add} priority={index < 2} index={index} />
           ))
         )}
       </div>

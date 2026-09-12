@@ -16,7 +16,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const SITE_URL = (process.env.VITE_SITE_URL || process.env.SITE_URL || "https://aura-rudraksha.vercel.app").replace(/\/+$/, "");
+const SITE_URL = (process.env.VITE_SITE_URL || process.env.SITE_URL || "https://www.aurarudraksha.bond").replace(/\/+$/, "");
 const SITEMAP_URL = `${SITE_URL}/sitemap.xml`;
 
 function pingUrl(urlStr) {

@@ -4,6 +4,7 @@
  */
 
 import { useEffect } from "react";
+import { SITE_URL } from "../config/site";
 
 const DEFAULT_KEYWORDS = "Aura Rudraksha, original rudraksha, nepali rudraksha, lab certified rudraksha, 1 to 21 mukhi rudraksha, 5 mukhi mala 108 beads, gauri shankar rudraksha, rudraksha price, original nepali rudraksha, buy rudraksha online, authentic rudraksha certificate, rudraksha for rashi, rudraksha calculator";
 
@@ -64,7 +65,7 @@ export function useSeo({
     setMetaTag("name", "googlebot", robotsDirective);
     setMetaTag("name", "bingbot", robotsDirective);
 
-    const safeOgImage = ogImage || "https://aura-rudraksha.vercel.app/og-image.jpg";
+    const safeOgImage = ogImage || `${SITE_URL}/og-image.jpg`;
     setMetaTag("property", "og:image", safeOgImage);
     setMetaTag("property", "og:image:secure_url", safeOgImage);
     if (title) setMetaTag("property", "og:image:alt", title);

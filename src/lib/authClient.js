@@ -45,7 +45,7 @@ try {
 }
 
 // Canonical production origin for Aura Rudraksha
-export const CANONICAL_APP_ORIGIN = "https://aura-rudraksha.vercel.app";
+export const CANONICAL_APP_ORIGIN = "https://www.aurarudraksha.bond";
 
 /**
  * Returns the active or canonical application origin.

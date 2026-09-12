@@ -78,6 +78,8 @@ function PanditJiAvatar({ size = 34 }) {
       <img
         src={getOptimizedImageUrl("https://i.ibb.co/XxDccpPX/file-0000000089808211b252c5213cf8063e.png", { width: 160, quality: 80 })}
         alt="AI Pandit Ji"
+        width={size}
+        height={size}
         style={{
           width: '100%',
           height: '100%',

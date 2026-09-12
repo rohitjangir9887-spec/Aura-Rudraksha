@@ -14,13 +14,14 @@ import {
 } from "lucide-react";
 import { RASHI_RECOMMENDATIONS } from "../data/seoCatalogData";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 import { Shell } from "../components/Shell";
 
 export default function RudrakshaCalculator() {
   useSeo({
     title: "Vedic Rudraksha Recommendation Calculator & Rashi Guide | Aura Rudraksha",
     description: "Calculate your authentic Mukhi Rudraksha recommendation based on your Janma Rashi (Moon Sign), ruling planet, and life goals according to Vedic scriptures.",
-    canonical: "https://aura-rudraksha.vercel.app/rudraksha-calculator"
+    canonical: getCanonicalUrl("/rudraksha-calculator")
   });
 
   const [activeMode, setActiveMode] = useState("rashi"); // "rashi" or "goal"

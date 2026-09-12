@@ -8,6 +8,7 @@ import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
 import { sortProductsByCatalogOrder } from "../lib/productHelper";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 import { 
   ChevronLeft, 
   ChevronDown, 
@@ -110,7 +111,7 @@ export function Shop() {
   useSeo({
     title: q ? `Search Results for "${q}" | Aura Rudraksha Shop` : "Sacred Rudraksha Shop - Authentic Nepali Rudraksha, Malas & Silver Capped Beads | Aura Rudraksha",
     description: "Explore lab-certified 100% genuine Nepali Rudraksha beads (1 to 21 Mukhi), Gauri Shankar, energized Japa Malas, Siddha Malas & sterling silver capped jewelry.",
-    canonical: "https://aura-rudraksha.vercel.app/shop"
+    canonical: getCanonicalUrl("/shop")
   });
 
   const updateProductsState = () => {

@@ -10,12 +10,13 @@ import {
 import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 
 export function TrackOrder() {
   useSeo({
     title: "Track Your Sacred Order | Aura Rudraksha",
     description: "Track live temple consecration, lab certification, and express air courier dispatch status for your Aura Rudraksha order.",
-    canonical: "https://aura-rudraksha.vercel.app/track-order"
+    canonical: getCanonicalUrl("/track-order")
   });
 
   const [searchParams] = useSearchParams();

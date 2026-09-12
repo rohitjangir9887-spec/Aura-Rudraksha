@@ -659,8 +659,8 @@ export async function chatAuraAI(req, res, next) {
       cartActions: true,
       orderSupport: true,
       humanSupport: true,
-      supportPhone: "+91 98765 43210",
-      supportEmail: "support@aura-rudraksha.vercel.app"
+      supportPhone: "+91 96729 96531",
+      supportEmail: "support@aurarudraksha.bond"
     };
 
     if (isDbConnected()) {
@@ -681,7 +681,7 @@ export async function chatAuraAI(req, res, next) {
 
     // 2. Intent Routing in Pandit Ji Mode for Order/Delivery Questions
     if (mode === "panditji" && (intent === "ORDER_TRACKING" || intent === "ORDER_HISTORY" || intent === "ORDER_CANCEL" || intent === "SHIPPING")) {
-      const handoffText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nOrder status, parcel tracking aur delivery updates ke liye **Aura AI Support** aapki behtar madad karega.\n\nAap niche diye gaye button par click karke **Aura AI Shopping & Support** mode mein switch kar sakte hain, ya seedhe [Track Order](/track-order) page par apna Order Number daal kar live status dekh sakte hain:\n\n📦 **Direct Order Tracking:** [https://aura-rudraksha.vercel.app/track-order](/track-order)`;
+      const handoffText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nOrder status, parcel tracking aur delivery updates ke liye **Aura AI Support** aapki behtar madad karega.\n\nAap niche diye gaye button par click karke **Aura AI Shopping & Support** mode mein switch kar sakte hain, ya seedhe [Track Order](/track-order) page par apna Order Number daal kar live status dekh sakte hain:\n\n📦 **Direct Order Tracking:** [https://www.aurarudraksha.bond/track-order](/track-order)`;
 
       const handoffPayload = {
         text: handoffText,
@@ -805,16 +805,16 @@ export async function chatAuraAI(req, res, next) {
     const urlAndCatalogRulesText = `
 WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
 - Official Store Website URLs:
-  - https://aura-rudraksha.vercel.app (Live Web Application)
-  - https://aura-rudraksha.vercel.app (Official Domain)
+  - https://www.aurarudraksha.bond (Live Web Application)
+  - https://www.aurarudraksha.bond (Official Domain)
 - Main Page Routes:
-  - Official Homepage: https://aura-rudraksha.vercel.app (or /)
-  - Shop All Products: https://aura-rudraksha.vercel.app/shop (or /shop)
-  - Order Tracking: https://aura-rudraksha.vercel.app/track-order (or /track-order)
-  - Contact Us: https://aura-rudraksha.vercel.app/contact (or /contact)
-  - Cart / Checkout: https://aura-rudraksha.vercel.app/cart (or /cart)
-  - Free Kundali & Zodiac Analysis: https://aura-rudraksha.vercel.app/zodiac (or /zodiac)
-- When user asks "What is the website URL?", "Website link do", or "Where to buy?", ALWAYS provide: https://aura-rudraksha.vercel.app (or https://aura-rudraksha.vercel.app).
+  - Official Homepage: https://www.aurarudraksha.bond (or /)
+  - Shop All Products: https://www.aurarudraksha.bond/shop (or /shop)
+  - Order Tracking: https://www.aurarudraksha.bond/track-order (or /track-order)
+  - Contact Us: https://www.aurarudraksha.bond/contact (or /contact)
+  - Cart / Checkout: https://www.aurarudraksha.bond/cart (or /cart)
+  - Free Kundali & Zodiac Analysis: https://www.aurarudraksha.bond/zodiac (or /zodiac)
+- When user asks "What is the website URL?", "Website link do", or "Where to buy?", ALWAYS provide: https://www.aurarudraksha.bond.
 - NEVER generate or hallucinate fake external domain URLs (like example.com or random fake links).
 - STRICT PRODUCT CATALOG & LINKING MANDATE:
   - NEVER invent, hallucinate, or suggest fake product names, fake prices, or fake links.
@@ -839,7 +839,7 @@ LINK FORMAT RULES:
     let systemPrompt = "";
 
     if (mode === "panditji") {
-      systemPrompt = `You are AI Pandit Ji, the revered Vedic Astrology (Jyotish) & Spiritual Guide for Aura Rudraksha (https://aura-rudraksha.vercel.app).
+      systemPrompt = `You are AI Pandit Ji, the revered Vedic Astrology (Jyotish) & Spiritual Guide for Aura Rudraksha (https://www.aurarudraksha.bond).
 
 CORE IDENTITY & TRANSPARENCY:
 - You are an authentic Vedic spiritual AI assistant ("AI Pandit Ji"). Always maintain high respect, calm demeanor, and deep traditional knowledge.
@@ -885,7 +885,7 @@ DEVOTEE PROFILE & CONSULTATION NOTES:
 ${memoryContextText || "New devotee consultation."}
 ${notesContext ? `Active Notepad Context: ${notesContext}` : ""}`;
     } else {
-      systemPrompt = `You are Aura AI, the intelligent personal shopping, Vedic bead specialist, and order support assistant for Aura Rudraksha (https://aura-rudraksha.vercel.app).
+      systemPrompt = `You are Aura AI, the intelligent personal shopping, Vedic bead specialist, and order support assistant for Aura Rudraksha (https://www.aurarudraksha.bond).
 
 CORE MISSION:
 - Guide devotees to the most authentic, 100% Nepali Rudraksha beads, 108 Jaap Malas, Gauri Shankar beads, and sacred bracelets.

@@ -16,6 +16,7 @@ import {
   Sun
 } from "lucide-react";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 import { Shell } from "../components/Shell";
 
 export default function RudrakshaGuide() {
@@ -29,7 +30,7 @@ export default function RudrakshaGuide() {
     h1: "How to Wear Rudraksha — Vedic Consecration, Mantras & Rules",
     title: "How to Wear Rudraksha — Consecration, Mantras & Rules | Aura Rudraksha",
     description: "Complete Vedic guide on wearing Rudraksha: auspicious days, Prana Pratishtha purification ritual, Beej mantras, and daily sacred guidelines.",
-    canonical: "https://aura-rudraksha.vercel.app/how-to-wear-rudraksha"
+    canonical: getCanonicalUrl("/how-to-wear-rudraksha")
   };
 
   if (path.includes("benefits")) {
@@ -38,7 +39,7 @@ export default function RudrakshaGuide() {
       h1: "Rudraksha Benefits — Spiritual, Scientific & Bio-Electric Energy",
       title: "Rudraksha Benefits — Spiritual, Scientific & Health Energy | Aura Rudraksha",
       description: "Discover the spiritual and bio-magnetic benefits of Rudraksha: stress reduction, cardiac bio-frequency stabilization, mind focus, and planetary dosha pacification.",
-      canonical: "https://aura-rudraksha.vercel.app/rudraksha-benefits"
+      canonical: getCanonicalUrl("/rudraksha-benefits")
     };
   } else if (path.includes("authenticity")) {
     guide = {
@@ -46,7 +47,7 @@ export default function RudrakshaGuide() {
       h1: "Rudraksha Authenticity & Lab Testing Guide — Real vs Fake",
       title: "Rudraksha Authenticity & Lab Testing Guide — Real vs Fake | Aura Rudraksha",
       description: "How to identify genuine Rudraksha: X-ray density radiography, copper coin myths vs science, natural mukhi continuity, and laboratory certificates.",
-      canonical: "https://aura-rudraksha.vercel.app/rudraksha-authenticity"
+      canonical: getCanonicalUrl("/rudraksha-authenticity")
     };
   } else if (path.includes("care")) {
     guide = {
@@ -54,7 +55,7 @@ export default function RudrakshaGuide() {
       h1: "Rudraksha Care, Cleaning & Oiling Guide",
       title: "Rudraksha Care, Cleaning & Oiling Guide | Aura Rudraksha",
       description: "How to maintain, clean, oil, and store your sacred Rudraksha beads. Proper methods using Gangajal, natural mustard/sandalwood oil, and soft copper-bristle cleaning.",
-      canonical: "https://aura-rudraksha.vercel.app/rudraksha-care"
+      canonical: getCanonicalUrl("/rudraksha-care")
     };
   }
 

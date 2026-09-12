@@ -46,7 +46,7 @@ router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res) => {
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://aura-rudraksha.vercel.app/</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.aurarudraksha.bond/</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
 </urlset>`);
   }
 });

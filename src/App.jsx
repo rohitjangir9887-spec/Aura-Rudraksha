@@ -12,7 +12,7 @@ import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "./lib/routes";
 // Code splitting: Customer secondary pages, Admin pages & heavy widgets are
 // lazy-loaded so the Home bundle stays lean and first-paint / LCP stays fast.
 // ---------------------------------------------------------------------------
-const AuraAIFloating = lazy(() => import("./components/AuraAIFloating").then(m => ({ default: m.AuraAIFloating })));
+import { DeferredAuraAIFloating } from "./components/DeferredAuraAIFloating";
 const Shop = lazy(() => import("./pages/Shop").then(m => ({ default: m.Shop })));
 const Wishlist = lazy(() => import("./pages/Wishlist").then(m => ({ default: m.Wishlist })));
 const Product = lazy(() => import("./pages/Product").then(m => ({ default: m.Product })));
@@ -213,7 +213,7 @@ export function App() {
       </Suspense>
       </ErrorBoundary>
       <ErrorBoundary isolate fallback={null}>
-        <AuraAIFloating />
+        <DeferredAuraAIFloating />
       </ErrorBoundary>
     </>
   );

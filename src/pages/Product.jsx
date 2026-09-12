@@ -12,8 +12,10 @@ import { money, pct } from "../data";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { ProductCard } from "../components/ProductCard";
+import { OptimizedImage } from "../components/OptimizedImage";
 import { ProductReviews } from "../components/ProductReviews";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl, getAppOrigin } from "../config/site";
 
 // Dedicated Modular PDP Components
 import { ProductGallery } from "../components/product/ProductGallery";
@@ -230,8 +232,8 @@ export function Product() {
   const primaryImg = p?.img || (p?.images && p?.images[0]) || "/favicon.jpg";
   const ogImgUrl = primaryImg.startsWith("http") 
     ? primaryImg 
-    : (typeof window !== "undefined" ? `${window.location.origin}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}` : primaryImg);
-  const canonicalUrl = typeof window !== "undefined" ? `${window.location.origin}/product/${p?.slug || p?.id || id}` : undefined;
+    : `${getAppOrigin()}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
+  const canonicalUrl = p ? getCanonicalUrl(`/product/${p?.slug || p?.id || id}`) : undefined;
 
   useSeo({
     title: p ? (p.metaTitle || `${p.name} — Authentic Lab Certified | Aura Rudraksha`) : "Aura Rudraksha",
@@ -549,22 +551,23 @@ export function Product() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <img
-                      src={isIndonesianActive
-                        ? (rawP.images?.[0] || rawP.img || "/images/placeholder.svg")
-                        : (rawP.indonesianImg || rawP.indonesianImages?.[0] || rawP.img || "/images/placeholder.svg")
-                      }
-                      alt="Similar Origin Bead"
-                      style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '8px',
-                        objectFit: 'cover',
-                        border: '1px solid #ebdccb',
-                        background: '#f8fafc',
-                        flexShrink: 0
-                      }}
-                    />
+                    <div style={{ width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ebdccb', background: '#f8fafc', flexShrink: 0 }}>
+                      <OptimizedImage
+                        src={isIndonesianActive
+                          ? (rawP.images?.[0] || rawP.img || "/images/placeholder.svg")
+                          : (rawP.indonesianImg || rawP.indonesianImages?.[0] || rawP.img || "/images/placeholder.svg")
+                        }
+                        alt="Similar Origin Bead"
+                        width={128}
+                        quality={75}
+                        aspectRatio="1 / 1"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

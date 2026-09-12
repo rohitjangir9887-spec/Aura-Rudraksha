@@ -261,6 +261,7 @@ function ProductCardComponent({ p, onAdd, isShop = false, priority = false, inde
           className={`aura-card-add-btn ${added ? "added" : ""}`}
           onClick={handleAddToCart}
           disabled={isOutOfStock}
+          aria-label={isOutOfStock ? `${p.name} is out of stock` : added ? `${p.name} added to cart` : `Add ${p.name} to cart`}
           id={`add-to-cart-btn-${p.id}`}
         >
           {added ? (

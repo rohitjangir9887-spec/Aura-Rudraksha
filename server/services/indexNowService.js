@@ -16,8 +16,8 @@ export function getIndexNowKey() {
   return /^[A-Fa-f0-9-]{8,128}$/.test(configured) ? configured : DEFAULT_KEY;
 }
 
-export const DETERMINISTIC_CANONICAL_ORIGIN = "https://aura-rudraksha.vercel.app";
-export const DETERMINISTIC_CANONICAL_DOMAIN = "aura-rudraksha.vercel.app";
+export const DETERMINISTIC_CANONICAL_ORIGIN = "https://www.aurarudraksha.bond";
+export const DETERMINISTIC_CANONICAL_DOMAIN = "www.aurarudraksha.bond";
 
 export function getSiteDomain(req) {
   if (process.env.SITE_URL) {

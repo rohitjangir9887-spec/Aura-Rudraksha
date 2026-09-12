@@ -4,12 +4,13 @@ import { Shell } from "../components/Shell";
 import { Compass, ArrowLeft, ShoppingBag } from "lucide-react";
 import { motion } from "framer-motion";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 
 export function NotFound() {
   useSeo({
     title: "Page Not Found | Aura Rudraksha",
     description: "The sacred Rudraksha page you are looking for does not exist or has been moved.",
-    canonical: "https://aura-rudraksha.vercel.app/404"
+    canonical: getCanonicalUrl("/404")
   });
 
   return (

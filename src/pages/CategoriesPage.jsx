@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useSeo } from "../hooks/useSeo";
+import { getCanonicalUrl } from "../config/site";
 
 const CATEGORIES_DATA = [
   {
@@ -71,7 +72,7 @@ export function CategoriesPage() {
   useSeo({
     title: "Sacred Rudraksha Categories & Collections | Aura Rudraksha",
     description: "Browse certified Nepali Rudraksha collections: Single Mukhi beads (1-21 Mukhi), Rare Collector Formations, 108+1 Japa Malas, and Consecrated Bracelets.",
-    canonical: "https://aura-rudraksha.vercel.app/categories"
+    canonical: getCanonicalUrl("/categories")
   });
 
   return (
