@@ -647,9 +647,9 @@ export async function handlePayuCancel(req, res) {
   const clientBaseUrl = resolveAppBaseUrl(req);
   try {
     const params = extractPayuParams(req);
-    const orderId = String(params.udf1 || params.orderId || "").trim();
-    const txnid = String(params.txnid || "").trim();
-    const mihpayid = String(params.mihpayid || "").trim();
+    let orderId = String(params.udf1 || params.orderId || req.query.orderId || "").trim();
+    const txnid = String(params.txnid || req.query.txnid || "").trim();
+    const mihpayid = String(params.mihpayid || req.query.mihpayid || "").trim();
     
     // Hash verification for cancel callback (PayU may omit reverse hash when user cancels before gateway interaction)
     const { salt } = getPayuConfig();
@@ -661,8 +661,23 @@ export async function handlePayuCancel(req, res) {
     }
 
     let guestTokenQuery = "";
-    if (orderId && isDbConnected()) {
-      const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+    if (isDbConnected()) {
+      let order = null;
+      if (orderId) {
+        order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+      }
+      if (!order && txnid) {
+        order = await Order.findOne({
+          $or: [
+            { txnid: txnid },
+            { "paymentAttempts.txnid": txnid }
+          ]
+        });
+        if (order) {
+          orderId = order.id || order.orderId || order.orderNumber;
+        }
+      }
+
       if (order && order.guestToken) {
         guestTokenQuery = `&guestToken=${encodeURIComponent(order.guestToken)}`;
       }
@@ -1223,23 +1238,38 @@ export async function retryPayuPayment(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Ownership Check:
-    // For authenticated orders: match authUserId, customerEmail, or phone.
-    // For guest orders: match guestToken, txnid, or active session.
+    // Comprehensive Ownership Check matching getMyOrders & getOrderById:
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || req.body?.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
-    const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const isEmailOwner = req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase();
-    const retryReqPhone10 = req.user?.phone ? extractRaw10DigitPhone(req.user.phone) : "";
-    const retryOrderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || "");
-    const isPhoneOwner = Boolean(retryReqPhone10 && retryOrderPhone10 && retryReqPhone10 === retryOrderPhone10);
+
+    const isOwner = Boolean(authUserId && order.authUserId && (
+      String(order.authUserId) === String(authUserId) ||
+      String(order.authUserId).endsWith(String(authUserId)) ||
+      String(authUserId).endsWith(String(order.authUserId))
+    ));
+
+    const reqEmail = String(req.user?.email || "").trim().toLowerCase();
+    const orderEmails = [
+      order.customerEmail,
+      order.email,
+      order.shippingAddress?.email
+    ].map(e => String(e || "").trim().toLowerCase()).filter(Boolean);
+    const isEmailOwner = Boolean(reqEmail && orderEmails.includes(reqEmail));
+
+    const retryReqPhone = req.user?.phone ? extractRaw10DigitPhone(req.user.phone) : "";
+    const orderPhones = [
+      order.customerPhone,
+      order.phone,
+      order.shippingAddress?.phone
+    ].map(p => extractRaw10DigitPhone(p || "")).filter(Boolean);
+    const isPhoneOwner = Boolean(retryReqPhone && orderPhones.includes(retryReqPhone));
+
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
-    const isGuestOwner = isGuestOrder && (
+    const isGuestOwner = (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
       (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      Boolean(req.user) ||
-      !order.guestToken
+      (isGuestOrder && (Boolean(req.user) || !order.guestToken))
     );
 
     if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {

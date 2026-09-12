@@ -72,7 +72,7 @@ export function AdminCoupons() {
 
       // Sync to Home Banner if checked
       if (savedCoupon.showOnHome && savedCoupon.status === "Active") {
-        const existingOffers = db.getOffers();
+        const existingOffers = db.getOffers() || [];
         const existing = existingOffers.find(o => o.couponCode === code);
         const offerTitle = savedCoupon.type === 'fixed' ? `Flat ₹${discountVal} OFF` : `Flat ${discountVal}% OFF`;
 
@@ -90,6 +90,15 @@ export function AdminCoupons() {
           status: "Active",
           image: existing?.image || "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png"
         });
+      } else {
+        // If unchecked or inactive, remove from home offers immediately
+        const existingOffers = db.getOffers() || [];
+        const existing = existingOffers.find(o => o.couponCode === code);
+        if (existing) {
+          try {
+            await db.deleteOffer(existing.id);
+          } catch (_) {}
+        }
       }
 
       emitToast(editing.id ? "Coupon updated successfully" : "Coupon created successfully", "success");
@@ -103,8 +112,22 @@ export function AdminCoupons() {
   const confirmDeleteCoupon = async () => {
     if (!deleteId) return;
     try {
+      const couponToDelete = (db.getCoupons() || []).find(c => c.id === deleteId || c.code === deleteId);
+      const codeToDelete = couponToDelete?.code ? String(couponToDelete.code).toUpperCase() : String(deleteId).toUpperCase();
+
       await db.deleteCoupon(deleteId);
-      emitToast("Coupon deleted successfully", "success");
+
+      // Also remove any matching offers from home
+      const existingOffers = db.getOffers() || [];
+      for (const off of existingOffers) {
+        if (off.couponCode && String(off.couponCode).toUpperCase() === codeToDelete) {
+          try {
+            await db.deleteOffer(off.id);
+          } catch (_) {}
+        }
+      }
+
+      emitToast("Coupon and associated home offers deleted successfully", "success");
       setDeleteId(null);
       load();
     } catch (err) {

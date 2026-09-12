@@ -1,5 +1,5 @@
 import { Coupon } from "../models/Coupon.js";
-import { ActiveOffer, Promotion } from "../models/Promotion.js";
+import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { getAuthoritativeCoupon } from "../services/pricingService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
@@ -188,6 +188,7 @@ export async function getCoupons(req, res, next) {
       }
     }
     inMemoryStore.coupons = coupons;
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     if (isAdmin) {
       return res.json({ success: true, data: coupons, count: coupons.length });
     }
@@ -278,6 +279,25 @@ export async function updateCoupon(req, res, next) {
       return res.status(404).json({ success: false, message: "Coupon not found" });
     }
 
+    const oldCode = oldCoupon?.code ? String(oldCoupon.code).toUpperCase() : "";
+    const newCode = updated?.code ? String(updated.code).toUpperCase() : oldCode;
+
+    // Sync any linked Offers, ActiveOffers, and Promotions so home page UI updates immediately
+    if (data.status === "Inactive" || data.status === "Disabled" || data.status === "Expired") {
+      await Offer.updateMany(
+        { $or: [{ couponCode: oldCode }, { couponCode: newCode }] },
+        { $set: { status: "Inactive" } }
+      ).catch(() => {});
+      await ActiveOffer.updateMany(
+        { $or: [{ couponCode: oldCode }, { couponCode: newCode }] },
+        { $set: { status: "Inactive", enabled: false } }
+      ).catch(() => {});
+    } else if (newCode && oldCode && newCode !== oldCode) {
+      await Offer.updateMany({ couponCode: oldCode }, { $set: { couponCode: newCode } }).catch(() => {});
+      await ActiveOffer.updateMany({ couponCode: oldCode }, { $set: { couponCode: newCode } }).catch(() => {});
+      await Promotion.updateMany({ $or: [{ code: oldCode }, { couponCode: oldCode }] }, { $set: { code: newCode, couponCode: newCode } }).catch(() => {});
+    }
+
     await logAuditEvent({
       actor: req.user?.email || "admin",
       actorRole: "admin",
@@ -310,12 +330,29 @@ export async function deleteCoupon(req, res, next) {
       });
     }
 
+    // 1. Delete the coupon from Coupon collection
     await Coupon.deleteMany({ $or: [{ id: cleanId }, { code: cleanCode }] });
-    await ActiveOffer.deleteMany({ couponCode: cleanCode });
-    await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }] });
+
+    // 2. Remove all matching promotional deals from Offer and Promotion collections so they disappear from Home UI
+    await Offer.deleteMany({ $or: [{ couponCode: cleanCode }, { code: cleanCode }, { id: cleanId }] }).catch(() => {});
+    await Promotion.deleteMany({ $or: [{ code: cleanCode }, { couponCode: cleanCode }, { id: cleanId }] }).catch(() => {});
+
+    // 3. If the central active offer was referencing this deleted coupon, deactivate it and clear code instead of leaving stale banner
+    await ActiveOffer.updateMany(
+      { couponCode: cleanCode },
+      { $set: { enabled: false, status: "Inactive", couponCode: "" } }
+    ).catch(() => {});
 
     if (inMemoryStore.coupons) {
       inMemoryStore.coupons = inMemoryStore.coupons.filter(c => String(c.id) !== cleanId && String(c.code).toUpperCase() !== cleanCode);
+    }
+    if (inMemoryStore.offers) {
+      inMemoryStore.offers = inMemoryStore.offers.filter(o => String(o.couponCode || "").toUpperCase() !== cleanCode);
+    }
+    if (inMemoryStore.activeOffer && String(inMemoryStore.activeOffer.couponCode || "").toUpperCase() === cleanCode) {
+      inMemoryStore.activeOffer.enabled = false;
+      inMemoryStore.activeOffer.status = "Inactive";
+      inMemoryStore.activeOffer.couponCode = "";
     }
 
     await logAuditEvent({
@@ -327,7 +364,7 @@ export async function deleteCoupon(req, res, next) {
       req
     });
 
-    return res.json({ success: true, message: "Coupon deleted successfully", id: cleanId });
+    return res.json({ success: true, message: "Coupon and associated home offers deleted successfully", id: cleanId });
   } catch (err) {
     next(err);
   }

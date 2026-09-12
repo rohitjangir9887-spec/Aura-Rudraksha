@@ -432,12 +432,13 @@ export function AuraAIFloating() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, orderModalProduct, setIsOpen]);
 
-  const path = location.pathname || "";
+  const path = (location.pathname || "").toLowerCase();
+  const search = (location.search || "").toLowerCase();
   const isAdminPage = path.startsWith("/admin");
-  const isDedicatedAiPage = path === "/aura-ai";
-  const isCartPage = path === "/cart" || path.startsWith("/cart");
-  const isCheckoutPage = path === "/checkout" || path.startsWith("/checkout");
-  const isPaymentPage = path === "/payment" || path.startsWith("/payment") || path === "/payment-result" || path.startsWith("/payment-result");
+  const isDedicatedAiPage = path === "/aura-ai" || path.startsWith("/aura-ai");
+  const isCartPage = path === "/cart" || path.startsWith("/cart") || path === "/card" || path.startsWith("/card") || path.includes("/cart") || path.includes("/card");
+  const isCheckoutPage = path === "/checkout" || path.startsWith("/checkout") || path.includes("checkout");
+  const isPaymentPage = path === "/payment" || path.startsWith("/payment") || path === "/payment-result" || path.startsWith("/payment-result") || path.includes("payu") || path.includes("payment");
 
   const isAiEnabled = settings?.enabled !== false;
   const isFloatingVisible = settings?.showFloatingButton !== false;

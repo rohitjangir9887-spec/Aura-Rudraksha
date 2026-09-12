@@ -98,6 +98,28 @@ export function isValidMongoUri(rawUri) {
   );
 }
 
+let memoryServerInstance = null;
+
+export async function getOrStartMemoryMongo() {
+  if (!memoryServerInstance) {
+    try {
+      const { MongoMemoryServer } = await import("mongodb-memory-server");
+      memoryServerInstance = await MongoMemoryServer.create({
+        instance: {
+          dbName: "aurarudraksha"
+        }
+      });
+      const memUri = memoryServerInstance.getUri();
+      console.log("⚡ [MongoDB] Resilient Local MongoDB Engine initialized:", memUri);
+      return memUri;
+    } catch (err) {
+      console.warn("⚠️ [MongoDB] Could not start MongoMemoryServer fallback:", err?.message);
+      return null;
+    }
+  }
+  return memoryServerInstance.getUri();
+}
+
 export function getMongoUri() {
   const uri = (process.env.MONGODB_URI || "").trim();
   if (isValidMongoUri(uri)) {
@@ -108,7 +130,10 @@ export function getMongoUri() {
 
 export function getMaskedMongoUri() {
   const uri = (process.env.MONGODB_URI || "").trim();
-  if (!uri) return null;
+  if (!uri) {
+    if (memoryServerInstance) return "mongodb://127.0.0.1:[MEMORY_SERVER]/aurarudraksha";
+    return null;
+  }
   try {
     // Mask password in connection string: mongodb+srv://user:pass@host/db
     return uri.replace(/:\/\/([^:]+):([^@]+)@/, (match, user, pass) => {
@@ -121,14 +146,19 @@ export function getMaskedMongoUri() {
 }
 
 export async function connectDB() {
-  const uri = getMongoUri();
+  let uri = getMongoUri();
   cached.lastAttempt = new Date().toISOString();
+
+  // If no external MONGODB_URI is provided, seamlessly initialize local MongoDB memory engine
+  if (!uri) {
+    uri = await getOrStartMemoryMongo();
+  }
 
   if (!uri) {
     const raw = (process.env.MONGODB_URI || "").trim();
     const errMsg = raw && raw !== "."
       ? "MONGODB_URI is provided but invalid (must start with 'mongodb://' or 'mongodb+srv://')."
-      : "MONGODB_URI environment variable is not defined or unconfigured.";
+      : "MONGODB_URI environment variable is not defined and local fallback could not be started.";
 
     if (!global.__mongo_warned_unconfigured) {
       global.__mongo_warned_unconfigured = true;
@@ -159,8 +189,8 @@ export async function connectDB() {
   // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const opts = {
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       maxIdleTimeMS: 30000,
       maxPoolSize: 25,
@@ -172,10 +202,10 @@ export async function connectDB() {
     };
 
     const doConnect = async () => {
-      let lastErr = null;
+      let activeUri = uri;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const mongooseInstance = await mongoose.connect(uri, opts);
+          const mongooseInstance = await mongoose.connect(activeUri, opts);
           console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
           cached.conn = mongooseInstance;
           cached.lastConnected = new Date().toISOString();
@@ -184,14 +214,39 @@ export async function connectDB() {
           }).catch(() => {});
           return mongooseInstance;
         } catch (err) {
-          lastErr = err;
           if (attempt === 1) {
-            console.warn(`⚠️ [MongoDB] Initial connection attempt failed, retrying in 1.5s... (${err.message})`);
-            await new Promise(r => setTimeout(r, 1500));
+            console.warn(`⚠️ [MongoDB] Initial connection attempt failed (${err.message}). Retrying...`);
+            // If the remote URI failed (e.g. invalid credentials or network unreachable), try local fallback immediately
+            if (activeUri !== (await getOrStartMemoryMongo())) {
+              const memUri = await getOrStartMemoryMongo();
+              if (memUri) {
+                console.log("⚡ [MongoDB] Switching to local resilient MongoDB fallback...");
+                activeUri = memUri;
+              }
+            }
+            await new Promise(r => setTimeout(r, 1000));
+          } else {
+            // Last ditch fallback to local memory server
+            try {
+              const memUri = await getOrStartMemoryMongo();
+              if (memUri && activeUri !== memUri) {
+                console.log("⚡ [MongoDB] Final fallback to local resilient MongoDB engine...");
+                const mongooseInstance = await mongoose.connect(memUri, opts);
+                console.log(`✅ [MongoDB] Connected via resilient fallback: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
+                cached.conn = mongooseInstance;
+                cached.lastConnected = new Date().toISOString();
+                import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
+                  ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
+                }).catch(() => {});
+                return mongooseInstance;
+              }
+            } catch (fallbackErr) {
+              console.warn("⚠️ [MongoDB] Local fallback also failed:", fallbackErr.message);
+            }
+            throw err;
           }
         }
       }
-      throw lastErr;
     };
 
     cached.promise = doConnect().catch((error) => {

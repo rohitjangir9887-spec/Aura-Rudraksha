@@ -11,10 +11,22 @@ export function HomeDealsSection() {
 
   const loadDeals = () => {
     const now = Date.now();
-    const activeDeals = db.getOffers().filter(o => {
+    const allCoupons = db.getCoupons ? db.getCoupons() : [];
+    const activeCouponCodes = new Set(
+      allCoupons
+        .filter(c => c.status === "Active" && (!c.expiry || new Date(c.expiry).getTime() > now))
+        .map(c => String(c.code).trim().toUpperCase())
+    );
+
+    const activeDeals = (db.getOffers() || []).filter(o => {
       if (o.status !== "Active") return false;
       if (o.startDate && new Date(o.startDate).getTime() > now) return false;
       if (o.expiry && new Date(o.expiry).getTime() <= now) return false;
+      // If deal is tied to a coupon code, ensure coupon is still valid and not deleted
+      if (o.couponCode) {
+        const code = String(o.couponCode).trim().toUpperCase();
+        if (code && !activeCouponCodes.has(code)) return false;
+      }
       return true;
     }).sort((a, b) => (a.order || 0) - (b.order || 0));
 

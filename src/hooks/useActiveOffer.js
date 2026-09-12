@@ -194,10 +194,27 @@ export function useActiveOffer(product = null, options = {}) {
   const startTime = offer?.startDate ? new Date(offer.startDate).getTime() : 0;
   const isStarted = !startTime || now >= startTime;
   
+  // If offer requires a coupon code, verify that the coupon exists and is Active
+  let isCouponValid = true;
+  if (offer?.couponCode) {
+    const code = String(offer.couponCode).trim().toUpperCase();
+    if (code) {
+      const coupons = db.getCoupons ? db.getCoupons() : [];
+      // If coupons are loaded in cache, ensure code is active
+      if (Array.isArray(coupons) && coupons.length > 0) {
+        const found = coupons.find(c => String(c.code).trim().toUpperCase() === code);
+        if (!found || found.status !== "Active") {
+          isCouponValid = false;
+        }
+      }
+    }
+  }
+
   const isEnabled = Boolean(
     offer &&
     offer.enabled !== false &&
-    offer.status === "Active"
+    offer.status === "Active" &&
+    isCouponValid
   );
 
   const hasExpiry = Boolean(offer?.expiryDate || offer?.expiresAt || offer?.expiry);

@@ -26,7 +26,7 @@ import paymentRoute from "./routes/payment.js";
 import uploadRoute from "./routes/upload.js";
 import seoRoute from "./routes/seo.js";
 import adminDbStatusRoute from "./routes/adminDbStatus.js";
-import { handlePayuCallback } from "./controllers/paymentController.js";
+import { handlePayuCallback, handlePayuCancel } from "./controllers/paymentController.js";
 import { renderSsrHtml, getHtmlTemplate } from "./services/seoService.js";
 
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -256,8 +256,9 @@ export function createApp(options = {}) {
   // Top-level SEO endpoints (/sitemap.xml, /robots.txt, /google-merchant-feed.xml, IndexNow verification)
   app.use("/", seoRoute);
 
-  // Top-level PayU callback URL aliases (surl / furl redirects from PayU)
-  app.all(["/payu-callback", "/payment/callback", "/checkout/callback", "/api/payment/payu-callback"], requireDb, handlePayuCallback);
+  // Top-level PayU callback URL aliases (surl / furl / curl redirects from PayU)
+  app.all(["/payu-cancel", "/payment/cancel", "/checkout/cancel", "/api/payment/payu-cancel"], handlePayuCancel);
+  app.all(["/payu-callback", "/payment/callback", "/checkout/callback", "/api/payment/payu-callback"], handlePayuCallback);
 
   // Prevent HTTP 405 Method Not Allowed when PayU or external gateways POST directly to SPA client routes
   app.use((req, res, next) => {

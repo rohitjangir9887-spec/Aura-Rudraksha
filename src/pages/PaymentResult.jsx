@@ -54,12 +54,11 @@ export function PaymentResult() {
 
         if (res?.success && res.data) {
           setOrder(res.data);
-          if (res.data.paymentStatus === "Paid" || status === "success") {
-            clear();
-          }
-        } else if (status === "success") {
-          clear();
         }
+        // Once user reaches PaymentResult for an order, clear the cart unconditionally
+        try {
+          clear();
+        } catch (_) {}
       } catch (err) {
         console.error("Verification failed:", err);
       } finally {

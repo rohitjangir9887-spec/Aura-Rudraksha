@@ -99,9 +99,14 @@ export async function ensureDatabaseInitialized() {
       summary.bannersSeeded = bannerDocs.length;
     }
 
-    // 5. Ensure Coupons
+    // Check system initialization state to avoid resurrecting deleted admin data
+    const initState = await Setting.findOne({ id: "db_init_state" }).lean();
+    const alreadySeededCoupons = Boolean(initState?.couponsInitialized);
+
+    // 5. Ensure Coupons (ONLY on very first database creation, NEVER reseed after admin deletes them)
     const couponCount = await Coupon.countDocuments();
-    if (couponCount === 0 && Array.isArray(defaultCoupons)) {
+    if (!alreadySeededCoupons && couponCount === 0 && Array.isArray(defaultCoupons)) {
+      console.log("🌱 [DB Init] First-time database setup: seeding initial discount coupons...");
       for (const c of defaultCoupons) {
         if (!c || !c.id) continue;
         const exists = await Coupon.exists({ id: String(c.id) });
@@ -114,6 +119,11 @@ export async function ensureDatabaseInitialized() {
         }
       }
     }
+    await Setting.updateOne(
+      { id: "db_init_state" },
+      { $set: { couponsInitialized: true, lastInitAt: new Date().toISOString() } },
+      { upsert: true }
+    );
 
     // 6. Ensure Sample Customer Reviews
     const reviewCount = await Review.countDocuments();

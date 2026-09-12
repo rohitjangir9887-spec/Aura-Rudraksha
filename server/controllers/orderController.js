@@ -96,6 +96,56 @@ export async function getMyOrders(req, res, next) {
     }
 
     const rawOrders = await Order.find({ $or: queryFilters }).sort({ createdAt: -1 }).lean();
+    
+    // Live PayU reconciliation for pending orders so status updates automatically without getting stuck
+    const pendingOrders = (rawOrders || []).filter(o => o.txnid && (o.paymentStatus === "Pending" || o.paymentStatus === "Initiated"));
+    if (pendingOrders.length > 0) {
+      await Promise.allSettled(
+        pendingOrders.slice(0, 5).map(async (pOrder) => {
+          try {
+            const verifyRes = await verifyPayuPaymentServerSide(pOrder.txnid);
+            if (verifyRes.success && verifyRes.isPaid) {
+              await Order.updateOne(
+                { _id: pOrder._id },
+                {
+                  $set: {
+                    paymentStatus: "Paid",
+                    status: "Confirmed",
+                    orderStatus: "Confirmed",
+                    payuStatus: "Success",
+                    unmappedstatus: verifyRes.unmappedStatus || "captured",
+                    mihpayid: verifyRes.mihpayid || pOrder.mihpayid,
+                    bankRefNum: verifyRes.bankRefNum || pOrder.bankRefNum,
+                    paymentMode: verifyRes.mode || pOrder.paymentMode
+                  }
+                }
+              );
+              pOrder.paymentStatus = "Paid";
+              pOrder.status = "Confirmed";
+              pOrder.orderStatus = "Confirmed";
+              pOrder.payuStatus = "Success";
+            } else if (verifyRes.success) {
+              const rawStatus = (verifyRes.status || "").toLowerCase();
+              const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
+              let newPaymentStatus = pOrder.paymentStatus;
+              if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
+                newPaymentStatus = "Cancelled";
+              } else if (rawStatus === "bounced" || rawStatus === "failed" || rawStatus === "dropped") {
+                newPaymentStatus = "Failed";
+              }
+              if (newPaymentStatus !== pOrder.paymentStatus) {
+                await Order.updateOne(
+                  { _id: pOrder._id },
+                  { $set: { paymentStatus: newPaymentStatus, payuStatus: verifyRes.status || verifyRes.unmappedStatus } }
+                );
+                pOrder.paymentStatus = newPaymentStatus;
+              }
+            }
+          } catch (_) {}
+        })
+      );
+    }
+
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
     return res.json({ success: true, data: orders, count: orders.length });
   } catch (err) {
@@ -151,6 +201,50 @@ export async function getOrderById(req, res, next) {
 
     if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
+    }
+
+    // Live PayU check for pending status so order details always show current status
+    if (order.txnid && (order.paymentStatus === "Pending" || order.paymentStatus === "Initiated")) {
+      try {
+        const verifyRes = await verifyPayuPaymentServerSide(order.txnid);
+        if (verifyRes.success && verifyRes.isPaid) {
+          await Order.updateOne(
+            { _id: order._id },
+            {
+              $set: {
+                paymentStatus: "Paid",
+                status: "Confirmed",
+                orderStatus: "Confirmed",
+                payuStatus: "Success",
+                unmappedstatus: verifyRes.unmappedStatus || "captured",
+                mihpayid: verifyRes.mihpayid || order.mihpayid,
+                bankRefNum: verifyRes.bankRefNum || order.bankRefNum,
+                paymentMode: verifyRes.mode || order.paymentMode
+              }
+            }
+          );
+          order.paymentStatus = "Paid";
+          order.status = "Confirmed";
+          order.orderStatus = "Confirmed";
+          order.payuStatus = "Success";
+        } else if (verifyRes.success) {
+          const rawStatus = (verifyRes.status || "").toLowerCase();
+          const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
+          let newPaymentStatus = order.paymentStatus;
+          if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
+            newPaymentStatus = "Cancelled";
+          } else if (rawStatus === "bounced" || rawStatus === "failed" || rawStatus === "dropped") {
+            newPaymentStatus = "Failed";
+          }
+          if (newPaymentStatus !== order.paymentStatus) {
+            await Order.updateOne(
+              { _id: order._id },
+              { $set: { paymentStatus: newPaymentStatus, payuStatus: verifyRes.status || verifyRes.unmappedStatus } }
+            );
+            order.paymentStatus = newPaymentStatus;
+          }
+        }
+      } catch (_) {}
     }
 
     return res.json({ success: true, data: order });

@@ -624,6 +624,10 @@ export function Checkout() {
           } catch (_) {}
         }
         setPaymentState("REDIRECTING");
+        // Clear cart immediately upon order creation so products do not linger in cart
+        try {
+          clear();
+        } catch (_) {}
         // Automatically and immediately redirect to PayU
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {

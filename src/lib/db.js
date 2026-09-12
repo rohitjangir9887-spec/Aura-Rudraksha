@@ -1617,7 +1617,8 @@ export const db = {
     const res = await apiRequest(`/payment/retry/${orderId}`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ txnid, guestToken: gToken })
+      body: JSON.stringify({ txnid, guestToken: gToken }),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to generate PayU payment retry.");
@@ -2598,6 +2599,22 @@ export const db = {
     try {
       localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
     } catch (_) {}
+
+    // Clean up matching offers from store cache
+    storeCache.offers = (storeCache.offers || []).filter(x => String(x.couponCode || "").toUpperCase() !== targetCode && x.id !== id);
+    try {
+      localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
+    } catch (_) {}
+
+    // If active offer was using this coupon code, deactivate and clear it
+    if (storeCache.activeOffer && String(storeCache.activeOffer.couponCode || "").toUpperCase() === targetCode) {
+      storeCache.activeOffer = { ...storeCache.activeOffer, enabled: false, status: "Inactive", couponCode: "" };
+      try {
+        localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
+      } catch (_) {}
+      emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
+    }
+    emitStoreUpdate("offers:synced", storeCache.offers);
     emitStoreUpdate("coupon:deleted", id);
     return true;
   },
