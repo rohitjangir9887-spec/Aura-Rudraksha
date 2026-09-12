@@ -17,7 +17,10 @@ const auraAISettingSchema = new mongoose.Schema(
     cartActions: { type: Boolean, default: true },
     orderSupport: { type: Boolean, default: true },
     humanSupport: { type: Boolean, default: true },
-    personalization: { type: Boolean, default: true }
+    personalization: { type: Boolean, default: true },
+    nvidiaApiKey: { type: String, default: "" },
+    nemotronApiKey: { type: String, default: "" },
+    nemotronModel: { type: String, default: "nvidia/nemotron-3-super-120b-a12b" }
   },
   { timestamps: true }
 );

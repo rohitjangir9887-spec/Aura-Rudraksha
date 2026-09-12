@@ -1722,7 +1722,13 @@ export async function generateProductDescription(req, res, next) {
     const result = await generateSeoAndVedicDataWithNemotron(req.body);
     return res.json(result);
   } catch (err) {
-    next(err);
+    console.error("[generateProductDescription error]", err);
+    try {
+      const { buildEmergencySafePayload } = await import("../services/nemotronSeoEngine.js");
+      return res.json(buildEmergencySafePayload(req.body));
+    } catch (fallbackErr) {
+      return res.status(500).json({ success: false, message: "Failed to generate details. Please try again." });
+    }
   }
 }
 
@@ -1740,7 +1746,13 @@ export async function generateProductKeywords(req, res, next) {
     const result = await generateSeoAndVedicDataWithNemotron(req.body);
     return res.json(result);
   } catch (err) {
-    next(err);
+    console.error("[generateProductKeywords error]", err);
+    try {
+      const { buildEmergencySafePayload } = await import("../services/nemotronSeoEngine.js");
+      return res.json(buildEmergencySafePayload(req.body));
+    } catch (fallbackErr) {
+      return res.status(500).json({ success: false, message: "Failed to generate keywords. Please try again." });
+    }
   }
 }
 

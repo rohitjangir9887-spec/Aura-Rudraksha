@@ -30,10 +30,7 @@ import {
   ArrowDown,
   Notebook,
   Plus,
-  Trash2,
-  LayoutGrid,
-  SlidersHorizontal,
-  Compass
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -973,12 +970,23 @@ export function AuraAIFloating() {
                 )}
               </AnimatePresence>
             
-              {/* Refined Floating Pill Component */}
+              {/* Refined Floating Pill Component with Living Light Aura */}
               <div 
-                className={`aura-ai-floating-pill ${pillState !== "default" ? `pill-state-${pillState}` : ""}`}
+                className={`aura-ai-floating-pill ${pillState !== "default" ? `pill-state-${pillState}` : ""} ${showQuickActions ? "pill-qa-open" : ""}`}
                 role="region"
                 aria-label="Aura AI Floating Assistant"
               >
+                {/* Ambient Living Light Halo behind the pill */}
+                <div className="aura-ai-living-halo" aria-hidden="true">
+                  <div className="aura-ai-living-halo-glow" />
+                  <div className="aura-ai-living-halo-edge" />
+                </div>
+
+                {/* Soft Gold Shimmer during Answer Ready state */}
+                {pillState === "ready" && (
+                  <div className="aura-ai-ready-shimmer" aria-hidden="true" />
+                )}
+
                 {/* Main Interactive Button */}
                 <button
                   type="button"
@@ -988,6 +996,8 @@ export function AuraAIFloating() {
                   aria-label="Open Aura AI Shopping and Vedic Guide"
                 >
                   <span className="aura-ai-sparkle-glyph" aria-hidden="true">
+                    {/* Core Living Light Aura directly behind the sparkle icon */}
+                    <span className="aura-ai-living-core-light" aria-hidden="true" />
                     <Sparkles size={13} strokeWidth={2.2} className={pillState === "thinking" ? "aura-ai-sparkle-spin" : ""} />
                   </span>
                   <span className="aura-ai-floating-label">
@@ -998,7 +1008,7 @@ export function AuraAIFloating() {
                       <span className="aura-ai-dots-anim">•••</span>
                     ) : pillState === "ready" ? (
                       <Check size={13} strokeWidth={2.8} className="aura-ai-check-ready" />
-                    ) : isOpen ? (
+                    ) : (isOpen || showQuickActions) ? (
                       <ChevronDown size={13} strokeWidth={2.5} />
                     ) : (
                       <span className="aura-ai-chevron-glyph">›</span>
@@ -1006,7 +1016,7 @@ export function AuraAIFloating() {
                   </span>
                 </button>
 
-                {/* Refined Quick Actions Option Trigger */}
+                {/* Quick Actions Dropdown Trigger */}
                 <button
                   type="button"
                   className={`aura-ai-floating-menu-trigger ${showQuickActions ? "active" : ""}`}
@@ -1015,14 +1025,10 @@ export function AuraAIFloating() {
                     setShowQuickActions((prev) => !prev);
                   }}
                   title="Quick Actions"
-                  aria-label="Toggle Aura AI Quick Actions Menu"
+                  aria-label="Open Quick Actions menu"
                   aria-expanded={showQuickActions}
                 >
-                  {showQuickActions ? (
-                    <X size={12} strokeWidth={2.4} />
-                  ) : (
-                    <LayoutGrid size={12} strokeWidth={2.2} className="aura-ai-option-grid-icon" />
-                  )}
+                  <ChevronDown size={12} strokeWidth={2.2} className={`aura-ai-qa-caret ${showQuickActions ? "open" : ""}`} />
                 </button>
 
                 {/* Dismiss / Close Button with Divider */}
