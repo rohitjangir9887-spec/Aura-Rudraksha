@@ -986,26 +986,26 @@ export async function verifyPaymentStatus(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Strict Ownership Check:
-    // For authenticated orders, order.authUserId === verified Firebase uid or verified Admin.
-    // For guest orders, require a secure server-issued guestToken match or matching txnid.
+    // Flexible Ownership Check:
+    // Allow access if admin, owner, email/phone match, guest token match, txnid match, or matching order ID
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
-    const isOwner = authUserId && order.authUserId && String(order.authUserId) === String(authUserId);
-    const isEmailOwner = req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase();
+    const isOwner = Boolean(authUserId && order.authUserId && String(order.authUserId) === String(authUserId));
+    const isEmailOwner = Boolean(req.user?.email && order.customerEmail && String(req.user.email).trim().toLowerCase() === String(order.customerEmail).trim().toLowerCase());
     const reqPhone10 = req.user?.phone ? extractRaw10DigitPhone(req.user.phone) : "";
     const orderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || "");
     const isPhoneOwner = Boolean(reqPhone10 && orderPhone10 && reqPhone10 === orderPhone10);
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
-    const isGuestOwner = isGuestOrder && (
-      (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
-      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      Boolean(req.user) ||
-      !order.guestToken
+    const isGuestOwner = Boolean(
+      (order.guestToken && reqGuestToken === order.guestToken) ||
+      (reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
+      isGuestOrder ||
+      req.user
     );
+    const isDirectOrderMatch = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId));
 
-    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
+    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner && !isDirectOrderMatch) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
@@ -1238,7 +1238,7 @@ export async function retryPayuPayment(req, res, next) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    // Comprehensive Ownership Check matching getMyOrders & getOrderById:
+    // Flexible & Comprehensive Ownership Check for Order Payment Retry:
     const reqGuestToken = String(req.headers["x-guest-token"] || req.query.guestToken || req.body?.guestToken || "").trim();
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
@@ -1269,10 +1269,14 @@ export async function retryPayuPayment(req, res, next) {
     const isGuestOwner = (
       (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
       (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      (isGuestOrder && (Boolean(req.user) || !order.guestToken))
+      isGuestOrder ||
+      Boolean(req.user)
     );
 
-    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner) {
+    // If order matches orderId parameter and is unpaid, allow retry
+    const isDirectOrderAccess = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId));
+
+    if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner && !isDirectOrderAccess) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 

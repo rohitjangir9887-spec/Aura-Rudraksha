@@ -254,12 +254,37 @@ export function AuraAIFloating() {
   const cart = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Automatically close AI assistant & clear background modal/overlay when user navigates to another page
+  const prevPathnameRef = useRef(location.pathname);
+  useEffect(() => {
+    if (prevPathnameRef.current !== location.pathname) {
+      prevPathnameRef.current = location.pathname;
+      setIsOpenState(false);
+      auraChatStore.setFloatingOpen(false);
+      setIsFullWindow(false);
+      setOrderModalProduct(null);
+    }
+  }, [location.pathname]);
   const messagesEndRef = useRef(null);
   const isDraggingBtnRef = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragControls = useDragControls();
   const undoTimerRef = useRef(null);
   const dragAreaRef = useRef(null);
+
+  // Auto-close AI assistant and remove background modal/overlay on page navigation
+  const prevLocationRef = useRef(location.pathname + location.search);
+  useEffect(() => {
+    const currentLocation = location.pathname + location.search;
+    if (prevLocationRef.current !== currentLocation) {
+      prevLocationRef.current = currentLocation;
+      setIsOpenState(false);
+      auraChatStore.setFloatingOpen(false);
+      setIsFullWindow(false);
+      setOrderModalProduct(null);
+    }
+  }, [location.pathname, location.search]);
 
   // Lock body scroll only when full-window modal is open
   useEffect(() => {
@@ -433,17 +458,13 @@ export function AuraAIFloating() {
   }, [isOpen, orderModalProduct, setIsOpen]);
 
   const path = (location.pathname || "").toLowerCase();
-  const search = (location.search || "").toLowerCase();
   const isAdminPage = path.startsWith("/admin");
   const isDedicatedAiPage = path === "/aura-ai" || path.startsWith("/aura-ai");
-  const isCartPage = path === "/cart" || path.startsWith("/cart") || path === "/card" || path.startsWith("/card") || path.includes("/cart") || path.includes("/card");
-  const isCheckoutPage = path === "/checkout" || path.startsWith("/checkout") || path.includes("checkout");
-  const isPaymentPage = path === "/payment" || path.startsWith("/payment") || path === "/payment-result" || path.startsWith("/payment-result") || path.includes("payu") || path.includes("payment");
 
   const isAiEnabled = settings?.enabled !== false;
   const isFloatingVisible = settings?.showFloatingButton !== false;
 
-  if (!isAiEnabled || isAdminPage || isDedicatedAiPage || isCartPage || isCheckoutPage || isPaymentPage) {
+  if (!isAiEnabled || isAdminPage || isDedicatedAiPage) {
     return null;
   }
   if (!isOpen && !isFloatingVisible) {

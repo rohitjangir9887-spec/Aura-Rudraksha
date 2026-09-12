@@ -2348,6 +2348,63 @@ export function AdminProducts() {
         </div>
       </div>
 
+      {/* NEMOTRON-3-SUPER-120B-A12B AI ENGINE & PRODUCT INTELLIGENCE BANNER */}
+      <div style={{
+        background: "linear-gradient(135deg, #2b170d 0%, #4a1f10 50%, #7e2d12 100%)",
+        borderRadius: "16px",
+        padding: "20px 24px",
+        marginBottom: "20px",
+        color: "#fff",
+        boxShadow: "0 10px 30px rgba(43, 23, 13, 0.25)",
+        border: "1px solid rgba(254, 215, 170, 0.2)",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        <div style={{ position: "absolute", top: "-30px", right: "-30px", opacity: 0.1, pointerEvents: "none" }}>
+          <Sparkles size={180} color="#ffedd5" />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px", position: "relative", zIndex: 1 }}>
+          <div style={{ maxWidth: "720px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+              <span style={{ background: "rgba(255, 255, 255, 0.15)", border: "1px solid rgba(255, 255, 255, 0.3)", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", color: "#fed7aa" }}>
+                AI Model Engine
+              </span>
+              <span style={{ background: "#7c2d12", border: "1px solid #ea580c", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 800, color: "#fff" }}>
+                NVIDIA Nemotron-3-Super-120B-A12B
+              </span>
+              <span style={{ background: "rgba(34, 197, 94, 0.2)", border: "1px solid rgba(34, 197, 94, 0.4)", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, color: "#86efac", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                ● Live & Active
+              </span>
+            </div>
+            <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#fff", margin: "0 0 6px 0", letterSpacing: "-0.3px" }}>
+              Product Intelligence & Live Search Engine
+            </h2>
+            <p style={{ fontSize: "13px", color: "#fed7aa", margin: 0, lineHeight: "1.5", opacity: 0.95 }}>
+              Powered by <b>Nemotron-3-Super-120B-A12B</b> with live search grounding. Automatically generates Vedic descriptions, mukhi benefits, ruling planet attributes, lab certification metadata, and SEO search terms for Nepali &amp; Indonesian Rudraksha products.
+            </p>
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "14px", fontSize: "12px", color: "#ffedd5" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                <Check size={14} color="#86efac" /> 12+ Language Multilingual AI Descriptions
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                <Check size={14} color="#86efac" /> Live Google Search Grounding &amp; Trending Keywords
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                <Check size={14} color="#86efac" /> Nepali &amp; Indonesian Variant Certification
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
+            <div style={{ background: "rgba(0, 0, 0, 0.25)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "10px", padding: "10px 16px", textAlign: "right" }}>
+              <div style={{ fontSize: "11px", color: "#fed7aa", fontWeight: 600 }}>AI Keyword Coverage</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: "#fff" }}>
+                {products.length > 0 ? Math.round((products.filter(p => p.keywords && p.keywords.length > 0).length / products.length) * 100) : 0}%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 1. HOME FEATURED PRODUCT CONTROL */}
       <AdminFeaturedProductManager products={products} onSettingsSaved={load} />
 

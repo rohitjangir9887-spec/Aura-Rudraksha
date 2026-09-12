@@ -129,8 +129,8 @@ export function HomeFeaturedProductAd() {
             style={{
               position: "relative",
               width: "100%",
-              paddingTop: "75%", /* 4:3 Aspect Ratio for crisp presence on mobile */
-              backgroundColor: "#f5eee4",
+              paddingTop: "100%", /* 1:1 Square Aspect Ratio for full 1:1 uploaded photo visibility */
+              backgroundColor: "#f7f1e8",
               overflow: "hidden"
             }}
           >
@@ -150,7 +150,7 @@ export function HomeFeaturedProductAd() {
                 left: 0,
                 width: "100%",
                 height: "100%",
-                objectFit: "cover",
+                objectFit: "contain",
                 objectPosition: "center",
                 transition: "transform 0.4s ease"
               }}

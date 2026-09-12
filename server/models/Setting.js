@@ -38,14 +38,20 @@ export const Setting = mongoose.models.Setting || mongoose.model("Setting", sett
 const ticketSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    authUserId: { type: String, default: "guest", index: true },
+    userId: { type: String, default: "guest", index: true },
+    userEmail: { type: String, default: "", index: true },
     name: { type: String, default: "" },
     email: { type: String, default: "" },
     phone: { type: String, default: "" },
     subject: { type: String, default: "" },
     message: { type: String, default: "" },
-    status: { type: String, default: "Open" },
+    category: { type: String, default: "General Support" },
+    status: { type: String, default: "Pending Admin Review" },
     priority: { type: String, default: "Normal" },
     adminResponse: { type: String, default: "" },
+    attachments: { type: Array, default: [] },
+    replies: { type: Array, default: [] },
     orderId: { type: String, default: "" },
     date: { type: String, default: () => new Date().toISOString() }
   },

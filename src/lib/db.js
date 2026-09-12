@@ -2995,7 +2995,13 @@ export const db = {
   fetchTickets: async () => {
     const cacheKey = db.getUserScopedKey("aura_tickets_cache");
     try {
-      const res = await apiRequest("/tickets", { noCache: true, requiresAuth: true });
+      let queryStr = "";
+      const cached = db.getCachedTickets();
+      const cachedIds = Array.isArray(cached) ? cached.map(t => t.id).filter(Boolean) : [];
+      if (cachedIds.length > 0) {
+        queryStr = `?ids=${encodeURIComponent(cachedIds.join(","))}`;
+      }
+      const res = await apiRequest(`/tickets${queryStr}`, { noCache: true, requiresAuth: true });
       if (res?.success && Array.isArray(res.data)) {
         storeCache.tickets = res.data;
         if (cacheKey && typeof window !== "undefined") {
@@ -3011,9 +3017,14 @@ export const db = {
 
   saveTicket: async (t) => {
     const cacheKey = db.getUserScopedKey("aura_tickets_cache");
-    const isExisting = Boolean(t.id && storeCache.tickets.some(x => x.id === t.id));
+    const isExisting = Boolean(t.id);
     const id = t.id || ("TIC-" + Math.floor(1000 + Math.random() * 9000));
-    const finalTicket = { ...t, id, date: t.date || new Date().toISOString(), status: t.status || "Open" };
+    const finalTicket = {
+      ...t,
+      id,
+      date: t.date || new Date().toISOString(),
+      status: t.status || "Open"
+    };
 
     let saved = finalTicket;
     try {
@@ -3028,7 +3039,9 @@ export const db = {
       if (res?.success && res.data) {
         saved = res.data;
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn("saveTicket server request failed:", e);
+    }
 
     const idx = storeCache.tickets.findIndex(x => x.id === id);
     if (idx >= 0) storeCache.tickets[idx] = saved;
@@ -3040,6 +3053,24 @@ export const db = {
 
     emitStoreUpdate("ticket:saved", saved);
     return saved;
+  },
+
+  deleteTicket: async (ticketId) => {
+    const cacheKey = db.getUserScopedKey("aura_tickets_cache");
+    if (!ticketId) return false;
+    try {
+      await apiRequest(`/tickets/${encodeURIComponent(ticketId)}`, {
+        method: "DELETE",
+        requiresAuth: true,
+        noCache: true
+      });
+    } catch (_) {}
+    storeCache.tickets = storeCache.tickets.filter(x => x.id !== ticketId);
+    if (cacheKey && typeof window !== "undefined") {
+      try { localStorage.setItem(cacheKey, JSON.stringify(storeCache.tickets)); } catch (_) {}
+    }
+    emitStoreUpdate("ticket:deleted", ticketId);
+    return true;
   },
 
   // HELPERS FOR ORDERS & CUSTOMER PROFILES

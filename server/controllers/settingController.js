@@ -25,10 +25,17 @@ const POLICY_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string"
 };
-// Public customers may only ever set these fields when submitting a ticket.
-const CUSTOMER_TICKET_FIELDS = { name: "string", email: "string", phone: "string", subject: "string", message: "string", orderId: "string" };
-// Admin-only fields (status, priority, adminResponse) are applied separately, only on the admin-gated PUT route.
-const ADMIN_TICKET_FIELDS = { status: "string", priority: "string", adminResponse: "string" };
+// Public customers may set these fields when submitting or updating a ticket.
+const CUSTOMER_TICKET_FIELDS = {
+  name: "string", email: "string", phone: "string", subject: "string",
+  message: "string", orderId: "string", category: "string", priority: "string",
+  attachments: "object", replies: "object"
+};
+// Admin fields and status updates.
+const ADMIN_TICKET_FIELDS = {
+  status: "string", priority: "string", adminResponse: "string",
+  category: "string", attachments: "object", replies: "object"
+};
 import {
   defaultSettings,
   defaultProducts,
@@ -269,14 +276,24 @@ export async function getTickets(req, res, next) {
 
     let query = {};
     if (!isAdmin) {
-      if (!authenticatedUser || !authenticatedUser.authUserId) {
-        return res.json({ success: true, data: [] });
+      const guestEmail = String(req.query.email || req.headers["x-guest-email"] || "").toLowerCase().trim();
+      const rawIds = String(req.query.ids || req.headers["x-ticket-ids"] || "").trim();
+      const ticketIds = rawIds ? rawIds.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const conditions = [];
+
+      if (authenticatedUser?.authUserId) {
+        conditions.push({ authUserId: authenticatedUser.authUserId }, { userId: authenticatedUser.authUserId });
       }
-      const userId = authenticatedUser.authUserId;
-      const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
-      const conditions = [{ authUserId: userId }, { userId: userId }];
-      if (userEmail) {
-        conditions.push({ userEmail: userEmail }, { email: userEmail });
+      if (authenticatedUser?.email || guestEmail) {
+        const e = (authenticatedUser?.email || guestEmail).toLowerCase().trim();
+        conditions.push({ userEmail: e }, { email: e });
+      }
+      if (ticketIds.length > 0) {
+        conditions.push({ id: { $in: ticketIds } });
+      }
+
+      if (conditions.length === 0) {
+        return res.json({ success: true, data: [] });
       }
       query = { $or: conditions };
     }
@@ -323,9 +340,12 @@ export async function createTicket(req, res, next) {
       userId: authUserId || "guest",
       userEmail,
       email: userEmail || data.email,
-      status: "Open",
+      category: data.category || "General Support",
+      status: data.status || "Pending Admin Review",
       priority: data.priority || "Normal",
-      adminResponse: "",
+      adminResponse: data.adminResponse || "",
+      attachments: Array.isArray(data.attachments) ? data.attachments : [],
+      replies: Array.isArray(data.replies) ? data.replies : [],
       date: new Date().toISOString()
     };
 
@@ -347,11 +367,6 @@ export async function updateTicket(req, res, next) {
       isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
     }
 
-    const data = pickFields(req.body, ADMIN_TICKET_FIELDS);
-    if (Object.keys(data).length === 0) {
-      return res.status(400).json({ success: false, message: "No valid fields to update" });
-    }
-
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
@@ -367,13 +382,57 @@ export async function updateTicket(req, res, next) {
     }
 
     if (!isAdmin) {
-      if (!authenticatedUser) return res.status(401).json({ success: false, message: "Authentication required" });
-      const userEmail = (authenticatedUser.email || "").toLowerCase().trim();
-      const userId = authenticatedUser.authUserId;
+      const userEmail = (authenticatedUser?.email || req.body?.email || "").toLowerCase().trim();
+      const userId = authenticatedUser?.authUserId;
       const isOwner = (userId && (ticket.authUserId === userId || ticket.userId === userId)) ||
-                      (userEmail && (ticket.userEmail?.toLowerCase() === userEmail || ticket.email?.toLowerCase() === userEmail));
+                      (userEmail && (ticket.userEmail?.toLowerCase() === userEmail || ticket.email?.toLowerCase() === userEmail)) ||
+                      (req.body?.guestToken && ticket.guestToken === req.body.guestToken);
       if (!isOwner) return res.status(403).json({ success: false, message: "Access denied" });
     }
+
+    const fieldMask = isAdmin ? ADMIN_TICKET_FIELDS : CUSTOMER_TICKET_FIELDS;
+    const data = pickFields(req.body, fieldMask);
+
+    // Support explicit status & priority updates
+    if (req.body?.status) data.status = String(req.body.status).trim();
+    if (req.body?.priority) data.priority = String(req.body.priority).trim();
+    if (req.body?.adminResponse !== undefined) data.adminResponse = String(req.body.adminResponse).trim();
+    if (req.body?.adminNotes !== undefined) data.adminNotes = String(req.body.adminNotes).trim();
+
+    // Handle replies & attachments synchronization
+    const replyText = String(req.body?.replyText || req.body?.replyMessage || "").trim();
+    const replyAttachments = Array.isArray(req.body?.replyAttachments || req.body?.attachments)
+      ? (req.body.replyAttachments || req.body.attachments)
+      : [];
+
+    const existingReplies = Array.isArray(ticket.replies) ? [...ticket.replies] : [];
+
+    if (replyText || replyAttachments.length > 0) {
+      const newReply = {
+        id: `REP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        sender: isAdmin ? "admin" : "customer",
+        senderName: isAdmin ? "Aura Support Team" : (ticket.name || authenticatedUser?.name || "Customer"),
+        message: replyText,
+        text: replyText,
+        attachments: replyAttachments,
+        createdAt: new Date().toISOString()
+      };
+      existingReplies.push(newReply);
+      data.replies = existingReplies;
+
+      if (isAdmin && replyText) {
+        data.adminResponse = replyText;
+        if (!data.status || data.status === "Open") {
+          data.status = "In Progress";
+        }
+      } else if (!isAdmin && replyText && data.status === "Resolved") {
+        data.status = "In Progress";
+      }
+    } else if (Array.isArray(req.body?.replies)) {
+      data.replies = req.body.replies;
+    }
+
+    data.updatedAt = new Date().toISOString();
 
     const updated = await Ticket.findOneAndUpdate(
       { id: String(id) },
@@ -381,6 +440,41 @@ export async function updateTicket(req, res, next) {
       { returnDocument: "after" }
     );
     return res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteTicket(req, res, next) {
+  try {
+    const { id } = req.params;
+    const authenticatedUser = req.user || null;
+    let isAdmin = false;
+
+    if (authenticatedUser) {
+      const { isInitialAdmin } = isAdminUser(authenticatedUser);
+      isAdmin = isInitialAdmin || (await hasAdminRole(authenticatedUser.authUserId));
+    }
+
+    if (!isDbConnected()) {
+      return res.status(503).json({ success: false, message: "Database unavailable" });
+    }
+
+    const ticket = await Ticket.findOne({ id: String(id) });
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: "Ticket not found" });
+    }
+
+    if (!isAdmin) {
+      const userEmail = (authenticatedUser?.email || "").toLowerCase().trim();
+      const userId = authenticatedUser?.authUserId;
+      const isOwner = (userId && (ticket.authUserId === userId || ticket.userId === userId)) ||
+                      (userEmail && (ticket.userEmail?.toLowerCase() === userEmail || ticket.email?.toLowerCase() === userEmail));
+      if (!isOwner) return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    await Ticket.deleteOne({ id: String(id) });
+    return res.json({ success: true, message: "Ticket deleted successfully", id });
   } catch (err) {
     next(err);
   }

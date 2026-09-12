@@ -16921,12 +16921,45 @@ button,
   100% { background-position: 200% 0; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fastImageSkeletonShimmer {
-    animation: none !important;
-    background: #eee2d3 !important;
-  }
+
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(5) > div:nth-of-type(2) > div#product-card-11:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > img:nth-of-type(1),
+div[id^="product-card-"] > div:nth-of-type(1) > span:nth-of-type(1) > img:nth-of-type(1),
+div[id^="product-card-"] .aura-card-img {
+  object-fit: contain !important;
+  object-position: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block !important;
+  background-color: transparent !important;
 }
+
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(6) > section#zodiac-guide:nth-of-type(1) > div:nth-of-type(1) > section#aura-home-featured-product-ad:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1) > div:nth-of-type(1) > img:nth-of-type(1) {
+  object-fit: contain !important;
+  object-position: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: #f7f1e8 !important;
+}
+
+/* Targeted Selector Enhancements for Sacred Vedic Collection Showcase */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > section#sacred-vedic-collection-section:nth-of-type(1) > div:nth-of-type(3) > div#product-card-1:nth-of-type(1) > div:nth-of-type(2) {
+  padding: 16px 14px 18px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fffcf9 100%) !important;
+  border-bottom-left-radius: 16px !important;
+  border-bottom-right-radius: 16px !important;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease !important;
+}
+
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > section#sacred-vedic-collection-section:nth-of-type(1) > div:nth-of-type(3) > div#product-card-1:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > img:nth-of-type(1) {
+  border-top-left-radius: 16px !important;
+  border-top-right-radius: 16px !important;
+  object-fit: cover !important;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.35s ease !important;
+  filter: contrast(1.02) brightness(1.01) !important;
+}
+
 
 
 

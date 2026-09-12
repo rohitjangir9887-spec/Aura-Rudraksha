@@ -83,10 +83,19 @@ export function AdminSupport() {
     e.preventDefault();
     if (!viewing) return;
     try {
+      const existingReplies = viewing.replies || [];
+      const newReply = {
+        id: "rep_" + Date.now(),
+        sender: "admin",
+        senderName: "Aura Support Admin",
+        message: replyText.trim(),
+        createdAt: new Date().toISOString()
+      };
       const updated = {
         ...viewing,
         adminResponse: replyText.trim(),
-        status: replyStatus
+        status: replyStatus || "Replied",
+        replies: [...existingReplies, newReply]
       };
       await db.saveTicket(updated);
       emitToast(`Reply sent for Ticket #${viewing.id}`, "success");
@@ -97,16 +106,28 @@ export function AdminSupport() {
     }
   };
 
-  const statuses = ["All", "Open", "Pending / In Progress", "Resolved", "Closed", "Cancelled"];
+  const handleDeleteTicket = async (id) => {
+    if (!window.confirm(`Are you sure you want to delete ticket #${id}?`)) return;
+    try {
+      await db.deleteTicket(id);
+      emitToast(`Ticket #${id} deleted`, "success");
+      setViewing(null);
+      load();
+    } catch (err) {
+      emitToast("Failed to delete ticket", "error");
+    }
+  };
+
+  const statuses = ["All", "Pending Admin Review", "Replied", "In Progress", "Resolved", "Closed", "Cancelled"];
 
   const getBadgeClass = (status) => {
     switch (status) {
       case "Resolved": return "success";
       case "Closed": return "muted";
       case "Cancelled": return "error";
-      case "Pending / In Progress":
+      case "Replied": return "info";
       case "In Progress":
-      case "Pending": return "info";
+      case "Pending / In Progress": return "info";
       default: return "warning";
     }
   };
