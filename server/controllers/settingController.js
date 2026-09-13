@@ -560,17 +560,26 @@ export async function seedDatabase(req, res, next) {
 
     // Insert-only seeding: check existence before creating so existing records are NEVER modified.
     const seedInsertOnly = async (Model, items) => {
+      if (!items || !items.length) return 0;
       const before = await Model.countDocuments();
-      for (const item of items) {
-        if (!item || !item.id) continue;
-        const exists = await Model.exists({ id: String(item.id) });
-        if (!exists) {
+      const operations = items
+        .filter(item => item && item.id)
+        .map(item => {
           const { _id, createdAt, updatedAt, ...cleanItem } = item;
-          try {
-            await Model.create(cleanItem);
-          } catch (err) {
-            console.warn(`Seed create notice for ${item.id}:`, err?.message);
-          }
+          return {
+            updateOne: {
+              filter: { id: String(item.id) },
+              update: { $setOnInsert: cleanItem },
+              upsert: true
+            }
+          };
+        });
+
+      if (operations.length > 0) {
+        try {
+          await Model.bulkWrite(operations, { ordered: false });
+        } catch (err) {
+          console.warn(`Seed bulk write notice:`, err?.message);
         }
       }
       const after = await Model.countDocuments();
@@ -585,23 +594,33 @@ export async function seedDatabase(req, res, next) {
 
     // Reviews seeding
     const reviewsBefore = await Review.countDocuments();
-    for (const r of defaultReviews) {
-      if (!r || !r.id) continue;
-      const exists = await Review.exists({ id: String(r.id) });
-      if (!exists) {
+    const reviewOperations = defaultReviews
+      .filter(r => r && r.id)
+      .map(r => {
         const { _id, createdAt, updatedAt, ...cleanReview } = r;
-        try {
-          await Review.create({
-            ...cleanReview,
-            source: "customer",
-            status: "Approved",
-            isSample: true,
-            isAiGenerated: true,
-            sampleLabel: "Sample Review"
-          });
-        } catch (err) {
-          console.warn(`Seed review notice for ${r.id}:`, err?.message);
-        }
+        return {
+          updateOne: {
+            filter: { id: String(r.id) },
+            update: {
+              $setOnInsert: {
+                ...cleanReview,
+                source: "customer",
+                status: "Approved",
+                isSample: true,
+                isAiGenerated: true,
+                sampleLabel: "Sample Review"
+              }
+            },
+            upsert: true
+          }
+        };
+      });
+
+    if (reviewOperations.length > 0) {
+      try {
+        await Review.bulkWrite(reviewOperations, { ordered: false });
+      } catch (err) {
+        console.warn(`Seed reviews bulk write notice:`, err?.message);
       }
     }
     const reviewsAfter = await Review.countDocuments();
