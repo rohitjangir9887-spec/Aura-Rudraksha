@@ -11,6 +11,7 @@ import { useWishlist } from "../hooks/useWishlist";
 import { emitToast } from "../context/ToastContext";
 import { money, pct } from "../data";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
+import { recordRecentlyViewed } from "../lib/recentlyViewed";
 import { authClient } from "../lib/authClient";
 import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
@@ -170,6 +171,9 @@ export function Product() {
 
     db.logVisit();
     db.logProductView();
+    if (id) {
+      recordRecentlyViewed(id);
+    }
     
     // Reset origin to default Nepal on new product
     setSelectedOrigin("Nepal");

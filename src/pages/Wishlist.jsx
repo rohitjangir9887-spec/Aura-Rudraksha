@@ -8,24 +8,37 @@ import { useWishlist } from "../hooks/useWishlist";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
+import { getRecentlyViewedProducts } from "../lib/recentlyViewed";
 import { money, pct } from "../data";
-import { Heart, ShoppingCart, Trash2, ArrowRight, Star, ShoppingBag } from "lucide-react";
+import { Heart, ShoppingCart, Trash2, ArrowRight, Star, ShoppingBag, Eye } from "lucide-react";
 
 export function Wishlist() {
-  const { wishlist, toggleWishlist } = useWishlist();
+  const { wishlist, toggleWishlist, isWishlisted } = useWishlist();
   const { add } = useCart();
   const [products, setProducts] = useState(() => db.getProducts().filter(isPublicProduct));
+  const [recentlyViewed, setRecentlyViewed] = useState(() => getRecentlyViewedProducts());
   const [addedIds, setAddedIds] = useState({});
 
   const loadProducts = () => {
     setProducts(db.getProducts().filter(isPublicProduct));
+    setRecentlyViewed(getRecentlyViewedProducts());
   };
 
   useEffect(() => {
     loadProducts();
     db.revalidateProducts().then(() => loadProducts()).catch(() => {});
-    const unsub = onStoreUpdate(() => loadProducts());
-    return () => unsub();
+    
+    const unsubStore = onStoreUpdate(() => loadProducts());
+    const handleRecentUpdate = () => {
+      setRecentlyViewed(getRecentlyViewedProducts());
+    };
+
+    window.addEventListener("aura:recently-viewed-updated", handleRecentUpdate);
+
+    return () => {
+      unsubStore();
+      window.removeEventListener("aura:recently-viewed-updated", handleRecentUpdate);
+    };
   }, []);
 
   const wishlistedProducts = products.filter((p) => {
@@ -301,6 +314,216 @@ export function Wishlist() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Recently Viewed Products (No fake data - only actual products viewed by customer) */}
+        {recentlyViewed.length > 0 && (
+          <div style={{ marginTop: "44px", paddingTop: "32px", borderTop: "1px dashed #ebdccb" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <div>
+                <h3 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "26px", color: "#2b170d", margin: "0 0 4px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Eye size={22} color="#a54d2b" /> Recently Viewed Products
+                </h3>
+                <p style={{ fontSize: "12.5px", color: "#806f62", margin: 0 }}>
+                  Items you recently explored in our authentic spiritual catalog
+                </p>
+              </div>
+              <Link to="/shop" className="outline-btn" style={{ fontSize: "11.5px" }}>
+                View Catalog
+              </Link>
+            </div>
+
+            <div
+              className="recently-viewed-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {recentlyViewed.map((p) => {
+                const displayImage = getProductPrimaryImage(p);
+                const isAdded = !!addedIds[p.id || p._id];
+                const discount = pct(p);
+                const saved = isWishlisted(p);
+
+                return (
+                  <div
+                    key={p.id || p._id}
+                    className="wishlist-product-card"
+                    style={{
+                      background: "#ffffff",
+                      border: "1px solid #ebdccb",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      display: "flex",
+                      flexDirection: "column",
+                      boxShadow: "0 2px 8px rgba(43,23,13,0.03)",
+                      position: "relative",
+                      transition: "transform 0.22s ease, box-shadow 0.22s ease",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        aspectRatio: "1 / 1",
+                        background: "linear-gradient(180deg, #fdfcf9 0%, #f7f3eb 100%)",
+                        overflow: "hidden",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderBottom: "1px solid #f0e4d7",
+                      }}
+                    >
+                      <Link
+                        to={getProductRoute(p)}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "8px",
+                          boxSizing: "border-box",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <OptimizedImage
+                          src={displayImage}
+                          alt={p.name}
+                          width={240}
+                          quality={80}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "contain",
+                            objectPosition: "center",
+                            display: "block",
+                          }}
+                        />
+                      </Link>
+                      {discount > 0 && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "8px",
+                            left: "8px",
+                            background: "#a54d2b",
+                            color: "#ffffff",
+                            fontSize: "9.5px",
+                            fontWeight: "700",
+                            padding: "2px 7px",
+                            borderRadius: "4px",
+                            letterSpacing: "0.3px",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                          }}
+                        >
+                          {discount}% OFF
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleWishlist(p.id || p._id, p.name)}
+                        title={saved ? "Remove from wishlist" : "Add to wishlist"}
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          background: "#ffffff",
+                          border: "1px solid #ebdccb",
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "50%",
+                          display: "grid",
+                          placeItems: "center",
+                          color: saved ? "#dc2626" : "#806f62",
+                          cursor: "pointer",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <Heart size={14} fill={saved ? "currentColor" : "none"} />
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: "10px 12px 12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        flex: 1,
+                        justifyContent: "space-between",
+                        background: "#ffffff",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#b45309", marginBottom: "4px" }}>
+                          <Star size={12} fill="currentColor" />
+                          <span style={{ fontWeight: "700", color: "#2b170d" }}>{p.rating || 4.9}</span>
+                          <span style={{ color: "#9ca3af", fontSize: "10.5px" }}>({p.reviews || 18})</span>
+                        </div>
+
+                        <Link to={getProductRoute(p)} style={{ textDecoration: "none" }}>
+                          <h4
+                            style={{
+                              fontFamily: "Cormorant Garamond, serif",
+                              fontSize: "14.5px",
+                              fontWeight: "600",
+                              color: "#2b170d",
+                              margin: "0 0 6px",
+                              lineHeight: "1.35",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              minHeight: "36px",
+                            }}
+                            title={p.name}
+                          >
+                            {p.name}
+                          </h4>
+                        </Link>
+
+                        <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+                          <b style={{ fontSize: "15px", fontWeight: "700", color: "#9c411e" }}>{money(p.price)}</b>
+                          {p.mrp > p.price && (
+                            <del style={{ fontSize: "11px", color: "#9ca3af" }}>{money(p.mrp)}</del>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAddToCart(p)}
+                        style={{
+                          width: "100%",
+                          padding: "7px 10px",
+                          borderRadius: "7px",
+                          border: isAdded ? "1px solid #16a34a" : "none",
+                          background: isAdded ? "#16a34a" : "linear-gradient(135deg, #a54d2b 0%, #893819 100%)",
+                          color: "#ffffff",
+                          fontSize: "11.5px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "5px",
+                          boxShadow: isAdded ? "none" : "0 2px 6px rgba(165,77,43,0.2)",
+                          transition: "all 0.18s ease",
+                        }}
+                      >
+                        <ShoppingCart size={13} />
+                        {isAdded ? "✓ Added" : "Add to Cart"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </main>

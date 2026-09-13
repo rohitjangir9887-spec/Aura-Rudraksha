@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Disable command buffering so queries fail fast if DB is disconnected
-mongoose.set("bufferCommands", false);
+// Enable command buffering so brief reconnects don't reject queries immediately
+mongoose.set("bufferCommands", true);
 
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
@@ -220,8 +220,9 @@ export async function connectDB() {
       socketTimeoutMS: 45000,          // 45s socket inactivity timeout
       maxIdleTimeMS: 60000,            // 60s idle timeout to avoid aggressive socket reaps on brief idle
       maxPoolSize: isVercelServerless ? 10 : 25,
-      minPoolSize: isVercelServerless ? 0 : 1,
+      minPoolSize: isVercelServerless ? 0 : 2,
       heartbeatFrequencyMS: 10000,
+      family: 4, // Force IPv4 to prevent IPv6 DNS lookup delays
       retryWrites: true,
       retryReads: true,
       autoIndex: process.env.NODE_ENV !== "production"

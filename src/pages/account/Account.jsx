@@ -131,7 +131,7 @@ export function Account() {
             const cacheKey = db.getUserScopedKey("aura_cached_me");
             if (cacheKey && typeof window !== "undefined") {
               localStorage.setItem(cacheKey, JSON.stringify(updatedProfile));
-              localStorage.setItem(`${cacheKey}_ttl`, String(Date.now() + 5 * 60 * 60 * 1000));
+              localStorage.setItem(`${cacheKey}_ttl`, String(Date.now() + 24 * 60 * 60 * 1000));
             }
           } catch (_) {}
         } else if (u?.email) {

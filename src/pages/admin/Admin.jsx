@@ -409,12 +409,16 @@ export function Admin() {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Initial synchronized load
+    // Fast initial load from cached memory
     refreshDashboard();
-    fetchActiveProvider();
-    checkPcloud();
-    checkImagekit();
-    checkPuter();
+
+    // Run secondary cloud storage checks asynchronously in background
+    Promise.allSettled([
+      fetchActiveProvider(),
+      checkPcloud(),
+      checkImagekit(),
+      checkPuter()
+    ]);
 
     db.checkDbHealth()
       .then(h => {

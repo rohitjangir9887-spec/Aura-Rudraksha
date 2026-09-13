@@ -421,7 +421,7 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
-const CACHE_FRESHNESS_LIMIT = 15 * 1000; // 15 seconds window for fresh backend data
+const CACHE_FRESHNESS_LIMIT = 24 * 60 * 60 * 1000; // 24 hours temporary memory window for instant page loads
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
 
 let isInitialized = false;
@@ -768,8 +768,8 @@ if (typeof window !== "undefined" && !isInitialized) {
   isInitialized = true;
   loadCacheFromLocalStorage();
 
-  // Immediately trigger fresh sync from backend on application boot
-  fetchHomeData(true).catch(() => {});
+  // Sync from temporary 24-hour memory cache or background refresh if expired
+  fetchHomeData(false).catch(() => {});
 
   // Cross-tab Synchronization via BroadcastChannel & LocalStorage Event
   if (typeof BroadcastChannel !== "undefined") {
@@ -788,13 +788,13 @@ if (typeof window !== "undefined" && !isInitialized) {
     }
   });
 
-  // Sync on tab focus / visibility change with throttling
+  // Sync on tab focus / visibility change with throttling (respect 24h cache limit)
   let lastFocusSync = 0;
   const triggerFocusSync = () => {
     const now = Date.now();
     if (now - lastFocusSync > 10000 && document.visibilityState === "visible") {
       lastFocusSync = now;
-      fetchHomeData(true).catch(() => {});
+      fetchHomeData(false).catch(() => {});
     }
   };
   window.addEventListener("focus", triggerFocusSync);
@@ -1953,7 +1953,7 @@ export const db = {
     return storeCache.settings;
   },
   fetchCoupons: async () => {
-    const res = await apiRequest("/coupons?scope=admin", { noCache: true });
+    const res = await apiRequest("/coupons?scope=admin", { requiresAuth: true, noCache: true });
     if (res?.success && Array.isArray(res.data)) {
       storeCache.coupons = res.data;
       try {
@@ -2616,18 +2616,24 @@ export const db = {
     if (isUpdate) {
       res = await apiRequest(`/coupons/${encodeURIComponent(id)}`, {
         method: "PUT",
-        body: JSON.stringify(finalCoupon)
+        body: JSON.stringify(finalCoupon),
+        requiresAuth: true,
+        noCache: true
       });
       if (res?.status === 404 || (!res?.success && res?.message === "Coupon not found")) {
         res = await apiRequest("/coupons", {
           method: "POST",
-          body: JSON.stringify(finalCoupon)
+          body: JSON.stringify(finalCoupon),
+          requiresAuth: true,
+          noCache: true
         });
       }
     } else {
       res = await apiRequest("/coupons", {
         method: "POST",
-        body: JSON.stringify(finalCoupon)
+        body: JSON.stringify(finalCoupon),
+        requiresAuth: true,
+        noCache: true
       });
     }
 
@@ -2641,7 +2647,9 @@ export const db = {
     else storeCache.coupons.unshift(saved);
     try {
       localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+      localStorage.setItem("aura_last_fetch_time", "0");
     } catch (_) {}
+    broadcastCacheInvalidation();
     emitStoreUpdate("coupon:saved", saved);
     emitStoreUpdate("coupons:synced", storeCache.coupons);
     return saved;
@@ -2656,7 +2664,11 @@ export const db = {
     const targetId = existing?.id || cleanId;
     const targetDbId = existing?._id ? String(existing._id) : null;
 
-    const res = await apiRequest(`/coupons/${encodeURIComponent(cleanId)}`, { method: "DELETE" });
+    const res = await apiRequest(`/coupons/${encodeURIComponent(cleanId)}`, {
+      method: "DELETE",
+      requiresAuth: true,
+      noCache: true
+    });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete coupon. Database is unavailable.");
     }
@@ -2666,7 +2678,9 @@ export const db = {
     );
     try {
       localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+      localStorage.setItem("aura_last_fetch_time", "0");
     } catch (_) {}
+    broadcastCacheInvalidation();
 
     // Clean up matching offers from store cache so they disappear immediately from Home UI
     storeCache.offers = (storeCache.offers || []).filter(

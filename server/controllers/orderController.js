@@ -571,6 +571,21 @@ export async function updateOrder(req, res, next) {
     }
     if (!existing) return res.status(404).json({ success: false, message: "Order not found" });
 
+    const userEmail = (req.user?.email || "").trim().toLowerCase();
+    const userPhone = (req.user?.phone || "").trim().replace(/\D/g, "");
+    const orderAuthUser = String(existing.authUserId || "").trim();
+    const orderUserId = String(existing.userId || "").trim();
+    const orderEmail = String(existing.customerEmail || existing.email || existing.shippingAddress?.email || "").trim().toLowerCase();
+    const orderPhone = String(existing.customerPhone || existing.phone || existing.shippingAddress?.phone || "").trim().replace(/\D/g, "");
+
+    const isOwner = Boolean(
+      (authUserId && orderAuthUser && orderAuthUser === authUserId) ||
+      (req.user?.id && orderUserId && orderUserId === String(req.user.id)) ||
+      (authUserId && orderUserId && orderUserId === authUserId) ||
+      (userEmail && orderEmail && userEmail === orderEmail) ||
+      (userPhone && orderPhone && userPhone === orderPhone)
+    );
+
     let updateFields = {};
 
     if (isAdmin) {
@@ -656,7 +671,7 @@ export async function updateOrder(req, res, next) {
         reason: data.reason || "Admin order update",
         req
       });
-    } else if (existing.authUserId === authUserId) {
+    } else if (isOwner) {
       // Customer permissions: Only cancel or update address on pending/cancellable orders
       const cancellableStatuses = [ORDER_STATES.PENDING, ORDER_STATES.PAYMENT_PENDING, ORDER_STATES.CONFIRMED, ORDER_STATES.PROCESSING];
       
