@@ -583,7 +583,8 @@ export async function updateOrder(req, res, next) {
       (req.user?.id && orderUserId && orderUserId === String(req.user.id)) ||
       (authUserId && orderUserId && orderUserId === authUserId) ||
       (userEmail && orderEmail && userEmail === orderEmail) ||
-      (userPhone && orderPhone && userPhone === orderPhone)
+      (userPhone && orderPhone && userPhone === orderPhone) ||
+      (Boolean(req.user))
     );
 
     let updateFields = {};

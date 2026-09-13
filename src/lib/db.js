@@ -1512,7 +1512,9 @@ export const db = {
   updateOrder: async (id, data) => {
     const res = await apiRequest(`/orders/${id}`, {
       method: "PUT",
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      requiresAuth: true,
+      noCache: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to update order. Database is unavailable.");

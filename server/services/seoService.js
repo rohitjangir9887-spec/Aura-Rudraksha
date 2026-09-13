@@ -24,7 +24,7 @@ import { getSiteBaseUrl } from "./indexNowService.js";
 export const SEO_BRAND = {
   name: "Aura Rudraksha",
   legalName: "Aura Rudraksha Enterprises",
-  logo: "https://aurarudraksha.bond/logo-header-horizontal.png",
+  logo: "https://aurarudraksha.bond/icon-512.png",
   defaultImage: "https://aurarudraksha.bond/og-image.jpg",
   supportEmail: "aurarudrakshaofficial@gmail.com",
   supportPhone: "+91 9672996531",
