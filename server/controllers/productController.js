@@ -2,7 +2,7 @@ import { Product } from "../models/Product.js";
 import { Media } from "../models/Media.js";
 import { deleteFromPcloud } from "../services/pcloudService.js";
 import { isDbConnected } from "../config/db.js";
-import { pickFields } from "../utils/sanitize.js";
+import { pickFields, removeMongoInternals } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateRagCache } from "../services/ragService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
@@ -130,13 +130,14 @@ export async function getProducts(req, res, next) {
     }
 
     const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
+    const sanitizedProducts = removeMongoInternals(products);
 
     if (!isAdmin && !req.query.status && !req.query.category) {
-      publicProductsCache = products;
+      publicProductsCache = sanitizedProducts;
       publicProductsCacheExpiry = Date.now() + 60000;
     }
 
-    return res.json({ success: true, data: products, count: products.length });
+    return res.json({ success: true, data: sanitizedProducts, count: sanitizedProducts.length });
   } catch (err) {
     console.warn("Error in getProducts:", err.message);
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -206,7 +207,7 @@ export async function getProductById(req, res, next) {
       }
     }
 
-    return res.json({ success: true, data: product });
+    return res.json({ success: true, data: removeMongoInternals(product) });
   } catch (err) {
     console.warn("Error in getProductById:", err.message);
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");

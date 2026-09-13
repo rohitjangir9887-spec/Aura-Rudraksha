@@ -21,6 +21,7 @@ import { calculateAuthenticKundali } from "../services/vedicAstrologyService.js"
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
 import { retrieveRagContext } from "../services/ragService.js";
 import { generateSeoAndVedicDataWithNemotron } from "../services/nemotronSeoEngine.js";
+import { executeAiToolCall } from "../services/aiToolsService.js";
 
 const AI_SETTING_FIELDS = {
   enabled: "bool", showFloatingButton: "bool", showHeaderButton: "bool",

@@ -83,3 +83,17 @@ export function pickFields(input, types) {
   }
   return out;
 }
+
+/**
+ * Strips internal MongoDB fields (_id, __v) from documents/arrays before returning API responses.
+ */
+export function removeMongoInternals(doc) {
+  if (!doc) return doc;
+  if (Array.isArray(doc)) return doc.map(removeMongoInternals);
+  if (typeof doc !== "object") return doc;
+  const plainObj = typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
+  delete plainObj._id;
+  delete plainObj.__v;
+  return plainObj;
+}
+
