@@ -363,26 +363,40 @@ export function Checkout() {
 
   const getLatestFormData = (baseData) => {
     const mapping = {
-      firstName: "input-firstName",
-      lastName: "input-lastName",
-      phone: "input-phone",
-      email: "input-email",
-      address: "input-address",
-      landmark: "input-landmark",
-      pincode: "input-pincode",
-      city: "input-city",
-      state: "input-state",
+      firstName: ["input-firstName", "firstName", "given-name"],
+      lastName: ["input-lastName", "lastName", "family-name"],
+      phone: ["input-phone", "phone", "tel"],
+      email: ["input-email", "email", "email"],
+      address: ["input-address", "address", "street-address"],
+      landmark: ["input-landmark", "landmark"],
+      pincode: ["input-pincode", "pincode", "postal-code"],
+      city: ["input-city", "city", "address-level2"],
+      state: ["input-state", "state", "address-level1"],
     };
     const current = { ...(baseData || {}) };
-    for (const [key, id] of Object.entries(mapping)) {
-      const el = document.getElementById(id);
+    for (const [key, targets] of Object.entries(mapping)) {
+      let el = null;
+      for (const t of targets) {
+        el = document.getElementById(t) || document.querySelector(`[name="${t}"]`) || document.querySelector(`[autocomplete*="${t}"]`);
+        if (el && el.value) break;
+      }
       if (el && typeof el.value === "string") {
         const val = el.value.trim();
-        if (val && (!current[key] || !String(current[key]).trim())) {
+        if (val) {
           current[key] = val;
         }
       }
     }
+
+    // Secondary fallbacks for email if still missing
+    if (!current.email || !String(current.email).trim()) {
+      const userProf = db.getUserProfile ? db.getUserProfile() : null;
+      const fallbackEmail = userProf?.email || authClient?.currentUser?.email || "";
+      if (fallbackEmail) {
+        current.email = fallbackEmail.trim();
+      }
+    }
+
     return current;
   };
 

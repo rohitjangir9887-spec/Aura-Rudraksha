@@ -182,21 +182,31 @@ export async function connectDB() {
   // 1. If already active and connected (readyState === 1), return true immediately
   if (mongoose.connection.readyState === 1) {
     cached.conn = mongoose;
+    cached.lastFailedAttempt = null;
     return true;
   }
 
-  // 2. If in-flight connection promise is currently connecting (readyState === 2), await it
+  // 2. Cooldown check: If recently failed within 3s and disconnected, fail fast without spinning duplicate connections
+  if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (Date.now() - cached.lastFailedAttempt < 3000)) {
+    return false;
+  }
+
+  // 3. If in-flight connection promise is currently connecting (readyState === 2), await it
   if (mongoose.connection.readyState === 2 && cached.promise) {
     try {
       cached.conn = await cached.promise;
-      return mongoose.connection.readyState === 1;
+      if (mongoose.connection.readyState === 1) {
+        cached.lastFailedAttempt = null;
+        return true;
+      }
+      return false;
     } catch (err) {
       recordConnectionError(err, "promise:await_inflight");
       return false;
     }
   }
 
-  // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
+  // 4. Initiate connection promise if disconnected
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const isVercelServerless = Boolean(
       process.env.VERCEL ||
@@ -204,17 +214,16 @@ export async function connectDB() {
       process.env.AWS_LAMBDA_FUNCTION_NAME
     );
     const opts = {
-      serverSelectionTimeoutMS: isVercelServerless ? 3000 : 5000,
-      connectTimeoutMS: isVercelServerless ? 5000 : 10000,
-      socketTimeoutMS: isVercelServerless ? 10000 : 30000,
-      maxIdleTimeMS: isVercelServerless ? 10000 : 30000,
+      serverSelectionTimeoutMS: 10000, // 10s timeout to allow TLS handshake & server selection on Atlas/Vercel
+      connectTimeoutMS: 10000,         // 10s socket connection timeout
+      socketTimeoutMS: 45000,          // 45s socket inactivity timeout
+      maxIdleTimeMS: 10000,
       maxPoolSize: isVercelServerless ? 10 : 25,
       minPoolSize: 0,
       heartbeatFrequencyMS: 10000,
       retryWrites: true,
       retryReads: true,
-      autoIndex: process.env.NODE_ENV !== "production",
-      family: 4
+      autoIndex: process.env.NODE_ENV !== "production"
     };
 
     const doConnect = async () => {
@@ -227,6 +236,7 @@ export async function connectDB() {
           console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
           cached.conn = mongooseInstance;
           cached.lastConnected = new Date().toISOString();
+          cached.lastFailedAttempt = null;
 
           // Deduplicate DB seeding per process execution
           if (!global.__db_init_triggered) {
@@ -238,6 +248,7 @@ export async function connectDB() {
 
           return mongooseInstance;
         } catch (err) {
+          cached.lastFailedAttempt = Date.now();
           if (attempt < maxAttempts && !isVercelServerless) {
             console.warn(`⚠️ [MongoDB] Initial connection attempt failed (${err.message}). Retrying...`);
             const memUri = await getOrStartMemoryMongo();
@@ -256,6 +267,7 @@ export async function connectDB() {
     cached.promise = doConnect().catch((error) => {
       cached.promise = null;
       cached.conn = null;
+      cached.lastFailedAttempt = Date.now();
       recordConnectionError(error, "connect:handshake_failed");
       console.warn("⚠️ [MongoDB] Connection failed:", error.message);
       throw error;

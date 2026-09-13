@@ -282,22 +282,9 @@ export function isPublicProduct(p) {
   return true;
 }
 
-// Live MongoDB Data Store Cache with initial catalog for UI rendering
+// Live MongoDB Data Store Cache with initial empty catalog for UI rendering (hydrated via API/localStorage)
 const storeCache = {
-  products: defaultProducts.map(p => ({
-    ...p,
-    id: String(p.id),
-    status: p.status || "Published",
-    category: p.category || "Rudraksha",
-    stock: p.stock !== undefined ? p.stock : 0,
-    showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
-    isPopular: !!p.isPopular,
-    homeOrder: p.homeOrder || 0,
-    homeBadge: p.homeBadge || p.badge || "",
-    mrp: p.mrp || p.comparePrice || p.price,
-    comparePrice: p.comparePrice || p.mrp || p.price,
-    images: getProductGalleryImages(p)
-  })),
+  products: [],
   orders: [],
   customers: [],
   coupons: [
@@ -956,7 +943,11 @@ export const db = {
 
   // PRODUCTS
   getProducts: () => {
-    return storeCache.products.map(p => {
+    let prods = storeCache.products;
+    if ((!prods || prods.length === 0) && (hasFetchedFreshData || isHydrated || storeCache.dbStatus === "disconnected")) {
+      prods = defaultProducts;
+    }
+    return (prods || []).map(p => {
       const pId = String(p.id || p._id || "");
       const stats = db.getProductReviewStats(pId);
       const liveReviews = stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0);
