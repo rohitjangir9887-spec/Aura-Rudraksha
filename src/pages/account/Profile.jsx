@@ -128,9 +128,11 @@ export function Profile() {
   }, [navigate, location]);
   
   async function loadProfileData() {
-    setLoading(true);
+    const authUser = authClient.getUser();
+    if (!cachedMe && (!authUser || (!authUser.email && !authUser.displayName))) {
+      setLoading(true);
+    }
     try {
-      const authUser = authClient.getUser();
       const googleName = authUser?.displayName || "";
       const googleAvatar = authUser?.photoURL || "";
       const googleEmail = authUser?.email || "";

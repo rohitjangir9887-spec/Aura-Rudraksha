@@ -215,8 +215,8 @@ export async function connectDB() {
       process.env.AWS_LAMBDA_FUNCTION_NAME
     );
     const opts = {
-      serverSelectionTimeoutMS: 15000, // 15s timeout to allow TLS handshake & server selection on Atlas/Vercel
-      connectTimeoutMS: 15000,         // 15s socket connection timeout
+      serverSelectionTimeoutMS: 5000, // 5s timeout for fast failover & fallback
+      connectTimeoutMS: 5000,         // 5s socket connection timeout
       socketTimeoutMS: 45000,          // 45s socket inactivity timeout
       maxIdleTimeMS: 60000,            // 60s idle timeout to avoid aggressive socket reaps on brief idle
       maxPoolSize: isVercelServerless ? 10 : 25,

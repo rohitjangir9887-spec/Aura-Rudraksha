@@ -13,11 +13,23 @@ function getWishlistStorageKey() {
 function readLocalWishlist() {
   try {
     const key = getWishlistStorageKey();
-    const raw = JSON.parse(localStorage.getItem(key) || "[]");
-    let ids = Array.isArray(raw) 
-      ? raw.map(String).map(s => s.trim()).filter(id => id && id !== "undefined" && id !== "null" && id !== "[object Object]") 
-      : [];
-    return ids;
+    const rawStr = localStorage.getItem(key);
+    if (!rawStr) return [];
+    const raw = JSON.parse(rawStr);
+    if (!Array.isArray(raw)) return [];
+    
+    let ids = raw
+      .map(item => {
+        if (!item) return "";
+        if (typeof item === "object") {
+          return String(item.id || item.productId || item._id || item.slug || "").trim();
+        }
+        return String(item).trim();
+      })
+      .filter(id => id && id !== "undefined" && id !== "null" && id !== "[object Object]" && id !== "{}" && id !== "[]");
+    
+    // Deduplicate
+    return Array.from(new Set(ids));
   } catch {
     return [];
   }
@@ -183,11 +195,30 @@ export function useWishlist() {
     return () => unsub();
   }, []);
 
-  // Filter out only explicitly inactive/draft products, don't discard valid IDs if db is still loading
+  // Filter out draft/inactive products and ghost IDs that do not exist in product catalog
+  const allProducts = typeof db.getProducts === "function" ? db.getProducts() : [];
   const validWishlist = wishlist.filter(id => {
-    const p = db.getProduct(id);
-    if (!p) return true; // Keep in wishlist while catalog revalidates
-    return p.status !== "Draft" && p.status !== "draft" && p.status !== "Inactive" && p.status !== "inactive" && p.status !== "Archived";
+    if (!id || typeof id !== "string") return false;
+    const cleanId = id.trim();
+    if (!cleanId || cleanId === "null" || cleanId === "undefined" || cleanId === "[object Object]") return false;
+
+    const p = db.getProduct(cleanId);
+    if (p) {
+      const s = String(p.status || "").toLowerCase();
+      return s !== "draft" && s !== "inactive" && s !== "archived";
+    }
+
+    // If product catalog is loaded, check if ID matches any product id, _id, or slug
+    if (Array.isArray(allProducts) && allProducts.length > 0) {
+      const exists = allProducts.some(prod => 
+        String(prod.id || "") === cleanId || 
+        String(prod._id || "") === cleanId || 
+        String(prod.slug || "") === cleanId
+      );
+      return exists;
+    }
+
+    return true; // Keep temporarily while initial products list is still fetching
   });
 
   return {

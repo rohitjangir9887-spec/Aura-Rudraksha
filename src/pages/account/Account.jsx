@@ -71,8 +71,10 @@ export function Account() {
   const [loading, setLoading] = useState(() => {
     const initialUser = authClient.getUser();
     if (!initialUser || initialUser.isAnonymous) return false;
+    // If we have an authenticated user or cached profile, render immediately from cache
     const cachedProfile = db.getCachedCustomerMe();
-    return !(cachedProfile && (cachedProfile.name || cachedProfile.email || cachedProfile.joined));
+    if (cachedProfile || initialUser.email || initialUser.displayName) return false;
+    return true;
   });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -134,7 +136,7 @@ export function Account() {
           } catch (_) {}
         } else if (u?.email) {
           setUserEmail(u.email);
-          setProfile({
+          setProfile(prev => prev || {
             name: u.displayName || u.email.split("@")[0],
             email: u.email,
             avatar: u.photoURL || "",
@@ -182,11 +184,14 @@ export function Account() {
       }
     });
 
-    // Listen to real-time admin changes & background updates
-    const unsubscribeStore = onStoreUpdate(() => {
-      const currentU = authClient.getUser();
-      if (currentU && !currentU.isAnonymous) {
-        loadAccountData(currentU);
+    // Listen to real-time customer, order & address updates only
+    const unsubscribeStore = onStoreUpdate((evt) => {
+      const type = evt?.type || "";
+      if (type.startsWith("customer") || type.startsWith("order") || type.startsWith("address")) {
+        const currentU = authClient.getUser();
+        if (currentU && !currentU.isAnonymous) {
+          loadAccountData(currentU);
+        }
       }
     });
 
