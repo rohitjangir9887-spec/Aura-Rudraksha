@@ -123,13 +123,54 @@ export function getEmailVerificationActionSettings() {
   };
 }
 
-// The demo/guest session is a development-only convenience so the UI is
-// usable without live Firebase credentials while building. Vite statically
-// resolves import.meta.env.DEV to `false` in production builds, so this can
-// never be true in a shipped production bundle regardless of runtime env
-// misconfiguration.
-function readDemoUser() {
-  return null;
+// Local storage key for persistent user session snapshot across cold reloads
+const USER_CACHE_KEY = "aura_cached_user";
+
+function serializeUser(u) {
+  if (!u) return null;
+  return {
+    uid: u.uid || u.authUserId || "",
+    authUserId: u.uid || u.authUserId || "",
+    email: u.email || "",
+    displayName: u.displayName || "",
+    photoURL: u.photoURL || "",
+    phoneNumber: u.phoneNumber || "",
+    isAnonymous: Boolean(u.isAnonymous),
+    emailVerified: Boolean(u.emailVerified),
+    providerData: Array.isArray(u.providerData) ? u.providerData.map(p => ({
+      providerId: p.providerId,
+      email: p.email,
+      displayName: p.displayName,
+      photoURL: p.photoURL,
+      phoneNumber: p.phoneNumber
+    })) : [],
+    savedAt: Date.now()
+  };
+}
+
+let inMemoryCachedUser = null;
+try {
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(USER_CACHE_KEY);
+    if (raw) {
+      inMemoryCachedUser = JSON.parse(raw);
+    }
+  }
+} catch (_) {}
+
+function saveCachedUser(u) {
+  if (typeof window === "undefined") return;
+  try {
+    if (u) {
+      const data = serializeUser(u);
+      inMemoryCachedUser = data;
+      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data));
+      if (u.email) localStorage.setItem("user_email", u.email);
+    } else {
+      inMemoryCachedUser = null;
+      localStorage.removeItem(USER_CACHE_KEY);
+    }
+  } catch (_) {}
 }
 
 export const authClient = {
@@ -138,11 +179,12 @@ export const authClient = {
   },
 
   isSignedIn: () => {
-    return Boolean(auth.currentUser);
+    const u = auth.currentUser || inMemoryCachedUser;
+    return Boolean(u && !u.isAnonymous);
   },
 
   hasCurrentUser: () => {
-    return Boolean(auth.currentUser);
+    return Boolean(auth.currentUser || inMemoryCachedUser);
   },
   
   getToken: async (forceRefresh = false, waitForAuth = false) => {
@@ -167,7 +209,11 @@ export const authClient = {
   },
   
   getUser: () => {
-    return auth.currentUser;
+    return auth.currentUser || inMemoryCachedUser;
+  },
+
+  getCachedUser: () => {
+    return inMemoryCachedUser;
   },
 
   getCurrentUserAsync: async () => {
@@ -177,7 +223,7 @@ export const authClient = {
         await auth.authStateReady();
       }
     } catch (_) {}
-    return auth.currentUser;
+    return auth.currentUser || inMemoryCachedUser;
   },
   
   signInWithGoogle: async () => {
@@ -192,6 +238,7 @@ export const authClient = {
       prompt: "select_account"
     });
     const result = await signInWithPopup(auth, provider);
+    saveCachedUser(result.user);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
     }
@@ -206,6 +253,7 @@ export const authClient = {
       await setPersistence(auth, browserLocalPersistence);
     } catch (_) {}
     const result = await signInAnonymously(auth);
+    saveCachedUser(result.user);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
     }
@@ -226,6 +274,7 @@ export const authClient = {
       await setPersistence(auth, browserLocalPersistence);
     } catch (_) {}
     const result = await signInWithEmailAndPassword(auth, normalized, password);
+    saveCachedUser(result.user);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
     }
@@ -246,6 +295,7 @@ export const authClient = {
       await setPersistence(auth, browserLocalPersistence);
     } catch (_) {}
     const result = await createUserWithEmailAndPassword(auth, normalized, password);
+    saveCachedUser(result.user);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
     }
@@ -289,9 +339,13 @@ export const authClient = {
     try {
       await signOut(auth);
     } catch {}
+    saveCachedUser(null);
     try {
       localStorage.removeItem("aura_demo_user");
       localStorage.removeItem("aura_ai_last_auth_uid");
+      localStorage.removeItem("user_email");
+      localStorage.removeItem("user_token");
+      localStorage.removeItem("isAdmin");
     } catch (_) {}
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: null }));
@@ -300,8 +354,9 @@ export const authClient = {
   },
   
   onAuthStateChanged: (callback) => {
-    if (auth.currentUser) {
-      callback(auth.currentUser);
+    const active = auth.currentUser || inMemoryCachedUser;
+    if (active) {
+      callback(active);
     }
 
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -309,7 +364,13 @@ export const authClient = {
         localStorage.removeItem("aura_demo_user");
         localStorage.removeItem("aura_admin_token");
       } catch (_) {}
-      callback(user || null);
+      if (user) {
+        saveCachedUser(user);
+        callback(user);
+      } else {
+        saveCachedUser(null);
+        callback(null);
+      }
     });
 
     return () => {

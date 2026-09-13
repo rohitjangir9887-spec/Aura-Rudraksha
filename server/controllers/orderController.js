@@ -3,6 +3,7 @@ import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
+import { recordProductSalesIncrement } from "./productController.js";
 import Customer from "../models/Customer.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
@@ -95,55 +96,55 @@ export async function getMyOrders(req, res, next) {
       queryFilters.push(...phoneFilters);
     }
 
-    const rawOrders = await Order.find({ $or: queryFilters }).sort({ createdAt: -1 }).lean();
+    const rawOrders = await Order.find({ $or: queryFilters })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
     
-    // Live PayU reconciliation for pending orders so status updates automatically without getting stuck
+    // Asynchronous background PayU reconciliation for pending orders (does not block HTTP response)
     const pendingOrders = (rawOrders || []).filter(o => o.txnid && (o.paymentStatus === "Pending" || o.paymentStatus === "Initiated"));
     if (pendingOrders.length > 0) {
-      await Promise.allSettled(
-        pendingOrders.slice(0, 5).map(async (pOrder) => {
-          try {
-            const verifyRes = await verifyPayuPaymentServerSide(pOrder.txnid);
-            if (verifyRes.success && verifyRes.isPaid) {
-              await Order.updateOne(
-                { _id: pOrder._id },
-                {
-                  $set: {
-                    paymentStatus: "Paid",
-                    status: "Confirmed",
-                    orderStatus: "Confirmed",
-                    payuStatus: "Success",
-                    unmappedstatus: verifyRes.unmappedStatus || "captured",
-                    mihpayid: verifyRes.mihpayid || pOrder.mihpayid,
-                    bankRefNum: verifyRes.bankRefNum || pOrder.bankRefNum,
-                    paymentMode: verifyRes.mode || pOrder.paymentMode
-                  }
-                }
-              );
-              pOrder.paymentStatus = "Paid";
-              pOrder.status = "Confirmed";
-              pOrder.orderStatus = "Confirmed";
-              pOrder.payuStatus = "Success";
-            } else if (verifyRes.success) {
-              const rawStatus = (verifyRes.status || "").toLowerCase();
-              const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
-              let newPaymentStatus = pOrder.paymentStatus;
-              if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
-                newPaymentStatus = "Cancelled";
-              } else if (rawStatus === "bounced" || rawStatus === "failed" || rawStatus === "dropped") {
-                newPaymentStatus = "Failed";
-              }
-              if (newPaymentStatus !== pOrder.paymentStatus) {
+      setImmediate(() => {
+        Promise.allSettled(
+          pendingOrders.slice(0, 5).map(async (pOrder) => {
+            try {
+              const verifyRes = await verifyPayuPaymentServerSide(pOrder.txnid);
+              if (verifyRes.success && verifyRes.isPaid) {
                 await Order.updateOne(
                   { _id: pOrder._id },
-                  { $set: { paymentStatus: newPaymentStatus, payuStatus: verifyRes.status || verifyRes.unmappedStatus } }
+                  {
+                    $set: {
+                      paymentStatus: "Paid",
+                      status: "Confirmed",
+                      orderStatus: "Confirmed",
+                      payuStatus: "Success",
+                      unmappedstatus: verifyRes.unmappedStatus || "captured",
+                      mihpayid: verifyRes.mihpayid || pOrder.mihpayid,
+                      bankRefNum: verifyRes.bankRefNum || pOrder.bankRefNum,
+                      paymentMode: verifyRes.mode || pOrder.paymentMode
+                    }
+                  }
                 );
-                pOrder.paymentStatus = newPaymentStatus;
+              } else if (verifyRes.success) {
+                const rawStatus = (verifyRes.status || "").toLowerCase();
+                const unmapped = (verifyRes.unmappedStatus || "").toLowerCase();
+                let newPaymentStatus = pOrder.paymentStatus;
+                if (rawStatus === "usercancelled" || unmapped === "usercancelled") {
+                  newPaymentStatus = "Cancelled";
+                } else if (rawStatus === "bounced" || rawStatus === "failed" || rawStatus === "dropped") {
+                  newPaymentStatus = "Failed";
+                }
+                if (newPaymentStatus !== pOrder.paymentStatus) {
+                  await Order.updateOne(
+                    { _id: pOrder._id },
+                    { $set: { paymentStatus: newPaymentStatus, payuStatus: verifyRes.status || verifyRes.unmappedStatus } }
+                  );
+                }
               }
-            }
-          } catch (_) {}
-        })
-      );
+            } catch (_) {}
+          })
+        ).catch(() => {});
+      });
     }
 
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
@@ -486,6 +487,13 @@ export async function createOrder(req, res, next) {
         orderPayload,
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
+
+      // Automatically increment buyer counter and totalSold for purchased products in MongoDB
+      try {
+        await recordProductSalesIncrement(totals.items);
+      } catch (salesIncErr) {
+        console.warn("[Order] Could not increment product sales count:", salesIncErr?.message || salesIncErr);
+      }
 
       // Save in deduplication cache
       recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });

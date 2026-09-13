@@ -4,7 +4,7 @@ const customerSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
     authUserId: { type: String, unique: true, sparse: true, index: true },
-    role: { type: String, enum: ["customer", "admin"], default: "customer" },
+    role: { type: String, enum: ["customer", "admin"], default: "customer", index: true },
     name: { type: String, default: "Customer", trim: true },
     email: { type: String, default: "", trim: true, lowercase: true, index: true },
     phone: { type: String, default: "", trim: true, index: true },
@@ -29,6 +29,10 @@ const customerSchema = new mongoose.Schema(
     toObject: { virtuals: true }
   }
 );
+
+customerSchema.index({ authUserId: 1, email: 1 });
+customerSchema.index({ email: 1, phone: 1 });
+
 
 export const Customer = mongoose.models.Customer || mongoose.model("Customer", customerSchema);
 export default Customer;

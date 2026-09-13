@@ -31,6 +31,7 @@ import {
 import { emitToast } from "../../context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadMedia } from "../../lib/imageUtils";
+import { AccountSkeletonLoader } from "../../components/account/AccountSkeletonLoader";
 
 export function Profile() {
   const navigate = useNavigate();
@@ -357,19 +358,10 @@ export function Profile() {
   if (loading) {
     return (
       <Shell>
-        <main className="page" style={{ maxWidth: 860, margin: "0 auto", textAlign: "center", padding: "80px 20px" }}>
-          <div style={{
-            width: "48px",
-            height: "48px",
-            border: "3px solid #e8dac9",
-            borderTopColor: "#a54d2b",
-            borderRadius: "50%",
-            margin: "0 auto 16px",
-            animation: "spin 1s linear infinite"
-          }} />
-          <p style={{ color: "#806f62", fontSize: "15px", fontFamily: '"Cormorant Garamond", serif', fontStyle: "italic" }}>
-            Loading devotee profile and saved addresses...
-          </p>
+        <main className="page" style={{ maxWidth: 880, margin: "0 auto", paddingBottom: "90px" }}>
+          <div className="account-container" id="account-container">
+            <AccountSkeletonLoader />
+          </div>
         </main>
       </Shell>
     );
@@ -380,8 +372,8 @@ export function Profile() {
   return (
     <Shell>
       <main className="page" style={{ maxWidth: 880, margin: "0 auto", paddingBottom: "90px" }}>
-        
-        {/* Navigation Breadcrumb */}
+        <div className="account-container" id="account-container">
+          {/* Navigation Breadcrumb */}
         <div style={{ marginBottom: "18px" }}>
           <Link 
             to="/account" 
@@ -949,6 +941,7 @@ export function Profile() {
           </div>
 
         </motion.div>
+        </div>
       </main>
 
       {/* Add / Edit Address Modal Form */}

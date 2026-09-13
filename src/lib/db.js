@@ -1076,8 +1076,9 @@ export const db = {
               mrp: p.mrp || p.comparePrice || p.price,
               comparePrice: p.comparePrice || p.mrp || p.price,
               images: getProductGalleryImages(p),
-              totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
-              salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
+              totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
+              salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+              timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
             };
             db.cacheProduct(normalized);
             emitStoreUpdate("product:synced", normalized);
@@ -1101,8 +1102,9 @@ export const db = {
           mrp: p.mrp || p.comparePrice || p.price,
           comparePrice: p.comparePrice || p.mrp || p.price,
           images: getProductGalleryImages(p),
-          totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
-          salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
+          totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
+          salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+          timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
         };
         db.cacheProduct(normalized);
         return normalized;
@@ -1171,8 +1173,9 @@ export const db = {
       isPopular: !!p.isPopular,
       homeOrder: Number(p.homeOrder) || 0,
       homeBadge: p.homeBadge || p.badge || "",
-      totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount ? `${p.salesCount}+ Sold` : ""),
-      salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+      totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
+      salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+      timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
       autoIncrementSales: false,
       lastSalesUpdateDate: p.lastSalesUpdateDate || "",
       dailySalesMin: 0,
@@ -1231,8 +1234,9 @@ export const db = {
       mrp: savedData.mrp || savedData.comparePrice || savedData.price,
       comparePrice: savedData.comparePrice || savedData.mrp || savedData.price,
       images: getProductGalleryImages(savedData),
-      totalSold: savedData.totalSold || finalProduct.totalSold || (finalProduct.salesCount ? `${finalProduct.salesCount}+ Sold` : ""),
-      salesCount: Number(savedData.salesCount ?? finalProduct.salesCount ?? 0),
+      totalSold: savedData.totalSold || finalProduct.totalSold || (finalProduct.salesCount || finalProduct.timesPurchased ? `${finalProduct.salesCount || finalProduct.timesPurchased}+ Sold` : ""),
+      salesCount: Number(savedData.salesCount ?? savedData.timesPurchased ?? finalProduct.salesCount ?? finalProduct.timesPurchased ?? 0),
+      timesPurchased: Number(savedData.timesPurchased ?? savedData.salesCount ?? finalProduct.timesPurchased ?? finalProduct.salesCount ?? 0),
       autoIncrementSales: savedData.autoIncrementSales !== undefined ? !!savedData.autoIncrementSales : finalProduct.autoIncrementSales,
       lastSalesUpdateDate: savedData.lastSalesUpdateDate || finalProduct.lastSalesUpdateDate || "",
       dailySalesMin: Number(savedData.dailySalesMin ?? finalProduct.dailySalesMin ?? 1),
@@ -1316,8 +1320,9 @@ export const db = {
           storeCache.products = res.data.map(p => ({
             ...p,
             id: String(p.id || p._id),
-            salesCount: Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
-            totalSold: p.totalSold || (p.salesCount ? `${p.salesCount}+ Sold` : "")
+            salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+            timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+            totalSold: p.totalSold || (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : "")
           }));
           try {
             localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));

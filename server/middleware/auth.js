@@ -68,6 +68,28 @@ export function devFallbackAllowed() {
   return false;
 }
 
+// In-memory verified token cache to eliminate latency on repeated requests
+const verifiedTokenCache = new Map();
+const TOKEN_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+async function verifyTokenFast(token) {
+  const now = Date.now();
+  const cached = verifiedTokenCache.get(token);
+  if (cached && cached.expiresAt > now) {
+    return cached.decoded;
+  }
+  const decodedToken = await getAuth().verifyIdToken(token);
+  const expMs = (decodedToken.exp ? decodedToken.exp * 1000 : now + TOKEN_CACHE_TTL_MS);
+  const cacheTtl = Math.min(now + TOKEN_CACHE_TTL_MS, expMs);
+  verifiedTokenCache.set(token, { decoded: decodedToken, expiresAt: cacheTtl });
+  if (verifiedTokenCache.size > 1000) {
+    for (const [k, v] of verifiedTokenCache.entries()) {
+      if (v.expiresAt <= now) verifiedTokenCache.delete(k);
+    }
+  }
+  return decodedToken;
+}
+
 export async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -75,8 +97,8 @@ export async function requireAuth(req, res, next) {
       const token = authHeader.split(" ")[1];
       if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123" && token !== "preview-admin" && !token.startsWith("admin_")) {
         try {
-          // Verify Firebase ID Token
-          const decodedToken = await getAuth().verifyIdToken(token);
+          // Fast cached Firebase ID Token Verification
+          const decodedToken = await verifyTokenFast(token);
           req.user = {
             authUserId: decodedToken.uid,
             email: decodedToken.email || "",
@@ -105,7 +127,7 @@ export async function optionalAuth(req, res, next) {
       const token = authHeader.split(" ")[1];
       if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123" && token !== "preview-admin") {
         try {
-          const decodedToken = await getAuth().verifyIdToken(token);
+          const decodedToken = await verifyTokenFast(token);
           req.user = {
             authUserId: decodedToken.uid,
             email: decodedToken.email || "",
@@ -114,7 +136,7 @@ export async function optionalAuth(req, res, next) {
             picture: decodedToken.picture || ""
           };
         } catch (tokenErr) {
-          // If verifyIdToken failed, strictly nullify user identity (no unverified payload decoding)
+          // If verifyIdToken failed, strictly nullify user identity
           req.user = null;
         }
       }

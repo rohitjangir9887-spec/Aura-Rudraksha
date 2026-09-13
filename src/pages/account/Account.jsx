@@ -24,9 +24,9 @@ import {
 } from "lucide-react";
 import { Shell } from "../../components/Shell";
 import { ConfirmModal } from "../../components/ConfirmModal";
-import { db, onStoreUpdate } from "../../lib/db";
-import { authClient } from "../../lib/authClient";
 import { useWishlist } from "../../hooks/useWishlist";
+import { useUserAuth } from "../../hooks/useUserAuth";
+import { AccountSkeletonLoader } from "../../components/account/AccountSkeletonLoader";
 import { emitToast } from "../../context/ToastContext";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
 
@@ -34,172 +34,35 @@ export function Account() {
   const navigate = useNavigate();
   const location = useLocation();
   const { count: wishlistCount } = useWishlist();
-  const [user, setUser] = useState(() => authClient.getUser());
-  const [userEmail, setUserEmail] = useState(() => {
-    const u = authClient.getUser();
-    const cached = db.getCachedCustomerMe();
-    return (cached?.email || u?.email || "");
-  });
-  const [profile, setProfile] = useState(() => {
-    const u = authClient.getUser();
-    const cached = db.getCachedCustomerMe();
-    if (cached) {
-      return {
-        ...cached,
-        name: cached.name || u?.displayName || (u?.email ? u.email.split("@")[0] : "Aura Devotee"),
-        avatar: cached.avatar || u?.photoURL || ""
-      };
-    }
-    if (u && !u.isAnonymous) {
-      return {
-        name: u.displayName || (u.email ? u.email.split("@")[0] : "Aura Devotee"),
-        email: u.email || "",
-        avatar: u.photoURL || "",
-        role: "customer"
-      };
-    }
-    return null;
-  });
-  const [ordersCount, setOrdersCount] = useState(() => {
-    const cached = db.getCachedMyOrders();
-    return Array.isArray(cached) ? cached.length : 0;
-  });
-  const [addressesCount, setAddressesCount] = useState(() => {
-    const cached = db.getCachedAddresses();
-    return Array.isArray(cached) ? cached.length : 0;
-  });
-  const [loading, setLoading] = useState(() => {
-    const initialUser = authClient.getUser();
-    if (!initialUser || initialUser.isAnonymous) return false;
-    // If we have an authenticated user or cached profile, render immediately from cache
-    const cachedProfile = db.getCachedCustomerMe();
-    if (cachedProfile || initialUser.email || initialUser.displayName) return false;
-    return true;
-  });
+  
+  const {
+    user,
+    profile,
+    ordersCount,
+    addressesCount,
+    isLoading,
+    isSyncing,
+    isAuthenticated,
+    userEmail,
+    displayName,
+    displayPhone,
+    avatar,
+    isServerAdmin,
+    logout
+  } = useUserAuth();
+
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await authClient.signOut();
+      await logout();
     } catch (e) {
       console.error("Logout error:", e);
     }
-    localStorage.removeItem("user_email");
-    localStorage.removeItem("user_token");
-    localStorage.removeItem("isAdmin");
-    setUser(null);
-    setProfile(null);
-    setUserEmail("");
-    setOrdersCount(0);
-    setAddressesCount(0);
     setShowLogoutModal(false);
     emitToast("Logged out successfully from Aura Rudraksha", "success");
     navigate("/account");
   };
-
-  useEffect(() => {
-    async function loadAccountData(u) {
-      try {
-        const [meRes, ordersRes, addrRes] = await Promise.all([
-          db.getCustomerMe().catch(() => null),
-          db.getMyOrders().catch(() => null),
-          db.getAddresses().catch(() => null)
-        ]);
-
-        if (meRes?.success && meRes.data) {
-          const authUser = authClient.getUser();
-          const googleName = authUser?.displayName || "";
-          const googleAvatar = authUser?.photoURL || "";
-          const resolvedName = (meRes.data.name && meRes.data.name !== "Customer" && meRes.data.name !== "Aura Devotee") 
-            ? meRes.data.name 
-            : (googleName || meRes.data.name || "");
-          const resolvedAvatar = meRes.data.avatar || googleAvatar || "";
-
-          const updatedProfile = {
-            ...meRes.data,
-            name: resolvedName,
-            avatar: resolvedAvatar
-          };
-          setProfile(updatedProfile);
-          setUserEmail(meRes.data.email || u?.email || "");
-          if (Array.isArray(meRes.data.addresses)) {
-            setAddressesCount(meRes.data.addresses.length);
-          }
-
-          // Cache with 5-hour TTL timestamp
-          try {
-            const cacheKey = db.getUserScopedKey("aura_cached_me");
-            if (cacheKey && typeof window !== "undefined") {
-              localStorage.setItem(cacheKey, JSON.stringify(updatedProfile));
-              localStorage.setItem(`${cacheKey}_ttl`, String(Date.now() + 24 * 60 * 60 * 1000));
-            }
-          } catch (_) {}
-        } else if (u?.email) {
-          setUserEmail(u.email);
-          setProfile(prev => prev || {
-            name: u.displayName || u.email.split("@")[0],
-            email: u.email,
-            avatar: u.photoURL || "",
-            role: "customer"
-          });
-        }
-
-        if (ordersRes?.success && Array.isArray(ordersRes.data)) {
-          setOrdersCount(ordersRes.data.length);
-        }
-
-        if (addrRes?.success && Array.isArray(addrRes.data)) {
-          setAddressesCount(addrRes.data.length);
-        }
-      } catch (_) {
-        if (u?.email) setUserEmail(u.email);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    const initialUser = authClient.getUser();
-    setUser(initialUser);
-    if (initialUser && !initialUser.isAnonymous) {
-      loadAccountData(initialUser);
-    } else {
-      setLoading(false);
-    }
-
-    let lastUid = initialUser?.uid || initialUser?.authUserId || initialUser?.email || null;
-    const unsubscribeAuth = authClient.onAuthStateChanged((u) => {
-      const currentUid = u?.uid || u?.authUserId || u?.email || null;
-      if (currentUid !== lastUid) {
-        lastUid = currentUid;
-        setUser(u);
-        if (u && !u.isAnonymous) {
-          loadAccountData(u);
-        } else {
-          setProfile(null);
-          setUserEmail("");
-          setOrdersCount(0);
-          setAddressesCount(0);
-          setLoading(false);
-        }
-      }
-    });
-
-    // Listen to real-time customer, order & address updates only
-    const unsubscribeStore = onStoreUpdate((evt) => {
-      const type = evt?.type || "";
-      if (type.startsWith("customer") || type.startsWith("order") || type.startsWith("address")) {
-        const currentU = authClient.getUser();
-        if (currentU && !currentU.isAnonymous) {
-          loadAccountData(currentU);
-        }
-      }
-    });
-
-    return () => {
-      unsubscribeAuth();
-      unsubscribeStore();
-    };
-  }, []);
 
   // Determine provider name
   const getProviderName = () => {
@@ -209,130 +72,118 @@ export function Account() {
     if (providerId === "phone") return "Phone OTP";
     if (providerId === "password") return "Email & Password";
     if (user.isAnonymous) return "Guest Session";
-    return "Verified Firebase ID";
+    return "Verified Devotee Session";
   };
 
-  const isServerAdmin = (profile?.role || "").toLowerCase() === "admin";
-
-  if (loading) {
+  if (isLoading) {
     return (
       <Shell>
-        <main className="page" style={{ maxWidth: 860, margin: "0 auto", textAlign: "center", padding: "80px 20px" }}>
-          <div style={{
-            width: "50px",
-            height: "50px",
-            border: "3px solid #e8dac9",
-            borderTopColor: "#a54d2b",
-            borderRadius: "50%",
-            margin: "0 auto 16px",
-            animation: "spin 1s linear infinite"
-          }} />
-          <p style={{ color: "#806f62", fontSize: "15px", fontFamily: '"Cormorant Garamond", serif', fontStyle: "italic" }}>
-            Loading your sacred devotee portal...
-          </p>
+        <main className="page" style={{ maxWidth: 880, margin: "0 auto", paddingBottom: "90px" }}>
+          <div className="account-container" id="account-container">
+            <AccountSkeletonLoader />
+          </div>
         </main>
       </Shell>
     );
   }
 
   // GUEST / NOT LOGGED IN VIEW
-  if (!user || user.isAnonymous) {
+  if (!isAuthenticated) {
     return (
       <Shell>
         <main className="page" style={{ maxWidth: 680, margin: "0 auto", paddingBottom: "80px", paddingTop: "20px" }}>
-          <div 
-             
-            
-            
-            style={{ 
-              background: "#fffdf9", 
-              border: "1px solid #e8dac9", 
-              borderRadius: "18px", 
-              padding: "36px 24px", 
-              textAlign: "center",
-              boxShadow: "0 4px 24px rgba(43, 23, 13, 0.04)"
-            }}
-          >
-            <div style={{
-              width: "76px", 
-              height: "76px", 
-              borderRadius: "50%", 
-              background: "linear-gradient(135deg, #a54d2b 0%, #7a351a 100%)",
-              color: "#fff",
-              display: "grid",
-              placeItems: "center",
-              margin: "0 auto 18px",
-              boxShadow: "0 6px 18px rgba(165,77,43,0.25)"
-            }}>
-              <User size={38} />
-            </div>
-
-            <div style={{ color: "#a54d2b", letterSpacing: "2px", fontSize: "11px", fontWeight: "800", textTransform: "uppercase", marginBottom: "4px" }}>
-              AURA DEVOTEE PORTAL
-            </div>
-
-            <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "32px", margin: "6px 0 12px", color: "#2b170d", fontWeight: "700" }}>
-              Welcome to Aura Rudraksha
-            </h1>
-
-            <p style={{ color: "#66574d", fontSize: "14.5px", lineHeight: "1.6", maxWidth: "460px", margin: "0 auto 24px" }}>
-              Sign in to track your sacred orders, access certificate records, manage saved shipping addresses, and receive devotee blessings.
-            </p>
-
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginBottom: "28px" }}>
-              <Link 
-                to="/login" 
-                state={{ from: location.pathname + location.search + location.hash }}
-                id="btn-account-login"
-                style={{
-                  background: "linear-gradient(135deg, #a54d2b 0%, #7a351a 100%)",
-                  color: "#fff",
-                  padding: "14px 32px",
-                  borderRadius: "12px",
-                  fontSize: "15px",
-                  fontWeight: "700",
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  boxShadow: "0 6px 18px rgba(165,77,43,0.3)",
-                  border: "none"
-                }}
-              >
-                <LogIn size={18} /> Sign In / Register
-              </Link>
-            </div>
-
-            {/* Guest Benefits Grid */}
-            <div style={{
-              background: "#faf5ee",
-              borderRadius: "14px",
-              padding: "18px 16px",
-              border: "1px solid #efe3d5",
-              textAlign: "left",
-              marginBottom: "24px"
-            }}>
-              <div style={{ fontSize: "12px", fontWeight: "700", color: "#4a3528", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
-                <Sparkles size={14} color="#a54d2b" />
-                <span>Devotee Account Privileges:</span>
+          <div className="account-container" id="account-container">
+            <div 
+              style={{ 
+                background: "#fffdf9", 
+                border: "1px solid #e8dac9", 
+                borderRadius: "18px", 
+                padding: "36px 24px", 
+                textAlign: "center",
+                boxShadow: "0 4px 24px rgba(43, 23, 13, 0.04)"
+              }}
+            >
+              <div style={{
+                width: "76px", 
+                height: "76px", 
+                borderRadius: "50%", 
+                background: "linear-gradient(135deg, #a54d2b 0%, #7a351a 100%)",
+                color: "#fff",
+                display: "grid",
+                placeItems: "center",
+                margin: "0 auto 18px",
+                boxShadow: "0 6px 18px rgba(165,77,43,0.25)"
+              }}>
+                <User size={38} />
               </div>
-              <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12.5px", color: "#6e5d50", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <li>Live GPS & courier tracking for sacred Nepal Rudraksha orders</li>
-                <li>100% Original X-Ray & Lab Certification records</li>
-                <li>Fast 1-click checkout with saved delivery addresses</li>
-                <li>Devotee wishlist synchronization across devices</li>
-              </ul>
-            </div>
 
-            <div style={{ borderTop: "1px dashed #e8dac9", paddingTop: "20px" }}>
-              <p style={{ fontSize: "12.5px", color: "#806f62", marginBottom: "12px" }}>Need assistance or looking to explore?</p>
-              <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
-                <Link to="/shop" style={{ color: "#a54d2b", fontSize: "13.5px", fontWeight: "700", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <ShoppingBag size={15} /> Browse Sacred Catalog
+              <div style={{ color: "#a54d2b", letterSpacing: "2px", fontSize: "11px", fontWeight: "800", textTransform: "uppercase", marginBottom: "4px" }}>
+                AURA DEVOTEE PORTAL
+              </div>
+
+              <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "32px", margin: "6px 0 12px", color: "#2b170d", fontWeight: "700" }}>
+                Welcome to Aura Rudraksha
+              </h1>
+
+              <p style={{ color: "#66574d", fontSize: "14.5px", lineHeight: "1.6", maxWidth: "460px", margin: "0 auto 24px" }}>
+                Sign in to track your sacred orders, access certificate records, manage saved shipping addresses, and receive devotee blessings.
+              </p>
+
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginBottom: "28px" }}>
+                <Link 
+                  to="/login" 
+                  state={{ from: location.pathname + location.search + location.hash }}
+                  id="btn-account-login"
+                  style={{
+                    background: "linear-gradient(135deg, #a54d2b 0%, #7a351a 100%)",
+                    color: "#fff",
+                    padding: "14px 32px",
+                    borderRadius: "12px",
+                    fontSize: "15px",
+                    fontWeight: "700",
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    boxShadow: "0 6px 18px rgba(165,77,43,0.3)",
+                    border: "none"
+                  }}
+                >
+                  <LogIn size={18} /> Sign In / Register
                 </Link>
-                <Link to="/shipping-policy" style={{ color: "#a54d2b", fontSize: "13.5px", fontWeight: "700", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <Headphones size={15} /> Support & Policies
-                </Link>
+              </div>
+
+              {/* Guest Benefits Grid */}
+              <div style={{
+                background: "#faf5ee",
+                borderRadius: "14px",
+                padding: "18px 16px",
+                border: "1px solid #efe3d5",
+                textAlign: "left",
+                marginBottom: "24px"
+              }}>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "#4a3528", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Sparkles size={14} color="#a54d2b" />
+                  <span>Devotee Account Privileges:</span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12.5px", color: "#6e5d50", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <li>Live GPS & courier tracking for sacred Nepal Rudraksha orders</li>
+                  <li>100% Original X-Ray & Lab Certification records</li>
+                  <li>Fast 1-click checkout with saved delivery addresses</li>
+                  <li>Devotee wishlist synchronization across devices</li>
+                </ul>
+              </div>
+
+              <div style={{ borderTop: "1px dashed #e8dac9", paddingTop: "20px" }}>
+                <p style={{ fontSize: "12.5px", color: "#806f62", marginBottom: "12px" }}>Need assistance or looking to explore?</p>
+                <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+                  <Link to="/shop" style={{ color: "#a54d2b", fontSize: "13.5px", fontWeight: "700", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <ShoppingBag size={15} /> Browse Sacred Catalog
+                  </Link>
+                  <Link to="/shipping-policy" style={{ color: "#a54d2b", fontSize: "13.5px", fontWeight: "700", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <Headphones size={15} /> Support & Policies
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -342,13 +193,10 @@ export function Account() {
   }
 
   // LOGGED IN ACCOUNT VIEW
-  const displayName = profile?.name || user?.displayName || userEmail.split("@")[0] || "Aura Devotee";
-  const displayPhone = profile?.phone || user?.phoneNumber || "";
-
   return (
     <Shell>
       <main className="page" style={{ maxWidth: 880, margin: "0 auto", paddingBottom: "90px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+        <div className="account-container" id="account-container" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           
           {/* 1. Customer Identity Card */}
           <div 

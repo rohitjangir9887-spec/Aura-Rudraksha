@@ -61,6 +61,7 @@ const productSchema = new mongoose.Schema(
     reviewCount: { type: Number, default: 0, min: 0 },
     totalSold: { type: String, default: "" },
     salesCount: { type: Number, default: 0, min: 0 },
+    timesPurchased: { type: Number, default: 0, min: 0 },
     autoIncrementSales: { type: Boolean, default: true },
     lastSalesUpdateDate: { type: String, default: "" },
     dailySalesMin: { type: Number, default: 1 },

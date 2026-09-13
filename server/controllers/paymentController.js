@@ -6,6 +6,7 @@ import { PaymentTransaction } from "../models/PaymentTransaction.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
+import { recordProductSalesIncrement } from "./productController.js";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import {
@@ -575,6 +576,9 @@ export async function handlePayuCallback(req, res) {
             );
           }
         }
+        try {
+          await recordProductSalesIncrement(order.snapshotItems || order.items || []);
+        } catch (_) {}
       }
 
       // Increment coupon usage (atomically claimed strictly once)
@@ -945,6 +949,9 @@ export async function handlePayuWebhook(req, res) {
         if (bulkOps.length > 0) {
           await Product.bulkWrite(bulkOps);
         }
+        try {
+          await recordProductSalesIncrement(order.snapshotItems || order.items || []);
+        } catch (_) {}
       }
 
       if (order.couponCode) {
@@ -1148,6 +1155,9 @@ export async function verifyPaymentStatus(req, res, next) {
               if (bulkOps.length > 0) {
                 await Product.bulkWrite(bulkOps);
               }
+              try {
+                await recordProductSalesIncrement(order.snapshotItems || order.items || []);
+              } catch (_) {}
             }
 
             if (order.couponCode) {

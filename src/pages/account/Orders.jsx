@@ -293,6 +293,7 @@ export function Orders() {
   return (
     <Shell>
       <main className="page" style={{ maxWidth: 880, margin: '0 auto', paddingBottom: 80, minHeight: '80vh' }}>
+        <div className="account-container" id="account-container">
         
         {/* Navigation & Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
@@ -946,6 +947,7 @@ export function Orders() {
             db.fetchMyOrders(true).catch(() => {});
           }}
         />
+        </div>
       </main>
     </Shell>
   );

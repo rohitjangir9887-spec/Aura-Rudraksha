@@ -215,17 +215,18 @@ export async function connectDB() {
       process.env.AWS_LAMBDA_FUNCTION_NAME
     );
     const opts = {
-      serverSelectionTimeoutMS: 5000, // 5s timeout for fast failover & fallback
-      connectTimeoutMS: 5000,         // 5s socket connection timeout
-      socketTimeoutMS: 45000,          // 45s socket inactivity timeout
-      maxIdleTimeMS: 60000,            // 60s idle timeout to avoid aggressive socket reaps on brief idle
-      maxPoolSize: isVercelServerless ? 10 : 25,
-      minPoolSize: isVercelServerless ? 0 : 2,
+      serverSelectionTimeoutMS: 3000, // 3s timeout for fast failover & fallback
+      connectTimeoutMS: 3000,         // 3s socket connection timeout
+      socketTimeoutMS: 30000,         // 30s socket inactivity timeout
+      maxIdleTimeMS: 30000,           // 30s idle timeout
+      maxPoolSize: isVercelServerless ? 15 : 50, // High throughput connection pool
+      minPoolSize: isVercelServerless ? 0 : 5,   // Keep 5 warm pre-opened sockets ready
       heartbeatFrequencyMS: 10000,
-      family: 4, // Force IPv4 to prevent IPv6 DNS lookup delays
+      family: 4,                      // Force IPv4 to prevent IPv6 DNS lookup delays
       retryWrites: true,
       retryReads: true,
-      autoIndex: process.env.NODE_ENV !== "production"
+      autoIndex: true,                // Ensure indexes are built
+      noDelay: true                   // Enable TCP_NODELAY to avoid packet buffering latency
     };
 
     const doConnect = async () => {

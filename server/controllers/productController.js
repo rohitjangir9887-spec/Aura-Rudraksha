@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Product } from "../models/Product.js";
 import { Media } from "../models/Media.js";
 import { deleteFromPcloud } from "../services/pcloudService.js";
@@ -20,7 +21,7 @@ const PRODUCT_FIELDS = {
   material: "string", netWeight: "string", purity: "string", sanctification: "string",
   usageGuide: "string", hasCertificate: "bool",
   isPopular: "bool", rating: "number", reviews: "number", reviewCount: "number",
-  totalSold: "string", salesCount: "number", autoIncrementSales: "bool",
+  totalSold: "string", salesCount: "number", timesPurchased: "number", autoIncrementSales: "bool",
   lastSalesUpdateDate: "string", dailySalesMin: "number", dailySalesMax: "number",
   customOffer: "object", origin: "string", hasIndonesianVariant: "bool",
   indonesianTitle: "string", indonesianPrice: "number", indonesianMrp: "number",
@@ -264,7 +265,7 @@ export async function createProduct(req, res, next) {
     const normalizedStatus = normalizeProductStatus(data.status, "Published");
     const computedSlug = data.slug || (data.name ? String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-") : String(id));
 
-    const salesCountNum = Number(data.salesCount) || (data.totalSold ? parseInt(String(data.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
+    const salesCountNum = Number(data.salesCount ?? data.timesPurchased) || (data.totalSold ? parseInt(String(data.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
     const totalSoldStr = data.totalSold !== undefined && String(data.totalSold).trim() ? String(data.totalSold).trim() : (salesCountNum > 0 ? `${salesCountNum}+ Sold` : "");
 
     // Deterministic SEO Intelligence auto-generation for new products
@@ -297,6 +298,7 @@ export async function createProduct(req, res, next) {
       reviews: Number(data.reviews || data.reviewCount) || 0,
       totalSold: totalSoldStr,
       salesCount: salesCountNum,
+      timesPurchased: salesCountNum,
       autoIncrementSales: false,
       lastSalesUpdateDate: data.lastSalesUpdateDate || new Date().toISOString().split("T")[0],
       dailySalesMin: 0,
@@ -376,6 +378,12 @@ export async function updateProduct(req, res, next) {
     }
     if (data.salesCount !== undefined && Number(data.salesCount) >= 0) {
       updatePayload.salesCount = Number(data.salesCount);
+      updatePayload.timesPurchased = Number(data.salesCount);
+      updatePayload.totalSold = `${updatePayload.salesCount}+ Sold`;
+      updatePayload.lastSalesUpdateDate = new Date().toISOString().split("T")[0];
+    } else if (data.timesPurchased !== undefined && Number(data.timesPurchased) >= 0) {
+      updatePayload.salesCount = Number(data.timesPurchased);
+      updatePayload.timesPurchased = Number(data.timesPurchased);
       updatePayload.totalSold = `${updatePayload.salesCount}+ Sold`;
       updatePayload.lastSalesUpdateDate = new Date().toISOString().split("T")[0];
     } else if (data.totalSold !== undefined) {
@@ -383,6 +391,7 @@ export async function updateProduct(req, res, next) {
       const extractedCount = parseInt(String(data.totalSold).replace(/\D/g, ""), 10);
       if (!isNaN(extractedCount) && extractedCount > 0) {
         updatePayload.salesCount = extractedCount;
+        updatePayload.timesPurchased = extractedCount;
       }
       updatePayload.lastSalesUpdateDate = new Date().toISOString().split("T")[0];
     }
@@ -633,6 +642,7 @@ export async function triggerDailySalesIncrement(req, res, next) {
       const formattedTotalSold = `${newCount.toLocaleString("en-IN")}+ Sold`;
 
       p.salesCount = newCount;
+      p.timesPurchased = newCount;
       p.totalSold = formattedTotalSold;
       p.lastSalesUpdateDate = todayStr;
       updatedCount++;
@@ -643,6 +653,7 @@ export async function triggerDailySalesIncrement(req, res, next) {
           update: {
             $set: {
               salesCount: newCount,
+              timesPurchased: newCount,
               totalSold: formattedTotalSold,
               lastSalesUpdateDate: todayStr,
               updatedAt: new Date().toISOString()
@@ -672,5 +683,53 @@ export async function triggerDailySalesIncrement(req, res, next) {
   }
 }
 
-
-
+/**
+ * Increment sales and 'times purchased' count automatically for purchased items when an order or payment is completed
+ * Persists count directly into the MongoDB product collection for instant storefront & dashboard updates
+ */
+export async function recordProductSalesIncrement(items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  try {
+    const todayStr = new Date().toISOString().split("T")[0];
+    for (const item of items) {
+      const pId = item.id || item.productId || item._id || item.slug;
+      const qty = Math.max(1, Number(item.quantity || item.qty || 1));
+      if (!pId) continue;
+      
+      const cleanId = String(pId).trim();
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+      const filter = {
+        $or: [
+          { id: cleanId },
+          { slug: cleanId },
+          ...(isMongoId ? [{ _id: cleanId }] : [])
+        ]
+      };
+        
+      const product = await Product.findOne(filter);
+      if (!product) continue;
+      
+      const curCount = Number(product.salesCount ?? product.timesPurchased) || (product.totalSold ? parseInt(String(product.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
+      const base = curCount > 0 ? curCount : 180;
+      const newCount = base + qty;
+      const formattedTotalSold = `${newCount.toLocaleString("en-IN")}+ Sold`;
+      
+      await Product.updateOne(
+        { _id: product._id },
+        {
+          $set: {
+            salesCount: newCount,
+            timesPurchased: newCount,
+            totalSold: formattedTotalSold,
+            lastSalesUpdateDate: todayStr,
+            updatedAt: new Date().toISOString()
+          }
+        }
+      );
+    }
+    invalidateProductCache();
+    invalidateRagCache();
+  } catch (err) {
+    console.warn("[SalesIncrement] Failed to increment product sales:", err?.message || err);
+  }
+}

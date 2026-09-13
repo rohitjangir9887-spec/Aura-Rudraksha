@@ -500,8 +500,9 @@ export function AdminProducts() {
         homeOrder: p.homeOrder !== undefined ? p.homeOrder : 0,
         img: p.img || (imgs[0] || ""),
         images: imgs,
-        totalSold: p.totalSold || (p.salesCount ? `${p.salesCount}+ Sold` : ""),
-        salesCount: p.salesCount !== undefined && p.salesCount !== null ? Number(p.salesCount) : (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+        totalSold: p.totalSold || (p.salesCount ? `${p.salesCount}+ Sold` : (p.timesPurchased ? `${p.timesPurchased}+ Sold` : "")),
+        salesCount: p.salesCount !== undefined && p.salesCount !== null ? Number(p.salesCount) : (p.timesPurchased !== undefined && p.timesPurchased !== null ? Number(p.timesPurchased) : (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)),
+        timesPurchased: p.timesPurchased !== undefined && p.timesPurchased !== null ? Number(p.timesPurchased) : (p.salesCount !== undefined && p.salesCount !== null ? Number(p.salesCount) : (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)),
         autoIncrementSales: p.autoIncrementSales !== undefined ? !!p.autoIncrementSales : true,
         dailySalesMin: p.dailySalesMin !== undefined ? Number(p.dailySalesMin) : 1,
         dailySalesMax: p.dailySalesMax !== undefined ? Number(p.dailySalesMax) : 10,
@@ -950,8 +951,9 @@ export function AdminProducts() {
       homeOrder: Number(editing.homeOrder) || 0,
       homeBadge: (editing.homeBadge || editing.badge || "").trim(),
       badge: (editing.homeBadge || editing.badge || "").trim(),
-      totalSold: (editing.totalSold || "").trim() || (editing.salesCount ? `${editing.salesCount}+ Sold` : "180+ Sold"),
-      salesCount: Number(editing.salesCount) || (editing.totalSold ? parseInt(String(editing.totalSold).replace(/\D/g, ""), 10) || 0 : 180),
+      totalSold: (editing.totalSold || "").trim() || (editing.salesCount || editing.timesPurchased ? `${editing.salesCount || editing.timesPurchased}+ Sold` : "180+ Sold"),
+      salesCount: Number(editing.salesCount ?? editing.timesPurchased) || (editing.totalSold ? parseInt(String(editing.totalSold).replace(/\D/g, ""), 10) || 0 : 180),
+      timesPurchased: Number(editing.timesPurchased ?? editing.salesCount) || (editing.totalSold ? parseInt(String(editing.totalSold).replace(/\D/g, ""), 10) || 0 : 180),
       autoIncrementSales: editing.autoIncrementSales !== false,
       dailySalesMin: Number(editing.dailySalesMin) || 1,
       dailySalesMax: Number(editing.dailySalesMax) || 10,
@@ -3098,7 +3100,7 @@ export function AdminProducts() {
                   const displayImg = getProductPrimaryImage(p);
                   const isShownOnHome = p.showOnHome !== false;
                   const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
-                  const salesCountNum = Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
+                  const salesCountNum = Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
 
                   return (
                     <tr key={p.id}>

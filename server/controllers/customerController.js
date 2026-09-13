@@ -248,46 +248,65 @@ export async function getCustomerMe(req, res, next) {
       });
     }
 
-    // 1. Look for existing customer by verified authUserId
-    let customer = await Customer.findOne({ authUserId });
+    // 1. Ultra-fast lookup for existing customer by verified authUserId
+    let customer = await Customer.findOne({ authUserId }).lean();
 
     if (customer) {
-      // If configured as initial admin and role in MongoDB isn't admin, bootstrap and persist it
+      // Check if bootstrap updates are needed
       let needsSave = false;
-      if (isInitialAdmin) {
-        if (customer.role !== "admin") {
-          customer.role = "admin";
-          needsSave = true;
-        }
-      } else {
-        if (customer.role === "admin") {
-          customer.role = "customer";
-          needsSave = true;
-        }
-      }
-      customer.lastLoginAt = new Date();
-      customer.lastSeen = now;
-      if (req.user.email && !customer.email) {
-        customer.email = req.user.email;
+      const updates = {
+        lastLoginAt: new Date(),
+        lastSeen: now
+      };
+
+      let currentRole = customer.role || "customer";
+      if (isInitialAdmin && currentRole !== "admin") {
+        updates.role = "admin";
+        currentRole = "admin";
         needsSave = true;
-      }
-      // Automatically adopt name from Gmail / Google if not set or generic
-      if (googleName && (!customer.name || customer.name === "Customer" || customer.name === "Aura Devotee")) {
-        customer.name = googleName;
-        needsSave = true;
-      }
-      // Automatically adopt avatar from Gmail / Google if missing
-      if (googleAvatar && !customer.avatar) {
-        customer.avatar = googleAvatar;
+      } else if (!isInitialAdmin && currentRole === "admin") {
+        updates.role = "customer";
+        currentRole = "customer";
         needsSave = true;
       }
 
-      if (needsSave) {
-        await customer.save();
-      } else {
-        await Customer.updateOne({ _id: customer._id }, { $set: { lastLoginAt: new Date(), lastSeen: now } });
+      let currentEmail = customer.email;
+      if (req.user.email && !currentEmail) {
+        updates.email = req.user.email;
+        currentEmail = req.user.email;
+        needsSave = true;
       }
-      return res.json({ success: true, data: customer.toObject ? customer.toObject() : customer });
+
+      let currentName = customer.name;
+      if (googleName && (!currentName || currentName === "Customer" || currentName === "Aura Devotee")) {
+        updates.name = googleName;
+        currentName = googleName;
+        needsSave = true;
+      }
+
+      let currentAvatar = customer.avatar;
+      if (googleAvatar && !currentAvatar) {
+        updates.avatar = googleAvatar;
+        currentAvatar = googleAvatar;
+        needsSave = true;
+      }
+
+      // Asynchronously update MongoDB in background without blocking customer render
+      setImmediate(() => {
+        Customer.updateOne({ _id: customer._id }, { $set: updates }).catch(() => {});
+      });
+
+      const responseData = {
+        ...customer,
+        role: currentRole,
+        email: currentEmail,
+        name: currentName,
+        avatar: currentAvatar,
+        lastLoginAt: updates.lastLoginAt,
+        lastSeen: updates.lastSeen
+      };
+
+      return res.json({ success: true, data: responseData });
     }
 
     // 2. Safe migration: link existing customer or guest record by verified email or phone
@@ -316,26 +335,28 @@ export async function getCustomerMe(req, res, next) {
         guestCustomer.lastSeen = now;
         await guestCustomer.save();
 
-        // Also link previous guest orders placed with this verified email/phone
-        const orderOr = [];
-        if (userEmail) {
-          orderOr.push({ customerEmail: userEmail }, { email: userEmail }, { "shippingAddress.email": userEmail });
-        }
-        if (userPhone) {
-          const phoneVariants = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
-          orderOr.push(...phoneVariants);
-        }
-        if (orderOr.length > 0) {
-          await Order.updateMany(
-            {
-              $and: [
-                { $or: [{ authUserId: { $exists: false } }, { authUserId: null }, { authUserId: "guest" }, { authUserId: { $regex: "^guest_" } }] },
-                { $or: orderOr }
-              ]
-            },
-            { $set: { authUserId: authUserId } }
-          ).catch(() => {});
-        }
+        // Link previous guest orders placed with this verified email/phone in background
+        setImmediate(() => {
+          const orderOr = [];
+          if (userEmail) {
+            orderOr.push({ customerEmail: userEmail }, { email: userEmail }, { "shippingAddress.email": userEmail });
+          }
+          if (userPhone) {
+            const phoneVariants = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
+            orderOr.push(...phoneVariants);
+          }
+          if (orderOr.length > 0) {
+            Order.updateMany(
+              {
+                $and: [
+                  { $or: [{ authUserId: { $exists: false } }, { authUserId: null }, { authUserId: "guest" }] },
+                  { $or: orderOr }
+                ]
+              },
+              { $set: { authUserId: authUserId } }
+            ).catch(() => {});
+          }
+        });
 
         return res.json({ success: true, data: guestCustomer.toObject ? guestCustomer.toObject() : guestCustomer });
       }
@@ -359,27 +380,29 @@ export async function getCustomerMe(req, res, next) {
       status: "Active"
     });
 
-    // Link previous guest orders placed with this verified email/phone
+    // Link previous guest orders placed with this verified email/phone in background
     if (userEmail || userPhone) {
-      const orderOr = [];
-      if (userEmail) {
-        orderOr.push({ customerEmail: userEmail }, { email: userEmail }, { "shippingAddress.email": userEmail });
-      }
-      if (userPhone) {
-        const phoneVariants = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
-        orderOr.push(...phoneVariants);
-      }
-      if (orderOr.length > 0) {
-        await Order.updateMany(
-          {
-            $and: [
-              { $or: [{ authUserId: { $exists: false } }, { authUserId: null }, { authUserId: "guest" }, { authUserId: { $regex: "^guest_" } }] },
-              { $or: orderOr }
-            ]
-          },
-          { $set: { authUserId: authUserId } }
-        ).catch(() => {});
-      }
+      setImmediate(() => {
+        const orderOr = [];
+        if (userEmail) {
+          orderOr.push({ customerEmail: userEmail }, { email: userEmail }, { "shippingAddress.email": userEmail });
+        }
+        if (userPhone) {
+          const phoneVariants = buildPhoneQueryVariants(userPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
+          orderOr.push(...phoneVariants);
+        }
+        if (orderOr.length > 0) {
+          Order.updateMany(
+            {
+              $and: [
+                { $or: [{ authUserId: { $exists: false } }, { authUserId: null }, { authUserId: "guest" }] },
+                { $or: orderOr }
+              ]
+            },
+            { $set: { authUserId: authUserId } }
+          ).catch(() => {});
+        }
+      });
     }
 
     return res.json({ success: true, data: newCust.toObject ? newCust.toObject() : newCust });

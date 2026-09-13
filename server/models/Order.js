@@ -69,6 +69,13 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+orderSchema.index({ authUserId: 1, createdAt: -1 });
+orderSchema.index({ customerEmail: 1, createdAt: -1 });
+orderSchema.index({ email: 1, createdAt: -1 });
+orderSchema.index({ customerPhone: 1, createdAt: -1 });
+orderSchema.index({ phone: 1, createdAt: -1 });
+orderSchema.index({ "shippingAddress.email": 1, createdAt: -1 });
+orderSchema.index({ "shippingAddress.phone": 1, createdAt: -1 });
 orderSchema.index({ orderId: 1 });
 orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ authUserId: 1 });
