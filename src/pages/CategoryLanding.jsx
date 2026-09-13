@@ -47,12 +47,52 @@ export default function CategoryLanding() {
   const pageDescription = catalogEntry?.description 
     ? `${catalogEntry.description.slice(0, 150)} Free shipping & certificate.` 
     : "Shop 100% genuine lab-certified Nepali and Indonesian Rudraksha beads.";
+  const canonicalUrl = `https://aurarudraksha.bond/rudraksha${slug ? `/${slug}` : ""}`;
+
+  const schemas = useMemo(() => {
+    const list = [
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://aurarudraksha.bond/" },
+          { "@type": "ListItem", "position": 2, "name": "Rudraksha", "item": "https://aurarudraksha.bond/rudraksha" },
+          ...(slug && slug !== "all" ? [{ "@type": "ListItem", "position": 3, "name": catalogEntry?.name || slug, "item": canonicalUrl }] : [])
+        ]
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": pageTitle,
+        "description": pageDescription,
+        "url": canonicalUrl
+      }
+    ];
+
+    if (catalogEntry?.faqs && catalogEntry.faqs.length > 0) {
+      list.push({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": catalogEntry.faqs.map(f => ({
+          "@type": "Question",
+          "name": f.q,
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": f.a
+          }
+        }))
+      });
+    }
+
+    return list;
+  }, [slug, catalogEntry, pageTitle, pageDescription, canonicalUrl]);
 
   useSeo({
     title: pageTitle,
     description: pageDescription,
-    canonical: `https://aurarudraksha.bond/rudraksha${slug ? `/${slug}` : ""}`,
-    ogType: "website"
+    canonical: canonicalUrl,
+    ogType: "website",
+    schemas
   });
 
   useEffect(() => {

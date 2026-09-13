@@ -10,7 +10,8 @@ export function useSeo({
   description,
   canonical,
   ogImage,
-  ogType = "website"
+  ogType = "website",
+  schemas = []
 }) {
   useEffect(() => {
     if (title) {
@@ -65,5 +66,25 @@ export function useSeo({
       link.setAttribute("href", cleanCanonical);
       setMetaTag("property", "og:url", cleanCanonical);
     }
-  }, [title, description, canonical, ogImage, ogType]);
+
+    // Inject dynamic client-side JSON-LD schemas
+    if (Array.isArray(schemas) && schemas.length > 0) {
+      // Remove any previously injected client schemas
+      document.querySelectorAll('script[data-client-seo="true"]').forEach(el => el.remove());
+      
+      schemas.forEach(schema => {
+        try {
+          const script = document.createElement("script");
+          script.type = "application/ld+json";
+          script.setAttribute("data-client-seo", "true");
+          script.textContent = JSON.stringify(schema);
+          document.head.appendChild(script);
+        } catch (_) {}
+      });
+    }
+
+    return () => {
+      document.querySelectorAll('script[data-client-seo="true"]').forEach(el => el.remove());
+    };
+  }, [title, description, canonical, ogImage, ogType, schemas]);
 }

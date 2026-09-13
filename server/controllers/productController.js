@@ -8,6 +8,7 @@ import { invalidateRagCache } from "../services/ragService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { submitToIndexNow } from "../services/indexNowService.js";
+import { generateProductSeoMetadata } from "../services/keywordIntelligenceService.js";
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -266,6 +267,13 @@ export async function createProduct(req, res, next) {
     const salesCountNum = Number(data.salesCount) || (data.totalSold ? parseInt(String(data.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
     const totalSoldStr = data.totalSold !== undefined && String(data.totalSold).trim() ? String(data.totalSold).trim() : (salesCountNum > 0 ? `${salesCountNum}+ Sold` : "");
 
+    // Deterministic SEO Intelligence auto-generation for new products
+    const autoSeo = generateProductSeoMetadata({ ...data, name: data.name, slug: computedSlug });
+
+    const rawKeywords = Array.isArray(data.keywords) && data.keywords.length > 0
+      ? data.keywords
+      : (Array.isArray(data.searchKeywords) && data.searchKeywords.length > 0 ? data.searchKeywords : autoSeo.keywords);
+
     const productPayload = {
       ...data,
       id,
@@ -273,9 +281,13 @@ export async function createProduct(req, res, next) {
       status: normalizedStatus,
       variants: Array.isArray(data.variants) ? data.variants : [],
       sizes: Array.isArray(data.sizes) ? data.sizes : [],
-      tags: Array.isArray(data.tags) ? data.tags : [],
-      keywords: Array.isArray(data.keywords) ? data.keywords : (Array.isArray(data.searchKeywords) ? data.searchKeywords : []),
-      searchKeywords: Array.isArray(data.keywords) ? data.keywords : [],
+      tags: Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : autoSeo.tags,
+      keywords: rawKeywords,
+      searchKeywords: rawKeywords,
+      metaTitle: data.metaTitle || autoSeo.metaTitle,
+      metaDescription: data.metaDescription || autoSeo.metaDescription,
+      deity: data.deity || autoSeo.deity || "",
+      rulingPlanet: data.rulingPlanet || autoSeo.rulingPlanet || "",
       mrp: data.mrp || data.comparePrice || data.price,
       comparePrice: data.comparePrice || data.mrp || data.price,
       images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : []),

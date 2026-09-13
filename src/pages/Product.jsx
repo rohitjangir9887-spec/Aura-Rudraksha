@@ -11,7 +11,6 @@ import { useWishlist } from "../hooks/useWishlist";
 import { emitToast } from "../context/ToastContext";
 import { money, pct } from "../data";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
-import { recordRecentlyViewed } from "../lib/recentlyViewed";
 import { authClient } from "../lib/authClient";
 import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
@@ -171,9 +170,6 @@ export function Product() {
 
     db.logVisit();
     db.logProductView();
-    if (id) {
-      recordRecentlyViewed(id);
-    }
     
     // Reset origin to default Nepal on new product
     setSelectedOrigin("Nepal");
@@ -284,12 +280,62 @@ export function Product() {
     : `https://aurarudraksha.bond${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
   const canonicalUrl = p ? `https://aurarudraksha.bond/product/${p.slug || p.id || id}` : undefined;
 
+  const productSchemas = React.useMemo(() => {
+    if (!p) return [];
+    const schemas = [
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": p.name,
+        "image": ogImgUrl,
+        "description": (p.highlight || p.description || "").replace(/<[^>]*>/g, " ").slice(0, 300),
+        "sku": String(p.id),
+        "brand": {
+          "@type": "Brand",
+          "name": "Aura Rudraksha"
+        },
+        "offers": {
+          "@type": "Offer",
+          "url": canonicalUrl,
+          "priceCurrency": "INR",
+          "price": Number(p.price) || 0,
+          "availability": isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+          "itemCondition": "https://schema.org/NewCondition",
+          "seller": {
+            "@type": "Organization",
+            "name": "Aura Rudraksha"
+          }
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://aurarudraksha.bond/" },
+          { "@type": "ListItem", "position": 2, "name": p.category || "Rudraksha", "item": `https://aurarudraksha.bond/rudraksha` },
+          { "@type": "ListItem", "position": 3, "name": p.name, "item": canonicalUrl }
+        ]
+      }
+    ];
+
+    if (realReviewsForRating.length > 0) {
+      schemas[0].aggregateRating = {
+        "@type": "AggregateRating",
+        "ratingValue": averageRating,
+        "reviewCount": realReviewsForRating.length
+      };
+    }
+
+    return schemas;
+  }, [p, canonicalUrl, ogImgUrl, isOutOfStock, realReviewsForRating, averageRating]);
+
   useSeo({
     title: p ? (p.metaTitle || `${p.name} — Authentic Lab Certified | Aura Rudraksha`) : "Aura Rudraksha",
     description: p ? (p.metaDescription || (p.highlight || p.description || "").slice(0, 160)) : undefined,
     canonical: canonicalUrl,
     ogImage: ogImgUrl,
-    ogType: "product"
+    ogType: "product",
+    schemas: productSchemas
   });
 
   // Cart & Buy Handlers
