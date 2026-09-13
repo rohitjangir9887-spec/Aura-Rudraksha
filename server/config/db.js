@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Enable command buffering so temporary reconnects do not throw fatal query exceptions
-mongoose.set("bufferCommands", true);
+// Disable command buffering so queries fail fast if DB is disconnected
+mongoose.set("bufferCommands", false);
 
 // Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
