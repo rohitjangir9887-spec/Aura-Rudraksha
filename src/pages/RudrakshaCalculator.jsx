@@ -17,10 +17,55 @@ import { useSeo } from "../hooks/useSeo";
 import { Shell } from "../components/Shell";
 
 export default function RudrakshaCalculator() {
+  const calculatorSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "@id": "https://aurarudraksha.bond/rudraksha-calculator#app",
+        "name": "Vedic Rudraksha Recommendation Calculator",
+        "url": "https://aurarudraksha.bond/rudraksha-calculator",
+        "applicationCategory": "LifestyleApplication",
+        "operatingSystem": "All",
+        "description": "Calculate authentic Mukhi Rudraksha recommendations based on Janma Rashi (Moon Sign), ruling planets, and spiritual goals according to Vedic scriptures.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "INR"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://aurarudraksha.bond/rudraksha-calculator#breadcrumb",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://aurarudraksha.bond/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Sacred Collection",
+            "item": "https://aurarudraksha.bond/rudraksha"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Rudraksha Recommendation Calculator",
+            "item": "https://aurarudraksha.bond/rudraksha-calculator"
+          }
+        ]
+      }
+    ]
+  };
+
   useSeo({
     title: "Vedic Rudraksha Recommendation Calculator & Rashi Guide | Aura Rudraksha",
     description: "Calculate your authentic Mukhi Rudraksha recommendation based on your Janma Rashi (Moon Sign), ruling planet, and life goals according to Vedic scriptures.",
-    canonical: "https://aurarudraksha.bond/rudraksha-calculator"
+    canonical: "https://aurarudraksha.bond/rudraksha-calculator",
+    schema: calculatorSchema
   });
 
   const [activeMode, setActiveMode] = useState("rashi"); // "rashi" or "goal"

@@ -58,11 +58,62 @@ export default function RudrakshaGuide() {
     };
   }
 
+  const guideSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Article",
+        "@id": `${guide.canonical}#article`,
+        "headline": guide.h1,
+        "description": guide.description,
+        "mainEntityOfPage": guide.canonical,
+        "publisher": {
+          "@type": "Organization",
+          "name": "Aura Rudraksha",
+          "url": "https://aurarudraksha.bond/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://aurarudraksha.bond/icon-512.png"
+          }
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Aura Rudraksha Research Council"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${guide.canonical}#breadcrumb`,
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://aurarudraksha.bond/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Sacred Guides",
+            "item": "https://aurarudraksha.bond/rudraksha"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": guide.h1.split("—")[0].trim(),
+            "item": guide.canonical
+          }
+        ]
+      }
+    ]
+  };
+
   useSeo({
     title: guide.title,
     description: guide.description,
     canonical: guide.canonical,
-    ogType: "article"
+    ogType: "article",
+    schema: guideSchema
   });
 
   const toggleFaq = (idx) => setOpenFaq(openFaq === idx ? -1 : idx);

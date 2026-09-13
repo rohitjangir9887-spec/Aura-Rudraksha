@@ -15,6 +15,7 @@ import { authClient } from "../lib/authClient";
 import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
 import { useSeo } from "../hooks/useSeo";
+import { addRecentlyViewedProduct } from "../lib/recentlyViewed";
 
 // Dedicated Modular PDP Components
 import { ProductGallery } from "../components/product/ProductGallery";
@@ -183,6 +184,12 @@ export function Product() {
 
     return () => unsub();
   }, [id]);
+
+  useEffect(() => {
+    if (product?.id || product?._id) {
+      addRecentlyViewedProduct(product.id || product._id || product.slug);
+    }
+  }, [product?.id, product?._id, product?.slug]);
 
   // Scroll observer for Mobile Sticky Purchase Bar
   useEffect(() => {

@@ -107,10 +107,54 @@ export function Shop() {
   const isOfferQuery = params.get("offer") === "1";
   const isWishlistQuery = params.get("wishlist") === "1";
 
+  const shopSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": "https://aurarudraksha.bond/shop#collection",
+        "name": "Sacred Rudraksha Store — Nepal & Indonesian Certified Beads",
+        "url": "https://aurarudraksha.bond/shop",
+        "description": "Explore lab-certified 100% genuine Nepali Rudraksha beads (1 to 21 Mukhi), Gauri Shankar, energized Japa Malas, Siddha Malas & sterling silver capped jewelry."
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://aurarudraksha.bond/shop#breadcrumb",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://aurarudraksha.bond/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Shop All Sacred Beads",
+            "item": "https://aurarudraksha.bond/shop"
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://aurarudraksha.bond/shop#faq",
+        "mainEntity": SHOP_FAQS.map(faq => ({
+          "@type": "Question",
+          "name": faq.q,
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": faq.a
+          }
+        }))
+      }
+    ]
+  };
+
   useSeo({
     title: q ? `Search Results for "${q}" | Aura Rudraksha Shop` : "Sacred Rudraksha Shop - Authentic Nepali Rudraksha, Malas & Silver Capped Beads | Aura Rudraksha",
     description: "Explore lab-certified 100% genuine Nepali Rudraksha beads (1 to 21 Mukhi), Gauri Shankar, energized Japa Malas, Siddha Malas & sterling silver capped jewelry.",
-    canonical: "https://aurarudraksha.bond/shop"
+    canonical: "https://aurarudraksha.bond/shop",
+    schema: shopSchema
   });
 
   const updateProductsState = () => {

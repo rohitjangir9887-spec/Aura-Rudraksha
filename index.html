@@ -61,6 +61,45 @@
     <meta name="apple-mobile-web-app-title" content="Aura Rudraksha" />
     <meta name="application-name" content="Aura Rudraksha" />
     <title>Aura Rudraksha — 100% Authentic Nepal &amp; Indonesian Rudraksha | Lab Certified</title>
+    
+    <!-- Base Organization & WebSite JSON-LD Structured Data for Instant Search Engine Recognition -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://aurarudraksha.bond/#organization",
+          "name": "Aura Rudraksha",
+          "url": "https://aurarudraksha.bond/",
+          "logo": {
+            "@type": "ImageObject",
+            "@id": "https://aurarudraksha.bond/#logo",
+            "url": "https://aurarudraksha.bond/icon-512.png",
+            "caption": "Aura Rudraksha"
+          },
+          "image": {
+            "@id": "https://aurarudraksha.bond/#logo"
+          },
+          "description": "Authentic, lab-certified Nepali and Indonesian Rudraksha beads (1 to 21 Mukhi), energized 108+1 Japa Malas, and Vedic spiritual wristlets."
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://aurarudraksha.bond/#website",
+          "url": "https://aurarudraksha.bond/",
+          "name": "Aura Rudraksha",
+          "publisher": {
+            "@id": "https://aurarudraksha.bond/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://aurarudraksha.bond/shop?search={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
