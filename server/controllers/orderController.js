@@ -455,6 +455,9 @@ export async function createOrder(req, res, next) {
     };
     
     // Atomically decrement stock
+    let stockDecremented = false;
+    let couponUsageIncremented = false;
+
     const bulkOps = [];
     for (const item of totals.items) {
       bulkOps.push({
@@ -464,52 +467,80 @@ export async function createOrder(req, res, next) {
         }
       });
     }
-    if (bulkOps.length > 0) {
-      await Product.bulkWrite(bulkOps);
-    }
-    if (totals.appliedCoupon && totals.appliedCoupon.code) {
-      await Coupon.updateOne(
-        { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
-        { $inc: { usage: 1 } }
-      );
-    }
 
-    const created = await Order.findOneAndUpdate(
-      { id: orderPayload.id },
-      orderPayload,
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
-
-    // Save in deduplication cache
-    recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
-
-    // Auto update/create customer record in MongoDB
     try {
-      await recordCustomerOrder({
-        authUserId,
-        email,
-        phone,
-        name,
-        address: orderPayload.address,
-        amount: orderPayload.finalAmount
-      });
-    } catch (custErr) {
-      console.warn("Could not sync customer on order:", custErr.message);
-    }
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
+        stockDecremented = true;
+      }
+      if (totals.appliedCoupon && totals.appliedCoupon.code) {
+        await Coupon.updateOne(
+          { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
+          { $inc: { usage: 1 } }
+        );
+        couponUsageIncremented = true;
+      }
 
-    const responsePayload = { success: true, data: created };
+      const created = await Order.findOneAndUpdate(
+        { id: orderPayload.id },
+        orderPayload,
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
 
-    if (idempotencyKey) {
-      await commitIdempotency({
-        key: idempotencyKey,
-        action: "create_order",
-        responseStatus: 201,
-        responseBody: responsePayload,
-        resourceId: created.id
-      });
+      // Save in deduplication cache
+      recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
+
+      // Auto update/create customer record in MongoDB
+      try {
+        await recordCustomerOrder({
+          authUserId,
+          email,
+          phone,
+          name,
+          address: orderPayload.address,
+          amount: orderPayload.finalAmount
+        });
+      } catch (custErr) {
+        console.warn("Could not sync customer on order:", custErr.message);
+      }
+
+      const responsePayload = { success: true, data: created };
+
+      if (idempotencyKey) {
+        await commitIdempotency({
+          key: idempotencyKey,
+          action: "create_order",
+          responseStatus: 201,
+          responseBody: responsePayload,
+          resourceId: created.id
+        });
+      }
+      
+      return res.status(201).json(responsePayload);
+    } catch (dbErr) {
+      // Fail closed: rollback stock and coupon increments if DB operation fails
+      if (stockDecremented) {
+        try {
+          const rollbackOps = totals.items.map(item => ({
+            updateOne: {
+              filter: { id: item.id },
+              update: { $inc: { stock: item.quantity } }
+            }
+          }));
+          await Product.bulkWrite(rollbackOps);
+        } catch (_) {}
+      }
+      if (couponUsageIncremented && totals.appliedCoupon?.code) {
+        try {
+          await Coupon.updateOne(
+            { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
+            { $inc: { usage: -1 } }
+          );
+        } catch (_) {}
+      }
+      recentOrderSubmissions.delete(submissionKey);
+      throw dbErr;
     }
-    
-    return res.status(201).json(responsePayload);
   } catch (err) {
     if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
     next(err);

@@ -124,6 +124,11 @@ function resolveAppBaseUrl(req) {
  * - Returns form action parameters for PayU Hosted Checkout redirect
  */
 export async function initiatePayuPayment(req, res, next) {
+  const data = req.body || {};
+  const authUserId = req.user?.authUserId || null;
+  const idempotencyKey = req.headers["x-idempotency-key"] || data.idempotencyKey || null;
+  const effectiveAuthUserId = authUserId || `guest_${data.phone || data.customerEmail || req.ip || Date.now()}`;
+
   try {
     // 1. Check DB Connection - NEVER allow payment initiation if DB is disconnected
     if (!isDbConnected()) {
@@ -142,20 +147,63 @@ export async function initiatePayuPayment(req, res, next) {
       });
     }
 
+    // 2. Check or acquire Idempotency lock if key provided
+    if (idempotencyKey) {
+      const idempResult = await checkOrAcquireIdempotency({
+        key: idempotencyKey,
+        userId: effectiveAuthUserId,
+        action: "initiate_payu",
+        payload: {
+          lines: data.lines || data.items || [],
+          couponCode: data.couponCode || data.coupon || "",
+          orderId: data.orderId || ""
+        }
+      });
+
+      if (idempResult.status === "COMPLETED") {
+        return res.status(idempResult.responseStatus || 200).json(idempResult.responseBody);
+      }
+      if (idempResult.status === "IN_PROGRESS") {
+        return res.status(409).json({ success: false, message: idempResult.error || "Payment initiation already in progress. Please wait." });
+      }
+      if (idempResult.status === "PAYLOAD_MISMATCH" || idempResult.status === "USER_MISMATCH") {
+        return res.status(422).json({ success: false, message: idempResult.error });
+      }
+      if (idempResult.status === "STORE_ERROR") {
+        return res.status(503).json({ success: false, message: idempResult.error });
+      }
+    }
+
+    // Check if an existing unpaid order is being passed to initiate payment
+    let existingOrder = null;
+    const requestOrderId = data.orderId || data.id || null;
+    if (requestOrderId) {
+      existingOrder = await Order.findOne({ $or: [{ id: String(requestOrderId) }, { orderId: String(requestOrderId) }, { orderNumber: String(requestOrderId) }] });
+    }
+
+    if (existingOrder) {
+      if (existingOrder.paymentStatus === "Paid") {
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
+        return res.status(400).json({ success: false, message: "This order has already been paid successfully." });
+      }
+      if (existingOrder.paymentStatus === "Refunded") {
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
+        return res.status(400).json({ success: false, message: "Cannot initiate payment on a refunded order." });
+      }
+    }
+
     // Authentication verification (Support logged in user or guest checkout)
-    const data = req.body || {};
-    const authUserId = req.user?.authUserId || null;
     const isGuest = !authUserId;
-    const guestToken = isGuest ? crypto.randomBytes(24).toString("hex") : "";
-    const effectiveAuthUserId = authUserId || `guest_${data.phone || data.customerEmail || req.ip || Date.now()}`;
-    const rawLines = data.lines || data.items || [];
+    const guestToken = existingOrder?.guestToken || (isGuest ? crypto.randomBytes(24).toString("hex") : "");
+    const rawLines = existingOrder ? existingOrder.items : (data.lines || data.items || []);
 
     if (!Array.isArray(rawLines) || rawLines.length === 0) {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
       return res.status(400).json({ success: false, message: "Order must contain valid items" });
     }
 
     // Authoritative Server Calculation (discounts, taxes, shipping, coupon)
-    const couponCodeToValidate = data.couponCode || data.coupon || null;
+    const couponCodeToValidate = existingOrder ? existingOrder.couponCode : (data.couponCode || data.coupon || null);
     const totals = await calculateOrderTotals({
       lines: rawLines,
       couponCode: couponCodeToValidate,
@@ -163,6 +211,7 @@ export async function initiatePayuPayment(req, res, next) {
     });
 
     if (!totals.items || totals.items.length === 0) {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
       return res.status(400).json({
         success: false,
         message: totals.unavailableItems?.[0]?.reason || "Selected products are unavailable or discontinued."
@@ -170,6 +219,7 @@ export async function initiatePayuPayment(req, res, next) {
     }
 
     if (!totals.finalTotal || totals.finalTotal <= 0 || isNaN(totals.finalTotal)) {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
       return res.status(400).json({
         success: false,
         message: "Calculated order amount must be greater than zero."
@@ -185,12 +235,14 @@ export async function initiatePayuPayment(req, res, next) {
       const product = productMap.get(item.id);
       const pStatus = (product?.status || "Published").toLowerCase();
       if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
         return res.status(400).json({
           success: false,
           message: `Product '${item.name}' is no longer available.`
         });
       }
       if (product.stock !== undefined && product.stock < item.quantity) {
+        if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
         return res.status(400).json({
           success: false,
           message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).`
@@ -198,34 +250,34 @@ export async function initiatePayuPayment(req, res, next) {
       }
     }
 
-    // Generate permanent customer-facing sequential Order ID (e.g. AURA-260904-000123)
-    const orderNumber = await generateNextOrderNumber();
-    const orderId = orderNumber;
+    // Generate permanent customer-facing sequential Order ID or reuse existing
+    const orderId = existingOrder ? (existingOrder.orderNumber || existingOrder.id) : (await generateNextOrderNumber());
     const now = new Date().toISOString();
 
     // Unique PayU transaction ID for this payment attempt
     const txnid = `TXN_${orderId.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
     // Shipping address snapshot
-    const shippingAddress = data.shippingAddress || {
-      address: data.address || "",
-      city: data.city || "",
-      state: data.state || "",
-      pincode: data.pincode || "",
-      phone: data.phone || "",
-      firstName: data.firstName || "",
+    const shippingAddress = data.shippingAddress || existingOrder?.shippingAddress || {
+      address: data.address || existingOrder?.address || "",
+      city: data.city || existingOrder?.city || "",
+      state: data.state || existingOrder?.state || "",
+      pincode: data.pincode || existingOrder?.pincode || "",
+      phone: data.phone || existingOrder?.phone || "",
+      firstName: data.firstName || existingOrder?.customerName || "",
       lastName: data.lastName || ""
     };
 
-    const email = (data.customerEmail || data.email || req.user?.email || "").trim().toLowerCase();
+    const email = (data.customerEmail || data.email || existingOrder?.customerEmail || req.user?.email || "").trim().toLowerCase();
     if (!email || !email.includes("@")) {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
       return res.status(400).json({
         success: false,
         message: "Valid customer email is required to initiate payment."
       });
     }
-    const firstname = (data.firstName || data.customerName || req.user?.name || "Devotee").trim();
-    const phone = (data.phone || data.customerPhone || "").trim();
+    const firstname = (data.firstName || data.customerName || existingOrder?.customerName || req.user?.name || "Devotee").trim();
+    const phone = (data.phone || data.customerPhone || existingOrder?.phone || "").trim();
     const productinfo = `Aura Rudraksha Order ${orderId}`;
 
     // Payment attempt tracking object
@@ -236,52 +288,75 @@ export async function initiatePayuPayment(req, res, next) {
       createdAt: now
     };
 
-    const orderPayload = {
-      id: orderId,
-      orderId: orderId,
-      orderNumber: orderId,
-      authUserId: effectiveAuthUserId,
-      guestToken,
-      date: data.date || now,
-      items: totals.items,
-      snapshotItems: totals.items,
-      subtotal: totals.subtotal,
-      totalMrp: totals.totalMrp,
-      productDiscount: totals.productSavings,
-      discount: totals.couponDiscount,
-      couponDiscount: totals.couponDiscount,
-      couponCode: totals.appliedCoupon?.code || "",
-      appliedCoupon: totals.appliedCoupon,
-      shipping: totals.shipping,
-      shippingFee: totals.shipping,
-      shippingDiscount: totals.shippingDiscount,
-      tax: 0,
-      amount: totals.finalTotal,
-      total: totals.finalTotal,
-      finalAmount: totals.finalTotal,
-      amountRefunded: 0,
-      savings: totals.totalSavings,
-      totalSavings: totals.totalSavings,
-      status: "Pending",
-      orderStatus: "Pending",
-      paymentStatus: "Pending",
-      paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
-      txnid,
-      shippingAddress,
-      address: data.address || "",
-      city: data.city || "",
-      state: data.state || "",
-      pincode: data.pincode || "",
-      phone,
-      customerEmail: email,
-      customerName: firstname,
-      notes: data.notes || "",
-      inventoryDeducted: false,
-      paymentAttempts: [attempt]
-    };
+    let targetOrder = null;
+    if (existingOrder) {
+      const attempts = existingOrder.paymentAttempts || [];
+      attempts.push(attempt);
+      targetOrder = await Order.findOneAndUpdate(
+        { _id: existingOrder._id },
+        {
+          $set: {
+            txnid,
+            status: existingOrder.status === "Cancelled" ? "Pending" : existingOrder.status,
+            orderStatus: existingOrder.orderStatus === "Cancelled" ? "Pending" : existingOrder.orderStatus,
+            paymentStatus: "Pending",
+            paymentAttempts: attempts,
+            shippingAddress,
+            customerEmail: email,
+            customerName: firstname,
+            phone
+          }
+        },
+        { new: true }
+      );
+    } else {
+      const orderPayload = {
+        id: orderId,
+        orderId: orderId,
+        orderNumber: orderId,
+        authUserId: effectiveAuthUserId,
+        guestToken,
+        date: data.date || now,
+        items: totals.items,
+        snapshotItems: totals.items,
+        subtotal: totals.subtotal,
+        totalMrp: totals.totalMrp,
+        productDiscount: totals.productSavings,
+        discount: totals.couponDiscount,
+        couponDiscount: totals.couponDiscount,
+        couponCode: totals.appliedCoupon?.code || "",
+        appliedCoupon: totals.appliedCoupon,
+        shipping: totals.shipping,
+        shippingFee: totals.shipping,
+        shippingDiscount: totals.shippingDiscount,
+        tax: 0,
+        amount: totals.finalTotal,
+        total: totals.finalTotal,
+        finalAmount: totals.finalTotal,
+        amountRefunded: 0,
+        savings: totals.totalSavings,
+        totalSavings: totals.totalSavings,
+        status: "Pending",
+        orderStatus: "Pending",
+        paymentStatus: "Pending",
+        paymentMethod: "PayU Hosted Checkout (UPI / Cards / NetBanking)",
+        txnid,
+        shippingAddress,
+        address: data.address || "",
+        city: data.city || "",
+        state: data.state || "",
+        pincode: data.pincode || "",
+        phone,
+        customerEmail: email,
+        customerName: firstname,
+        notes: data.notes || "",
+        inventoryDeducted: false,
+        paymentAttempts: [attempt]
+      };
 
-    // Save order in MongoDB
-    await Order.create(orderPayload);
+      // Save order in MongoDB
+      targetOrder = await Order.create(orderPayload);
+    }
 
     // Record Payment Transaction Ledger (non-blocking)
     try {
@@ -326,7 +401,7 @@ export async function initiatePayuPayment(req, res, next) {
       salt
     });
 
-    return res.json({
+    const responsePayload = {
       success: true,
       data: {
         orderId,
@@ -356,8 +431,21 @@ export async function initiatePayuPayment(req, res, next) {
           service_provider: "payu_paisa"
         }
       }
-    });
+    };
+
+    if (idempotencyKey) {
+      await commitIdempotency({
+        key: idempotencyKey,
+        action: "initiate_payu",
+        responseStatus: 200,
+        responseBody: responsePayload,
+        resourceId: orderId
+      });
+    }
+
+    return res.json(responsePayload);
   } catch (err) {
+    if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "initiate_payu" });
     next(err);
   }
 }
@@ -1222,17 +1310,42 @@ export async function verifyPaymentStatus(req, res, next) {
  * Generates a NEW PayU txnid and fresh hash while keeping the exact same permanent orderNumber.
  */
 export async function retryPayuPayment(req, res, next) {
+  const { orderId } = req.params;
+  const authUserId = req.user?.authUserId;
+  const idempotencyKey = req.headers["x-idempotency-key"] || req.body?.idempotencyKey || null;
+
   try {
     if (!isDbConnected()) {
       return res.status(503).json({ success: false, message: "Payment service temporarily unavailable. Please try again." });
     }
 
-    const { orderId } = req.params;
-    const authUserId = req.user?.authUserId;
+    if (idempotencyKey) {
+      const idempResult = await checkOrAcquireIdempotency({
+        key: idempotencyKey,
+        userId: authUserId || "guest",
+        action: "retry_payu",
+        payload: { orderId }
+      });
+
+      if (idempResult.status === "COMPLETED") {
+        return res.status(idempResult.responseStatus || 200).json(idempResult.responseBody);
+      }
+      if (idempResult.status === "IN_PROGRESS") {
+        return res.status(409).json({ success: false, message: idempResult.error || "Payment retry already in progress. Please wait." });
+      }
+      if (idempResult.status === "PAYLOAD_MISMATCH" || idempResult.status === "USER_MISMATCH") {
+        return res.status(422).json({ success: false, message: idempResult.error });
+      }
+      if (idempResult.status === "STORE_ERROR") {
+        return res.status(503).json({ success: false, message: idempResult.error });
+      }
+    }
+
     const reqTxnid = String(req.body?.txnid || req.query?.txnid || req.headers["x-payu-txnid"] || "").trim();
 
     const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
     if (!order) {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "retry_payu" });
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
@@ -1273,14 +1386,17 @@ export async function retryPayuPayment(req, res, next) {
     const isDirectOrderAccess = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId));
 
     if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner && !isDirectOrderAccess) {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "retry_payu" });
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
     if (order.paymentStatus === "Paid") {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "retry_payu" });
       return res.status(400).json({ success: false, message: "This order has already been paid successfully." });
     }
 
     if (order.paymentStatus === "Refunded") {
+      if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "retry_payu" });
       return res.status(400).json({ success: false, message: "Cannot retry payment on a refunded order." });
     }
 
@@ -1377,7 +1493,7 @@ export async function retryPayuPayment(req, res, next) {
       salt
     });
 
-    return res.json({
+    const responsePayload = {
       success: true,
       data: {
         orderId: order.orderNumber || order.id,
@@ -1406,8 +1522,21 @@ export async function retryPayuPayment(req, res, next) {
           service_provider: "payu_paisa"
         }
       }
-    });
+    };
+
+    if (idempotencyKey) {
+      await commitIdempotency({
+        key: idempotencyKey,
+        action: "retry_payu",
+        responseStatus: 200,
+        responseBody: responsePayload,
+        resourceId: order.orderNumber || order.id
+      });
+    }
+
+    return res.json(responsePayload);
   } catch (err) {
+    if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "retry_payu" });
     next(err);
   }
 }
