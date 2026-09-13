@@ -94,6 +94,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
               className="top-promo-coupon-chip" 
               onClick={handleCopyCoupon}
               title="Click to copy coupon code"
+              aria-label={`Copy coupon code \${offer.couponCode}`}
               style={{
                 background: copied ? 'rgba(32, 169, 90, 0.25)' : couponBg,
                 color: copied ? '#86efac' : textColor,
