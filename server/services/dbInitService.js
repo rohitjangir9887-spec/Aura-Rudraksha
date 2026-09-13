@@ -41,13 +41,16 @@ export async function ensureDatabaseInitialized() {
   };
 
   try {
-    // 1. Check and Seed Products if collection is empty
-    const productCount = await Product.countDocuments();
-    if (productCount === 0 && Array.isArray(defaultProducts)) {
-      console.log("🌱 [DB Init] Product collection empty. Seeding default Rudraksha catalog...");
+    // 1. Check and Seed Products
+    if (Array.isArray(defaultProducts)) {
       for (const p of defaultProducts) {
         if (!p || !p.id) continue;
-        const exists = await Product.exists({ id: String(p.id) });
+        const exists = await Product.exists({
+          $or: [
+            { id: String(p.id) },
+            ...(p.slug ? [{ slug: p.slug }] : [])
+          ]
+        });
         if (!exists) {
           const { _id, createdAt, updatedAt, ...cleanProduct } = p;
           try {
@@ -58,7 +61,32 @@ export async function ensureDatabaseInitialized() {
           }
         }
       }
-      console.log(`✅ [DB Init] Seeded ${summary.productsSeeded} products.`);
+      if (summary.productsSeeded > 0) {
+        console.log(`✅ [DB Init] Seeded ${summary.productsSeeded} missing products to catalog.`);
+      }
+
+      // Ensure any existing products without a slug get a clean canonical slug
+      try {
+        const noSlugProducts = await Product.find({
+          $or: [
+            { slug: { $exists: false } },
+            { slug: null },
+            { slug: "" }
+          ]
+        }).select("_id id name").lean();
+
+        for (const doc of noSlugProducts) {
+          const fallbackSlug = (doc.name || `product-${doc.id}`)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+          if (fallbackSlug) {
+            await Product.updateOne({ _id: doc._id }, { $set: { slug: fallbackSlug } });
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ [DB Init] Slug migration notice:", err?.message);
+      }
     }
 
     // 2. Ensure Store Settings

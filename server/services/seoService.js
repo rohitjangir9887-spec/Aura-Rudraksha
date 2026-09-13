@@ -575,7 +575,7 @@ export async function generateSitemapXml(req) {
     xml += '  </url>\n';
   }
 
-  // 3. Dynamic Products from MongoDB / Catalog
+  // 3. Dynamic Published Products from MongoDB / Catalog
   for (const p of products) {
     const slugOrId = p.slug || p.id;
     const prodUrl = `${baseUrl}/product/${slugOrId}`;
@@ -603,6 +603,7 @@ export async function generateSitemapXml(req) {
 
 /**
  * Generate Google Merchant Center Product Feed XML (RSS 2.0 with g: namespace)
+ * Complies with Google Merchant Center feed specifications for Free Listings & Shopping Ads
  */
 export async function generateMerchantFeedXml(req) {
   const baseUrl = getSiteBaseUrl(req);
@@ -611,37 +612,67 @@ export async function generateMerchantFeedXml(req) {
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   xml += '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n';
   xml += '  <channel>\n';
-  xml += '    <title>Aura Rudraksha Products</title>\n';
+  xml += '    <title>Aura Rudraksha — Authentic Lab Certified Rudraksha &amp; Malas</title>\n';
   xml += `    <link>${baseUrl}</link>\n`;
-  xml += '    <description>Authentic Lab-Certified Nepali &amp; Indonesian Rudraksha Beads and Japa Malas</description>\n';
+  xml += '    <description>100% Genuine Lab-Certified Nepali and Indonesian Rudraksha Beads, Consecrated Japa Malas, and Sacred Spiritual Items</description>\n';
 
   for (const p of products) {
     const slugOrId = p.slug || p.id;
     const prodUrl = `${baseUrl}/product/${slugOrId}`;
-    const imgUrl = (p.images && p.images[0]) || p.img || SEO_BRAND.defaultImage;
-    const fullImgUrl = imgUrl.startsWith("http") ? imgUrl : `${baseUrl}${imgUrl.startsWith("/") ? "" : "/"}${imgUrl}`;
+    const imgList = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || SEO_BRAND.defaultImage];
+    const primaryImg = imgList[0];
+    const fullPrimaryImg = primaryImg.startsWith("http") ? primaryImg : `${baseUrl}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
     const inStock = (p.stock === undefined || Number(p.stock) > 0) && p.status !== "Out of Stock";
+    
     const priceVal = Number(p.price) || 0;
-    const desc = p.description || p.highlight || `${p.name} - 100% authentic energized sacred Rudraksha bead with lab certificate.`;
+    const mrpVal = Number(p.mrp || p.comparePrice) || 0;
+    const hasDiscount = mrpVal > priceVal;
+
+    const desc = p.description || p.highlight || `${p.name} - 100% authentic energized sacred Rudraksha bead with lab certificate. Consecrated with holy Ganga Jal and Vedic Beej Mantras.`;
     const cleanDesc = desc.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+    // Clean, natural title for Google Shopping
+    const title = p.name.includes("Aura") ? p.name : `${p.name} — Authentic Lab Certified`;
 
     xml += '    <item>\n';
     xml += `      <g:id>${escapeXml(String(p.id))}</g:id>\n`;
-    xml += `      <g:title>${escapeXml(p.name)}</g:title>\n`;
+    xml += `      <g:title>${escapeXml(title.slice(0, 150))}</g:title>\n`;
     xml += `      <g:description>${escapeXml(cleanDesc.slice(0, 5000))}</g:description>\n`;
     xml += `      <g:link>${escapeXml(prodUrl)}</g:link>\n`;
-    xml += `      <g:image_link>${escapeXml(fullImgUrl)}</g:image_link>\n`;
+    xml += `      <g:image_link>${escapeXml(fullPrimaryImg)}</g:image_link>\n`;
+
+    // Additional gallery images
+    if (imgList.length > 1) {
+      for (let i = 1; i < Math.min(imgList.length, 6); i++) {
+        const extraImg = imgList[i];
+        if (extraImg) {
+          const fullExtraImg = extraImg.startsWith("http") ? extraImg : `${baseUrl}${extraImg.startsWith("/") ? "" : "/"}${extraImg}`;
+          xml += `      <g:additional_image_link>${escapeXml(fullExtraImg)}</g:additional_image_link>\n`;
+        }
+      }
+    }
+
     xml += `      <g:condition>new</g:condition>\n`;
     xml += `      <g:availability>${inStock ? "in_stock" : "out_of_stock"}</g:availability>\n`;
-    xml += `      <g:price>${priceVal.toFixed(2)} INR</g:price>\n`;
+
+    // Show strike-through compare price if discount exists
+    if (hasDiscount) {
+      xml += `      <g:price>${mrpVal.toFixed(2)} INR</g:price>\n`;
+      xml += `      <g:sale_price>${priceVal.toFixed(2)} INR</g:sale_price>\n`;
+    } else {
+      xml += `      <g:price>${priceVal.toFixed(2)} INR</g:price>\n`;
+    }
+
     xml += `      <g:brand>${escapeXml(SEO_BRAND.name)}</g:brand>\n`;
     xml += `      <g:google_product_category>505374</g:google_product_category>\n`;
-    xml += `      <g:product_type>Religious &amp; Ceremonial &gt; Rudraksha Beads</g:product_type>\n`;
+    xml += `      <g:product_type>Religious &amp; Ceremonial &gt; Religious Items &gt; Rudraksha Beads</g:product_type>\n`;
     xml += `      <g:identifier_exists>no</g:identifier_exists>\n`;
+    xml += `      <g:material>Natural Sacred Rudraksha Seed</g:material>\n`;
+    xml += `      <g:country_of_origin>${p.origin?.toLowerCase().includes("indonesia") ? "ID" : "NP"}</g:country_of_origin>\n`;
     xml += '      <g:shipping>\n';
     xml += '        <g:country>IN</g:country>\n';
-    xml += '        <g:service>Standard</g:service>\n';
-    xml += `        <g:price>${(p.shippingFee || 0).toFixed(2)} INR</g:price>\n`;
+    xml += '        <g:service>Insured Express Delivery</g:service>\n';
+    xml += '        <g:price>0.00 INR</g:price>\n';
     xml += '      </g:shipping>\n';
     xml += '    </item>\n';
   }
@@ -774,45 +805,82 @@ export async function resolveSeoData(pathname, req) {
       }
 
       const canonical = `${baseUrl}/product/${product.slug || product.id}`;
-      const imgRaw = (product.images && product.images[0]) || product.img || SEO_BRAND.defaultImage;
-      const ogImage = imgRaw.startsWith("http") ? imgRaw : `${baseUrl}${imgRaw.startsWith("/") ? "" : "/"}${imgRaw}`;
+      const imgList = (Array.isArray(product.images) && product.images.length > 0) ? product.images : [product.img || SEO_BRAND.defaultImage];
+      const imageArray = imgList.map(img => img.startsWith("http") ? img : `${baseUrl}${img.startsWith("/") ? "" : "/"}${img}`);
+      const ogImage = imageArray[0] || SEO_BRAND.defaultImage;
       const inStock = (product.stock === undefined || Number(product.stock) > 0) && product.status !== "Out of Stock";
       const rawPrice = product.price !== undefined && product.price !== null ? Number(product.price) : null;
       const hasValidPrice = typeof rawPrice === "number" && !isNaN(rawPrice) && rawPrice > 0;
 
       const title = product.metaTitle || `${product.name} — Authentic Lab Certified | Aura Rudraksha`;
-      const cleanHighlight = (product.highlight || product.description || "100% authentic Nepali Rudraksha bead consecrated according to Vedic traditions.")
+      const cleanHighlight = (product.highlight || product.description || "100% authentic Nepali Rudraksha bead consecrated according to Vedic traditions with authentic government approved lab testing certification.")
         .replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      const description = product.metaDescription || `${cleanHighlight.slice(0, 150)} Free shipping & certificate included.`;
+      const description = product.metaDescription || `${cleanHighlight.slice(0, 160)} 100% genuine lab certificate & free insured shipping across India.`;
 
-      // Product Schema
+      // Full Google Merchant Listing Product Structured Data
       const offersObj = {
         "@type": "Offer",
         "url": canonical,
         "priceCurrency": "INR",
+        "price": hasValidPrice ? rawPrice : 0,
+        "priceValidUntil": "2027-12-31",
         "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
         "itemCondition": "https://schema.org/NewCondition",
         "seller": {
           "@type": "Organization",
-          "name": SEO_BRAND.name
+          "name": SEO_BRAND.name,
+          "url": baseUrl
+        },
+        "hasMerchantReturnPolicy": {
+          "@type": "MerchantReturnPolicy",
+          "applicableCountry": "IN",
+          "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+          "merchantReturnDays": 7,
+          "returnMethod": "https://schema.org/ReturnByMail",
+          "returnFees": "https://schema.org/FreeReturn"
+        },
+        "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": {
+            "@type": "MonetaryAmount",
+            "value": 0,
+            "currency": "INR"
+          },
+          "shippingDestination": {
+            "@type": "DefinedRegion",
+            "addressCountry": "IN"
+          },
+          "deliveryTime": {
+            "@type": "ShippingDeliveryTime",
+            "handlingTime": {
+              "@type": "QuantitativeValue",
+              "minValue": 1,
+              "maxValue": 2,
+              "unitCode": "d"
+            },
+            "transitTime": {
+              "@type": "QuantitativeValue",
+              "minValue": 3,
+              "maxValue": 5,
+              "unitCode": "d"
+            }
+          }
         }
       };
-      if (hasValidPrice) {
-        offersObj.price = rawPrice;
-      }
 
       const productSchema = {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": product.name,
-        "image": ogImage,
-        "description": cleanHighlight.slice(0, 500),
+        "image": imageArray,
+        "description": cleanHighlight.slice(0, 1000),
         "sku": String(product.id),
+        "mpn": String(product.id),
         "brand": {
           "@type": "Brand",
           "name": SEO_BRAND.name
         },
-        "category": product.category || "Rudraksha",
+        "category": product.category || "Religious & Ceremonial Goods > Religious Items > Rudraksha",
         "offers": offersObj
       };
 
@@ -831,7 +899,7 @@ export async function resolveSeoData(pathname, req) {
         "@type": "BreadcrumbList",
         "itemListElement": [
           { "@type": "ListItem", "position": 1, "name": "Home", "item": `${baseUrl}/` },
-          { "@type": "ListItem", "position": 2, "name": product.category || "Shop", "item": `${baseUrl}/shop` },
+          { "@type": "ListItem", "position": 2, "name": product.category || "Rudraksha", "item": `${baseUrl}/shop` },
           { "@type": "ListItem", "position": 3, "name": product.name, "item": canonical }
         ]
       };
@@ -1033,11 +1101,24 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   // 3. Pre-render Crawlable Semantic HTML inside <div id="root"></div> for non-JS search crawlers
   // When React mounts, hydrate or render will replace this cleanly.
   if (seo.h1 && !seo.noindex) {
-    let crawlableHtml = `<div id="root">\n  <div style="font-family:serif;max-width:900px;margin:40px auto;padding:0 20px;color:#2a160d;">\n`;
-    crawlableHtml += `    <header>\n      <p style="text-transform:uppercase;font-size:12px;color:#8c3e1e;letter-spacing:1px;">${escapeXml(SEO_BRAND.name)} — Sacred Vedic Collection</p>\n`;
-    crawlableHtml += `      <h1 style="font-size:32px;margin:8px 0;">${escapeXml(seo.h1)}</h1>\n`;
+    let crawlableHtml = `<div id="root">\n  <main style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:960px;margin:30px auto;padding:0 24px;color:#1a100b;line-height:1.6;">\n`;
+    
+    // Breadcrumbs nav
+    crawlableHtml += `    <nav aria-label="Breadcrumb" style="font-size:14px;color:#786254;margin-bottom:20px;">\n`;
+    crawlableHtml += `      <a href="${baseUrl}/" style="color:#8c3e1e;text-decoration:none;">Home</a> &gt; \n`;
+    if (seo.product) {
+      crawlableHtml += `      <a href="${baseUrl}/shop" style="color:#8c3e1e;text-decoration:none;">Rudraksha</a> &gt; \n`;
+      crawlableHtml += `      <span>${escapeXml(seo.product.name)}</span>\n`;
+    } else {
+      crawlableHtml += `      <span>${escapeXml(seo.h1)}</span>\n`;
+    }
+    crawlableHtml += `    </nav>\n`;
+
+    crawlableHtml += `    <header style="margin-bottom:24px;">\n`;
+    crawlableHtml += `      <p style="text-transform:uppercase;font-size:12px;font-weight:700;color:#8c3e1e;letter-spacing:1.5px;margin-bottom:6px;">${escapeXml(SEO_BRAND.name)} — 100% Genuine Lab Certified</p>\n`;
+    crawlableHtml += `      <h1 style="font-size:32px;font-weight:700;margin:0 0 12px 0;line-height:1.25;color:#2a160d;">${escapeXml(seo.h1)}</h1>\n`;
     if (seo.leadText) {
-      crawlableHtml += `      <p style="font-size:16px;line-height:1.6;color:#5c493d;">${escapeXml(seo.leadText)}</p>\n`;
+      crawlableHtml += `      <p style="font-size:16px;color:#4a3b32;margin:0;">${escapeXml(seo.leadText)}</p>\n`;
     }
     crawlableHtml += `    </header>\n`;
 
@@ -1045,25 +1126,78 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
       const p = seo.product;
       const rawP = p.price !== undefined && p.price !== null ? Number(p.price) : null;
       const hasP = typeof rawP === "number" && !isNaN(rawP) && rawP > 0;
-      crawlableHtml += `    <section style="margin-top:24px;padding:20px;border:1px solid #ebdccb;border-radius:8px;">\n`;
+      const rawMrp = Number(p.mrp || p.comparePrice) || 0;
+      const inStock = (p.stock === undefined || Number(p.stock) > 0) && p.status !== "Out of Stock";
+      const primaryImg = (p.images && p.images[0]) || p.img || SEO_BRAND.defaultImage;
+      const fullImg = primaryImg.startsWith("http") ? primaryImg : `${baseUrl}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
+
+      crawlableHtml += `    <div style="display:flex;flex-wrap:wrap;gap:32px;margin:28px 0;background:#fff9f4;border:1px solid #ebdccb;border-radius:12px;padding:24px;">\n`;
+      crawlableHtml += `      <div style="flex:1;min-width:280px;text-align:center;">\n`;
+      crawlableHtml += `        <img src="${escapeXml(fullImg)}" alt="${escapeXml(p.name)}" width="360" height="360" style="max-width:100%;height:auto;border-radius:8px;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.08);" />\n`;
+      crawlableHtml += `      </div>\n`;
+
+      crawlableHtml += `      <div style="flex:1.2;min-width:280px;">\n`;
       if (hasP) {
-        crawlableHtml += `      <p><strong>Price:</strong> ₹${rawP} ${p.mrp || p.comparePrice ? `<span style="text-decoration:line-through;color:#888;">₹${p.mrp || p.comparePrice}</span>` : ""}</p>\n`;
+        crawlableHtml += `        <div style="margin-bottom:16px;">\n`;
+        crawlableHtml += `          <span style="font-size:28px;font-weight:700;color:#1e4620;">₹${rawP.toLocaleString('en-IN')}</span>\n`;
+        if (rawMrp > rawP) {
+          crawlableHtml += `          <span style="text-decoration:line-through;color:#888;font-size:18px;margin-left:10px;">₹${rawMrp.toLocaleString('en-IN')}</span>\n`;
+          crawlableHtml += `          <span style="background:#dc2626;color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:10px;">${Math.round((rawMrp - rawP) / rawMrp * 100)}% OFF</span>\n`;
+        }
+        crawlableHtml += `        </div>\n`;
       }
-      crawlableHtml += `      <p><strong>Authenticity:</strong> 100% Genuine Lab Certified</p>\n`;
-      crawlableHtml += `      <p><strong>Origin:</strong> ${escapeXml(p.origin || "Nepal")}</p>\n`;
-      crawlableHtml += `      <p><strong>Availability:</strong> ${(p.stock === undefined || Number(p.stock) > 0 ? "In Stock" : "Out of Stock")}</p>\n`;
+
+      crawlableHtml += `        <p style="margin:8px 0;color:${inStock ? '#166534' : '#991b1b'};font-weight:600;">\n`;
+      crawlableHtml += `          ● ${inStock ? 'In Stock — Dispatched within 24 Hours with Insurance' : 'Currently Out of Stock'}\n`;
+      crawlableHtml += `        </p>\n`;
+
+      crawlableHtml += `        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">\n`;
+      crawlableHtml += `          <tbody>\n`;
+      if (p.mukhi) {
+        crawlableHtml += `            <tr style="border-bottom:1px solid #ebdccb;"><td style="padding:6px 0;font-weight:600;color:#5c493d;">Mukhi / Face:</td><td style="padding:6px 0;">${escapeXml(p.mukhi)}</td></tr>\n`;
+      }
+      if (p.deity) {
+        crawlableHtml += `            <tr style="border-bottom:1px solid #ebdccb;"><td style="padding:6px 0;font-weight:600;color:#5c493d;">Ruling Deity:</td><td style="padding:6px 0;">${escapeXml(p.deity)}</td></tr>\n`;
+      }
+      if (p.rulingPlanet) {
+        crawlableHtml += `            <tr style="border-bottom:1px solid #ebdccb;"><td style="padding:6px 0;font-weight:600;color:#5c493d;">Ruling Planet:</td><td style="padding:6px 0;">${escapeXml(p.rulingPlanet)}</td></tr>\n`;
+      }
+      crawlableHtml += `            <tr style="border-bottom:1px solid #ebdccb;"><td style="padding:6px 0;font-weight:600;color:#5c493d;">Origin:</td><td style="padding:6px 0;">${escapeXml(p.origin || "100% Original Nepali")}</td></tr>\n`;
+      crawlableHtml += `            <tr style="border-bottom:1px solid #ebdccb;"><td style="padding:6px 0;font-weight:600;color:#5c493d;">Authenticity:</td><td style="padding:6px 0;">Govt Approved Lab Tested &amp; Certified</td></tr>\n`;
+      crawlableHtml += `            <tr><td style="padding:6px 0;font-weight:600;color:#5c493d;">Energization:</td><td style="padding:6px 0;">Pran Pratishtha with Ganga Jal &amp; Vedic Mantras</td></tr>\n`;
+      crawlableHtml += `          </tbody>\n`;
+      crawlableHtml += `        </table>\n`;
+
+      crawlableHtml += `        <div style="margin-top:20px;">\n`;
+      crawlableHtml += `          <a href="${canonical}" style="display:inline-block;background:#8c3e1e;color:#fff;font-weight:700;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;">Order Authentic Bead Online</a>\n`;
+      crawlableHtml += `          <a href="https://wa.me/919672996531?text=Jai%20Shree%20Ram%20I%20want%20to%20know%20about%20${encodeURIComponent(p.name)}" style="display:inline-block;margin-left:12px;background:#25d366;color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none;font-size:15px;">WhatsApp Consultation</a>\n`;
+      crawlableHtml += `        </div>\n`;
+
+      crawlableHtml += `      </div>\n`;
+      crawlableHtml += `    </div>\n`;
+
+      crawlableHtml += `    <section style="margin-top:32px;">\n`;
+      crawlableHtml += `      <h2 style="font-size:22px;font-weight:700;color:#2a160d;border-bottom:2px solid #8c3e1e;padding-bottom:6px;margin-bottom:12px;">Product Details &amp; Sacred Vedic Benefits</h2>\n`;
+      crawlableHtml += `      <p style="font-size:15px;line-height:1.7;color:#3d2f26;">${escapeXml(p.description || p.highlight || "Every Rudraksha from Aura Rudraksha is personally hand-selected from high-altitude Himalayan regions, verified under gemological testing, and energized according to authentic Vedic rituals.")}</p>\n`;
+      crawlableHtml += `    </section>\n`;
+
+      crawlableHtml += `    <section style="margin-top:28px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:18px;">\n`;
+      crawlableHtml += `      <h3 style="font-size:16px;font-weight:700;color:#1f2937;margin:0 0 8px 0;">🛡️ Aura Rudraksha Trust &amp; Shipping Guarantee</h3>\n`;
+      crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0 0 6px 0;">✓ <strong>Free Express Shipping:</strong> Fast insured delivery across India within 3–5 business days.</p>\n`;
+      crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0 0 6px 0;">✓ <strong>Authenticity Lab Certificate:</strong> Physical identification card verifying bead density, natural seed lines, and purity.</p>\n`;
+      crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0;">✓ <strong>7-Day Sacred Return Policy:</strong> 100% money-back guarantee if unsatisfied with the sanctified bead.</p>\n`;
       crawlableHtml += `    </section>\n`;
     }
 
     if (seo.faqs && seo.faqs.length > 0) {
-      crawlableHtml += `    <section style="margin-top:32px;">\n      <h2 style="font-size:22px;border-bottom:1px solid #ebdccb;padding-bottom:8px;">Frequently Asked Vedic Questions</h2>\n`;
+      crawlableHtml += `    <section style="margin-top:36px;">\n      <h2 style="font-size:22px;font-weight:700;border-bottom:2px solid #8c3e1e;padding-bottom:6px;color:#2a160d;">Frequently Asked Vedic Questions</h2>\n`;
       for (const faq of seo.faqs) {
-        crawlableHtml += `      <article style="margin:16px 0;">\n        <h3 style="font-size:16px;color:#8c3e1e;">${escapeXml(faq.q)}</h3>\n        <p style="font-size:14px;color:#555;line-height:1.5;">${escapeXml(faq.a)}</p>\n      </article>\n`;
+        crawlableHtml += `      <article style="margin:16px 0;">\n        <h3 style="font-size:16px;color:#8c3e1e;margin-bottom:4px;">${escapeXml(faq.q)}</h3>\n        <p style="font-size:14px;color:#4a3b32;line-height:1.6;margin:0;">${escapeXml(faq.a)}</p>\n      </article>\n`;
       }
       crawlableHtml += `    </section>\n`;
     }
 
-    crawlableHtml += `  </div>\n</div>`;
+    crawlableHtml += `  </main>\n</div>`;
     result = result.replace('<div id="root"></div>', crawlableHtml);
   }
 
