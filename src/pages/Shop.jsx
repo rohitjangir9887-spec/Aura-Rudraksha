@@ -119,18 +119,18 @@ export function Shop() {
   };
 
   const loadProducts = async () => {
-    // 1. Instantly display cached products
+    // 1. Display cached products while fetching fresh catalog from MongoDB
     updateProductsState();
 
-    // 2. Revalidate products independently right away
-    db.revalidateProducts().then(() => {
+    // 2. Revalidate products with force=true right away
+    db.revalidateProducts(true).then(() => {
       updateProductsState();
     }).catch(() => {
       setIsLoading(false);
     });
 
-    // 3. Background fetch for secondary resources
-    db.fetchHomeData().catch(() => {});
+    // 3. Background fetch for settings and active offers
+    db.fetchHomeData(true).catch(() => {});
   };
 
   useEffect(() => {

@@ -17,7 +17,13 @@ import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
 
 export function Home() {
   const [hero, setHero] = useState(0);
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      return typeof db?.isBackendSynced === "function" ? !db.isBackendSynced() : false;
+    } catch {
+      return false;
+    }
+  });
   const { add, totals } = useCart();
   const shippingThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const [banners, setBanners] = useState(() => db.getBanners() || []);
@@ -128,16 +134,19 @@ export function Home() {
   };
 
   const loadHomeData = async () => {
-    // 1. Instantly render from local cache
+    // 1. Render initial state from local cache
     updateLocalState();
 
-    // 2. Background fetch for home dataset & coupons
+    // 2. Fetch fresh home dataset directly from MongoDB backend
     if (db.fetchCoupons) {
       db.fetchCoupons().then(() => updateLocalState()).catch(() => {});
     }
-    db.fetchHomeData().then(() => {
+    db.fetchHomeData(true).then(() => {
       updateLocalState();
-    }).catch(() => {});
+      setIsLoading(false);
+    }).catch(() => {
+      setIsLoading(false);
+    });
   };
 
   useEffect(() => {

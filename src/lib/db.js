@@ -434,15 +434,20 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
-const CACHE_FRESHNESS_LIMIT = 5 * 60 * 1000; // 5 minutes for temporary customer cache window
+const CACHE_FRESHNESS_LIMIT = 15 * 1000; // 15 seconds window for fresh backend data
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
 
 let isInitialized = false;
 let isHydrated = false;
+let hasFetchedFreshData = false;
 let hydrationResolver = null;
 let hydrationPromise = new Promise((resolve) => {
   hydrationResolver = resolve;
 });
+
+export function isBackendSynced() {
+  return hasFetchedFreshData;
+}
 
 export function loadCacheFromLocalStorage() {
   if (typeof window === "undefined") return;
@@ -509,28 +514,31 @@ export function loadCacheFromLocalStorage() {
   }
 }
 
-const PRODUCT_FRESHNESS_LIMIT = 5 * 60 * 1000; // 5 minutes window for smooth repeat visits and instant reloads
+const PRODUCT_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds window for fresh product updates
 let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
 let inFlightProductsPromise = null;
 
 export async function revalidateProducts(force = false) {
   if (typeof window === "undefined") return storeCache.products;
 
-  if (!force && inFlightProductsPromise) {
+  const shouldForce = force || !hasFetchedFreshData;
+
+  if (!shouldForce && inFlightProductsPromise) {
     return inFlightProductsPromise;
   }
 
   const now = Date.now();
-  if (!force && lastProductFetchTime > 0 && (now - lastProductFetchTime < PRODUCT_FRESHNESS_LIMIT)) {
+  if (!shouldForce && lastProductFetchTime > 0 && (now - lastProductFetchTime < PRODUCT_FRESHNESS_LIMIT)) {
     return storeCache.products;
   }
 
   inFlightProductsPromise = (async () => {
     try {
-      const url = force ? `/products?_t=${now}` : "/products";
-      const res = await apiRequest(url, force ? { noCache: true } : {});
+      const url = shouldForce ? `/products?_t=${now}` : "/products";
+      const res = await apiRequest(url, shouldForce ? { noCache: true } : {});
       if (res?.success && Array.isArray(res.data)) {
         storeCache.dbStatus = "connected";
+        hasFetchedFreshData = true;
         const normalized = res.data.map(p => ({
           ...p,
           id: String(p.id || p._id),
@@ -694,33 +702,22 @@ export async function fetchHomeData(force = false) {
         }
       };
 
-      // 1. Critical primary fetches for above-fold homepage
+      // Fetch all public home resources concurrently
       await Promise.all([
         fetchBanners(),
-        fetchProducts()
+        fetchProducts(),
+        fetchActiveOffer(),
+        fetchSettings(),
+        fetchOffers(),
+        fetchReviews(),
+        fetchReviewSettings(),
+        fetchCoupons()
       ]);
 
+      hasFetchedFreshData = true;
       localStorage.setItem("aura_last_fetch_time", String(Date.now()));
       isHydrated = true;
       if (hydrationResolver) hydrationResolver(true);
-
-      // 2. Non-critical secondary fetches deferred until after initial paint
-      const runSecondaryFetches = () => {
-        Promise.all([
-          fetchActiveOffer(),
-          fetchSettings(),
-          fetchOffers(),
-          fetchReviews(),
-          fetchReviewSettings(),
-          fetchCoupons()
-        ]).catch(console.warn);
-      };
-
-      if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(runSecondaryFetches, { timeout: 2500 });
-      } else {
-        setTimeout(runSecondaryFetches, 1500);
-      }
 
       emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
     } catch (err) {
@@ -765,29 +762,52 @@ async function hydrateFromBackend() {
   await fetchHomeData(true);
 }
 
-// Auto-trigger initial home data fetch on load without blocking critical startup
+// Broadcast channel helper to sync cache invalidations across browser tabs
+export function broadcastCacheInvalidation() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem("aura_last_fetch_time", "0");
+    localStorage.setItem("aura_last_product_fetch_time", "0");
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel("aura_store_sync");
+      channel.postMessage({ type: "SYNC_CACHE", timestamp: Date.now() });
+      channel.close();
+    }
+  } catch (_) {}
+}
+
+// Auto-trigger initial home data fetch immediately on app load
 if (typeof window !== "undefined" && !isInitialized) {
   isInitialized = true;
   loadCacheFromLocalStorage();
 
-  // Defer background network synchronization until initial render & paints complete
-  if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(() => {
-      fetchHomeData();
-    }, { timeout: 2000 });
-  } else {
-    setTimeout(() => {
-      fetchHomeData();
-    }, 600);
+  // Immediately trigger fresh sync from backend on application boot
+  fetchHomeData(true).catch(() => {});
+
+  // Cross-tab Synchronization via BroadcastChannel & LocalStorage Event
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      const syncChannel = new BroadcastChannel("aura_store_sync");
+      syncChannel.onmessage = (e) => {
+        if (e.data?.type === "SYNC_CACHE") {
+          fetchHomeData(true).catch(() => {});
+        }
+      };
+    } catch (_) {}
   }
+  window.addEventListener("storage", (e) => {
+    if (e.key === "aura_last_fetch_time" && e.newValue === "0") {
+      fetchHomeData(true).catch(() => {});
+    }
+  });
 
   // Sync on tab focus / visibility change with throttling
   let lastFocusSync = 0;
   const triggerFocusSync = () => {
     const now = Date.now();
-    if (now - lastFocusSync > 30000 && document.visibilityState === "visible") {
+    if (now - lastFocusSync > 10000 && document.visibilityState === "visible") {
       lastFocusSync = now;
-      fetchHomeData();
+      fetchHomeData(true).catch(() => {});
     }
   };
   window.addEventListener("focus", triggerFocusSync);
@@ -798,6 +818,7 @@ if (typeof window !== "undefined" && !isInitialized) {
 // UNIFIED DATABASE OBJECT CONNECTED TO MONGODB API
 // ----------------------------------------------------
 export const db = {
+  isBackendSynced: () => isBackendSynced(),
   onStoreUpdate: (callback) => onStoreUpdate(callback),
   emitStoreUpdate: (type, payload) => emitStoreUpdate(type, payload),
 

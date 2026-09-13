@@ -2,7 +2,7 @@ import { Product } from "../models/Product.js";
 import { Media } from "../models/Media.js";
 import { deleteFromPcloud } from "../services/pcloudService.js";
 import { isDbConnected } from "../config/db.js";
-import { pickFields, removeMongoInternals } from "../utils/sanitize.js";
+import { pickFields, removeMongoInternals, toPublicProductDTO } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateRagCache } from "../services/ragService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
@@ -82,14 +82,14 @@ export async function getProducts(req, res, next) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
     } else {
       res.setHeader("Cache-Control", "no-cache, must-revalidate");
-      // Fast path: serve cached public products if valid (60s TTL)
+      // Fast path: serve cached public products if valid (5s TTL for fresh data guarantee)
       if (publicProductsCache && Date.now() < publicProductsCacheExpiry && !req.query.status && !req.query.category) {
         return res.json({ success: true, data: publicProductsCache, count: publicProductsCache.length });
       }
     }
 
     if (!isDbConnected()) {
-      const items = inMemoryStore.products || [];
+      const items = toPublicProductDTO(inMemoryStore.products || []);
       return res.json({
         success: true,
         data: items,
@@ -130,7 +130,7 @@ export async function getProducts(req, res, next) {
     }
 
     const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
-    const sanitizedProducts = removeMongoInternals(products);
+    const sanitizedProducts = toPublicProductDTO(products);
 
     if (!isAdmin && !req.query.status && !req.query.category) {
       publicProductsCache = sanitizedProducts;
@@ -164,7 +164,7 @@ export async function getProductById(req, res, next) {
         String(p.slug || "").toLowerCase() === cleanTarget
       );
       if (product) {
-        return res.json({ success: true, data: product, isFallback: true });
+        return res.json({ success: true, data: toPublicProductDTO(product), isFallback: true });
       }
       return res.status(404).json({ success: false, message: "Product not found" });
     }
@@ -207,7 +207,7 @@ export async function getProductById(req, res, next) {
       }
     }
 
-    return res.json({ success: true, data: removeMongoInternals(product) });
+    return res.json({ success: true, data: toPublicProductDTO(product) });
   } catch (err) {
     console.warn("Error in getProductById:", err.message);
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -328,7 +328,7 @@ export async function createProduct(req, res, next) {
 
     submitToIndexNow([`/product/${created.slug || created.id}`, "/sitemap.xml"], req).catch(() => {});
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    return res.status(201).json({ success: true, data: created });
+    return res.status(201).json({ success: true, data: toPublicProductDTO(created) });
   } catch (err) {
     next(err);
   }
@@ -478,7 +478,7 @@ export async function updateProduct(req, res, next) {
 
     submitToIndexNow([`/product/${updated.slug || updated.id}`, "/sitemap.xml"], req).catch(() => {});
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: toPublicProductDTO(updated) });
   } catch (err) {
     next(err);
   }
@@ -653,7 +653,7 @@ export async function triggerDailySalesIncrement(req, res, next) {
       success: true,
       message: `Daily sales successfully incremented by 1-10 for ${updatedCount} products.`,
       updatedCount,
-      data: freshProducts
+      data: toPublicProductDTO(freshProducts)
     });
   } catch (err) {
     next(err);

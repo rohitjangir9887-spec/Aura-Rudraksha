@@ -85,15 +85,56 @@ export function pickFields(input, types) {
 }
 
 /**
- * Strips internal MongoDB fields (_id, __v) from documents/arrays before returning API responses.
+ * Strips internal MongoDB fields (_id, __v) recursively from documents/arrays before returning API responses.
  */
 export function removeMongoInternals(doc) {
   if (!doc) return doc;
   if (Array.isArray(doc)) return doc.map(removeMongoInternals);
-  if (typeof doc !== "object") return doc;
+  if (typeof doc !== "object" || doc instanceof Date) return doc;
+
   const plainObj = typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
   delete plainObj._id;
   delete plainObj.__v;
+
+  for (const key of Object.keys(plainObj)) {
+    if (plainObj[key] && typeof plainObj[key] === "object" && !(plainObj[key] instanceof Date)) {
+      plainObj[key] = removeMongoInternals(plainObj[key]);
+    }
+  }
+
   return plainObj;
+}
+
+/**
+ * Transforms product object(s) into an explicit public DTO.
+ * Excludes _id, __v, and internal/admin-only fields while preserving all public product data.
+ */
+export function toPublicProductDTO(doc) {
+  if (!doc) return doc;
+  if (Array.isArray(doc)) return doc.map(toPublicProductDTO);
+  if (typeof doc !== "object" || doc instanceof Date) return doc;
+
+  const cleaned = removeMongoInternals(doc);
+
+  const INTERNAL_FIELDS = [
+    "_id",
+    "__v",
+    "autoIncrementSales",
+    "lastSalesUpdateDate",
+    "dailySalesMin",
+    "dailySalesMax",
+    "createdAt",
+    "updatedAt"
+  ];
+
+  for (const field of INTERNAL_FIELDS) {
+    delete cleaned[field];
+  }
+
+  if (cleaned.id !== undefined && cleaned.id !== null) {
+    cleaned.id = String(cleaned.id);
+  }
+
+  return cleaned;
 }
 

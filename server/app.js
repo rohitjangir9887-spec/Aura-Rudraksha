@@ -1,3 +1,4 @@
+import "./utils/urlParser.js";
 import express from "express";
 import dotenv from "dotenv";
 import { connectDB, isDbConnected, getLastDbSync, getMongoUri } from "./config/db.js";

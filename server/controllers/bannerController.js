@@ -10,7 +10,7 @@ export async function getBanners(req, res, next) {
       const bannerUrls = inMemoryStore.banners || defaultBanners;
       return res.json({ success: true, data: bannerUrls, full: [], isFallback: true });
     }
-    res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
+    res.setHeader("Cache-Control", "no-cache, must-revalidate");
     const banners = await Banner.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
     const bannerUrls = banners.map(b => b.image || b);
     return res.json({ success: true, data: bannerUrls, full: banners });

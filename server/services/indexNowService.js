@@ -5,7 +5,6 @@
  */
 
 import https from "https";
-import { URL } from "url";
 
 // IndexNow requires an 8–128 character hexadecimal key (a-z, A-F, 0-9, hyphens).
 const DEFAULT_KEY = "65afe1e2dec4bf210d1a3ce75cb3c7a0";

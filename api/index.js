@@ -1,3 +1,4 @@
+import "../server/utils/urlParser.js";
 import { createApp } from "../server/app.js";
 import { connectDB, getMongoUri } from "../server/config/db.js";
 
