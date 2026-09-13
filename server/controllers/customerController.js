@@ -489,6 +489,35 @@ export async function getAddresses(req, res, next) {
   } catch(err) { next(err); }
 }
 
+function normalizeAddressInput(input = {}) {
+  const firstName = String(input.firstName || (input.name ? input.name.split(" ")[0] : "") || "").trim();
+  const lastName = String(input.lastName || (input.name ? input.name.split(" ").slice(1).join(" ") : "") || "").trim();
+  const phone = String(input.phone || "").replace(/[^0-9]/g, "").slice(0, 10);
+  const email = String(input.email || "").trim().toLowerCase();
+  const address = String(input.address || "").trim();
+  const landmark = String(input.landmark || "").trim();
+  const locality = String(input.locality || "").trim();
+  const pincode = String(input.pincode || "").replace(/[^0-9]/g, "").slice(0, 6);
+  const city = String(input.city || "").trim();
+  const state = String(input.state || "").trim();
+  const isDefault = input.isDefault !== false;
+
+  return {
+    firstName,
+    lastName,
+    name: `${firstName} ${lastName}`.trim(),
+    phone,
+    email,
+    address,
+    landmark,
+    locality,
+    pincode,
+    city,
+    state,
+    isDefault
+  };
+}
+
 export async function addAddress(req, res, next) {
   try {
     if (!isDbConnected()) {
@@ -504,6 +533,7 @@ export async function addAddress(req, res, next) {
     }
 
     const address = req.body || {};
+    const normalized = normalizeAddressInput(address);
     const customer = await findCustomerForAuthUser(req.user);
     if (!customer) {
       return res.status(404).json({ success: false, message: "Customer profile not found" });
@@ -518,15 +548,15 @@ export async function addAddress(req, res, next) {
     if (existingIdx !== -1) {
       customer.addresses[existingIdx] = {
         ...customer.addresses[existingIdx],
-        ...address,
+        ...normalized,
         id: addrId
       };
-      if (address.isDefault !== false) {
+      if (normalized.isDefault !== false) {
         customer.addresses.forEach((a, i) => { a.isDefault = (i === existingIdx); });
         customer.addresses[existingIdx].isDefault = true;
       }
     } else {
-      const newAddress = { ...address, id: addrId };
+      const newAddress = { ...normalized, id: addrId };
       if (newAddress.isDefault !== false || customer.addresses.length === 0) {
         customer.addresses.forEach(a => { a.isDefault = false; });
         newAddress.isDefault = true;
@@ -567,6 +597,7 @@ export async function updateAddress(req, res, next) {
 
     const target = req.params.id || req.params.index || req.body.id;
     const addressData = req.body || {};
+    const normalized = normalizeAddressInput(addressData);
 
     const customer = await findCustomerForAuthUser(req.user);
     if (!customer) {
@@ -583,16 +614,16 @@ export async function updateAddress(req, res, next) {
     if (targetIdx !== -1) {
       customer.addresses[targetIdx] = { 
         ...customer.addresses[targetIdx], 
-        ...addressData, 
+        ...normalized, 
         id: customer.addresses[targetIdx].id || target 
       };
     } else {
       const newId = target || addressData.id || ("ADDR-" + Date.now());
-      customer.addresses.push({ ...addressData, id: newId });
+      customer.addresses.push({ ...normalized, id: newId });
       targetIdx = customer.addresses.length - 1;
     }
 
-    if (addressData.isDefault !== false) {
+    if (normalized.isDefault !== false) {
       customer.addresses.forEach((a, i) => {
         a.isDefault = (i === targetIdx);
       });

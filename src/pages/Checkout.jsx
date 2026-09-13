@@ -361,13 +361,39 @@ export function Checkout() {
     }));
   };
 
+  const getLatestFormData = (baseData) => {
+    const mapping = {
+      firstName: "input-firstName",
+      lastName: "input-lastName",
+      phone: "input-phone",
+      email: "input-email",
+      address: "input-address",
+      landmark: "input-landmark",
+      pincode: "input-pincode",
+      city: "input-city",
+      state: "input-state",
+    };
+    const current = { ...(baseData || {}) };
+    for (const [key, id] of Object.entries(mapping)) {
+      const el = document.getElementById(id);
+      if (el && typeof el.value === "string") {
+        const val = el.value.trim();
+        if (val && (!current[key] || !String(current[key]).trim())) {
+          current[key] = val;
+        }
+      }
+    }
+    return current;
+  };
+
   const handleEditAddress = () => {
     setUsingSavedAddress(false);
   };
 
   // Explicit Save / Update Address Handler
   const handleSaveEditedAddress = async (customFormData = null) => {
-    const dataToSave = customFormData || formData;
+    const dataToSave = getLatestFormData(customFormData || formData);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!dataToSave.firstName?.trim()) {
       emitToast("First Name is required", "error");
       return false;
@@ -378,6 +404,10 @@ export function Checkout() {
     }
     if (!dataToSave.phone?.trim() || dataToSave.phone.trim().length < 10) {
       emitToast("Valid 10-digit mobile number is required", "error");
+      return false;
+    }
+    if (!dataToSave.email?.trim() || !emailRegex.test(dataToSave.email.trim())) {
+      emitToast("Valid email address is required for order receipt & payment", "error");
       return false;
     }
     if (!dataToSave.address?.trim()) {
@@ -393,6 +423,7 @@ export function Checkout() {
       return false;
     }
 
+    setFormData(dataToSave);
     setIsSavingAddress(true);
     try {
       const addressObj = {
@@ -401,7 +432,7 @@ export function Checkout() {
         lastName: dataToSave.lastName.trim(),
         name: `${dataToSave.firstName.trim()} ${dataToSave.lastName.trim()}`,
         phone: dataToSave.phone.trim(),
-        email: (dataToSave.email || "").trim().toLowerCase(),
+        email: dataToSave.email.trim().toLowerCase(),
         address: dataToSave.address.trim(),
         landmark: (dataToSave.landmark || "").trim(),
         locality: (dataToSave.locality || "").trim(),
@@ -498,21 +529,32 @@ export function Checkout() {
 
   // Validate form fields
   const validateForm = () => {
+    const current = getLatestFormData(formData);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const errors = {};
-    if (!formData.firstName?.trim()) errors.firstName = "First name is required";
-    if (!formData.lastName?.trim()) errors.lastName = "Last name is required";
-    if (!formData.phone?.trim() || formData.phone.trim().length < 10) {
+    if (!current.firstName?.trim()) errors.firstName = "First name is required";
+    if (!current.lastName?.trim()) errors.lastName = "Last name is required";
+    if (!current.phone?.trim() || current.phone.trim().length < 10) {
       errors.phone = "Valid 10-digit phone number is required";
     }
-    if (!formData.address?.trim()) errors.address = "Full address is required";
-    if (!formData.pincode?.trim() || formData.pincode.trim().length < 6) {
+    if (!current.email?.trim()) {
+      errors.email = "Email address is required";
+    } else if (!emailRegex.test(current.email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+    if (!current.address?.trim()) errors.address = "Full address is required";
+    if (!current.pincode?.trim() || current.pincode.trim().length < 6) {
       errors.pincode = "Valid 6-digit pincode is required";
     }
-    if (!formData.city?.trim()) errors.city = "City is required";
-    if (!formData.state?.trim()) errors.state = "State is required";
+    if (!current.city?.trim()) errors.city = "City is required";
+    if (!current.state?.trim()) errors.state = "State is required";
 
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    if (Object.keys(errors).length === 0) {
+      setFormData(current);
+      return true;
+    }
+    return false;
   };
 
   // Helper to submit standard POST form to PayU Hosted Checkout URL
@@ -545,9 +587,8 @@ export function Checkout() {
     setPayuTimeout(false);
     setPayuError(null);
 
-
-
-    const { firstName, lastName, phone, email, address, landmark, locality, pincode, city, state } = formData;
+    const currentForm = getLatestFormData(formData);
+    const { firstName, lastName, phone, email, address, landmark, locality, pincode, city, state } = currentForm;
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPhone = phone.trim();
 

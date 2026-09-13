@@ -443,6 +443,7 @@ export function Admin() {
     });
 
     const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data && event.data.type === "pcloud:connected") {
         emitToast("pCloud Storage connected via OAuth!", "success");
         checkPcloud();

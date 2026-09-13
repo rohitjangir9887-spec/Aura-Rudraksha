@@ -86,6 +86,8 @@ if (!global.__mongoose_listeners_attached) {
   mongoose.connection.on("error", (err) => {
     console.warn("⚠️ [MongoDB] Connection error:", err.message);
     recordConnectionError(err, "event:error");
+    cached.conn = null;
+    cached.promise = null;
   });
 }
 
@@ -101,6 +103,14 @@ export function isValidMongoUri(rawUri) {
 let memoryServerInstance = null;
 
 export async function getOrStartMemoryMongo() {
+  const isVercelServerless = Boolean(
+    process.env.VERCEL ||
+    process.env.VERCEL_ENV ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME
+  );
+  if (isVercelServerless) {
+    return null;
+  }
   if (!memoryServerInstance) {
     try {
       const { MongoMemoryServer } = await import("mongodb-memory-server");
@@ -188,14 +198,18 @@ export async function connectDB() {
 
   // 3. If disconnected or disconnecting (readyState === 0 or 3), initiate a single connection promise
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
-    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.K_SERVICE);
+    const isVercelServerless = Boolean(
+      process.env.VERCEL ||
+      process.env.VERCEL_ENV ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME
+    );
     const opts = {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      maxIdleTimeMS: 30000,
-      maxPoolSize: isServerless ? 10 : 25,
-      minPoolSize: isServerless ? 0 : 2,
+      serverSelectionTimeoutMS: isVercelServerless ? 3000 : 5000,
+      connectTimeoutMS: isVercelServerless ? 5000 : 10000,
+      socketTimeoutMS: isVercelServerless ? 10000 : 30000,
+      maxIdleTimeMS: isVercelServerless ? 10000 : 30000,
+      maxPoolSize: isVercelServerless ? 10 : 25,
+      minPoolSize: 0,
       heartbeatFrequencyMS: 10000,
       retryWrites: true,
       retryReads: true,
@@ -205,46 +219,34 @@ export async function connectDB() {
 
     const doConnect = async () => {
       let activeUri = uri;
-      for (let attempt = 1; attempt <= 2; attempt++) {
+      const maxAttempts = isVercelServerless ? 1 : 2;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const mongooseInstance = await mongoose.connect(activeUri, opts);
           console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
           cached.conn = mongooseInstance;
           cached.lastConnected = new Date().toISOString();
-          import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-            ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
-          }).catch(() => {});
+
+          // Deduplicate DB seeding per process execution
+          if (!global.__db_init_triggered) {
+            global.__db_init_triggered = true;
+            import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
+              ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
+            }).catch(() => {});
+          }
+
           return mongooseInstance;
         } catch (err) {
-          if (attempt === 1) {
+          if (attempt < maxAttempts && !isVercelServerless) {
             console.warn(`⚠️ [MongoDB] Initial connection attempt failed (${err.message}). Retrying...`);
-            // If the remote URI failed (e.g. invalid credentials or network unreachable), try local fallback immediately
-            if (activeUri !== (await getOrStartMemoryMongo())) {
-              const memUri = await getOrStartMemoryMongo();
-              if (memUri) {
-                console.log("⚡ [MongoDB] Switching to local resilient MongoDB fallback...");
-                activeUri = memUri;
-              }
+            const memUri = await getOrStartMemoryMongo();
+            if (memUri && activeUri !== memUri) {
+              console.log("⚡ [MongoDB] Switching to local resilient MongoDB fallback...");
+              activeUri = memUri;
             }
             await new Promise(r => setTimeout(r, 1000));
           } else {
-            // Last ditch fallback to local memory server
-            try {
-              const memUri = await getOrStartMemoryMongo();
-              if (memUri && activeUri !== memUri) {
-                console.log("⚡ [MongoDB] Final fallback to local resilient MongoDB engine...");
-                const mongooseInstance = await mongoose.connect(memUri, opts);
-                console.log(`✅ [MongoDB] Connected via resilient fallback: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
-                cached.conn = mongooseInstance;
-                cached.lastConnected = new Date().toISOString();
-                import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-                  ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
-                }).catch(() => {});
-                return mongooseInstance;
-              }
-            } catch (fallbackErr) {
-              console.warn("⚠️ [MongoDB] Local fallback also failed:", fallbackErr.message);
-            }
             throw err;
           }
         }

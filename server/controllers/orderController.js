@@ -194,9 +194,10 @@ export async function getOrderById(req, res, next) {
 
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = isGuestOrder && (
-      (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
+      (Boolean(order.guestToken) && Boolean(reqGuestToken) && reqGuestToken === order.guestToken) ||
       (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      Boolean(req.user)
+      (userEmail && oEmail === userEmail) ||
+      (userPhone && oPhone === userPhone)
     );
 
     if (!isAdmin && !isOwner && !isGuestOwner) {

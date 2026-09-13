@@ -119,12 +119,28 @@ export function createApp(options = {}) {
   app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
   // -------------------------------------------------------------------------
-  // Security headers (compatible with iframe preview)
+  // Security headers (hardened CSP, nosniff, frame protection)
   // -------------------------------------------------------------------------
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+    const cspDirectives = [
+      "default-src 'self' https:",
+      "script-src 'self' https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.razorpay.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' https: wss:",
+      "frame-src 'self' https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'self' https://*.google.com https://*.run.app https://ai.studio"
+    ].join("; ");
+
+    res.setHeader("Content-Security-Policy", cspDirectives);
+
     // For API endpoints, enforce X-Frame-Options: DENY against framing attacks
     if (req.path && req.path.startsWith("/api")) {
       res.setHeader("X-Frame-Options", "DENY");

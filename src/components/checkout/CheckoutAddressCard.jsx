@@ -300,10 +300,14 @@ export function CheckoutAddressCard({
               </label>
               <input 
                 id="input-firstName"
+                name="firstName"
+                autoComplete="given-name"
                 placeholder="e.g. Ramesh"
                 required
-                value={formData.firstName}
+                value={formData.firstName || ""}
                 onChange={(e) => onInputChange("firstName", e.target.value)}
+                onInput={(e) => onInputChange("firstName", e.target.value)}
+                onBlur={(e) => onInputChange("firstName", e.target.value.trim())}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -325,10 +329,14 @@ export function CheckoutAddressCard({
               </label>
               <input 
                 id="input-lastName"
+                name="lastName"
+                autoComplete="family-name"
                 placeholder="e.g. Sharma"
                 required
-                value={formData.lastName}
+                value={formData.lastName || ""}
                 onChange={(e) => onInputChange("lastName", e.target.value)}
+                onInput={(e) => onInputChange("lastName", e.target.value)}
+                onBlur={(e) => onInputChange("lastName", e.target.value.trim())}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -353,13 +361,23 @@ export function CheckoutAddressCard({
               </label>
               <input 
                 id="input-phone"
+                name="phone"
+                autoComplete="tel"
                 placeholder="10-digit mobile number"
                 required
                 type="tel"
                 inputMode="numeric"
                 maxLength={10}
-                value={formData.phone}
+                value={formData.phone || ""}
                 onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, "");
+                  onInputChange("phone", val);
+                }}
+                onInput={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, "");
+                  onInputChange("phone", val);
+                }}
+                onBlur={(e) => {
                   const val = e.target.value.replace(/[^0-9]/g, "");
                   onInputChange("phone", val);
                 }}
@@ -380,26 +398,32 @@ export function CheckoutAddressCard({
 
             <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
-                Email <span style={{ color: "#806f62", fontWeight: "400", fontSize: "10px" }}>(Optional)</span>
+                Email Address <span style={{ color: "#dc2626" }}>*</span>
               </label>
               <input 
                 id="input-email"
-                placeholder="For order receipt"
+                name="email"
+                autoComplete="email"
+                placeholder="For order receipt & payment"
                 type="email"
-                value={formData.email}
+                required
+                value={formData.email || ""}
                 onChange={(e) => onInputChange("email", e.target.value)}
+                onInput={(e) => onInputChange("email", e.target.value)}
+                onBlur={(e) => onInputChange("email", e.target.value.trim().toLowerCase())}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
                   padding: "10px 12px",
                   borderRadius: "8px",
-                  border: "1px solid #d4c5b9",
+                  border: errors.email ? "1.5px solid #dc2626" : "1px solid #d4c5b9",
                   background: "#ffffff",
                   fontSize: "13px",
                   color: "#2b170d",
                   outline: "none"
                 }}
               />
+              {errors.email && <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "2px" }}>{errors.email}</div>}
             </div>
           </div>
 
@@ -410,11 +434,15 @@ export function CheckoutAddressCard({
             </label>
             <textarea 
               id="input-address"
+              name="address"
+              autoComplete="street-address"
               placeholder="House/Flat No., Building Name, Street / Colony, Area Landmark"
               required
               rows={2}
-              value={formData.address}
+              value={formData.address || ""}
               onChange={(e) => onInputChange("address", e.target.value)}
+              onInput={(e) => onInputChange("address", e.target.value)}
+              onBlur={(e) => onInputChange("address", e.target.value.trim())}
               style={{
                 width: "100%",
                 boxSizing: "border-box",
@@ -438,9 +466,13 @@ export function CheckoutAddressCard({
             </label>
             <input 
               id="input-landmark"
+              name="landmark"
+              autoComplete="address-line2"
               placeholder="E.g. Near Apollo Hospital"
               value={formData.landmark || ""}
               onChange={(e) => onInputChange("landmark", e.target.value)}
+              onInput={(e) => onInputChange("landmark", e.target.value)}
+              onBlur={(e) => onInputChange("landmark", e.target.value.trim())}
               style={{
                 width: "100%",
                 boxSizing: "border-box",
@@ -464,11 +496,13 @@ export function CheckoutAddressCard({
               <div style={{ position: "relative" }}>
                 <input 
                   id="input-pincode"
+                  name="pincode"
+                  autoComplete="postal-code"
                   placeholder="6 digits"
                   required
                   maxLength={6}
                   inputMode="numeric"
-                  value={formData.pincode}
+                  value={formData.pincode || ""}
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^0-9]/g, "");
                     onInputChange("pincode", val);
@@ -481,6 +515,10 @@ export function CheckoutAddressCard({
                       onInputChange("locality", "");
                       setPinLookupError(null);
                     }
+                  }}
+                  onInput={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    onInputChange("pincode", val);
                   }}
                   style={{
                     width: "100%",
@@ -511,10 +549,14 @@ export function CheckoutAddressCard({
               </label>
               <input 
                 id="input-city"
+                name="city"
+                autoComplete="address-level2"
                 placeholder="City"
                 required
-                value={formData.city}
+                value={formData.city || ""}
                 onChange={(e) => onInputChange("city", e.target.value)}
+                onInput={(e) => onInputChange("city", e.target.value)}
+                onBlur={(e) => onInputChange("city", e.target.value.trim())}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -536,10 +578,14 @@ export function CheckoutAddressCard({
               </label>
               <input 
                 id="input-state"
+                name="state"
+                autoComplete="address-level1"
                 placeholder="State"
                 required
-                value={formData.state}
+                value={formData.state || ""}
                 onChange={(e) => onInputChange("state", e.target.value)}
+                onInput={(e) => onInputChange("state", e.target.value)}
+                onBlur={(e) => onInputChange("state", e.target.value.trim())}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",

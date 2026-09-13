@@ -998,12 +998,10 @@ export async function verifyPaymentStatus(req, res, next) {
     const isPhoneOwner = Boolean(reqPhone10 && orderPhone10 && reqPhone10 === orderPhone10);
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = Boolean(
-      (order.guestToken && reqGuestToken === order.guestToken) ||
-      (reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      isGuestOrder ||
-      req.user
+      (order.guestToken && reqGuestToken && reqGuestToken === order.guestToken) ||
+      (reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
     );
-    const isDirectOrderMatch = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId));
+    const isDirectOrderMatch = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId) && isGuestOwner);
 
     if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner && !isDirectOrderMatch) {
       return res.status(403).json({ success: false, message: "Access Denied" });
@@ -1266,11 +1264,9 @@ export async function retryPayuPayment(req, res, next) {
     const isPhoneOwner = Boolean(retryReqPhone && orderPhones.includes(retryReqPhone));
 
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
-    const isGuestOwner = (
-      (Boolean(order.guestToken) && reqGuestToken === order.guestToken) ||
-      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
-      isGuestOrder ||
-      Boolean(req.user)
+    const isGuestOwner = Boolean(
+      (Boolean(order.guestToken) && Boolean(reqGuestToken) && reqGuestToken === order.guestToken) ||
+      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
     );
 
     // If order matches orderId parameter and is unpaid, allow retry
