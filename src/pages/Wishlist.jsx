@@ -102,49 +102,139 @@ export function Wishlist() {
                 </div>
 
                 <div
+                  className="wishlist-recommend-grid"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-                    gap: "18px",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "14px",
                   }}
                 >
                   {products.slice(0, 4).map((p) => {
                     const displayImage = getProductPrimaryImage(p);
                     const isAdded = !!addedIds[p.id];
+                    const discount = pct(p);
                     return (
                       <div
                         key={p.id}
+                        className="wishlist-product-card"
                         style={{
                           background: "#ffffff",
                           border: "1px solid #ebdccb",
-                          borderRadius: "14px",
+                          borderRadius: "12px",
                           overflow: "hidden",
                           display: "flex",
                           flexDirection: "column",
-                          boxShadow: "0 4px 15px rgba(0,0,0,0.02)",
+                          boxShadow: "0 2px 8px rgba(43,23,13,0.03)",
+                          position: "relative",
+                          transition: "transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease",
                         }}
                       >
-                        <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#f5eee6", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Link to={getProductRoute(p)} style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div
+                          style={{
+                            width: "100%",
+                            aspectRatio: "1 / 1",
+                            background: "linear-gradient(180deg, #fdfcf9 0%, #f7f3eb 100%)",
+                            overflow: "hidden",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            position: "relative",
+                            borderBottom: "1px solid #f0e4d7",
+                          }}
+                        >
+                          <Link
+                            to={getProductRoute(p)}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "8px",
+                              boxSizing: "border-box",
+                              textDecoration: "none",
+                            }}
+                          >
                             <OptimizedImage
                               src={displayImage}
                               alt={p.name}
-                              width={320}
+                              width={260}
                               quality={80}
-                              style={{ width: "100%", height: "100%", objectFit: "contain", padding: "6px", boxSizing: "border-box" }}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "contain",
+                                objectPosition: "center",
+                                display: "block",
+                                boxSizing: "border-box",
+                                transition: "transform 0.3s ease",
+                              }}
                             />
                           </Link>
+                          {discount > 0 && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                top: "8px",
+                                left: "8px",
+                                background: "#a54d2b",
+                                color: "#ffffff",
+                                fontSize: "9.5px",
+                                fontWeight: "700",
+                                padding: "2px 7px",
+                                borderRadius: "4px",
+                                letterSpacing: "0.3px",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                              }}
+                            >
+                              {discount}% OFF
+                            </span>
+                          )}
                         </div>
-                        <div style={{ padding: "14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                        <div
+                          style={{
+                            padding: "10px 12px 12px",
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between",
+                            background: "#ffffff",
+                            boxSizing: "border-box",
+                          }}
+                        >
                           <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#b45309", marginBottom: "4px" }}>
+                              <Star size={12} fill="currentColor" />
+                              <span style={{ fontWeight: "700", color: "#2b170d" }}>{p.rating || 4.9}</span>
+                              <span style={{ color: "#9ca3af", fontSize: "10.5px" }}>({p.reviews || 18})</span>
+                            </div>
+
                             <Link to={getProductRoute(p)} style={{ textDecoration: "none", color: "inherit" }}>
-                              <h4 style={{ fontFamily: "Cormorant Garamond, serif", fontSize: "17px", color: "#2b170d", margin: "0 0 6px" }}>
+                              <h4
+                                style={{
+                                  fontFamily: "Cormorant Garamond, serif",
+                                  fontSize: "14.5px",
+                                  fontWeight: "600",
+                                  color: "#2b170d",
+                                  margin: "0 0 6px",
+                                  lineHeight: "1.35",
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden",
+                                  minHeight: "36px",
+                                }}
+                                title={p.name}
+                              >
                                 {p.name}
                               </h4>
                             </Link>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                              <b style={{ fontSize: "14.5px", color: "#a54d2b" }}>{money(p.price)}</b>
-                              {p.mrp && <del style={{ fontSize: "11.5px", color: "#806f62" }}>{money(p.mrp)}</del>}
+
+                            <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+                              <b style={{ fontSize: "15px", fontWeight: "700", color: "#9c411e" }}>{money(p.price)}</b>
+                              {p.mrp && p.mrp > p.price && (
+                                <del style={{ fontSize: "11px", color: "#9ca3af" }}>{money(p.mrp)}</del>
+                              )}
                             </div>
                           </div>
                           <button
@@ -152,21 +242,23 @@ export function Wishlist() {
                             onClick={() => handleAddToCart(p)}
                             style={{
                               width: "100%",
-                              padding: "8px",
-                              borderRadius: "8px",
-                              border: isAdded ? "1px solid #20a95a" : "none",
-                              background: isAdded ? "#20a95a" : "#a54d2b",
+                              padding: "7px 10px",
+                              borderRadius: "7px",
+                              border: isAdded ? "1px solid #16a34a" : "none",
+                              background: isAdded ? "#16a34a" : "linear-gradient(135deg, #a54d2b 0%, #893819 100%)",
                               color: "#ffffff",
                               fontSize: "11.5px",
-                              fontWeight: "700",
+                              fontWeight: "600",
                               cursor: "pointer",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               gap: "6px",
+                              boxShadow: isAdded ? "none" : "0 2px 6px rgba(165,77,43,0.2)",
+                              transition: "all 0.18s ease",
                             }}
                           >
-                            <ShoppingCart size={14} />
+                            <ShoppingCart size={13} />
                             {isAdded ? "✓ Added" : "Add to Cart"}
                           </button>
                         </div>
@@ -179,10 +271,11 @@ export function Wishlist() {
           </div>
         ) : (
           <div
+            className="wishlist-saved-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: "24px",
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+              gap: "14px",
             }}
           >
             {wishlistedProducts.map((p) => {
@@ -193,19 +286,45 @@ export function Wishlist() {
               return (
                 <div
                   key={p.id}
+                  className="wishlist-product-card"
                   style={{
-                    background: "#fffdf9",
-                    border: "1px solid #e8e0d8",
-                    borderRadius: "14px",
+                    background: "#ffffff",
+                    border: "1px solid #ebdccb",
+                    borderRadius: "12px",
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
-                    boxShadow: "0 4px 15px rgba(0,0,0,0.02)",
+                    boxShadow: "0 2px 8px rgba(43,23,13,0.03)",
                     position: "relative",
+                    transition: "transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease",
                   }}
                 >
-                  <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", background: "#f5eee6", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Link to={getProductRoute(p)} style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "1 / 1",
+                      background: "linear-gradient(180deg, #fdfcf9 0%, #f7f3eb 100%)",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderBottom: "1px solid #f0e4d7",
+                    }}
+                  >
+                    <Link
+                      to={getProductRoute(p)}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "8px",
+                        boxSizing: "border-box",
+                        textDecoration: "none",
+                      }}
+                    >
                       <img
                         src={displayImage}
                         alt={p.name}
@@ -214,23 +333,32 @@ export function Wishlist() {
                         onError={(e) => {
                           e.target.src = "/images/placeholder.svg";
                         }}
-                        style={{ width: "100%", height: "100%", objectFit: "contain", padding: "6px", boxSizing: "border-box" }}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          objectPosition: "center",
+                          display: "block",
+                          boxSizing: "border-box",
+                          transition: "transform 0.3s ease",
+                        }}
                       />
                     </Link>
                     {p.badge && (
                       <span
                         style={{
                           position: "absolute",
-                          top: "12px",
-                          left: "12px",
+                          top: "8px",
+                          left: "8px",
                           background: "#a54d2b",
                           color: "#fff",
-                          fontSize: "10px",
+                          fontSize: "9px",
                           fontWeight: "700",
-                          padding: "4px 10px",
-                          borderRadius: "20px",
+                          padding: "2px 7px",
+                          borderRadius: "4px",
                           textTransform: "uppercase",
-                          letterSpacing: "0.5px",
+                          letterSpacing: "0.4px",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
                         }}
                       >
                         {p.badge}
@@ -243,85 +371,114 @@ export function Wishlist() {
                       aria-label="Remove from wishlist"
                       style={{
                         position: "absolute",
-                        top: "12px",
-                        right: "12px",
+                        top: "8px",
+                        right: "8px",
                         background: "#ffffff",
-                        border: "none",
-                        width: "34px",
-                        height: "34px",
+                        border: "1px solid #ebdccb",
+                        width: "28px",
+                        height: "28px",
                         borderRadius: "50%",
                         display: "grid",
                         placeItems: "center",
                         color: "#dc2626",
                         cursor: "pointer",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                        transition: "all 0.15s ease",
                       }}
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={13} />
                     </button>
                   </div>
 
-                  <div style={{ padding: "18px", display: "flex", flexDirection: "column", flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#d97706", marginBottom: "6px" }}>
-                      <Star size={14} fill="currentColor" />
-                      <span style={{ fontWeight: "600", color: "#2b170d" }}>{p.rating || 4.9}</span>
-                      <span style={{ color: "#806f62" }}>({p.reviews || 0})</span>
+                  <div
+                    style={{
+                      padding: "10px 12px 12px",
+                      display: "flex",
+                      flexDirection: "column",
+                      flex: 1,
+                      justifyContent: "space-between",
+                      background: "#ffffff",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#b45309", marginBottom: "4px" }}>
+                        <Star size={12} fill="currentColor" />
+                        <span style={{ fontWeight: "700", color: "#2b170d" }}>{p.rating || 4.9}</span>
+                        <span style={{ color: "#9ca3af", fontSize: "10.5px" }}>({p.reviews || 22})</span>
+                      </div>
+
+                      <Link to={getProductRoute(p)} style={{ textDecoration: "none" }}>
+                        <h4
+                          style={{
+                            fontFamily: "Cormorant Garamond, serif",
+                            fontSize: "14.5px",
+                            fontWeight: "600",
+                            color: "#2b170d",
+                            margin: "0 0 6px",
+                            lineHeight: "1.35",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            minHeight: "36px",
+                          }}
+                          title={p.name}
+                        >
+                          {p.name}
+                        </h4>
+                      </Link>
+
+                      <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+                        <b style={{ fontSize: "15px", fontWeight: "700", color: "#9c411e" }}>{money(p.price)}</b>
+                        {p.mrp > p.price && (
+                          <del style={{ fontSize: "11px", color: "#9ca3af" }}>{money(p.mrp)}</del>
+                        )}
+                        {discount > 0 && (
+                          <span style={{ fontSize: "9.5px", fontWeight: "700", color: "#15803d", background: "#f0fdf4", padding: "1px 5px", borderRadius: "3px" }}>
+                            {discount}% OFF
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <Link to={getProductRoute(p)} style={{ textDecoration: "none" }}>
-                      <h3
-                        style={{
-                          fontFamily: "Cormorant Garamond, serif",
-                          fontSize: "20px",
-                          color: "#2b170d",
-                          margin: "0 0 10px",
-                          lineHeight: "1.3",
-                          fontWeight: "600",
-                        }}
-                      >
-                        {p.name}
-                      </h3>
-                    </Link>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "auto", marginBottom: "16px" }}>
-                      <b style={{ fontSize: "18px", color: "#2b170d" }}>{money(p.price)}</b>
-                      {p.mrp > p.price && (
-                        <del style={{ fontSize: "12px", color: "#958277" }}>{money(p.mrp)}</del>
-                      )}
-                      {discount > 0 && (
-                        <span style={{ fontSize: "10px", fontWeight: "700", color: "#20a95a", background: "#e8f7ee", padding: "2px 6px", borderRadius: "4px" }}>
-                          {discount}% OFF
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "8px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "6px" }}>
                       <button
                         type="button"
                         onClick={() => handleAddToCart(p)}
                         style={{
-                          padding: "10px",
-                          borderRadius: "8px",
-                          border: isAdded ? "1px solid #20a95a" : "none",
-                          background: isAdded ? "#20a95a" : "#a54d2b",
+                          padding: "7px 10px",
+                          borderRadius: "7px",
+                          border: isAdded ? "1px solid #16a34a" : "none",
+                          background: isAdded ? "#16a34a" : "linear-gradient(135deg, #a54d2b 0%, #893819 100%)",
                           color: "#ffffff",
-                          fontSize: "12px",
+                          fontSize: "11.5px",
                           fontWeight: "600",
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          gap: "6px",
-                          transition: "all 0.2s",
+                          gap: "5px",
+                          boxShadow: isAdded ? "none" : "0 2px 6px rgba(165,77,43,0.2)",
+                          transition: "all 0.18s ease",
                         }}
                       >
-                        <ShoppingCart size={15} />
+                        <ShoppingCart size={13} />
                         {isAdded ? "✓ Added" : "Add to Cart"}
                       </button>
                       <Link
                         to={getProductRoute(p)}
                         className="outline-btn"
-                        style={{ padding: "10px 12px", fontSize: "12px", display: "grid", placeItems: "center" }}
+                        style={{
+                          padding: "7px 10px",
+                          fontSize: "11.5px",
+                          borderRadius: "7px",
+                          border: "1px solid #ebdccb",
+                          display: "grid",
+                          placeItems: "center",
+                          color: "#2b170d",
+                          textDecoration: "none",
+                        }}
                         title="View Product Details"
                       >
                         View
