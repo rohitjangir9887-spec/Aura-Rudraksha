@@ -595,7 +595,7 @@ export async function reorderProducts(req, res, next) {
 
       if (Object.keys(updateData).length > 0) {
         updates.push(
-          Product.findOneAndUpdate({ id: cleanId }, { $set: updateData }, { new: true })
+          Product.findOneAndUpdate({ id: cleanId }, { $set: updateData }, { returnDocument: "after" })
         );
       }
     }
