@@ -70,17 +70,18 @@ if (!global.__mongoose_listeners_attached) {
   });
   mongoose.connection.on("disconnected", () => {
     cached.conn = null;
-    recordConnectionError(new Error("MongoDB connection was dropped or disconnected."), "event:disconnected");
-    // Proactively attempt reconnection if URI exists and not already connecting
-    const uri = getMongoUri();
-    if (uri && mongoose.connection.readyState === 0 && !global.__mongo_reconnecting) {
+    cached.promise = null;
+    console.warn("⚠️ [MongoDB] Connection socket disconnected.");
+    
+    // Proactively attempt seamless reconnection if disconnected (readyState 0)
+    if (mongoose.connection.readyState === 0 && !global.__mongo_reconnecting) {
       global.__mongo_reconnecting = true;
       setTimeout(() => {
         global.__mongo_reconnecting = false;
         if (mongoose.connection.readyState === 0) {
           connectDB().catch(e => console.warn("⚠️ [MongoDB Auto-Reconnect]:", e.message));
         }
-      }, 3000);
+      }, 1500);
     }
   });
   mongoose.connection.on("error", (err) => {
@@ -214,12 +215,12 @@ export async function connectDB() {
       process.env.AWS_LAMBDA_FUNCTION_NAME
     );
     const opts = {
-      serverSelectionTimeoutMS: 10000, // 10s timeout to allow TLS handshake & server selection on Atlas/Vercel
-      connectTimeoutMS: 10000,         // 10s socket connection timeout
+      serverSelectionTimeoutMS: 15000, // 15s timeout to allow TLS handshake & server selection on Atlas/Vercel
+      connectTimeoutMS: 15000,         // 15s socket connection timeout
       socketTimeoutMS: 45000,          // 45s socket inactivity timeout
-      maxIdleTimeMS: 10000,
+      maxIdleTimeMS: 60000,            // 60s idle timeout to avoid aggressive socket reaps on brief idle
       maxPoolSize: isVercelServerless ? 10 : 25,
-      minPoolSize: 0,
+      minPoolSize: isVercelServerless ? 0 : 1,
       heartbeatFrequencyMS: 10000,
       retryWrites: true,
       retryReads: true,

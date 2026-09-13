@@ -189,7 +189,7 @@ export function createApp(options = {}) {
 
   // Database Connection Middleware for Serverless & Long-running instances
   app.use("/api", async (req, res, next) => {
-    if (getMongoUri()) {
+    if (!isDbConnected()) {
       try {
         await connectDB();
       } catch (err) {
@@ -225,12 +225,10 @@ export function createApp(options = {}) {
   // Middleware ensuring DB connection attempt before database-dependent queries
   const requireDb = async (req, res, next) => {
     if (!isDbConnected()) {
-      if (getMongoUri()) {
-        try {
-          await connectDB();
-        } catch (err) {
-          console.warn("⚠️ [DB Middleware] Pre-route connection attempt notice:", err?.message || err);
-        }
+      try {
+        await connectDB();
+      } catch (err) {
+        console.warn("⚠️ [DB Middleware] Pre-route connection attempt notice:", err?.message || err);
       }
     }
     next();
