@@ -1,7 +1,13 @@
+import mongoose from "mongoose";
 import "../server/utils/urlParser.js";
 import { createApp } from "../server/app.js";
-import { connectDB, getMongoUri, isDbConnected } from "../server/config/db.js";
+import { isDbConnected } from "../server/config/db.js";
 import { Product } from "../server/models/Product.js";
+
+// Vercel requests must fail fast when Atlas is temporarily unavailable instead of
+// waiting on Mongoose's command buffer and consuming the whole function timeout.
+// The normal application DB middleware still owns connection establishment.
+mongoose.set("bufferCommands", false);
 
 const app = createApp({ enableSsr: true });
 
@@ -34,7 +40,6 @@ function sendUnavailableMukhi(res, mukhiNumber, path) {
 }
 
 export default async function handler(req, res) {
-  // If Vercel rewrote to /api/index.js or /index.js, restore the original matched route
   const originalPath = getOriginalPath(req);
   if (req.headers && req.headers["x-matched-path"]) {
     const matched = req.headers["x-matched-path"];
@@ -43,18 +48,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // Ensure database is connected for this serverless invocation
-  if (getMongoUri()) {
-    try {
-      await connectDB();
-    } catch (err) {
-      console.warn("⚠️ [Vercel Function] MongoDB connection notice:", err?.message || err);
-    }
-  }
-
-  // Empty commercial Mukhi landing pages are not indexed or presented as products.
-  // If MongoDB is temporarily unavailable, let the normal SSR path handle the request.
-  const mukhiMatch = originalPath.match(/^\/rudraksha\/(1[0-9]|20|21|[1-9])-mukhi$/i);
+  // Do not eagerly connect here. createApp's API middleware and the SSR SEO
+  // resolver establish the shared cached connection only when required.
+  const mukhiMatch = originalPath.match(/^\\/rudraksha\\/(1[0-9]|20|21|[1-9])-mukhi$/i);
   if (mukhiMatch && isDbConnected()) {
     try {
       const available = await hasPublishedMukhiProduct(mukhiMatch[1]);
