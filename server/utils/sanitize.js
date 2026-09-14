@@ -114,6 +114,7 @@ export function toPublicProductDTO(doc) {
   if (Array.isArray(doc)) return doc.map(toPublicProductDTO);
   if (typeof doc !== "object" || doc instanceof Date) return doc;
 
+  const finalId = String(doc.id || doc._id || "");
   const cleaned = removeMongoInternals(doc);
 
   const INTERNAL_FIELDS = [
@@ -131,8 +132,8 @@ export function toPublicProductDTO(doc) {
     delete cleaned[field];
   }
 
-  if (cleaned.id !== undefined && cleaned.id !== null) {
-    cleaned.id = String(cleaned.id);
+  if (finalId) {
+    cleaned.id = finalId;
   }
 
   return cleaned;

@@ -16,7 +16,6 @@ import { connectDB, isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
-import { defaultProducts } from "../data/defaultData.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
 
@@ -1251,6 +1250,15 @@ export function getHtmlTemplate() {
   cachedTemplate = `<!doctype html>
 <html lang="en">
   <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GT-NNMV4H8"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'GT-NNMV4H8');
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#6f3518" />

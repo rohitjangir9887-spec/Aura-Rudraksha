@@ -15,6 +15,17 @@ export function ScrollToTop() {
     }
   }, []);
 
+  // SPA route change tracking for Google Tag GT-NNMV4H8
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof window.gtag === "function") {
+      try {
+        window.gtag("config", "GT-NNMV4H8", {
+          page_path: pathname + (window.location.search || "")
+        });
+      } catch (_) {}
+    }
+  }, [pathname]);
+
   // Instant scroll to top on route change without repeated delayed timer jumping
   useLayoutEffect(() => {
     if (hash && hash !== "#" && hash !== "#about" && hash !== "#contact") {

@@ -628,7 +628,7 @@ body {
 .feature-bar {
     width: 85% !important;
     max-width: 900px !important;
-    margin: -30px auto 50px !important;
+    margin: 20px auto 30px !important;
     padding: 15px 20px !important;
     border-radius: 14px !important;
     box-shadow: 0 10px 30px rgba(0,0,0,0.04) !important;
@@ -747,7 +747,7 @@ body {
     justify-content: space-between !important;
     width: 95% !important;
     max-width: 1200px !important;
-    margin: -50px auto 40px !important; /* Overlap hero */
+    margin: 20px auto 30px !important;
     padding: 30px 10px !important;
     background: #ffffff !important;
     border-radius: 24px !important;
@@ -812,7 +812,7 @@ body {
     justify-content: space-between !important;
     width: 90% !important;
     max-width: 1000px !important;
-    margin: -40px auto 40px !important;
+    margin: 20px auto 30px !important;
     padding: 30px 20px !important;
     background: #fffdf9 !important;
     border-radius: 12px !important;
@@ -15587,7 +15587,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .feature-bar {
     width: 92% !important;
     max-width: 1000px !important;
-    margin: -25px auto 35px !important;
+    margin: 20px auto 30px !important;
     padding: 18px 15px !important;
     background: #fffdf9 !important;
     border-radius: 12px !important;
@@ -15650,7 +15650,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 768px) {
     .feature-bar {
         width: 95% !important;
-        margin-top: -20px !important;
+        margin-top: 16px !important;
         padding: 12px 6px !important;
         border-radius: 10px !important;
     }
@@ -15675,7 +15675,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 480px) {
     .feature-bar {
         width: 96% !important;
-        margin-top: -15px !important;
+        margin-top: 12px !important;
         padding: 10px 4px !important;
     }
     .feature-bar .icon-wrapper {
@@ -15718,7 +15718,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 .feature-bar {
     width: 90% !important;
     max-width: 800px !important;
-    margin: -20px auto 30px !important;
+    margin: 20px auto 30px !important;
     padding: 12px 10px !important;
     background: #fffdf9 !important;
     border-radius: 12px !important;
@@ -15780,7 +15780,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 768px) {
     .feature-bar {
         width: 94% !important;
-        margin-top: -15px !important;
+        margin-top: 14px !important;
         padding: 10px 4px !important;
         border-radius: 10px !important;
     }
@@ -15805,7 +15805,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 480px) {
     .feature-bar {
         width: 96% !important;
-        margin-top: -12px !important;
+        margin-top: 10px !important;
         padding: 8px 2px !important;
         border-radius: 8px !important;
         box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important;

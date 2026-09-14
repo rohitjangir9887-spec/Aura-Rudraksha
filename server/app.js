@@ -142,7 +142,7 @@ export function createApp(options = {}) {
 
     const cspDirectives = [
       "default-src 'self' https:",
-      "script-src 'self' https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in",
+      "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.razorpay.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",

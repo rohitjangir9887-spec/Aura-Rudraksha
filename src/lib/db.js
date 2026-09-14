@@ -1,6 +1,5 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "./imageUtils";
 import { getProductRoute } from "./routes";
-import { products as defaultProducts } from "../data/index.js";
 import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
@@ -525,7 +524,8 @@ export function loadCacheFromLocalStorage() {
     if (cachedProducts) {
       const parsed = JSON.parse(cachedProducts);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        storeCache.products = parsed;
+        const deletedIds = getDeletedProductIds();
+        storeCache.products = parsed.filter(p => p && !deletedIds.has(String(p.id)) && !deletedIds.has(String(p._id)) && !deletedIds.has(String(p.slug)));
       }
     }
     const cachedBanners = localStorage.getItem("aura_banners_cache");

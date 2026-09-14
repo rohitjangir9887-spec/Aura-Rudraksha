@@ -181,19 +181,15 @@ export async function getProductById(req, res, next) {
     }).lean();
 
     if (!product) {
-      // Secondary fallback search in MongoDB by slugified name or regex
+      // Secondary exact match in MongoDB by slugified name
       const allProds = await Product.find().lean();
       const cleanTarget = cleanId.toLowerCase();
       product = allProds.find(p => {
+        if (!p) return false;
         const pSlug = String(p.slug || "").toLowerCase();
         const pName = String(p.name || "").toLowerCase();
         const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-        return pSlug === cleanTarget || 
-               pSlugifiedName === cleanTarget || 
-               (cleanTarget.length >= 3 && pSlug.includes(cleanTarget)) ||
-               (cleanTarget.length >= 3 && cleanTarget.includes(pSlug)) ||
-               (cleanTarget.length >= 3 && pSlugifiedName.includes(cleanTarget)) ||
-               (cleanTarget.length >= 3 && cleanTarget.includes(pSlugifiedName));
+        return pSlug === cleanTarget || pSlugifiedName === cleanTarget;
       });
     }
 
@@ -546,30 +542,36 @@ export async function deleteProduct(req, res, next) {
       }
     }
 
-    if (deleted) {
-      submitToIndexNow(["/sitemap.xml"], req).catch(() => {});
-      const productUrls = Array.from(new Set([
-        ...(deleted.images || []),
-        ...(deleted.img ? [deleted.img] : [])
-      ].filter(Boolean)));
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found in database or already deleted",
+        id: cleanId
+      });
+    }
 
-      if (productUrls.length > 0) {
-        try {
-          const mediaItems = await Media.find({
-            $or: [
-              { readURL: { $in: productUrls } },
-              { url: { $in: productUrls } }
-            ]
-          });
+    submitToIndexNow(["/sitemap.xml", "/merchant-feed.xml"], req).catch(() => {});
+    const productUrls = Array.from(new Set([
+      ...(deleted.images || []),
+      ...(deleted.img ? [deleted.img] : [])
+    ].filter(Boolean)));
 
-          for (const media of mediaItems) {
-            if (media.provider === "pcloud" && media.fileId) {
-              await deleteFromPcloud(media.fileId).catch(() => {});
-            }
-            await Media.deleteOne({ _id: media._id }).catch(() => {});
+    if (productUrls.length > 0) {
+      try {
+        const mediaItems = await Media.find({
+          $or: [
+            { readURL: { $in: productUrls } },
+            { url: { $in: productUrls } }
+          ]
+        });
+
+        for (const media of mediaItems) {
+          if (media.provider === "pcloud" && media.fileId) {
+            await deleteFromPcloud(media.fileId).catch(() => {});
           }
-        } catch (_) {}
-      }
+          await Media.deleteOne({ _id: media._id }).catch(() => {});
+        }
+      } catch (_) {}
     }
 
     invalidateRagCache();
@@ -584,7 +586,7 @@ export async function deleteProduct(req, res, next) {
       req
     });
 
-    return res.json({ success: true, message: "Product deleted", id: cleanId });
+    return res.json({ success: true, message: "Product deleted from database", id: cleanId, deletedProduct: toPublicProductDTO(deleted) });
   } catch (err) {
     next(err);
   }
