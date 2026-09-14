@@ -42,6 +42,13 @@ export default async function handler(req, res) {
   // Google recommends that return markup accurately describe the real policy.
   const originalSend = res.send.bind(res);
   res.send = (body) => {
+    if (typeof body === "string") {
+      // Rich-text product descriptions can arrive in the SSR fallback as
+      // escaped HTML (for example &lt;h2&gt;...&lt;/h2&gt;). Strip only the
+      // escaped tags so crawlers/users see readable text, while preserving
+      // normal entities such as &amp;.
+      body = body.replace(/&lt;\/?[a-z][^&]*?&gt;/gi, "");
+    }
     if (typeof body === "string" && body.includes("<html")) {
       body = body.replace(
         /,\n\s*\"hasMerchantReturnPolicy\":\s*\{[\s\S]*?\n\s*\},\n\s*\"shippingDetails\"/,
