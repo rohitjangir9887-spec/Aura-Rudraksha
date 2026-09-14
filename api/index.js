@@ -1,5 +1,7 @@
 import "../server/utils/urlParser.js";
 import { createApp } from "../server/app.js";
+import { Review } from "../server/models/Review.js";
+import { isAdminUser, hasAdminRole } from "../server/middleware/auth.js";
 
 const app = createApp({ enableSsr: true });
 
@@ -22,7 +24,6 @@ const legacyProductRedirects = {
 };
 
 export default async function handler(req, res) {
-  // If Vercel rewrote to /api/index.js or /index.js, restore the original matched route
   if (req.headers && req.headers["x-matched-path"]) {
     const matched = req.headers["x-matched-path"];
     if (matched && matched !== "/api/index" && matched !== "/api/index.js") {
@@ -38,15 +39,48 @@ export default async function handler(req, res) {
     return res.end();
   }
 
-  // Keep product return markup aligned with the published return policy.
-  // Google recommends that return markup accurately describe the real policy.
   const originalSend = res.send.bind(res);
   res.send = (body) => {
+    const isReviewCreate = requestPath === "/reviews" && String(req.method || "").toUpperCase() === "POST";
+
+    if (isReviewCreate && typeof body === "string") {
+      let parsed = null;
+      try { parsed = JSON.parse(body); } catch (_) {}
+
+      if (parsed?.success && parsed?.data?.id && parsed?.data?.status === "Pending" && req.user) {
+        const publishAdminReview = async () => {
+          try {
+            const { isInitialAdmin } = isAdminUser(req.user);
+            const isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
+            if (!isAdmin) return;
+
+            const updated = await Review.findOneAndUpdate(
+              { id: String(parsed.data.id) },
+              {
+                $set: {
+                  status: "Approved",
+                  publishedAt: new Date(),
+                  verified: req.body?.verified === true
+                }
+              },
+              { returnDocument: "after" }
+            ).lean();
+
+            if (updated) {
+              parsed.data = updated;
+              parsed.message = "Admin review published successfully";
+              body = JSON.stringify(parsed);
+            }
+          } catch (err) {
+            console.warn("[Admin Review Publish] Failed to publish created review:", err?.message || err);
+          }
+        };
+
+        return publishAdminReview().then(() => originalSend(body));
+      }
+    }
+
     if (typeof body === "string") {
-      // Rich-text product descriptions can arrive in the SSR fallback as
-      // escaped HTML (for example &lt;h2&gt;...&lt;/h2&gt;). Strip only the
-      // escaped tags so crawlers/users see readable text, while preserving
-      // normal entities such as &amp;.
       body = body.replace(/&lt;\/?[a-z][^&]*?&gt;/gi, "");
     }
     if (typeof body === "string" && body.includes("<html")) {
@@ -62,7 +96,5 @@ export default async function handler(req, res) {
     return originalSend(body);
   };
 
-  // DB connection is handled by the application/API middleware and SEO service.
-  // Avoid an extra connection wait on every serverless invocation.
   return app(req, res);
 }
