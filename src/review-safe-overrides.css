@@ -1,0 +1,8 @@
+/* Safe review UI fixes — intentionally isolated from the site's main stylesheet. */
+
+/* Never let the mobile sticky purchase CTA cover the review composer. */
+body:has(.aura-modal-backdrop) #aura-mobile-sticky-purchase-bar,
+body:has(.aura-modal-backdrop) .aura-mobile-sticky-purchase-bar,
+body:has(.aura-modal-backdrop) .sticky-purchase-bar {
+  display: none !important;
+}
