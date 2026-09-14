@@ -24,7 +24,8 @@ export async function syncProductReviewStats(productId) {
       const activeReviews = (inMemoryStore.reviews || defaultReviews).filter(r => 
         String(r.productId) === pIdStr && 
         (r.status === "Approved" || r.status === "Published" || !r.status) &&
-        r.status !== "deleted" && r.status !== "Hidden" && r.status !== "Rejected" && r.status !== "draft"
+        r.status !== "deleted" && r.status !== "Hidden" && r.status !== "Rejected" && r.status !== "draft" &&
+        isPublicReviewSource(r.source) && r.publicDisplay !== false
       );
       const count = activeReviews.length;
       let avg = 4.9;
@@ -98,7 +99,7 @@ const ADMIN_REVIEW_FIELDS = {
   status: "string", verified: "bool", featured: "bool", isAiGenerated: "bool",
   isSample: "bool", sampleLabel: "string", adminReply: "object",
   helpfulUp: "number", helpfulDown: "number", source: "string",
-  sourceReviewId: "string", authorDisplayName: "string", importedAt: "object",
+  sourceReviewId: "string", authorDisplayName: "string", importedAt: "object", publicDisplay: "bool",
   editedByAI: "bool", originalText: "string", originalTextHash: "string",
   exactTextHash: "string", normalizedTextHash: "string",
   deletedAt: "object", deletedBy: "string"
