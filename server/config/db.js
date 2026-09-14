@@ -3,10 +3,11 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Enable command buffering so brief reconnects don't reject queries immediately
+// Keep buffering for brief reconnects, but cap queued-query waiting so a
+// serverless Mongo outage cannot consume the entire Vercel invocation window.
 mongoose.set("bufferCommands", true);
+mongoose.set("bufferTimeoutMS", 5000);
 
-// Global cache for serverless environments (Vercel, AWS Lambda, Cloud Run)
 let cached = global.mongoose;
 if (!cached) {
   cached = global.mongoose = {
@@ -18,10 +19,7 @@ if (!cached) {
   };
 }
 
-if (!Array.isArray(cached.errorLogs)) {
-  cached.errorLogs = [];
-}
-
+if (!Array.isArray(cached.errorLogs)) cached.errorLogs = [];
 const MAX_ERROR_LOGS = 20;
 
 export function recordConnectionError(err, context = "connection") {
@@ -35,33 +33,21 @@ export function recordConnectionError(err, context = "connection") {
     details: err?.stack ? err.stack.split("\n").slice(0, 3).join("\n") : null,
     readyState: mongoose?.connection?.readyState ?? 0
   };
-
-  if (!Array.isArray(cached.errorLogs)) {
-    cached.errorLogs = [];
-  }
-
-  // Prepend so latest is always at index 0
+  if (!Array.isArray(cached.errorLogs)) cached.errorLogs = [];
   cached.errorLogs.unshift(errorObj);
-  if (cached.errorLogs.length > MAX_ERROR_LOGS) {
-    cached.errorLogs.pop();
-  }
-
+  if (cached.errorLogs.length > MAX_ERROR_LOGS) cached.errorLogs.pop();
   return errorObj;
 }
 
 export function getDbErrorLogs(limit = 5) {
-  const logs = Array.isArray(cached.errorLogs) ? cached.errorLogs : [];
-  return logs.slice(0, limit);
+  return (Array.isArray(cached.errorLogs) ? cached.errorLogs : []).slice(0, limit);
 }
 
 export function clearDbErrorLogs() {
-  if (cached) {
-    cached.errorLogs = [];
-  }
+  if (cached) cached.errorLogs = [];
   return true;
 }
 
-// Ensure state listeners are attached once with auto-reconnect capability
 if (!global.__mongoose_listeners_attached) {
   global.__mongoose_listeners_attached = true;
   mongoose.connection.on("connected", () => {
@@ -84,31 +70,18 @@ if (!global.__mongoose_listeners_attached) {
 export function isValidMongoUri(rawUri) {
   if (!rawUri || typeof rawUri !== "string") return false;
   const trimmed = rawUri.trim();
-  return (
-    trimmed.startsWith("mongodb://") ||
-    trimmed.startsWith("mongodb+srv://")
-  );
+  return trimmed.startsWith("mongodb://") || trimmed.startsWith("mongodb+srv://");
 }
 
 let memoryServerInstance = null;
 
 export async function getOrStartMemoryMongo() {
-  const isVercelServerless = Boolean(
-    process.env.VERCEL ||
-    process.env.VERCEL_ENV ||
-    process.env.AWS_LAMBDA_FUNCTION_NAME
-  );
-  if (isVercelServerless) {
-    return null;
-  }
+  const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isVercelServerless) return null;
   if (!memoryServerInstance) {
     try {
       const { MongoMemoryServer } = await import("mongodb-memory-server");
-      memoryServerInstance = await MongoMemoryServer.create({
-        instance: {
-          dbName: "aurarudraksha"
-        }
-      });
+      memoryServerInstance = await MongoMemoryServer.create({ instance: { dbName: "aurarudraksha" } });
       const memUri = memoryServerInstance.getUri();
       console.log("⚡ [MongoDB] Resilient Local MongoDB Engine initialized:", memUri);
       return memUri;
@@ -122,10 +95,7 @@ export async function getOrStartMemoryMongo() {
 
 export function getMongoUri() {
   const uri = (process.env.MONGODB_URI || "").trim();
-  if (isValidMongoUri(uri)) {
-    return uri;
-  }
-  return null;
+  return isValidMongoUri(uri) ? uri : null;
 }
 
 export function getMaskedMongoUri() {
@@ -135,8 +105,7 @@ export function getMaskedMongoUri() {
     return null;
   }
   try {
-    // Mask password in connection string: mongodb+srv://user:pass@host/db
-    return uri.replace(/:\/\/([^:]+):([^@]+)@/, (match, user, pass) => {
+    return uri.replace(/:\/\/([^:]+):([^@]+)@/, (match, user) => {
       const maskedUser = user.length > 2 ? user.slice(0, 2) + "***" : "***";
       return `://${maskedUser}:********@`;
     });
@@ -149,39 +118,30 @@ export async function connectDB() {
   let uri = getMongoUri();
   cached.lastAttempt = new Date().toISOString();
 
-  // If no external MONGODB_URI is provided, seamlessly initialize local MongoDB memory engine
-  if (!uri) {
-    uri = await getOrStartMemoryMongo();
-  }
-
+  if (!uri) uri = await getOrStartMemoryMongo();
   if (!uri) {
     const raw = (process.env.MONGODB_URI || "").trim();
     const errMsg = raw && raw !== "."
       ? "MONGODB_URI is provided but invalid (must start with 'mongodb://' or 'mongodb+srv://')."
       : "MONGODB_URI environment variable is not defined and local fallback could not be started.";
-
     if (!global.__mongo_warned_unconfigured) {
       global.__mongo_warned_unconfigured = true;
       console.warn(`⚠️ [MongoDB] ${errMsg} Database is disconnected.`);
     }
-
     recordConnectionError(new Error(errMsg), "config:missing_or_invalid_uri");
     return false;
   }
-  
-  // 1. If already active and connected (readyState === 1), return true immediately
+
   if (mongoose.connection.readyState === 1) {
     cached.conn = mongoose;
     cached.lastFailedAttempt = null;
     return true;
   }
 
-  // 2. Cooldown check: If recently failed within 3s and disconnected, fail fast without spinning duplicate connections
   if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (Date.now() - cached.lastFailedAttempt < 3000)) {
     return false;
   }
 
-  // 3. If in-flight connection promise is currently connecting (readyState === 2), await it
   if (mongoose.connection.readyState === 2 && cached.promise) {
     try {
       cached.conn = await cached.promise;
@@ -196,33 +156,27 @@ export async function connectDB() {
     }
   }
 
-  // 4. Initiate connection promise if disconnected
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
-    const isVercelServerless = Boolean(
-      process.env.VERCEL ||
-      process.env.VERCEL_ENV ||
-      process.env.AWS_LAMBDA_FUNCTION_NAME
-    );
+    const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
     const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || 5000;
     const opts = {
-      serverSelectionTimeoutMS: timeoutVal, // 5s timeout for resilient TLS / DNS handshakes
-      connectTimeoutMS: timeoutVal,         // 5s socket connection timeout
-      socketTimeoutMS: 15000,               // 15s socket inactivity timeout
-      maxIdleTimeMS: 5000,                  // 5s idle timeout (quickly returns idle sockets on serverless)
-      maxPoolSize: isVercelServerless ? 2 : 5, // Conservative pool size tailored for MongoDB Atlas M0 free tier (50 max cluster connections limit)
-      minPoolSize: 0,                       // 0 pre-opened sockets to allow idle cleanup on serverless
+      serverSelectionTimeoutMS: timeoutVal,
+      connectTimeoutMS: timeoutVal,
+      socketTimeoutMS: 15000,
+      maxIdleTimeMS: 5000,
+      maxPoolSize: isVercelServerless ? 2 : 5,
+      minPoolSize: 0,
       heartbeatFrequencyMS: 10000,
-      family: 4,                            // Force IPv4 to prevent IPv6 DNS lookup delays
+      family: 4,
       retryWrites: true,
       retryReads: true,
-      autoIndex: false,                     // Avoid auto-building indexes on every serverless invocation
-      noDelay: true                         // Enable TCP_NODELAY to avoid packet buffering latency
+      autoIndex: false,
+      noDelay: true
     };
 
     const doConnect = async () => {
       let activeUri = uri;
       const maxAttempts = isVercelServerless ? 1 : 2;
-
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const mongooseInstance = await mongoose.connect(activeUri, opts);
@@ -231,14 +185,12 @@ export async function connectDB() {
           cached.lastConnected = new Date().toISOString();
           cached.lastFailedAttempt = null;
 
-          // Deduplicate DB seeding per process execution
           if (!global.__db_init_triggered) {
             global.__db_init_triggered = true;
             import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
               ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
             }).catch(() => {});
           }
-
           return mongooseInstance;
         } catch (err) {
           cached.lastFailedAttempt = Date.now();
@@ -291,7 +243,6 @@ export async function getDbDiagnostics() {
   const readyStateNames = ["Disconnected", "Connected", "Connecting", "Disconnecting"];
   const readyStateText = readyStateNames[readyStateNum] || "Unknown";
   const isConnected = readyStateNum === 1;
-
   let pingMs = null;
   let collectionNames = [];
   let serverVersion = null;
@@ -300,14 +251,10 @@ export async function getDbDiagnostics() {
     try {
       const start = Date.now();
       const adminDb = mongoose.connection.db.admin();
-      const pingResult = await adminDb.ping();
+      await adminDb.ping();
       pingMs = Date.now() - start;
-
       const serverInfo = await adminDb.serverInfo().catch(() => null);
-      if (serverInfo?.version) {
-        serverVersion = serverInfo.version;
-      }
-
+      if (serverInfo?.version) serverVersion = serverInfo.version;
       const cols = await mongoose.connection.db.listCollections().toArray().catch(() => []);
       collectionNames = cols.map(c => c.name);
     } catch (err) {
@@ -317,7 +264,6 @@ export async function getDbDiagnostics() {
 
   const rawUri = (process.env.MONGODB_URI || "").trim();
   const uriConfigured = isValidMongoUri(rawUri);
-
   let uriScheme = "none";
   if (rawUri.startsWith("mongodb+srv://")) uriScheme = "mongodb+srv";
   else if (rawUri.startsWith("mongodb://")) uriScheme = "mongodb";
@@ -325,10 +271,7 @@ export async function getDbDiagnostics() {
   return {
     status: isConnected ? "connected" : (readyStateNum === 2 ? "connecting" : (!uriConfigured ? "unconfigured" : "disconnected")),
     isConnected,
-    readyState: {
-      code: readyStateNum,
-      label: readyStateText
-    },
+    readyState: { code: readyStateNum, label: readyStateText },
     host: mongoose.connection?.host || null,
     port: mongoose.connection?.port || null,
     databaseName: mongoose.connection?.name || null,
@@ -355,7 +298,6 @@ export async function testDbConnection() {
     const success = await connectDB();
     const durationMs = Date.now() - start;
     const diagnostics = await getDbDiagnostics();
-
     return {
       success,
       durationMs,
@@ -376,7 +318,3 @@ export async function testDbConnection() {
     };
   }
 }
-
-
-
-
