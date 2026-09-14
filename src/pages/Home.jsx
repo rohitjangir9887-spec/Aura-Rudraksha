@@ -247,7 +247,7 @@ export function Home() {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       aria-label="Aura Sacred Hero Banners"
-      style={{ overflow: 'hidden', borderRadius: '12px', margin: '68px auto 16px', width: '100%' }}
+      style={{ overflow: 'hidden', borderRadius: '12px', margin: '24px auto 16px', width: '100%' }}
     >
       <div className="hero-slides" style={{ width: '100%', background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => {
