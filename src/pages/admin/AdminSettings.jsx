@@ -482,11 +482,11 @@ export function AdminSettings() {
           </Link>
         </div>
 
-        <h2 className="admin-section-heading" style={{ marginTop: "24px" }}>Admin Access</h2>
+        <h2 className="admin-section-heading" style={{ marginTop: "24px" }}>Admin Access & Security</h2>
         <div className="admin-form-group">
-          <label>Admin Email</label>
-          <input value={"rohitjangir8740@gmail.com"} disabled />
-          <small className="admin-help">This email is authorized to access the admin dashboard.</small>
+          <label>Authorized Admin Emails</label>
+          <input value={"rohitjangir9887@gmail.com, rohitjangir8740@gmail.com"} disabled />
+          <small className="admin-help">These accounts and any designated MongoDB admin roles are authorized to access the Aura Admin Dashboard.</small>
         </div>
         
         <div className="admin-form-actions">

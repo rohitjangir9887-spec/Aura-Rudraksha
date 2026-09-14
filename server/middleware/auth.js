@@ -156,9 +156,17 @@ export async function optionalAuth(req, res, next) {
 // Never trust client-supplied role flags.
 // ---------------------------------------------------------------------------
 export function isAdminUser(user) {
-  const allowedEmails = [];
+  const allowedEmails = [
+    "rohitjangir9887@gmail.com",
+    "rohitjangir8740@gmail.com"
+  ];
   if (process.env.INITIAL_ADMIN_EMAIL) {
-    allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
+    process.env.INITIAL_ADMIN_EMAIL.split(",").forEach((e) => {
+      const trimmed = e.trim().toLowerCase();
+      if (trimmed && !allowedEmails.includes(trimmed)) {
+        allowedEmails.push(trimmed);
+      }
+    });
   }
   const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "").trim();
 

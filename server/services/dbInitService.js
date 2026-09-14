@@ -41,7 +41,28 @@ export async function ensureDatabaseInitialized() {
   };
 
   try {
-    // 1. Slug Migration for Existing MongoDB Products (DO NOT AUTO-SEED DEMO PRODUCTS INTO PRODUCTION MONGODB)
+    // Check system initialization state to avoid resurrecting deleted admin data
+    const initState = await Setting.findOne({ id: "db_init_state" }).lean();
+    const alreadySeededProducts = Boolean(initState?.productsInitialized);
+
+    // 1. Ensure Products (ONLY on first database setup, NEVER reseed after admin deletes them)
+    const productCount = await Product.countDocuments();
+    if (!alreadySeededProducts && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
+      console.log("🌱 [DB Init] First-time database setup: seeding default Rudraksha products...");
+      for (const p of defaultProducts) {
+        if (!p || !p.id) continue;
+        const exists = await Product.exists({ id: String(p.id) });
+        if (!exists) {
+          const { _id, createdAt, updatedAt, ...cleanProduct } = p;
+          try {
+            await Product.create(cleanProduct);
+            summary.productsSeeded++;
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Slug Migration for Existing MongoDB Products
     try {
       const noSlugProducts = await Product.find({
         $or: [
@@ -102,8 +123,6 @@ export async function ensureDatabaseInitialized() {
       summary.bannersSeeded = bannerDocs.length;
     }
 
-    // Check system initialization state to avoid resurrecting deleted admin data
-    const initState = await Setting.findOne({ id: "db_init_state" }).lean();
     const alreadySeededCoupons = Boolean(initState?.couponsInitialized);
 
     // 5. Ensure Coupons (ONLY on very first database creation, NEVER reseed after admin deletes them)
@@ -124,7 +143,7 @@ export async function ensureDatabaseInitialized() {
     }
     await Setting.updateOne(
       { id: "db_init_state" },
-      { $set: { couponsInitialized: true, lastInitAt: new Date().toISOString() } },
+      { $set: { productsInitialized: true, couponsInitialized: true, lastInitAt: new Date().toISOString() } },
       { upsert: true }
     );
 
