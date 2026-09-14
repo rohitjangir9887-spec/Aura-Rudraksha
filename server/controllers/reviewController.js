@@ -46,7 +46,8 @@ export async function syncProductReviewStats(productId) {
     const reviews = await Review.find({
       productId: pIdStr,
       status: { $in: ["Approved", "Published"] },
-      deletedAt: null
+      deletedAt: null,
+      $or: publicReviewQuery().$or
     }).select("rating").lean();
 
     const count = reviews.length;
@@ -129,6 +130,21 @@ function validateReviewImages(input) {
   return out;
 }
 
+const EXTERNAL_REVIEW_SOURCES = new Set(["google_reviews", "public_site", "imported", "external"]);
+
+function isPublicReviewSource(source) {
+  return !EXTERNAL_REVIEW_SOURCES.has(String(source || "").toLowerCase());
+}
+
+function publicReviewQuery() {
+  return {
+    $or: [
+      { source: { $nin: Array.from(EXTERNAL_REVIEW_SOURCES) } },
+      { publicDisplay: true }
+    ]
+  };
+}
+
 const defaultReviewSettings = {
   enabled: true,
   photoGalleryEnabled: true,
@@ -159,7 +175,7 @@ export async function getReviews(req, res, next) {
     if (!isDbConnected()) {
       let list = inMemoryStore.reviews || defaultReviews;
       if (productId && productId !== "all") {
-        list = list.filter(r => String(r.productId) === String(productId));
+        list = list.filter(r => String(r.productId) === String(productId) && isPublicReviewSource(r.source) && r.publicDisplay !== false);
       }
       return res.json({ success: true, data: list, count: list.length, isFallback: true });
     }
@@ -183,6 +199,7 @@ export async function getReviews(req, res, next) {
     if (!isAdmin) {
       query.status = { $in: ["Approved", "Published"] };
       query.source = { $ne: "ai_draft" };
+      query.$or = publicReviewQuery().$or;
     }
 
     const reviews = await Review.find(query).sort({ createdAt: -1 }).lean();
@@ -1105,6 +1122,7 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
 export async function importExternalReviews(req, res, next) {
   try {
     const rawList = Array.isArray(req.body.reviews) ? req.body.reviews : [req.body];
+    const importDefaults = req.body.importDefaults || {};
     if (!rawList.length || !rawList[0]?.text) {
       return res.status(400).json({ success: false, message: "No valid external reviews provided for import." });
     }
@@ -1118,7 +1136,34 @@ export async function importExternalReviews(req, res, next) {
       });
     }
 
-    const existingCorpus = await Review.find({ status: { $ne: "deleted" } }).select("id title text sourceReviewId exactTextHash normalizedTextHash").lean();
+    const defaultType = importDefaults.type === "store" ? "store" : "product";
+    const defaultRating = Math.min(5, Math.max(1, Number(importDefaults.rating) || 5));
+    const defaultSource = ["google_reviews", "public_site", "external"].includes(String(importDefaults.source || "").toLowerCase())
+      ? String(importDefaults.source).toLowerCase()
+      : "external";
+
+    let selectedProduct = null;
+    if (defaultType === "product" && !importDefaults.productId) {
+      return res.status(400).json({ success: false, message: "Select a real product before importing product reviews." });
+    }
+
+    if (defaultType === "product") {
+      const productKey = String(importDefaults.productId).trim();
+      selectedProduct = await Product.findOne({
+        $or: [{ id: productKey }, { slug: productKey }]
+      }).lean();
+      if (!selectedProduct) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected product was not found in the live catalog. Please select a current product."
+        });
+      }
+    }
+
+    const publicDisplay = importDefaults.publicDisplay === true;
+    const existingCorpus = await Review.find({ status: { $ne: "deleted" } })
+      .select("id title text sourceReviewId exactTextHash normalizedTextHash")
+      .lean();
 
     const importedList = [];
     const skippedList = [];
@@ -1130,8 +1175,10 @@ export async function importExternalReviews(req, res, next) {
 
       const exactHash = getExactTextHash(text);
       const normalizedHash = getNormalizedTextHash(text);
-      const sourceReviewId = item.sourceReviewId ? String(item.sourceReviewId).trim() : `google_rev_${exactHash.slice(0, 12)}`;
-      const author = (item.authorDisplayName || item.name || "Google Customer").trim();
+      const sourceReviewId = item.sourceReviewId
+        ? String(item.sourceReviewId).trim()
+        : `external_rev_${exactHash.slice(0, 12)}`;
+      const author = (item.authorDisplayName || item.name || "External Reviewer").trim();
 
       const candidate = {
         id: item.id || `REV-EXT-${Date.now()}-${i + 1}-${crypto.randomBytes(3).toString("hex")}`,
@@ -1153,30 +1200,38 @@ export async function importExternalReviews(req, res, next) {
         continue;
       }
 
+      const productForItem = defaultType === "product"
+        ? selectedProduct
+        : null;
+
       const payload = {
         id: candidate.id,
-        productId: String(item.productId || "5"),
-        productName: item.productName || "Rudraksha Bead",
-        type: item.type === "store" ? "store" : "product",
+        productId: defaultType === "store" ? "all" : String(productForItem.id),
+        productName: defaultType === "store"
+          ? "Aura Rudraksha Sacred Store"
+          : productForItem.name,
+        type: defaultType,
         name: author,
         authorDisplayName: author,
         email: item.email || "",
-        city: item.city || "Google Reviews",
-        title: item.title || "Google Customer Review",
+        city: item.city || "External source",
+        title: item.title || "External Review",
         text,
         originalText: text,
         originalTextHash: exactHash,
         exactTextHash: exactHash,
         normalizedTextHash: normalizedHash,
-        rating: Math.min(5, Math.max(1, Number(item.rating) || 5)),
-        source: item.source || "google_reviews",
+        rating: Math.min(5, Math.max(1, Number(item.rating) || defaultRating)),
+        source: defaultSource,
         sourceReviewId,
         importedAt: new Date(),
-        status: item.status || "Approved",
-        publishedAt: new Date(),
-        verified: item.verified !== false,
+        status: publicDisplay ? "Approved" : "Pending",
+        publishedAt: publicDisplay ? new Date() : null,
+        publicDisplay,
+        verified: false,
         editedByAI: false,
         isAiGenerated: false,
+        isSample: false,
         images: Array.isArray(item.images) ? item.images : [],
         img: Array.isArray(item.images) && item.images[0] ? item.images[0] : null,
         createdAt: item.createdAt || Date.now(),
@@ -1187,21 +1242,24 @@ export async function importExternalReviews(req, res, next) {
 
       const saved = await Review.create(payload);
       importedList.push(saved);
-
       existingCorpus.push(payload);
     }
 
-    // Sync all affected products
-    const distinctProductIds = new Set(importedList.map(s => String(s.productId)).filter(Boolean));
+    const distinctProductIds = new Set(
+      importedList.map(s => String(s.productId)).filter(Boolean)
+    );
     for (const pid of distinctProductIds) {
       await syncProductReviewStats(pid);
     }
 
     return res.status(200).json({
       success: true,
-      message: `Imported ${importedList.length} external review(s). Skipped ${skippedList.length} duplicate(s).`,
+      message: publicDisplay
+        ? `Imported ${importedList.length} external review(s).`
+        : `Imported ${importedList.length} external review(s) into the private admin archive. They are not displayed on the storefront.`,
       importedCount: importedList.length,
       skippedCount: skippedList.length,
+      publicDisplay,
       data: importedList,
       skipped: skippedList
     });
