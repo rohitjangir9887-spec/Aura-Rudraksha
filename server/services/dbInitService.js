@@ -106,6 +106,22 @@ export async function ensureDatabaseInitialized() {
     const initState = await Setting.findOne({ id: "db_init_state" }).lean();
     const alreadySeededCoupons = Boolean(initState?.couponsInitialized);
 
+    // Ensure Products
+    const productCount = await Product.countDocuments();
+    if (productCount === 0 && Array.isArray(defaultProducts)) {
+      for (const p of defaultProducts) {
+        if (!p || !p.id) continue;
+        const exists = await Product.exists({ id: String(p.id) });
+        if (!exists) {
+          const { _id, createdAt, updatedAt, ...cleanProduct } = p;
+          try {
+            await Product.create(cleanProduct);
+            summary.productsSeeded++;
+          } catch (_) {}
+        }
+      }
+    }
+
     // 5. Ensure Coupons (ONLY on very first database creation, NEVER reseed after admin deletes them)
     const couponCount = await Coupon.countDocuments();
     if (!alreadySeededCoupons && couponCount === 0 && Array.isArray(defaultCoupons)) {
