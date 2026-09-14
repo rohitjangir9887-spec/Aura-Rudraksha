@@ -17854,3 +17854,32 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 
 
+
+/* Review composer must own the mobile viewport; hide purchase bar while it is open. */
+body:has(.aura-modal-backdrop) #aura-mobile-sticky-purchase-bar {
+  display: none !important;
+}
+.aura-modal-backdrop {
+  z-index: 10050 !important;
+}
+.aura-modal-content-box {
+  max-height: min(92vh, 900px);
+}
+@media (max-width: 768px) {
+  .aura-modal-backdrop {
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .aura-modal-content-box {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+  .aura-modal-form {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
