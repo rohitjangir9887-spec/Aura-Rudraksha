@@ -45,19 +45,21 @@ const paymentRefundLimit = rateLimit({
   prefix: "pay_ref"
 });
 
-// Hosted checkout initiation must be POST-only.
+// Hosted checkout initiation is POST-only.
 router.post("/initiate", optionalAuth, paymentInitiateLimit, initiatePayuPayment);
 
-// PayU may use GET/POST for browser callbacks and server webhooks depending on configuration.
+// PayU browser callbacks/webhooks may legitimately arrive as GET or POST.
 router.all("/payu-callback", handlePayuCallback);
 router.all("/payu-cancel", handlePayuCancel);
 router.all("/payu-webhook", handlePayuWebhook);
 
-// Customer status checks/retries are state-changing or sensitive; keep them POST-only.
-router.post("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
+// Verification is read-oriented and existing clients may use GET; retries remain POST-only.
+router.route("/verify/:orderId")
+  .get(optionalAuth, paymentVerifyLimit, verifyPaymentStatus)
+  .post(optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
 router.post("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
 
-// Admin refund operations and customer cancellation are POST-only.
+// Admin refund/sync and customer cancellation are POST-only.
 router.post("/refund/request-otp/:orderId", requireAdmin, paymentRefundLimit, requestRefundOtp);
 router.post("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
 router.post("/sync-payu/:orderId", requireAdmin, syncPayuOrder);
