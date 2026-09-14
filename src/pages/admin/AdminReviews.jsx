@@ -35,13 +35,19 @@ import {
   Settings,
   Check,
   AlertCircle,
-  AlertTriangle,
   FileText,
   UserCheck,
   Shuffle,
   MapPin,
-  Copy
+  Copy,
+  CheckSquare,
+  Square,
+  ArrowLeft,
+  Wand2,
+  HelpCircle,
+  Globe
 } from "lucide-react";
+import { parseReviewInput, detectReviewFormat, normalizeRating, detectLanguage } from "../../lib/reviewParser";
 import "./admin-pages.css";
 
 const INDIAN_DEVOTEE_NAMES = [
@@ -143,31 +149,22 @@ export function AdminReviews() {
   const [isNewReviewModalOpen, setIsNewReviewModalOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
-  // External Reviews Import & AI Polish state
+  // External Reviews Import & Preview state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importStep, setImportStep] = useState("input"); // "input" | "preview"
+  const [importModalStep, setImportModalStep] = useState("input"); // "input" | "preview" | "success"
   const [externalInputText, setExternalInputText] = useState("");
+  const [parsedBatch, setParsedBatch] = useState(null);
   const [importResults, setImportResults] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [enableAiPolish, setEnableAiPolish] = useState(false);
-  const [allowDuplicates, setAllowDuplicates] = useState(false);
-  const [parsedReviews, setParsedReviews] = useState([]);
-  const [previewStats, setPreviewStats] = useState(null);
-  const [selectedImportIndices, setSelectedImportIndices] = useState(new Set());
+  const [isBatchPolishing, setIsBatchPolishing] = useState(false);
   const [externalImportForm, setExternalImportForm] = useState({
     productId: "",
     rating: 5,
     type: "product",
     source: "external",
-    publicDisplay: true
+    publicDisplay: false,
+    autoPolishWithAI: false
   });
-
-  // Database Audit & Health Repair state
-  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
-  const [isAuditing, setIsAuditing] = useState(false);
-  const [auditData, setAuditData] = useState(null);
-  const [isRepairing, setIsRepairing] = useState(false);
 
   const [polishingReviewId, setPolishingReviewId] = useState(null);
   const [polishModalData, setPolishModalData] = useState(null);
@@ -733,145 +730,180 @@ export function AdminReviews() {
     }
   };
 
-  // Step 1: Parse & Preview Import using Multi-format engine
-  const handlePreviewImportSubmit = async (e) => {
+  // Format detection for live input text
+  const detectedFormatInfo = useMemo(() => {
+    return detectReviewFormat(externalInputText);
+  }, [externalInputText]);
+
+  // Load standard format samples for quick testing
+  const handleLoadSample = (sampleType) => {
+    if (sampleType === "json") {
+      setExternalInputText(`[
+  {
+    "name": "Karan Patel",
+    "rating": 5,
+    "review": "Premium quality 1 Mukhi Rudraksha. Product, certification aur packaging tino ka experience excellent raha. Definitely satisfied."
+  },
+  {
+    "name": "Pooja Agarwal",
+    "rating": 4.6,
+    "review": "Natural finish aur packaging achhi thi. Sacred velvet pouch looks divine."
+  }
+]`);
+    } else if (sampleType === "key_value") {
+      setExternalInputText(`1.
+Name: Rahul Sharma
+Rating: 4.8
+Review: Mala ki quality achhi hai, genuine rudraksha mila.
+
+2.
+Name: Pooja Agarwal
+Rating: 4.6
+Review: Premium 1 Mukhi Rudraksha ka look bahut beautiful hai.`);
+    } else if (sampleType === "pipe") {
+      setExternalInputText(`Rahul Sharma | 4.8 | Mala ki quality achhi hai, genuine rudraksha mila.
+Pooja Agarwal | 4.6 | Premium 1 Mukhi Rudraksha ka look bahut beautiful hai.`);
+    } else if (sampleType === "csv") {
+      setExternalInputText(`Name,Rating,Review
+Rahul Sharma,4.8,"Mala ki quality achhi hai, genuine rudraksha mila."
+Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
+    } else if (sampleType === "clear") {
+      setExternalInputText("");
+    }
+  };
+
+  // Step 1: Parse and Preview External Reviews
+  const handleParseAndPreview = (e) => {
     e?.preventDefault();
     if (!externalInputText.trim()) {
-      emitToast("Please paste review data in JSON, CSV, Pipe or Key-Value format.", "warning");
+      emitToast("Please paste the review text, JSON, or CSV to parse.", "warning");
       return;
     }
 
-    if (externalImportForm.type === "product" && !externalImportForm.productId) {
-      emitToast("Please select the product for this import.", "warning");
+    const selProd = products.find(p => String(p.id) === String(externalImportForm.productId));
+    const result = parseReviewInput(externalInputText, {
+      fallbackRating: Number(externalImportForm.rating) || 5,
+      selectedProductId: externalImportForm.type === "product" ? String(externalImportForm.productId || (products[0]?.id || "all")) : "all",
+      selectedProductName: externalImportForm.type === "product" ? (selProd?.name || products[0]?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
+      source: externalImportForm.source,
+      existingReviews: reviews
+    });
+
+    if (!result.records || result.records.length === 0) {
+      emitToast("No valid review items could be parsed from input.", "error");
       return;
     }
 
-    setIsPreviewing(true);
-    try {
-      const res = await db.previewImportReviews({
-        rawText: externalInputText,
-        productId: externalImportForm.type === "product" ? String(externalImportForm.productId) : "all",
-        type: externalImportForm.type,
-        source: externalImportForm.source,
-        defaultRating: Number(externalImportForm.rating) || 5,
-        publicDisplay: externalImportForm.publicDisplay,
-        enableAiPolish: enableAiPolish
-      });
+    setParsedBatch(result);
+    setImportModalStep("preview");
+    emitToast(`Successfully detected ${result.records.length} review(s) (${result.formatBadge})!`, "success");
 
-      if (res?.success && Array.isArray(res.data)) {
-        setParsedReviews(res.data);
-        setPreviewStats(res.stats || null);
-        // Select all non-duplicate reviews by default
-        const initialSelected = new Set();
-        res.data.forEach((item, idx) => {
-          if (!item.isDuplicate) {
-            initialSelected.add(idx);
-          }
-        });
-        setSelectedImportIndices(initialSelected);
-        setImportStep("preview");
-        emitToast(`Parsed ${res.data.length} review(s) successfully! Review the items below.`, "success");
-      } else {
-        emitToast(res?.message || "Failed to parse review data.", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      emitToast(err.message || "Failed to preview import data.", "error");
-    } finally {
-      setIsPreviewing(false);
+    if (externalImportForm.autoPolishWithAI) {
+      handleBatchPolish(result);
     }
   };
 
-  // Step 2: Save the selected parsed reviews to MongoDB
-  const handleExecuteImport = async () => {
-    if (selectedImportIndices.size === 0) {
-      emitToast("Please select at least one review to import.", "warning");
-      return;
-    }
+  // Batch AI Polish (optional enhancer)
+  const handleBatchPolish = async (customBatch = null) => {
+    const current = customBatch || parsedBatch;
+    if (!current || !current.records || current.records.length === 0) return;
 
-    const reviewsToImport = parsedReviews
-      .filter((_, idx) => selectedImportIndices.has(idx))
-      .map(r => ({
-        ...r,
-        rating: Number(r.rating) || 5,
-        text: r.text || "",
-        processedText: r.processedText || r.text || "",
-        author: r.author || r.name || "Aura Devotee",
-        name: r.author || r.name || "Aura Devotee",
-        type: externalImportForm.type,
-        productId: externalImportForm.type === "product" ? String(externalImportForm.productId) : "all",
-        source: externalImportForm.source,
-        publicDisplay: externalImportForm.publicDisplay
-      }));
-
-    setIsImporting(true);
+    setIsBatchPolishing(true);
     try {
-      const res = await db.importExternalReviews(
-        reviewsToImport, 
-        externalImportForm, 
-        allowDuplicates
-      );
-      setImportResults(res);
-      setImportStep("input");
-      setIsImportModalOpen(false);
-      setExternalInputText("");
-      setParsedReviews([]);
-      emitToast(
-        `Imported ${res.importedCount || reviewsToImport.length} review(s) with individual ratings!`,
-        "success"
-      );
-    } catch (err) {
-      console.error(err);
-      emitToast(err.message || "Failed to complete review import.", "error");
+      const updated = [...current.records];
+      for (let i = 0; i < updated.length; i++) {
+        const item = updated[i];
+        if (item.selectedForImport && !item.aiProcessed) {
+          try {
+            const res = await db.polishReviewWithAI({ text: item.text });
+            if (res?.polishedText && res.polishedText.length >= 5) {
+              updated[i] = {
+                ...item,
+                text: res.polishedText,
+                originalText: item.text,
+                aiProcessed: true,
+                editedByAI: true
+              };
+            }
+          } catch (_) {}
+        }
+      }
+      setParsedBatch({ ...current, records: updated });
+      emitToast("AI polish applied to review batch!", "success");
     } finally {
-      setIsImporting(false);
+      setIsBatchPolishing(false);
     }
   };
 
-  // Update a single parsed review row in the preview table
-  const handleUpdateParsedRow = (index, field, value) => {
-    setParsedReviews(prev => {
-      const next = [...prev];
-      if (next[index]) {
-        next[index] = { ...next[index], [field]: value };
-      }
-      return next;
+  const handleToggleSelectRecord = (id) => {
+    setParsedBatch(prev => {
+      if (!prev) return prev;
+      const nextRecords = prev.records.map(r => r.id === id ? { ...r, selectedForImport: !r.selectedForImport } : r);
+      return { ...prev, records: nextRecords };
     });
   };
 
-  // Run Health Audit on Review Database
-  const handleRunAudit = async () => {
-    setIsAuditing(true);
-    setIsAuditModalOpen(true);
-    try {
-      const res = await db.auditReviewHealth();
-      if (res?.success) {
-        setAuditData(res);
-      }
-    } catch (err) {
-      console.error(err);
-      emitToast(err.message || "Failed to audit review database.", "error");
-    } finally {
-      setIsAuditing(false);
-    }
+  const handleSelectAllRecords = (selectAll = true) => {
+    setParsedBatch(prev => {
+      if (!prev) return prev;
+      const nextRecords = prev.records.map(r => ({ ...r, selectedForImport: selectAll }));
+      return { ...prev, records: nextRecords };
+    });
   };
 
-  // Run Repair on Malformed Database Reviews
-  const handleExecuteRepair = async (reviewIds = []) => {
-    setIsRepairing(true);
+  const handleUpdateRecordField = (id, field, value) => {
+    setParsedBatch(prev => {
+      if (!prev) return prev;
+      const nextRecords = prev.records.map(r => {
+        if (r.id !== id) return r;
+        const updated = { ...r, [field]: value };
+        if (field === "rating") {
+          updated.rating = normalizeRating(value) || 5;
+          updated.hasExplicitRating = true;
+        }
+        return updated;
+      });
+      return { ...prev, records: nextRecords };
+    });
+  };
+
+  // Step 2: Final Import Execution
+  const handleExecuteImport = async () => {
+    if (!parsedBatch || !parsedBatch.records) return;
+    const toImport = parsedBatch.records.filter(r => r.selectedForImport);
+    if (toImport.length === 0) {
+      emitToast("No reviews are selected for import.", "warning");
+      return;
+    }
+
+    setIsImporting(true);
     try {
-      const res = await db.repairMalformedReviews(reviewIds);
-      if (res?.success) {
-        emitToast(`Repaired ${res.repairedCount || 0} malformed review records!`, "success");
-        // Re-run audit to show clean status
-        const auditRes = await db.auditReviewHealth();
-        setAuditData(auditRes);
-      }
+      const selProd = products.find(p => String(p.id) === String(externalImportForm.productId));
+      const payload = toImport.map(item => ({
+        ...item,
+        productId: externalImportForm.type === "product" ? String(externalImportForm.productId || item.productId) : "all",
+        productName: externalImportForm.type === "product" ? (selProd?.name || item.productName) : "Aura Rudraksha Sacred Store",
+        source: externalImportForm.source,
+        type: externalImportForm.type
+      }));
+
+      const res = await db.importExternalReviews(payload, {
+        ...externalImportForm,
+        allowDuplicates: true
+      });
+
+      setImportResults(res);
+      setImportModalStep("success");
+      emitToast(
+        res.publicDisplay
+          ? `Imported ${res.importedCount || payload.length} external review(s) to storefront!`
+          : `Imported ${res.importedCount || payload.length} review(s) to private admin archive.`,
+        "success"
+      );
     } catch (err) {
-      console.error(err);
-      emitToast(err.message || "Failed to repair reviews.", "error");
+      emitToast(err.message || "Failed to import external reviews.", "error");
     } finally {
-      setIsRepairing(false);
+      setIsImporting(false);
     }
   };
 
@@ -880,13 +912,7 @@ export function AdminReviews() {
     setPolishingReviewId(review.id);
     setIsPolishing(true);
     try {
-      const res = await db.polishReviewWithAI({
-        id: review.id,
-        text: review.text,
-        author: review.name,
-        rating: review.rating,
-        productName: review.productName
-      });
+      const res = await db.polishReviewWithAI({ id: review.id, text: review.text });
       if (res?.success) {
         setPolishModalData({
           reviewId: review.id,
@@ -919,16 +945,6 @@ export function AdminReviews() {
           <button 
             type="button"
             className="admin-btn secondary"
-            onClick={handleRunAudit}
-            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f0fdf4", color: "#166534", borderColor: "#bbf7d0" }}
-          >
-            <ShieldCheck size={16} color="#166534" />
-            <span>Health & Repair Audit</span>
-          </button>
-
-          <button 
-            type="button"
-            className="admin-btn secondary"
             onClick={() => setShowLivePreview(!showLivePreview)}
             style={{ display: "flex", alignItems: "center", gap: "6px" }}
           >
@@ -941,9 +957,7 @@ export function AdminReviews() {
             className="admin-btn secondary"
             onClick={() => {
               setIsImportModalOpen(true);
-              setImportStep("input");
               setImportResults(null);
-              setParsedReviews([]);
             }}
             style={{ display: "flex", alignItems: "center", gap: "6px" }}
           >
@@ -2382,449 +2396,465 @@ export function AdminReviews() {
 
       {/* IMPORT EXTERNAL REVIEWS MODAL */}
       {isImportModalOpen && (
-        <div className="aura-modal-backdrop" onClick={() => setIsImportModalOpen(false)}>
+        <div className="aura-modal-backdrop" onClick={handleCloseImportModal}>
           <div 
             className="aura-modal-content-box" 
             onClick={(e) => e.stopPropagation()} 
-            style={{ maxWidth: importStep === "preview" ? "980px" : "680px", width: "95%", maxHeight: "90vh", overflowY: "auto" }}
+            style={{ maxWidth: importModalStep === "preview" ? "880px" : "680px", width: "95%", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
           >
-            <div className="aura-modal-header" style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "16px" }}>
-              <div>
-                <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px", color: "#0f172a" }}>
-                  <Upload size={20} color="#0369a1" /> 
-                  <span>{importStep === "input" ? "Import Reviews (Multi-Format Support)" : `Preview & Edit Imported Reviews (${parsedReviews.length})`}</span>
-                </h3>
-                <span style={{ fontSize: "12px", color: "#64748b" }}>
-                  {importStep === "input" 
-                    ? "Supports JSON, CSV, Pipe-separated (Name | Rating | Review), and Key-Value (Name: / Rating: / Review:)" 
-                    : "Inspect individual ratings, modify authors, polish with Nemotron AI, and verify before saving."}
-                </span>
-              </div>
-              <button className="aura-modal-close-btn" onClick={() => setIsImportModalOpen(false)}>
+            {/* Modal Header */}
+            <div className="aura-modal-header" style={{ flexShrink: 0 }}>
+              <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Upload size={18} color="#0369a1" /> 
+                {importModalStep === "input" && "Import External Reviews"}
+                {importModalStep === "preview" && "Preview & Validate External Reviews"}
+                {importModalStep === "success" && "Import Complete"}
+              </h3>
+              <button className="aura-modal-close-btn" onClick={handleCloseImportModal}>
                 <X size={20} />
               </button>
             </div>
 
-            {importStep === "input" ? (
-              <form onSubmit={handlePreviewImportSubmit} className="aura-modal-form">
-                <div className="aura-form-grid-2">
-                  <div className="aura-form-group">
-                    <label className="aura-form-label">Review Scope *</label>
-                    <select
-                      value={externalImportForm.type}
-                      onChange={(e) => setExternalImportForm(prev => ({ ...prev, type: e.target.value }))}
-                      className="aura-input"
-                    >
-                      <option value="product">Specific Product</option>
-                      <option value="store">Store Overall Experience</option>
-                    </select>
+            <div style={{ overflowY: "auto", flexGrow: 1, paddingRight: "4px" }}>
+              {/* STEP 1: INPUT STAGE */}
+              {importModalStep === "input" && (
+                <form onSubmit={handleParseAndPreview} className="aura-modal-form">
+                  <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 14px" }}>
+                    Paste raw customer reviews in JSON, Key-Value, Pipe, CSV, or Natural text format. The system will automatically detect the structure, preserve exact ratings, and prepare a structured preview.
+                  </p>
+
+                  <div className="aura-form-grid-2">
+                    <div className="aura-form-group">
+                      <label className="aura-form-label">Review Scope</label>
+                      <select
+                        value={externalImportForm.type}
+                        onChange={(e) => setExternalImportForm(prev => ({ ...prev, type: e.target.value }))}
+                        className="aura-input"
+                      >
+                        <option value="product">Specific Product</option>
+                        <option value="store">Store Experience</option>
+                      </select>
+                    </div>
+
+                    <div className="aura-form-group">
+                      <label className="aura-form-label">Fallback Rating (Only if unstated)</label>
+                      <select
+                        value={externalImportForm.rating}
+                        onChange={(e) => setExternalImportForm(prev => ({ ...prev, rating: Number(e.target.value) }))}
+                        className="aura-input"
+                      >
+                        <option value={5}>5 Stars ★★★★★</option>
+                        <option value={4.8}>4.8 Stars ★★★★.8</option>
+                        <option value={4.6}>4.6 Stars ★★★★.6</option>
+                        <option value={4}>4 Stars ★★★★</option>
+                        <option value={3}>3 Stars ★★★</option>
+                      </select>
+                      <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px", display: "block" }}>
+                        Preserves explicit ratings in your data; this fallback applies only if rating is omitted.
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="aura-form-group">
-                    <label className="aura-form-label">Fallback Rating (if unstated in text)</label>
-                    <select
-                      value={externalImportForm.rating}
-                      onChange={(e) => setExternalImportForm(prev => ({ ...prev, rating: Number(e.target.value) }))}
-                      className="aura-input"
-                    >
-                      <option value={5}>5 Stars ★★★★★</option>
-                      <option value={4}>4 Stars ★★★★</option>
-                      <option value={3}>3 Stars ★★★</option>
-                      <option value={2}>2 Stars ★★</option>
-                      <option value={1}>1 Star ★</option>
-                    </select>
-                  </div>
-                </div>
+                  {externalImportForm.type === "product" && (
+                    <div className="aura-form-group">
+                      <label className="aura-form-label">Assign To Product *</label>
+                      <select
+                        required
+                        value={externalImportForm.productId || (products[0]?.id || "")}
+                        onChange={(e) => setExternalImportForm(prev => ({ ...prev, productId: e.target.value }))}
+                        className="aura-input"
+                      >
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                {externalImportForm.type === "product" && (
-                  <div className="aura-form-group">
-                    <label className="aura-form-label">Select Product *</label>
-                    <select
-                      required
-                      value={externalImportForm.productId}
-                      onChange={(e) => setExternalImportForm(prev => ({ ...prev, productId: e.target.value }))}
-                      className="aura-input"
-                    >
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                  <div className="aura-form-grid-2">
+                    <div className="aura-form-group">
+                      <label className="aura-form-label">Review Source Provenance</label>
+                      <select
+                        value={externalImportForm.source}
+                        onChange={(e) => setExternalImportForm(prev => ({ ...prev, source: e.target.value }))}
+                        className="aura-input"
+                      >
+                        <option value="external">External / Third Party</option>
+                        <option value="google_reviews">Google Reviews (Authentic)</option>
+                        <option value="amazon">Amazon Reviews</option>
+                        <option value="customer">Customer Direct Import</option>
+                        <option value="manual">Manual Batch Entry</option>
+                        <option value="public_site">Other Public Website</option>
+                      </select>
+                    </div>
 
-                <div className="aura-form-grid-2">
-                  <div className="aura-form-group">
-                    <label className="aura-form-label">Review Provenance Source</label>
-                    <select
-                      value={externalImportForm.source}
-                      onChange={(e) => setExternalImportForm(prev => ({ ...prev, source: e.target.value }))}
-                      className="aura-input"
-                    >
-                      <option value="external">External Customer Feedback</option>
-                      <option value="google_reviews">Google Reviews</option>
-                      <option value="public_site">Marketplace / Verified Web</option>
-                    </select>
+                    <div className="aura-form-group" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                      <label className="admin-check" style={{ margin: "18px 0 0" }}>
+                        <input
+                          type="checkbox"
+                          checked={externalImportForm.publicDisplay}
+                          onChange={(e) => setExternalImportForm(prev => ({ ...prev, publicDisplay: e.target.checked }))}
+                        />
+                        <span style={{ fontWeight: "600", fontSize: "13px" }}>Publish to storefront immediately</span>
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="aura-form-group" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <label className="admin-check" style={{ marginTop: "12px" }}>
+                  {/* AI Polish Option */}
+                  <div style={{ padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", marginBottom: "14px" }}>
+                    <label className="admin-check" style={{ margin: 0, cursor: "pointer" }}>
                       <input
                         type="checkbox"
-                        checked={externalImportForm.publicDisplay}
-                        onChange={(e) => setExternalImportForm(prev => ({ ...prev, publicDisplay: e.target.checked }))}
+                        checked={externalImportForm.autoPolishWithAI}
+                        onChange={(e) => setExternalImportForm(prev => ({ ...prev, autoPolishWithAI: e.target.checked }))}
                       />
-                      <span style={{ fontWeight: "600", color: "#0f172a" }}>Allow Storefront Display</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="aura-form-group" style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                  <label className="admin-check" style={{ margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={enableAiPolish}
-                      onChange={(e) => setEnableAiPolish(e.target.checked)}
-                    />
-                    <div>
-                      <span style={{ fontWeight: "700", color: "#166534", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <Sparkles size={15} color="#16a34a" /> Auto-Polish with NVIDIA Nemotron AI
+                      <span style={{ fontSize: "13px", color: "#166534", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Sparkles size={16} color="#16a34a" /> Auto-Polish with NVIDIA Nemotron AI
                       </span>
-                      <p style={{ fontSize: "11px", color: "#64748b", margin: "2px 0 0" }}>
-                        Corrects spelling & grammar while strictly preserving authentic devotee experience, names, and ratings.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="aura-form-group">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <label className="aura-form-label" style={{ margin: 0 }}>Paste Review Data *</label>
-                    <span style={{ fontSize: "11px", color: "#64748b" }}>Supports JSON, CSV, "Name: ... Rating: ... Review: ..." or "Name | Rating | Review"</span>
+                    </label>
+                    <p style={{ margin: "4px 0 0 24px", fontSize: "11px", color: "#15803d" }}>
+                      Refines spelling, grammar & punctuation while strictly preserving the customer's authentic sentiment, name, language, and exact rating.
+                    </p>
                   </div>
-                  <textarea
-                    rows={8}
-                    required
-                    value={externalInputText}
-                    onChange={(e) => setExternalInputText(e.target.value)}
-                    placeholder={`Examples:\n\nFormat A (Key-Value):\nName: Rahul Sharma\nRating: 4.8\nReview: Mala ki quality achhi hai, genuine rudraksha mila.\n\nFormat B (Pipe):\nSneha Patel | 5.0 | Very energizing rudraksha, authentic certificate included.\n\nFormat C (JSON):\n[{"name":"Vikas Kumar", "rating":4.5, "review":"Fast delivery and genuine Nepali bead."}]`}
-                    className="aura-textarea"
-                    style={{ fontFamily: "monospace", fontSize: "12px", lineHeight: "1.5" }}
-                  />
-                </div>
 
-                <div className="aura-modal-actions">
-                  <button type="button" className="aura-btn-cancel" onClick={() => setIsImportModalOpen(false)}>
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="aura-btn-submit" 
-                    disabled={isPreviewing} 
-                    style={{ background: "#0369a1", display: "flex", alignItems: "center", gap: "6px" }}
-                  >
-                    {isPreviewing ? (
-                      <>
-                        <RefreshCw size={16} className="animate-spin" />
-                        <span>Parsing & Validating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Eye size={16} />
-                        <span>Parse & Preview Reviews</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              /* STEP 2: PREVIEW TABLE & EDITORS */
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {/* Stats Summary Bar */}
-                {previewStats && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>Total Parsed</span>
-                      <strong style={{ fontSize: "16px", color: "#0f172a" }}>{previewStats.totalParsed}</strong>
+                  {/* Textarea Header with Live Format Detector & Sample Buttons */}
+                  <div className="aura-form-group">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "6px" }}>
+                      <label className="aura-form-label" style={{ margin: 0 }}>Review Raw Input Data</label>
+                      
+                      {/* Detected Format Badge */}
+                      <span style={{ 
+                        fontSize: "11px", 
+                        fontWeight: "600", 
+                        padding: "3px 8px", 
+                        borderRadius: "12px", 
+                        background: detectedFormatInfo.format === "empty" ? "#f1f5f9" : "#e0f2fe",
+                        color: detectedFormatInfo.format === "empty" ? "#64748b" : "#0369a1",
+                        border: "1px solid",
+                        borderColor: detectedFormatInfo.format === "empty" ? "#cbd5e1" : "#bae6fd",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}>
+                        Detected Format: <strong>{detectedFormatInfo.label}</strong> {detectedFormatInfo.format !== "empty" && "✓ (Auto-detected ✓)"}
+                      </span>
                     </div>
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#166534", display: "block" }}>Valid Ratings</span>
-                      <strong style={{ fontSize: "16px", color: "#166534" }}>{previewStats.validRatings}</strong>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#b45309", display: "block" }}>Needs Review</span>
-                      <strong style={{ fontSize: "16px", color: "#b45309" }}>{previewStats.needsReview}</strong>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#dc2626", display: "block" }}>Duplicates Detected</span>
-                      <strong style={{ fontSize: "16px", color: "#dc2626" }}>{previewStats.potentialDuplicates}</strong>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#4f46e5", display: "block" }}>Selected for Import</span>
-                      <strong style={{ fontSize: "16px", color: "#4f46e5" }}>{selectedImportIndices.size}</strong>
-                    </div>
-                  </div>
-                )}
 
-                {/* Duplicate override option */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-                  <label className="admin-check" style={{ margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={allowDuplicates}
-                      onChange={(e) => setAllowDuplicates(e.target.checked)}
+                    {/* Quick Sample Presets Toolbar */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "11px", color: "#64748b" }}>Quick Sample:</span>
+                      <button 
+                        type="button" 
+                        className="aura-filter-btn" 
+                        onClick={() => handleLoadSample("json")}
+                        style={{ fontSize: "11px", padding: "2px 8px" }}
+                      >
+                        JSON Array
+                      </button>
+                      <button 
+                        type="button" 
+                        className="aura-filter-btn" 
+                        onClick={() => handleLoadSample("key_value")}
+                        style={{ fontSize: "11px", padding: "2px 8px" }}
+                      >
+                        Key-Value
+                      </button>
+                      <button 
+                        type="button" 
+                        className="aura-filter-btn" 
+                        onClick={() => handleLoadSample("pipe")}
+                        style={{ fontSize: "11px", padding: "2px 8px" }}
+                      >
+                        Pipe (|)
+                      </button>
+                      <button 
+                        type="button" 
+                        className="aura-filter-btn" 
+                        onClick={() => handleLoadSample("csv")}
+                        style={{ fontSize: "11px", padding: "2px 8px" }}
+                      >
+                        CSV
+                      </button>
+                      {externalInputText && (
+                        <button 
+                          type="button" 
+                          className="aura-filter-btn" 
+                          onClick={() => handleLoadSample("clear")}
+                          style={{ fontSize: "11px", padding: "2px 8px", color: "#ef4444" }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    <textarea
+                      rows={7}
+                      required
+                      value={externalInputText}
+                      onChange={(e) => setExternalInputText(e.target.value)}
+                      placeholder={'[\n  {\n    "name": "Karan Patel",\n    "rating": 5,\n    "review": "Premium quality 1 Mukhi Rudraksha. Product and certification experience excellent raha."\n  }\n]'}
+                      className="aura-textarea"
+                      style={{ fontFamily: "monospace", fontSize: "13px" }}
                     />
-                    <span style={{ fontSize: "12px", color: "#475569" }}>Allow Importing Duplicates if necessary</span>
-                  </label>
+                  </div>
 
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      className="admin-btn secondary"
-                      style={{ fontSize: "12px", padding: "4px 10px" }}
-                      onClick={() => {
-                        const allIdx = new Set(parsedReviews.map((_, i) => i));
-                        setSelectedImportIndices(allIdx);
-                      }}
-                    >
-                      Select All
+                  <div className="aura-modal-actions" style={{ marginTop: "16px" }}>
+                    <button type="button" className="aura-btn-cancel" onClick={handleCloseImportModal}>
+                      Cancel
                     </button>
-                    <button
-                      type="button"
-                      className="admin-btn secondary"
-                      style={{ fontSize: "12px", padding: "4px 10px" }}
-                      onClick={() => setSelectedImportIndices(new Set())}
-                    >
-                      Deselect All
+                    <button type="submit" className="aura-btn-submit" style={{ background: "#0369a1", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <FileText size={16} /> Parse & Preview Reviews
                     </button>
                   </div>
-                </div>
+                </form>
+              )}
 
-                {/* Preview Table */}
-                <div style={{ maxHeight: "420px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
-                    <thead style={{ background: "#f1f5f9", position: "sticky", top: 0, zIndex: 10 }}>
-                      <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
-                        <th style={{ padding: "10px 8px", width: "36px" }}></th>
-                        <th style={{ padding: "10px 8px", width: "140px" }}>Author Name</th>
-                        <th style={{ padding: "10px 8px", width: "110px" }}>Rating (★)</th>
-                        <th style={{ padding: "10px 8px" }}>Review Text & Polish</th>
-                        <th style={{ padding: "10px 8px", width: "110px" }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parsedReviews.map((rev, idx) => {
-                        const isSelected = selectedImportIndices.has(idx);
-                        return (
-                          <tr 
-                            key={idx} 
-                            style={{ 
-                              borderBottom: "1px solid #f1f5f9",
-                              background: rev.isDuplicate ? "#fff1f2" : rev.needsReview ? "#fffbeb" : isSelected ? "#f8fafc" : "#ffffff" 
-                            }}
-                          >
-                            <td style={{ padding: "8px", verticalAlign: "top" }}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  const next = new Set(selectedImportIndices);
-                                  if (e.target.checked) next.add(idx);
-                                  else next.delete(idx);
-                                  setSelectedImportIndices(next);
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: "8px", verticalAlign: "top" }}>
-                              <input
-                                type="text"
-                                value={rev.name || rev.author || ""}
-                                onChange={(e) => handleUpdateParsedRow(idx, "name", e.target.value)}
-                                className="aura-input"
-                                style={{ fontSize: "12px", padding: "4px 8px" }}
-                              />
-                              {rev.city && (
-                                <span style={{ fontSize: "10px", color: "#64748b", display: "block", marginTop: "2px" }}>
-                                  📍 {rev.city}
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: "8px", verticalAlign: "top" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {/* STEP 2: PREVIEW & VALIDATION STAGE */}
+              {importModalStep === "preview" && parsedBatch && (
+                <div>
+                  {/* Summary Bar */}
+                  <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", 
+                    gap: "10px", 
+                    marginBottom: "16px",
+                    padding: "12px",
+                    background: "#f8fafc",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0"
+                  }}>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase" }}>Detected Format</span>
+                      <div style={{ fontWeight: "700", color: "#0f172a", fontSize: "13px" }}>{parsedBatch.formatBadge}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase" }}>Total Detected</span>
+                      <div style={{ fontWeight: "700", color: "#0f172a", fontSize: "15px" }}>{parsedBatch.summary.total}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase" }}>Valid Reviews</span>
+                      <div style={{ fontWeight: "700", color: "#16a34a", fontSize: "15px" }}>{parsedBatch.summary.valid}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase" }}>Duplicates</span>
+                      <div style={{ fontWeight: "700", color: parsedBatch.summary.duplicates > 0 ? "#d97706" : "#64748b", fontSize: "15px" }}>
+                        {parsedBatch.summary.duplicates}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Batch Controls Toolbar */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllRecords(true)}
+                        className="aura-filter-btn"
+                        style={{ fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      >
+                        <CheckSquare size={14} /> Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllRecords(false)}
+                        className="aura-filter-btn"
+                        style={{ fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      >
+                        <Square size={14} /> Deselect All
+                      </button>
+                      <span style={{ fontSize: "12px", color: "#64748b", marginLeft: "4px" }}>
+                        {parsedBatch.records.filter(r => r.selectedForImport).length} of {parsedBatch.records.length} selected
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBatchPolish()}
+                      disabled={isBatchPolishing}
+                      className="aura-filter-btn active"
+                      style={{ fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px", background: "#f0fdf4", color: "#166534", borderColor: "#bbf7d0" }}
+                    >
+                      <Sparkles size={14} color="#16a34a" />
+                      {isBatchPolishing ? "Polishing with AI..." : "AI Polish Selected Batch"}
+                    </button>
+                  </div>
+
+                  {/* Reviews List */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "420px", overflowY: "auto", paddingRight: "4px" }}>
+                    {parsedBatch.records.map((item, index) => (
+                      <div 
+                        key={item.id} 
+                        style={{ 
+                          padding: "14px", 
+                          background: item.selectedForImport ? "#ffffff" : "#f8fafc", 
+                          border: "1px solid", 
+                          borderColor: item.selectedForImport ? "#cbd5e1" : "#e2e8f0",
+                          borderRadius: "8px",
+                          opacity: item.selectedForImport ? 1 : 0.65,
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                          <input
+                            type="checkbox"
+                            checked={item.selectedForImport}
+                            onChange={() => handleToggleSelectRecord(item.id)}
+                            style={{ marginTop: "4px", width: "16px", height: "16px", accentColor: "#0369a1", cursor: "pointer" }}
+                          />
+
+                          <div style={{ flexGrow: 1 }}>
+                            {/* Header row of card */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "6px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                <span style={{ fontWeight: "700", fontSize: "12px", color: "#64748b" }}>#{index + 1}</span>
                                 <input
-                                  type="number"
-                                  min={1}
-                                  max={5}
-                                  step={0.1}
-                                  value={rev.rating}
-                                  onChange={(e) => handleUpdateParsedRow(idx, "rating", Number(e.target.value))}
-                                  className="aura-input"
-                                  style={{ width: "65px", fontSize: "12px", padding: "4px 6px" }}
+                                  type="text"
+                                  value={item.name}
+                                  onChange={(e) => handleUpdateRecordField(item.id, "name", e.target.value)}
+                                  placeholder="Reviewer Name"
+                                  style={{ fontWeight: "600", fontSize: "13px", padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: "4px", width: "180px" }}
                                 />
-                                <span style={{ color: "#d97706", fontWeight: "700" }}>★</span>
-                              </div>
-                            </td>
-                            <td style={{ padding: "8px", verticalAlign: "top" }}>
-                              <textarea
-                                rows={2}
-                                value={rev.text || ""}
-                                onChange={(e) => handleUpdateParsedRow(idx, "text", e.target.value)}
-                                className="aura-textarea"
-                                style={{ fontSize: "12px", padding: "4px 8px", width: "100%" }}
-                              />
-                              {rev.processedText && rev.processedText !== rev.text && (
-                                <div style={{ marginTop: "4px", fontSize: "11px", color: "#166534", background: "#f0fdf4", padding: "4px 6px", borderRadius: "4px" }}>
-                                  <strong style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                                    <Sparkles size={11} /> Polished:
-                                  </strong>{" "}
-                                  {rev.processedText}
+                                
+                                {/* Star Rating Control */}
+                                <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "#fef3c7", padding: "2px 8px", borderRadius: "12px", border: "1px solid #fde68a" }}>
+                                  <Star size={13} color="#d97706" fill="#d97706" />
+                                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#92400e" }}>{item.rating}★</span>
+                                  <span style={{ fontSize: "10px", color: "#b45309" }}>
+                                    {item.hasExplicitRating ? "(Explicit)" : "(Fallback)"}
+                                  </span>
                                 </div>
+
+                                <span style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#475569" }}>
+                                  {item.language}
+                                </span>
+
+                                {item.aiProcessed && (
+                                  <span style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: "#dcfce7", color: "#166534", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                    <Sparkles size={11} /> AI Polished
+                                  </span>
+                                )}
+                              </div>
+
+                              {item.isDuplicate && (
+                                <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "12px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontWeight: "600" }}>
+                                  ⚠️ Possible Duplicate
+                                </span>
                               )}
-                            </td>
-                            <td style={{ padding: "8px", verticalAlign: "top" }}>
-                              {rev.isDuplicate ? (
-                                <span style={{ fontSize: "10px", color: "#dc2626", background: "#fee2e2", padding: "2px 6px", borderRadius: "4px", fontWeight: "600", display: "inline-block" }}>
-                                  Duplicate
-                                </span>
-                              ) : rev.needsReview ? (
-                                <span style={{ fontSize: "10px", color: "#b45309", background: "#fef3c7", padding: "2px 6px", borderRadius: "4px", fontWeight: "600", display: "inline-block" }}>
-                                  Needs Review
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: "10px", color: "#166534", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px", fontWeight: "600", display: "inline-block" }}>
-                                  Ready
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                            </div>
 
-                {/* Step 2 Actions */}
-                <div className="aura-modal-actions" style={{ borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
-                  <button 
-                    type="button" 
-                    className="aura-btn-cancel" 
-                    onClick={() => setImportStep("input")}
-                  >
-                    ← Back to Input
-                  </button>
-                  <button 
-                    type="button" 
-                    className="aura-btn-submit" 
-                    disabled={isImporting || selectedImportIndices.size === 0} 
-                    onClick={handleExecuteImport}
-                    style={{ background: "#166534", display: "flex", alignItems: "center", gap: "6px" }}
-                  >
-                    {isImporting ? (
-                      <>
-                        <RefreshCw size={16} className="animate-spin" />
-                        <span>Saving to Database...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 size={16} />
-                        <span>Import {selectedImportIndices.size} Selected Reviews</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                            {/* Duplicate Warning notice if detected */}
+                            {item.isDuplicate && item.duplicateReason && (
+                              <div style={{ fontSize: "11px", color: "#b91c1c", marginBottom: "6px", background: "#fff1f2", padding: "4px 8px", borderRadius: "4px" }}>
+                                {item.duplicateReason}
+                              </div>
+                            )}
 
-      {/* DATABASE HEALTH AUDIT & REPAIR MODAL */}
-      {isAuditModalOpen && (
-        <div className="aura-modal-backdrop" onClick={() => setIsAuditModalOpen(false)}>
-          <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "680px" }}>
-            <div className="aura-modal-header" style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "14px" }}>
-              <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px", color: "#166534" }}>
-                <ShieldCheck size={20} color="#166534" /> Review Database Health & Integrity Audit
-              </h3>
-              <button className="aura-modal-close-btn" onClick={() => setIsAuditModalOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
+                            {/* Review Content */}
+                            <textarea
+                              rows={2}
+                              value={item.text}
+                              onChange={(e) => handleUpdateRecordField(item.id, "text", e.target.value)}
+                              className="aura-textarea"
+                              style={{ fontSize: "13px", padding: "6px 8px", margin: 0 }}
+                            />
 
-            {isAuditing ? (
-              <div style={{ padding: "30px", textAlign: "center", color: "#64748b" }}>
-                <RefreshCw size={28} className="animate-spin" style={{ margin: "0 auto 12px", color: "#166534" }} />
-                <p>Auditing MongoDB reviews for malformed content, broken ratings, and duplicates...</p>
-              </div>
-            ) : auditData ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-                  <div style={{ padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                    <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>Total Database Records</span>
-                    <strong style={{ fontSize: "18px", color: "#0f172a" }}>{auditData.totalScanned || 0}</strong>
+                            {/* Validation issues if any */}
+                            {item.validation?.issues?.length > 0 && (
+                              <div style={{ display: "flex", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
+                                {item.validation.issues.map((iss, i) => (
+                                  <span key={i} style={{ fontSize: "10px", color: "#64748b" }}>• {iss}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ padding: "12px", background: auditData.malformedCount > 0 ? "#fffbeb" : "#f0fdf4", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                    <span style={{ fontSize: "11px", color: auditData.malformedCount > 0 ? "#b45309" : "#166534", display: "block" }}>Malformed Text / Prefix</span>
-                    <strong style={{ fontSize: "18px", color: auditData.malformedCount > 0 ? "#b45309" : "#166534" }}>{auditData.malformedCount || 0}</strong>
-                  </div>
-                  <div style={{ padding: "12px", background: auditData.duplicateCount > 0 ? "#fef2f2" : "#f0fdf4", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-                    <span style={{ fontSize: "11px", color: auditData.duplicateCount > 0 ? "#dc2626" : "#166534", display: "block" }}>Duplicate Records</span>
-                    <strong style={{ fontSize: "18px", color: auditData.duplicateCount > 0 ? "#dc2626" : "#166534" }}>{auditData.duplicateCount || 0}</strong>
-                  </div>
-                </div>
 
-                {auditData.malformedCount > 0 || auditData.brokenRatingCount > 0 ? (
-                  <div style={{ padding: "12px", background: "#fffbeb", borderRadius: "8px", border: "1px solid #fde68a" }}>
-                    <h4 style={{ margin: "0 0 6px", fontSize: "13px", color: "#92400e", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <AlertTriangle size={16} /> Issues Detected in Database:
-                    </h4>
-                    <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#78350f" }}>
-                      {auditData.malformedCount > 0 && (
-                        <li>{auditData.malformedCount} review(s) contain leftover prefixes like "Name:", "Rating:", or numbers.</li>
-                      )}
-                      {auditData.brokenRatingCount > 0 && (
-                        <li>{auditData.brokenRatingCount} review(s) have invalid or zero ratings.</li>
-                      )}
-                      {auditData.duplicateCount > 0 && (
-                        <li>{auditData.duplicateCount} redundant review(s) share identical content.</li>
-                      )}
-                    </ul>
-                  </div>
-                ) : (
-                  <div style={{ padding: "16px", background: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0", textAlign: "center" }}>
-                    <CheckCircle2 size={24} color="#166534" style={{ margin: "0 auto 6px" }} />
-                    <strong style={{ color: "#166534", display: "block", fontSize: "14px" }}>Database is Healthy & Clean!</strong>
-                    <p style={{ fontSize: "12px", color: "#15803d", margin: "4px 0 0" }}>All customer reviews have valid author names, proper ratings, and sanitized text.</p>
-                  </div>
-                )}
-
-                <div className="aura-modal-actions" style={{ borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
-                  <button type="button" className="aura-btn-cancel" onClick={() => setIsAuditModalOpen(false)}>
-                    Close
-                  </button>
-                  {(auditData.malformedCount > 0 || auditData.brokenRatingCount > 0) && (
+                  <div className="aura-modal-actions" style={{ marginTop: "16px" }}>
+                    <button 
+                      type="button" 
+                      className="aura-btn-cancel" 
+                      onClick={() => setImportModalStep("input")}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    >
+                      <ArrowLeft size={16} /> Back to Edit Raw Input
+                    </button>
+                    
                     <button 
                       type="button" 
                       className="aura-btn-submit" 
-                      disabled={isRepairing} 
-                      onClick={() => handleExecuteRepair()}
-                      style={{ background: "#d97706", display: "flex", alignItems: "center", gap: "6px" }}
+                      onClick={handleExecuteImport}
+                      disabled={isImporting || parsedBatch.records.filter(r => r.selectedForImport).length === 0}
+                      style={{ background: "#0369a1", display: "inline-flex", alignItems: "center", gap: "6px" }}
                     >
-                      {isRepairing ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          <span>Sanitizing & Repairing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={16} />
-                          <span>Auto-Repair All Issues</span>
-                        </>
-                      )}
+                      <CheckCircle2 size={16} />
+                      {isImporting 
+                        ? "Importing Reviews..." 
+                        : `Import Selected (${parsedBatch.records.filter(r => r.selectedForImport).length} Reviews)`}
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              )}
+
+              {/* STEP 3: SUCCESS CONFIRMATION STAGE */}
+              {importModalStep === "success" && importResults && (
+                <div style={{ textAlign: "center", padding: "20px 10px" }}>
+                  <div style={{ width: "52px", height: "52px", borderRadius: "50%", background: "#dcfce7", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                    <CheckCircle2 size={32} />
+                  </div>
+                  
+                  <h4 style={{ fontSize: "18px", color: "#0f172a", margin: "0 0 8px" }}>
+                    Reviews Successfully Imported!
+                  </h4>
+                  
+                  <p style={{ fontSize: "14px", color: "#475569", margin: "0 0 16px" }}>
+                    {importResults.message}
+                  </p>
+
+                  <div style={{ display: "inline-flex", gap: "16px", background: "#f8fafc", padding: "12px 24px", borderRadius: "8px", border: "1px solid #e2e8f0", margin: "0 auto 20px" }}>
+                    <div>
+                      <div style={{ fontSize: "20px", fontWeight: "700", color: "#166534" }}>{importResults.importedCount || 0}</div>
+                      <div style={{ fontSize: "11px", color: "#64748b" }}>Imported</div>
+                    </div>
+                    {importResults.skippedCount > 0 && (
+                      <div>
+                        <div style={{ fontSize: "20px", fontWeight: "700", color: "#d97706" }}>{importResults.skippedCount}</div>
+                        <div style={{ fontSize: "11px", color: "#64748b" }}>Skipped (Duplicates)</div>
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#0369a1", marginTop: "4px" }}>
+                        {importResults.publicDisplay ? "Storefront Visible" : "Private Archive"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#64748b" }}>Display Scope</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
+                    <button 
+                      type="button" 
+                      className="aura-btn-cancel" 
+                      onClick={() => {
+                        setExternalInputText("");
+                        setImportModalStep("input");
+                      }}
+                    >
+                      Import Another Batch
+                    </button>
+                    <button 
+                      type="button" 
+                      className="aura-btn-submit" 
+                      onClick={handleCloseImportModal}
+                      style={{ background: "#0369a1" }}
+                    >
+                      Done & View Reviews
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
