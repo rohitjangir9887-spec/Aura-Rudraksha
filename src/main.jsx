@@ -7,6 +7,7 @@ import { ToastProvider } from "./context/ToastContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles.css";
 import "./pages/Shop.css";
+import "./review-safe-overrides.css";
 
 // ---------------------------------------------------------------------------
 // 60-90 FPS Smooth Scrolling & Hardware Acceleration Setup
