@@ -3070,7 +3070,7 @@ export function AdminProducts() {
                       <button className="admin-btn secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleEdit(p)}>
                         <Edit size={14} /> Edit
                       </button>
-                      <button className="admin-icon-btn danger" style={{ width: 34, height: 34 }} onClick={() => setDeleteId(p.id)} title="Delete Product">
+                      <button className="admin-icon-btn danger" style={{ width: 34, height: 34 }} onClick={() => setDeleteId(p.id || p._id)} title="Delete Product">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -3278,7 +3278,7 @@ export function AdminProducts() {
                           <button className="admin-icon-btn" onClick={() => handleEdit(p)} title="Edit Product">
                             <Edit size={16} />
                           </button>
-                          <button className="admin-icon-btn danger" onClick={() => setDeleteId(p.id)} title="Delete Product">
+                          <button className="admin-icon-btn danger" onClick={() => setDeleteId(p.id || p._id)} title="Delete Product">
                             <Trash2 size={16} />
                           </button>
                         </div>

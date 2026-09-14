@@ -280,6 +280,34 @@ function recordDeletedReviewId(id) {
   } catch (_) {}
 }
 
+// Deleted product tracking to ensure deleted products are never resurrected on refresh
+function getDeletedProductIds() {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem("aura_deleted_product_ids");
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (_) {}
+  return new Set();
+}
+
+function recordDeletedProductId(id) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedProductIds();
+    set.add(String(id));
+    localStorage.setItem("aura_deleted_product_ids", JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
+function unrecordDeletedProductId(id) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedProductIds();
+    set.delete(String(id));
+    localStorage.setItem("aura_deleted_product_ids", JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
 // Deleted coupon tracking to ensure deleted coupons are never resurrected on refresh
 function getDeletedCouponIds() {
   if (typeof window === "undefined") return new Set();
@@ -588,17 +616,20 @@ export async function revalidateProducts(force = false) {
       if (res?.success && Array.isArray(res.data)) {
         storeCache.dbStatus = "connected";
         hasFetchedFreshData = true;
-        const normalized = res.data.map(p => ({
-          ...p,
-          id: String(p.id || p._id),
-          showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
-          isPopular: !!p.isPopular,
-          homeOrder: Number(p.homeOrder) || 0,
-          homeBadge: p.homeBadge || p.badge || "",
-          mrp: p.mrp || p.comparePrice || p.price,
-          comparePrice: p.comparePrice || p.mrp || p.price,
-          images: getProductGalleryImages(p)
-        }));
+        const deletedProductIds = getDeletedProductIds();
+        const normalized = res.data
+          .filter(p => p && !deletedProductIds.has(String(p.id)) && !deletedProductIds.has(String(p._id)) && !deletedProductIds.has(String(p.slug)))
+          .map(p => ({
+            ...p,
+            id: String(p.id || p._id),
+            showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
+            isPopular: !!p.isPopular,
+            homeOrder: Number(p.homeOrder) || 0,
+            homeBadge: p.homeBadge || p.badge || "",
+            mrp: p.mrp || p.comparePrice || p.price,
+            comparePrice: p.comparePrice || p.mrp || p.price,
+            images: getProductGalleryImages(p)
+          }));
 
         storeCache.products = normalized;
         lastProductFetchTime = Date.now();
@@ -1261,6 +1292,10 @@ export const db = {
     const strId = String(savedData.id || id);
     const mongoId = savedData._id ? String(savedData._id) : null;
 
+    unrecordDeletedProductId(strId);
+    if (mongoId) unrecordDeletedProductId(mongoId);
+    if (savedData.slug) unrecordDeletedProductId(savedData.slug);
+
     const currentIdx = storeCache.products.findIndex(x =>
       String(x.id) === strId || (mongoId && String(x._id) === mongoId) || (x.slug && x.slug === savedData.slug)
     );
@@ -1346,12 +1381,25 @@ export const db = {
 
   deleteProduct: async (id) => {
     const strId = String(id);
-    const res = await apiRequest(`/products/${strId}`, { method: "DELETE" });
+    recordDeletedProductId(strId);
+
+    const existingP = db.getProduct(strId);
+    if (existingP) {
+      if (existingP.id) recordDeletedProductId(existingP.id);
+      if (existingP._id) recordDeletedProductId(existingP._id);
+      if (existingP.slug) recordDeletedProductId(existingP.slug);
+    }
+
+    const res = await apiRequest(`/products/${encodeURIComponent(strId)}`, {
+      method: "DELETE",
+      requiresAuth: true
+    });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete product. Database is unavailable.");
     }
     storeCache.products = storeCache.products.filter(p =>
-      String(p.id) !== strId && String(p._id) !== strId && p.slug !== strId
+      String(p.id) !== strId && String(p._id) !== strId && p.slug !== strId &&
+      (!existingP || (String(p.id) !== String(existingP.id) && String(p._id) !== String(existingP._id)))
     );
 
     try {

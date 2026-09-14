@@ -520,14 +520,31 @@ export async function deleteProduct(req, res, next) {
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+    const cleanSlug = cleanId.toLowerCase();
 
-    const deleted = await Product.findOneAndDelete({
+    let deleted = await Product.findOneAndDelete({
       $or: [
         { id: cleanId },
         { slug: cleanId },
+        { slug: cleanSlug },
         ...(isMongoId ? [{ _id: cleanId }] : [])
       ]
     });
+
+    if (!deleted) {
+      // Secondary search for ID string or slugified name match
+      const allProds = await Product.find().lean();
+      const target = allProds.find(p => {
+        if (!p) return false;
+        const pId = String(p.id || "").trim();
+        const pMongoId = String(p._id || "").trim();
+        const pSlug = String(p.slug || "").trim().toLowerCase();
+        return pId === cleanId || pMongoId === cleanId || pSlug === cleanSlug;
+      });
+      if (target) {
+        deleted = await Product.findByIdAndDelete(target._id);
+      }
+    }
 
     if (deleted) {
       submitToIndexNow(["/sitemap.xml"], req).catch(() => {});
