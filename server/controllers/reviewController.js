@@ -343,6 +343,23 @@ export async function updateReview(req, res, next) {
     }
 
     const existing = await Review.findOne({ id: String(id) }).lean();
+
+    if (data.productId) {
+      const targetProduct = await Product.findOne({
+        $or: [{ id: String(data.productId) }, { slug: String(data.productId) }]
+      }).lean();
+      if (!targetProduct && String(data.type || existing?.type || "product") === "product") {
+        return res.status(400).json({
+          success: false,
+          message: "Selected product does not exist in the current catalog."
+        });
+      }
+      if (targetProduct) {
+        data.productId = String(targetProduct.id);
+        data.productName = targetProduct.name;
+      }
+    }
+
     const updated = await Review.findOneAndUpdate(
       { id: String(id) },
       { $set: data },
