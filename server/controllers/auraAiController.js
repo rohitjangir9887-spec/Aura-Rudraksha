@@ -72,8 +72,16 @@ export const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 export const BACKUP_NIM_MODELS = ["nvidia/nemotron-3-super-120b-a12b", "nemotron-3-super-120b-a12b"];
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
-export function getNvidiaClient() {
+let cachedNvidiaKey = "";
+
+export function setCachedNvidiaKey(key) {
+  cachedNvidiaKey = (key || "").trim();
+}
+
+export function getNvidiaClient(customKey = "") {
   const apiKey = (
+    customKey ||
+    cachedNvidiaKey ||
     process.env.NVIDIA_API_KEY ||
     process.env.NEMOTRON_API_KEY ||
     process.env.NVIDIA_NIM_API_KEY ||
@@ -93,7 +101,7 @@ export function getNvidiaClient() {
     return new OpenAI({
       baseURL,
       apiKey,
-      timeout: 12000
+      timeout: 10000
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM client:", err?.message || err);
@@ -120,7 +128,7 @@ export function getGeminiClient() {
 }
 
 // Resilient Gemini text models fallback list in order of preference
-export const GEMINI_TEXT_MODELS = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+export const GEMINI_TEXT_MODELS = ['gemini-3.7-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
 
 // Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
@@ -1826,6 +1834,9 @@ export async function getAuraAISettings(req, res, next) {
 export async function updateAuraAISettings(req, res, next) {
   try {
     const cleanUpdates = pickFields(req.body, AI_SETTING_FIELDS);
+    if (cleanUpdates.nvidiaApiKey || cleanUpdates.nemotronApiKey) {
+      setCachedNvidiaKey(cleanUpdates.nvidiaApiKey || cleanUpdates.nemotronApiKey);
+    }
 
     if (isDbConnected()) {
       const updated = await AuraAISetting.findOneAndUpdate(
@@ -2301,7 +2312,7 @@ Instructions:
         
         const catalogSummary = await getCatalogSummary();
         const fallbackRes = await geminiClient.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.7-flash",
           contents: [{ role: "user", parts: [{ text: `Store Catalog:\n${catalogSummary}\n\nUser Question: ${userPrompt}` }] }],
           config: {
             systemInstruction: "You are the Aura AI Admin Agent. Answer concisely, professionally, and accurately regarding store operations, products, or SEO.",

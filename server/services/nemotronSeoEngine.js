@@ -733,12 +733,12 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
   let aiOutputParsed = null;
   let aiGenerationSuccess = false;
 
-  // 1. Try strictly NVIDIA NIM (model: nemotron-3-super-120b-a12b)
+  // 1. Try strictly NVIDIA NIM (model: nemotron-3-super-120b-a12b) with fast 5s timeout
   try {
     const activeApiKey = await getActiveNemotronApiKey();
     const nvidiaClient = activeApiKey ? getNvidiaNemotronClient(activeApiKey) : null;
     if (nvidiaClient) {
-      const completion = await nvidiaClient.chat.completions.create({
+      const nimPromise = nvidiaClient.chat.completions.create({
         model: NEMOTRON_NIM_MODEL,
         messages: [
           { role: "system", content: promptSystem },
@@ -747,6 +747,8 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
         temperature: 0.2,
         max_tokens: 2200
       });
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("NIM timeout")), 5000));
+      const completion = await Promise.race([nimPromise, timeoutPromise]);
 
       const rawResponse = completion.choices?.[0]?.message?.content || "";
       aiOutputParsed = parseNemotronJsonResponse(rawResponse);
@@ -770,18 +772,30 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
           }
         }
       });
-      const geminiResponse = await geminiClient.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `${promptSystem}\n\nUser Request:\n${userPrompt}`,
-        config: {
-          temperature: 0.2,
-          responseMimeType: "application/json"
+      const fallbackModels = ["gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+      for (const modelCandidate of fallbackModels) {
+        if (aiGenerationSuccess) break;
+        try {
+          const geminiPromise = geminiClient.models.generateContent({
+            model: modelCandidate,
+            contents: `${promptSystem}\n\nUser Request:\n${userPrompt}`,
+            config: {
+              temperature: 0.2,
+              responseMimeType: "application/json"
+            }
+          });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini candidate timeout")), 5000));
+          const geminiResponse = await Promise.race([geminiPromise, timeoutPromise]);
+
+          const geminiText = geminiResponse.text || "";
+          aiOutputParsed = parseNemotronJsonResponse(geminiText);
+          if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
+            aiGenerationSuccess = true;
+            break;
+          }
+        } catch (mErr) {
+          console.warn(`[Nemotron Engine] Gemini candidate (${modelCandidate}) notice:`, mErr?.message || mErr);
         }
-      });
-      const geminiText = geminiResponse.text || "";
-      aiOutputParsed = parseNemotronJsonResponse(geminiText);
-      if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
-        aiGenerationSuccess = true;
       }
     } catch (geminiErr) {
       console.warn("[Nemotron Engine] Gemini fallback notice:", geminiErr?.message || geminiErr);

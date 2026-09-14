@@ -772,6 +772,16 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
     }
   };
 
+  // Close Import Modal and Reset State
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+    setImportModalStep("input");
+    setParsedBatch(null);
+    setImportResults(null);
+    setExternalInputText("");
+    loadData();
+  };
+
   // Step 1: Parse and Preview External Reviews
   const handleParseAndPreview = (e) => {
     e?.preventDefault();
