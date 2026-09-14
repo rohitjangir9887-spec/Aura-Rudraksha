@@ -12,7 +12,7 @@
 
 import fs from "fs";
 import path from "path";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
@@ -419,32 +419,35 @@ export function escapeXml(str) {
  */
 export async function getPublicProductsForSeo() {
   if (!isDbConnected()) {
-    return defaultProducts || [];
+    try {
+      await connectDB();
+    } catch (_) {}
   }
-  try {
-    const products = await Product.find({
-      $and: [
-        {
-          $or: [
-            { status: { $in: ["Published", "published", "Active", "active"] } },
-            { status: { $exists: false } },
-            { status: null },
-            { status: "" }
-          ]
-        },
-        {
-          status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
-        }
-      ]
-    }).lean();
-    if (products && products.length > 0) {
-      return products;
+  if (isDbConnected()) {
+    try {
+      const products = await Product.find({
+        $and: [
+          {
+            $or: [
+              { status: { $in: ["Published", "published", "Active", "active"] } },
+              { status: { $exists: false } },
+              { status: null },
+              { status: "" }
+            ]
+          },
+          {
+            status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
+          }
+        ]
+      }).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
+      if (products && products.length > 0) {
+        return products;
+      }
+    } catch (err) {
+      console.warn("[SEO] Notice fetching public products from MongoDB, falling back to seed catalog:", err.message);
     }
-    return defaultProducts || [];
-  } catch (err) {
-    console.warn("[SEO] Notice fetching public products from MongoDB, falling back to seed catalog:", err.message);
-    return defaultProducts || [];
   }
+  return defaultProducts || [];
 }
 
 /**
@@ -507,6 +510,12 @@ export async function findProductForSeo(idOrSlug) {
   const clean = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
   const cleanId = clean.replace(/^(product-card-|product-)/, "");
 
+  if (!isDbConnected()) {
+    try {
+      await connectDB();
+    } catch (_) {}
+  }
+
   if (isDbConnected()) {
     try {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean);
@@ -544,7 +553,7 @@ export async function findProductForSeo(idOrSlug) {
     }
   }
 
-  // Resilient fallback to defaultProducts catalog
+  // Resilient fallback to defaultProducts catalog only if not found in MongoDB
   return matchProductFromCatalog(defaultProducts, clean);
 }
 
@@ -580,7 +589,9 @@ export async function generateSitemapXml(req) {
 
   // 3. Dynamic Published Products from MongoDB / Catalog
   for (const p of products) {
-    const slugOrId = p.slug || p.id;
+    if (!p) continue;
+    const slugOrId = p.slug || p.id || p._id;
+    if (!slugOrId) continue;
     const prodUrl = `${baseUrl}/product/${slugOrId}`;
     const lastMod = p.updatedAt ? new Date(p.updatedAt).toISOString() : now;
     const imgUrl = (p.images && p.images[0]) || p.img || SEO_BRAND.defaultImage;
@@ -594,7 +605,7 @@ export async function generateSitemapXml(req) {
     if (fullImgUrl) {
       xml += '    <image:image>\n';
       xml += `      <image:loc>${escapeXml(fullImgUrl)}</image:loc>\n`;
-      xml += `      <image:title>${escapeXml(p.name)}</image:title>\n`;
+      xml += `      <image:title>${escapeXml(p.name || "Sacred Rudraksha")}</image:title>\n`;
       xml += '    </image:image>\n';
     }
     xml += '  </url>\n';
@@ -620,7 +631,9 @@ export async function generateMerchantFeedXml(req) {
   xml += '    <description>100% Genuine Lab-Certified Nepali and Indonesian Rudraksha Beads, Consecrated Japa Malas, and Sacred Spiritual Items</description>\n';
 
   for (const p of products) {
-    const slugOrId = p.slug || p.id;
+    if (!p) continue;
+    const slugOrId = p.slug || p.id || p._id;
+    if (!slugOrId) continue;
     const prodUrl = `${baseUrl}/product/${slugOrId}`;
     const imgList = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || SEO_BRAND.defaultImage];
     const primaryImg = imgList[0];
@@ -631,14 +644,16 @@ export async function generateMerchantFeedXml(req) {
     const mrpVal = Number(p.mrp || p.comparePrice) || 0;
     const hasDiscount = mrpVal > priceVal;
 
-    const desc = p.description || p.highlight || `${p.name} - 100% authentic energized sacred Rudraksha bead with lab certificate. Consecrated with holy Ganga Jal and Vedic Beej Mantras.`;
+    const prodName = p.name || "Authentic Rudraksha Bead";
+    const desc = p.description || p.highlight || `${prodName} - 100% authentic energized sacred Rudraksha bead with lab certificate. Consecrated with holy Ganga Jal and Vedic Beej Mantras.`;
     const cleanDesc = desc.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
     // Clean, natural title for Google Shopping
-    const title = p.name.includes("Aura") ? p.name : `${p.name} — Authentic Lab Certified`;
+    const title = prodName.includes("Aura") ? prodName : `${prodName} — Authentic Lab Certified`;
+    const itemId = String(p.id || p._id || p.slug);
 
     xml += '    <item>\n';
-    xml += `      <g:id>${escapeXml(String(p.id))}</g:id>\n`;
+    xml += `      <g:id>${escapeXml(itemId)}</g:id>\n`;
     xml += `      <g:title>${escapeXml(title.slice(0, 150))}</g:title>\n`;
     xml += `      <g:description>${escapeXml(cleanDesc.slice(0, 5000))}</g:description>\n`;
     xml += `      <g:link>${escapeXml(prodUrl)}</g:link>\n`;
@@ -877,8 +892,8 @@ export async function resolveSeoData(pathname, req) {
         "name": product.name,
         "image": imageArray,
         "description": cleanHighlight.slice(0, 1000),
-        "sku": String(product.id),
-        "mpn": String(product.id),
+        "sku": String(product.id || product._id || product.slug),
+        "mpn": String(product.id || product._id || product.slug),
         "brand": {
           "@type": "Brand",
           "name": SEO_BRAND.name

@@ -148,10 +148,15 @@ if (typeof window !== "undefined") {
     }
   });
 
+  let lastVisibilityRevalidate = 0;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      revalidateProducts(true).catch(() => {});
-      fetchHomeData(true).catch(() => {});
+      const now = Date.now();
+      if (now - lastVisibilityRevalidate > 10000) { // 10s cooldown throttle
+        lastVisibilityRevalidate = now;
+        revalidateProducts(false).catch(() => {});
+        fetchHomeData(false).catch(() => {});
+      }
     }
   });
 }
@@ -1204,8 +1209,8 @@ export const db = {
     const imgs = getProductGalleryImages(p);
     const primaryImg = getProductPrimaryImage(p);
 
-    const rawStatus = p.status || "Draft";
-    const normalizedStatus = (rawStatus === "Published" || rawStatus === "Active" || rawStatus === "published") ? "Published" : "Draft";
+    const rawStatus = p.status || "Published";
+    const normalizedStatus = (rawStatus === "Draft" || rawStatus === "draft" || rawStatus === "Inactive" || rawStatus === "inactive") ? "Draft" : "Published";
 
     const finalProduct = {
       ...p,

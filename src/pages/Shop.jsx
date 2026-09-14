@@ -686,3 +686,5 @@ export function Shop() {
     </Shell>
   );
 }
+
+export default Shop;

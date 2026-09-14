@@ -72,17 +72,6 @@ if (!global.__mongoose_listeners_attached) {
     cached.conn = null;
     cached.promise = null;
     console.warn("⚠️ [MongoDB] Connection socket disconnected.");
-    
-    // Proactively attempt seamless reconnection if disconnected (readyState 0)
-    if (mongoose.connection.readyState === 0 && !global.__mongo_reconnecting) {
-      global.__mongo_reconnecting = true;
-      setTimeout(() => {
-        global.__mongo_reconnecting = false;
-        if (mongoose.connection.readyState === 0) {
-          connectDB().catch(e => console.warn("⚠️ [MongoDB Auto-Reconnect]:", e.message));
-        }
-      }, 1500);
-    }
   });
   mongoose.connection.on("error", (err) => {
     console.warn("⚠️ [MongoDB] Connection error:", err.message);
@@ -218,16 +207,16 @@ export async function connectDB() {
     const opts = {
       serverSelectionTimeoutMS: timeoutVal, // 5s timeout for resilient TLS / DNS handshakes
       connectTimeoutMS: timeoutVal,         // 5s socket connection timeout
-      socketTimeoutMS: 30000,         // 30s socket inactivity timeout
-      maxIdleTimeMS: 30000,           // 30s idle timeout
-      maxPoolSize: isVercelServerless ? 15 : 50, // High throughput connection pool
-      minPoolSize: isVercelServerless ? 0 : 5,   // Keep 5 warm pre-opened sockets ready
+      socketTimeoutMS: 15000,               // 15s socket inactivity timeout
+      maxIdleTimeMS: 5000,                  // 5s idle timeout (quickly returns idle sockets on serverless)
+      maxPoolSize: isVercelServerless ? 2 : 5, // Conservative pool size tailored for MongoDB Atlas M0 free tier (50 max cluster connections limit)
+      minPoolSize: 0,                       // 0 pre-opened sockets to allow idle cleanup on serverless
       heartbeatFrequencyMS: 10000,
-      family: 4,                      // Force IPv4 to prevent IPv6 DNS lookup delays
+      family: 4,                            // Force IPv4 to prevent IPv6 DNS lookup delays
       retryWrites: true,
       retryReads: true,
-      autoIndex: true,                // Ensure indexes are built
-      noDelay: true                   // Enable TCP_NODELAY to avoid packet buffering latency
+      autoIndex: false,                     // Avoid auto-building indexes on every serverless invocation
+      noDelay: true                         // Enable TCP_NODELAY to avoid packet buffering latency
     };
 
     const doConnect = async () => {

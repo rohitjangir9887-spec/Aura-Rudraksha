@@ -28,13 +28,14 @@ export function ProductCardSkeleton() {
 }
 
 function ProductCardComponent({ p, onAdd, isShop = false }) {
-  if (!p) return null;
   const navigate = useNavigate();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { add: fallbackAddToCart } = useCart();
   const { offer, isActive: hasOffer } = useActiveOffer(p);
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
+
+  if (!p) return null;
 
   const productId = String(p?.id || p?._id || p?.slug || "");
   const isSaved = isWishlisted(productId);

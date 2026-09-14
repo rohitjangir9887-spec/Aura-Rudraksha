@@ -274,13 +274,18 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
     if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
       const liveOrder = settings.homeProductLayout.live;
       const orderedProducts = [];
+      const addedIds = new Set();
       for (const id of liveOrder) {
-        const prod = products.find(p => String(p.id || p._id) === String(id));
-        if (prod && isPublicProduct(prod)) {
+        const prod = products.find(p => String(p.id || p._id) === String(id) || String(p.slug) === String(id));
+        if (prod && isPublicProduct(prod) && prod.showOnHome !== false) {
           orderedProducts.push(prod);
+          addedIds.add(String(prod.id || prod._id));
         }
       }
-      return orderedProducts;
+      const remaining = sortProductsByHomeOrder(
+        products.filter(p => p && p.showOnHome !== false && isPublicProduct(p) && !addedIds.has(String(p.id || p._id)))
+      );
+      return [...orderedProducts, ...remaining];
     }
     
     // Fallback if no layout is set

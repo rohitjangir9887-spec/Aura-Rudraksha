@@ -11,8 +11,13 @@ export function useSeo({
   canonical,
   ogImage,
   ogType = "website",
-  schemas = []
+  schemas = [],
+  schema = null
 }) {
+  const resolvedSchemas = Array.isArray(schemas) && schemas.length > 0
+    ? schemas
+    : (schema ? (Array.isArray(schema) ? schema : [schema]) : []);
+
   useEffect(() => {
     if (title) {
       document.title = title;
@@ -68,16 +73,16 @@ export function useSeo({
     }
 
     // Inject dynamic client-side JSON-LD schemas
-    if (Array.isArray(schemas) && schemas.length > 0) {
+    if (Array.isArray(resolvedSchemas) && resolvedSchemas.length > 0) {
       // Remove any previously injected client schemas
       document.querySelectorAll('script[data-client-seo="true"]').forEach(el => el.remove());
       
-      schemas.forEach(schema => {
+      resolvedSchemas.forEach(item => {
         try {
           const script = document.createElement("script");
           script.type = "application/ld+json";
           script.setAttribute("data-client-seo", "true");
-          script.textContent = JSON.stringify(schema);
+          script.textContent = JSON.stringify(item);
           document.head.appendChild(script);
         } catch (_) {}
       });
@@ -86,5 +91,5 @@ export function useSeo({
     return () => {
       document.querySelectorAll('script[data-client-seo="true"]').forEach(el => el.remove());
     };
-  }, [title, description, canonical, ogImage, ogType, schemas]);
+  }, [title, description, canonical, ogImage, ogType, JSON.stringify(resolvedSchemas)]);
 }
