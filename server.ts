@@ -21,34 +21,6 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
-
-    // Intercept navigation requests to inject route-aware SEO & JSON-LD
-    app.use(async (req, res, next) => {
-      const p = req.path;
-      const isNavRequest = req.method === "GET" && 
-        !p.startsWith("/api") && 
-        !p.includes(".") && 
-        !p.startsWith("/@") && 
-        !p.startsWith("/src/") && 
-        !p.startsWith("/node_modules/");
-
-      if (isNavRequest) {
-        try {
-          const indexHtmlPath = path.join(process.cwd(), "index.html");
-          let template = await fs.promises.readFile(indexHtmlPath, "utf-8");
-          template = await vite.transformIndexHtml(req.originalUrl, template);
-          const finalHtml = await injectSeoIntoHtml(template, req.path, req);
-          res.setHeader("Content-Type", "text/html; charset=utf-8");
-          res.setHeader("Cache-Control", "no-cache");
-          return res.status(200).send(finalHtml);
-        } catch (err) {
-          console.warn("[Dev SEO HTML Notice]:", err);
-          return next();
-        }
-      }
-      next();
-    });
-
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");

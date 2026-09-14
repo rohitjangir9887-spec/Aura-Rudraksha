@@ -55,9 +55,7 @@ if (!global.__mongoose_listeners_attached) {
     console.log("⚡ [MongoDB] Connection established / restored.");
   });
   mongoose.connection.on("disconnected", () => {
-    cached.conn = null;
-    cached.promise = null;
-    console.warn("⚠️ [MongoDB] Connection socket disconnected.");
+    console.warn("⚠️ [MongoDB] Connection socket idle / disconnected.");
   });
   mongoose.connection.on("error", (err) => {
     console.warn("⚠️ [MongoDB] Connection error:", err.message);
@@ -65,6 +63,13 @@ if (!global.__mongoose_listeners_attached) {
     cached.conn = null;
     cached.promise = null;
   });
+
+  // Background keep-alive ping to prevent cloud NAT / Atlas idle socket teardowns
+  setInterval(() => {
+    if (mongoose?.connection?.readyState === 1 && mongoose?.connection?.db) {
+      mongoose.connection.db.admin().ping().catch(() => {});
+    }
+  }, 25000);
 }
 
 export function isValidMongoUri(rawUri) {
@@ -158,14 +163,14 @@ export async function connectDB() {
 
   if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || 5000;
+    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || 10000;
     const opts = {
       serverSelectionTimeoutMS: timeoutVal,
       connectTimeoutMS: timeoutVal,
-      socketTimeoutMS: 15000,
-      maxIdleTimeMS: 5000,
-      maxPoolSize: isVercelServerless ? 2 : 5,
-      minPoolSize: 0,
+      socketTimeoutMS: 45000,
+      maxIdleTimeMS: 60000,
+      maxPoolSize: isVercelServerless ? 5 : 10,
+      minPoolSize: isVercelServerless ? 0 : 1,
       heartbeatFrequencyMS: 10000,
       family: 4,
       retryWrites: true,
@@ -231,7 +236,7 @@ export async function connectDB() {
 }
 
 export function isDbConnected() {
-  return Boolean(mongoose && mongoose.connection && mongoose.connection.readyState === 1);
+  return Boolean(mongoose && mongoose.connection && (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2));
 }
 
 export function getLastDbSync() {

@@ -212,21 +212,36 @@ export const authClient = {
   getToken: async (forceRefresh = false, waitForAuth = false) => {
     try {
       if (auth.currentUser) {
-        return await auth.currentUser.getIdToken(forceRefresh);
+        const token = await auth.currentUser.getIdToken(forceRefresh);
+        if (token) {
+          try { localStorage.setItem("user_token", token); } catch (_) {}
+          return token;
+        }
       }
 
-      if (waitForAuth && auth.authStateReady) {
+      if (auth.authStateReady) {
+        const timeoutMs = waitForAuth ? 4000 : 2500;
         await Promise.race([
           auth.authStateReady(),
-          new Promise((resolve) => setTimeout(resolve, 1200))
+          new Promise((resolve) => setTimeout(resolve, timeoutMs))
         ]);
         if (auth.currentUser) {
-          return await auth.currentUser.getIdToken(forceRefresh);
+          const token = await auth.currentUser.getIdToken(forceRefresh);
+          if (token) {
+            try { localStorage.setItem("user_token", token); } catch (_) {}
+            return token;
+          }
         }
       }
     } catch (e) {
       console.error("Failed to get Firebase token", e);
     }
+
+    try {
+      const storedToken = localStorage.getItem("user_token") || localStorage.getItem("aura_admin_token") || "";
+      if (storedToken) return storedToken;
+    } catch (_) {}
+
     return "";
   },
   
