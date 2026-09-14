@@ -40,7 +40,15 @@ function sendUnavailableMukhi(res, mukhiNumber, path) {
 }
 
 function sanitizeServerRenderedHtml(body) {
-  if (typeof body !== "string" || !body.includes("application/ld+json")) return body;
+  if (typeof body !== "string") return body;
+
+  // Product descriptions are stored as rich-text HTML. The crawlable SSR
+  // fallback must expose readable text, not escaped markup such as
+  // "&lt;h2&gt;About the Product&lt;/h2&gt;". Remove escaped HTML tags while
+  // preserving normal HTML entities (for example &amp; and currency text).
+  body = body.replace(/&lt;\/?[a-z][^&]*?&gt;/gi, "");
+
+  if (!body.includes("application/ld+json")) return body;
 
   return body.replace(
     /(<script[^>]*type=["']application\/ld\+json["'][^>]*>)([\s\S]*?)(<\/script>)/gi,
