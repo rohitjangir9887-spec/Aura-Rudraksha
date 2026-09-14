@@ -526,16 +526,15 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                     key={idx} 
                     className="aura-gallery-photo-card"
                     onClick={() => openLightbox(item.url, item.review, idx)}
-                    title={`Photo by ${item.review.name} - Click to enlarge`}
+                    title="Devotee Product Photo - Click to enlarge"
                   >
                     <img 
                       src={item.url} 
-                      alt={`Customer review by ${item.review.name}`} 
+                      alt="Customer review uploaded product photo" 
                       className="aura-gallery-img"
                       loading="lazy"
                     />
-                    <div className="aura-gallery-photo-overlay">
-                      <span className="aura-overlay-name">{item.review.name}</span>
+                    <div className="aura-gallery-photo-overlay" style={{ justifyContent: "flex-end" }}>
                       <div className="aura-overlay-stars">
                         {[...Array(item.review.rating || 5)].map((_, i) => (
                           <Star key={i} size={10} fill="#f59e0b" color="#f59e0b" />
@@ -774,34 +773,6 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                     )}
                   </div>
 
-                  {/* Customer Review Photos (1-3 small thumbnails) */}
-                  {hasPhotos && (
-                    <div className="aura-card-photos-row">
-                      {rev.images.slice(0, 3).map((imgUrl, pIdx) => (
-                        <div 
-                          key={pIdx} 
-                          className="aura-card-photo-thumb"
-                          onClick={() => openLightbox(imgUrl, rev, pIdx)}
-                          title="Click to zoom customer photo"
-                        >
-                          <img src={imgUrl} alt={`Review photo ${pIdx + 1}`} loading="lazy" />
-                          {pIdx === 2 && rev.images.length > 3 && (
-                            <div className="aura-card-photo-more-badge">
-                              +{rev.images.length - 3}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <div 
-                        className="aura-card-photo-indicator-chip"
-                        onClick={() => openLightbox(rev.images[0], rev, 0)}
-                      >
-                        <Camera size={13} />
-                        <span>{rev.images.length} {rev.images.length === 1 ? "Photo" : "Photos"}</span>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Bottom Bar: Helpful Voting & Admin Reply Indicator */}
                   <div className="aura-card-bottom-row">
                     {activeSettings?.helpfulVotingEnabled !== false ? (
@@ -926,12 +897,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                 <div className="aura-lightbox-review-card">
                   <div className="aura-lb-top-bar">
                     <div>
-                      <strong className="aura-lb-author">
-                        {lightboxData.photos[lightboxData.currentIdx].review.name}
+                      <strong className="aura-lb-author" style={{ color: "#d97706" }}>
+                        📷 Devotee Product Gallery Photo
                       </strong>
-                      {lightboxData.photos[lightboxData.currentIdx].review.city && (
-                        <span className="aura-lb-city"> • {lightboxData.photos[lightboxData.currentIdx].review.city}</span>
-                      )}
                     </div>
                     <span className="aura-lb-counter">
                       {lightboxData.currentIdx + 1} of {lightboxData.photos.length}
