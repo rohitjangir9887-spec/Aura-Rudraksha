@@ -2879,13 +2879,38 @@ export const db = {
       }));
 
     if (tab === "product" && productId && productId !== "all") {
-      return allReviews.filter(r => r.type === "product" && String(r.productId) === String(productId));
+      const cleanTarget = String(productId).trim().toLowerCase().replace(/^(product-card-|product-)/, "");
+      return allReviews.filter(r => {
+        const rPid = String(r.productId || "").trim().toLowerCase().replace(/^(product-card-|product-)/, "");
+        return r.type === "product" && (rPid === cleanTarget || rPid === String(productId).trim().toLowerCase());
+      });
     } else if (tab === "store") {
       return allReviews.filter(r => r.type === "store" || r.productId === "all");
     }
 
     if (!productId || productId === "all") return allReviews;
-    return allReviews.filter(r => String(r.productId) === String(productId) || r.productId === "all");
+    const cleanTarget = String(productId).trim().toLowerCase().replace(/^(product-card-|product-)/, "");
+    return allReviews.filter(r => {
+      const rPid = String(r.productId || "").trim().toLowerCase().replace(/^(product-card-|product-)/, "");
+      return rPid === cleanTarget || rPid === String(productId).trim().toLowerCase();
+    });
+  },
+
+  revalidateReviews: async () => {
+    try {
+      const res = await apiRequest("/reviews");
+      if (res?.success && Array.isArray(res.data)) {
+        const deletedIds = getDeletedReviewIds();
+        storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
+        localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        db.recalculateAllProductsReviewStats();
+        emitStoreUpdate("reviews:synced", storeCache.reviews);
+        return storeCache.reviews;
+      }
+    } catch (e) {
+      console.warn("Failed revalidateReviews fetch:", e);
+    }
+    return storeCache.reviews;
   },
 
   getAllReviews: () => {

@@ -71,6 +71,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
   useEffect(() => {
     loadData();
+    if (typeof db.revalidateReviews === "function") {
+      db.revalidateReviews();
+    }
     const unsub = onStoreUpdate(() => {
       loadData();
     });
@@ -109,24 +112,69 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     return null;
   }
 
-  // Filter and sort reviews
-  const filteredReviews = useMemo(() => {
-    // Filter out deleted/hidden reviews first
-    const baseList = allReviews.filter(r => 
+  // Base list of public approved reviews
+  const basePublicReviews = useMemo(() => {
+    return allReviews.filter(r => 
       r.status !== "Rejected" && 
       r.status !== "Hidden" && 
       r.status !== "draft" && 
       r.status !== "deleted" &&
       r.source !== "ai_draft" &&
-      r.publicDisplay !== false
+      r.publicDisplay !== false &&
+      (r.status === "Approved" || r.status === "Published" || !r.status)
     );
+  }, [allReviews]);
 
-    // Merge product reviews and store reviews for comprehensive customer view
-    let list = baseList.filter(r => {
-      if (!productId || productId === "all") return true;
-      const rPid = String(r.productId || "").trim();
-      return rPid === String(productId) || rPid === "all" || r.type === "store" || !r.productId;
+  // Product-specific reviews strictly for this product
+  const productReviews = useMemo(() => {
+    if (!product && !productId) return basePublicReviews;
+
+    const rawId = String(product?.id || productId || "").trim().toLowerCase();
+    const cleanId = rawId.replace(/^(product-card-|product-)/, "");
+    const targetIds = new Set([
+      rawId,
+      cleanId,
+      String(product?._id || "").trim().toLowerCase(),
+      String(product?.slug || "").trim().toLowerCase(),
+      `product-card-${cleanId}`,
+      `product-${cleanId}`
+    ].filter(Boolean));
+
+    const pName = (product?.name || "").trim().toLowerCase();
+
+    return basePublicReviews.filter(r => {
+      if (!r) return false;
+      const rPid = String(r.productId || "").trim().toLowerCase();
+      const rCleanPid = rPid.replace(/^(product-card-|product-)/, "");
+      
+      if (targetIds.has(rPid) || targetIds.has(rCleanPid)) return true;
+      if (pName && r.productName && r.productName.trim().toLowerCase() === pName) return true;
+      return false;
     });
+  }, [basePublicReviews, product, productId]);
+
+  // Aggregate stats based on ALL valid approved reviews for this product
+  const productStats = useMemo(() => {
+    const total = productReviews.length;
+    if (total === 0) {
+      return { avgRating: "5.0", total: 0, starsCount: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
+    }
+
+    const sum = productReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
+    const avg = (sum / total).toFixed(1);
+
+    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    productReviews.forEach(r => {
+      const star = Math.min(5, Math.max(1, Math.round(Number(r.rating) || 5)));
+      counts[star] = (counts[star] || 0) + 1;
+    });
+
+    return { avgRating: avg, total, starsCount: counts };
+  }, [productReviews]);
+
+  // Filtered reviews based on user's active search, rating filter, and sorting
+  const filteredReviews = useMemo(() => {
+    let list = [...productReviews];
 
     // Filter by Search Query
     if (searchQuery.trim()) {
@@ -150,7 +198,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     }
 
     // Sorting
-    const sorted = [...list].sort((a, b) => {
+    list.sort((a, b) => {
       // Featured reviews always float to top if enabled
       if (a.featured && !b.featured) return -1;
       if (!a.featured && b.featured) return 1;
@@ -162,32 +210,13 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0);
     });
 
-    return sorted;
-  }, [allReviews, productId, searchQuery, filterRating, sortBy]);
+    return list;
+  }, [productReviews, searchQuery, filterRating, sortBy]);
 
-  // Aggregate stats based on what is displayed in filteredReviews
-  const stats = useMemo(() => {
-    const total = filteredReviews.length;
-    if (total === 0) {
-      return { avgRating: "5.0", total: 0, starsCount: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
-    }
-
-    const sum = filteredReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
-    const avg = (sum / total).toFixed(1);
-
-    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    filteredReviews.forEach(r => {
-      const star = Math.min(5, Math.max(1, Math.round(Number(r.rating) || 5)));
-      counts[star] = (counts[star] || 0) + 1;
-    });
-
-    return { avgRating: avg, total, starsCount: counts };
-  }, [filteredReviews]);
-
-  // Extract all photos for the photo gallery based on filteredReviews
+  // Extract all photos for the photo gallery based on productReviews
   const photoGalleryItems = useMemo(() => {
     const photos = [];
-    filteredReviews.forEach(rev => {
+    productReviews.forEach(rev => {
       if (Array.isArray(rev.images) && rev.images.length > 0) {
         rev.images.forEach((imgUrl, imgIdx) => {
           if (imgUrl) {
@@ -201,33 +230,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       }
     });
     return photos;
-  }, [filteredReviews]);
-
-  // Tab counts based on real vs sample fallback
-  const productReviewsCount = useMemo(() => {
-    const list = allReviews.filter(r => 
-      r.status !== "Rejected" && 
-      r.status !== "Hidden" && 
-      r.status !== "draft" && 
-      r.status !== "deleted" &&
-      r.type === "product" && 
-      (String(r.productId) === String(productId) || r.productId === "5" || !r.productId)
-    );
-    const realList = list.filter(r => !r.isAiGenerated && !r.isSample);
-    return realList.length > 0 ? realList.length : list.length;
-  }, [allReviews, productId]);
-
-  const storeReviewsCount = useMemo(() => {
-    const list = allReviews.filter(r => 
-      r.status !== "Rejected" && 
-      r.status !== "Hidden" && 
-      r.status !== "draft" && 
-      r.status !== "deleted" &&
-      (r.type === "store" || r.productId === "all")
-    );
-    const realList = list.filter(r => !r.isAiGenerated && !r.isSample);
-    return realList.length > 0 ? realList.length : list.length;
-  }, [allReviews]);
+  }, [productReviews]);
 
   // Handlers
   const handleLoadMore = () => {
@@ -417,11 +420,11 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
         <div className="aura-review-summary-header">
           <div className="aura-summary-left">
             <div className="aura-score-box">
-              <span className="aura-score-big">{stats.avgRating}</span>
+              <span className="aura-score-big">{productStats.total > 0 ? productStats.avgRating : "5.0"}</span>
               <div className="aura-score-details">
                 <div className="aura-stars-row">
                   {[1, 2, 3, 4, 5].map((star) => {
-                    const avg = Number(stats.avgRating) || 5.0;
+                    const avg = Number(productStats.avgRating) || 5.0;
                     const filled = star <= Math.round(avg);
                     return (
                       <Star 
@@ -435,7 +438,10 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                   })}
                 </div>
                 <span className="aura-based-count">
-                  Based on {stats.total || (activeTab === "product" ? productReviewsCount : storeReviewsCount)} reviews
+                  {productStats.total === 0
+                    ? "No devotee reviews yet"
+                    : `Based on ${productStats.total} devotee ${productStats.total === 1 ? "review" : "reviews"}`
+                  }
                 </span>
               </div>
             </div>
@@ -451,7 +457,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
               <button 
                 className="aura-write-review-cta"
                 onClick={() => {
-                  setNewReviewForm(prev => ({ ...prev, type: activeTab }));
+                  setNewReviewForm(prev => ({ ...prev, type: "product" }));
                   setIsWriteModalOpen(true);
                 }}
                 id="btn-open-write-review"
@@ -637,27 +643,42 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
               <div className="aura-empty-icon-circle">
                 <Sparkles size={28} color="#b45309" />
               </div>
-              <h3>No reviews match your filters</h3>
-              <p>Be the first to share your experience or reset your active filters.</p>
+              <h3>
+                {searchQuery || filterRating !== "all" 
+                  ? "No reviews match your filters" 
+                  : "No devotee reviews yet"
+                }
+              </h3>
+              <p>
+                {searchQuery || filterRating !== "all"
+                  ? "Try resetting your active filters or clearing your search keywords."
+                  : "Be the first devotee to share your sacred experience with this holy bead."
+                }
+              </p>
               <div className="aura-empty-actions">
-                <button 
-                  className="aura-btn-secondary"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setFilterRating("all");
-                  }}
-                >
-                  Reset Filters
-                </button>
-                <button 
-                  className="aura-btn-primary"
-                  onClick={() => {
-                    setNewReviewForm(prev => ({ ...prev, type: activeTab }));
-                    setIsWriteModalOpen(true);
-                  }}
-                >
-                  Write a Sacred Review
-                </button>
+                {(searchQuery || filterRating !== "all") ? (
+                  <button 
+                    className="aura-btn-secondary"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterRating("all");
+                    }}
+                  >
+                    Reset Filters
+                  </button>
+                ) : (
+                  activeSettings?.writeReviewEnabled !== false && (
+                    <button 
+                      className="aura-btn-primary"
+                      onClick={() => {
+                        setNewReviewForm(prev => ({ ...prev, type: "product" }));
+                        setIsWriteModalOpen(true);
+                      }}
+                    >
+                      Write the First Review
+                    </button>
+                  )
+                )}
               </div>
             </div>
           ) : (

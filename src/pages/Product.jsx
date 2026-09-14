@@ -270,11 +270,11 @@ export function Product() {
     const status = (r.status || "Approved").toLowerCase();
     return status === "approved" || status === "published";
   });
-  const reviewsCount = realReviewsForRating.length > 0 ? realReviewsForRating.length : (p?.reviews !== undefined && p?.reviews !== null ? p.reviews : 0);
+  const reviewsCount = realReviewsForRating.length;
   const totalRatingSum = realReviewsForRating.reduce((sum, r) => sum + (Number(r.rating) || 5), 0);
   const averageRating = realReviewsForRating.length > 0 
     ? (totalRatingSum / realReviewsForRating.length).toFixed(1) 
-    : (p?.rating ? Number(p.rating).toFixed(1) : "4.9");
+    : (p?.rating ? Number(p.rating).toFixed(1) : "5.0");
 
   const stockLimit = p?.stock !== undefined ? Number(p.stock) : (p?.status === "Out of Stock" ? 0 : 50);
   const isOutOfStock = stockLimit <= 0 || p?.status === "Out of Stock";
@@ -717,7 +717,7 @@ export function Product() {
                     ))}
                   </div>
                   <span className="aura-rating-score">{averageRating}</span>
-                  <span className="aura-rating-count">({reviewsCount} Devotee Reviews)</span>
+                  <span className="aura-rating-count">({reviewsCount} {reviewsCount === 1 ? "Devotee Review" : "Devotee Reviews"})</span>
                 </button>
 
                 <span className="aura-pdp-sku">
