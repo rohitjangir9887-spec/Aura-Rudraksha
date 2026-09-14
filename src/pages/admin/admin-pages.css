@@ -919,4 +919,117 @@
   text-decoration: none;
 }
 
+/* ==========================================================================
+   PERFORMANCE & SMOOTH ANIMATION ENHANCEMENTS (60FPS HARDWARE ACCELERATED)
+   ========================================================================== */
+
+@keyframes adminFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes adminShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes adminPulseGlow {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
+.admin-card,
+.stat-card,
+.admin-mobile-toolbar,
+.admin-table-container {
+  animation: adminFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.admin-card {
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.admin-card:hover {
+  box-shadow: 0 6px 18px rgba(43, 23, 13, 0.06);
+}
+
+.admin-btn {
+  transform: translateZ(0);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.admin-btn:active {
+  transform: scale(0.97) !important;
+}
+
+.admin-icon-btn {
+  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.admin-icon-btn:active {
+  transform: scale(0.92);
+}
+
+.admin-filter-chip {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.admin-filter-chip:hover {
+  transform: translateY(-1px);
+}
+
+.admin-filter-chip:active {
+  transform: scale(0.96);
+}
+
+.admin-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.admin-table tbody tr:hover {
+  background-color: #fdfaf6;
+}
+
+.admin-badge {
+  transition: transform 0.2s ease;
+}
+
+.admin-badge:hover {
+  transform: scale(1.03);
+}
+
+/* Smooth custom scrollbars for high-density admin tables */
+.admin-table-responsive::-webkit-scrollbar,
+.admin-filter-chips::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+
+.admin-table-responsive::-webkit-scrollbar-track,
+.admin-filter-chips::-webkit-scrollbar-track {
+  background: #f8f4ef;
+  border-radius: 4px;
+}
+
+.admin-table-responsive::-webkit-scrollbar-thumb,
+.admin-filter-chips::-webkit-scrollbar-thumb {
+  background: #d4c4b6;
+  border-radius: 4px;
+}
+
+.admin-table-responsive::-webkit-scrollbar-thumb:hover,
+.admin-filter-chips::-webkit-scrollbar-thumb:hover {
+  background: #a54d2b;
+}
+
+
 

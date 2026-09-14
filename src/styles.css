@@ -993,15 +993,21 @@ body {
     position: relative;
     overflow: hidden;
     padding: 0;
-    min-height: 200px;
+    width: 100% !important;
+    max-width: 1200px !important;
+    aspect-ratio: 16 / 9 !important;
+    height: auto !important;
+    min-height: unset !important;
     background: #1e0f07;
     border-radius: 12px;
-    /* Maintain existing sizing rules */
+    margin: 0 auto 16px !important;
+    box-sizing: border-box;
 }
 .hero-slides {
     display: grid;
     width: 100%;
     height: 100%;
+    aspect-ratio: inherit;
     position: relative;
 }
 .hero-slide {
@@ -1010,15 +1016,15 @@ body {
     height: 100%;
     position: relative;
     opacity: 0;
-    transform: scale(1.015);
-    transition: opacity 0.65s cubic-bezier(0.25, 1, 0.5, 1), transform 0.75s cubic-bezier(0.25, 1, 0.5, 1);
+    transform: none !important;
+    transition: opacity 0.5s ease-in-out;
     z-index: 1;
-    will-change: opacity, transform;
+    will-change: opacity;
     pointer-events: none;
 }
 .hero-slide.active {
     opacity: 1;
-    transform: scale(1);
+    transform: none !important;
     z-index: 2;
     pointer-events: auto;
 }
@@ -1027,6 +1033,8 @@ body {
     height: 100% !important;
     object-fit: cover !important;
     display: block !important;
+    transform: none !important;
+    transition: none !important;
 }
 .hero-pagination {
     position: absolute;
@@ -17790,4 +17798,56 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   cursor: pointer !important;
   transition: all 0.2s ease !important;
 }
+
+/* Focus Mode: Hero Slide & Banner Image Stabilization (Eliminate refresh shrink / scale glitch) */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(3) > img:nth-of-type(1),
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > span > img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transform: none !important;
+  transition: none !important;
+  display: block !important;
+}
+
+/* ==========================================================================
+   SMOOTH 60FPS STOREFRONT ANIMATIONS & INTERACTIVE MICRO-INTERACTIONS
+   ========================================================================== */
+.aura-shop-card,
+.product-card,
+.cat-card,
+.feature-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.aura-shop-card:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 10px 24px rgba(43, 23, 13, 0.08);
+}
+
+.btn-primary,
+.aura-card-btn,
+.buy-now-btn,
+.add-to-cart-btn {
+  will-change: transform;
+  transform: translateZ(0);
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.btn-primary:active,
+.aura-card-btn:active,
+.buy-now-btn:active,
+.add-to-cart-btn:active {
+  transform: scale(0.96) translateZ(0) !important;
+}
+
+.glass-header {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+
 

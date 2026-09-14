@@ -1,5 +1,6 @@
 import "./utils/urlParser.js";
 import express from "express";
+import compression from "compression";
 import dotenv from "dotenv";
 import { connectDB, isDbConnected, getLastDbSync, getMongoUri } from "./config/db.js";
 import { rateLimit } from "./middleware/rateLimit.js";
@@ -116,16 +117,28 @@ export function createApp(options = {}) {
 
     next();
   });
+
+  // Performance: Fast Gzip/Deflate compression for all responses > 1KB
+  app.use(compression({
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) return false;
+      return compression.filter(req, res);
+    }
+  }));
+
   app.use(express.json({ limit: "8mb" }));
   app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
   // -------------------------------------------------------------------------
-  // Security headers (hardened CSP, nosniff, frame protection)
+  // Security headers (hardened CSP, nosniff, HSTS, XSS protection)
   // -------------------------------------------------------------------------
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
 
     const cspDirectives = [
       "default-src 'self' https:",

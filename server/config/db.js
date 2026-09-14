@@ -214,9 +214,10 @@ export async function connectDB() {
       process.env.VERCEL_ENV ||
       process.env.AWS_LAMBDA_FUNCTION_NAME
     );
+    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || 5000;
     const opts = {
-      serverSelectionTimeoutMS: 3000, // 3s timeout for fast failover & fallback
-      connectTimeoutMS: 3000,         // 3s socket connection timeout
+      serverSelectionTimeoutMS: timeoutVal, // 5s timeout for resilient TLS / DNS handshakes
+      connectTimeoutMS: timeoutVal,         // 5s socket connection timeout
       socketTimeoutMS: 30000,         // 30s socket inactivity timeout
       maxIdleTimeMS: 30000,           // 30s idle timeout
       maxPoolSize: isVercelServerless ? 15 : 50, // High throughput connection pool
