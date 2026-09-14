@@ -26,7 +26,7 @@ import { db, onStoreUpdate } from "../lib/db";
 import { uploadMedia, uploadMediaBatch } from "../lib/imageUtils";
 import { emitToast } from "../context/ToastContext";
 
-export function ProductReviews({ product, isPreview = false, previewSettings = null }) {
+export function ProductReviews({ product, isPreview = false, previewSettings = null, onComposerOpenChange = null }) {
   const productId = product?.id ? String(product.id) : "";
   const productName = product?.name || "Rudraksha Bead";
 
@@ -59,6 +59,10 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
   });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  useEffect(() => {
+    if (onComposerOpenChange) onComposerOpenChange(isWriteModalOpen);
+  }, [isWriteModalOpen, onComposerOpenChange]);
 
   // Load reviews and settings from db
   const loadData = () => {
@@ -530,44 +534,17 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
           </div>
         )}
 
-        {/* 3. REVIEW TABS */}
+        {/* 3. UNIFIED CUSTOMER REVIEWS */}
         <div className="aura-review-tabs-wrapper">
           <div className="aura-review-tabs">
-            <button 
-              className={`aura-tab-btn ${activeTab === "product" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("product");
-                setVisibleCount(activeSettings?.perPage || 6);
-              }}
-              id="tab-product-reviews"
-            >
-              <span>Product Reviews ({productReviewsCount})</span>
-              {activeTab === "product" && (
-                <motion.div 
-                  layoutId="reviewTabUnderline" 
-                  className="aura-tab-indicator" 
-                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                />
-              )}
-            </button>
-
-            <button 
-              className={`aura-tab-btn ${activeTab === "store" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("store");
-                setVisibleCount(activeSettings?.perPage || 6);
-              }}
-              id="tab-store-reviews"
-            >
-              <span>Store Reviews ({storeReviewsCount})</span>
-              {activeTab === "store" && (
-                <motion.div 
-                  layoutId="reviewTabUnderline" 
-                  className="aura-tab-indicator" 
-                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                />
-              )}
-            </button>
+            <div className="aura-tab-btn active" id="tab-customer-reviews" style={{ cursor: "default" }}>
+              <span>Customer Reviews ({productReviewsCount})</span>
+              <motion.div
+                layoutId="reviewTabUnderline"
+                className="aura-tab-indicator"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
+            </div>
           </div>
         </div>
 
