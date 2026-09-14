@@ -1083,13 +1083,14 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     }
   }
 
-  // Replace existing generic meta description, og tags
+  // Replace existing generic meta description, og tags, and static template JSON-LD
   result = result.replace(/<meta\s+name=["']description["'][^>]*>/gi, `<meta name="description" content="${escapeXml(seo.description)}" />`);
   result = result.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']canonical["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']image_src["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+itemprop=["']image["'][^>]*>/gi, "");
+  result = result.replace(/<script\s+type=["']application\/ld\+json["']>[\s\S]*?<\/script>/gi, "");
 
   // Inject assembled tags near the top of <head> right after viewport for fast crawler ingestion
   if (result.includes('name="viewport"')) {
@@ -1169,7 +1170,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
       crawlableHtml += `        </table>\n`;
 
       crawlableHtml += `        <div style="margin-top:20px;">\n`;
-      crawlableHtml += `          <a href="${canonical}" style="display:inline-block;background:#8c3e1e;color:#fff;font-weight:700;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;">Order Authentic Bead Online</a>\n`;
+      crawlableHtml += `          <a href="${escapeXml(seo.canonical || baseUrl)}" style="display:inline-block;background:#8c3e1e;color:#fff;font-weight:700;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;">Order Authentic Bead Online</a>\n`;
       crawlableHtml += `          <a href="https://wa.me/919672996531?text=Jai%20Shree%20Ram%20I%20want%20to%20know%20about%20${encodeURIComponent(p.name)}" style="display:inline-block;margin-left:12px;background:#25d366;color:#fff;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none;font-size:15px;">WhatsApp Consultation</a>\n`;
       crawlableHtml += `        </div>\n`;
 

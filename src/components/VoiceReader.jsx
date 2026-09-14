@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, Square, Loader2, Sparkles, VolumeX } from 'lucide-react';
+import { Volume2, Square, Loader2, Sparkles } from 'lucide-react';
 
 // Number to Hindi words mapping for sacred Rudraksha and Vedic numbers
 const HINDI_NUMBERS = {
@@ -113,15 +113,21 @@ export function cleanAndNormalizeTextForTTS(rawText) {
     .replace(/(\b)Rashi(\b)/gi, 'राशि')
     .replace(/(\b)Graha(\b)/gi, 'ग्रह')
     .replace(/(\b)Vedic(\b)/gi, 'वैदिक')
+    .replace(/(\b)Chakra(\b)/gi, 'चक्र')
+    .replace(/(\b)Ajna Chakra(\b)/gi, 'आज्ञा चक्र')
+    .replace(/(\b)Original(\b)/gi, 'ओरिजिनल')
     .replace(/(\b)Lab Certificate(\b)/gi, 'लैब सर्टिफिकेट')
     .replace(/(\b)Lab Certified(\b)/gi, 'लैब प्रमाणित')
     .replace(/(\b)Certificate(\b)/gi, 'सर्टिफिकेट')
+    .replace(/(\b)Certified(\b)/gi, 'प्रमाणित')
     .replace(/(\b)Free Delivery(\b)/gi, 'मुफ्त डिलीवरी')
     .replace(/(\b)Free Shipping(\b)/gi, 'मुफ्त शिपिंग')
     .replace(/(\b)COD(\b)/gi, 'कैश ऑन डिलीवरी')
     .replace(/(\b)Cash on Delivery(\b)/gi, 'कैश ऑन डिलीवरी')
     .replace(/(\b)Order(\b)/gi, 'ऑर्डर')
     .replace(/(\b)Stock(\b)/gi, 'स्टॉक')
+    .replace(/(\b)Guide(\b)/gi, 'गाइड')
+    .replace(/(\b)Online(\b)/gi, 'ऑनलाइन')
     .replace(/(\b)WhatsApp(\b)/gi, 'व्हाट्सएप');
 
   // Convert "1 to 21 Mukhi" or "1-21 Mukhi" or "1 से 21 मुखी"
@@ -147,7 +153,8 @@ export function cleanAndNormalizeTextForTTS(rawText) {
     return `${rawDigits} रुपये`;
   });
 
-  // Convert percentages: 50% -> पचास प्रतिशत
+  // Convert percentages: 100% -> सौ प्रतिशत, 50% -> पचास प्रतिशत
+  text = text.replace(/100\s*%/g, 'सौ प्रतिशत');
   text = text.replace(/(\d+)\s*%/g, (match, num) => {
     const word = HINDI_NUMBERS[parseInt(num, 10)] || num;
     return `${word} प्रतिशत`;
@@ -155,6 +162,12 @@ export function cleanAndNormalizeTextForTTS(rawText) {
 
   // Convert 108 मनके / beads
   text = text.replace(/108\s*(?:मनके|मनका|beads|दाने)/gi, 'एक सौ आठ मनके');
+
+  // Convert numbered list items like "1. ", "2. " into smooth spoken punctuation
+  text = text.replace(/(^|\n|\r)\s*(\d{1,2})\.\s+/g, (match, pre, num) => {
+    const word = HINDI_NUMBERS[parseInt(num, 10)] || num;
+    return `${pre}बिंदु ${word}। `;
+  });
 
   // Convert Standalone small numbers (1 to 21) into spoken Hindi words
   text = text.replace(/(^|\s)(\d{1,2})(\s|$|[।,!?])/g, (match, prefix, num, suffix) => {
@@ -190,13 +203,13 @@ export function cleanAndNormalizeTextForTTS(rawText) {
 }
 
 /**
- * Intelligent sentence splitter designed specifically to keep chunks between 30 and 120 chars
- * This prevents the Web Speech API 15-second cutoff bug in Chrome, Android, and Safari.
+ * Intelligent sentence splitter designed specifically to keep chunks between 30 and 100 chars
+ * This completely avoids the browser Web Speech API 15-second cutoff / memory timeout bug.
  */
 function splitIntoSpokenChunks(text) {
   if (!text) return [];
 
-  // Split on Hindi danda (।), period (.), exclamation, question mark, newline, or commas
+  // Split on Hindi danda (।), period (.), exclamation, question mark, newline
   const rawParts = text.split(/([।\n\r]+|[.!?]+\s*)/).filter(Boolean);
   const chunks = [];
   let current = '';
@@ -210,8 +223,8 @@ function splitIntoSpokenChunks(text) {
       continue;
     }
 
-    // If adding this part exceeds ~100 characters, push current and start new chunk
-    if ((current + ' ' + part).length > 110) {
+    // If adding this part exceeds ~95 characters, push current and start new chunk
+    if ((current + ' ' + part).length > 95) {
       if (current) {
         chunks.push(current.trim());
       }
@@ -225,16 +238,16 @@ function splitIntoSpokenChunks(text) {
     chunks.push(current.trim());
   }
 
-  // Secondary pass: if any chunk is still > 140 chars (e.g. no punctuation), split by comma or spaces
+  // Secondary pass: if any chunk is still > 120 chars, split by commas or spaces
   const finalChunks = [];
   for (const chunk of chunks) {
-    if (chunk.length <= 140) {
+    if (chunk.length <= 120) {
       finalChunks.push(chunk);
     } else {
       const subParts = chunk.split(/([,;]+|\s{4,})/).filter(Boolean);
       let subCurrent = '';
       for (const sp of subParts) {
-        if ((subCurrent + ' ' + sp).length > 100) {
+        if ((subCurrent + ' ' + sp).length > 85) {
           if (subCurrent) finalChunks.push(subCurrent.trim());
           subCurrent = sp;
         } else {
@@ -272,7 +285,6 @@ function selectBestIndianVoice(voices) {
   if (anyHindi) return anyHindi;
 
   // Tier 3: High-Quality Indian English Voices (Trained on Indian phonetics & accents)
-  // E.g., Google Indian English, Microsoft Neerja / Prabhat / Ravi, Apple Rishi / Sangeeta
   const tier3IndianEnglish = voices.find(v => 
     (lowerLang(v).includes('en-in') || lowerLang(v).includes('en_in') || lowerName(v).includes('india')) &&
     (lowerName(v).includes('google') || lowerName(v).includes('rishi') || lowerName(v).includes('prabhat') || lowerName(v).includes('neerja') || lowerName(v).includes('ravi') || lowerName(v).includes('natural'))
@@ -300,8 +312,10 @@ export function VoiceReader({ text }) {
   const chunksRef = useRef([]);
   const currentChunkIndexRef = useRef(0);
   const keepAliveTimerRef = useRef(null);
+  const watchdogTimerRef = useRef(null);
   const activeUtteranceRef = useRef(null);
   const isCanceledRef = useRef(false);
+  const isAdvancingRef = useRef(false);
 
   // Load and cache browser voices safely
   useEffect(() => {
@@ -326,8 +340,8 @@ export function VoiceReader({ text }) {
       window.speechSynthesis.onvoiceschanged = updateVoices;
     }
 
-    // Secondary fallback poll for slow voice loading in Chrome / Android
-    const retryTimer = setTimeout(updateVoices, 500);
+    // Fallback poll for slow voice loading in Chrome / Android
+    const retryTimer = setTimeout(updateVoices, 400);
 
     return () => {
       clearTimeout(retryTimer);
@@ -335,8 +349,16 @@ export function VoiceReader({ text }) {
     };
   }, []);
 
+  const clearWatchdog = () => {
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+  };
+
   const stopSpeaking = () => {
     isCanceledRef.current = true;
+    clearWatchdog();
     
     if (keepAliveTimerRef.current) {
       clearInterval(keepAliveTimerRef.current);
@@ -351,13 +373,13 @@ export function VoiceReader({ text }) {
       }
     }
 
-    // Clear global and local utterance references to allow clean garbage collection on stop
     if (typeof window !== 'undefined') {
-      window.__auraCurrentUtterance = null;
+      window.__auraActiveUtterance = null;
     }
     activeUtteranceRef.current = null;
     chunksRef.current = [];
     currentChunkIndexRef.current = 0;
+    isAdvancingRef.current = false;
     setIsPlaying(false);
     setIsLoading(false);
   };
@@ -378,6 +400,7 @@ export function VoiceReader({ text }) {
 
     setIsLoading(true);
     isCanceledRef.current = false;
+    isAdvancingRef.current = false;
     chunksRef.current = chunks;
     currentChunkIndexRef.current = 0;
 
@@ -392,21 +415,34 @@ export function VoiceReader({ text }) {
     // Cancel any stale speech before starting
     try {
       window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
     } catch (e) {}
 
-    // Heartbeat Keep-Alive to prevent Chrome / Safari / Android mid-speech freezing
+    // Safe Keep-Alive: gently unpause if browser suspended audio without disrupting the stream
     if (keepAliveTimerRef.current) clearInterval(keepAliveTimerRef.current);
     keepAliveTimerRef.current = setInterval(() => {
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
-        } else if (window.speechSynthesis.speaking && activeUtteranceRef.current) {
-          // Subtle pause-resume heartbeat ensures internal Chrome audio buffer doesn't timeout
-          window.speechSynthesis.pause();
-          window.speechSynthesis.resume();
         }
       }
-    }, 8000);
+    }, 4000);
+
+    const advanceToNext = (nextIndex) => {
+      if (isCanceledRef.current) return;
+      if (isAdvancingRef.current) return;
+      isAdvancingRef.current = true;
+      clearWatchdog();
+
+      currentChunkIndexRef.current = nextIndex;
+
+      setTimeout(() => {
+        isAdvancingRef.current = false;
+        speakNextChunk(nextIndex);
+      }, 70);
+    };
 
     const speakNextChunk = (index) => {
       if (isCanceledRef.current) return;
@@ -418,18 +454,22 @@ export function VoiceReader({ text }) {
 
       const chunkText = chunksRef.current[index];
       if (!chunkText || chunkText.trim().length === 0) {
-        speakNextChunk(index + 1);
+        advanceToNext(index + 1);
         return;
       }
 
       try {
         const utterance = new SpeechSynthesisUtterance(chunkText);
         
-        // CRITICAL FIX FOR SPEECH STOPPING MIDWAY:
-        // Store utterance in persistent window object and component ref to prevent browser V8 Garbage Collector from destroying it mid-sentence!
+        // Pin utterance to window and ref to prevent browser V8 GC from dropping callbacks mid-sentence!
         activeUtteranceRef.current = utterance;
         if (typeof window !== 'undefined') {
-          window.__auraCurrentUtterance = utterance;
+          window.__auraActiveUtterance = utterance;
+          window.__auraUtteranceStore = window.__auraUtteranceStore || [];
+          window.__auraUtteranceStore.push(utterance);
+          if (window.__auraUtteranceStore.length > 40) {
+            window.__auraUtteranceStore.splice(0, 20);
+          }
         }
 
         if (selectedVoice) {
@@ -440,8 +480,8 @@ export function VoiceReader({ text }) {
         }
 
         // Peaceful, dignified Vedic Pandit Ji pace and tone
-        utterance.rate = 0.90; // Natural, clear cadence for mantras and explanations
-        utterance.pitch = isHindiVoice ? 0.95 : 0.88; // Deep, respectful baritone
+        utterance.rate = 0.92;
+        utterance.pitch = isHindiVoice ? 0.95 : 0.88;
         utterance.volume = 1.0;
 
         utterance.onstart = () => {
@@ -452,42 +492,50 @@ export function VoiceReader({ text }) {
 
         utterance.onend = () => {
           if (isCanceledRef.current) return;
-          currentChunkIndexRef.current = index + 1;
-          // Short 60ms breath pause between chunks for realistic human Vedic chanting rhythm
-          setTimeout(() => {
-            speakNextChunk(index + 1);
-          }, 60);
+          advanceToNext(index + 1);
         };
 
         utterance.onerror = (e) => {
           if (isCanceledRef.current) return;
-          console.warn('[VoiceReader] Chunk playback note:', e?.error || e);
-          // If canceled or interrupted intentionally, do nothing
+          console.warn('[VoiceReader] Chunk notice:', e?.error || e);
           if (e?.error === 'canceled' || e?.error === 'interrupted') {
             return;
           }
-          // On other errors, skip to next chunk smoothly without breaking the entire narration
-          setTimeout(() => {
-            speakNextChunk(index + 1);
-          }, 80);
+          // On non-fatal error, advance automatically to next chunk so speech continues unbroken from A to Z
+          advanceToNext(index + 1);
         };
+
+        // FAIL-SAFE WATCHDOG:
+        // If a browser drops the onend event, this watchdog automatically forces continuation so speech NEVER stops midway!
+        clearWatchdog();
+        const expectedDurationMs = Math.max(5000, chunkText.length * 160 + 3500);
+        watchdogTimerRef.current = setTimeout(() => {
+          if (isCanceledRef.current) return;
+          if (currentChunkIndexRef.current === index) {
+            console.log(`[VoiceReader] Watchdog advancing past chunk ${index + 1}/${chunksRef.current.length}`);
+            try {
+              if (window.speechSynthesis.paused) {
+                window.speechSynthesis.resume();
+              }
+            } catch (e) {}
+            advanceToNext(index + 1);
+          }
+        }, expectedDurationMs);
 
         window.speechSynthesis.speak(utterance);
 
-        // Safari/iOS audio unlock check
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
       } catch (err) {
-        console.error('[VoiceReader] Utterance failed:', err);
-        stopSpeaking();
+        console.error('[VoiceReader] Utterance launch error:', err);
+        advanceToNext(index + 1);
       }
     };
 
-    // Small timeout ensures speechSynthesis buffer is fully reset after cancel()
     setTimeout(() => {
       speakNextChunk(0);
-    }, 50);
+    }, 60);
   };
 
   if (!isSupported) return null;
@@ -517,7 +565,7 @@ export function VoiceReader({ text }) {
           transition: 'all 0.2s ease',
           userSelect: 'none'
         }}
-        title={isPlaying ? 'वाणी रोकें / Stop Speech' : 'पंडित जी की वाणी में सुनें / Listen in Pandit Ji Voice'}
+        title={isPlaying ? 'वाणी रोकें / Stop Speech' : 'पंडित जी की वाणी में सम्पूर्ण विवरण सुनें / Listen complete Vedic reading from A to Z'}
         aria-label={isPlaying ? 'Stop speech' : 'Listen with Pandit Ji voice'}
       >
         {isLoading ? (
@@ -551,9 +599,10 @@ export function VoiceReader({ text }) {
       {isPlaying && (
         <span style={{ fontSize: '11px', color: '#b45309', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
           <Sparkles size={11} className="animate-spin" style={{ animationDuration: '3s' }} />
-          <span>वैदिक उच्चारण जारी है</span>
+          <span>सम्पूर्ण वैदिक वाचन जारी है...</span>
         </span>
       )}
     </div>
   );
 }
+

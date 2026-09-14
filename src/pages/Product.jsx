@@ -282,9 +282,10 @@ export function Product() {
 
   // Dynamic SEO & OpenGraph Meta Tag Synchronization for Social Sharing Previews
   const primaryImg = p?.img || (p?.images && p?.images[0]) || "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+  const siteOrigin = (typeof window !== "undefined" && window.location.origin) ? window.location.origin : "https://aurarudraksha.bond";
   const ogImgUrl = primaryImg.startsWith("http") 
     ? primaryImg 
-    : `https://aurarudraksha.bond${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
+    : `${siteOrigin}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
   const canonicalUrl = p ? `https://aurarudraksha.bond/product/${p.slug || p.id || id}` : undefined;
 
   const productSchemas = React.useMemo(() => {
