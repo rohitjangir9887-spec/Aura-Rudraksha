@@ -53,10 +53,12 @@ export function ProductInfoTabs({ product, reviewsCount = 0, averageRating = "5.
       if (!rawT) {
         formattedHtml += '<div style="height: 10px;"></div>';
       } else if (rawT.startsWith('•') || rawT.startsWith('-')) {
-        const bulletText = rawT.substring(1).trim().replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        const rawBulletText = rawT.substring(1).trim();
+        const bulletText = DOMPurify.sanitize(rawBulletText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         formattedHtml += `<div class="desc-bullet-row"><span class="desc-bullet-dot">•</span><span>${bulletText}</span></div>`;
       } else {
-        const t = rawT.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        const rawText = rawT;
+        const t = DOMPurify.sanitize(rawText).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         formattedHtml += `<p class="desc-paragraph">${t}</p>`;
       }
     });
