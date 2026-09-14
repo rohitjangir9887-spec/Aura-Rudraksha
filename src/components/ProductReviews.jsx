@@ -118,21 +118,15 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       r.status !== "draft" && 
       r.status !== "deleted" &&
       r.source !== "ai_draft" &&
-      !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()) &&
       r.publicDisplay !== false
     );
 
-    // Filter by tab helper
-    const filterByTab = (listToFilter) => {
-      if (activeTab === "product") {
-        if (!productId) return [];
-        return listToFilter.filter(r => r.productId && r.productId !== "all" && String(r.productId) === String(productId));
-      } else {
-        return listToFilter.filter(r => r.type === "store" || r.productId === "all" || !r.productId);
-      }
-    };
-
-    let list = filterByTab(baseList);
+    // Merge product reviews and store reviews for comprehensive customer view
+    let list = baseList.filter(r => {
+      if (!productId || productId === "all") return true;
+      const rPid = String(r.productId || "").trim();
+      return rPid === String(productId) || rPid === "all" || r.type === "store" || !r.productId;
+    });
 
     // Filter by Search Query
     if (searchQuery.trim()) {
@@ -152,7 +146,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       list = list.filter(r => r.verified === true && !r.isAiGenerated && !r.isSample);
     } else if (filterRating !== "all") {
       const targetStar = Number(filterRating);
-      list = list.filter(r => Number(r.rating) === targetStar);
+      list = list.filter(r => Math.round(Number(r.rating) || 5) === targetStar);
     }
 
     // Sorting
@@ -161,15 +155,15 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       if (a.featured && !b.featured) return -1;
       if (!a.featured && b.featured) return 1;
 
-      if (sortBy === "highest") return (b.rating || 5) - (a.rating || 5);
-      if (sortBy === "lowest") return (a.rating || 5) - (b.rating || 5);
-      if (sortBy === "helpful") return ((b.helpfulUp || 0) - (b.helpfulDown || 0)) - ((a.helpfulUp || 0) - (a.helpfulDown || 0));
+      if (sortBy === "highest") return (Number(b.rating) || 5) - (Number(a.rating) || 5);
+      if (sortBy === "lowest") return (Number(a.rating) || 5) - (Number(b.rating) || 5);
+      if (sortBy === "helpful") return ((Number(b.helpfulUp) || 0) - (Number(b.helpfulDown) || 0)) - ((Number(a.helpfulUp) || 0) - (Number(a.helpfulDown) || 0));
       // "recent" by default
-      return (b.createdAt || 0) - (a.createdAt || 0);
+      return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0);
     });
 
     return sorted;
-  }, [allReviews, activeTab, productId, searchQuery, filterRating, sortBy]);
+  }, [allReviews, productId, searchQuery, filterRating, sortBy]);
 
   // Aggregate stats based on what is displayed in filteredReviews
   const stats = useMemo(() => {
@@ -244,7 +238,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     }, 300);
   };
 
-  const handleVote = (reviewId, type) => {
+  const handleVote = async (reviewId, type) => {
     if (activeSettings?.helpfulVotingEnabled === false) return;
     
     if (userVotes[reviewId]) {
@@ -252,18 +246,23 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       return;
     }
 
-    const res = db.voteReviewHelpful(reviewId, type);
-    if (res.success) {
-      setUserVotes(prev => {
-        const next = { ...prev, [reviewId]: type };
-        try {
-          localStorage.setItem("aura_review_votes", JSON.stringify(next));
-        } catch (_) {}
-        return next;
-      });
-      emitToast("Thank you for your spiritual feedback!", "success");
-    } else if (res.message) {
-      emitToast(res.message, "info");
+    try {
+      const res = await db.voteReviewHelpful(reviewId, type);
+      if (res?.success) {
+        setUserVotes(prev => {
+          const next = { ...prev, [reviewId]: type };
+          try {
+            localStorage.setItem("aura_review_votes", JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+        emitToast("Thank you for your spiritual feedback!", "success");
+      } else if (res?.message) {
+        emitToast(res.message, "info");
+      }
+    } catch (err) {
+      console.error(err);
+      emitToast("Could not record vote. Please try again.", "error");
     }
   };
 
@@ -530,44 +529,15 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
           </div>
         )}
 
-        {/* 3. REVIEW TABS */}
-        <div className="aura-review-tabs-wrapper">
-          <div className="aura-review-tabs">
-            <button 
-              className={`aura-tab-btn ${activeTab === "product" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("product");
-                setVisibleCount(activeSettings?.perPage || 6);
-              }}
-              id="tab-product-reviews"
-            >
-              <span>Product Reviews ({productReviewsCount})</span>
-              {activeTab === "product" && (
-                <motion.div 
-                  layoutId="reviewTabUnderline" 
-                  className="aura-tab-indicator" 
-                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                />
-              )}
-            </button>
-
-            <button 
-              className={`aura-tab-btn ${activeTab === "store" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("store");
-                setVisibleCount(activeSettings?.perPage || 6);
-              }}
-              id="tab-store-reviews"
-            >
-              <span>Store Reviews ({storeReviewsCount})</span>
-              {activeTab === "store" && (
-                <motion.div 
-                  layoutId="reviewTabUnderline" 
-                  className="aura-tab-indicator" 
-                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                />
-              )}
-            </button>
+        {/* 3. REVIEW TITLE & COUNT */}
+        <div className="aura-review-tabs-wrapper" style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+            <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#1f2937", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>Customer & Devotee Reviews</span>
+              <span style={{ fontSize: "13px", fontWeight: "600", padding: "2px 8px", background: "#f3f4f6", color: "#6b7280", borderRadius: "12px" }}>
+                {filteredReviews.length}
+              </span>
+            </h3>
           </div>
         </div>
 

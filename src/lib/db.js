@@ -2840,7 +2840,15 @@ export const db = {
   getReviews: (productId, tab = "all") => {
     const deletedIds = getDeletedReviewIds();
     let allReviews = storeCache.reviews
-      .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted" && r.status !== "draft" && r.status !== "Hidden" && r.status !== "Rejected" && !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()))
+      .filter(r => 
+        !deletedIds.has(String(r.id)) && 
+        r.status !== "deleted" && 
+        r.status !== "draft" && 
+        r.status !== "Hidden" && 
+        r.status !== "Rejected" &&
+        r.source !== "ai_draft" &&
+        r.publicDisplay !== false
+      )
       .map(r => ({
         id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
         type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
@@ -2851,6 +2859,8 @@ export const db = {
         rating: Number(r.rating) || 5,
         title: r.title || "",
         text: (r.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim(),
+        originalText: r.originalText || r.text || "",
+        processedText: r.processedText || r.text || "",
         date: r.date || "Recently",
         createdAt: r.createdAt || Date.now(),
         verified: r.verified !== false,
@@ -2862,7 +2872,10 @@ export const db = {
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
-        isAiGenerated: false
+        isAiGenerated: !!r.isAiGenerated,
+        aiProcessed: !!r.aiProcessed,
+        aiModel: r.aiModel || "",
+        language: r.language || "en"
       }));
 
     if (tab === "product" && productId && productId !== "all") {
@@ -2872,7 +2885,7 @@ export const db = {
     }
 
     if (!productId || productId === "all") return allReviews;
-    return allReviews.filter(r => String(r.productId) === String(productId));
+    return allReviews.filter(r => String(r.productId) === String(productId) || r.productId === "all");
   },
 
   getAllReviews: () => {
@@ -2889,18 +2902,24 @@ export const db = {
         rating: Number(r.rating) || 5,
         title: r.title || "",
         text: (r.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim(),
+        originalText: r.originalText || r.text || "",
+        processedText: r.processedText || r.text || "",
         date: r.date || "Recently",
         createdAt: r.createdAt || Date.now(),
         verified: r.verified !== false,
         featured: !!r.featured,
         source: r.source || "customer",
         status: r.status || "Approved",
+        publicDisplay: r.publicDisplay !== false,
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
         img: getProductPrimaryImage(r) !== "/images/placeholder.svg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
         adminReply: r.adminReply || null,
-        isAiGenerated: false
+        isAiGenerated: !!r.isAiGenerated,
+        aiProcessed: !!r.aiProcessed,
+        aiModel: r.aiModel || "",
+        language: r.language || "en"
       }));
   },
 
@@ -3104,10 +3123,22 @@ export const db = {
     return { success: true, data: savedList, skipped: res.skipped || [] };
   },
 
-  importExternalReviews: async (reviews, importDefaults = {}) => {
+  previewImportReviews: async (params) => {
+    const res = await apiRequest("/reviews/preview-import", {
+      method: "POST",
+      body: JSON.stringify(params),
+      timeoutMs: 45000
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to preview and parse review import data.");
+    }
+    return res;
+  },
+
+  importExternalReviews: async (reviews, importDefaults = {}, allowDuplicates = false) => {
     const res = await apiRequest("/reviews/import-external", {
       method: "POST",
-      body: JSON.stringify({ reviews, importDefaults }),
+      body: JSON.stringify({ reviews, importDefaults, allowDuplicates }),
       timeoutMs: 30000
     });
     if (!res?.success) {
@@ -3128,11 +3159,11 @@ export const db = {
     return res;
   },
 
-  polishReviewWithAI: async ({ id, text }) => {
+  polishReviewWithAI: async ({ id, text, author, rating, productName, language }) => {
     const res = await apiRequest("/reviews/polish", {
       method: "POST",
-      body: JSON.stringify({ id, text }),
-      timeoutMs: 15000
+      body: JSON.stringify({ id, text, author, rating, productName, language }),
+      timeoutMs: 25000
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to polish review text with AI.");
@@ -3142,6 +3173,29 @@ export const db = {
       if (idx !== -1) storeCache.reviews[idx] = res.data;
       emitStoreUpdate("review:updated", res.data);
     }
+    return res;
+  },
+
+  auditReviewHealth: async () => {
+    const res = await apiRequest("/reviews/audit-health", {
+      method: "GET"
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to audit review health.");
+    }
+    return res;
+  },
+
+  repairMalformedReviews: async (reviewIds = []) => {
+    const res = await apiRequest("/reviews/repair-database", {
+      method: "POST",
+      body: JSON.stringify({ reviewIds }),
+      timeoutMs: 30000
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to repair malformed reviews.");
+    }
+    await hydrateFromBackend();
     return res;
   },
 

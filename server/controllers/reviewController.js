@@ -10,6 +10,8 @@ import crypto from "crypto";
 import { getGeminiClient, GEMINI_TEXT_MODELS } from "./auraAiController.js";
 import { defaultReviews } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { parseRawReviewData, polishReviewWithNemotron, sanitizeAuthorName, sanitizeReviewText, parseSingleRating } from "../services/aiReviewService.js";
+import { auditReviewHealth, repairMalformedReviews } from "../services/reviewRepairService.js";
 
 /**
  * Dynamically recompute product average rating & count of approved reviews
@@ -100,7 +102,8 @@ const ADMIN_REVIEW_FIELDS = {
   isSample: "bool", sampleLabel: "string", adminReply: "object",
   helpfulUp: "number", helpfulDown: "number", source: "string",
   sourceReviewId: "string", authorDisplayName: "string", importedAt: "object", publicDisplay: "bool",
-  editedByAI: "bool", originalText: "string", originalTextHash: "string",
+  editedByAI: "bool", aiProcessed: "bool", aiModel: "string", language: "string", processedText: "string",
+  originalText: "string", originalTextHash: "string",
   exactTextHash: "string", normalizedTextHash: "string",
   deletedAt: "object", deletedBy: "string"
 };
@@ -139,8 +142,9 @@ function isPublicReviewSource(source) {
 
 function publicReviewQuery() {
   return {
+    source: { $ne: "ai_draft" },
     $or: [
-      { source: { $nin: Array.from(EXTERNAL_REVIEW_SOURCES) } },
+      { source: { $in: ["customer", "admin", "ai_generated", "verified_devotee"] }, publicDisplay: { $ne: false } },
       { publicDisplay: true }
     ]
   };
@@ -1137,80 +1141,210 @@ Ensure 100% variety in customer names, locations, and review sentences. Output p
   }
 }
 
+export async function previewImportExternalReviews(req, res, next) {
+  try {
+    const {
+      rawInput,
+      productId = "all",
+      productName = "Rudraksha Bead",
+      type = "product",
+      publicDisplay = false,
+      source = "external",
+      enableAiPolish = false
+    } = req.body;
+
+    if (!rawInput && !Array.isArray(req.body.reviews)) {
+      return res.status(400).json({ success: false, message: "No review text or items provided for preview." });
+    }
+
+    // Resolve live product name if productId is provided
+    let resolvedProductName = productName;
+    let resolvedProductId = String(productId || "all").trim();
+    if (resolvedProductId !== "all") {
+      if (isDbConnected()) {
+        const prod = await Product.findOne({
+          $or: [{ id: resolvedProductId }, { slug: resolvedProductId }]
+        }).select("id name").lean();
+        if (prod) {
+          resolvedProductName = prod.name;
+          resolvedProductId = String(prod.id);
+        }
+      }
+    }
+
+    const parseResult = parseRawReviewData(rawInput || req.body.reviews, {
+      productId: resolvedProductId,
+      productName: resolvedProductName,
+      type,
+      publicDisplay: publicDisplay === true,
+      source
+    });
+
+    if (!parseResult.success || !parseResult.items || parseResult.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: parseResult.message || "Failed to parse any reviews from the provided input."
+      });
+    }
+
+    let existingCorpus = [];
+    if (isDbConnected()) {
+      existingCorpus = await Review.find({ status: { $ne: "deleted" } })
+        .select("id title text name sourceReviewId exactTextHash normalizedTextHash")
+        .lean();
+    }
+
+    const processedItems = [];
+    let validCount = 0;
+    let needsReviewCount = 0;
+    let duplicateCount = 0;
+    let withPhotosCount = 0;
+
+    for (let i = 0; i < parseResult.items.length; i++) {
+      const item = parseResult.items[i];
+      const exactHash = getExactTextHash(item.text);
+      const normalizedHash = getNormalizedTextHash(item.text);
+
+      const candidate = {
+        id: item.tempId,
+        sourceReviewId: item.sourceReviewId || "",
+        text: item.text,
+        exactTextHash: exactHash,
+        normalizedTextHash: normalizedHash
+      };
+
+      const dupCheck = checkDuplicateReview(candidate, existingCorpus);
+      const isDuplicate = dupCheck.isDuplicate;
+
+      let processedText = item.text;
+      let aiProcessed = false;
+      let aiModel = "";
+
+      if (enableAiPolish && !isDuplicate) {
+        try {
+          const aiRes = await polishReviewWithNemotron({
+            text: item.text,
+            author: item.name,
+            rating: item.rating,
+            productName: resolvedProductName,
+            language: item.language
+          });
+          if (aiRes.success && aiRes.processedText) {
+            processedText = aiRes.processedText;
+            aiProcessed = aiRes.aiProcessed;
+            aiModel = aiRes.aiModel;
+          }
+        } catch (aiErr) {
+          console.warn("[Import AI Polish Notice]", aiErr?.message || aiErr);
+        }
+      }
+
+      const hasPhotos = Array.isArray(item.images) && item.images.length > 0;
+      if (hasPhotos) withPhotosCount++;
+      if (isDuplicate) duplicateCount++;
+
+      const isInvalid = !item.ratingConfirmed || item.needsReview || isDuplicate;
+      if (isInvalid) {
+        needsReviewCount++;
+      } else {
+        validCount++;
+      }
+
+      processedItems.push({
+        ...item,
+        tempId: item.tempId || `PREVIEW-${Date.now()}-${i + 1}`,
+        productId: resolvedProductId,
+        productName: resolvedProductName,
+        processedText,
+        aiProcessed,
+        aiModel,
+        isDuplicate,
+        duplicateReason: dupCheck.reason || null,
+        matchedReview: dupCheck.matchedReview || null,
+        needsReview: isInvalid,
+        actionStatus: isDuplicate ? "Rejected" : (item.needsReview ? "Needs Review" : "Approved"),
+        publicDisplay: publicDisplay === true
+      });
+    }
+
+    return res.json({
+      success: true,
+      items: processedItems,
+      summary: {
+        total: processedItems.length,
+        valid: validCount,
+        needsReview: needsReviewCount,
+        duplicates: duplicateCount,
+        withPhotos: withPhotosCount
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function importExternalReviews(req, res, next) {
   try {
     const rawList = Array.isArray(req.body.reviews) ? req.body.reviews : [req.body];
     const importDefaults = req.body.importDefaults || {};
-    if (!rawList.length || !rawList[0]?.text) {
-      return res.status(400).json({ success: false, message: "No valid external reviews provided for import." });
+    if (!rawList.length || (!rawList[0]?.text && !rawList[0]?.content)) {
+      return res.status(400).json({ success: false, message: "No valid reviews provided for import." });
     }
 
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
         error: "Database unavailable",
-        message: "External review import requires an authoritative MongoDB connection.",
+        message: "Review import requires an authoritative MongoDB connection.",
         databaseUnavailable: true
       });
     }
 
     const defaultType = importDefaults.type === "store" ? "store" : "product";
-    const defaultRating = Math.min(5, Math.max(1, Number(importDefaults.rating) || 5));
-    const defaultSource = ["google_reviews", "public_site", "external"].includes(String(importDefaults.source || "").toLowerCase())
+    const defaultSource = ["google_reviews", "public_site", "external", "imported"].includes(String(importDefaults.source || "").toLowerCase())
       ? String(importDefaults.source).toLowerCase()
       : "external";
 
-    let selectedProduct = null;
-    if (defaultType === "product" && !importDefaults.productId) {
-      return res.status(400).json({ success: false, message: "Select a real product before importing product reviews." });
-    }
+    const defaultPublicDisplay = importDefaults.publicDisplay === true;
 
-    if (defaultType === "product") {
-      const productKey = String(importDefaults.productId).trim();
-      selectedProduct = await Product.findOne({
-        $or: [{ id: productKey }, { slug: productKey }]
-      }).lean();
-      if (!selectedProduct) {
-        return res.status(400).json({
-          success: false,
-          message: "Selected product was not found in the live catalog. Please select a current product."
-        });
-      }
-    }
-
-    const publicDisplay = importDefaults.publicDisplay === true;
+    // Load existing corpus for duplicate detection
     const existingCorpus = await Review.find({ status: { $ne: "deleted" } })
       .select("id title text sourceReviewId exactTextHash normalizedTextHash")
       .lean();
 
     const importedList = [];
     const skippedList = [];
+    const affectedProductIds = new Set();
 
     for (let i = 0; i < rawList.length; i++) {
       const item = rawList[i];
-      const text = (item.text || item.content || "").trim();
-      if (!text) continue;
+      const rawText = String(item.processedText || item.text || item.content || "").trim();
+      const cleanText = sanitizeReviewText(rawText);
+      if (!cleanText) continue;
 
-      const exactHash = getExactTextHash(text);
-      const normalizedHash = getNormalizedTextHash(text);
+      const exactHash = getExactTextHash(cleanText);
+      const normalizedHash = getNormalizedTextHash(cleanText);
       const sourceReviewId = item.sourceReviewId
         ? String(item.sourceReviewId).trim()
         : `external_rev_${exactHash.slice(0, 12)}`;
-      const author = (item.authorDisplayName || item.name || "External Reviewer").trim();
+
+      const authorName = sanitizeAuthorName(item.authorDisplayName || item.name || `Devotee ${i + 1}`);
 
       const candidate = {
         id: item.id || `REV-EXT-${Date.now()}-${i + 1}-${crypto.randomBytes(3).toString("hex")}`,
         sourceReviewId,
-        text,
+        text: cleanText,
         exactTextHash: exactHash,
         normalizedTextHash: normalizedHash
       };
 
+      // Check duplicates unless forced
+      const allowDuplicates = req.body.allowDuplicates === true;
       const dupCheck = checkDuplicateReview(candidate, existingCorpus);
-      if (dupCheck.isDuplicate) {
+      if (dupCheck.isDuplicate && !allowDuplicates) {
         skippedList.push({
           sourceReviewId,
-          authorDisplayName: author,
+          authorDisplayName: authorName,
           title: item.title || "",
           reason: dupCheck.reason,
           matchedReview: dupCheck.matchedReview
@@ -1218,40 +1352,49 @@ export async function importExternalReviews(req, res, next) {
         continue;
       }
 
-      const productForItem = defaultType === "product"
-        ? selectedProduct
-        : null;
+      // Determine individual rating for this specific review
+      const ratingParsed = parseSingleRating(item.rating);
+      const ratingValue = ratingParsed.isValid ? ratingParsed.rating : (Number(item.rating) || 5);
+
+      const targetProductId = String(item.productId || importDefaults.productId || "all").trim();
+      const targetProductName = item.productName || importDefaults.productName || "Rudraksha Bead";
+      const itemPublicDisplay = item.publicDisplay !== undefined ? (item.publicDisplay === true) : defaultPublicDisplay;
+      const itemStatus = item.status || (itemPublicDisplay ? "Approved" : "Pending");
+
+      const images = validateReviewImages(Array.isArray(item.images) ? item.images : (item.img ? [item.img] : []));
 
       const payload = {
         id: candidate.id,
-        productId: defaultType === "store" ? "all" : String(productForItem.id),
-        productName: defaultType === "store"
-          ? "Aura Rudraksha Sacred Store"
-          : productForItem.name,
+        productId: targetProductId,
+        productName: targetProductName,
         type: defaultType,
-        name: author,
-        authorDisplayName: author,
+        name: authorName,
+        authorDisplayName: authorName,
         email: item.email || "",
-        city: item.city || "External source",
-        title: item.title || "External Review",
-        text,
-        originalText: text,
+        city: item.city || "Varanasi, UP",
+        title: item.title || (ratingValue >= 4 ? "Blessed Spiritual Experience" : "Devotee Review"),
+        text: cleanText,
+        originalText: item.originalText ? sanitizeReviewText(item.originalText) : cleanText,
+        processedText: item.processedText ? sanitizeReviewText(item.processedText) : cleanText,
         originalTextHash: exactHash,
         exactTextHash: exactHash,
         normalizedTextHash: normalizedHash,
-        rating: Math.min(5, Math.max(1, Number(item.rating) || defaultRating)),
-        source: defaultSource,
+        rating: Math.min(5, Math.max(1, ratingValue)),
+        source: item.source || defaultSource,
         sourceReviewId,
         importedAt: new Date(),
-        status: publicDisplay ? "Approved" : "Pending",
-        publishedAt: publicDisplay ? new Date() : null,
-        publicDisplay,
-        verified: false,
-        editedByAI: false,
+        status: itemStatus,
+        publishedAt: (itemStatus === "Approved" || itemStatus === "Published") ? new Date() : null,
+        publicDisplay: itemPublicDisplay,
+        verified: item.verified === true,
+        editedByAI: item.aiProcessed === true || item.editedByAI === true,
+        aiProcessed: item.aiProcessed === true,
+        aiModel: item.aiModel || (item.aiProcessed ? "nvidia/nemotron-3-super-120b-a12b" : ""),
+        language: item.language || detectLanguageHeuristic(cleanText),
         isAiGenerated: false,
         isSample: false,
-        images: Array.isArray(item.images) ? item.images : [],
-        img: Array.isArray(item.images) && item.images[0] ? item.images[0] : null,
+        images,
+        img: images[0] || null,
         createdAt: item.createdAt || Date.now(),
         date: item.date || "Imported External Review",
         helpfulUp: Number(item.helpfulUp) || 0,
@@ -1261,23 +1404,21 @@ export async function importExternalReviews(req, res, next) {
       const saved = await Review.create(payload);
       importedList.push(saved);
       existingCorpus.push(payload);
+      if (saved.productId && saved.productId !== "all") {
+        affectedProductIds.add(String(saved.productId));
+      }
     }
 
-    const distinctProductIds = new Set(
-      importedList.map(s => String(s.productId)).filter(Boolean)
-    );
-    for (const pid of distinctProductIds) {
+    // Sync product review stats for all affected products
+    for (const pid of affectedProductIds) {
       await syncProductReviewStats(pid);
     }
 
     return res.status(200).json({
       success: true,
-      message: publicDisplay
-        ? `Imported ${importedList.length} external review(s).`
-        : `Imported ${importedList.length} external review(s) into the private admin archive. They are not displayed on the storefront.`,
+      message: `Successfully imported ${importedList.length} review(s).`,
       importedCount: importedList.length,
       skippedCount: skippedList.length,
-      publicDisplay,
       data: importedList,
       skipped: skippedList
     });
@@ -1288,7 +1429,7 @@ export async function importExternalReviews(req, res, next) {
 
 export async function polishReviewWithAI(req, res, next) {
   try {
-    const { id, text } = req.body;
+    const { id, text, author, rating, productName, language } = req.body;
     let targetReview = null;
     let originalTextToPolish = text || "";
 
@@ -1305,92 +1446,65 @@ export async function polishReviewWithAI(req, res, next) {
       return res.status(400).json({ success: false, message: "No review text provided for AI polish." });
     }
 
-    let polishedText = originalTextToPolish.trim();
-
-    const nvidiaApiKey = (process.env.NEMOTRON_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENROUTER_API_KEY || "").trim();
-    if (nvidiaApiKey) {
-      try {
-        const systemPrompt = `You are an expert review editor for an authentic Rudraksha store (Aura Rudraksha).
-Your ONLY task is to polish the grammar, spelling, punctuation, and readability of genuine customer reviews.
-
-CRITICAL MANDATES:
-1. DO NOT artificially generate or invent new claims, fake facts, or marketing hype.
-2. STRICTLY preserve the customer's original sentiment, rating, tone, and core message.
-3. Preserve original language (English, Hindi, or Hinglish) and customer's authentic voice.
-4. Return ONLY the polished review text with no quotation marks or commentary.`;
-
-        const userPrompt = `Polish this customer review for grammar, spelling, and professional readability while strictly preserving its original meaning:\n"${originalTextToPolish}"`;
-
-        const nimRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${nvidiaApiKey}`,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({
-            model: "nvidia/nemotron-3-super-120b-a12b",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            temperature: 0.2,
-            max_tokens: 500
-          })
-        });
-
-        let response = { text: "" };
-        if (nimRes.ok) {
-          const nimData = await nimRes.json();
-          response.text = nimData.choices?.[0]?.message?.content || "";
-        }
-
-        const outText = response.text ? response.text.replace(/^["'\s]+|["'\s]+$/g, "").trim() : "";
-        if (outText && outText.length >= 5) {
-          polishedText = outText;
-        }
-      } catch (err) {
-        console.warn("[Aura AI Polish] NVIDIA NIM API notice:", err?.message || err);
-      }
-    }
-
-    if (polishedText === originalTextToPolish.trim()) {
-      polishedText = polishedText
-        .replace(/\s+/g, " ")
-        .replace(/(^\w|\.\s*\w)/g, c => c.toUpperCase());
-    }
-
-    const origHash = getExactTextHash(originalTextToPolish);
-    const newExactHash = getExactTextHash(polishedText);
-    const newNormHash = getNormalizedTextHash(polishedText);
+    const aiRes = await polishReviewWithNemotron({
+      text: originalTextToPolish,
+      author: author || targetReview?.name || "Customer",
+      rating: rating || targetReview?.rating || 5,
+      productName: productName || targetReview?.productName || "Rudraksha Bead",
+      language: language || targetReview?.language || "auto"
+    });
 
     let updatedRecord = null;
-    if (targetReview) {
+    if (targetReview && isDbConnected()) {
       const updateData = {
         originalText: targetReview.originalText || originalTextToPolish.trim(),
-        originalTextHash: targetReview.originalTextHash || origHash,
-        text: polishedText,
-        exactTextHash: newExactHash,
-        normalizedTextHash: newNormHash,
-        editedByAI: true
+        originalTextHash: targetReview.originalTextHash || aiRes.originalTextHash,
+        text: aiRes.processedText,
+        processedText: aiRes.processedText,
+        exactTextHash: aiRes.exactTextHash,
+        normalizedTextHash: aiRes.normalizedTextHash,
+        editedByAI: true,
+        aiProcessed: aiRes.aiProcessed,
+        aiModel: aiRes.aiModel,
+        language: aiRes.detectedLanguage
       };
 
-      if (isDbConnected()) {
-        updatedRecord = await Review.findOneAndUpdate(
-          { id: String(id) },
-          { $set: updateData },
-          { returnDocument: "after" }
-        );
-      }
+      updatedRecord = await Review.findOneAndUpdate(
+        { id: String(id) },
+        { $set: updateData },
+        { returnDocument: "after" }
+      );
     }
 
     return res.json({
       success: true,
       originalText: originalTextToPolish.trim(),
-      polishedText,
+      polishedText: aiRes.processedText,
       editedByAI: true,
+      aiProcessed: aiRes.aiProcessed,
+      aiModel: aiRes.aiModel,
+      language: aiRes.detectedLanguage,
       data: updatedRecord
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function auditReviewsEndpoint(req, res, next) {
+  try {
+    const result = await auditReviewHealth();
+    return res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function repairReviewsEndpoint(req, res, next) {
+  try {
+    const { reviewIds = [] } = req.body;
+    const result = await repairMalformedReviews(reviewIds);
+    return res.json(result);
   } catch (err) {
     next(err);
   }
