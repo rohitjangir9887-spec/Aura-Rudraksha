@@ -165,7 +165,7 @@ const defaultReviewSettings = {
 
 export async function getReviews(req, res, next) {
   try {
-    const { productId, status, type, source } = req.query;
+    const { productId, status, type, source, page, limit } = req.query;
 
     let isAdmin = false;
     if (req.user) {
@@ -203,9 +203,25 @@ export async function getReviews(req, res, next) {
       query.$or = publicReviewQuery().$or;
     }
 
-    const reviews = await Review.find(query).sort({ createdAt: -1 }).lean();
+    const parsedPage = Math.max(1, Number.parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 30));
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const [reviews, total] = await Promise.all([
+      Review.find(query).sort({ createdAt: -1 }).skip(skip).limit(parsedLimit).lean(),
+      Review.countDocuments(query)
+    ]);
+
     const data = isAdmin ? reviews : reviews.map(({ email, ...safe }) => safe);
-    return res.json({ success: true, data, count: data.length });
+    return res.json({
+      success: true,
+      data,
+      count: data.length,
+      total,
+      page: parsedPage,
+      limit: parsedLimit,
+      hasMore: skip + data.length < total
+    });
   } catch (err) {
     next(err);
   }
