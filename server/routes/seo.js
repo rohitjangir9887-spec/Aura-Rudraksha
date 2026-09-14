@@ -34,39 +34,56 @@ async function ensureSeoDatabase() {
   return isDbConnected();
 }
 
-async function getPublishedProductSlugs() {
+async function getPublishedCatalogKeys() {
   if (!(await ensureSeoDatabase())) return null;
-  const products = await Product.find(PUBLIC_PRODUCT_FILTER).select({ _id: 0, id: 1, slug: 1 }).lean();
-  return new Set(products.map((p) => String(p.slug || p.id || "").trim().toLowerCase()).filter(Boolean));
+  const products = await Product.find(PUBLIC_PRODUCT_FILTER)
+    .select({ _id: 0, id: 1, slug: 1, mukhi: 1, name: 1 })
+    .lean();
+
+  const slugs = new Set();
+  const mukhiNumbers = new Set();
+  for (const product of products) {
+    const key = String(product.slug || product.id || "").trim().toLowerCase();
+    if (key) slugs.add(key);
+
+    const mukhiText = `${product.mukhi || ""} ${product.name || ""}`;
+    const match = mukhiText.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
+    if (match) mukhiNumbers.add(Number(match[1]));
+  }
+  return { slugs, mukhiNumbers };
 }
 
-function filterSitemapToLiveProducts(xml, publishedSlugs) {
-  if (!publishedSlugs) return xml;
+function filterSitemapToLiveProducts(xml, catalog) {
+  if (!catalog) return xml;
   return xml.replace(/\s*<url>[\s\S]*?<\/url>/g, (block) => {
-    const match = block.match(/<loc>https:\/\/aurarudraksha\.bond\/product\/([^<]+)<\/loc>/i);
-    if (!match) return block;
-    return publishedSlugs.has(decodeURIComponent(match[1]).toLowerCase()) ? block : "";
+    const productMatch = block.match(/<loc>https:\/\/aurarudraksha\.bond\/product\/([^<]+)<\/loc>/i);
+    if (productMatch) {
+      return catalog.slugs.has(decodeURIComponent(productMatch[1]).toLowerCase()) ? block : "";
+    }
+
+    const mukhiMatch = block.match(/<loc>https:\/\/aurarudraksha\.bond\/rudraksha\/((?:[1-9]|1[0-9]|20|21))-mukhi<\/loc>/i);
+    if (mukhiMatch) {
+      return catalog.mukhiNumbers.has(Number(mukhiMatch[1])) ? block : "";
+    }
+
+    return block;
   });
 }
 
 function stripUnsupportedMerchantAttributes(xml) {
-  // Google Merchant Center data-source validation has flagged the old custom
-  // country_of_origin field. The site still keeps origin in product content;
-  // the feed should only emit attributes supported by its selected schema.
+  // Google Merchant Center has flagged the previous custom country_of_origin
+  // feed field. Origin remains available in product content, while the feed
+  // emits only the attributes supported by its selected source format.
   return xml.replace(/\s*<g:country_of_origin>[\s\S]*?<\/g:country_of_origin>/gi, "");
 }
 
-/**
- * Dynamic XML Sitemap
- * Route: GET /sitemap.xml
- */
 router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res, next) => {
   try {
-    const publishedSlugs = await getPublishedProductSlugs();
-    if (!publishedSlugs) {
+    const catalog = await getPublishedCatalogKeys();
+    if (!catalog) {
       return res.status(503).type("text/plain").send("Sitemap temporarily unavailable while the product database is unavailable.");
     }
-    const xml = filterSitemapToLiveProducts(await generateSitemapXml(req), publishedSlugs);
+    const xml = filterSitemapToLiveProducts(await generateSitemapXml(req), catalog);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     return res.send(xml);
@@ -76,14 +93,10 @@ router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res, next) => {
   }
 });
 
-/**
- * Dynamic Google Merchant Center RSS/XML Feed
- * Routes: GET /google-merchant-feed.xml, GET /merchant-feed.xml
- */
 router.get(["/google-merchant-feed.xml", "/merchant-feed.xml", "/api/google-merchant-feed.xml", "/api/merchant-feed.xml"], async (req, res, next) => {
   try {
-    const publishedSlugs = await getPublishedProductSlugs();
-    if (!publishedSlugs) {
+    const catalog = await getPublishedCatalogKeys();
+    if (!catalog) {
       return res.status(503).type("text/plain").send("Merchant feed temporarily unavailable while the product database is unavailable.");
     }
     const xml = stripUnsupportedMerchantAttributes(await generateMerchantFeedXml(req));
@@ -96,10 +109,6 @@ router.get(["/google-merchant-feed.xml", "/merchant-feed.xml", "/api/google-merc
   }
 });
 
-/**
- * Dynamic Robots.txt
- * Route: GET /robots.txt
- */
 router.get(["/robots.txt", "/api/robots.txt"], (req, res) => {
   const txt = generateRobotsTxt(req);
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -107,19 +116,12 @@ router.get(["/robots.txt", "/api/robots.txt"], (req, res) => {
   return res.send(txt);
 });
 
-/**
- * IndexNow Verification Key Route
- * Route: GET /indexnow-key.txt or /:key.txt
- */
 router.get(["/indexnow-key.txt", "/api/indexnow-key.txt", "/:key.txt", "/api/:key.txt"], (req, res, next) => {
   const currentKey = getIndexNowKey();
   const reqKey = req.params.key;
-
-  // If a specific key was requested, verify match before returning
   if (reqKey && reqKey !== currentKey && reqKey !== "indexnow-key") {
     return next();
   }
-
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=86400");
   return res.send(currentKey);
