@@ -912,6 +912,19 @@ if (typeof window !== "undefined" && !isInitialized) {
 // ----------------------------------------------------
 // UNIFIED DATABASE OBJECT CONNECTED TO MONGODB API
 // ----------------------------------------------------
+async function fetchPublicProductReviews(productId, page = 1, limit = 6) {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 6));
+  const qs = new URLSearchParams({
+    productId: String(productId),
+    page: String(safePage),
+    limit: String(safeLimit)
+  });
+  const res = await apiRequest(`/reviews?${qs.toString()}`, { method: "GET", timeoutMs: 15000 });
+  if (!res?.success) throw new Error(res?.message || "Failed to load product reviews.");
+  return res;
+}
+
 export const db = {
   isBackendSynced: () => isBackendSynced(),
   onStoreUpdate: (callback) => onStoreUpdate(callback),
@@ -2873,6 +2886,44 @@ export const db = {
 
     if (!productId || productId === "all") return allReviews;
     return allReviews.filter(r => String(r.productId) === String(productId));
+  },
+
+
+  getPublicProductReviews: async (productId, page = 1, limit = 6) => {
+    const res = await fetchPublicProductReviews(productId, page, limit);
+    const data = Array.isArray(res.data) ? res.data : [];
+    const normalized = data.map(r => ({
+      id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
+      type: r.type || "product",
+      productId: r.productId ? String(r.productId) : String(productId),
+      productName: r.productName || "Rudraksha Bead",
+      name: r.name && r.name !== "AI DRAFT" ? r.name : "Aura Devotee",
+      city: r.city || "",
+      rating: Number(r.rating) || 5,
+      title: r.title || "",
+      text: (r.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim(),
+      date: r.date || "Recently",
+      createdAt: r.createdAt || Date.now(),
+      verified: r.verified === true,
+      featured: !!r.featured,
+      source: r.source || "customer",
+      status: r.status || "Approved",
+      images: Array.isArray(r.images) ? r.images : (r.img ? [r.img] : []),
+      img: r.img || null,
+      helpfulUp: Number(r.helpfulUp) || 0,
+      helpfulDown: Number(r.helpfulDown) || 0,
+      adminReply: r.adminReply || null,
+      isAiGenerated: false
+    }));
+    return {
+      success: true,
+      data: normalized,
+      count: normalized.length,
+      total: Number(res.total) || normalized.length,
+      page: Number(res.page) || page,
+      limit: Number(res.limit) || limit,
+      hasMore: Boolean(res.hasMore)
+    };
   },
 
   getAllReviews: () => {
