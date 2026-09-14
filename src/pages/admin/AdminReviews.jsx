@@ -166,6 +166,57 @@ export function AdminReviews() {
     autoPolishWithAI: false
   });
 
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+    setImportModalStep("input");
+    setExternalInputText("");
+    setParsedBatch(null);
+    setImportResults(null);
+  };
+
+  const handleAiBoostLikes = async (reviewIdOrTarget, customCount = null) => {
+    try {
+      if (reviewIdOrTarget === 'edit' && editingReview) {
+        const boosted = Math.floor(Math.random() * 25) + 12;
+        setEditingReview(prev => ({ ...prev, helpfulUp: (prev.helpfulUp || 0) + boosted }));
+        emitToast(`✨ AI boosted review likes by +${boosted}!`, "success");
+        return;
+      }
+      if (reviewIdOrTarget === 'new') {
+        const boosted = Math.floor(Math.random() * 20) + 8;
+        setNewReview(prev => ({ ...prev, helpfulUp: (prev.helpfulUp || 0) + boosted }));
+        emitToast(`✨ AI boosted new review likes by +${boosted}!`, "success");
+        return;
+      }
+      const targetReview = reviews.find(r => r.id === reviewIdOrTarget || String(r._id) === String(reviewIdOrTarget));
+      if (!targetReview) return;
+      const boostAmount = customCount ? Number(customCount) : (Math.floor(Math.random() * 25) + 12);
+      const newLikes = (Number(targetReview.helpfulUp) || 0) + boostAmount;
+      await db.updateReview(targetReview.id || targetReview._id, { helpfulUp: newLikes });
+      emitToast(`✨ AI boosted likes for ${targetReview.name}'s review to ${newLikes} (+${boostAmount})!`, "success");
+    } catch (err) {
+      emitToast("Failed to boost review likes", "error");
+    }
+  };
+
+  const handleAiBoostAllLikes = async () => {
+    try {
+      emitToast("🤖 AI is boosting likes across all active customer reviews...", "info");
+      let count = 0;
+      for (const rev of reviews) {
+        if (rev.status !== "deleted" && rev.status !== "Rejected") {
+          const addLikes = Math.floor(Math.random() * 20) + 6;
+          const updatedLikes = (Number(rev.helpfulUp) || 0) + addLikes;
+          await db.updateReview(rev.id || rev._id, { helpfulUp: updatedLikes });
+          count++;
+        }
+      }
+      emitToast(`✨ AI successfully boosted likes for all ${count} active reviews!`, "success");
+    } catch (err) {
+      emitToast("Error boosting review likes", "error");
+    }
+  };
+
   const [polishingReviewId, setPolishingReviewId] = useState(null);
   const [polishModalData, setPolishModalData] = useState(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -390,6 +441,7 @@ export function AdminReviews() {
         type: editingReview.type,
         productId: editingReview.productId,
         productName: editingReview.productName,
+        helpfulUp: Number(editingReview.helpfulUp || 0),
         images: editingReview.images
       });
 
@@ -702,6 +754,7 @@ export function AdminReviews() {
         productId: newReview.type === "product" ? String(newReview.productId) : "all",
         productName: newReview.type === "product" ? (selProd?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
         rating: Number(newReview.rating),
+        helpfulUp: Number(newReview.helpfulUp || 0),
         source: "customer",
         status: "Approved",
         publicDisplay: true
@@ -946,6 +999,17 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
         </div>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button 
+            type="button"
+            className="admin-btn secondary"
+            onClick={handleAiBoostAllLikes}
+            style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" }}
+            title="AI Boost Likes across all active reviews"
+          >
+            <Sparkles size={16} />
+            <span>AI Boost All Likes</span>
+          </button>
+
           <button 
             type="button"
             className="admin-btn secondary"
@@ -1829,9 +1893,30 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
                           )}
                         </td>
 
-                        {/* Helpful */}
-                        <td style={{ fontSize: "12px" }}>
-                          <span style={{ color: "#166534" }}>👍 {r.helpfulUp || 0}</span> / <span style={{ color: "#991b1b" }}>👎 {r.helpfulDown || 0}</span>
+                        {/* Helpful Likes */}
+                        <td style={{ fontSize: "12px", minWidth: "120px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ color: "#166534", fontWeight: "600" }}>👍 {r.helpfulUp || 0} Likes</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAiBoostLikes(r.id || r._id)}
+                              title="AI Boost Likes (+12 to +35)"
+                              style={{
+                                padding: "2px 6px",
+                                fontSize: "11px",
+                                borderRadius: "4px",
+                                border: "1px solid #fcd34d",
+                                background: "#fffbeb",
+                                color: "#92400e",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "2px"
+                              }}
+                            >
+                              <Sparkles size={11} /> +Boost
+                            </button>
+                          </div>
                         </td>
 
                         {/* Status */}
@@ -2017,6 +2102,27 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
                   value={editingReview.text} 
                   onChange={(e) => setEditingReview({ ...editingReview, text: e.target.value })}
                   className="aura-textarea"
+                />
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Helpful Likes Count 👍</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAiBoostLikes('edit')}
+                    style={{ fontSize: "11px", padding: "3px 8px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  >
+                    <Sparkles size={12} /> AI Boost Likes
+                  </button>
+                </label>
+                <input 
+                  type="number" 
+                  min="0"
+                  value={editingReview.helpfulUp || 0} 
+                  onChange={(e) => setEditingReview({ ...editingReview, helpfulUp: Math.max(0, parseInt(e.target.value) || 0) })}
+                  className="aura-input"
+                  placeholder="e.g. 15"
                 />
               </div>
 
@@ -2245,6 +2351,27 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
                   value={newReview.text} 
                   onChange={(e) => setNewReview({ ...newReview, text: e.target.value })}
                   className="aura-textarea"
+                />
+              </div>
+
+              <div className="aura-form-group">
+                <label className="aura-form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Initial Likes Count 👍</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAiBoostLikes('new')}
+                    style={{ fontSize: "11px", padding: "3px 8px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  >
+                    <Sparkles size={12} /> AI Boost Likes
+                  </button>
+                </label>
+                <input 
+                  type="number" 
+                  min="0"
+                  value={newReview.helpfulUp || 0} 
+                  onChange={(e) => setNewReview({ ...newReview, helpfulUp: Math.max(0, parseInt(e.target.value) || 0) })}
+                  className="aura-input"
+                  placeholder="e.g. 10"
                 />
               </div>
 

@@ -36,8 +36,18 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
   const [activeTab, setActiveTab] = useState("product"); // "product" | "store"
   const [searchQuery, setSearchQuery] = useState("");
   const [filterRating, setFilterRating] = useState("all"); // "all", "5", "4", "3", "2", "1", "photos", "verified"
-  const [sortBy, setSortBy] = useState("recent"); // "recent", "highest", "lowest", "helpful"
+  const [sortBy, setSortBy] = useState("random"); // "random", "recent", "highest", "lowest", "helpful"
   const [visibleCount, setVisibleCount] = useState(6);
+
+  // Random weights generated on load/refresh so customer sees randomized review order on every refresh
+  const randomSeedMap = useMemo(() => {
+    const map = {};
+    (allReviews || []).forEach(r => {
+      const idKey = String(r.id || r._id || Math.random());
+      map[idKey] = Math.random();
+    });
+    return map;
+  }, [allReviews?.length]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Interaction modals & Lightbox states
@@ -205,9 +215,13 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
       if (sortBy === "highest") return (Number(b.rating) || 5) - (Number(a.rating) || 5);
       if (sortBy === "lowest") return (Number(a.rating) || 5) - (Number(b.rating) || 5);
-      if (sortBy === "helpful") return ((Number(b.helpfulUp) || 0) - (Number(b.helpfulDown) || 0)) - ((Number(a.helpfulUp) || 0) - (Number(a.helpfulDown) || 0));
-      // "recent" by default
-      return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0);
+      if (sortBy === "helpful") return (Number(b.helpfulUp) || 0) - (Number(a.helpfulUp) || 0);
+      if (sortBy === "recent") return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0);
+
+      // "random" default
+      const keyA = String(a.id || a._id || "");
+      const keyB = String(b.id || b._id || "");
+      return (randomSeedMap[keyA] || 0.5) - (randomSeedMap[keyB] || 0.5);
     });
 
     return list;
@@ -598,6 +612,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                 onChange={(e) => setSortBy(e.target.value)}
                 className="aura-select-control"
               >
+                <option value="random">🔀 Random Discover Order</option>
                 <option value="recent">Most Recent</option>
                 <option value="highest">Highest Rated</option>
                 <option value="lowest">Lowest Rated</option>
@@ -795,18 +810,10 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                         <button 
                           className={`aura-vote-btn ${userVote === 'up' ? 'active-up' : ''}`}
                           onClick={() => handleVote(rev.id, 'up')}
-                          title="Yes, this review was helpful"
+                          title="This review was helpful"
                         >
                           <ThumbsUp size={13} />
-                          <span>{rev.helpfulUp || 0}</span>
-                        </button>
-                        <button 
-                          className={`aura-vote-btn ${userVote === 'down' ? 'active-down' : ''}`}
-                          onClick={() => handleVote(rev.id, 'down')}
-                          title="No, not helpful"
-                        >
-                          <ThumbsDown size={13} />
-                          <span>{rev.helpfulDown || 0}</span>
+                          <span>{rev.helpfulUp || 0} Likes</span>
                         </button>
                       </div>
                     ) : <div />}
