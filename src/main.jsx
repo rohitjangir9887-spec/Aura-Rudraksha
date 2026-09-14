@@ -12,6 +12,17 @@ import "./pages/Shop.css";
 // 60-90 FPS Smooth Scrolling & Hardware Acceleration Setup
 // ---------------------------------------------------------------------------
 if (typeof window !== "undefined") {
+  // One-time invalidation after review-system fixes so old localStorage review
+  // counts cannot keep showing deleted/stale reviews for up to 24 hours.
+  try {
+    const REVIEW_CACHE_VERSION = "2026-09-14-review-v2";
+    if (localStorage.getItem("aura_review_cache_version") !== REVIEW_CACHE_VERSION) {
+      localStorage.removeItem("aura_reviews_cache");
+      localStorage.setItem("aura_review_cache_version", REVIEW_CACHE_VERSION);
+      localStorage.setItem("aura_last_fetch_time", "0");
+    }
+  } catch (_) {}
+
   // Prevent browser from restoring old scroll position across page reloads
   if ("scrollRestoration" in window.history) {
     try {
