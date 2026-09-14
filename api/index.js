@@ -1,6 +1,5 @@
 import "../server/utils/urlParser.js";
 import { createApp } from "../server/app.js";
-import { connectDB, getMongoUri } from "../server/config/db.js";
 
 const app = createApp({ enableSsr: true });
 
@@ -13,14 +12,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // Ensure database is connected for this serverless invocation
-  if (getMongoUri()) {
-    try {
-      await connectDB();
-    } catch (err) {
-      console.warn("⚠️ [Vercel Function] MongoDB connection notice:", err?.message || err);
-    }
-  }
-
+  // DB connection is handled by the application/API middleware and SEO service.
+  // Avoid an extra connection wait on every serverless invocation.
   return app(req, res);
 }
