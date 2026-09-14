@@ -1458,7 +1458,7 @@ export async function bulkSaveReviews(req, res, next) {
       const images = validateReviewImages(Array.isArray(r.images) ? r.images : (r.img ? [r.img] : []));
       const devoteeName = (r.name && r.name !== "AI DRAFT" && r.name !== "Anonymous" && r.name.trim()) 
         ? r.name.trim() 
-        : INDIAN_DEVOTEE_NAMES[i % INDIAN_DEVOTEE_NAMES.length];
+        : INDIAN_FIRST_NAMES[i % INDIAN_FIRST_NAMES.length];
 
       const devoteeCity = (r.city && r.city !== "Aura Sacred Studio" && r.city.trim()) 
         ? r.city.trim() 
@@ -1526,6 +1526,316 @@ export async function bulkSaveReviews(req, res, next) {
       skippedCount: skippedList.length,
       data: savedList,
       skipped: skippedList
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Preview & dry-run validation for external review imports
+ */
+export async function previewImportExternalReviews(req, res, next) {
+  try {
+    const {
+      reviews = [],
+      text = "",
+      defaultRating = 5,
+      defaultSource = "google_reviews",
+      defaultType = "product",
+      productId = "all",
+      allowDuplicates = false
+    } = req.body || {};
+
+    let candidateReviews = Array.isArray(reviews) ? [...reviews] : [];
+
+    if (candidateReviews.length === 0 && typeof text === "string" && text.trim()) {
+      const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      candidateReviews = rawLines.map((line, idx) => {
+        const parts = line.split("|").map(p => p.trim());
+        if (parts.length >= 3) {
+          return {
+            name: parts[0],
+            rating: Number(parts[1]) || defaultRating,
+            text: parts.slice(2).join(" | ")
+          };
+        } else if (parts.length === 2) {
+          return {
+            name: parts[0],
+            rating: defaultRating,
+            text: parts[1]
+          };
+        }
+        return {
+          name: "External Reviewer",
+          rating: defaultRating,
+          text: line
+        };
+      });
+    }
+
+    let existingCorpus = [];
+    if (isDbConnected()) {
+      existingCorpus = await Review.find({ status: { $ne: "deleted" } })
+        .select("id title text sourceReviewId exactTextHash normalizedTextHash")
+        .lean();
+    } else {
+      existingCorpus = inMemoryStore.reviews || defaultReviews;
+    }
+
+    const validItems = [];
+    const duplicateItems = [];
+    const invalidItems = [];
+
+    for (let i = 0; i < candidateReviews.length; i++) {
+      const item = candidateReviews[i];
+      const rawText = (item.text || item.content || item.review || "").trim();
+      if (!rawText) {
+        invalidItems.push({ index: i, item, reason: "Review text is empty" });
+        continue;
+      }
+
+      const exactHash = getExactTextHash(rawText);
+      const normalizedHash = getNormalizedTextHash(rawText);
+      const sourceReviewId = item.sourceReviewId
+        ? String(item.sourceReviewId).trim()
+        : `external_rev_${exactHash.slice(0, 12)}`;
+
+      const author = (item.name || item.authorDisplayName || item.author || "External Reviewer").trim();
+      const rating = item.rating !== undefined && item.rating !== null
+        ? Math.min(5, Math.max(1, Number(Number(item.rating).toFixed(1))))
+        : Number(defaultRating) || 5;
+
+      const candidate = {
+        id: item.id || `PREVIEW-EXT-${i + 1}-${exactHash.slice(0, 8)}`,
+        sourceReviewId,
+        text: rawText,
+        exactTextHash: exactHash,
+        normalizedTextHash: normalizedHash,
+        name: author,
+        authorDisplayName: author,
+        rating,
+        title: item.title || "External Review",
+        source: item.source || defaultSource,
+        type: item.type || defaultType,
+        productId: item.productId || productId,
+        city: item.city || "Verified Reviewer",
+        date: item.date || "Recent"
+      };
+
+      const dupCheck = checkDuplicateReview(candidate, existingCorpus);
+      if (dupCheck.isDuplicate) {
+        duplicateItems.push({
+          ...candidate,
+          isDuplicate: true,
+          duplicateReason: dupCheck.reason,
+          matchedReview: dupCheck.matchedReview
+        });
+        if (allowDuplicates) {
+          validItems.push({ ...candidate, isDuplicate: true, duplicateReason: dupCheck.reason });
+        }
+      } else {
+        validItems.push({ ...candidate, isDuplicate: false });
+      }
+    }
+
+    return res.json({
+      success: true,
+      count: validItems.length,
+      duplicatesCount: duplicateItems.length,
+      invalidCount: invalidItems.length,
+      data: validItems,
+      duplicates: duplicateItems,
+      invalid: invalidItems,
+      summary: {
+        totalSubmitted: candidateReviews.length,
+        readyToImport: validItems.length,
+        duplicatesFound: duplicateItems.length,
+        invalidRecords: invalidItems.length
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Audit database review records and catalog ratings
+ */
+export async function auditReviewsEndpoint(req, res, next) {
+  try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Review audit requires an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
+    }
+
+    const allReviews = await Review.find().lean();
+    const products = await Product.find().select("id slug name rating reviews reviewCount").lean();
+
+    const total = allReviews.length;
+    const byStatus = {};
+    const bySource = {};
+    let missingHashes = 0;
+    let missingProductIds = 0;
+    let outOfBoundsRatings = 0;
+
+    const exactHashCount = new Map();
+    const duplicateExactHashList = [];
+
+    allReviews.forEach(r => {
+      byStatus[r.status || "Unknown"] = (byStatus[r.status || "Unknown"] || 0) + 1;
+      bySource[r.source || "customer"] = (bySource[r.source || "customer"] || 0) + 1;
+
+      if (!r.exactTextHash || !r.normalizedTextHash) {
+        missingHashes++;
+      }
+      if (!r.productId) {
+        missingProductIds++;
+      }
+      if (r.rating < 1 || r.rating > 5) {
+        outOfBoundsRatings++;
+      }
+
+      if (r.status !== "deleted" && r.exactTextHash) {
+        const c = (exactHashCount.get(r.exactTextHash) || 0) + 1;
+        exactHashCount.set(r.exactTextHash, c);
+        if (c === 2) {
+          duplicateExactHashList.push({ hash: r.exactTextHash, id: r.id, text: (r.text || "").slice(0, 60) });
+        }
+      }
+    });
+
+    const productStatsMismatches = [];
+    const productReviewCounts = new Map();
+    const productRatingSums = new Map();
+
+    allReviews.forEach(r => {
+      if ((r.status === "Approved" || r.status === "Published") && r.status !== "deleted" && !r.deletedAt) {
+        const pid = String(r.productId || "");
+        if (pid && pid !== "all") {
+          productReviewCounts.set(pid, (productReviewCounts.get(pid) || 0) + 1);
+          productRatingSums.set(pid, (productRatingSums.get(pid) || 0) + (Number(r.rating) || 5));
+        }
+      }
+    });
+
+    products.forEach(p => {
+      const pid = String(p.id);
+      const actualCount = productReviewCounts.get(pid) || 0;
+      const actualSum = productRatingSums.get(pid) || 0;
+      const actualAvg = actualCount > 0 ? Number((actualSum / actualCount).toFixed(1)) : 4.9;
+
+      const storedCount = Number(p.reviews || p.reviewCount || 0);
+      const storedRating = Number(p.rating || 4.9);
+
+      if (actualCount > 0 && (storedCount !== actualCount || Math.abs(storedRating - actualAvg) > 0.15)) {
+        productStatsMismatches.push({
+          productId: pid,
+          productName: p.name,
+          storedRating,
+          actualRating: actualAvg,
+          storedReviews: storedCount,
+          actualReviews: actualCount
+        });
+      }
+    });
+
+    return res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      audit: {
+        totalReviews: total,
+        statusBreakdown: byStatus,
+        sourceBreakdown: bySource,
+        health: {
+          missingHashes,
+          missingProductIds,
+          outOfBoundsRatings,
+          exactDuplicateClusters: duplicateExactHashList.length,
+          productStatsMismatchesCount: productStatsMismatches.length
+        },
+        productStatsMismatches,
+        duplicateClusters: duplicateExactHashList.slice(0, 10),
+        recommendations: [
+          missingHashes > 0 ? `Run repair to populate ${missingHashes} missing deterministic text hashes.` : null,
+          productStatsMismatches.length > 0 ? `Run repair to synchronize review counters for ${productStatsMismatches.length} product(s).` : null,
+          "Database review integrity is authoritative."
+        ].filter(Boolean)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Auto-repair missing hashes, rating bounds, and product stats synchronization
+ */
+export async function repairReviewsEndpoint(req, res, next) {
+  try {
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database unavailable",
+        message: "Review repair requires an authoritative MongoDB connection.",
+        databaseUnavailable: true
+      });
+    }
+
+    const reviews = await Review.find().lean();
+    let hashesRepaired = 0;
+    let ratingsRepaired = 0;
+
+    for (const r of reviews) {
+      let needsUpdate = false;
+      const updates = {};
+
+      const text = (r.text || "").trim();
+      if (text) {
+        if (!r.exactTextHash) {
+          updates.exactTextHash = getExactTextHash(text);
+          needsUpdate = true;
+        }
+        if (!r.normalizedTextHash) {
+          updates.normalizedTextHash = getNormalizedTextHash(text);
+          needsUpdate = true;
+        }
+        if (!r.originalTextHash) {
+          updates.originalTextHash = getExactTextHash(r.originalText || text);
+          needsUpdate = true;
+        }
+      }
+
+      if (r.rating < 1 || r.rating > 5) {
+        updates.rating = Math.min(5, Math.max(1, Number(r.rating) || 5));
+        needsUpdate = true;
+        ratingsRepaired++;
+      }
+
+      if (needsUpdate) {
+        await Review.updateOne({ _id: r._id }, { $set: updates });
+        hashesRepaired++;
+      }
+    }
+
+    const products = await Product.find().select("id slug").lean();
+    for (const p of products) {
+      if (p.id) await syncProductReviewStats(p.id);
+    }
+    invalidateProductCache();
+
+    return res.json({
+      success: true,
+      message: "Reviews and product statistics repaired successfully.",
+      repairs: {
+        recordsRepaired: hashesRepaired,
+        ratingsClamped: ratingsRepaired,
+        productsSynchronized: products.length
+      }
     });
   } catch (err) {
     next(err);

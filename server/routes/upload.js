@@ -652,7 +652,11 @@ router.get("/stats", async (req, res) => {
       });
     }
 
-    const totalMedia = await Media.find({}).sort({ createdAt: -1 }).lean();
+    const totalMedia = await Media.find({})
+      .select("type provider sizeBytes size createdAt readURL url")
+      .sort({ createdAt: -1 })
+      .maxTimeMS(5000)
+      .lean();
 
     const images = totalMedia.filter(m => m.type && m.type.startsWith("image/"));
     const videos = totalMedia.filter(m => m.type && m.type.startsWith("video/"));

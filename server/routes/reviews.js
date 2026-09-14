@@ -23,20 +23,20 @@ router.route("/")
   .get(optionalAuth, getReviews)
   .post(createReview);
 
-router.route("/preview-import")
-  .post(requireAdmin, previewImportExternalReviews);
-
 router.route("/import-external")
   .post(requireAdmin, importExternalReviews);
 
-router.route("/polish")
-  .post(requireAdmin, polishReviewWithAI);
+router.route("/preview-import")
+  .post(requireAdmin, previewImportExternalReviews);
 
-router.route("/audit-health")
+router.route("/audit")
   .get(requireAdmin, auditReviewsEndpoint);
 
-router.route("/repair-database")
+router.route("/repair")
   .post(requireAdmin, repairReviewsEndpoint);
+
+router.route("/polish")
+  .post(requireAdmin, polishReviewWithAI);
 
 router.route("/generate-drafts")
   .post(requireAdmin, generateReviewDrafts);
@@ -56,3 +56,4 @@ router.route("/:id/vote")
   .post(voteReview);
 
 export default router;
+

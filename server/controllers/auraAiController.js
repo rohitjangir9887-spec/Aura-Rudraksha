@@ -93,7 +93,7 @@ export function getNvidiaClient() {
     return new OpenAI({
       baseURL,
       apiKey,
-      timeout: 35000
+      timeout: 12000
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM client:", err?.message || err);
@@ -1744,10 +1744,17 @@ export async function generateProductKeywords(req, res, next) {
       return res.status(400).json({ success: false, message: "Product name is required" });
     }
 
-    const result = await generateSeoAndVedicDataWithNemotron(req.body);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Keyword generation timeout after 12s")), 12000)
+    );
+
+    const result = await Promise.race([
+      generateSeoAndVedicDataWithNemotron(req.body),
+      timeoutPromise
+    ]);
     return res.json(result);
   } catch (err) {
-    console.error("[generateProductKeywords error]", err);
+    console.warn("[generateProductKeywords Notice, using resilient fallback]", err?.message || err);
     try {
       const { buildEmergencySafePayload } = await import("../services/nemotronSeoEngine.js");
       return res.json(buildEmergencySafePayload(req.body));
@@ -1946,7 +1953,12 @@ export async function getAuraAIAnalytics(req, res, next) {
       });
     }
 
-    const convos = await AuraAIConversation.find().sort({ updatedAt: -1 }).limit(500).lean();
+    const convos = await AuraAIConversation.find()
+      .select("userId guestSessionId productsRecommended cartConversions requiresHumanSupport updatedAt")
+      .sort({ updatedAt: -1 })
+      .limit(300)
+      .maxTimeMS(6000)
+      .lean();
 
     const totalConvos = convos.length;
     const userIds = new Set();

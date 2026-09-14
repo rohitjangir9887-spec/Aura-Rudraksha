@@ -62,7 +62,7 @@ export async function getOrders(req, res, next) {
         databaseUnavailable: true
       });
     }
-    const rawOrders = await Order.find().sort({ createdAt: -1 }).lean();
+    const rawOrders = await Order.find().sort({ createdAt: -1 }).maxTimeMS(8000).lean();
     const orders = (rawOrders || []).map(o => normalizeOrderState(o));
     return res.json({ success: true, data: orders, count: orders.length });
   } catch (err) {
