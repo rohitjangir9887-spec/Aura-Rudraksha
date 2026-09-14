@@ -79,6 +79,7 @@ export function Product() {
 
   // Sticky bar visibility tracking
   const [showStickyBar, setShowStickyBar] = useState(false);
+  const [isReviewComposerOpen, setIsReviewComposerOpen] = useState(false);
   const ctaSectionRef = useRef(null);
 
   // Share dropdown state
@@ -866,7 +867,10 @@ export function Product() {
 
           {/* Devotee Customer Reviews Section */}
           <div id="reviews-section" style={{ marginTop: "40px" }}>
-            <ProductReviews product={p} />
+            <ProductReviews
+              product={p}
+              onComposerOpenChange={setIsReviewComposerOpen}
+            />
           </div>
 
           {/* 9. Suggested Sacred Beads / Complementary Catalog */}
@@ -933,7 +937,7 @@ export function Product() {
           qty={qty}
           selectedVariant={selectedVariant}
           selectedSize={selectedSize}
-          isVisible={showStickyBar}
+          isVisible={showStickyBar && !isReviewComposerOpen}
           onAddToCart={(pId, q) => add(pId, q)}
           onBuyNow={handleBuyNow}
         />
