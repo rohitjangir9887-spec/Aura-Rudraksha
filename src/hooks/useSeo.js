@@ -23,12 +23,12 @@ export function useSeo({
       document.title = title;
     }
 
-    // Helper to update or create meta tag
     const setMetaTag = (attrName, attrValue, content) => {
       if (!content) return;
       let el = document.querySelector(`meta[${attrName}="${attrValue}"]`);
       if (!el) {
         el = document.createElement("meta");
+        el.setAttribute("name", attrValue);
         el.setAttribute(attrName, attrValue);
         document.head.appendChild(el);
       }
@@ -57,21 +57,24 @@ export function useSeo({
       setMetaTag("name", "twitter:image", ogImage);
     }
 
-    // Canonical link & OG URL
+    // Canonicals always use the trusted production origin and exclude query/hash noise.
     if (canonical) {
       let cleanCanonical = canonical;
-      if (cleanCanonical.startsWith("/")) {
-        cleanCanonical = `https://aurarudraksha.bond${cleanCanonical}`;
-      } else {
-        try {
-          const u = new URL(cleanCanonical);
-          cleanCanonical = `https://aurarudraksha.bond${u.pathname}${u.search}`;
-        } catch (_) {
-          cleanCanonical = cleanCanonical
-            .replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app|[a-z0-9-]+\.(?:vercel\.app|run\.app))/i, "https://aurarudraksha.bond")
-            .replace(/^http:\/\/aurarudraksha\.bond/i, "https://aurarudraksha.bond");
-        }
+      try {
+        const parsed = new URL(canonical, "https://aurarudraksha.bond");
+        const pathname = parsed.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "") || "/";
+        cleanCanonical = `https://aurarudraksha.bond${pathname}`;
+      } catch (_) {
+        cleanCanonical = String(canonical)
+          .replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app|[a-z0-9-]+\.(?:vercel\.app|run\.app))/i, "https://aurarudraksha.bond")
+          .replace(/^http:\/\/aurarudraksha\.bond/i, "https://aurarudraksha.bond")
+          .split("?")[0]
+          .split("#")[0];
       }
+
+      document.querySelectorAll('link[rel="canonical"]').forEach((el, index) => {
+        if (index > 0) el.remove();
+      });
       let link = document.querySelector('link[rel="canonical"]');
       if (!link) {
         link = document.createElement("link");
@@ -82,24 +85,24 @@ export function useSeo({
       setMetaTag("property", "og:url", cleanCanonical);
     }
 
-    // Inject dynamic client-side JSON-LD schemas
-    if (Array.isArray(resolvedSchemas) && resolvedSchemas.length > 0) {
-      // Remove any previously injected client schemas
-      document.querySelectorAll('script[data-client-seo="true"]').forEach(el => el.remove());
-      
-      resolvedSchemas.forEach(item => {
-        try {
-          const script = document.createElement("script");
-          script.type = "application/ld+json";
-          script.setAttribute("data-client-seo", "true");
-          script.textContent = JSON.stringify(item);
-          document.head.appendChild(script);
-        } catch (_) {}
-      });
-    }
+    // SSR already places trusted JSON-LD in the initial HTML. Replace the
+    // SEO-managed SSR/client set after hydration so Product/Breadcrumb schemas
+    // never exist twice in the live DOM.
+    document.querySelectorAll('script[data-seo-schema="true"], script[data-client-seo="true"]').forEach(el => el.remove());
+
+    resolvedSchemas.forEach(item => {
+      try {
+        const script = document.createElement("script");
+        script.type = "application/ld+json";
+        script.setAttribute("data-client-seo", "true");
+        script.setAttribute("data-seo-schema", "true");
+        script.textContent = JSON.stringify(item);
+        document.head.appendChild(script);
+      } catch (_) {}
+    });
 
     return () => {
-      document.querySelectorAll('script[data-client-seo="true"]').forEach(el => el.remove());
+      document.querySelectorAll('script[data-client-seo="true"], script[data-seo-schema="true"]').forEach(el => el.remove());
     };
   }, [title, description, canonical, ogImage, ogType, JSON.stringify(resolvedSchemas)]);
 }
