@@ -3,6 +3,9 @@ dist
 .DS_Store
 *.log
 
+# Local database/runtime state
+.mongo-dev-data/
+
 # Secrets / environment
 .env
 .env.*
