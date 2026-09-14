@@ -2840,7 +2840,7 @@ export const db = {
   getReviews: (productId, tab = "all") => {
     const deletedIds = getDeletedReviewIds();
     let allReviews = storeCache.reviews
-      .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted" && r.status !== "draft" && r.status !== "Hidden" && r.status !== "Rejected")
+      .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted" && r.status !== "draft" && r.status !== "Hidden" && r.status !== "Rejected" && !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()))
       .map(r => ({
         id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
         type: r.type || (r.productId && r.productId !== "all" ? "product" : "store"),
@@ -2923,7 +2923,7 @@ export const db = {
       date: rev.date || "Recently",
       createdAt: rev.createdAt || Date.now(),
       verified: rev.verified !== false,
-      source: (source === "ai_draft" || rev.status === "Approved") ? "customer" : source,
+      source: source,
       isAiGenerated: false,
       isSample: false,
       sampleLabel: "",
@@ -3104,10 +3104,10 @@ export const db = {
     return { success: true, data: savedList, skipped: res.skipped || [] };
   },
 
-  importExternalReviews: async (reviews) => {
+  importExternalReviews: async (reviews, importDefaults = {}) => {
     const res = await apiRequest("/reviews/import-external", {
       method: "POST",
-      body: JSON.stringify({ reviews }),
+      body: JSON.stringify({ reviews, importDefaults }),
       timeoutMs: 30000
     });
     if (!res?.success) {

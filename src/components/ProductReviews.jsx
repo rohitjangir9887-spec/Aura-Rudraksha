@@ -117,7 +117,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       r.status !== "Hidden" && 
       r.status !== "draft" && 
       r.status !== "deleted" &&
-      r.source !== "ai_draft"
+      r.source !== "ai_draft" &&
+      !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()) &&
+      r.publicDisplay !== false
     );
 
     // Filter by tab helper

@@ -147,6 +147,13 @@ export function AdminReviews() {
   const [externalInputText, setExternalInputText] = useState("");
   const [importResults, setImportResults] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [externalImportForm, setExternalImportForm] = useState({
+    productId: "",
+    rating: 5,
+    type: "product",
+    source: "external",
+    publicDisplay: false
+  });
 
   const [polishingReviewId, setPolishingReviewId] = useState(null);
   const [polishModalData, setPolishModalData] = useState(null);
@@ -178,6 +185,22 @@ export function AdminReviews() {
     setReviews(db.getAllReviews());
     const prods = db.getProducts();
     setProducts(prods);
+    if (prods.length > 0) {
+      const firstProduct = prods[0];
+      setExternalImportForm(prev => ({
+        ...prev,
+        productId: prods.some(p => String(p.id) === String(prev.productId)) ? prev.productId : String(firstProduct.id)
+      }));
+      setNewReview(prev => ({
+        ...prev,
+        productId: prods.some(p => String(p.id) === String(prev.productId))
+          ? prev.productId
+          : String(firstProduct.id),
+        productName: prods.some(p => String(p.id) === String(prev.productId))
+          ? prev.productName
+          : firstProduct.name
+      }));
+    }
     if (prods.length > 0 && !previewProduct) {
       setPreviewProduct(prods[0]);
     }
@@ -231,7 +254,7 @@ export function AdminReviews() {
 
   // Statistics
   const stats = useMemo(() => {
-    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected");
+    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected" && !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()));
     const customerRevs = activeReviews.filter(r => r.source !== "ai_draft" && !r.isAiGenerated);
     const total = activeReviews.length;
     const avg = total > 0 ? (activeReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / total).toFixed(1) : "5.0";
@@ -663,19 +686,23 @@ export function AdminReviews() {
 
     const selProd = products.find(p => String(p.id) === String(newReview.productId));
     try {
-      await db.saveReview({
+      const adminReviewPayload = {
         ...newReview,
+        productId: newReview.type === "product" ? String(newReview.productId) : "all",
         productName: newReview.type === "product" ? (selProd?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
         rating: Number(newReview.rating),
-        source: "customer"
-      });
+        source: "customer",
+        status: "Approved",
+        publicDisplay: true
+      };
+      await db.bulkSaveReviews([adminReviewPayload], true);
 
       emitToast("Customer review added!", "success");
       setIsNewReviewModalOpen(false);
       setNewReview({
         type: "product",
-        productId: "5",
-        productName: "5 Mukhi Rudraksha",
+        productId: "",
+        productName: "",
         name: "",
         email: "",
         city: "",
@@ -696,7 +723,12 @@ export function AdminReviews() {
   const handleImportExternalSubmit = async (e) => {
     e?.preventDefault();
     if (!externalInputText.trim()) {
-      emitToast("Please paste external reviews or JSON to import.", "warning");
+      emitToast("Please paste the exact external review text or JSON to import.", "warning");
+      return;
+    }
+
+    if (externalImportForm.type === "product" && !externalImportForm.productId) {
+      emitToast("Please select the product before importing.", "warning");
       return;
     }
 
@@ -709,26 +741,32 @@ export function AdminReviews() {
         rawList = Array.isArray(parsed) ? parsed : [parsed];
       } catch (_) {
         const lines = externalInputText.split("\n").map(l => l.trim()).filter(Boolean);
-        rawList = lines.map((line, idx) => {
-          const parts = line.split(/[:|]/);
-          if (parts.length >= 2 && parts[0].trim().length <= 30) {
-            return {
-              authorDisplayName: parts[0].trim(),
-              text: parts.slice(1).join(":").trim(),
-              source: "google_reviews"
-            };
-          }
-          return {
-            authorDisplayName: `Google Customer ${idx + 1}`,
-            text: line,
-            source: "google_reviews"
-          };
+        rawList = lines.map((line) => {
+          const match = line.match(/^([^:|]{1,80})\s*[:|]\s*(.+)$/);
+          return match
+            ? { authorDisplayName: match[1].trim(), text: match[2].trim() }
+            : { text: line };
         });
       }
 
-      const res = await db.importExternalReviews(rawList);
+      const selProd = products.find(p => String(p.id) === String(externalImportForm.productId));
+      const prepared = rawList.map(item => ({
+        ...item,
+        productId: externalImportForm.type === "product" ? String(externalImportForm.productId) : "all",
+        productName: externalImportForm.type === "product" ? (selProd?.name || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
+        rating: Number(externalImportForm.rating),
+        type: externalImportForm.type,
+        source: externalImportForm.source
+      }));
+
+      const res = await db.importExternalReviews(prepared, externalImportForm);
       setImportResults(res);
-      emitToast(`Imported ${res.importedCount || 0} external review(s). Skipped ${res.skippedCount || 0} duplicate(s).`, "success");
+      emitToast(
+        res.publicDisplay
+          ? `Imported ${res.importedCount || 0} external review(s).`
+          : `Imported ${res.importedCount || 0} review(s) into admin archive only; storefront display is off.`,
+        "success"
+      );
     } catch (err) {
       emitToast(err.message || "Failed to import external reviews.", "error");
     } finally {
@@ -1491,6 +1529,7 @@ export function AdminReviews() {
                 <option value="all">All Sources (Real & AI)</option>
                 <option value="real_customers">Genuine Customer Reviews</option>
                 <option value="ai_samples">AI Drafts (Internal)</option>
+                <option value="external">External Imports (Admin Archive)</option>
               </select>
 
               <select 
@@ -2228,7 +2267,7 @@ export function AdminReviews() {
           <div className="aura-modal-content-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "620px" }}>
             <div className="aura-modal-header">
               <h3 className="aura-modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Upload size={18} color="#0369a1" /> Import External Google / Third-Party Reviews
+                <Upload size={18} color="#0369a1" /> Import External Reviews
               </h3>
               <button className="aura-modal-close-btn" onClick={() => setIsImportModalOpen(false)}>
                 <X size={20} />
@@ -2236,18 +2275,89 @@ export function AdminReviews() {
             </div>
 
             <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 14px" }}>
-              Paste reviews from Google or public sites. Exact & normalized duplicate text matching will automatically filter out duplicates and store original source metadata.
+              Choose the exact product and rating for this import. External reviews are kept in the admin archive by default and are not shown as storefront customer reviews.
             </p>
 
             <form onSubmit={handleImportExternalSubmit} className="aura-modal-form">
+              <div className="aura-form-grid-2">
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Review Scope</label>
+                  <select
+                    value={externalImportForm.type}
+                    onChange={(e) => setExternalImportForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="aura-input"
+                  >
+                    <option value="product">Specific Product</option>
+                    <option value="store">Store Experience</option>
+                  </select>
+                </div>
+
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Star Rating</label>
+                  <select
+                    value={externalImportForm.rating}
+                    onChange={(e) => setExternalImportForm(prev => ({ ...prev, rating: Number(e.target.value) }))}
+                    className="aura-input"
+                  >
+                    <option value={5}>5 Stars ★★★★★</option>
+                    <option value={4}>4 Stars ★★★★</option>
+                    <option value={3}>3 Stars ★★★</option>
+                    <option value={2}>2 Stars ★★</option>
+                    <option value={1}>1 Star ★</option>
+                  </select>
+                </div>
+              </div>
+
+              {externalImportForm.type === "product" && (
+                <div className="aura-form-group">
+                  <label className="aura-form-label">Select Product *</label>
+                  <select
+                    required
+                    value={externalImportForm.productId}
+                    onChange={(e) => setExternalImportForm(prev => ({ ...prev, productId: e.target.value }))}
+                    className="aura-input"
+                  >
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="aura-form-group">
+                <label className="aura-form-label">Actual Review Source</label>
+                <select
+                  value={externalImportForm.source}
+                  onChange={(e) => setExternalImportForm(prev => ({ ...prev, source: e.target.value }))}
+                  className="aura-input"
+                >
+                  <option value="external">External / Third Party</option>
+                  <option value="google_reviews">Google Reviews (only when genuinely from Google)</option>
+                  <option value="public_site">Other Public Website</option>
+                </select>
+              </div>
+
+              <label className="admin-check" style={{ marginBottom: "6px" }}>
+                <input
+                  type="checkbox"
+                  checked={externalImportForm.publicDisplay}
+                  onChange={(e) => setExternalImportForm(prev => ({ ...prev, publicDisplay: e.target.checked }))}
+                />
+                <span>Allow storefront display of these external reviews</span>
+              </label>
+
+              <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 10px" }}>
+                Keep this off for imported Google/third-party content unless you have the right to republish it and the source is accurately disclosed. Imported reviews are never marked as verified purchases automatically.
+              </p>
+
               <div className="aura-form-group">
                 <label className="aura-form-label">Review Data (JSON or Line-by-Line "Author: Text")</label>
-                <textarea 
+                <textarea
                   rows={6}
                   required
                   value={externalInputText}
                   onChange={(e) => setExternalInputText(e.target.value)}
-                  placeholder={`Rahul Sharma: Authentic 5 Mukhi Rudraksha, great energy!\nPriya V.: Very good quality bead and fast packaging.`}
+                  placeholder={"Reviewer Name: Paste the exact original review text here.\nAnother Reviewer: Paste the second exact review here."}
                   className="aura-textarea"
                 />
               </div>
@@ -2255,8 +2365,11 @@ export function AdminReviews() {
               {importResults && (
                 <div style={{ padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }}>
                   <strong style={{ color: "#0f172a", display: "block", marginBottom: "4px" }}>Import Results Summary:</strong>
-                  <div style={{ color: "#166534" }}>✅ Imported: {importResults.importedCount || 0} unique review(s)</div>
-                  <div style={{ color: "#991b1b" }}>⚠️ Skipped: {importResults.skippedCount || 0} duplicate review(s)</div>
+                  <div style={{ color: "#166534" }}>✅ Imported: {importResults.importedCount || 0} review(s)</div>
+                  <div style={{ color: "#991b1b" }}>⚠️ Skipped: {importResults.skippedCount || 0} duplicate(s)</div>
+                  <div style={{ color: "#475569", marginTop: "4px" }}>
+                    {importResults.publicDisplay ? "Storefront display: ON" : "Storefront display: OFF (admin archive only)"}
+                  </div>
                   {importResults.duplicates?.length > 0 && (
                     <ul style={{ margin: "6px 0 0 16px", padding: 0, color: "#64748b" }}>
                       {importResults.duplicates.map((d, i) => (
@@ -2272,7 +2385,7 @@ export function AdminReviews() {
                   Close
                 </button>
                 <button type="submit" className="aura-btn-submit" disabled={isImporting} style={{ background: "#0369a1" }}>
-                  {isImporting ? "Processing Provenance & Hashes..." : "Check & Import Reviews"}
+                  {isImporting ? "Processing Provenance..." : "Check & Import Reviews"}
                 </button>
               </div>
             </form>
