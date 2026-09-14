@@ -39,28 +39,6 @@ function sendUnavailableMukhi(res, mukhiNumber, path) {
   return res.status(404).send(`<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="robots" content="noindex, nofollow"><link rel="canonical" href="${canonical}"><title>${mukhiNumber} Mukhi Rudraksha | Aura Rudraksha</title><meta name="description" content="This Mukhi product is not currently available in the live catalog."></head><body><main><h1>${mukhiNumber} Mukhi Rudraksha</h1><p>This product is not currently available in the live catalog.</p></main></body></html>`);
 }
 
-function sanitizeServerRenderedHtml(body) {
-  if (typeof body !== "string" || !body.includes("application/ld+json")) return body;
-
-  return body.replace(
-    /(<script[^>]*type=["']application\/ld\+json["'][^>]*>)([\s\S]*?)(<\/script>)/gi,
-    (full, open, json, close) => {
-      try {
-        const schema = JSON.parse(json);
-        if (schema?.["@type"] === "Product" && schema.offers && typeof schema.offers === "object") {
-          // The published return policy is limited to eligible damaged/mismatched
-          // orders, so do not advertise a broader free-return policy in Product schema.
-          delete schema.offers.hasMerchantReturnPolicy;
-          return `${open}\n${JSON.stringify(schema, null, 2)}\n${close}`;
-        }
-      } catch (_) {
-        // Preserve any non-JSON script verbatim rather than risking a page failure.
-      }
-      return full;
-    }
-  );
-}
-
 export default async function handler(req, res) {
   const originalPath = getOriginalPath(req);
   if (req.headers && req.headers["x-matched-path"]) {
@@ -72,9 +50,6 @@ export default async function handler(req, res) {
 
   // Do not eagerly connect here. createApp's API middleware and the SSR SEO
   // resolver establish the shared cached connection only when required.
-  const originalSend = res.send.bind(res);
-  res.send = (body) => originalSend(sanitizeServerRenderedHtml(body));
-
   const mukhiMatch = originalPath.match(/^\\/rudraksha\\/(1[0-9]|20|21|[1-9])-mukhi$/i);
   if (mukhiMatch && isDbConnected()) {
     try {
