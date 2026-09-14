@@ -419,7 +419,7 @@ export function escapeXml(str) {
  */
 export async function getPublicProductsForSeo() {
   if (!isDbConnected()) {
-    return [];
+    return defaultProducts || [];
   }
   try {
     const products = await Product.find({
@@ -437,10 +437,13 @@ export async function getPublicProductsForSeo() {
         }
       ]
     }).lean();
-    return products || [];
+    if (products && products.length > 0) {
+      return products;
+    }
+    return defaultProducts || [];
   } catch (err) {
-    console.warn("[SEO] Notice fetching public products from MongoDB:", err.message);
-    return [];
+    console.warn("[SEO] Notice fetching public products from MongoDB, falling back to seed catalog:", err.message);
+    return defaultProducts || [];
   }
 }
 

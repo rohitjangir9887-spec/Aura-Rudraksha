@@ -176,7 +176,9 @@ export async function getAuthoritativeCoupon(couponCode) {
     }
   } else if (inMemoryStore) {
     // Offline fallback
-    const list = inMemoryStore.coupons || defaultCoupons;
+    const deletedCodes = inMemoryStore.deletedCouponCodes || new Set();
+    if (deletedCodes.has(cleanCode)) return null;
+    const list = inMemoryStore.coupons || [];
     const found = list.find(c => String(c.code).trim().toUpperCase() === cleanCode && c.status === "Active");
     if (found) return found;
   }

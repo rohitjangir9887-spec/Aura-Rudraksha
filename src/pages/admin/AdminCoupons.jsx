@@ -438,7 +438,7 @@ export function AdminCoupons() {
                   ? `${c.selectedProducts?.length || 0} Selected` 
                   : (c.excludedProducts?.length ? `All except ${c.excludedProducts.length}` : "All Products");
                 return (
-                  <tr key={c.id}>
+                  <tr key={c.id || c._id || c.code}>
                     <td><b>{c.code}</b></td>
                     <td><b>{c.type === "fixed" ? `₹${c.discount} OFF` : `${c.discount}% OFF`}</b></td>
                     <td>{c.minAmount || c.minOrderValue ? `₹${Number(c.minAmount || c.minOrderValue).toLocaleString()}` : "₹0 (No Min)"}</td>
@@ -454,7 +454,7 @@ export function AdminCoupons() {
                         <button className="admin-icon-btn" onClick={() => handleStartEdit(c)} title="Edit Coupon">
                           <Edit size={16} />
                         </button>
-                        <button className="admin-icon-btn danger" onClick={() => setDeleteId(c.id)} title="Delete Coupon">
+                        <button className="admin-icon-btn danger" onClick={() => setDeleteId(c.id || c._id || c.code)} title="Delete Coupon">
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -468,7 +468,7 @@ export function AdminCoupons() {
 
         <div className="admin-mobile-cards">
           {coupons.map(c => (
-            <div key={c.id} className="admin-mobile-card">
+            <div key={c.id || c._id || c.code} className="admin-mobile-card">
               <div className="mobile-card-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{ width: 40, height: 40, borderRadius: '8px', background: '#fdf0e8', color: '#a54d2b', display: 'grid', placeItems: 'center' }}>
@@ -497,7 +497,7 @@ export function AdminCoupons() {
                   <button className="admin-btn secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => handleStartEdit(c)}>
                     <Edit size={14} /> Edit
                   </button>
-                  <button className="admin-icon-btn danger" style={{ width: 34, height: 34 }} onClick={() => setDeleteId(c.id)} title="Delete Coupon">
+                  <button className="admin-icon-btn danger" style={{ width: 34, height: 34 }} onClick={() => setDeleteId(c.id || c._id || c.code)} title="Delete Coupon">
                     <Trash2 size={16} />
                   </button>
                 </div>

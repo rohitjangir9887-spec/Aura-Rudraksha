@@ -180,7 +180,17 @@ export async function getCoupons(req, res, next) {
     const isExplicitAdminQuery = req.query?.scope === "admin" || req.query?.admin === "true";
 
     if (!isDbConnected()) {
-      const list = inMemoryStore.coupons || defaultCoupons;
+      let list = inMemoryStore.coupons || [];
+      const deletedCodes = inMemoryStore.deletedCouponCodes || new Set();
+      const deletedIds = inMemoryStore.deletedCouponIds || new Set();
+      list = list.filter(c => 
+        !deletedIds.has(String(c.id)) && 
+        !deletedIds.has(String(c._id)) && 
+        !deletedCodes.has(String(c.code || "").toUpperCase())
+      );
+      inMemoryStore.coupons = list;
+
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       if (isAdmin || isExplicitAdminQuery) {
         return res.json({ success: true, data: list, count: list.length, isFallback: true });
       }
@@ -241,12 +251,32 @@ export async function createCoupon(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot create coupon without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      const saved = inMemoryStore.saveCoupon(payload);
+
+      if (payload.showOnHome && payload.status === "Active") {
+        const offerTitle = payload.type === 'fixed' ? `Flat ₹${resolvedDiscount} OFF` : `Flat ${resolvedDiscount}% OFF`;
+        const offerData = {
+          id: "OFFER-" + Date.now(),
+          title: offerTitle,
+          label: "Special Coupon Offer",
+          description: `Use coupon code ${cleanCode} at checkout.`,
+          buttonText: "Shop Now",
+          link: "/shop",
+          couponCode: cleanCode,
+          type: payload.type === 'fixed' ? "Flat Amount" : "Percentage",
+          discountValue: resolvedDiscount,
+          shownOn: "Home Banner",
+          status: "Active",
+          image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png"
+        };
+        const offIdx = (inMemoryStore.offers || []).findIndex(o => String(o.couponCode || "").toUpperCase() === cleanCode);
+        if (offIdx >= 0) inMemoryStore.offers[offIdx] = { ...inMemoryStore.offers[offIdx], ...offerData };
+        else (inMemoryStore.offers = inMemoryStore.offers || []).push(offerData);
+      } else {
+        inMemoryStore.offers = (inMemoryStore.offers || []).filter(o => String(o.couponCode || "").toUpperCase() !== cleanCode);
+      }
+
+      return res.status(201).json({ success: true, data: saved, isFallback: true });
     }
 
     const query = existingId
@@ -305,12 +335,7 @@ export async function createCoupon(req, res, next) {
       await Promotion.updateMany({ $or: [{ code: oldCode }, { couponCode: oldCode }] }, { $set: { code: cleanCode, couponCode: cleanCode } }).catch(() => {});
     }
 
-    // Keep inMemoryStore in sync
-    if (inMemoryStore.coupons) {
-      const idx = inMemoryStore.coupons.findIndex(c => c.id === created.id || c.code === created.code);
-      if (idx >= 0) inMemoryStore.coupons[idx] = created.toObject ? created.toObject() : created;
-      else inMemoryStore.coupons.unshift(created.toObject ? created.toObject() : created);
-    }
+    inMemoryStore.saveCoupon(created.toObject ? created.toObject() : created);
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -334,16 +359,42 @@ export async function updateCoupon(req, res, next) {
     const data = pickFields(req.body, COUPON_FIELDS);
     if (data.code) data.code = String(data.code).trim().toUpperCase();
 
+    const cleanId = String(id).trim();
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot update coupon without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      const existing = (inMemoryStore.coupons || []).find(c => 
+        String(c.id) === cleanId || String(c._id) === cleanId || String(c.code || "").toUpperCase() === cleanId.toUpperCase()
+      );
+      const merged = { ...(existing || {}), ...data, id: cleanId };
+      const saved = inMemoryStore.saveCoupon(merged);
+
+      const discountVal = Number(saved.discount !== undefined ? saved.discount : saved.value ?? 0);
+      if (saved.showOnHome && saved.status === "Active") {
+        const offerTitle = saved.type === 'fixed' ? `Flat ₹${discountVal} OFF` : `Flat ${discountVal}% OFF`;
+        const offerData = {
+          id: "OFFER-" + Date.now(),
+          title: offerTitle,
+          label: "Special Coupon Offer",
+          description: `Use coupon code ${saved.code} at checkout.`,
+          buttonText: "Shop Now",
+          link: "/shop",
+          couponCode: saved.code,
+          type: saved.type === 'fixed' ? "Flat Amount" : "Percentage",
+          discountValue: discountVal,
+          shownOn: "Home Banner",
+          status: "Active",
+          image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png"
+        };
+        const offIdx = (inMemoryStore.offers || []).findIndex(o => String(o.couponCode || "").toUpperCase() === String(saved.code).toUpperCase());
+        if (offIdx >= 0) inMemoryStore.offers[offIdx] = { ...inMemoryStore.offers[offIdx], ...offerData };
+        else (inMemoryStore.offers = inMemoryStore.offers || []).push(offerData);
+      } else {
+        inMemoryStore.offers = (inMemoryStore.offers || []).filter(o => String(o.couponCode || "").toUpperCase() !== String(saved.code).toUpperCase());
+      }
+
+      return res.json({ success: true, data: saved, isFallback: true });
     }
 
-    const cleanId = String(id).trim();
     const queryConditions = [
       { id: cleanId },
       { code: cleanId.toUpperCase() }
@@ -415,12 +466,7 @@ export async function updateCoupon(req, res, next) {
       await Promotion.updateMany({ $or: [{ code: oldCode }, { couponCode: oldCode }] }, { $set: { code: newCode, couponCode: newCode } }).catch(() => {});
     }
 
-    // Keep inMemoryStore in sync
-    if (inMemoryStore.coupons) {
-      const idx = inMemoryStore.coupons.findIndex(c => String(c.id) === String(updated.id) || String(c._id) === String(updated._id) || c.code === updated.code);
-      if (idx >= 0) inMemoryStore.coupons[idx] = updated.toObject ? updated.toObject() : updated;
-      else inMemoryStore.coupons.unshift(updated.toObject ? updated.toObject() : updated);
-    }
+    inMemoryStore.saveCoupon(updated.toObject ? updated.toObject() : updated);
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -444,77 +490,60 @@ export async function deleteCoupon(req, res, next) {
     const { id } = req.params;
     const cleanId = String(id).trim();
 
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Coupons require an authoritative MongoDB connection."
-      });
-    }
+    // Always delete from inMemoryStore immediately
+    inMemoryStore.deleteCoupon(cleanId);
 
-    // 1. Find target coupon to resolve exact code, id, and _id
-    const findConditions = [
-      { id: cleanId },
-      { code: { $regex: `^${cleanId}$`, $options: "i" } }
-    ];
-    if (mongoose.Types.ObjectId.isValid(cleanId)) {
-      findConditions.push({ _id: cleanId });
-    }
+    let targetCode = cleanId.toUpperCase();
+    let targetId = cleanId;
+    let targetDbId = null;
 
-    const existingCoupon = await Coupon.findOne({ $or: findConditions }).lean();
-    const targetCode = (existingCoupon?.code || cleanId).trim().toUpperCase();
-    const targetId = existingCoupon?.id || cleanId;
-    const targetDbId = existingCoupon?._id ? String(existingCoupon._id) : null;
+    if (isDbConnected()) {
+      // 1. Find target coupon to resolve exact code, id, and _id
+      const findConditions = [
+        { id: cleanId },
+        { code: { $regex: `^${cleanId}$`, $options: "i" } }
+      ];
+      if (mongoose.Types.ObjectId.isValid(cleanId)) {
+        findConditions.push({ _id: cleanId });
+      }
 
-    // 2. Delete coupon from Coupon collection across all identifier matches
-    const deleteConditions = [
-      { id: cleanId },
-      { id: targetId },
-      { code: { $regex: `^${targetCode}$`, $options: "i" } }
-    ];
-    if (targetDbId) deleteConditions.push({ _id: targetDbId });
-    if (mongoose.Types.ObjectId.isValid(cleanId)) deleteConditions.push({ _id: cleanId });
+      const existingCoupon = await Coupon.findOne({ $or: findConditions }).lean();
+      if (existingCoupon?.code) targetCode = String(existingCoupon.code).trim().toUpperCase();
+      if (existingCoupon?.id) targetId = existingCoupon.id;
+      if (existingCoupon?._id) targetDbId = String(existingCoupon._id);
 
-    await Coupon.deleteMany({ $or: deleteConditions });
+      // 2. Delete coupon from Coupon collection across all identifier matches
+      const deleteConditions = [
+        { id: cleanId },
+        { id: targetId },
+        { code: { $regex: `^${targetCode}$`, $options: "i" } }
+      ];
+      if (targetDbId) deleteConditions.push({ _id: targetDbId });
+      if (mongoose.Types.ObjectId.isValid(cleanId)) deleteConditions.push({ _id: cleanId });
 
-    // 3. Delete matching offers and promotions from Offer/Promotion collections so they vanish from Home UI
-    const offerDeleteConditions = [
-      { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
-      { code: { $regex: `^${targetCode}$`, $options: "i" } },
-      { id: targetId },
-      { id: cleanId }
-    ];
-    await Offer.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
-    await Promotion.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
+      await Coupon.deleteMany({ $or: deleteConditions });
 
-    // 4. Deactivate ActiveOffer if it referenced this deleted coupon
-    await ActiveOffer.updateMany(
-      {
-        $or: [
-          { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
-          { id: targetId },
-          { id: cleanId }
-        ]
-      },
-      { $set: { enabled: false, status: "Inactive", couponCode: "" } }
-    ).catch(() => {});
+      // 3. Delete matching offers and promotions from Offer/Promotion collections so they vanish from Home UI
+      const offerDeleteConditions = [
+        { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
+        { code: { $regex: `^${targetCode}$`, $options: "i" } },
+        { id: targetId },
+        { id: cleanId }
+      ];
+      await Offer.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
+      await Promotion.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
 
-    // 5. Clean up in-memory store
-    if (inMemoryStore.coupons) {
-      inMemoryStore.coupons = inMemoryStore.coupons.filter(
-        c => String(c.id) !== cleanId && String(c.id) !== targetId && String(c._id) !== targetDbId && String(c.code || "").toUpperCase() !== targetCode
-      );
-    }
-    if (inMemoryStore.offers) {
-      inMemoryStore.offers = inMemoryStore.offers.filter(
-        o => String(o.couponCode || "").toUpperCase() !== targetCode && String(o.id) !== targetId && String(o.id) !== cleanId
-      );
-    }
-    if (inMemoryStore.activeOffer && String(inMemoryStore.activeOffer.couponCode || "").toUpperCase() === targetCode) {
-      inMemoryStore.activeOffer.enabled = false;
-      inMemoryStore.activeOffer.status = "Inactive";
-      inMemoryStore.activeOffer.couponCode = "";
+      // 4. Deactivate ActiveOffer if it referenced this deleted coupon
+      await ActiveOffer.updateMany(
+        {
+          $or: [
+            { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
+            { id: targetId },
+            { id: cleanId }
+          ]
+        },
+        { $set: { enabled: false, status: "Inactive", couponCode: "" } }
+      ).catch(() => {});
     }
 
     await logAuditEvent({

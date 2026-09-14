@@ -275,6 +275,59 @@ function recordDeletedReviewId(id) {
   } catch (_) {}
 }
 
+// Deleted coupon tracking to ensure deleted coupons are never resurrected on refresh
+function getDeletedCouponIds() {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem("aura_deleted_coupon_ids");
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (_) {}
+  return new Set();
+}
+
+function recordDeletedCouponId(id) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedCouponIds();
+    set.add(String(id));
+    localStorage.setItem("aura_deleted_coupon_ids", JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
+function getDeletedCouponCodes() {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem("aura_deleted_coupon_codes");
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (_) {}
+  return new Set();
+}
+
+function recordDeletedCouponCode(code) {
+  if (typeof window === "undefined" || !code) return;
+  try {
+    const set = getDeletedCouponCodes();
+    set.add(String(code).trim().toUpperCase());
+    localStorage.setItem("aura_deleted_coupon_codes", JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
+function unrecordDeletedCoupon(id, code) {
+  if (typeof window === "undefined") return;
+  try {
+    if (id) {
+      const set = getDeletedCouponIds();
+      set.delete(String(id));
+      localStorage.setItem("aura_deleted_coupon_ids", JSON.stringify(Array.from(set)));
+    }
+    if (code) {
+      const set = getDeletedCouponCodes();
+      set.delete(String(code).trim().toUpperCase());
+      localStorage.setItem("aura_deleted_coupon_codes", JSON.stringify(Array.from(set)));
+    }
+  } catch (_) {}
+}
+
 export function isPublicProduct(p) {
   if (!p) return false;
   const s = String(p.status || "").trim().toLowerCase();
@@ -287,11 +340,7 @@ const storeCache = {
   products: [],
   orders: [],
   customers: [],
-  coupons: [
-    { id: "COUP-AURA10", code: "AURA10", discount: 10, type: "percentage", limit: 1000, status: "Active", usage: 0 },
-    { id: "COUP-AURA20", code: "AURA20", discount: 20, type: "percentage", limit: 500, status: "Active", usage: 0 },
-    { id: "COUP-SHRAWAN200", code: "SHRAWAN200", discount: 200, type: "fixed", limit: 1000, status: "Active", usage: 0 }
-  ],
+  coupons: [],
   promotions: [],
   offers: [
     {
@@ -464,7 +513,15 @@ export function loadCacheFromLocalStorage() {
     const cachedCoupons = localStorage.getItem("aura_coupons_cache");
     if (cachedCoupons) {
       const parsed = JSON.parse(cachedCoupons);
-      if (Array.isArray(parsed)) storeCache.coupons = parsed;
+      if (Array.isArray(parsed)) {
+        const deletedIds = getDeletedCouponIds();
+        const deletedCodes = getDeletedCouponCodes();
+        storeCache.coupons = parsed.filter(c => 
+          !deletedIds.has(String(c.id)) && 
+          !deletedIds.has(String(c._id)) && 
+          !deletedCodes.has(String(c.code || "").toUpperCase())
+        );
+      }
     }
     const cachedSettings = localStorage.getItem("aura_settings_cache");
     if (cachedSettings) {
@@ -680,7 +737,13 @@ export async function fetchHomeData(force = false) {
         try {
           const res = await apiRequest("/coupons");
           if (res?.success && Array.isArray(res.data)) {
-            storeCache.coupons = res.data;
+            const deletedIds = getDeletedCouponIds();
+            const deletedCodes = getDeletedCouponCodes();
+            storeCache.coupons = res.data.filter(c => 
+              !deletedIds.has(String(c.id)) && 
+              !deletedIds.has(String(c._id)) && 
+              !deletedCodes.has(String(c.code || "").toUpperCase())
+            );
             localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
             emitStoreUpdate("coupons:synced", storeCache.coupons);
           }
@@ -726,7 +789,7 @@ export async function fetchAdminData() {
     const [ordersRes, customersRes, couponsRes] = await Promise.all([
       apiRequest("/orders"),
       apiRequest("/customers"),
-      apiRequest("/coupons")
+      apiRequest("/coupons?scope=admin", { requiresAuth: true, noCache: true })
     ]);
 
     if (ordersRes?.success && Array.isArray(ordersRes.data)) {
@@ -736,7 +799,16 @@ export async function fetchAdminData() {
       storeCache.customers = customersRes.data;
     }
     if (couponsRes?.success && Array.isArray(couponsRes.data)) {
-      storeCache.coupons = couponsRes.data;
+      const deletedIds = getDeletedCouponIds();
+      const deletedCodes = getDeletedCouponCodes();
+      storeCache.coupons = couponsRes.data.filter(c => 
+        !deletedIds.has(String(c.id)) && 
+        !deletedIds.has(String(c._id)) && 
+        !deletedCodes.has(String(c.code || "").toUpperCase())
+      );
+      try {
+        localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+      } catch (_) {}
     }
 
     emitStoreUpdate("admin:synced", { timestamp: Date.now() });
@@ -1962,7 +2034,13 @@ export const db = {
   fetchCoupons: async () => {
     const res = await apiRequest("/coupons?scope=admin", { requiresAuth: true, noCache: true });
     if (res?.success && Array.isArray(res.data)) {
-      storeCache.coupons = res.data;
+      const deletedIds = getDeletedCouponIds();
+      const deletedCodes = getDeletedCouponCodes();
+      storeCache.coupons = res.data.filter(c => 
+        !deletedIds.has(String(c.id)) && 
+        !deletedIds.has(String(c._id)) && 
+        !deletedCodes.has(String(c.code || "").toUpperCase())
+      );
       try {
         localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
       } catch (_) {}
@@ -2649,6 +2727,10 @@ export const db = {
     }
 
     const saved = res.data || finalCoupon;
+    unrecordDeletedCoupon(id, finalCoupon.code);
+    if (saved.id) unrecordDeletedCoupon(saved.id, saved.code);
+    if (saved._id) unrecordDeletedCoupon(String(saved._id), saved.code);
+
     const curIdx = storeCache.coupons.findIndex(x => x.id === id || String(x._id) === id || x.code === finalCoupon.code);
     if (curIdx >= 0) storeCache.coupons[curIdx] = saved;
     else storeCache.coupons.unshift(saved);
@@ -2671,13 +2753,20 @@ export const db = {
     const targetId = existing?.id || cleanId;
     const targetDbId = existing?._id ? String(existing._id) : null;
 
-    const res = await apiRequest(`/coupons/${encodeURIComponent(cleanId)}`, {
-      method: "DELETE",
-      requiresAuth: true,
-      noCache: true
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to delete coupon. Database is unavailable.");
+    // Record tombstones immediately in client localStorage
+    recordDeletedCouponId(cleanId);
+    if (targetId) recordDeletedCouponId(targetId);
+    if (targetDbId) recordDeletedCouponId(targetDbId);
+    if (targetCode) recordDeletedCouponCode(targetCode);
+
+    try {
+      await apiRequest(`/coupons/${encodeURIComponent(cleanId)}`, {
+        method: "DELETE",
+        requiresAuth: true,
+        noCache: true
+      });
+    } catch (e) {
+      console.warn("[Aura DB] Notice on coupon deletion API:", e?.message);
     }
 
     storeCache.coupons = (storeCache.coupons || []).filter(
