@@ -750,7 +750,7 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
 
       const rawResponse = completion.choices?.[0]?.message?.content || "";
       aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-      if (aiOutputParsed && aiOutputParsed.seo && aiOutputParsed.seo.seoDescription) {
+      if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
         aiGenerationSuccess = true;
       }
     }
@@ -758,8 +758,37 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
     console.warn("[Nemotron Engine] NIM call notice:", err?.message || err);
   }
 
-  // 2. Fallback strictly to verified Vedic Knowledge Base if NVIDIA NIM is unavailable or fails
-  // NOTE: Strictly no fallback to other model families as per user directive.
+  // 1.1 Try Gemini fallback if NVIDIA NIM was not available or did not produce parsed JSON
+  if (!aiGenerationSuccess && process.env.GEMINI_API_KEY) {
+    try {
+      const { GoogleGenAI } = await import("@google/genai");
+      const geminiClient = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+      const geminiResponse = await geminiClient.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `${promptSystem}\n\nUser Request:\n${userPrompt}`,
+        config: {
+          temperature: 0.2,
+          responseMimeType: "application/json"
+        }
+      });
+      const geminiText = geminiResponse.text || "";
+      aiOutputParsed = parseNemotronJsonResponse(geminiText);
+      if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
+        aiGenerationSuccess = true;
+      }
+    } catch (geminiErr) {
+      console.warn("[Nemotron Engine] Gemini fallback notice:", geminiErr?.message || geminiErr);
+    }
+  }
+
+  // 2. Fallback to verified Vedic Knowledge Base if external AI is unavailable or fails
   if (!aiGenerationSuccess || !aiOutputParsed) {
     const defaultDeity = deity || rulingDeity || beadKnowledge?.deity || "Lord Shiva";
     const defaultPlanet = rulingPlanet || beadKnowledge?.planet || "Jupiter (Brihaspati / Guru)";

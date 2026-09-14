@@ -5,22 +5,37 @@ import { ADMIN_LOGIN_PATH } from "../../lib/routes";
 
 export function AdminGuard({ children }) {
   const location = useLocation();
-  const [authState, setAuthState] = useState({
-    loading: true,
-    authenticated: false,
-    authorized: false,
-    user: null,
-    error: null
+  const cachedAdmin = authClient.getCachedAdminVerification();
+
+  const [authState, setAuthState] = useState(() => {
+    if (cachedAdmin && cachedAdmin.authorized) {
+      return {
+        loading: false,
+        authenticated: true,
+        authorized: true,
+        user: cachedAdmin.user,
+        error: null
+      };
+    }
+    return {
+      loading: true,
+      authenticated: false,
+      authorized: false,
+      user: null,
+      error: null
+    };
   });
   const mountedRef = useRef(true);
+  const isCheckingRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
     let isSubscribed = true;
 
-    async function evaluateAdminAuth() {
-      if (!isSubscribed) return;
-      setAuthState(prev => ({ ...prev, loading: true, error: null }));
+    async function evaluateAdminAuth(force = false) {
+      if (!isSubscribed || !mountedRef.current) return;
+      if (isCheckingRef.current) return;
+      isCheckingRef.current = true;
 
       try {
         const currentUser = await authClient.getCurrentUserAsync();
@@ -37,42 +52,30 @@ export function AdminGuard({ children }) {
           return;
         }
 
-        // Verify with server as authoritative source of truth
-        let serverAuthorized = false;
-        let verifiedUserData = null;
-
-        try {
-          const token = await authClient.getToken();
-          if (token) {
-            const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-            const res = await fetch(`${apiBase}/auth/admin-me`, {
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-              }
+        // Check cache first
+        if (!force) {
+          const cached = authClient.getCachedAdminVerification();
+          if (cached && cached.authorized) {
+            setAuthState({
+              loading: false,
+              authenticated: true,
+              authorized: true,
+              user: cached.user,
+              error: null
             });
-
-            if (res.ok) {
-              const data = await res.json().catch(() => ({}));
-              if (data && data.success && data.authorized && data.role === "admin") {
-                serverAuthorized = true;
-                verifiedUserData = data.user;
-              }
-            }
+            return;
           }
-        } catch (apiErr) {
-          console.warn("[AdminGuard] Server verification error:", apiErr?.message);
-          serverAuthorized = false;
         }
 
+        const verifyResult = await authClient.verifyAdminStatus(force);
         if (!isSubscribed || !mountedRef.current) return;
 
-        if (serverAuthorized) {
+        if (verifyResult.authorized) {
           setAuthState({
             loading: false,
             authenticated: true,
             authorized: true,
-            user: verifiedUserData || currentUser,
+            user: verifyResult.user || currentUser,
             error: null
           });
         } else {
@@ -94,13 +97,28 @@ export function AdminGuard({ children }) {
           user: null,
           error: "Authentication verification failed."
         });
+      } finally {
+        isCheckingRef.current = false;
       }
     }
 
-    evaluateAdminAuth();
-
-    const unsubscribe = authClient.onAuthStateChanged(() => {
+    // Only evaluate if not already verified from valid cache
+    if (!authClient.getCachedAdminVerification()?.authorized) {
       evaluateAdminAuth();
+    }
+
+    const unsubscribe = authClient.onAuthStateChanged((user) => {
+      if (!user) {
+        setAuthState({
+          loading: false,
+          authenticated: false,
+          authorized: false,
+          user: null,
+          error: null
+        });
+      } else {
+        evaluateAdminAuth(true);
+      }
     });
 
     return () => {
@@ -108,7 +126,7 @@ export function AdminGuard({ children }) {
       mountedRef.current = false;
       unsubscribe();
     };
-  }, [location.pathname]);
+  }, []);
 
   // 1. Neutral loading state (NO Admin UI/sidebar/header/data is rendered)
   if (authState.loading) {

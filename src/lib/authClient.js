@@ -125,6 +125,21 @@ export function getEmailVerificationActionSettings() {
 
 // Local storage key for persistent user session snapshot across cold reloads
 const USER_CACHE_KEY = "aura_cached_user";
+const ADMIN_VERIFY_CACHE_KEY = "aura_cached_admin_verify";
+const ADMIN_VERIFY_TTL = 10 * 60 * 1000; // 10 minutes cache for seamless navigation
+
+let inMemoryAdminVerification = null;
+try {
+  if (typeof window !== "undefined") {
+    const rawAdmin = localStorage.getItem(ADMIN_VERIFY_CACHE_KEY);
+    if (rawAdmin) {
+      const parsed = JSON.parse(rawAdmin);
+      if (parsed && parsed.verifiedAt && (Date.now() - parsed.verifiedAt < ADMIN_VERIFY_TTL)) {
+        inMemoryAdminVerification = parsed;
+      }
+    }
+  }
+} catch (_) {}
 
 function serializeUser(u) {
   if (!u) return null;
@@ -214,6 +229,75 @@ export const authClient = {
 
   getCachedUser: () => {
     return inMemoryCachedUser;
+  },
+
+  getCachedAdminVerification: () => {
+    if (!inMemoryAdminVerification) return null;
+    const now = Date.now();
+    if (now - (inMemoryAdminVerification.verifiedAt || 0) > ADMIN_VERIFY_TTL) {
+      inMemoryAdminVerification = null;
+      try { localStorage.removeItem(ADMIN_VERIFY_CACHE_KEY); } catch (_) {}
+      return null;
+    }
+    const currentUid = auth.currentUser?.uid || inMemoryCachedUser?.uid;
+    if (inMemoryAdminVerification.uid && currentUid && inMemoryAdminVerification.uid !== currentUid) {
+      inMemoryAdminVerification = null;
+      try { localStorage.removeItem(ADMIN_VERIFY_CACHE_KEY); } catch (_) {}
+      return null;
+    }
+    return inMemoryAdminVerification;
+  },
+
+  verifyAdminStatus: async (force = false) => {
+    const currentUid = auth.currentUser?.uid || inMemoryCachedUser?.uid;
+    if (!currentUid) return { authorized: false, user: null };
+
+    if (!force) {
+      const cached = authClient.getCachedAdminVerification();
+      if (cached && cached.authorized) return cached;
+    }
+
+    try {
+      const token = await authClient.getToken();
+      if (!token) return { authorized: false, user: null };
+
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/auth/admin-me`, {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.success && data.authorized && data.role === "admin") {
+          const verifiedPayload = {
+            authorized: true,
+            user: data.user || auth.currentUser || inMemoryCachedUser,
+            uid: currentUid,
+            verifiedAt: Date.now()
+          };
+          inMemoryAdminVerification = verifiedPayload;
+          try {
+            localStorage.setItem(ADMIN_VERIFY_CACHE_KEY, JSON.stringify(verifiedPayload));
+            localStorage.setItem("isAdmin", "true");
+          } catch (_) {}
+          return verifiedPayload;
+        }
+      }
+    } catch (err) {
+      console.warn("[authClient] verifyAdminStatus error:", err?.message);
+    }
+    return { authorized: false, user: null };
+  },
+
+  clearAdminCache: () => {
+    inMemoryAdminVerification = null;
+    try {
+      localStorage.removeItem(ADMIN_VERIFY_CACHE_KEY);
+      localStorage.removeItem("isAdmin");
+    } catch (_) {}
   },
 
   getCurrentUserAsync: async () => {
@@ -340,12 +424,14 @@ export const authClient = {
       await signOut(auth);
     } catch {}
     saveCachedUser(null);
+    authClient.clearAdminCache();
     try {
       localStorage.removeItem("aura_demo_user");
       localStorage.removeItem("aura_ai_last_auth_uid");
       localStorage.removeItem("user_email");
       localStorage.removeItem("user_token");
       localStorage.removeItem("isAdmin");
+      localStorage.removeItem(ADMIN_VERIFY_CACHE_KEY);
     } catch (_) {}
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: null }));
@@ -369,6 +455,7 @@ export const authClient = {
         callback(user);
       } else {
         saveCachedUser(null);
+        authClient.clearAdminCache();
         callback(null);
       }
     });

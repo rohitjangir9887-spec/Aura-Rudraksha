@@ -6,8 +6,23 @@ import { ADMIN_LOGIN_PATH } from "../lib/routes";
 export function useAdminAuth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [adminSession, setAdminSession] = useState(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
+  const cachedAdmin = authClient.getCachedAdminVerification();
+
+  const [adminSession, setAdminSession] = useState(() => {
+    if (cachedAdmin && cachedAdmin.authorized) {
+      const displayIdentifier =
+        cachedAdmin.user?.email ||
+        cachedAdmin.user?.displayName ||
+        "Admin";
+      return {
+        email: displayIdentifier,
+        name: cachedAdmin.user?.name || cachedAdmin.user?.displayName || displayIdentifier
+      };
+    }
+    return null;
+  });
+
+  const [loadingAuth, setLoadingAuth] = useState(() => !(cachedAdmin && cachedAdmin.authorized));
 
   const userEmail =
     adminSession?.email ||
@@ -19,6 +34,21 @@ export function useAdminAuth() {
     let isSubscribed = true;
 
     async function checkAuth() {
+      // If already verified in cache, no need to show loading
+      const cached = authClient.getCachedAdminVerification();
+      if (cached && cached.authorized) {
+        const displayIdentifier =
+          cached.user?.email ||
+          cached.user?.displayName ||
+          "Admin";
+        setAdminSession({
+          email: displayIdentifier,
+          name: cached.user?.name || cached.user?.displayName || displayIdentifier
+        });
+        setLoadingAuth(false);
+        return;
+      }
+
       try {
         const currentUser = await authClient.getCurrentUserAsync();
         if (!isSubscribed) return;
@@ -33,34 +63,10 @@ export function useAdminAuth() {
           return;
         }
 
-        let isAuthorizedAdmin = false;
-        let verifiedUserData = null;
-
-        // Verify with server as single authoritative source
-        try {
-          const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-          const token = await authClient.getToken().catch(() => "");
-          if (token) {
-            const res = await fetch(`${apiBase}/auth/admin-me`, {
-              headers: { Authorization: "Bearer " + token }
-            }).catch(() => null);
-
-            if (res && res.ok) {
-              const json = await res.json().catch(() => ({}));
-              if (json && json.success && json.authorized && json.role === "admin") {
-                isAuthorizedAdmin = true;
-                verifiedUserData = json.user;
-              }
-            }
-          }
-        } catch (_) {
-          // Fail-closed on network or server error
-          isAuthorizedAdmin = false;
-        }
-
+        const verifyResult = await authClient.verifyAdminStatus();
         if (!isSubscribed) return;
 
-        if (!isAuthorizedAdmin) {
+        if (!verifyResult.authorized) {
           setAdminSession(null);
           setLoadingAuth(false);
           navigate(ADMIN_LOGIN_PATH, { replace: true });
@@ -68,14 +74,14 @@ export function useAdminAuth() {
         }
 
         const displayIdentifier =
-          verifiedUserData?.email ||
+          verifyResult.user?.email ||
           currentUser?.email ||
           currentUser?.displayName ||
           "Admin";
 
         setAdminSession({
           email: displayIdentifier,
-          name: verifiedUserData?.name || currentUser?.displayName || displayIdentifier
+          name: verifyResult.user?.name || currentUser?.displayName || displayIdentifier
         });
       } catch (err) {
         if (!isSubscribed) return;
@@ -91,7 +97,7 @@ export function useAdminAuth() {
     return () => {
       isSubscribed = false;
     };
-  }, [location.pathname, navigate]);
+  }, [navigate]);
 
   const handleLogout = async () => {
     try {
