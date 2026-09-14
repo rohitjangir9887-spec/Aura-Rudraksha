@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
-import { Trash2, MessageSquare, Send, CheckCircle2, Clock, Paperclip, X } from "lucide-react";
+import { Trash2, MessageSquare, Send, CheckCircle2, Clock, Paperclip, X, Loader2 } from "lucide-react";
 
 export function SupportTicketsDrawer({ showMyTickets, setShowMyTickets, customerTickets }) {
   const [replyingId, setReplyingId] = useState(null);
@@ -127,9 +127,10 @@ export function SupportTicketsDrawer({ showMyTickets, setShowMyTickets, customer
                           disabled={deletingId === t.id}
                           onClick={(e) => handleDelete(t.id, e)}
                           title="Delete Ticket"
-                          style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}
+                          aria-label={`Delete ticket #${t.id}`}
+                          style={{ background: "none", border: "none", color: "#dc2626", cursor: deletingId === t.id ? "not-allowed" : "pointer", padding: 2, display: "flex", alignItems: "center", opacity: deletingId === t.id ? 0.5 : 1 }}
                         >
-                          <Trash2 size={13} />
+                          {deletingId === t.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                         </button>
                       </div>
                     </div>
@@ -206,9 +207,13 @@ export function SupportTicketsDrawer({ showMyTickets, setShowMyTickets, customer
                           <button
                             type="submit"
                             disabled={isSubmitting}
-                            style={{ background: "#8c2b10", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
+                            style={{ background: "#8c2b10", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: isSubmitting ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: "4px", opacity: isSubmitting ? 0.75 : 1 }}
                           >
-                            Send
+                            {isSubmitting ? (
+                              <><Loader2 size={12} className="animate-spin" /> Sending...</>
+                            ) : (
+                              <><Send size={12} /> Send</>
+                            )}
                           </button>
                           <button
                             type="button"
