@@ -59,11 +59,19 @@ export async function applyDailySalesIncrement(products = []) {
       const formattedTotalSold = `${newCount.toLocaleString("en-IN")}+ Sold`;
 
       updatedAny = true;
-      const cleanId = String(p.id || p._id || "");
+      const cleanId = String(p.id || p._id || "").trim();
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId) || (p._id && /^[0-9a-fA-F]{24}$/.test(String(p._id)));
       if (cleanId) {
         bulkOps.push({
           updateOne: {
-            filter: { $or: [{ id: cleanId }, { _id: cleanId }] },
+            filter: {
+              $or: [
+                { id: cleanId },
+                ...(p.id ? [{ id: String(p.id) }] : []),
+                ...(p.slug ? [{ slug: String(p.slug) }] : []),
+                ...(isMongoId ? [{ _id: p._id || cleanId }] : [])
+              ]
+            },
             update: {
               $set: {
                 salesCount: newCount,
@@ -724,9 +732,18 @@ export async function triggerDailySalesIncrement(req, res, next) {
       p.lastSalesUpdateDate = todayStr;
       updatedCount++;
 
+      const cleanId = String(p.id || p._id || "").trim();
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId) || (p._id && /^[0-9a-fA-F]{24}$/.test(String(p._id)));
       bulkOps.push({
         updateOne: {
-          filter: { $or: [{ id: p.id }, { _id: p._id }] },
+          filter: {
+            $or: [
+              ...(cleanId ? [{ id: cleanId }] : []),
+              ...(p.id ? [{ id: String(p.id) }] : []),
+              ...(p.slug ? [{ slug: String(p.slug) }] : []),
+              ...(isMongoId ? [{ _id: p._id || cleanId }] : [])
+            ]
+          },
           update: {
             $set: {
               salesCount: newCount,

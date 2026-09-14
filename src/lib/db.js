@@ -502,7 +502,7 @@ const storeCache = {
 // Domain-Separated Hydration Engine
 // Home page fetches ONLY public customer data (products, banners, offers, settings)
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
-const CACHE_FRESHNESS_LIMIT = 24 * 60 * 60 * 1000; // 24 hours temporary memory window for instant page loads
+const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
 
 let isInitialized = false;
@@ -2078,7 +2078,9 @@ export const db = {
     const res = await apiRequest("/banners");
     if (res?.success && Array.isArray(res.data)) {
       storeCache.banners = res.data;
-      // emitStoreUpdate (removed to prevent infinite fetch loop)
+      try {
+        localStorage.setItem("aura_banners_cache", JSON.stringify(storeCache.banners));
+      } catch (_) {}
     }
     return storeCache.banners;
   },
@@ -2086,7 +2088,9 @@ export const db = {
     const res = await apiRequest("/settings");
     if (res?.success && res.data) {
       storeCache.settings = { ...storeCache.settings, ...res.data };
-      // emitStoreUpdate (removed to prevent infinite fetch loop)
+      try {
+        localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+      } catch (_) {}
     }
     return storeCache.settings;
   },
@@ -2230,7 +2234,12 @@ export const db = {
       throw new Error(res?.message || "Failed to save banners. Database unavailable.");
     }
     storeCache.banners = arr;
+    try {
+      localStorage.setItem("aura_banners_cache", JSON.stringify(storeCache.banners));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("banners:saved", arr);
+    fetchHomeData(true).catch(() => {});
     return arr;
   },
 
@@ -2332,7 +2341,12 @@ export const db = {
     }
 
     storeCache.activeOffer = res.data || updated;
+    try {
+      localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
+    fetchHomeData(true).catch(() => {});
     return storeCache.activeOffer;
   },
 
@@ -2354,7 +2368,12 @@ export const db = {
     const curIdx = storeCache.offers.findIndex(x => x.id === id);
     if (curIdx >= 0) storeCache.offers[curIdx] = saved;
     else storeCache.offers.push(saved);
+    try {
+      localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("offer:saved", saved);
+    fetchHomeData(true).catch(() => {});
     return saved;
   },
   deleteOffer: async (id) => {
@@ -2363,7 +2382,12 @@ export const db = {
       throw new Error(res?.message || "Failed to delete offer. Database is unavailable.");
     }
     storeCache.offers = storeCache.offers.filter(x => x.id !== id);
+    try {
+      localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("offer:deleted", id);
+    fetchHomeData(true).catch(() => {});
     return true;
   },
 
@@ -3044,11 +3068,17 @@ export const db = {
     } else {
       storeCache.reviews.unshift(saved);
     }
+    try {
+      localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     if (saved.productId) {
       db.recalculateProductReviewStats(saved.productId);
     }
     emitStoreUpdate("review:saved", saved);
+    emitStoreUpdate("reviews:synced", storeCache.reviews);
     emitStoreUpdate("products:synced", storeCache.products);
+    fetchHomeData(true).catch(() => {});
     return saved;
   },
 
@@ -3090,6 +3120,7 @@ export const db = {
     // Recompute product ratings and review count immediately
     try {
       localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+      localStorage.setItem("aura_last_fetch_time", "0");
     } catch (_) {}
     if (updated.productId) db.recalculateProductReviewStats(updated.productId);
     if (oldProductId && String(oldProductId) !== String(updated.productId)) {
@@ -3098,6 +3129,7 @@ export const db = {
     emitStoreUpdate("review:updated", updated);
     emitStoreUpdate("reviews:synced", storeCache.reviews);
     emitStoreUpdate("products:synced", storeCache.products);
+    fetchHomeData(true).catch(() => {});
     return updated;
   },
 
@@ -3111,11 +3143,17 @@ export const db = {
     const targetRev = storeCache.reviews.find(r => String(r.id) === strId || String(r._id) === strId);
     const targetProductId = targetRev?.productId;
     storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== strId && String(r._id) !== strId);
+    try {
+      localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     if (targetProductId) {
       db.recalculateProductReviewStats(targetProductId);
     }
     emitStoreUpdate("review:deleted", { id: strId });
+    emitStoreUpdate("reviews:synced", storeCache.reviews);
     emitStoreUpdate("products:synced", storeCache.products);
+    fetchHomeData(true).catch(() => {});
     return true;
   },
 
@@ -3159,6 +3197,10 @@ export const db = {
     }
     const saved = res.data || settings;
     storeCache.reviewSettings = { ...storeCache.reviewSettings, ...saved };
+    try {
+      localStorage.setItem("aura_review_settings_cache", JSON.stringify(storeCache.reviewSettings));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("review:settings-updated", storeCache.reviewSettings);
     return storeCache.reviewSettings;
   },
@@ -3195,10 +3237,16 @@ export const db = {
           storeCache.reviews.unshift(saved);
         }
       });
+      try {
+        localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        localStorage.setItem("aura_last_fetch_time", "0");
+      } catch (_) {}
       const distinctProductIds = new Set(savedList.map(s => String(s.productId)).filter(Boolean));
       distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
       emitStoreUpdate("review:bulk-saved", savedList);
+      emitStoreUpdate("reviews:synced", storeCache.reviews);
       emitStoreUpdate("products:synced", storeCache.products);
+      fetchHomeData(true).catch(() => {});
     }
     return { success: true, data: savedList, skipped: res.skipped || [] };
   },
@@ -3231,10 +3279,16 @@ export const db = {
         if (idx !== -1) storeCache.reviews[idx] = rev;
         else storeCache.reviews.unshift(rev);
       });
+      try {
+        localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        localStorage.setItem("aura_last_fetch_time", "0");
+      } catch (_) {}
       const distinctProductIds = new Set(importedList.map(s => String(s.productId)).filter(Boolean));
       distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
       emitStoreUpdate("review:imported", importedList);
+      emitStoreUpdate("reviews:synced", storeCache.reviews);
       emitStoreUpdate("products:synced", storeCache.products);
+      fetchHomeData(true).catch(() => {});
     }
     return res;
   },
@@ -3251,7 +3305,12 @@ export const db = {
     if (res.data) {
       const idx = storeCache.reviews.findIndex(r => String(r.id) === String(res.data.id));
       if (idx !== -1) storeCache.reviews[idx] = res.data;
+      try {
+        localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        localStorage.setItem("aura_last_fetch_time", "0");
+      } catch (_) {}
       emitStoreUpdate("review:updated", res.data);
+      emitStoreUpdate("reviews:synced", storeCache.reviews);
     }
     return res;
   },
@@ -3291,7 +3350,12 @@ export const db = {
     }
     const saved = res.data || settings;
     storeCache.settings = { ...storeCache.settings, ...saved };
+    try {
+      localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("settings:saved", storeCache.settings);
+    fetchHomeData(true).catch(() => {});
     return storeCache.settings;
   },
 
@@ -3315,7 +3379,12 @@ export const db = {
     }
     const saved = res.data || policies;
     storeCache.settings = { ...storeCache.settings, ...saved };
+    try {
+      localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
     emitStoreUpdate("policies:saved", saved);
+    fetchHomeData(true).catch(() => {});
     return saved;
   },
 

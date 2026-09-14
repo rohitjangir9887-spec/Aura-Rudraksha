@@ -322,6 +322,7 @@ export function AdminReviews() {
 
   useEffect(() => {
     loadData();
+    db.revalidateReviews().then(() => loadData()).catch(() => {});
     const unsub = onStoreUpdate(() => {
       loadData();
     });
