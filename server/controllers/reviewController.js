@@ -25,7 +25,7 @@ export async function syncProductReviewStats(productId) {
         String(r.productId) === pIdStr && 
         (r.status === "Approved" || r.status === "Published" || !r.status) &&
         r.status !== "deleted" && r.status !== "Hidden" && r.status !== "Rejected" && r.status !== "draft" &&
-        isPublicReviewSource(r.source) && r.publicDisplay !== false
+        r.source !== "ai_draft" && r.publicDisplay !== false
       );
       const count = activeReviews.length;
       let avg = 4.9;
@@ -48,7 +48,8 @@ export async function syncProductReviewStats(productId) {
       productId: pIdStr,
       status: { $in: ["Approved", "Published"] },
       deletedAt: null,
-      $or: publicReviewQuery().$or
+      source: { $ne: "ai_draft" },
+      publicDisplay: { $ne: false }
     }).select("rating").lean();
 
     const count = reviews.length;
@@ -131,16 +132,16 @@ function validateReviewImages(input) {
   return out;
 }
 
-const EXTERNAL_REVIEW_SOURCES = new Set(["google_reviews", "public_site", "imported", "external"]);
+const EXTERNAL_REVIEW_SOURCES = new Set(["ai_draft"]);
 
 function isPublicReviewSource(source) {
-  return !EXTERNAL_REVIEW_SOURCES.has(String(source || "").toLowerCase());
+  return String(source || "").toLowerCase() !== "ai_draft";
 }
 
 function publicReviewQuery() {
   return {
     $or: [
-      { source: { $nin: Array.from(EXTERNAL_REVIEW_SOURCES) } },
+      { source: { $ne: "ai_draft" } },
       { publicDisplay: true }
     ]
   };
@@ -1182,7 +1183,7 @@ export async function importExternalReviews(req, res, next) {
       }
     }
 
-    const publicDisplay = importDefaults.publicDisplay === true;
+    const publicDisplay = importDefaults.publicDisplay !== false;
     let existingCorpus = [];
     if (isDbConnected()) {
       existingCorpus = await Review.find({ status: { $ne: "deleted" } })
@@ -1254,10 +1255,10 @@ export async function importExternalReviews(req, res, next) {
         source: defaultSource,
         sourceReviewId,
         importedAt: new Date(),
-        status: publicDisplay ? "Approved" : "Pending",
+        status: importDefaults.status || (publicDisplay ? "Approved" : "Pending"),
         publishedAt: publicDisplay ? new Date() : null,
         publicDisplay,
-        verified: Boolean(item.verified),
+        verified: item.verified !== false,
         editedByAI: Boolean(item.editedByAI || item.aiProcessed),
         isAiGenerated: false,
         isSample: false,

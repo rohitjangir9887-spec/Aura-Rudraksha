@@ -993,13 +993,41 @@ export const db = {
   getProductReviewStats: (productId) => {
     if (!productId || productId === "all") return { count: 0, rating: null };
     const pIdStr = String(productId).trim().toLowerCase();
+    const cleanTarget = pIdStr.replace(/^(product-card-|product-)/, "");
+
+    const foundProduct = (storeCache.products || []).find(p => {
+      if (!p) return false;
+      const xId = String(p.id || "").toLowerCase();
+      const xMongoId = String(p._id || "").toLowerCase();
+      const xSlug = String(p.slug || "").toLowerCase();
+      return xId === pIdStr || xId === cleanTarget || xMongoId === pIdStr || xSlug === pIdStr || (!isNaN(cleanTarget) && Number(p.id) === Number(cleanTarget));
+    });
+
+    const targetIds = new Set([
+      pIdStr,
+      cleanTarget,
+      foundProduct?.id ? String(foundProduct.id).toLowerCase() : null,
+      foundProduct?._id ? String(foundProduct._id).toLowerCase() : null,
+      foundProduct?.slug ? String(foundProduct.slug).toLowerCase() : null,
+      `product-card-${cleanTarget}`,
+      `product-${cleanTarget}`
+    ].filter(Boolean));
+
+    const pName = foundProduct?.name ? foundProduct.name.trim().toLowerCase() : null;
+
     const deletedIds = getDeletedReviewIds();
     const prodReviews = (storeCache.reviews || []).filter(r => {
       if (!r || deletedIds.has(String(r.id))) return false;
       const status = (r.status || "Approved").toLowerCase();
       if (status !== "approved" && status !== "published") return false;
+      if (r.status === "deleted" || r.status === "draft" || r.status === "hidden" || r.status === "rejected") return false;
+      if (r.source === "ai_draft" || r.publicDisplay === false) return false;
+
       const rPid = String(r.productId || "").trim().toLowerCase();
-      return rPid === pIdStr || rPid === `product-card-${pIdStr}`;
+      const rCleanPid = rPid.replace(/^(product-card-|product-)/, "");
+      if (targetIds.has(rPid) || targetIds.has(rCleanPid)) return true;
+      if (pName && r.productName && r.productName.trim().toLowerCase() === pName) return true;
+      return false;
     });
 
     const count = prodReviews.length;
@@ -2847,7 +2875,8 @@ export const db = {
         r.status !== "Hidden" && 
         r.status !== "Rejected" &&
         r.source !== "ai_draft" &&
-        r.publicDisplay !== false
+        r.publicDisplay !== false &&
+        (r.status === "Approved" || r.status === "Published" || !r.status)
       )
       .map(r => ({
         id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
@@ -2867,6 +2896,7 @@ export const db = {
         featured: !!r.featured,
         source: r.source || "customer",
         status: r.status || "Approved",
+        publicDisplay: true,
         images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
         img: getProductPrimaryImage(r) !== "/images/placeholder.svg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
@@ -2878,21 +2908,42 @@ export const db = {
         language: r.language || "en"
       }));
 
-    if (tab === "product" && productId && productId !== "all") {
-      const cleanTarget = String(productId).trim().toLowerCase().replace(/^(product-card-|product-)/, "");
-      return allReviews.filter(r => {
-        const rPid = String(r.productId || "").trim().toLowerCase().replace(/^(product-card-|product-)/, "");
-        return r.type === "product" && (rPid === cleanTarget || rPid === String(productId).trim().toLowerCase());
-      });
-    } else if (tab === "store") {
+    if (tab === "store") {
       return allReviews.filter(r => r.type === "store" || r.productId === "all");
     }
 
     if (!productId || productId === "all") return allReviews;
-    const cleanTarget = String(productId).trim().toLowerCase().replace(/^(product-card-|product-)/, "");
+
+    const pIdStr = String(productId).trim().toLowerCase();
+    const cleanTarget = pIdStr.replace(/^(product-card-|product-)/, "");
+
+    const foundProduct = (storeCache.products || []).find(p => {
+      if (!p) return false;
+      const xId = String(p.id || "").toLowerCase();
+      const xMongoId = String(p._id || "").toLowerCase();
+      const xSlug = String(p.slug || "").toLowerCase();
+      return xId === pIdStr || xId === cleanTarget || xMongoId === pIdStr || xSlug === pIdStr || (!isNaN(cleanTarget) && Number(p.id) === Number(cleanTarget));
+    });
+
+    const targetIds = new Set([
+      pIdStr,
+      cleanTarget,
+      foundProduct?.id ? String(foundProduct.id).toLowerCase() : null,
+      foundProduct?._id ? String(foundProduct._id).toLowerCase() : null,
+      foundProduct?.slug ? String(foundProduct.slug).toLowerCase() : null,
+      `product-card-${cleanTarget}`,
+      `product-${cleanTarget}`
+    ].filter(Boolean));
+
+    const pName = foundProduct?.name ? foundProduct.name.trim().toLowerCase() : null;
+
     return allReviews.filter(r => {
-      const rPid = String(r.productId || "").trim().toLowerCase().replace(/^(product-card-|product-)/, "");
-      return rPid === cleanTarget || rPid === String(productId).trim().toLowerCase();
+      if (tab === "product" && r.type !== "product") return false;
+      const rPid = String(r.productId || "").trim().toLowerCase();
+      const rCleanPid = rPid.replace(/^(product-card-|product-)/, "");
+      if (targetIds.has(rPid) || targetIds.has(rCleanPid)) return true;
+      if (pName && r.productName && r.productName.trim().toLowerCase() === pName) return true;
+      return false;
     });
   },
 

@@ -161,8 +161,8 @@ export function AdminReviews() {
     productId: "",
     rating: 5,
     type: "product",
-    source: "external",
-    publicDisplay: false,
+    source: "customer",
+    publicDisplay: true,
     autoPolishWithAI: false
   });
 
@@ -265,7 +265,7 @@ export function AdminReviews() {
 
   // Statistics
   const stats = useMemo(() => {
-    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected" && !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()));
+    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected" && r.status !== "Hidden");
     const customerRevs = activeReviews.filter(r => r.source !== "ai_draft" && !r.isAiGenerated);
     const total = activeReviews.length;
     const avg = total > 0 ? (activeReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / total).toFixed(1) : "5.0";
@@ -772,16 +772,6 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
     }
   };
 
-  // Close Import Modal and Reset State
-  const handleCloseImportModal = () => {
-    setIsImportModalOpen(false);
-    setImportModalStep("input");
-    setParsedBatch(null);
-    setImportResults(null);
-    setExternalInputText("");
-    loadData();
-  };
-
   // Step 1: Parse and Preview External Reviews
   const handleParseAndPreview = (e) => {
     e?.preventDefault();
@@ -892,22 +882,26 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
       const payload = toImport.map(item => ({
         ...item,
         productId: externalImportForm.type === "product" ? String(externalImportForm.productId || item.productId) : "all",
-        productName: externalImportForm.type === "product" ? (selProd?.name || item.productName) : "Aura Rudraksha Sacred Store",
-        source: externalImportForm.source,
-        type: externalImportForm.type
+        productName: externalImportForm.type === "product" ? (selProd?.name || item.productName || "Rudraksha Bead") : "Aura Rudraksha Sacred Store",
+        source: externalImportForm.source || "customer",
+        type: externalImportForm.type,
+        status: "Approved",
+        publicDisplay: true,
+        isAiGenerated: false,
+        isSample: false,
+        verified: item.verified !== false
       }));
 
       const res = await db.importExternalReviews(payload, {
         ...externalImportForm,
+        publicDisplay: true,
         allowDuplicates: true
       });
 
       setImportResults(res);
       setImportModalStep("success");
       emitToast(
-        res.publicDisplay
-          ? `Imported ${res.importedCount || payload.length} external review(s) to storefront!`
-          : `Imported ${res.importedCount || payload.length} review(s) to private admin archive.`,
+        `Imported ${res.importedCount || payload.length} devotee review(s) to storefront!`,
         "success"
       );
     } catch (err) {
