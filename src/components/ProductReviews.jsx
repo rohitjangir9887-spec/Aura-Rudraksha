@@ -216,39 +216,26 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     return photos;
   }, [filteredReviews]);
 
-  // Tab counts based on real vs sample fallback
-  const productReviewsCount = useMemo(() => {
-    const list = allReviews.filter(r => 
-      r.status !== "Rejected" && 
-      r.status !== "Hidden" && 
-      r.status !== "draft" && 
-      r.status !== "deleted" &&
-      r.type === "product" && 
-      (String(r.productId) === String(productId) || r.productId === "5" || !r.productId)
-    );
-    const realList = list.filter(r => !r.isAiGenerated && !r.isSample);
-    return realList.length > 0 ? realList.length : list.length;
-  }, [allReviews, productId]);
+  const productReviewsCount = publicReviewTotal || filteredReviews.length;
+  const storeReviewsCount = 0;
 
-  const storeReviewsCount = useMemo(() => {
-    const list = allReviews.filter(r => 
-      r.status !== "Rejected" && 
-      r.status !== "Hidden" && 
-      r.status !== "draft" && 
-      r.status !== "deleted" &&
-      (r.type === "store" || r.productId === "all")
-    );
-    const realList = list.filter(r => !r.isAiGenerated && !r.isSample);
-    return realList.length > 0 ? realList.length : list.length;
-  }, [allReviews]);
-
-  // Handlers
-  const handleLoadMore = () => {
+  const handleLoadMore = async () => {
+    if (!productId || isLoadingMore || !publicReviewHasMore) return;
     setIsLoadingMore(true);
-    setTimeout(() => {
-      setVisibleCount(prev => prev + (activeSettings?.perPage || 6));
+    try {
+      const nextPage = Math.floor(visibleCount / 6) + 1;
+      const result = await db.getPublicProductReviews(productId, nextPage, 6);
+      const incoming = Array.isArray(result.data) ? result.data : [];
+      const existingIds = new Set(allReviews.map(r => String(r.id)));
+      setAllReviews(prev => [...prev, ...incoming.filter(r => !existingIds.has(String(r.id)))]);
+      setVisibleCount(prev => prev + incoming.length);
+      setPublicReviewTotal(Number(result.total) || publicReviewTotal);
+      setPublicReviewHasMore(Boolean(result.hasMore));
+    } catch (_) {
+      setPublicReviewHasMore(false);
+    } finally {
       setIsLoadingMore(false);
-    }, 300);
+    }
   };
 
   const handleVote = (reviewId, type) => {
@@ -829,7 +816,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
         </div>
 
         {/* 6. PAGINATION / LOAD MORE */}
-        {filteredReviews.length > visibleCount && (
+        {publicReviewHasMore && (
           <div className="aura-load-more-wrap">
             <button 
               className="aura-load-more-btn"
@@ -844,7 +831,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                 </>
               ) : (
                 <>
-                  <span>Load More Reviews ({filteredReviews.length - visibleCount} remaining)</span>
+                  <span>Load More Reviews ({Math.max(0, publicReviewTotal - visibleCount)} remaining)</span>
                   <ChevronDown size={16} />
                 </>
               )}
