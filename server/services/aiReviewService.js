@@ -1,10 +1,29 @@
 import crypto from "crypto";
+import { GoogleGenAI } from "@google/genai";
 import { getExactTextHash, getNormalizedTextHash } from "../utils/similarity.js";
 
 const NEMOTRON_MODEL = "nvidia/nemotron-3-super-120b-a12b";
+const GEMINI_TEXT_MODELS = ['gemini-3.7-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+
+function getGeminiClient() {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) return null;
+  try {
+    return new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  } catch (err) {
+    return null;
+  }
+}
 
 /**
- * Server-side AI Review processing service powered by nvidia/nemotron-3-super-120b-a12b.
+ * Server-side AI Review processing service powered by nvidia/nemotron-3-super-120b-a12b and Gemini models.
  * Strictly respects authentic customer sentiment; never invents fake experiences.
  */
 export async function polishReviewWithNemotron({
@@ -51,9 +70,7 @@ export async function polishReviewWithNemotron({
   else if (hasHinglish) detectedLanguage = "Hinglish";
   else detectedLanguage = "English";
 
-  if (apiKey) {
-    try {
-      const systemPrompt = `You are a respectful, high-precision review editor for Aura Rudraksha, an authentic consecrated Rudraksha store.
+  const systemPrompt = `You are a respectful, high-precision review editor for Aura Rudraksha, an authentic consecrated Rudraksha store.
 Your ONLY responsibility is to polish grammar, spelling, punctuation, and readability of genuine customer reviews.
 
 STRICT MANDATES:
@@ -63,8 +80,39 @@ STRICT MANDATES:
 4. REMOVE any lingering parsing artifacts or copy-paste labels (like "Review:", "Rating:", "15.", quotation marks).
 5. Output ONLY the clean polished review text. No preface, no markdown quotes, no explanations.`;
 
-      const userPrompt = `Clean and polish this customer review while strictly preserving authentic sentiment:\n\nAuthor: ${author || "Customer"}\nProduct: ${productName || "Rudraksha"}\nRating: ${rating}/5\nLanguage: ${detectedLanguage}\nOriginal Review Text:\n"${cleaned}"`;
+  const userPrompt = `Clean and polish this customer review while strictly preserving authentic sentiment:\n\nAuthor: ${author || "Customer"}\nProduct: ${productName || "Rudraksha"}\nRating: ${rating}/5\nLanguage: ${detectedLanguage}\nOriginal Review Text:\n"${cleaned}"`;
 
+  // 1. Try Gemini models first if available
+  const geminiClient = getGeminiClient();
+  if (geminiClient && !aiProcessed) {
+    for (const gModel of GEMINI_TEXT_MODELS) {
+      if (aiProcessed) break;
+      try {
+        const geminiRes = await geminiClient.models.generateContent({
+          model: gModel,
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.2,
+            maxOutputTokens: 600
+          }
+        });
+        const candidate = (geminiRes.text || "").trim().replace(/^["'\s]+|["'\s]+$/g, "").trim();
+        if (candidate.length >= 5) {
+          processedText = candidate;
+          aiProcessed = true;
+          aiModel = gModel;
+          break;
+        }
+      } catch (gErr) {
+        // continue to next model candidate
+      }
+    }
+  }
+
+  // 2. Try NVIDIA Nemotron if Gemini was not available or didn't succeed
+  if (apiKey && !aiProcessed) {
+    try {
       const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -91,17 +139,15 @@ STRICT MANDATES:
         if (trimmedCandidate.length >= 5) {
           processedText = trimmedCandidate;
           aiProcessed = true;
+          aiModel = NEMOTRON_MODEL;
         }
-      } else {
-        const errBody = await response.text().catch(() => "");
-        console.warn(`[NVIDIA Nemotron] API request notice (${response.status}):`, errBody);
       }
     } catch (apiErr) {
-      console.warn("[NVIDIA Nemotron] Service connection notice:", apiErr?.message || apiErr);
+      // absorb and fall back cleanly
     }
   }
 
-  // Fallback high-quality deterministic formatting if AI was not invoked or returned unchanged
+  // 3. Fallback high-quality deterministic formatting if AI was not invoked or returned unchanged
   if (!aiProcessed) {
     processedText = cleaned
       .replace(/(^\w|\.\s*\w|\?\s*\w|!\s*\w)/g, c => c.toUpperCase());
@@ -112,7 +158,7 @@ STRICT MANDATES:
     originalText,
     processedText: processedText || cleaned || originalText,
     detectedLanguage,
-    aiModel: aiProcessed ? NEMOTRON_MODEL : "RuleBased-Sanitizer",
+    aiModel: aiProcessed ? aiModel : "RuleBased-Sanitizer",
     aiProcessed,
     originalTextHash: getExactTextHash(originalText),
     exactTextHash: getExactTextHash(processedText || originalText),
