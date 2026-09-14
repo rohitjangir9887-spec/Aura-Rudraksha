@@ -440,14 +440,12 @@ export async function getPublicProductsForSeo() {
           }
         ]
       }).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
-      if (products && products.length > 0) {
-        return products;
-      }
+      return products || [];
     } catch (err) {
-      console.warn("[SEO] Notice fetching public products from MongoDB, falling back to seed catalog:", err.message);
+      console.warn("[SEO] Notice fetching public products from MongoDB:", err.message);
     }
   }
-  return defaultProducts || [];
+  return [];
 }
 
 /**
@@ -553,8 +551,7 @@ export async function findProductForSeo(idOrSlug) {
     }
   }
 
-  // Resilient fallback to defaultProducts catalog only if not found in MongoDB
-  return matchProductFromCatalog(defaultProducts, clean);
+  return null;
 }
 
 /**

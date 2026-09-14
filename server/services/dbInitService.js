@@ -41,52 +41,27 @@ export async function ensureDatabaseInitialized() {
   };
 
   try {
-    // 1. Check and Seed Products
-    if (Array.isArray(defaultProducts)) {
-      for (const p of defaultProducts) {
-        if (!p || !p.id) continue;
-        const exists = await Product.exists({
-          $or: [
-            { id: String(p.id) },
-            ...(p.slug ? [{ slug: p.slug }] : [])
-          ]
-        });
-        if (!exists) {
-          const { _id, createdAt, updatedAt, ...cleanProduct } = p;
-          try {
-            await Product.create(cleanProduct);
-            summary.productsSeeded++;
-          } catch (err) {
-            // ignore duplicate keys if race condition
-          }
+    // 1. Slug Migration for Existing MongoDB Products (DO NOT AUTO-SEED DEMO PRODUCTS INTO PRODUCTION MONGODB)
+    try {
+      const noSlugProducts = await Product.find({
+        $or: [
+          { slug: { $exists: false } },
+          { slug: null },
+          { slug: "" }
+        ]
+      }).select("_id id name").lean();
+
+      for (const doc of noSlugProducts) {
+        const fallbackSlug = (doc.name || `product-${doc.id}`)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        if (fallbackSlug) {
+          await Product.updateOne({ _id: doc._id }, { $set: { slug: fallbackSlug } });
         }
       }
-      if (summary.productsSeeded > 0) {
-        console.log(`✅ [DB Init] Seeded ${summary.productsSeeded} missing products to catalog.`);
-      }
-
-      // Ensure any existing products without a slug get a clean canonical slug
-      try {
-        const noSlugProducts = await Product.find({
-          $or: [
-            { slug: { $exists: false } },
-            { slug: null },
-            { slug: "" }
-          ]
-        }).select("_id id name").lean();
-
-        for (const doc of noSlugProducts) {
-          const fallbackSlug = (doc.name || `product-${doc.id}`)
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "");
-          if (fallbackSlug) {
-            await Product.updateOne({ _id: doc._id }, { $set: { slug: fallbackSlug } });
-          }
-        }
-      } catch (err) {
-        console.warn("⚠️ [DB Init] Slug migration notice:", err?.message);
-      }
+    } catch (err) {
+      console.warn("⚠️ [DB Init] Slug migration notice:", err?.message);
     }
 
     // 2. Ensure Store Settings

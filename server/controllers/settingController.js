@@ -577,7 +577,11 @@ export async function seedDatabase(req, res, next) {
       return Math.max(0, after - before);
     };
 
-    seeded.products = await seedInsertOnly(Product, defaultProducts);
+    if (process.env.NODE_ENV !== "production" && req.query?.includeProducts === "true") {
+      seeded.products = await seedInsertOnly(Product, defaultProducts);
+    } else {
+      seeded.products = 0;
+    }
     seeded.orders = 0;
     seeded.customers = 0;
     seeded.coupons = await seedInsertOnly(Coupon, defaultCoupons);

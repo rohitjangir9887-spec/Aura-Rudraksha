@@ -1020,11 +1020,8 @@ export const db = {
 
   // PRODUCTS
   getProducts: () => {
-    let prods = storeCache.products;
-    if ((!prods || prods.length === 0) && (hasFetchedFreshData || isHydrated || storeCache.dbStatus === "disconnected")) {
-      prods = defaultProducts;
-    }
-    return (prods || []).map(p => {
+    let prods = storeCache.products || [];
+    return prods.map(p => {
       const pId = String(p.id || p._id || "");
       const stats = db.getProductReviewStats(pId);
       const liveReviews = stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0);
@@ -1089,25 +1086,6 @@ export const db = {
         if (xSlug && slugTarget.length >= 2 && (xSlug.includes(slugTarget) || slugTarget.includes(xSlug))) return true;
         if (xSlugifiedName && slugTarget.length >= 2 && (xSlugifiedName.includes(slugTarget) || slugTarget.includes(xSlugifiedName))) return true;
         if (xName && target.length >= 2 && (xName.includes(target) || target.includes(xName))) return true;
-        return false;
-      });
-    }
-
-    // 3. Fallback search in defaultProducts array for instant day-1 catalog resolution on new devices
-    if (!p && Array.isArray(defaultProducts)) {
-      p = defaultProducts.find(x => {
-        if (!x) return false;
-        const xId = String(x.id || "").toLowerCase();
-        const xMongoId = String(x._id || "").toLowerCase();
-        const xSlug = String(x.slug || "").toLowerCase();
-        const xName = String(x.name || "").toLowerCase();
-        const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-
-        if (xId === target || xId === slugTarget || xId === cleanId) return true;
-        if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId)) return true;
-        if (xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId)) return true;
-        if (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId) return true;
-        if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
         return false;
       });
     }
