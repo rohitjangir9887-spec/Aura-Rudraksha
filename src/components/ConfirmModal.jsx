@@ -71,6 +71,7 @@ export function ConfirmModal({
             </div>
             <button
               onClick={onClose}
+              aria-label="Close modal"
               style={{
                 background: "none",
                 border: "none",

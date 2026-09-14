@@ -803,6 +803,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                           className={`aura-vote-btn ${userVote === 'up' ? 'active-up' : ''}`}
                           onClick={() => handleVote(rev.id, 'up')}
                           title="Yes, this review was helpful"
+                          aria-label="Vote review as helpful"
                         >
                           <ThumbsUp size={13} />
                           <span>{rev.helpfulUp || 0}</span>
@@ -811,6 +812,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                           className={`aura-vote-btn ${userVote === 'down' ? 'active-down' : ''}`}
                           onClick={() => handleVote(rev.id, 'down')}
                           title="No, not helpful"
+                          aria-label="Vote review as not helpful"
                         >
                           <ThumbsDown size={13} />
                           <span>{rev.helpfulDown || 0}</span>
@@ -1031,6 +1033,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                         key={s}
                         className="aura-star-pick-btn"
                         onClick={() => setNewReviewForm(prev => ({ ...prev, rating: s }))}
+                        aria-label={`Rate \${s} stars`}
                       >
                         <Star 
                           size={28} 
