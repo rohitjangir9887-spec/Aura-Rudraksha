@@ -254,7 +254,7 @@ export function AdminReviews() {
 
   // Statistics
   const stats = useMemo(() => {
-    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected");
+    const activeReviews = reviews.filter(r => r.status !== "deleted" && r.status !== "Rejected" && !["google_reviews", "public_site", "imported", "external"].includes(String(r.source || "").toLowerCase()));
     const customerRevs = activeReviews.filter(r => r.source !== "ai_draft" && !r.isAiGenerated);
     const total = activeReviews.length;
     const avg = total > 0 ? (activeReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / total).toFixed(1) : "5.0";
@@ -1529,6 +1529,7 @@ export function AdminReviews() {
                 <option value="all">All Sources (Real & AI)</option>
                 <option value="real_customers">Genuine Customer Reviews</option>
                 <option value="ai_samples">AI Drafts (Internal)</option>
+                <option value="external">External Imports (Admin Archive)</option>
               </select>
 
               <select 
