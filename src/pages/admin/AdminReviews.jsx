@@ -174,46 +174,97 @@ export function AdminReviews() {
     setImportResults(null);
   };
 
-  const handleAiBoostLikes = async (reviewIdOrTarget, customCount = null) => {
+  const [boostConfirmData, setBoostConfirmData] = useState(null);
+
+  // Realistic random boost amount: 1 to 9 likes (mostly +1 or +2)
+  const getRealisticBoostAmount = () => {
+    const rand = Math.random();
+    if (rand < 0.60) return 1;       // 60% chance: +1
+    if (rand < 0.85) return 2;       // 25% chance: +2
+    if (rand < 0.93) return 3;       // 8% chance: +3
+    return Math.floor(Math.random() * 6) + 4; // 7% chance: +4 to +9
+  };
+
+  const requestAiBoostAllLikes = () => {
+    setBoostConfirmData({
+      type: 'all',
+      title: 'Confirm AI Boost All Likes',
+      message: `Are you sure you want to AI boost likes across all active customer reviews? Each review will receive between +1 and +9 likes (mostly +1 or +2).`
+    });
+  };
+
+  const requestAiBoostSingleLikes = (target, name = "") => {
+    if (target === 'edit') {
+      setBoostConfirmData({
+        type: 'edit',
+        title: 'Confirm AI Boost Likes',
+        message: 'Are you sure you want to AI boost likes for this edited review draft (+1 to +9 likes, mostly +1 or +2)?'
+      });
+      return;
+    }
+    if (target === 'new') {
+      setBoostConfirmData({
+        type: 'new',
+        title: 'Confirm AI Boost Likes',
+        message: 'Are you sure you want to AI boost likes for this new review (+1 to +9 likes, mostly +1 or +2)?'
+      });
+      return;
+    }
+    setBoostConfirmData({
+      type: 'single',
+      reviewId: target,
+      title: 'Confirm AI Boost Likes',
+      message: `Are you sure you want to AI boost likes for ${name ? `${name}'s review` : 'this review'} (+1 to +9 likes, mostly +1 or +2)?`
+    });
+  };
+
+  const executeBoostLikes = async () => {
+    if (!boostConfirmData) return;
+    const { type, reviewId } = boostConfirmData;
+    setBoostConfirmData(null);
+
     try {
-      if (reviewIdOrTarget === 'edit' && editingReview) {
-        const boosted = Math.floor(Math.random() * 25) + 12;
+      if (type === 'edit' && editingReview) {
+        const boosted = getRealisticBoostAmount();
         setEditingReview(prev => ({ ...prev, helpfulUp: (prev.helpfulUp || 0) + boosted }));
         emitToast(`✨ AI boosted review likes by +${boosted}!`, "success");
         return;
       }
-      if (reviewIdOrTarget === 'new') {
-        const boosted = Math.floor(Math.random() * 20) + 8;
+      if (type === 'new') {
+        const boosted = getRealisticBoostAmount();
         setNewReview(prev => ({ ...prev, helpfulUp: (prev.helpfulUp || 0) + boosted }));
         emitToast(`✨ AI boosted new review likes by +${boosted}!`, "success");
         return;
       }
-      const targetReview = reviews.find(r => r.id === reviewIdOrTarget || String(r._id) === String(reviewIdOrTarget));
-      if (!targetReview) return;
-      const boostAmount = customCount ? Number(customCount) : (Math.floor(Math.random() * 25) + 12);
-      const newLikes = (Number(targetReview.helpfulUp) || 0) + boostAmount;
-      await db.updateReview(targetReview.id || targetReview._id, { helpfulUp: newLikes });
-      emitToast(`✨ AI boosted likes for ${targetReview.name}'s review to ${newLikes} (+${boostAmount})!`, "success");
-    } catch (err) {
-      emitToast("Failed to boost review likes", "error");
-    }
-  };
-
-  const handleAiBoostAllLikes = async () => {
-    try {
-      emitToast("🤖 AI is boosting likes across all active customer reviews...", "info");
-      let count = 0;
-      for (const rev of reviews) {
-        if (rev.status !== "deleted" && rev.status !== "Rejected") {
-          const addLikes = Math.floor(Math.random() * 20) + 6;
-          const updatedLikes = (Number(rev.helpfulUp) || 0) + addLikes;
-          await db.updateReview(rev.id || rev._id, { helpfulUp: updatedLikes });
-          count++;
+      if (type === 'all') {
+        emitToast("🤖 AI is boosting likes across active customer reviews...", "info");
+        let count = 0;
+        let totalAdded = 0;
+        for (const rev of reviews) {
+          if (rev.status !== "deleted" && rev.status !== "Rejected") {
+            const addLikes = getRealisticBoostAmount();
+            const updatedLikes = (Number(rev.helpfulUp) || 0) + addLikes;
+            await db.updateReview(rev.id || rev._id, { helpfulUp: updatedLikes });
+            count++;
+            totalAdded += addLikes;
+          }
         }
+        setReviews(db.getAllReviews());
+        emitToast(`✨ AI boosted likes across ${count} reviews (+${totalAdded} total likes, +1 to +9 per review)!`, "success");
+        return;
       }
-      emitToast(`✨ AI successfully boosted likes for all ${count} active reviews!`, "success");
+      if (type === 'single' && reviewId) {
+        const targetReview = reviews.find(r => r.id === reviewId || String(r._id) === String(reviewId));
+        if (!targetReview) return;
+        const boostAmount = getRealisticBoostAmount();
+        const newLikes = (Number(targetReview.helpfulUp) || 0) + boostAmount;
+        await db.updateReview(targetReview.id || targetReview._id, { helpfulUp: newLikes });
+        setReviews(db.getAllReviews());
+        emitToast(`✨ AI boosted likes for ${targetReview.name}'s review to ${newLikes} (+${boostAmount})!`, "success");
+      }
     } catch (err) {
-      emitToast("Error boosting review likes", "error");
+      console.error(err);
+      emitToast("Failed to boost review likes", "error");
     }
   };
 
@@ -1002,7 +1053,7 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
           <button 
             type="button"
             className="admin-btn secondary"
-            onClick={handleAiBoostAllLikes}
+            onClick={requestAiBoostAllLikes}
             style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" }}
             title="AI Boost Likes across all active reviews"
           >
@@ -1899,8 +1950,8 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
                             <span style={{ color: "#166534", fontWeight: "600" }}>👍 {r.helpfulUp || 0} Likes</span>
                             <button
                               type="button"
-                              onClick={() => handleAiBoostLikes(r.id || r._id)}
-                              title="AI Boost Likes (+12 to +35)"
+                              onClick={() => requestAiBoostSingleLikes(r.id || r._id, r.name)}
+                              title="AI Boost Likes (+1 to +9)"
                               style={{
                                 padding: "2px 6px",
                                 fontSize: "11px",
@@ -2110,7 +2161,7 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
                   <span>Helpful Likes Count 👍</span>
                   <button
                     type="button"
-                    onClick={() => handleAiBoostLikes('edit')}
+                    onClick={() => requestAiBoostSingleLikes('edit')}
                     style={{ fontSize: "11px", padding: "3px 8px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
                   >
                     <Sparkles size={12} /> AI Boost Likes
@@ -2359,7 +2410,7 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
                   <span>Initial Likes Count 👍</span>
                   <button
                     type="button"
-                    onClick={() => handleAiBoostLikes('new')}
+                    onClick={() => requestAiBoostSingleLikes('new')}
                     style={{ fontSize: "11px", padding: "3px 8px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
                   >
                     <Sparkles size={12} /> AI Boost Likes
@@ -3034,7 +3085,19 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
         title="Delete Review"
         message="Are you sure you want to permanently delete this review? This action cannot be undone."
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteTargetId(null)}
+        onClose={() => setDeleteTargetId(null)}
+      />
+
+      {/* AI BOOST CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={!!boostConfirmData}
+        title={boostConfirmData?.title || "Confirm AI Boost Likes"}
+        message={boostConfirmData?.message || "Are you sure you want to boost review likes?"}
+        confirmText="Confirm Boost"
+        cancelText="Cancel"
+        isDanger={false}
+        onConfirm={executeBoostLikes}
+        onClose={() => setBoostConfirmData(null)}
       />
     </AdminLayout>
   );
