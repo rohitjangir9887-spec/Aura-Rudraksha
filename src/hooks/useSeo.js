@@ -19,16 +19,13 @@ export function useSeo({
     : (schema ? (Array.isArray(schema) ? schema : [schema]) : []);
 
   useEffect(() => {
-    if (title) {
-      document.title = title;
-    }
+    if (title) document.title = title;
 
     const setMetaTag = (attrName, attrValue, content) => {
       if (!content) return;
       let el = document.querySelector(`meta[${attrName}="${attrValue}"]`);
       if (!el) {
         el = document.createElement("meta");
-        el.setAttribute("name", attrValue);
         el.setAttribute(attrName, attrValue);
         document.head.appendChild(el);
       }
@@ -46,9 +43,7 @@ export function useSeo({
       setMetaTag("name", "twitter:title", title);
     }
 
-    if (ogType) {
-      setMetaTag("property", "og:type", ogType);
-    }
+    if (ogType) setMetaTag("property", "og:type", ogType);
 
     if (ogImage) {
       setMetaTag("property", "og:image", ogImage);
