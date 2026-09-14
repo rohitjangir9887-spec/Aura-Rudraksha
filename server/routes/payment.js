@@ -16,7 +16,6 @@ import { rateLimit } from "../middleware/rateLimit.js";
 
 const router = express.Router();
 
-// Strict anti-caching for all payment endpoints
 router.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -25,7 +24,6 @@ router.use((req, res, next) => {
   next();
 });
 
-// Dedicated rate limiters for payment actions
 const paymentInitiateLimit = rateLimit({
   windowMs: 60_000,
   max: 20,
@@ -47,32 +45,22 @@ const paymentRefundLimit = rateLimit({
   prefix: "pay_ref"
 });
 
-// 1. Initiate PayU Hosted Checkout Payment (Customer authenticated or guest)
-router.all("/initiate", optionalAuth, paymentInitiateLimit, initiatePayuPayment);
+// Hosted checkout initiation must be POST-only.
+router.post("/initiate", optionalAuth, paymentInitiateLimit, initiatePayuPayment);
 
-// 2. PayU Browser Redirect Callback (surl/furl - standard PayU Hosted Checkout POST / GET fallback)
-// DO NOT rate-limit PayU customer redirect callback
+// PayU may use GET/POST for browser callbacks and server webhooks depending on configuration.
 router.all("/payu-callback", handlePayuCallback);
-
-// 2b. PayU Cancel Redirect Callback
 router.all("/payu-cancel", handlePayuCancel);
-
-// 3. PayU Background Server Webhook
-// DO NOT rate-limit PayU server webhook
 router.all("/payu-webhook", handlePayuWebhook);
 
-// 4. Check / Verify Payment status for an order
-router.all("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
+// Customer status checks/retries are state-changing or sensitive; keep them POST-only.
+router.post("/verify/:orderId", optionalAuth, paymentVerifyLimit, verifyPaymentStatus);
+router.post("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
 
-// 5. Retry Payment on an existing pending/failed order
-router.all("/retry/:orderId", optionalAuth, paymentInitiateLimit, retryPayuPayment);
-
-// 6. Admin Process PayU Live Refund with OTP Verification
-router.all("/refund/request-otp/:orderId", requireAdmin, paymentRefundLimit, requestRefundOtp);
-router.all("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
-router.all("/sync-payu/:orderId", requireAdmin, syncPayuOrder);
-
-// 7. Customer Cancel Unpaid Order
-router.all("/cancel/:orderId", requireAuth, paymentInitiateLimit, cancelUnpaidOrder);
+// Admin refund operations and customer cancellation are POST-only.
+router.post("/refund/request-otp/:orderId", requireAdmin, paymentRefundLimit, requestRefundOtp);
+router.post("/refund/:orderId", requireAdmin, paymentRefundLimit, processPayuRefund);
+router.post("/sync-payu/:orderId", requireAdmin, syncPayuOrder);
+router.post("/cancel/:orderId", requireAuth, paymentInitiateLimit, cancelUnpaidOrder);
 
 export default router;
