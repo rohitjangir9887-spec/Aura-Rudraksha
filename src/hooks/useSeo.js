@@ -59,9 +59,19 @@ export function useSeo({
 
     // Canonical link & OG URL
     if (canonical) {
-      const cleanCanonical = canonical
-        .replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app)/i, "https://aurarudraksha.bond")
-        .replace(/^http:\/\/aurarudraksha\.bond/i, "https://aurarudraksha.bond");
+      let cleanCanonical = canonical;
+      if (cleanCanonical.startsWith("/")) {
+        cleanCanonical = `https://aurarudraksha.bond${cleanCanonical}`;
+      } else {
+        try {
+          const u = new URL(cleanCanonical);
+          cleanCanonical = `https://aurarudraksha.bond${u.pathname}${u.search}`;
+        } catch (_) {
+          cleanCanonical = cleanCanonical
+            .replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app|[a-z0-9-]+\.(?:vercel\.app|run\.app))/i, "https://aurarudraksha.bond")
+            .replace(/^http:\/\/aurarudraksha\.bond/i, "https://aurarudraksha.bond");
+        }
+      }
       let link = document.querySelector('link[rel="canonical"]');
       if (!link) {
         link = document.createElement("link");

@@ -922,11 +922,13 @@ body {
 .hero {
     aspect-ratio: auto !important;
     height: auto !important;
+    margin-top: 24px !important;
 }
 .hero img {
     width: 100% !important;
     height: auto !important;
-    object-fit: cover !important;
+    object-fit: contain !important;
+    object-position: center !important;
     display: block !important;
 }
 
@@ -1000,7 +1002,7 @@ body {
     min-height: unset !important;
     background: #1e0f07;
     border-radius: 12px;
-    margin: 0 auto 16px !important;
+    margin: 68px auto 16px !important;
     box-sizing: border-box;
 }
 .hero-slides {
@@ -1031,7 +1033,8 @@ body {
 .hero-slide img {
     width: 100% !important;
     height: 100% !important;
-    object-fit: cover !important;
+    object-fit: contain !important;
+    object-position: center !important;
     display: block !important;
     transform: none !important;
     transition: none !important;
@@ -15694,7 +15697,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 /* FOCUS MODE UI POLISH: REDUCED HERO BANNER SIZE */
 .hero {
     max-width: 900px !important;
-    margin: 20px auto 10px !important;
+    margin: 24px auto 14px !important;
     border-radius: 12px !important;
     box-shadow: 0 4px 16px rgba(0,0,0,0.04) !important;
     overflow: hidden !important;
@@ -15702,14 +15705,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 @media (max-width: 768px) {
     .hero {
         width: 94% !important;
-        margin: 15px auto 10px !important;
+        margin: 20px auto 12px !important;
         border-radius: 10px !important;
     }
 }
 @media (max-width: 480px) {
     .hero {
         width: 96% !important;
-        margin: 10px auto 8px !important;
+        margin: 16px auto 10px !important;
         border-radius: 8px !important;
     }
 }

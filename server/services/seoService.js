@@ -18,6 +18,7 @@ import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
+import { defaultProducts } from "../data/defaultData.js";
 
 // Canonical Organization & Brand Details
 export const SEO_BRAND = {
@@ -361,6 +362,30 @@ export const CATEGORIES_SEO_REGISTRY = {
       { name: "Home", path: "/" },
       { name: "Track Order", path: "/track-order" }
     ]
+  },
+  "/shop": {
+    h1: "Authentic Sacred Rudraksha Beads & Consecrated Malas Store",
+    title: "Shop Authentic Rudraksha Beads & Japa Malas — Lab Certified | Aura Rudraksha",
+    description: "Browse our complete catalog of 100% genuine lab-certified Nepali and Indonesian Rudraksha beads (1 to 21 Mukhi), Japa Malas, and protective wristlets.",
+    categoryName: "Shop Catalog",
+    changefreq: "daily",
+    priority: "0.95",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Shop", path: "/shop" }
+    ]
+  },
+  "/categories": {
+    h1: "Sacred Rudraksha Categories & Vedic Bead Types",
+    title: "Rudraksha Categories & Mukhi Varieties — Aura Rudraksha",
+    description: "Explore all sacred Rudraksha categories: 1 to 21 Mukhi beads, rare Gauri Shankar, Ganesh Rudraksha, Nepali vs Indonesian varieties, and 108+1 Japa Malas.",
+    categoryName: "Categories",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Categories", path: "/categories" }
+    ]
   }
 };
 
@@ -439,12 +464,12 @@ export async function getPublicProductsForSeo() {
           }
         ]
       }).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
-      return products || [];
+      if (products && products.length > 0) return products;
     } catch (err) {
       console.warn("[SEO] Notice fetching public products from MongoDB:", err.message);
     }
   }
-  return [];
+  return defaultProducts || [];
 }
 
 /**
@@ -550,7 +575,8 @@ export async function findProductForSeo(idOrSlug) {
     }
   }
 
-  return null;
+  // Fallback to seed catalog if database query yields no match
+  return matchProductFromCatalog(defaultProducts, clean);
 }
 
 /**

@@ -14,6 +14,7 @@ import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
+import { useSeo } from "../hooks/useSeo";
 
 export function Home() {
   const [hero, setHero] = useState(0);
@@ -59,6 +60,13 @@ export function Home() {
     }
   });
   const location = useLocation();
+
+  useSeo({
+    title: "Aura Rudraksha — 100% Authentic Nepal & Indonesian Rudraksha | Lab Certified",
+    description: "Discover genuine lab-tested Nepali Rudraksha beads (1 to 21 Mukhi), consecrated 108+1 Japa Malas, and protective Vedic wristlets. Free nationwide shipping & authentic certificates.",
+    canonical: "https://aurarudraksha.bond/",
+    ogImage: "https://aurarudraksha.bond/og-image.jpg"
+  });
 
   const updateLocalState = () => {
     const freshProducts = db.getProducts().filter(isPublicProduct);
@@ -239,7 +247,7 @@ export function Home() {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       aria-label="Aura Sacred Hero Banners"
-      style={{ overflow: 'hidden', borderRadius: '12px', margin: '0 0 16px 0', width: '100%' }}
+      style={{ overflow: 'hidden', borderRadius: '12px', margin: '68px auto 16px', width: '100%' }}
     >
       <div className="hero-slides" style={{ width: '100%', background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => {
@@ -256,7 +264,7 @@ export function Home() {
               quality={bannerQuality}
               priority={i === 0}
               containerClassName={`hero-slide ${i === hero ? 'active' : ''}`}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', display: 'block' }}
             />
           );
         })}

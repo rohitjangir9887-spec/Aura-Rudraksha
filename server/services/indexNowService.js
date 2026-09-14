@@ -33,19 +33,7 @@ export function getSiteDomain(req) {
 }
 
 export function getSiteBaseUrl(req) {
-  // If request host exists in incoming headers (e.g. from WhatsApp crawler, social bot, or browser)
-  if (req && req.headers) {
-    const rawHost = req.headers['x-forwarded-host'] || req.headers.host;
-    const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'https');
-    if (rawHost && typeof rawHost === "string") {
-      const cleanHost = rawHost.split(",")[0].trim().toLowerCase();
-      if (cleanHost && !cleanHost.includes("localhost") && !cleanHost.includes("127.0.0.1")) {
-        return `${proto}://${cleanHost}`;
-      }
-    }
-  }
-
-  // If explicitly configured with custom domain in env
+  // Always return canonical production domain for Google Search, canonical tags, sitemaps, and feeds
   if (process.env.SITE_URL) {
     let raw = process.env.SITE_URL.trim().replace(/\/+$/, "");
     if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
@@ -58,7 +46,7 @@ export function getSiteBaseUrl(req) {
     }
   }
 
-  // Canonical default for Google Search, Googlebot, Google Merchant Center
+  // Strict production canonical origin
   return DETERMINISTIC_CANONICAL_ORIGIN;
 }
 
