@@ -1,0 +1,28 @@
+/* Safe review UI fixes — intentionally isolated from the site's main stylesheet. */
+
+/* Never let the mobile sticky purchase CTA cover the review composer. */
+body:has(.aura-modal-backdrop) #aura-mobile-sticky-purchase-bar,
+body:has(.aura-modal-backdrop) .aura-mobile-sticky-purchase-bar,
+body:has(.aura-modal-backdrop) .sticky-purchase-bar {
+  display: none !important;
+}
+
+/* Keep the final/current product price visible even when optional offer styles are absent. */
+.aura-card-price-row,
+.aura-card-current-price {
+  display: flex !important;
+  align-items: center;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.aura-card-current-price {
+  font-weight: 800 !important;
+  line-height: 1.2;
+}
+
+/* Review cards should not expose uploaded-photo thumbnails; the source photo can be surfaced in the dedicated gallery. */
+.aura-card-photos-row,
+.aura-card-photo-indicator-chip {
+  display: none !important;
+}
