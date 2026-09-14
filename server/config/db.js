@@ -55,7 +55,10 @@ if (!global.__mongoose_listeners_attached) {
     console.log("⚡ [MongoDB] Connection established / restored.");
   });
   mongoose.connection.on("disconnected", () => {
-    console.warn("⚠️ [MongoDB] Connection socket idle / disconnected.");
+    console.warn("⚠️ [MongoDB] Connection socket idle / disconnected. Auto-reconnecting...");
+    cached.conn = null;
+    cached.promise = null;
+    connectDB().catch(err => console.warn("⚠️ [MongoDB] Auto-reconnect notice:", err?.message));
   });
   mongoose.connection.on("error", (err) => {
     console.warn("⚠️ [MongoDB] Connection error:", err.message);
@@ -143,32 +146,30 @@ export async function connectDB() {
     return true;
   }
 
-  if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (Date.now() - cached.lastFailedAttempt < 3000)) {
-    return false;
-  }
-
-  if (mongoose.connection.readyState === 2 && cached.promise) {
+  // If a connection attempt is already in flight, wait for it
+  if (cached.promise) {
     try {
       cached.conn = await cached.promise;
-      if (mongoose.connection.readyState === 1) {
-        cached.lastFailedAttempt = null;
-        return true;
-      }
-      return false;
-    } catch (err) {
-      recordConnectionError(err, "promise:await_inflight");
+      return mongoose.connection.readyState === 1;
+    } catch (_) {
       return false;
     }
   }
 
-  if (!cached.promise || mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
+  // 10-second cooldown after a failed connection attempt to prevent spamming requests and hanging API calls
+  const COOLDOWN_MS = 10000;
+  if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (Date.now() - cached.lastFailedAttempt < COOLDOWN_MS)) {
+    return false;
+  }
+
+  if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
     const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || 10000;
+    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || 4000;
     const opts = {
       serverSelectionTimeoutMS: timeoutVal,
       connectTimeoutMS: timeoutVal,
-      socketTimeoutMS: 45000,
-      maxIdleTimeMS: 60000,
+      socketTimeoutMS: 20000,
+      maxIdleTimeMS: 30000,
       maxPoolSize: isVercelServerless ? 5 : 10,
       minPoolSize: isVercelServerless ? 0 : 1,
       heartbeatFrequencyMS: 10000,
@@ -184,7 +185,8 @@ export async function connectDB() {
       const maxAttempts = isVercelServerless ? 1 : 2;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          const mongooseInstance = await mongoose.connect(activeUri, opts);
+          const currentOpts = activeUri === uri ? opts : { ...opts, serverSelectionTimeoutMS: 5000, connectTimeoutMS: 5000 };
+          const mongooseInstance = await mongoose.connect(activeUri, currentOpts);
           console.log(`✅ [MongoDB] Connected successfully: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
           cached.conn = mongooseInstance;
           cached.lastConnected = new Date().toISOString();
@@ -200,13 +202,17 @@ export async function connectDB() {
         } catch (err) {
           cached.lastFailedAttempt = Date.now();
           if (attempt < maxAttempts && !isVercelServerless) {
-            console.warn(`⚠️ [MongoDB] Initial connection attempt failed (${err.message}). Retrying...`);
+            if (err.message && err.message.includes("MongoDB Atlas cluster")) {
+              console.warn("⚠️ [MongoDB Atlas] Atlas IP Whitelist restriction detected (0.0.0.0/0 required on Atlas Network Access).");
+            } else {
+              console.warn(`⚠️ [MongoDB] Connection attempt ${attempt} notice: ${err.message}`);
+            }
             const memUri = await getOrStartMemoryMongo();
             if (memUri && activeUri !== memUri) {
-              console.log("⚡ [MongoDB] Switching to local resilient MongoDB fallback...");
+              console.log("⚡ [MongoDB] Activated local resilient MongoDB engine fallback.");
               activeUri = memUri;
             }
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 500));
           } else {
             throw err;
           }
