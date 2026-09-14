@@ -3,6 +3,24 @@ import { createApp } from "../server/app.js";
 
 const app = createApp({ enableSsr: true });
 
+const legacyProductRedirects = {
+  "/product/1-mukhi-rudraksha": "/product/premium-1-mukhi-rudraksha-authentic-lab-certified-aura-rudraksha",
+  "/product/2-mukhi-rudraksha": "/product/2-mukhi-rudraksha-authentic-lab-certified-bead-aura-rudraksha",
+  "/product/3-mukhi-rudraksha": "/product/3-mukhi-rudraksha-nepali-original-3-mukhi-rudraksha",
+  "/product/4-mukhi-rudraksha": "/product/4-mukhi-rudraksha-nepali-authentic-lab-certified-aura-rudraksha",
+  "/product/5-mukhi-rudraksha": "/product/5-mukhi-rudraksha-nepali-original-lab-certified-buy-online",
+  "/product/6-mukhi-rudraksha": "/product/buy-original-6-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/7-mukhi-rudraksha": "/product/buy-original-7-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/8-mukhi-rudraksha": "/product/buy-original-8-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/9-mukhi-rudraksha": "/product/buy-original-9-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/10-mukhi-rudraksha": "/product/buy-original-10-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/11-mukhi-rudraksha": "/product/buy-original-11-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/12-mukhi-rudraksha": "/product/buy-original-12-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/13-mukhi-rudraksha": "/product/buy-original-13-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/14-mukhi-rudraksha": "/product/buy-original-14-mukhi-rudraksha-nepali-online-lab-certified",
+  "/product/buy-original-5-mukhi-rudraksha-nepali-online-lab-certified": "/product/5-mukhi-rudraksha-nepali-original-lab-certified-buy-online"
+};
+
 export default async function handler(req, res) {
   // If Vercel rewrote to /api/index.js or /index.js, restore the original matched route
   if (req.headers && req.headers["x-matched-path"]) {
@@ -10,6 +28,14 @@ export default async function handler(req, res) {
     if (matched && matched !== "/api/index" && matched !== "/api/index.js") {
       req.url = matched;
     }
+  }
+
+  const requestPath = String(req.url || "").split("?", 1)[0];
+  const legacyTarget = legacyProductRedirects[requestPath];
+  if (legacyTarget) {
+    res.statusCode = 301;
+    res.setHeader("Location", legacyTarget);
+    return res.end();
   }
 
   // Keep product return markup aligned with the published return policy.
