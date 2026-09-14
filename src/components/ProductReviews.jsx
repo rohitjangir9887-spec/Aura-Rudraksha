@@ -429,7 +429,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                   })}
                 </div>
                 <span className="aura-based-count">
-                  Based on {stats.total || (activeTab === "product" ? productReviewsCount : storeReviewsCount)} reviews
+                  Based on {publicReviewTotal || filteredReviews.length} reviews
                 </span>
               </div>
             </div>
@@ -445,7 +445,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
               <button 
                 className="aura-write-review-cta"
                 onClick={() => {
-                  setNewReviewForm(prev => ({ ...prev, type: activeTab }));
+                  setNewReviewForm(prev => ({ ...prev, type: "product" }));
                   setIsWriteModalOpen(true);
                 }}
                 id="btn-open-write-review"
@@ -842,7 +842,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
         </div>
 
         {/* 6. PAGINATION / LOAD MORE */}
-        {filteredReviews.length > visibleCount && (
+        {publicReviewHasMore && (
           <div className="aura-load-more-wrap">
             <button 
               className="aura-load-more-btn"
@@ -857,7 +857,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                 </>
               ) : (
                 <>
-                  <span>Load More Reviews ({filteredReviews.length - visibleCount} remaining)</span>
+                  <span>Load More Reviews ({Math.max(0, publicReviewTotal - visibleCount)} remaining)</span>
                   <ChevronDown size={16} />
                 </>
               )}
