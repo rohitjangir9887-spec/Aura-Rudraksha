@@ -62,6 +62,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
 
   useEffect(() => {
     if (onComposerOpenChange) onComposerOpenChange(isWriteModalOpen);
+    return () => {
+      if (onComposerOpenChange) onComposerOpenChange(false);
+    };
   }, [isWriteModalOpen, onComposerOpenChange]);
 
   // Load reviews and settings from db
