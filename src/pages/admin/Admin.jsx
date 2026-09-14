@@ -322,8 +322,8 @@ export function Admin() {
   const [fetchError, setFetchError] = useState(null);
   const mountedRef = useRef(true);
 
-  const refreshDashboard = useCallback(async () => {
-    setRefreshing(true);
+  const refreshDashboard = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
     setFetchError(null);
     try {
       // Fresh live data from MongoDB
@@ -372,32 +372,24 @@ export function Admin() {
         .slice(0, 5));
       setTopProducts(realProducts.slice(0, 5));
 
-      // Fetch real media statistics from MongoDB & Check Puter Storage Status
-      checkPuter();
-      const mediaStatsRes = await fetch("/api/upload/stats")
+      // Fetch media statistics in background
+      fetch("/api/upload/stats")
         .then(res => res.json())
-        .catch(() => ({ success: false }));
-      if (mediaStatsRes.success) {
-        setMediaStats({
-          serverStorage: mediaStatsRes.serverStorage || "Puter Cloud Storage",
-          imagesCount: mediaStatsRes.imagesCount ?? 0,
-          videosCount: mediaStatsRes.videosCount ?? 0,
-          totalCount: mediaStatsRes.totalCount ?? 0,
-          totalSizeBytes: mediaStatsRes.totalSizeBytes ?? 0,
-          lastUpload: mediaStatsRes.lastUpload || null,
-          lastSyncTime: new Date().toLocaleTimeString()
-        });
-      } else {
-        setMediaStats(prev => ({
-          ...prev,
-          imagesCount: null,
-          videosCount: null,
-          totalCount: null,
-          totalSizeBytes: null,
-          lastUpload: null,
-          lastSyncTime: null
-        }));
-      }
+        .then(mediaStatsRes => {
+          if (!mountedRef.current) return;
+          if (mediaStatsRes && mediaStatsRes.success) {
+            setMediaStats({
+              serverStorage: mediaStatsRes.serverStorage || "Puter Cloud Storage",
+              imagesCount: mediaStatsRes.imagesCount ?? 0,
+              videosCount: mediaStatsRes.videosCount ?? 0,
+              totalCount: mediaStatsRes.totalCount ?? 0,
+              totalSizeBytes: mediaStatsRes.totalSizeBytes ?? 0,
+              lastUpload: mediaStatsRes.lastUpload || null,
+              lastSyncTime: new Date().toLocaleTimeString()
+            });
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       console.warn("[Admin] Dashboard refresh notice:", err?.message || err);
       setFetchError(err?.message || "Could not synchronize some dashboard metrics.");
@@ -410,15 +402,18 @@ export function Admin() {
     mountedRef.current = true;
 
     // Fast initial load from cached memory
-    refreshDashboard();
+    refreshDashboard(false);
 
-    // Run secondary cloud storage checks asynchronously in background
-    Promise.allSettled([
-      fetchActiveProvider(),
-      checkPcloud(),
-      checkImagekit(),
-      checkPuter()
-    ]);
+    // Defer cloud storage checks so dashboard renders instantly
+    const timer = setTimeout(() => {
+      if (!mountedRef.current) return;
+      Promise.allSettled([
+        fetchActiveProvider(),
+        checkPcloud(),
+        checkImagekit(),
+        checkPuter()
+      ]);
+    }, 250);
 
     db.checkDbHealth()
       .then(h => {

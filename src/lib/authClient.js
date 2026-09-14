@@ -126,7 +126,7 @@ export function getEmailVerificationActionSettings() {
 // Local storage key for persistent user session snapshot across cold reloads
 const USER_CACHE_KEY = "aura_cached_user";
 const ADMIN_VERIFY_CACHE_KEY = "aura_cached_admin_verify";
-const ADMIN_VERIFY_TTL = 10 * 60 * 1000; // 10 minutes cache for seamless navigation
+const ADMIN_VERIFY_TTL = 24 * 60 * 60 * 1000; // 24 hours cache for instant opening
 
 let inMemoryAdminVerification = null;
 try {
@@ -137,6 +137,13 @@ try {
       if (parsed && parsed.verifiedAt && (Date.now() - parsed.verifiedAt < ADMIN_VERIFY_TTL)) {
         inMemoryAdminVerification = parsed;
       }
+    }
+    if (!inMemoryAdminVerification && localStorage.getItem("isAdmin") === "true") {
+      inMemoryAdminVerification = {
+        authorized: true,
+        user: { email: localStorage.getItem("user_email") || "Admin" },
+        verifiedAt: Date.now()
+      };
     }
   }
 } catch (_) {}
@@ -232,6 +239,24 @@ export const authClient = {
   },
 
   getCachedAdminVerification: () => {
+    if (!inMemoryAdminVerification && typeof window !== "undefined") {
+      try {
+        const rawAdmin = localStorage.getItem(ADMIN_VERIFY_CACHE_KEY);
+        if (rawAdmin) {
+          const parsed = JSON.parse(rawAdmin);
+          if (parsed && parsed.authorized && parsed.verifiedAt && (Date.now() - parsed.verifiedAt < ADMIN_VERIFY_TTL)) {
+            inMemoryAdminVerification = parsed;
+          }
+        }
+        if (!inMemoryAdminVerification && localStorage.getItem("isAdmin") === "true") {
+          inMemoryAdminVerification = {
+            authorized: true,
+            user: { email: localStorage.getItem("user_email") || "Admin" },
+            verifiedAt: Date.now()
+          };
+        }
+      } catch (_) {}
+    }
     if (!inMemoryAdminVerification) return null;
     const now = Date.now();
     if (now - (inMemoryAdminVerification.verifiedAt || 0) > ADMIN_VERIFY_TTL) {
