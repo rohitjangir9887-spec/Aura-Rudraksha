@@ -39,14 +39,21 @@ export const MASTER_KEYWORD_TAXONOMY = {
     "11": ["11 mukhi rudraksha", "gyarah mukhi rudraksha", "hanuman 11 mukhi rudraksha", "11 mukhi rudraksha benefits for courage", "11 mukhi rudraksh dharan mantra"],
     "12": ["12 mukhi rudraksha", "barah mukhi rudraksha", "surya 12 mukhi rudraksha for leadership", "12 mukhi rudraksha benefits", "barah mukhi rudraksha ke fayde"],
     "13": ["13 mukhi rudraksha", "terah mukhi rudraksha", "kamadeva 13 mukhi rudraksha", "13 mukhi rudraksha benefits", "original 13 mukhi nepali rudraksha"],
-    "14": ["14 mukhi rudraksha", "chaudah mukhi rudraksha", "deva mani 14 mukhi rudraksha", "14 mukhi rudraksha for third eye intuition", "14 mukhi rudraksha price"],
+    "14": ["14 mukhi rudraksha", "chaudah mukhi rudraksha", "deva mani 14 mukhi rudraksha", "14 mukhi rudraksha for intuition", "14 mukhi rudraksha price"],
+    "15": ["15 mukhi rudraksha", "pandrah mukhi rudraksha", "15 mukhi rudraksha Nepal", "15 mukhi rudraksha benefits", "15 mukhi rudraksha price"],
+    "16": ["16 mukhi rudraksha", "solah mukhi rudraksha", "16 mukhi rudraksha Nepal", "16 mukhi rudraksha benefits", "16 mukhi rudraksha price"],
+    "17": ["17 mukhi rudraksha", "satrah mukhi rudraksha", "17 mukhi rudraksha Nepal", "17 mukhi rudraksha benefits", "17 mukhi rudraksha price"],
+    "18": ["18 mukhi rudraksha", "atharah mukhi rudraksha", "18 mukhi rudraksha Nepal", "18 mukhi rudraksha benefits", "18 mukhi rudraksha price"],
+    "19": ["19 mukhi rudraksha", "unnis mukhi rudraksha", "19 mukhi rudraksha Nepal", "19 mukhi rudraksha benefits", "19 mukhi rudraksha price"],
+    "20": ["20 mukhi rudraksha", "bees mukhi rudraksha", "20 mukhi rudraksha Nepal", "20 mukhi rudraksha benefits", "20 mukhi rudraksha price"],
+    "21": ["21 mukhi rudraksha", "ikkis mukhi rudraksha", "21 mukhi rudraksha Nepal", "21 mukhi rudraksha benefits", "21 mukhi rudraksha price"],
     "gauri-shankar": ["gauri shankar rudraksha", "original gauri shankar rudraksha price", "gauri shankar rudraksha for marriage", "gauri shankar rudraksha benefits"],
     "ganesh": ["ganesh rudraksha", "ganpati rudraksha benefits", "original ganesh rudraksha price", "ganesh rudraksha for obstacle removal"]
   }
 };
 
 /**
- * Automatically generate comprehensive, non-stuffed SEO fields for product uploads/updates
+ * Automatically generate concise, non-stuffed SEO fields for product uploads/updates.
  */
 export function generateProductSeoMetadata(product = {}) {
   const name = String(product.name || "").trim();
@@ -54,13 +61,11 @@ export function generateProductSeoMetadata(product = {}) {
   const mukhi = rawMukhi && /^\d+$/.test(String(rawMukhi)) ? String(rawMukhi) : null;
   const origin = (product.origin || "Nepal").trim();
   const category = (product.category || "Rudraksha").trim();
-  const price = product.price ? Number(product.price) : null;
 
   const beadData = mukhi && VEDIC_BEADS_KNOWLEDGE[mukhi] ? VEDIC_BEADS_KNOWLEDGE[mukhi] : null;
   const deity = product.deity || beadData?.deity || (/gauri/i.test(name) ? "Shiva & Parvati" : /ganesh/i.test(name) ? "Lord Ganesha" : "Lord Shiva");
   const planet = product.rulingPlanet || beadData?.planet || "Navagraha";
 
-  // 1. Meta Title (Max ~60-65 chars for Google SERP)
   let metaTitle = product.metaTitle || "";
   if (!metaTitle) {
     if (mukhi) {
@@ -70,33 +75,29 @@ export function generateProductSeoMetadata(product = {}) {
     } else if (/ganesh/i.test(name)) {
       metaTitle = `Authentic Ganesh Rudraksha (${origin}) | Aura Rudraksha`;
     } else if (category.toLowerCase().includes("mala")) {
-      metaTitle = `${name} (108+1 Beads) | Aura Rudraksha`;
+      metaTitle = `${name} | Aura Rudraksha`;
     } else {
-      metaTitle = `${name} — 100% Authentic Lab Certified | Aura Rudraksha`;
+      metaTitle = `${name} — Authentic Lab Certified | Aura Rudraksha`;
     }
   }
 
-  // 2. Meta Description (Max ~155-160 chars for Google SERP)
   let metaDescription = product.metaDescription || "";
   if (!metaDescription) {
     if (mukhi && beadData) {
-      metaDescription = `Buy authentic ${mukhi} Mukhi Rudraksha bead from ${origin}. Blessed by ${deity}, ruled by planet ${planet}. Includes lab certificate & free insured shipping.`;
+      metaDescription = `Buy authentic ${mukhi} Mukhi Rudraksha bead from ${origin}. Traditional Vedic significance, lab certificate, and insured India shipping.`;
     } else {
-      metaDescription = `Buy genuine ${name} with laboratory authenticity certificate. Consecrated with traditional Vedic rituals. Free nationwide shipping at Aura Rudraksha.`;
+      metaDescription = `Buy genuine ${name} with laboratory authenticity certificate. Consecrated with traditional Vedic rituals at Aura Rudraksha.`;
     }
   }
 
-  // 3. Image Alt Text
-  const primaryAlt = `${name} - 100% Authentic ${origin} Origin Lab Certified Bead`;
+  const primaryAlt = `${name} - ${origin} Origin Lab Certified Rudraksha`;
   const galleryAlts = [
-    `${name} front view showing natural mukhi lines and organic texture`,
-    `${name} authenticity certificate and laboratory verification report`,
-    `${name} scale measurement and natural Himalayan bead contours`
+    `${name} front view showing natural mukhi lines and texture`,
+    `${name} authenticity certificate and laboratory verification`,
+    `${name} scale measurement and natural bead contours`
   ];
 
-  // 4. Natural Keywords (No keyword stuffing - max 6 to 8 highly targeted phrases)
   const keywordSet = new Set();
-  
   if (mukhi && MASTER_KEYWORD_TAXONOMY.mukhiKeywords[mukhi]) {
     MASTER_KEYWORD_TAXONOMY.mukhiKeywords[mukhi].forEach(k => keywordSet.add(k));
   } else if (/gauri\s*shankar/i.test(name)) {
@@ -107,7 +108,7 @@ export function generateProductSeoMetadata(product = {}) {
 
   if (category.toLowerCase().includes("mala")) {
     keywordSet.add("108 rudraksha japa mala");
-    keywordSet.add("original 5 mukhi rudraksha mala");
+    keywordSet.add("rudraksha mala");
   }
 
   keywordSet.add(`original ${origin.toLowerCase()} rudraksha`);
@@ -117,8 +118,8 @@ export function generateProductSeoMetadata(product = {}) {
   const naturalKeywords = Array.from(keywordSet).slice(0, 8);
 
   return {
-    metaTitle: metaTitle.slice(0, 70),
-    metaDescription: metaDescription.slice(0, 160),
+    metaTitle: metaTitle.slice(0, 65),
+    metaDescription: metaDescription.slice(0, 155),
     primaryAlt,
     galleryAlts,
     keywords: naturalKeywords,
