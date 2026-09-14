@@ -33,10 +33,64 @@ const PRODUCT_FIELDS = {
 };
 
 /**
- * Daily sales helper - preserved for signature compatibility without automatic mutation
+ * Daily sales helper - automatically increments product total sales count
+ * without mutating or reverting any admin-configured product details
  */
 export async function applyDailySalesIncrement(products = []) {
-  return products;
+  if (!Array.isArray(products) || products.length === 0) return products;
+  const todayStr = new Date().toISOString().split("T")[0];
+  const bulkOps = [];
+  let updatedAny = false;
+
+  const result = products.map(p => {
+    if (!p) return p;
+    // If admin explicitly turned off auto increment for this product, preserve existing sales
+    if (p.autoIncrementSales === false) return p;
+
+    const curCount = Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
+    const lastDate = p.lastSalesUpdateDate || "";
+
+    if (lastDate !== todayStr || curCount === 0) {
+      const minInc = Number(p.dailySalesMin) || 1;
+      const maxInc = Number(p.dailySalesMax) || 6;
+      const dailyInc = Math.floor(Math.random() * (maxInc - minInc + 1)) + minInc;
+      const baseCount = curCount > 0 ? curCount : 150;
+      const newCount = baseCount + dailyInc;
+      const formattedTotalSold = `${newCount.toLocaleString("en-IN")}+ Sold`;
+
+      updatedAny = true;
+      const cleanId = String(p.id || p._id || "");
+      if (cleanId) {
+        bulkOps.push({
+          updateOne: {
+            filter: { $or: [{ id: cleanId }, { _id: cleanId }] },
+            update: {
+              $set: {
+                salesCount: newCount,
+                timesPurchased: newCount,
+                totalSold: formattedTotalSold,
+                lastSalesUpdateDate: todayStr
+              }
+            }
+          }
+        });
+      }
+
+      return {
+        ...p,
+        salesCount: newCount,
+        timesPurchased: newCount,
+        totalSold: formattedTotalSold,
+        lastSalesUpdateDate: todayStr
+      };
+    }
+    return p;
+  });
+
+  if (updatedAny && isDbConnected() && bulkOps.length > 0) {
+    Product.bulkWrite(bulkOps).catch(err => console.warn("[Daily Sales Sync Notice]:", err?.message));
+  }
+  return result;
 }
 
 /**
@@ -91,11 +145,14 @@ export async function getProducts(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const items = toPublicProductDTO(inMemoryStore.products || []);
+      const items = inMemoryStore.products || [];
+      const updatedItems = await applyDailySalesIncrement(items);
+      inMemoryStore.products = updatedItems;
+      const publicItems = toPublicProductDTO(updatedItems);
       return res.json({
         success: true,
-        data: items,
-        count: items.length,
+        data: publicItems,
+        count: publicItems.length,
         isFallback: true
       });
     }
@@ -132,7 +189,8 @@ export async function getProducts(req, res, next) {
     }
 
     const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
-    const sanitizedProducts = toPublicProductDTO(products);
+    const productsWithUpdatedSales = await applyDailySalesIncrement(products);
+    const sanitizedProducts = toPublicProductDTO(productsWithUpdatedSales);
 
     if (!isAdmin && !req.query.status && !req.query.category) {
       publicProductsCache = sanitizedProducts;

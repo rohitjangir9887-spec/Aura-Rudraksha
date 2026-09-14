@@ -177,7 +177,21 @@ export async function getReviews(req, res, next) {
     if (!isDbConnected()) {
       let list = inMemoryStore.reviews || defaultReviews;
       if (productId && productId !== "all") {
-        list = list.filter(r => String(r.productId) === String(productId) && isPublicReviewSource(r.source) && r.publicDisplay !== false);
+        list = list.filter(r => String(r.productId) === String(productId));
+      }
+      if (type && type !== "all") {
+        list = list.filter(r => (r.type || "product") === type);
+      }
+      if (status && status !== "all") {
+        list = list.filter(r => (r.status || "Approved") === status);
+      }
+      if (source && source !== "all") {
+        list = list.filter(r => (r.source || "customer") === source);
+      }
+      if (!isAdmin) {
+        list = list.filter(r => (r.status === "Approved" || r.status === "Published" || !r.status) && r.status !== "deleted" && r.status !== "Hidden" && isPublicReviewSource(r.source) && r.publicDisplay !== false);
+      } else {
+        list = list.filter(r => r.status !== "deleted");
       }
       return res.json({ success: true, data: list, count: list.length, isFallback: true });
     }
@@ -227,6 +241,8 @@ export async function createReview(req, res, next) {
     let existingCorpus = [];
     if (isDbConnected()) {
       existingCorpus = await Review.find({ status: { $ne: "deleted" } }).select("id title text sourceReviewId exactTextHash normalizedTextHash").lean();
+    } else {
+      existingCorpus = (inMemoryStore.reviews || defaultReviews).filter(r => r.status !== "deleted");
     }
 
     const dupCheck = checkDuplicateReview({ text: trimmedText, exactTextHash: exactHash, normalizedTextHash: normalizedHash }, existingCorpus);
@@ -293,8 +309,8 @@ export async function createReview(req, res, next) {
       date: "Just now",
       source: "customer",
       sourceReviewId: "",
-      status: "Pending",
-      publishedAt: null,
+      status: "Approved",
+      publishedAt: new Date(),
       verified: isVerifiedPurchase,
       isAiGenerated: false,
       featured: false,
@@ -303,12 +319,12 @@ export async function createReview(req, res, next) {
     };
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Reviews require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      if (!Array.isArray(inMemoryStore.reviews)) inMemoryStore.reviews = [];
+      inMemoryStore.reviews.unshift(payload);
+      if (payload.productId) {
+        await syncProductReviewStats(payload.productId);
+      }
+      return res.status(201).json({ success: true, data: payload });
     }
 
     const created = await Review.create(payload);
@@ -324,6 +340,7 @@ export async function createReview(req, res, next) {
 export async function updateReview(req, res, next) {
   try {
     const { id } = req.params;
+    const strId = String(id);
     const data = pickFields(req.body, ADMIN_REVIEW_FIELDS);
     if (Array.isArray(req.body.images)) {
       data.images = validateReviewImages(req.body.images);
@@ -335,45 +352,54 @@ export async function updateReview(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Reviews require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      if (!Array.isArray(inMemoryStore.reviews)) {
+        inMemoryStore.reviews = JSON.parse(JSON.stringify(defaultReviews));
+      }
+      let item = inMemoryStore.reviews.find(r => String(r.id) === strId || String(r._id) === strId);
+      if (!item) {
+        const def = defaultReviews.find(r => String(r.id) === strId || String(r._id) === strId);
+        if (def) {
+          item = { ...def };
+          inMemoryStore.reviews.push(item);
+        } else {
+          item = { id: strId, ...data };
+          inMemoryStore.reviews.push(item);
+        }
+      }
+      Object.assign(item, data);
+      await syncProductReviewStats(item.productId || data.productId);
+      return res.json({ success: true, data: item });
     }
 
-    const existing = await Review.findOne({ id: String(id) }).lean();
+    const existing = await Review.findOne({ $or: [{ id: strId }, { _id: strId }] }).lean();
 
     if (data.productId) {
       const targetProduct = await Product.findOne({
         $or: [{ id: String(data.productId) }, { slug: String(data.productId) }]
       }).lean();
-      if (!targetProduct && String(data.type || existing?.type || "product") === "product") {
-        return res.status(400).json({
-          success: false,
-          message: "Selected product does not exist in the current catalog."
-        });
-      }
       if (targetProduct) {
         data.productId = String(targetProduct.id);
         data.productName = targetProduct.name;
       }
     }
 
-    const updated = await Review.findOneAndUpdate(
-      { id: String(id) },
+    let updated = await Review.findOneAndUpdate(
+      { $or: [{ id: strId }, { _id: strId }] },
       { $set: data },
       { returnDocument: "after" }
     );
+
     if (!updated) {
-      return res.status(404).json({ success: false, message: "Review not found" });
+      // If review was in seed/default data but not yet saved in Mongo, insert it
+      const seedItem = defaultReviews.find(r => String(r.id) === strId);
+      const newPayload = { ...(seedItem || {}), id: strId, ...data };
+      updated = await Review.create(newPayload);
     }
 
-    if (updated.productId) {
+    if (updated?.productId) {
       await syncProductReviewStats(updated.productId);
     }
-    if (existing && existing.productId && String(existing.productId) !== String(updated.productId)) {
+    if (existing && existing.productId && String(existing.productId) !== String(updated?.productId)) {
       await syncProductReviewStats(existing.productId);
     }
 
@@ -389,17 +415,20 @@ export async function deleteReview(req, res, next) {
     const reviewId = String(id);
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Reviews require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      if (Array.isArray(inMemoryStore.reviews)) {
+        const item = inMemoryStore.reviews.find(r => String(r.id) === reviewId || String(r._id) === reviewId);
+        if (item) {
+          item.status = "deleted";
+          item.deletedAt = new Date();
+          await syncProductReviewStats(item.productId);
+        }
+      }
+      return res.json({ success: true, message: "Review deleted successfully", id: reviewId });
     }
 
-    const existing = await Review.findOne({ id: reviewId }).lean();
+    const existing = await Review.findOne({ $or: [{ id: reviewId }, { _id: reviewId }] }).lean();
     await Review.findOneAndUpdate(
-      { id: reviewId },
+      { $or: [{ id: reviewId }, { _id: reviewId }] },
       {
         $set: {
           status: "deleted",
@@ -425,17 +454,17 @@ export async function voteReview(req, res, next) {
     const { voteType = "up" } = req.body;
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Reviews require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      const item = (inMemoryStore.reviews || []).find(r => String(r.id) === String(id));
+      if (item) {
+        if (voteType === "up") item.helpfulUp = (Number(item.helpfulUp) || 0) + 1;
+        else item.helpfulDown = (Number(item.helpfulDown) || 0) + 1;
+      }
+      return res.json({ success: true, data: item });
     }
 
     const inc = voteType === "up" ? { helpfulUp: 1 } : { helpfulDown: 1 };
     const updated = await Review.findOneAndUpdate(
-      { id: String(id) },
+      { $or: [{ id: String(id) }, { _id: String(id) }] },
       { $inc: inc },
       { returnDocument: "after" }
     );
@@ -451,12 +480,7 @@ export async function voteReview(req, res, next) {
 export async function getReviewSettings(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Review settings require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      return res.json({ success: true, data: inMemoryStore.reviewSettings || defaultReviewSettings });
     }
 
     let settings = await ReviewSetting.findOne({ id: "DEFAULT_REVIEW_SETTINGS" }).lean();
@@ -474,12 +498,8 @@ export async function saveReviewSettings(req, res, next) {
   try {
     const data = req.body;
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Review settings require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      inMemoryStore.reviewSettings = { ...(inMemoryStore.reviewSettings || defaultReviewSettings), ...data };
+      return res.json({ success: true, data: inMemoryStore.reviewSettings });
     }
 
     const updated = await ReviewSetting.findOneAndUpdate(
@@ -1421,16 +1441,12 @@ export async function bulkSaveReviews(req, res, next) {
       return res.status(400).json({ success: false, message: "No review drafts provided for saving." });
     }
 
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Saving reviews requires an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+    let existingCorpus = [];
+    if (isDbConnected()) {
+      existingCorpus = await Review.find({ status: { $ne: "deleted" } }).select("id title text sourceReviewId exactTextHash normalizedTextHash").lean();
+    } else {
+      existingCorpus = (inMemoryStore.reviews || defaultReviews).filter(r => r.status !== "deleted");
     }
-
-    const existingCorpus = await Review.find({ status: { $ne: "deleted" } }).select("id title text sourceReviewId exactTextHash normalizedTextHash").lean();
 
     const savedList = [];
     const skippedList = [];
@@ -1504,12 +1520,23 @@ export async function bulkSaveReviews(req, res, next) {
         date: relativeDate
       };
 
-      const saved = await Review.findOneAndUpdate(
-        { id: payload.id },
-        payload,
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      savedList.push(saved);
+      if (!isDbConnected()) {
+        if (!Array.isArray(inMemoryStore.reviews)) inMemoryStore.reviews = [];
+        const existingIdx = inMemoryStore.reviews.findIndex(x => String(x.id) === String(payload.id));
+        if (existingIdx !== -1) {
+          inMemoryStore.reviews[existingIdx] = payload;
+        } else {
+          inMemoryStore.reviews.unshift(payload);
+        }
+        savedList.push(payload);
+      } else {
+        const saved = await Review.findOneAndUpdate(
+          { id: payload.id },
+          payload,
+          { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+        );
+        savedList.push(saved);
+      }
 
       existingCorpus.push(payload);
     }

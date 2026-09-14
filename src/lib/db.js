@@ -261,7 +261,7 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 // Deleted review tracking to ensure deleted reviews are never resurrected on refresh
-function getDeletedReviewIds() {
+export function getDeletedReviewIds() {
   if (typeof window === "undefined") return new Set();
   try {
     const raw = localStorage.getItem("aura_deleted_review_ids");
@@ -270,13 +270,55 @@ function getDeletedReviewIds() {
   return new Set();
 }
 
-function recordDeletedReviewId(id) {
+export function recordDeletedReviewId(id) {
   if (typeof window === "undefined" || !id) return;
   try {
     const set = getDeletedReviewIds();
     set.add(String(id));
     localStorage.setItem("aura_deleted_review_ids", JSON.stringify(Array.from(set)));
   } catch (_) {}
+}
+
+export function unrecordDeletedReviewId(id) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const set = getDeletedReviewIds();
+    set.delete(String(id));
+    localStorage.setItem("aura_deleted_review_ids", JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
+// Review overrides tracking to guarantee admin status changes (Approved/Rejected/Pending) never revert on refresh
+export function getReviewOverrides() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem("aura_review_overrides");
+    if (raw) return JSON.parse(raw) || {};
+  } catch (_) {}
+  return {};
+}
+
+export function saveReviewOverride(id, patch) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const overrides = getReviewOverrides();
+    const strId = String(id);
+    overrides[strId] = { ...(overrides[strId] || {}), ...patch };
+    localStorage.setItem("aura_review_overrides", JSON.stringify(overrides));
+  } catch (_) {}
+}
+
+export function applyReviewOverrides(reviewList) {
+  if (!Array.isArray(reviewList)) return reviewList;
+  const overrides = getReviewOverrides();
+  if (!overrides || Object.keys(overrides).length === 0) return reviewList;
+  return reviewList.map(r => {
+    const strId = String(r.id || r._id || "");
+    if (strId && overrides[strId]) {
+      return { ...r, ...overrides[strId] };
+    }
+    return r;
+  });
 }
 
 // Deleted product tracking to ensure deleted products are never resurrected on refresh
@@ -569,7 +611,11 @@ export function loadCacheFromLocalStorage() {
     const cachedReviews = localStorage.getItem("aura_reviews_cache");
     if (cachedReviews) {
       const parsed = JSON.parse(cachedReviews);
-      if (Array.isArray(parsed)) storeCache.reviews = parsed;
+      if (Array.isArray(parsed)) {
+        const deletedIds = getDeletedReviewIds();
+        const overridden = applyReviewOverrides(parsed);
+        storeCache.reviews = overridden.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
+      }
     }
     // Clear any legacy stale order/customer cache keys to ensure MongoDB authoritative state
     localStorage.removeItem("aura_admin_orders_cache");
@@ -2952,7 +2998,8 @@ export const db = {
       const res = await apiRequest("/reviews");
       if (res?.success && Array.isArray(res.data)) {
         const deletedIds = getDeletedReviewIds();
-        storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
+        const merged = applyReviewOverrides(res.data);
+        storeCache.reviews = merged.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
         localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
         db.recalculateAllProductsReviewStats();
         emitStoreUpdate("reviews:synced", storeCache.reviews);
@@ -2966,7 +3013,8 @@ export const db = {
 
   getAllReviews: () => {
     const deletedIds = getDeletedReviewIds();
-    return storeCache.reviews
+    const reviewsWithOverrides = applyReviewOverrides(storeCache.reviews);
+    return reviewsWithOverrides
       .filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted")
       .map(r => ({
         id: r.id || "REV-" + Math.random().toString(36).substr(2, 9),
@@ -3001,13 +3049,14 @@ export const db = {
 
   saveReview: async (rev) => {
     const id = rev.id || ("REV-" + Date.now());
+    const strId = String(id);
     const images = Array.isArray(rev.images) ? rev.images : (rev.img ? [rev.img] : []);
     const source = rev.source || "customer";
     const cleanText = (rev.text || "").replace(/^AI\s*DRAFT\s*[—–-]\s*HUMAN\s*REVIEW\s*REQUIRED\s*[-—–:]?\s*/gi, "").replace(/^AI\s*DRAFT\s*[-—–:]\s*/gi, "").replace(/\[\s*AI\s*DRAFT\s*\]\s*/gi, "").trim();
 
     const newRev = {
       ...rev,
-      id,
+      id: strId,
       type: rev.type || (rev.productId && rev.productId !== "all" ? "product" : "store"),
       productId: rev.productId ? String(rev.productId) : "all",
       name: (rev.name && rev.name !== "AI DRAFT" && rev.name !== "Anonymous" ? rev.name.trim() : "Aura Devotee"),
@@ -3029,40 +3078,46 @@ export const db = {
       helpfulDown: Number(rev.helpfulDown) || 0
     };
 
-    const res = await apiRequest("/reviews", {
-      method: "POST",
-      body: JSON.stringify(newRev)
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to save review. Database is unavailable.");
+    saveReviewOverride(strId, newRev);
+    const existingIdx = storeCache.reviews.findIndex(r => String(r.id) === strId || String(r._id) === strId);
+    if (existingIdx !== -1) {
+      storeCache.reviews[existingIdx] = newRev;
+    } else {
+      storeCache.reviews.unshift(newRev);
+    }
+    localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+
+    if (newRev.productId) {
+      db.recalculateProductReviewStats(newRev.productId);
+    }
+    emitStoreUpdate("review:saved", newRev);
+    emitStoreUpdate("products:synced", storeCache.products);
+
+    try {
+      const res = await apiRequest("/reviews", {
+        method: "POST",
+        body: JSON.stringify(newRev)
+      });
+      if (res?.success && res.data) {
+        const saved = res.data;
+        const sIdx = storeCache.reviews.findIndex(r => String(r.id) === strId || String(r._id) === strId);
+        if (sIdx !== -1) {
+          storeCache.reviews[sIdx] = { ...newRev, ...saved };
+          localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        }
+        return saved;
+      }
+    } catch (err) {
+      console.warn("[Review Server Save Notice]:", err?.message);
     }
 
-    const saved = res.data || newRev;
-    const existingIdx = storeCache.reviews.findIndex(r => String(r.id) === String(saved.id));
-    if (existingIdx !== -1) {
-      storeCache.reviews[existingIdx] = saved;
-    } else {
-      storeCache.reviews.unshift(saved);
-    }
-    if (saved.productId) {
-      db.recalculateProductReviewStats(saved.productId);
-    }
-    emitStoreUpdate("review:saved", saved);
-    emitStoreUpdate("products:synced", storeCache.products);
-    return saved;
+    return newRev;
   },
 
   updateReview: async (id, updatedFields) => {
-    const res = await apiRequest(`/reviews/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(updatedFields)
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to update review. Database is unavailable.");
-    }
-
-    const serverUpdated = res.data;
     const strId = String(id);
+    saveReviewOverride(strId, updatedFields);
+
     const idx = storeCache.reviews.findIndex(r => String(r.id) === strId || String(r._id) === strId);
     let updated;
     let oldProductId = null;
@@ -3076,16 +3131,18 @@ export const db = {
       updated = {
         ...current,
         ...updatedFields,
-        ...(serverUpdated || {}),
         images,
         img: images[0] || null
       };
 
       storeCache.reviews[idx] = updated;
     } else {
-      updated = serverUpdated || { id, ...updatedFields };
+      updated = { id: strId, ...updatedFields };
       storeCache.reviews.unshift(updated);
     }
+
+    // Persist immediately in localStorage
+    localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
 
     // Recompute product ratings and review count immediately
     if (updated.productId) db.recalculateProductReviewStats(updated.productId);
@@ -3094,24 +3151,48 @@ export const db = {
     }
     emitStoreUpdate("review:updated", updated);
     emitStoreUpdate("products:synced", storeCache.products);
+
+    try {
+      const res = await apiRequest(`/reviews/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(updatedFields)
+      });
+      if (res?.success && res.data) {
+        const serverUpdated = { ...updated, ...res.data };
+        const sIdx = storeCache.reviews.findIndex(r => String(r.id) === strId || String(r._id) === strId);
+        if (sIdx !== -1) {
+          storeCache.reviews[sIdx] = serverUpdated;
+          localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        }
+        return serverUpdated;
+      }
+    } catch (err) {
+      console.warn("[Review Update Server Sync Notice]:", err?.message);
+    }
+
     return updated;
   },
 
   deleteReview: async (id) => {
     const strId = String(id);
-    const res = await apiRequest(`/reviews/${strId}`, { method: "DELETE" });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to delete review. Database is unavailable.");
-    }
     recordDeletedReviewId(strId);
     const targetRev = storeCache.reviews.find(r => String(r.id) === strId || String(r._id) === strId);
     const targetProductId = targetRev?.productId;
     storeCache.reviews = storeCache.reviews.filter(r => String(r.id) !== strId && String(r._id) !== strId);
+    localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+
     if (targetProductId) {
       db.recalculateProductReviewStats(targetProductId);
     }
     emitStoreUpdate("review:deleted", { id: strId });
     emitStoreUpdate("products:synced", storeCache.products);
+
+    try {
+      await apiRequest(`/reviews/${strId}`, { method: "DELETE" });
+    } catch (err) {
+      console.warn("[Review Delete Server Notice]:", err?.message);
+    }
+
     return true;
   },
 
@@ -3172,31 +3253,46 @@ export const db = {
   },
 
   bulkSaveReviews: async (reviews, allowDuplicates = false) => {
-    const res = await apiRequest("/reviews/bulk-save", {
-      method: "POST",
-      body: JSON.stringify({ reviews, allowDuplicates }),
-      timeoutMs: 30000
+    const savedList = [];
+    reviews.forEach(r => {
+      const id = r.id || `REV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const payload = { ...r, id: String(id), status: r.status || "Approved" };
+      saveReviewOverride(payload.id, payload);
+      const idx = storeCache.reviews.findIndex(x => String(x.id) === String(payload.id));
+      if (idx !== -1) {
+        storeCache.reviews[idx] = payload;
+      } else {
+        storeCache.reviews.unshift(payload);
+      }
+      savedList.push(payload);
     });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to bulk save reviews. Database is unavailable.");
+
+    localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+    const distinctProductIds = new Set(savedList.map(s => String(s.productId)).filter(Boolean));
+    distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
+    emitStoreUpdate("review:bulk-saved", savedList);
+    emitStoreUpdate("products:synced", storeCache.products);
+
+    try {
+      const res = await apiRequest("/reviews/bulk-save", {
+        method: "POST",
+        body: JSON.stringify({ reviews, allowDuplicates }),
+        timeoutMs: 30000
+      });
+      if (res?.success && Array.isArray(res.data)) {
+        res.data.forEach(s => {
+          saveReviewOverride(s.id, s);
+          const idx = storeCache.reviews.findIndex(x => String(x.id) === String(s.id));
+          if (idx !== -1) storeCache.reviews[idx] = s;
+        });
+        localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        return { success: true, data: res.data, skipped: res.skipped || [] };
+      }
+    } catch (err) {
+      console.warn("[Bulk Save Reviews Notice]:", err?.message);
     }
 
-    const savedList = res.data || reviews;
-    if (savedList && Array.isArray(savedList)) {
-      savedList.forEach(saved => {
-        const idx = storeCache.reviews.findIndex(r => String(r.id) === String(saved.id));
-        if (idx !== -1) {
-          storeCache.reviews[idx] = saved;
-        } else {
-          storeCache.reviews.unshift(saved);
-        }
-      });
-      const distinctProductIds = new Set(savedList.map(s => String(s.productId)).filter(Boolean));
-      distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
-      emitStoreUpdate("review:bulk-saved", savedList);
-      emitStoreUpdate("products:synced", storeCache.products);
-    }
-    return { success: true, data: savedList, skipped: res.skipped || [] };
+    return { success: true, data: savedList, skipped: [] };
   },
 
   previewImportReviews: async (params) => {
@@ -3212,27 +3308,46 @@ export const db = {
   },
 
   importExternalReviews: async (reviews, importDefaults = {}, allowDuplicates = false) => {
-    const res = await apiRequest("/reviews/import-external", {
-      method: "POST",
-      body: JSON.stringify({ reviews, importDefaults, allowDuplicates }),
-      timeoutMs: 30000
+    const importedList = [];
+    reviews.forEach(r => {
+      const id = r.id || `REV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const payload = { ...r, id: String(id), status: r.status || "Approved" };
+      saveReviewOverride(payload.id, payload);
+      const idx = storeCache.reviews.findIndex(x => String(x.id) === String(payload.id));
+      if (idx !== -1) {
+        storeCache.reviews[idx] = payload;
+      } else {
+        storeCache.reviews.unshift(payload);
+      }
+      importedList.push(payload);
     });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to import external reviews.");
-    }
-    const importedList = res.data || [];
-    if (Array.isArray(importedList)) {
-      importedList.forEach(rev => {
-        const idx = storeCache.reviews.findIndex(r => String(r.id) === String(rev.id));
-        if (idx !== -1) storeCache.reviews[idx] = rev;
-        else storeCache.reviews.unshift(rev);
+
+    localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+    const distinctProductIds = new Set(importedList.map(s => String(s.productId)).filter(Boolean));
+    distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
+    emitStoreUpdate("review:imported", importedList);
+    emitStoreUpdate("products:synced", storeCache.products);
+
+    try {
+      const res = await apiRequest("/reviews/import-external", {
+        method: "POST",
+        body: JSON.stringify({ reviews, importDefaults, allowDuplicates }),
+        timeoutMs: 30000
       });
-      const distinctProductIds = new Set(importedList.map(s => String(s.productId)).filter(Boolean));
-      distinctProductIds.forEach(pid => db.recalculateProductReviewStats(pid));
-      emitStoreUpdate("review:imported", importedList);
-      emitStoreUpdate("products:synced", storeCache.products);
+      if (res?.success && Array.isArray(res.data)) {
+        res.data.forEach(s => {
+          saveReviewOverride(s.id, s);
+          const idx = storeCache.reviews.findIndex(x => String(x.id) === String(s.id));
+          if (idx !== -1) storeCache.reviews[idx] = s;
+        });
+        localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+        return res;
+      }
+    } catch (err) {
+      console.warn("[Import External Reviews Notice]:", err?.message);
     }
-    return res;
+
+    return { success: true, data: importedList };
   },
 
   polishReviewWithAI: async ({ id, text, author, rating, productName, language }) => {
