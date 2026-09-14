@@ -346,6 +346,7 @@ export function createApp(options = {}) {
   app.use((err, req, res, next) => {
     const isDbErr =
       err.name === 'MongooseError' ||
+      err.name === 'MongooseServerSelectionError' ||
       err.name === 'MongoNetworkError' ||
       err.name === 'MongoServerSelectionError' ||
       err.name === 'MongoTopologyClosedError' ||
@@ -356,7 +357,8 @@ export function createApp(options = {}) {
         err.message.includes('ReplicaSetNoPrimary') ||
         err.message.includes('PoolClearedOnNetworkError') ||
         err.message.includes('Topology is closed') ||
-        err.message.includes('Client must be connected')
+        err.message.includes('Client must be connected') ||
+        err.message.includes('MongoDB Atlas cluster')
       ));
 
     if (isDbErr) {
