@@ -33,7 +33,7 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
   // Data states
   const [allReviews, setAllReviews] = useState([]);
   const [settings, setSettings] = useState(() => db.getReviewSettings());
-  const [activeTab, setActiveTab] = useState("product"); // "product" | "store"
+  const [activeTab, setActiveTab] = useState("product"); // retained internally for compatibility; storefront shows one unified review stream
   const [searchQuery, setSearchQuery] = useState("");
   const [filterRating, setFilterRating] = useState("all"); // "all", "5", "4", "3", "2", "1", "photos", "verified"
   const [sortBy, setSortBy] = useState("recent"); // "recent", "highest", "lowest", "helpful"
@@ -122,17 +122,10 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       r.publicDisplay !== false
     );
 
-    // Filter by tab helper
-    const filterByTab = (listToFilter) => {
-      if (activeTab === "product") {
-        if (!productId) return [];
-        return listToFilter.filter(r => r.productId && r.productId !== "all" && String(r.productId) === String(productId));
-      } else {
-        return listToFilter.filter(r => r.type === "store" || r.productId === "all" || !r.productId);
-      }
-    };
-
-    let list = filterByTab(baseList);
+    // Unified storefront review stream: product reviews only for product pages.
+    let list = productId
+      ? baseList.filter(r => r.productId && r.productId !== "all" && String(r.productId) === String(productId))
+      : [];
 
     // Filter by Search Query
     if (searchQuery.trim()) {
@@ -169,11 +162,11 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
     });
 
     return sorted;
-  }, [allReviews, activeTab, productId, searchQuery, filterRating, sortBy]);
+  }, [allReviews, productId, searchQuery, filterRating, sortBy]);
 
   // Aggregate stats based on what is displayed in filteredReviews
   const stats = useMemo(() => {
-    const total = filteredReviews.length;
+    const total = publicReviewTotal || filteredReviews.length;
     if (total === 0) {
       return { avgRating: "5.0", total: 0, starsCount: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
     }
