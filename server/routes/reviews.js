@@ -10,10 +10,7 @@ import {
   generateReviewDrafts,
   bulkSaveReviews,
   importExternalReviews,
-  previewImportExternalReviews,
-  polishReviewWithAI,
-  auditReviewsEndpoint,
-  repairReviewsEndpoint
+  polishReviewWithAI
 } from "../controllers/reviewController.js";
 import { requireAdmin, optionalAuth } from "../middleware/auth.js";
 
@@ -25,15 +22,6 @@ router.route("/")
 
 router.route("/import-external")
   .post(requireAdmin, importExternalReviews);
-
-router.route("/preview-import")
-  .post(requireAdmin, previewImportExternalReviews);
-
-router.route("/audit")
-  .get(requireAdmin, auditReviewsEndpoint);
-
-router.route("/repair")
-  .post(requireAdmin, repairReviewsEndpoint);
 
 router.route("/polish")
   .post(requireAdmin, polishReviewWithAI);
@@ -56,4 +44,3 @@ router.route("/:id/vote")
   .post(voteReview);
 
 export default router;
-
