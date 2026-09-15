@@ -1,0 +1,4 @@
+## 2025-02-23 - [Sanitize Inline Formatting Replacements]
+**Vulnerability:** XSS vulnerability where plain text dynamically converted into HTML elements using regex replacement (`\*\*(.*?)\*\*` to `<strong>$1</strong>`) was rendered via `dangerouslySetInnerHTML` without being sanitized first. The primary HTML code path used `DOMPurify.sanitize`, but the secondary plain text fallback path did not.
+**Learning:** Always check all branches in functions that return `dangerouslySetInnerHTML`. Even if the input is considered "plain text" or formatted using simple markdown rules, if it is rendered directly into the DOM using an innerHTML equivalent, it can be abused via prompt injection or malicious user input (e.g. `**<img src=x onerror=alert(1)>**`).
+**Prevention:** Always wrap variables passed to `dangerouslySetInnerHTML` in `DOMPurify.sanitize` or an equivalent HTML sanitizer. Do not assume string replacement logic is sufficient to prevent XSS.
