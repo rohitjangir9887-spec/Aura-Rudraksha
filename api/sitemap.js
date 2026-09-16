@@ -63,12 +63,9 @@ export default async function handler(req, res) {
     }
 
     const catalog = await getPublishedCatalog();
-    if (!catalog) {
-      res.setHeader("Cache-Control", "no-store");
-      return res.status(503).send("Sitemap temporarily unavailable while the product database is unavailable");
-    }
+    const baseXml = await generateSitemapXml(req);
+    const xml = catalog ? filterSitemap(baseXml, catalog) : baseXml;
 
-    const xml = filterSitemap(await generateSitemapXml(req), catalog);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     if (req.method === "HEAD") return res.status(200).end();

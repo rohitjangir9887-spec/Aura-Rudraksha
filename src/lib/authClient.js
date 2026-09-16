@@ -138,7 +138,7 @@ try {
         inMemoryAdminVerification = parsed;
       }
     }
-    if (!inMemoryAdminVerification && localStorage.getItem("isAdmin") === "true") {
+    if (import.meta.env.DEV && !inMemoryAdminVerification && localStorage.getItem("isAdmin") === "true") {
       inMemoryAdminVerification = {
         authorized: true,
         user: { email: localStorage.getItem("user_email") || "Admin" },

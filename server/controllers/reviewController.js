@@ -117,12 +117,14 @@ const ADMIN_REVIEW_FIELDS = {
 };
 
 const MAX_REVIEW_IMAGES = 5;
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB decoded
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // 1.5MB decoded per image
+const MAX_TOTAL_IMAGE_BYTES = 4.5 * 1024 * 1024; // 4.5MB total across all images to ensure MongoDB 16MB & Express 8MB compliance
 const ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 function validateReviewImages(input) {
   if (!Array.isArray(input)) return [];
   const out = [];
+  let totalBytes = 0;
   for (const raw of input) {
     if (out.length >= MAX_REVIEW_IMAGES) break;
     if (typeof raw !== "string") continue;
@@ -137,6 +139,8 @@ function validateReviewImages(input) {
     if (!ALLOWED_IMAGE_MIME.has(mime)) continue;
     const approxBytes = Math.floor((match[2].length * 3) / 4);
     if (approxBytes > MAX_IMAGE_BYTES) continue;
+    if (totalBytes + approxBytes > MAX_TOTAL_IMAGE_BYTES) break;
+    totalBytes += approxBytes;
     out.push(value);
   }
   return out;

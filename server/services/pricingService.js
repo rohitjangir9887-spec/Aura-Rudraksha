@@ -73,8 +73,8 @@ export function normalizeLines(linesInput) {
       const lineKey = isIndo ? `${baseId}-indo` : baseId;
       
       if (baseId) {
-        const prev = map.get(lineKey) || { id: lineKey, baseId, qty: 0, isIndonesian: isIndo, variant: item.variant || "" };
-        map.set(lineKey, { ...prev, qty: prev.qty + qty });
+        const prev = map.get(lineKey) || { id: lineKey, baseId, qty: 0, isIndonesian: isIndo, variant: item.variant || "", size: item.size || "" };
+        map.set(lineKey, { ...prev, qty: prev.qty + qty, variant: item.variant || prev.variant || "", size: item.size || prev.size || "" });
       }
     }
     return Array.from(map.values());
@@ -257,6 +257,8 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       comparePrice: mrp,
       quantity: line.qty,
       qty: line.qty,
+      variant: line.variant || "",
+      size: line.size || "",
       itemTotal: itemSubtotal,
       stock: isIndo && product.indonesianStock !== undefined ? product.indonesianStock : (product.stock !== undefined ? product.stock : 50),
       image: itemImg,

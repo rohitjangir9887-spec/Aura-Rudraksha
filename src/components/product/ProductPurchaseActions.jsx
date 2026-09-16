@@ -2,6 +2,7 @@ import React from "react";
 import { Minus, Plus, ShoppingCart, Zap, Check, MessageSquare } from "lucide-react";
 import { SecurePaymentGuarantee } from "../checkout/SecurePaymentGuarantee";
 import { money } from "../../data";
+import { triggerHaptic } from "../../lib/haptics";
 
 export function ProductPurchaseActions({
   product,
@@ -31,7 +32,10 @@ export function ProductPurchaseActions({
             <button
               type="button"
               className="qty-btn"
-              onClick={() => setQty(Math.max(1, qty - 1))}
+              onClick={() => {
+                triggerHaptic("selection");
+                setQty(Math.max(1, qty - 1));
+              }}
               disabled={qty <= 1}
               aria-label="Decrease quantity"
             >
@@ -41,7 +45,10 @@ export function ProductPurchaseActions({
             <button
               type="button"
               className="qty-btn"
-              onClick={() => setQty(Math.min(stockLimit || 50, qty + 1))}
+              onClick={() => {
+                triggerHaptic("selection");
+                setQty(Math.min(stockLimit || 50, qty + 1));
+              }}
               disabled={qty >= (stockLimit || 50)}
               aria-label="Increase quantity"
             >
@@ -60,7 +67,10 @@ export function ProductPurchaseActions({
         <button
           type="button"
           className={`aura-btn-add-cart ${added ? "added" : ""}`}
-          onClick={onAddToCart}
+          onClick={() => {
+            triggerHaptic("medium");
+            onAddToCart();
+          }}
           disabled={isOutOfStock}
           aria-label={isOutOfStock ? "Out of stock" : "Add to Cart"}
         >
@@ -80,7 +90,10 @@ export function ProductPurchaseActions({
         <button
           type="button"
           className="aura-btn-buy-now"
-          onClick={onBuyNow}
+          onClick={() => {
+            triggerHaptic("medium");
+            onBuyNow();
+          }}
           disabled={isOutOfStock}
           aria-label={isOutOfStock ? "Unavailable" : "Buy It Now"}
         >
@@ -93,7 +106,10 @@ export function ProductPurchaseActions({
       <button
         type="button"
         className="aura-btn-whatsapp-order"
-        onClick={onWhatsAppOrder}
+        onClick={() => {
+          triggerHaptic("light");
+          onWhatsAppOrder();
+        }}
         disabled={isOutOfStock}
         aria-label="Order on WhatsApp"
       >

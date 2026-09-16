@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   const originalSend = res.send.bind(res);
   res.send = (body) => {
-    const isReviewCreate = requestPath === "/reviews" && String(req.method || "").toUpperCase() === "POST";
+    const isReviewCreate = (requestPath === "/reviews" || requestPath === "/api/reviews") && String(req.method || "").toUpperCase() === "POST";
 
     if (isReviewCreate && typeof body === "string") {
       let parsed = null;

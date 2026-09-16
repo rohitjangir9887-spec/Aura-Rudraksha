@@ -35,7 +35,7 @@ export class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
+      if (this.props.fallback !== undefined) {
         return typeof this.props.fallback === "function" 
           ? this.props.fallback({ error: this.state.error, retry: this.handleRetry })
           : this.props.fallback;

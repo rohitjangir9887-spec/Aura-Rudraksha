@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Award, CheckCircle2, ShieldCheck, FileCheck, Eye, X, Leaf, Sparkles, Droplets } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { isRudrakshaProduct } from "../../lib/productHelper";
+import { isRudrakshaProduct, formatMukhiLabel } from "../../lib/productHelper";
 
 export function ProductCertification({ product }) {
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
@@ -228,7 +228,7 @@ export function ProductCertification({ product }) {
             </div>
             <div className="specimen-row">
               <span>Mukhi:</span>
-              <strong>{product?.mukhi ? `${product.mukhi} Mukhi` : "Natural Grooves"}</strong>
+              <strong>{formatMukhiLabel(product?.mukhi)}</strong>
             </div>
             <div className="specimen-row">
               <span>Origin:</span>

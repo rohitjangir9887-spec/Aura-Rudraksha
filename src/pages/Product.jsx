@@ -74,8 +74,24 @@ export function Product() {
     }
     return "";
   });
-  const [selectedSize, setSelectedSize] = useState("Medium (16 - 20 mm)");
+  const [selectedSize, setSelectedSize] = useState(() => {
+    if (initialProduct?.sizes && initialProduct.sizes.length > 0) {
+      const firstS = initialProduct.sizes[0];
+      return typeof firstS === "string" ? firstS : (firstS?.size || firstS?.name || "Medium (16 - 20 mm)");
+    }
+    return initialProduct?.size || "Medium (16 - 20 mm)";
+  });
   const [added, setAdded] = useState(false);
+
+  // Keep selectedSize aligned if product loaded has specific custom sizes
+  useEffect(() => {
+    if (rawP?.sizes && Array.isArray(rawP.sizes) && rawP.sizes.length > 0) {
+      const validNames = rawP.sizes.map(s => typeof s === "string" ? s : (s?.size || s?.name || ""));
+      if (validNames.length > 0 && !validNames.includes(selectedSize)) {
+        setSelectedSize(validNames[0]);
+      }
+    }
+  }, [rawP?.sizes]);
 
   // Sticky bar visibility tracking
   const [showStickyBar, setShowStickyBar] = useState(false);
@@ -350,6 +366,10 @@ export function Product() {
   const handleAddToCart = () => {
     if (!p || isOutOfStock) return;
     const cartItemId = isIndonesianActive ? `${rawP.id}-indo` : rawP.id;
+    const finalVariantStr = isIndonesianActive
+      ? `Indonesian Origin (${p.size || '10-14mm'})`
+      : ([selectedVariant, selectedSize].filter(Boolean).join(" • ") || "Authentic Consecrated");
+
     add({
       id: cartItemId,
       productId: rawP.id,
@@ -357,7 +377,7 @@ export function Product() {
       price: p.price,
       mrp: p.mrp,
       img: p.img,
-      variant: isIndonesianActive ? `Indonesian Origin (${p.size || '10-14mm'})` : (selectedVariant || selectedSize),
+      variant: finalVariantStr,
       isIndonesian: isIndonesianActive
     }, qty);
     setAdded(true);
@@ -368,6 +388,10 @@ export function Product() {
   const handleBuyNow = () => {
     if (!p || isOutOfStock) return;
     const cartItemId = isIndonesianActive ? `${rawP.id}-indo` : rawP.id;
+    const finalVariantStr = isIndonesianActive
+      ? `Indonesian Origin (${p.size || '10-14mm'})`
+      : ([selectedVariant, selectedSize].filter(Boolean).join(" • ") || "Authentic Consecrated");
+
     if (buyNow) {
       buyNow({
         id: cartItemId,
@@ -376,7 +400,7 @@ export function Product() {
         price: p.price,
         mrp: p.mrp,
         img: p.img,
-        variant: isIndonesianActive ? `Indonesian Origin (${p.size || '10-14mm'})` : (selectedVariant || selectedSize),
+        variant: finalVariantStr,
         isIndonesian: isIndonesianActive
       }, qty);
     } else {

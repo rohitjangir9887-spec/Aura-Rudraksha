@@ -212,7 +212,32 @@ export function App() {
         </PageTransition>
       </Suspense>
       </ErrorBoundary>
-      <ErrorBoundary isolate fallback={null}>
+      <ErrorBoundary 
+        isolate 
+        fallback={({ retry }) => (
+          <div style={{ position: "fixed", bottom: "calc(78px + env(safe-area-inset-bottom, 0px))", left: "12px", zIndex: 10010 }}>
+            <button
+              onClick={retry}
+              style={{
+                background: "linear-gradient(135deg, #8c2b10 0%, #641c09 100%)",
+                color: "#eed9b8",
+                border: "1px solid #d4af37",
+                borderRadius: "30px",
+                padding: "8px 16px",
+                fontSize: "12px",
+                fontWeight: "600",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 4px 14px rgba(43, 20, 8, 0.3)",
+                cursor: "pointer"
+              }}
+            >
+              ✦ Restart Aura AI
+            </button>
+          </div>
+        )}
+      >
         <AuraAIFloating />
       </ErrorBoundary>
     </>

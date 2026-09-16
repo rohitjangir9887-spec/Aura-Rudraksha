@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { emitToast } from "../context/ToastContext";
 import { db, onStoreUpdate } from "../lib/db";
 import { authClient } from "../lib/authClient";
+import { triggerHaptic } from "../lib/haptics";
 
 function getWishlistStorageKey() {
   const u = authClient.getUser();
@@ -125,6 +126,8 @@ export function useWishlist() {
       next = [...current.filter(id => id !== storeId), storeId];
       added = true;
     }
+
+    triggerHaptic(added ? "success" : "light");
 
     // Optimistic UI update
     try {

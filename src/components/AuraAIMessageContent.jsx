@@ -45,18 +45,19 @@ function sanitizeText(raw) {
 function renderInlineContent(text) {
   if (!text) return null;
 
-  // Split by inline markdown tokens: [link text](url), https?://..., **bold**, `code`, *italic*
-  const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
-  const parts = text.split(tokenRegex);
+  try {
+    // Split by inline markdown tokens: [link text](url), https?://..., **bold**, `code`, *italic*
+    const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+    const parts = text.split(tokenRegex);
 
-  return parts.map((part, idx) => {
-    if (!part) return null;
+    return parts.map((part, idx) => {
+      if (!part) return null;
 
-    // 1. Markdown Link: [label](url)
-    const mdLinkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (mdLinkMatch) {
-      const label = mdLinkMatch[1];
-      let url = mdLinkMatch[2].trim();
+      // 1. Markdown Link: [label](url)
+      const mdLinkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (mdLinkMatch) {
+        const label = mdLinkMatch[1];
+        let url = mdLinkMatch[2].trim();
 
       // Normalize internal domains to relative route
       if (url.includes("aurarudraksha.bond") || url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
@@ -174,7 +175,10 @@ function renderInlineContent(text) {
     }
 
     return part;
-  });
+    });
+  } catch (_) {
+    return text;
+  }
 }
 
 // Check if a line is a Key-Value attribute line (e.g. "Status: In Transit", "Ruling Deity: Lord Shiva")

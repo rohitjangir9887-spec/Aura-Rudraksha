@@ -5,6 +5,7 @@ import { db } from "../../lib/db";
 import { uploadMedia } from "../../lib/imageUtils";
 import { authClient } from "../../lib/authClient";
 import { emitToast } from "../../context/ToastContext";
+import { triggerHaptic } from "../../lib/haptics";
 
 export function WriteReviewModal({
   isOpen,
@@ -146,6 +147,7 @@ export function WriteReviewModal({
       };
 
       const saved = await db.saveReview(reviewPayload);
+      triggerHaptic("success");
       emitToast("🙏 Dhanyawad! Your authentic review has been posted successfully.", "success");
       
       if (onSuccess) onSuccess(saved);

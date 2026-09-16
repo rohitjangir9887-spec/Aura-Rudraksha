@@ -4,6 +4,7 @@ import { resolveCartProduct } from "../lib/productResolver";
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
+import { triggerHaptic } from "../lib/haptics";
 
 const CartContext = createContext(null);
 
@@ -401,6 +402,12 @@ export function CartProvider({ children }) {
           await fetchAuthoritativeTotals(lines, cleanCode);
         }
 
+        if (res.valid) {
+          triggerHaptic("success");
+        } else {
+          triggerHaptic("warning");
+        }
+
         return {
           success: res.valid,
           valid: res.valid,
@@ -409,6 +416,7 @@ export function CartProvider({ children }) {
           data: res.data
         };
       } else {
+        triggerHaptic("warning");
         // Even if server returns false or 400 (e.g. EXPIRED or NOT_ELIGIBLE), maintain coupon status properly
         const status = res?.status || "INVALID";
         if (status === "EXPIRED" || status === "NOT_ELIGIBLE") {
@@ -487,6 +495,7 @@ export function CartProvider({ children }) {
 
     const add = (idOrObjOrArr, qty = 1) => {
       if (!idOrObjOrArr) return;
+      triggerHaptic("medium");
       if (Array.isArray(idOrObjOrArr)) {
         return addBatch(idOrObjOrArr);
       }
@@ -508,6 +517,7 @@ export function CartProvider({ children }) {
     };
 
     const buyNow = (idOrObj, qty = 1) => {
+      triggerHaptic("medium");
       let pid = null;
       let count = Math.max(1, Number(qty) || 1);
       if (idOrObj && typeof idOrObj === "object") {
@@ -537,9 +547,13 @@ export function CartProvider({ children }) {
       } catch (_) {}
     };
 
-    const remove = (id) => persistLines(lines.filter((l) => l.id !== String(id)));
+    const remove = (id) => {
+      triggerHaptic("light");
+      persistLines(lines.filter((l) => l.id !== String(id)));
+    };
 
     const setQty = (id, qty) => {
+      triggerHaptic("selection");
       const n = Math.max(1, Number(qty) || 1);
       persistLines(lines.map((l) => (l.id === String(id) ? { ...l, qty: n } : l)));
     };

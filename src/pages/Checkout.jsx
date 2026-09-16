@@ -41,6 +41,7 @@ import { CheckoutAuthModal } from "../components/checkout/CheckoutAuthModal";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
 import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
 import { PayuRedirectModal } from "../components/checkout/PayuRedirectModal";
+import { triggerHaptic } from "../lib/haptics";
 
 export function Checkout() {
   const [searchParams] = useSearchParams();
@@ -342,11 +343,13 @@ export function Checkout() {
         isDefault: true
       });
       setUsingSavedAddress(true);
+      triggerHaptic("selection");
       emitToast("Loaded default saved address", "info");
     }
   };
 
   const handleUseDifferentAddress = () => {
+    triggerHaptic("selection");
     setUsingSavedAddress(false);
     setFormData(prev => ({
       ...prev,
@@ -401,6 +404,7 @@ export function Checkout() {
   };
 
   const handleEditAddress = () => {
+    triggerHaptic("selection");
     setUsingSavedAddress(false);
   };
 
@@ -409,30 +413,37 @@ export function Checkout() {
     const dataToSave = getLatestFormData(customFormData || formData);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!dataToSave.firstName?.trim()) {
+      triggerHaptic("warning");
       emitToast("First Name is required", "error");
       return false;
     }
     if (!dataToSave.lastName?.trim()) {
+      triggerHaptic("warning");
       emitToast("Last Name is required", "error");
       return false;
     }
     if (!dataToSave.phone?.trim() || dataToSave.phone.trim().length < 10) {
+      triggerHaptic("warning");
       emitToast("Valid 10-digit mobile number is required", "error");
       return false;
     }
     if (!dataToSave.email?.trim() || !emailRegex.test(dataToSave.email.trim())) {
+      triggerHaptic("warning");
       emitToast("Valid email address is required for order receipt & payment", "error");
       return false;
     }
     if (!dataToSave.address?.trim()) {
+      triggerHaptic("warning");
       emitToast("Full delivery address is required", "error");
       return false;
     }
     if (!dataToSave.pincode?.trim() || dataToSave.pincode.trim().length !== 6) {
+      triggerHaptic("warning");
       emitToast("Valid 6-digit Pincode is required", "error");
       return false;
     }
     if (!dataToSave.city?.trim() || !dataToSave.state?.trim()) {
+      triggerHaptic("warning");
       emitToast("City and State are required", "error");
       return false;
     }
@@ -478,12 +489,14 @@ export function Checkout() {
           state: updatedAddr.state || addressObj.state,
           isDefault: true
         });
+        triggerHaptic("success");
         emitToast("Delivery address updated and saved successfully!", "success");
         return true;
       } else {
         throw new Error(res?.message || "Failed to save address");
       }
     } catch (err) {
+      triggerHaptic("warning");
       console.error("Error saving address:", err);
       emitToast("Error saving address: " + (err?.message || "Please try again"), "error");
       return false;
@@ -499,6 +512,7 @@ export function Checkout() {
     const code = (codeToApply || couponInput).trim().toUpperCase();
 
     if (!code) {
+      triggerHaptic("warning");
       setCouponError("Please enter a valid coupon code");
       emitToast("Please enter a coupon code", "warning");
       return;
@@ -509,10 +523,12 @@ export function Checkout() {
     try {
       const res = await applyCoupon(code);
       if (res.valid) {
+        triggerHaptic("success");
         setCouponInput("");
         setCouponSuccessMsg(res.message || `Coupon '${code}' applied successfully!`);
         emitToast(res.message || `Coupon '${code}' applied!`, "success");
       } else {
+        triggerHaptic("warning");
         setCouponSuccessMsg("");
         setCouponError(res.message || `Coupon '${code}' is invalid or expired.`);
         if (res.status === "EXPIRED") {
@@ -524,6 +540,7 @@ export function Checkout() {
         }
       }
     } catch (err) {
+      triggerHaptic("warning");
       setCouponError(err.message || "Could not validate coupon");
       emitToast(err.message || "Could not validate coupon", "error");
     } finally {
@@ -532,6 +549,7 @@ export function Checkout() {
   };
 
   const handleRemoveCoupon = () => {
+    triggerHaptic("light");
     removeCoupon();
     setCouponInput("");
     setCouponError("");
@@ -648,6 +666,8 @@ export function Checkout() {
         mrp: p.mrp || p.comparePrice || p.price,
         quantity: line.qty || 1,
         qty: line.qty || 1,
+        variant: line.variant || p.selectedVariant || "",
+        size: line.size || "",
         origin: p.origin || (p.isIndonesian ? "Java / Indonesia" : "Nepal"),
         isIndonesian: !!p.isIndonesian,
         img: getProductPrimaryImage(p)
@@ -702,12 +722,14 @@ export function Checkout() {
     isSubmittingRef.current = true;
 
     if (effectiveLines.length === 0) {
+      triggerHaptic("warning");
       emitToast("Your cart is empty.", "warning");
       isSubmittingRef.current = false;
       return;
     }
 
     if (!validateForm()) {
+      triggerHaptic("warning");
       emitToast("Please fill in all required shipping details correctly.", "warning");
       const el = document.getElementById("checkout-address-section");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -715,6 +737,7 @@ export function Checkout() {
       return;
     }
 
+    triggerHaptic("medium");
     await executeOrderSubmission();
   };
 
@@ -728,6 +751,7 @@ export function Checkout() {
 
   // Retry Payment on failed order
   const handleRetryPayment = async (orderId) => {
+    triggerHaptic("medium");
     setRetrying(true);
     setPaymentState("INITIATING");
     setPayuModalOpen(true);

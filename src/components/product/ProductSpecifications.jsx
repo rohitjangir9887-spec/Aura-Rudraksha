@@ -1,6 +1,6 @@
 import React from "react";
 import { Check } from "lucide-react";
-import { isRudrakshaProduct } from "../../lib/productHelper";
+import { isRudrakshaProduct, formatMukhiLabel } from "../../lib/productHelper";
 
 export function ProductSpecifications({ product }) {
   if (!product) return null;
@@ -63,7 +63,7 @@ export function ProductSpecifications({ product }) {
 
   // Rudraksha Specific Specifications
   if (product.mukhi || product.mukhiCount) {
-    specs.push({ label: "Mukhi / Faces", value: `${product.mukhi || product.mukhiCount} Mukhi (Natural Lines)` });
+    specs.push({ label: "Mukhi / Faces", value: `${formatMukhiLabel(product.mukhi || product.mukhiCount)} (Natural Lines)` });
   }
 
   specs.push({ label: "Origin", value: product.origin || "Himalayan Region (Nepal)" });

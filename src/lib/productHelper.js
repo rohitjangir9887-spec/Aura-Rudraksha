@@ -140,3 +140,27 @@ export function sortProductsByHomeOrder(products = []) {
     return sortProductsByCatalogOrder([a, b])[0] === a ? -1 : 1;
   });
 }
+
+/**
+ * Cleanly format Mukhi labels without duplicate "Mukhi Mukhi"
+ * e.g. "5" -> "5 Mukhi", "5 Mukhi" -> "5 Mukhi", "Gauri Shankar" -> "Gauri Shankar"
+ */
+export function formatMukhiLabel(val) {
+  if (!val) return "Natural Grooves";
+  const str = String(val).trim();
+  if (!str) return "Natural Grooves";
+  if (/mukhi|मुखी/i.test(str)) return str;
+  return `${str} Mukhi`;
+}
+
+/**
+ * Safely parse numerical prices from numbers or currency-formatted strings ("₹ 1,499" -> 1499)
+ */
+export function safePrice(val, defaultVal = 0) {
+  if (typeof val === "number" && !isNaN(val)) return val;
+  if (!val) return defaultVal;
+  const cleaned = String(val).replace(/[^0-9.]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? defaultVal : num;
+}
+

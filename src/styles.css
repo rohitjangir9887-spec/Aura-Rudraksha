@@ -20,10 +20,11 @@ html, body {
 }
 
 /* 60-90 FPS Compositing & Render Acceleration */
-.header, .sticky-bar, .sticky-purchase-bar, .aura-floating-btn {
+.header, .sticky-bar, .sticky-purchase-bar, .aura-floating-btn, .product-card, .aura-product-card {
   transform: translateZ(0);
   backface-visibility: hidden;
   perspective: 1000px;
+  will-change: transform;
 }
 
 /* Rendering containment for off-screen heavy sections to sustain high refresh rates (60-90+ FPS) */
@@ -57,8 +58,8 @@ button, a, input, select, textarea, [role="button"], .cart-icon, .user-icon, .mo
 .outline-btn:active,
 .bottom-tab:active,
 button:active {
-  transform: scale(0.92) translateZ(0);
-  transition: transform 0.04s ease-out !important;
+  transform: scale(0.97) translateZ(0);
+  transition: transform 0.06s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 :root{--brown:#6f3518;--dark:#2a160d;--copper:#b85d25;--cream:#fbf5ea;--paper:#fffdf9;--line:#e8dac9;--gold:#c88a3d;--green:#20a95a}
@@ -11109,24 +11110,24 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-panel-compact {
-  width: min(280px, calc(100vw - 24px));
-  max-width: 280px;
-  height: min(430px, 62svh);
-  max-height: 62svh;
+  width: min(360px, calc(100vw - 20px));
+  max-width: min(380px, calc(100vw - 20px));
+  height: min(520px, 72svh);
+  max-height: 72svh;
   border-radius: 18px;
   box-shadow: 
-    0 8px 24px rgba(43, 20, 8, 0.16),
+    0 10px 30px rgba(43, 20, 8, 0.18),
     0 2px 8px rgba(43, 20, 8, 0.08),
-    0 0 16px rgba(212, 175, 55, 0.12),
+    0 0 18px rgba(212, 175, 55, 0.14),
     inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 @media (min-width: 1024px) {
   .aura-ai-panel-compact {
-    width: 285px;
-    max-width: 85vw;
-    height: 440px;
-    max-height: 66vh;
+    width: 380px;
+    max-width: 420px;
+    height: 560px;
+    max-height: 76vh;
   }
 }
 
@@ -11174,13 +11175,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
   /* Compact width for comfortable viewing on mobile */
   .aura-ai-panel-compact {
-    width: min(280px, calc(100vw - 24px));
-    max-width: 280px;
-    height: min(430px, 62svh);
-    max-height: 62svh;
+    width: min(360px, calc(100vw - 20px));
+    max-width: min(380px, calc(100vw - 20px));
+    height: min(520px, 72svh);
+    max-height: 72svh;
     margin: 0;
     border-radius: 18px;
-    background: rgba(255, 253, 249, 0.97);
+    background: rgba(255, 253, 249, 0.98);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(212, 175, 55, 0.42);
@@ -12327,8 +12328,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-prod-actions {
   display: flex;
-  gap: 3px;
-  margin-top: 2px;
+  gap: 5px;
+  margin-top: 4px;
 }
 
 .aura-ai-prod-btn-view {
@@ -12336,14 +12337,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #f4ede2;
   border: 1px solid #dfcfbc;
   color: #4a2810;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 600;
-  border-radius: 4px;
-  padding: 2px 4px;
+  border-radius: 5px;
+  padding: 4px 6px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   text-decoration: none;
 }
 
@@ -12352,14 +12354,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #fef7ee;
   border: 1px solid #d4af37;
   color: #8c2b10;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 600;
-  border-radius: 4px;
-  padding: 2px 4px;
+  border-radius: 5px;
+  padding: 4px 6px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -12369,14 +12372,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #8c2b10;
   border: none;
   color: #fff;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 600;
-  border-radius: 4px;
-  padding: 2px 4px;
+  border-radius: 5px;
+  padding: 4px 6px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
 }

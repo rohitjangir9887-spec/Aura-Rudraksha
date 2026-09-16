@@ -967,6 +967,30 @@
   box-sizing: border-box;
 }
 
+.aura-origin-selector-container {
+  background: #fffbf5;
+  border: 1.5px solid #fed7aa;
+  border-radius: 10px;
+  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aura-origin-selector-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 440px) {
+  .aura-origin-selector-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
 .aura-variant-label {
   font-size: 13px;
   font-weight: 700;

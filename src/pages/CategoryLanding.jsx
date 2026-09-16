@@ -16,11 +16,12 @@ import {
   Layers,
   ArrowRight
 } from "lucide-react";
-import { db } from "../lib/db";
+import { db, onStoreUpdate } from "../lib/db";
 import { MUKHI_CATALOG } from "../data/seoCatalogData";
 import { useSeo } from "../hooks/useSeo";
 import ProductCard from "../components/ProductCard";
 import { Shell } from "../components/Shell";
+import { triggerHaptic } from "../lib/haptics";
 
 export default function CategoryLanding() {
   const { slug } = useParams();
@@ -111,7 +112,11 @@ export default function CategoryLanding() {
       }
     };
     loadCatalog();
-    return () => { isMounted = false; };
+    const unsub = typeof onStoreUpdate === "function" ? onStoreUpdate(() => loadCatalog()) : () => {};
+    return () => { 
+      isMounted = false;
+      unsub();
+    };
   }, []);
 
   // Filter products relevant to this category/mukhi
@@ -127,33 +132,36 @@ export default function CategoryLanding() {
       const pMukhi = String(p.mukhi || "").toLowerCase();
       const cat = (p.category || "").toLowerCase();
       const desc = (p.description || "").toLowerCase();
+      const normName = name.replace(/-/g, " ");
+      const normDesc = desc.replace(/-/g, " ");
 
       if (lowerSlug.includes("mukhi")) {
-        return pMukhi === mukhiNum || name.includes(`${mukhiNum} mukhi`) || desc.includes(`${mukhiNum} mukhi`);
+        return pMukhi === mukhiNum || normName.includes(`${mukhiNum} mukhi`) || normDesc.includes(`${mukhiNum} mukhi`);
       }
       if (lowerSlug === "nepali") {
-        return (p.origin || "").toLowerCase().includes("nepal") || name.includes("nepal");
+        return (p.origin || "").toLowerCase().includes("nepal") || normName.includes("nepal");
       }
       if (lowerSlug === "indonesian") {
         return (p.origin || "").toLowerCase().includes("indonesia") || (p.origin || "").toLowerCase().includes("java") || p.hasIndonesianVariant;
       }
       if (lowerSlug === "mala") {
-        return cat.includes("mala") || name.includes("mala") || name.includes("kantha");
+        return cat.includes("mala") || normName.includes("mala") || normName.includes("kantha");
       }
       if (lowerSlug === "bracelets") {
-        return cat.includes("bracelet") || name.includes("bracelet") || name.includes("wrist");
+        return cat.includes("bracelet") || normName.includes("bracelet") || normName.includes("wrist");
       }
       if (lowerSlug === "gauri-shankar") {
-        return name.includes("gauri shankar") || desc.includes("gauri shankar");
+        return normName.includes("gauri shankar") || normDesc.includes("gauri shankar");
       }
       if (lowerSlug === "ganesh-rudraksha") {
-        return name.includes("ganesh") || desc.includes("ganesh");
+        return normName.includes("ganesh") || normDesc.includes("ganesh");
       }
       return false;
     });
   }, [products, slug]);
 
   const toggleFaq = (idx) => {
+    triggerHaptic("selection");
     setOpenFaq(openFaq === idx ? -1 : idx);
   };
 
@@ -355,6 +363,7 @@ export default function CategoryLanding() {
                 <Link
                   key={num}
                   to={`/rudraksha/${num}-mukhi`}
+                  onClick={() => triggerHaptic("selection")}
                   className={`p-2.5 rounded-xl border transition flex flex-col items-center justify-center ${
                     isCurr
                       ? "bg-[#6f3518] text-white border-[#6f3518] font-bold shadow-xs"

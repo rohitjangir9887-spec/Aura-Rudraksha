@@ -5,6 +5,27 @@ import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
 import { normalizeKeywordItems } from "./keywordUtils.js";
 
+// Safe localStorage wrapper to prevent QuotaExceededError or security exceptions from halting execution
+export function safeLocalStorageSet(key, value) {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+  try {
+    window.localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function safeLocalStorageGet(key, fallback = null) {
+  if (typeof window === "undefined" || !window.localStorage) return fallback;
+  try {
+    const item = window.localStorage.getItem(key);
+    return item !== null ? item : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 // Cross-Tab and Process-Wide Real-Time Synchronization Channel
 let syncBroadcastChannel = null;
 if (typeof window !== "undefined" && typeof window.BroadcastChannel === "function") {
@@ -20,11 +41,11 @@ let syncRafId = null;
 function applyStoreUpdatePayload(type, payload) {
   if (!payload && type !== "batch:synced") return;
 
-  if (type === "product:saved" && payload) {
+  if ((type === "product:saved" || type === "product:updated") && payload) {
     const idx = storeCache.products.findIndex(x => 
       String(x.id) === String(payload.id) || (payload._id && String(x._id) === String(payload._id)) || (payload.slug && x.slug === payload.slug)
     );
-    if (idx >= 0) storeCache.products[idx] = payload;
+    if (idx >= 0) storeCache.products[idx] = { ...storeCache.products[idx], ...payload };
     else storeCache.products.unshift(payload);
   } else if (type === "product:deleted" && payload) {
     storeCache.products = storeCache.products.filter(p => 
@@ -32,20 +53,34 @@ function applyStoreUpdatePayload(type, payload) {
     );
   } else if (type === "active-offer:saved" && payload) {
     storeCache.activeOffer = payload;
-  } else if (type === "offer:saved" && payload) {
+  } else if ((type === "offer:saved" || type === "offer:updated") && payload) {
     const idx = storeCache.offers.findIndex(x => String(x.id) === String(payload.id));
-    if (idx >= 0) storeCache.offers[idx] = payload;
+    if (idx >= 0) storeCache.offers[idx] = { ...storeCache.offers[idx], ...payload };
     else storeCache.offers.unshift(payload);
   } else if (type === "offer:deleted" && payload) {
     storeCache.offers = storeCache.offers.filter(x => String(x.id) !== String(payload));
+  } else if ((type === "banner:saved" || type === "banner:updated") && payload) {
+    const idx = storeCache.banners.findIndex(x => String(x.id) === String(payload.id));
+    if (idx >= 0) storeCache.banners[idx] = { ...storeCache.banners[idx], ...payload };
+    else storeCache.banners.unshift(payload);
+  } else if (type === "banner:deleted" && payload) {
+    storeCache.banners = storeCache.banners.filter(x => String(x.id) !== String(payload));
+  } else if ((type === "coupon:saved" || type === "coupon:updated") && payload) {
+    const idx = storeCache.coupons.findIndex(x => String(x.id) === String(payload.id) || (payload.code && String(x.code).toUpperCase() === String(payload.code).toUpperCase()));
+    if (idx >= 0) storeCache.coupons[idx] = { ...storeCache.coupons[idx], ...payload };
+    else storeCache.coupons.unshift(payload);
+  } else if (type === "coupon:deleted" && payload) {
+    storeCache.coupons = storeCache.coupons.filter(x => String(x.id) !== String(payload) && String(x.code || "").toUpperCase() !== String(payload).toUpperCase());
   } else if (type === "settings:saved" && payload) {
-    storeCache.settings = payload;
+    storeCache.settings = { ...storeCache.settings, ...payload };
   } else if (type === "products:synced" && Array.isArray(payload)) {
     storeCache.products = payload;
   } else if (type === "banners:synced" && Array.isArray(payload)) {
     storeCache.banners = payload;
   } else if (type === "offers:synced" && Array.isArray(payload)) {
     storeCache.offers = payload;
+  } else if (type === "coupons:synced" && Array.isArray(payload)) {
+    storeCache.coupons = payload;
   }
 }
 
@@ -694,7 +729,7 @@ export async function fetchHomeData(force = false) {
               startDate,
               startAt: startDate
             };
-            localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
+            safeLocalStorageSet("aura_active_offer_cache", storeCache.activeOffer);
             emitStoreUpdate("active-offer:synced", storeCache.activeOffer);
           }
         } catch (e) {
@@ -707,7 +742,7 @@ export async function fetchHomeData(force = false) {
           const res = await apiRequest("/offers");
           if (res?.success && Array.isArray(res.data)) {
             storeCache.offers = res.data;
-            localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
+            safeLocalStorageSet("aura_offers_cache", storeCache.offers);
             emitStoreUpdate("offers:synced", storeCache.offers);
           }
         } catch (e) {
@@ -720,7 +755,7 @@ export async function fetchHomeData(force = false) {
           const res = await apiRequest("/banners");
           if (res?.success && Array.isArray(res.data)) {
             storeCache.banners = res.data;
-            localStorage.setItem("aura_banners_cache", JSON.stringify(storeCache.banners));
+            safeLocalStorageSet("aura_banners_cache", storeCache.banners);
             emitStoreUpdate("banners:synced", storeCache.banners);
           }
         } catch (e) {
@@ -734,7 +769,7 @@ export async function fetchHomeData(force = false) {
           if (res?.success && Array.isArray(res.data)) {
             const deletedIds = getDeletedReviewIds();
             storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
-            localStorage.setItem("aura_reviews_cache", JSON.stringify(storeCache.reviews));
+            safeLocalStorageSet("aura_reviews_cache", storeCache.reviews);
             db.recalculateAllProductsReviewStats();
             emitStoreUpdate("reviews:synced", storeCache.reviews);
           }
@@ -748,7 +783,7 @@ export async function fetchHomeData(force = false) {
           const res = await apiRequest("/settings");
           if (res?.success && res.data) {
             storeCache.settings = { ...storeCache.settings, ...res.data };
-            localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+            safeLocalStorageSet("aura_settings_cache", storeCache.settings);
             emitStoreUpdate("settings:synced", storeCache.settings);
           }
         } catch (e) {
@@ -761,7 +796,7 @@ export async function fetchHomeData(force = false) {
           const res = await apiRequest("/reviews/settings");
           if (res?.success && res.data) {
             storeCache.reviewSettings = { ...storeCache.reviewSettings, ...res.data };
-            localStorage.setItem("aura_review_settings_cache", JSON.stringify(storeCache.reviewSettings));
+            safeLocalStorageSet("aura_review_settings_cache", storeCache.reviewSettings);
             emitStoreUpdate("review-settings:synced", storeCache.reviewSettings);
           }
         } catch (e) {
@@ -780,7 +815,7 @@ export async function fetchHomeData(force = false) {
               !deletedIds.has(String(c._id)) && 
               !deletedCodes.has(String(c.code || "").toUpperCase())
             );
-            localStorage.setItem("aura_coupons_cache", JSON.stringify(storeCache.coupons));
+            safeLocalStorageSet("aura_coupons_cache", storeCache.coupons);
             emitStoreUpdate("coupons:synced", storeCache.coupons);
           }
         } catch (e) {
@@ -801,7 +836,7 @@ export async function fetchHomeData(force = false) {
       ]);
 
       hasFetchedFreshData = true;
-      localStorage.setItem("aura_last_fetch_time", String(Date.now()));
+      safeLocalStorageSet("aura_last_fetch_time", String(Date.now()));
       isHydrated = true;
       if (hydrationResolver) hydrationResolver(true);
 

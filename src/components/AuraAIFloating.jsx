@@ -39,6 +39,8 @@ import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/au
 import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
 import { emitToast } from "../context/ToastContext";
+import { triggerHaptic } from "../lib/haptics";
+import { safePrice } from "../lib/productHelper";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 import { VoiceReader } from "./VoiceReader";
@@ -827,6 +829,8 @@ export function AuraAIFloating() {
   };
 
   const handleAddToCart = (product) => {
+    if (!product) return;
+    triggerHaptic("medium");
     cart.add(product.id, 1);
     setAddedItems(prev => ({ ...prev, [product.id]: true }));
     auraAiClient.trackAction({ conversationId, action: "cart", productId: product.id });
@@ -836,6 +840,7 @@ export function AuraAIFloating() {
   };
 
   const handleApplyCoupon = (code) => {
+    triggerHaptic("success");
     setAppliedCoupon(code);
     try {
       localStorage.setItem("aura_pending_coupon", code);
@@ -843,13 +848,15 @@ export function AuraAIFloating() {
   };
 
   const handleChatOrderSuccess = (createdOrder, prod, meta) => {
+    triggerHaptic("success");
+    const safeFinal = Number(meta?.finalAmount || 0);
     const confirmationMsg = {
       id: "ai_order_" + Date.now(),
       sender: "ai",
-      text: `Namaste! 🙏 Your order for **${prod.name}** (x${meta.qty}) has been placed successfully!\n\n• **Order ID**: #${createdOrder.id || createdOrder.orderId}\n• **Total Amount**: ₹${(meta.finalAmount || 0).toLocaleString('en-IN')}\n• **Status**: Confirmed & Preparing for Vedic Energization\n• **Packaging**: Sacred Gangajal Consecrated Box\n\nA confirmation email and tracking updates have been sent to your registered contact. May Lord Shiva bless you! ✨`,
+      text: `Namaste! 🙏 Your order for **${prod?.name || "Sacred Bead"}** (x${meta?.qty || 1}) has been placed successfully!\n\n• **Order ID**: #${createdOrder.id || createdOrder.orderId}\n• **Total Amount**: ₹${safeFinal.toLocaleString('en-IN')}\n• **Status**: Confirmed & Preparing for Vedic Energization\n• **Packaging**: Sacred Gangajal Consecrated Box\n\nA confirmation email and tracking updates have been sent to your registered contact. May Lord Shiva bless you! ✨`,
       orderInfo: {
         id: createdOrder.id || createdOrder.orderId,
-        finalAmount: meta.finalAmount,
+        finalAmount: safeFinal,
         status: "Confirmed",
         paymentStatus: createdOrder.paymentStatus || "Confirmed"
       },
@@ -860,6 +867,7 @@ export function AuraAIFloating() {
   };
 
   const handleOpen = () => {
+    triggerHaptic("light");
     setIsFullWindow(false);
     setIsOpen(true);
   };
@@ -1651,22 +1659,24 @@ export function AuraAIFloating() {
                                 <Sparkles size={12} /> Recommended for you:
                               </div>
                               <div className="aura-ai-prods-list">
-                                {m.products.slice(0, 3).map(p => {
-                                  const isAdded = addedItems[p.id];
-                                  // Real discount from real MRP - never invented
-                                  const realMrp = Number(p.comparePrice || p.mrp || 0);
-                                  const discountPercent = realMrp > Number(p.price || 0)
-                                    ? Math.round(((realMrp - Number(p.price)) / realMrp) * 100)
+                                {m.products.filter(p => p && typeof p === "object").slice(0, 3).map((p, pIdx) => {
+                                  const pId = p.id || p._id || p.slug || `prod-${pIdx}`;
+                                  const isAdded = addedItems[pId];
+                                  const priceNum = Math.max(0, safePrice(p.price, 0));
+                                  const realMrp = Math.max(0, safePrice(p.comparePrice || p.mrp, 0));
+                                  const discountPercent = realMrp > priceNum && realMrp > 0
+                                    ? Math.round(((realMrp - priceNum) / realMrp) * 100)
                                     : 0;
-                                  const oos = Number(p.stock) <= 0;
+                                  const oos = Number(p.stock) <= 0 && p.stock !== undefined;
                                   const realImg = getProductPrimaryImage(p);
+                                  const pName = p.name || "Sacred Himalayan Rudraksha";
 
                                   return (
-                                    <div key={p.id} className="aura-ai-prod-card-row">
+                                    <div key={pId} className="aura-ai-prod-card-row">
                                       <div className="aura-ai-prod-img-wrap">
                                         <img
                                           src={realImg}
-                                          alt={p.name}
+                                          alt={pName}
                                           className="aura-ai-prod-img"
                                           referrerPolicy="no-referrer"
                                           loading="lazy"
@@ -1679,9 +1689,9 @@ export function AuraAIFloating() {
                                         )}
                                       </div>
                                       <div className="aura-ai-prod-info">
-                                        <h4 className="aura-ai-prod-name" title={p.name}>{p.name}</h4>
+                                        <h4 className="aura-ai-prod-name" title={pName}>{pName}</h4>
                                         <div className="aura-ai-prod-meta">
-                                          <span className="aura-ai-prod-price">₹{Number(p.price).toLocaleString('en-IN')}</span>
+                                          <span className="aura-ai-prod-price">₹{priceNum.toLocaleString('en-IN')}</span>
                                           {discountPercent > 0 && (
                                             <span className="aura-ai-prod-mrp">₹{realMrp.toLocaleString('en-IN')}</span>
                                           )}
@@ -1702,7 +1712,10 @@ export function AuraAIFloating() {
                                           </Link>
                                           <button
                                             type="button"
-                                            onClick={() => setOrderModalProduct(p)}
+                                            onClick={() => {
+                                              triggerHaptic("light");
+                                              setOrderModalProduct(p);
+                                            }}
                                             disabled={oos}
                                             style={oos ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
                                             className="aura-ai-prod-btn-buy"
@@ -1711,7 +1724,11 @@ export function AuraAIFloating() {
                                             <Sparkles size={10} /> Order
                                           </button>
                                           <button
-                                            onClick={() => handleAddToCart(p)}
+                                            type="button"
+                                            onClick={() => {
+                                              triggerHaptic("medium");
+                                              handleAddToCart(p);
+                                            }}
                                             disabled={oos}
                                             style={oos ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
                                             className={`aura-ai-prod-btn-add ${isAdded ? "added" : ""}`}

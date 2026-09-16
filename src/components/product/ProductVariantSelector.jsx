@@ -1,6 +1,7 @@
 import React from "react";
 import { Check, Sparkles, Globe, Award, ShieldCheck, Leaf } from "lucide-react";
-import { isRudrakshaProduct } from "../../lib/productHelper";
+import { isRudrakshaProduct, safePrice } from "../../lib/productHelper";
+import { triggerHaptic } from "../../lib/haptics";
 
 export function ProductVariantSelector({ 
   product, 
@@ -18,19 +19,14 @@ export function ProductVariantSelector({
   const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
   const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
 
-  const nepalPrice = Number(product.price) || 0;
-  const indoPrice = Number(product.indonesianPrice) || 0;
+  const nepalPrice = Math.max(0, safePrice(product.price, 0));
+  const indoPrice = Math.max(0, safePrice(product.indonesianPrice, 0));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
       {/* 1. Origin Selector (Nepal vs Indonesian) - ONLY for Rudraksha beads */}
       {hasIndonesian && (
-        <div className="aura-origin-selector-container" style={{
-          background: '#fffbf5',
-          border: '1.5px solid #fed7aa',
-          borderRadius: '10px',
-          padding: '12px 14px'
-        }}>
+        <div className="aura-origin-selector-container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <label style={{ fontSize: '13px', fontWeight: '700', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Globe size={15} style={{ color: '#c2410c' }} />
@@ -41,11 +37,14 @@ export function ProductVariantSelector({
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div className="aura-origin-selector-grid">
             {/* Nepali Option */}
             <button
               type="button"
-              onClick={() => onSelectOrigin && onSelectOrigin("Nepal")}
+              onClick={() => {
+                triggerHaptic("selection");
+                onSelectOrigin && onSelectOrigin("Nepal");
+              }}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -86,7 +85,10 @@ export function ProductVariantSelector({
             {/* Indonesian Option */}
             <button
               type="button"
-              onClick={() => onSelectOrigin && onSelectOrigin("Indonesia")}
+              onClick={() => {
+                triggerHaptic("selection");
+                onSelectOrigin && onSelectOrigin("Indonesia");
+              }}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -137,13 +139,16 @@ export function ProductVariantSelector({
             {product.variants.map((v, idx) => {
               const vName = typeof v === "string" ? v : (v.name || v.label || `Option ${idx + 1}`);
               const isSelected = selectedVariant === vName || (!selectedVariant && idx === 0);
-              const vPrice = typeof v === "object" && v.price ? Number(v.price) : null;
+              const vPrice = typeof v === "object" && v.price ? Math.max(0, safePrice(v.price, 0)) : null;
               return (
                 <button
                   key={idx}
                   type="button"
                   className={`aura-variant-chip ${isSelected ? "selected" : ""}`}
-                  onClick={() => onSelectVariant && onSelectVariant(vName)}
+                  onClick={() => {
+                    triggerHaptic("selection");
+                    onSelectVariant && onSelectVariant(vName);
+                  }}
                 >
                   {isSelected && <Check size={13} strokeWidth={2.5} />}
                   <span>{vName}</span>
@@ -170,7 +175,10 @@ export function ProductVariantSelector({
                   key={idx}
                   type="button"
                   className={`aura-variant-chip ${isSelected ? "selected" : ""}`}
-                  onClick={() => onSelectSize && onSelectSize(sName)}
+                  onClick={() => {
+                    triggerHaptic("selection");
+                    onSelectSize && onSelectSize(sName);
+                  }}
                 >
                   {isSelected && <Check size={13} strokeWidth={2.5} />}
                   <span>{sName}</span>
