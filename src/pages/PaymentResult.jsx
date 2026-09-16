@@ -12,10 +12,18 @@ export function PaymentResult() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const status = (searchParams.get("status") || searchParams.get("payment_status") || "processing").toLowerCase();
-  const orderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1");
-  const txnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id");
+  const rawOrderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1") || "";
+  const rawTxnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id") || "";
+  const txnid = rawTxnid || (rawOrderId && rawOrderId.startsWith("TXN_") ? rawOrderId : "");
+  const orderId = (rawOrderId && !rawOrderId.startsWith("TXN_")) ? rawOrderId : (rawOrderId || txnid);
   const guestToken = searchParams.get("guestToken") || searchParams.get("guest_token") || "";
-  const reason = searchParams.get("reason") || searchParams.get("error") || searchParams.get("message");
+  const rawReason = searchParams.get("reason") || searchParams.get("error") || searchParams.get("message") || "";
+  
+  const safeDecodeReason = (val) => {
+    if (!val) return "";
+    try { return decodeURIComponent(val); } catch (_) { return String(val); }
+  };
+  const reason = safeDecodeReason(rawReason);
   
   if (guestToken) {
     try {
@@ -36,18 +44,18 @@ export function PaymentResult() {
     sessionStorage.removeItem("aura_pending_orderId");
 
     const verify = async () => {
-      if (!orderId) {
+      if (!orderId && !txnid) {
         setLoading(false);
         return;
       }
       try {
-        let res = await db.verifyPayment(orderId, txnid, guestToken);
+        let res = await db.verifyPayment(orderId || txnid, txnid || orderId, guestToken);
         // If query param indicated success or processing, but server state transition is mid-flight, poll quickly
         if (res?.data?.paymentStatus !== "Paid" && (status === "success" || status === "processing")) {
           const delays = [500, 1000]; // drastically reduced wait times
           for (const delay of delays) {
             await new Promise((r) => setTimeout(r, delay));
-            res = await db.verifyPayment(orderId, txnid, guestToken);
+            res = await db.verifyPayment(orderId || txnid, txnid || orderId, guestToken);
             if (res?.data?.paymentStatus === "Paid") break;
           }
         }
@@ -75,28 +83,11 @@ export function PaymentResult() {
   // Authoritative server-verified payment success
   const isVerifiedSuccess = order?.paymentStatus === "Paid";
 
-  // After verified successful payment, configure the browser history stack:
-  // 1. Success page becomes the final safe destination in browser history.
-  // 2. Pressing Android / browser Back from the success page navigates to Aura Rudraksha Home ('/').
-  // 3. User never navigates back to PayU gateway, payment form, or intermediate URLs.
+  // Safe navigation on Back button without corrupting React Router history
   useEffect(() => {
-    if (!isVerifiedSuccess || !orderId) return;
-
-    const currentUrl = window.location.pathname + window.location.search;
-
-    // Only establish the history boundary once to avoid redundant stack entries
-    if (!window.history.state?.auraPaymentSuccess) {
-      window.history.replaceState({ auraSafeNav: true, page: "home" }, "", "/");
-      window.history.pushState(
-        { auraPaymentSuccess: true, orderId: order?.id || orderId },
-        "",
-        currentUrl
-      );
-    }
+    if (!isVerifiedSuccess || (!orderId && !txnid)) return;
 
     const handlePopState = () => {
-      // When Android or browser Back is pressed from the verified success screen,
-      // navigate safely to Aura Rudraksha Home UI.
       navigate("/", { replace: true });
     };
 
@@ -104,7 +95,7 @@ export function PaymentResult() {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [isVerifiedSuccess, orderId, order?.id, navigate]);
+  }, [isVerifiedSuccess, orderId, txnid, navigate]);
 
   const handleRetry = async () => {
     if (!orderId) return;

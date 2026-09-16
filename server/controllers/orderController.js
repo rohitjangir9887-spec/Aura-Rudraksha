@@ -181,7 +181,24 @@ export async function getOrderById(req, res, next) {
       });
     }
 
-    let order = await Order.findOne({ $or: [{ id: String(id) }, { orderId: String(id) }, { orderNumber: String(id) }] }).lean();
+    let extractedOrderId = "";
+    if (typeof id === "string" && id.startsWith("TXN_")) {
+      const parts = id.split("_");
+      if (parts.length >= 2) extractedOrderId = parts[1];
+    }
+
+    const queryOr = [
+      { id: String(id) },
+      { orderId: String(id) },
+      { orderNumber: String(id) },
+      { txnid: String(id) },
+      { "paymentAttempts.txnid": String(id) }
+    ];
+    if (extractedOrderId) {
+      queryOr.push({ id: extractedOrderId }, { orderId: extractedOrderId }, { orderNumber: extractedOrderId });
+    }
+
+    let order = await Order.findOne({ $or: queryOr }).lean();
     if (!order && id.match(/^[0-9a-fA-F]{24}$/)) {
       order = await Order.findById(id).lean();
     }
@@ -202,13 +219,17 @@ export async function getOrderById(req, res, next) {
       (userPhone && oPhone === userPhone)
     );
 
+    const isTxnMatch = Boolean(
+      (order.txnid && (order.txnid === String(id) || order.txnid === reqTxnid)) ||
+      (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === String(id) || a.txnid === reqTxnid))
+    );
+
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
-    const isGuestOwner = isGuestOrder && (
+    const isGuestOwner = isTxnMatch || (isGuestOrder && (
       (Boolean(order.guestToken) && Boolean(reqGuestToken) && reqGuestToken === order.guestToken) ||
-      (Boolean(reqTxnid) && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid)))) ||
       (userEmail && oEmail === userEmail) ||
       (userPhone && oPhone === userPhone)
-    );
+    ));
 
     if (!isAdmin && !isOwner && !isGuestOwner) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });

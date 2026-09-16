@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import confetti from "canvas-confetti";
+import { fireConfetti } from "../../lib/confetti";
 import { PlaceOrderButton } from "./PlaceOrderButton";
 import { SecurePaymentGuarantee } from "./SecurePaymentGuarantee";
 
@@ -54,14 +54,14 @@ export function OrderSummaryCard({
       
       // Fire celebratory confetti bursts
       try {
-        confetti({
+        fireConfetti({
           particleCount: 60,
           spread: 60,
           origin: { y: 0.65 },
           colors: ['#8c2b10', '#166534', '#eab308', '#d97706', '#f59e0b']
         });
       } catch (err) {
-        // Fallback gracefully if canvas-confetti fails
+        // Fallback gracefully
       }
 
       const timer = setTimeout(() => {

@@ -1,14 +1,14 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Check, ShieldCheck, Sparkles, Star, Award, CheckCircle2 } from "lucide-react";
-import confetti from "canvas-confetti";
+import { fireConfetti } from "../../lib/confetti";
 
 export function OrderSuccessAnimation({ orderNum, txnid }) {
   // Fire layered celebratory confetti sequence
   useEffect(() => {
     try {
       // First immediate burst
-      confetti({
+      fireConfetti({
         particleCount: 80,
         spread: 80,
         origin: { y: 0.55 },
@@ -17,14 +17,14 @@ export function OrderSuccessAnimation({ orderNum, txnid }) {
 
       // Secondary delayed gold & green burst
       const timer = setTimeout(() => {
-        confetti({
+        fireConfetti({
           particleCount: 50,
           angle: 60,
           spread: 55,
           origin: { x: 0 },
           colors: ["#b85d25", "#fbbf24", "#22c55e"]
         });
-        confetti({
+        fireConfetti({
           particleCount: 50,
           angle: 120,
           spread: 55,

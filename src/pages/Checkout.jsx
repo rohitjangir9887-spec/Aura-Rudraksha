@@ -23,7 +23,7 @@ import {
   RefreshCw,
   Zap
 } from "lucide-react";
-import confetti from "canvas-confetti";
+import { fireConfetti } from "../lib/confetti";
 
 // Modular Checkout Components
 import { CheckoutTopOffer } from "../components/checkout/CheckoutTopOffer";
@@ -42,6 +42,118 @@ import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimat
 import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
 import { PayuRedirectModal } from "../components/checkout/PayuRedirectModal";
 import { triggerHaptic } from "../lib/haptics";
+// Helper to immediately resolve saved delivery address from local cache with 0ms lag
+function getInitialCheckoutAddress() {
+  try {
+    const user = authClient.getUser();
+    const cachedAddrs = db.getCachedAddresses?.() || [];
+    let defaultAddr = null;
+    if (Array.isArray(cachedAddrs) && cachedAddrs.length > 0) {
+      defaultAddr = cachedAddrs.find(a => a.isDefault) || cachedAddrs[0];
+    }
+    const cachedMe = db.getCachedCustomerMe?.() || {};
+    const fullName = (cachedMe?.name && cachedMe.name !== "Customer" && cachedMe.name !== "Aura Devotee") 
+      ? cachedMe.name 
+      : (user?.displayName || (user?.email ? user.email.split("@")[0].replace(/[._0-9]+/g, ' ') : ""));
+    const nameParts = fullName.trim().split(/\s+/);
+    const autoFirstName = nameParts[0] || "";
+    const autoLastName = nameParts.slice(1).join(" ") || "";
+    const autoEmail = cachedMe?.email || user?.email || "";
+    const autoPhone = cachedMe?.phone || user?.phoneNumber || "";
+
+    if (defaultAddr && (defaultAddr.address || defaultAddr.city)) {
+      const addrNameParts = (defaultAddr.name || fullName).trim().split(/\s+/);
+      const resolvedAddr = {
+        ...defaultAddr,
+        firstName: defaultAddr.firstName || addrNameParts[0] || autoFirstName,
+        lastName: defaultAddr.lastName || addrNameParts.slice(1).join(" ") || autoLastName,
+        phone: defaultAddr.phone || autoPhone,
+        email: defaultAddr.email || autoEmail,
+        isDefault: true
+      };
+      return {
+        savedAddr: resolvedAddr,
+        usingSaved: true,
+        initialFormData: {
+          id: resolvedAddr.id || null,
+          firstName: resolvedAddr.firstName,
+          lastName: resolvedAddr.lastName,
+          phone: resolvedAddr.phone,
+          email: resolvedAddr.email,
+          address: resolvedAddr.address || "",
+          landmark: resolvedAddr.landmark || "",
+          locality: resolvedAddr.locality || "",
+          pincode: resolvedAddr.pincode || "",
+          city: resolvedAddr.city || "",
+          state: resolvedAddr.state || "",
+          isDefault: true
+        },
+        hasCachedData: true
+      };
+    }
+
+    if (cachedMe && cachedMe.address) {
+      const resolvedAddr = {
+        id: null,
+        firstName: autoFirstName,
+        lastName: autoLastName,
+        phone: autoPhone,
+        email: autoEmail,
+        address: cachedMe.address || "",
+        landmark: "",
+        locality: "",
+        pincode: cachedMe.pincode || "",
+        city: cachedMe.city || "",
+        state: cachedMe.state || "",
+        isDefault: true
+      };
+      return {
+        savedAddr: resolvedAddr,
+        usingSaved: true,
+        initialFormData: resolvedAddr,
+        hasCachedData: true
+      };
+    }
+
+    return {
+      savedAddr: null,
+      usingSaved: false,
+      initialFormData: {
+        firstName: autoFirstName,
+        lastName: autoLastName,
+        phone: autoPhone,
+        email: autoEmail,
+        address: "",
+        landmark: "",
+        locality: "",
+        pincode: "",
+        city: "",
+        state: "",
+        isDefault: true
+      },
+      hasCachedData: false
+    };
+  } catch (_) {
+    return {
+      savedAddr: null,
+      usingSaved: false,
+      initialFormData: {
+        firstName: "",
+        lastName: "",
+        phone: "",
+        email: "",
+        address: "",
+        landmark: "",
+        locality: "",
+        pincode: "",
+        city: "",
+        state: "",
+        isDefault: true
+      },
+      hasCachedData: false
+    };
+  }
+}
 
 export function Checkout() {
   const [searchParams] = useSearchParams();
@@ -89,24 +201,15 @@ export function Checkout() {
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
+  const initialAddrState = useMemo(() => getInitialCheckoutAddress(), []);
+
   // Form State
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
-    address: "",
-    landmark: "",
-    locality: "",
-    pincode: "",
-    city: "",
-    state: ""
-  });
+  const [formData, setFormData] = useState(() => initialAddrState.initialFormData);
   const [formErrors, setFormErrors] = useState({});
 
   // Saved Address State
-  const [savedAddress, setSavedAddress] = useState(null);
-  const [usingSavedAddress, setUsingSavedAddress] = useState(false);
+  const [savedAddress, setSavedAddress] = useState(() => initialAddrState.savedAddr);
+  const [usingSavedAddress, setUsingSavedAddress] = useState(() => initialAddrState.usingSaved);
   const [saveAddressCheck, setSaveAddressCheck] = useState(true);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
 
@@ -119,7 +222,11 @@ export function Checkout() {
   // Authoritative server-side verification state
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [verificationError, setVerificationError] = useState("");
-  const [isUserDataLoading, setIsUserDataLoading] = useState(() => Boolean(authClient.getUser() && !authClient.getUser().isAnonymous));
+  const [isUserDataLoading, setIsUserDataLoading] = useState(() => {
+    const user = authClient.getUser();
+    if (!user || user.isAnonymous) return false;
+    return !initialAddrState.hasCachedData;
+  });
   const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || {});
 
   // PayU Redirect Modal State
@@ -222,7 +329,9 @@ export function Checkout() {
       const user = authClient.getUser();
       if (typeof window !== "undefined" && user && !user.isAnonymous) {
         try {
-          setIsUserDataLoading(true);
+          if (!initialAddrState.hasCachedData && !savedAddress) {
+            setIsUserDataLoading(true);
+          }
           const [addrRes, meRes] = await Promise.all([
             db.getAddresses(),
             db.getCustomerMe()
@@ -258,9 +367,8 @@ export function Checkout() {
 
           if (chosenAddr && (chosenAddr.address || chosenAddr.city)) {
             const addrNameParts = (chosenAddr.name || fullName).trim().split(/\s+/);
-            setSavedAddress(chosenAddr);
-            setUsingSavedAddress(true);
-            setFormData({
+            const resolvedAddr = {
+              ...chosenAddr,
               id: chosenAddr.id || null,
               firstName: chosenAddr.firstName || addrNameParts[0] || autoFirstName,
               lastName: chosenAddr.lastName || addrNameParts.slice(1).join(" ") || autoLastName,
@@ -273,7 +381,24 @@ export function Checkout() {
               city: chosenAddr.city || "",
               state: chosenAddr.state || "",
               isDefault: chosenAddr.isDefault ?? true
-            });
+            };
+            setSavedAddress(resolvedAddr);
+            setUsingSavedAddress(true);
+            setFormData(prev => ({
+              ...prev,
+              id: resolvedAddr.id,
+              firstName: resolvedAddr.firstName || prev.firstName,
+              lastName: resolvedAddr.lastName || prev.lastName,
+              phone: resolvedAddr.phone || prev.phone,
+              email: resolvedAddr.email || prev.email,
+              address: resolvedAddr.address || prev.address,
+              landmark: resolvedAddr.landmark || prev.landmark,
+              locality: resolvedAddr.locality || prev.locality,
+              pincode: resolvedAddr.pincode || prev.pincode,
+              city: resolvedAddr.city || prev.city,
+              state: resolvedAddr.state || prev.state,
+              isDefault: true
+            }));
           } else {
             setFormData(prev => ({
               ...prev,
@@ -304,7 +429,7 @@ export function Checkout() {
   useEffect(() => {
     if (confirmedOrder) {
       try {
-        confetti({
+        fireConfetti({
           particleCount: 90,
           spread: 70,
           origin: { y: 0.6 },
@@ -405,6 +530,24 @@ export function Checkout() {
 
   const handleEditAddress = () => {
     triggerHaptic("selection");
+    if (savedAddress) {
+      const addrNameParts = (savedAddress.name || "").trim().split(/\s+/);
+      setFormData(prev => ({
+        ...prev,
+        id: savedAddress.id || prev.id || null,
+        firstName: savedAddress.firstName || addrNameParts[0] || prev.firstName || "",
+        lastName: savedAddress.lastName || addrNameParts.slice(1).join(" ") || prev.lastName || "",
+        phone: savedAddress.phone || prev.phone || "",
+        email: savedAddress.email || prev.email || "",
+        address: savedAddress.address || prev.address || "",
+        landmark: savedAddress.landmark || prev.landmark || "",
+        locality: savedAddress.locality || prev.locality || "",
+        pincode: savedAddress.pincode || prev.pincode || "",
+        city: savedAddress.city || prev.city || "",
+        state: savedAddress.state || prev.state || "",
+        isDefault: savedAddress.isDefault !== undefined ? savedAddress.isDefault : true
+      }));
+    }
     setUsingSavedAddress(false);
   };
 

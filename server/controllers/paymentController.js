@@ -1019,7 +1019,27 @@ export async function verifyPaymentStatus(req, res, next) {
     const authUserId = req.user?.authUserId;
     const reqTxnid = String(req.query.txnid || req.headers["x-payu-txnid"] || "").trim();
 
-    const order = await Order.findOne({ $or: [{ id: orderId }, { orderId }, { orderNumber: orderId }] });
+    let extractedOrderId = "";
+    if (typeof orderId === "string" && orderId.startsWith("TXN_")) {
+      const parts = orderId.split("_");
+      if (parts.length >= 2) extractedOrderId = parts[1];
+    }
+
+    const queryOr = [
+      { id: String(orderId) },
+      { orderId: String(orderId) },
+      { orderNumber: String(orderId) },
+      { txnid: String(orderId) },
+      { "paymentAttempts.txnid": String(orderId) }
+    ];
+    if (extractedOrderId) {
+      queryOr.push({ id: extractedOrderId }, { orderId: extractedOrderId }, { orderNumber: extractedOrderId });
+    }
+    if (reqTxnid) {
+      queryOr.push({ txnid: reqTxnid }, { "paymentAttempts.txnid": reqTxnid });
+    }
+
+    const order = await Order.findOne({ $or: queryOr });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
@@ -1034,12 +1054,16 @@ export async function verifyPaymentStatus(req, res, next) {
     const reqPhone10 = req.user?.phone ? extractRaw10DigitPhone(req.user.phone) : "";
     const orderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || "");
     const isPhoneOwner = Boolean(reqPhone10 && orderPhone10 && reqPhone10 === orderPhone10);
+    const isTxnMatch = Boolean(
+      (order.txnid && (order.txnid === String(orderId) || order.txnid === reqTxnid)) ||
+      (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === String(orderId) || a.txnid === reqTxnid))
+    );
     const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
     const isGuestOwner = Boolean(
       (order.guestToken && reqGuestToken && reqGuestToken === order.guestToken) ||
-      (reqTxnid && (order.txnid === reqTxnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === reqTxnid))))
+      isTxnMatch
     );
-    const isDirectOrderMatch = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId) && isGuestOwner);
+    const isDirectOrderMatch = Boolean(orderId && (order.id === orderId || order.orderId === orderId || order.orderNumber === orderId || isTxnMatch));
 
     if (!isAdmin && !isOwner && !isEmailOwner && !isPhoneOwner && !isGuestOwner && !isDirectOrderMatch) {
       return res.status(403).json({ success: false, message: "Access Denied" });
