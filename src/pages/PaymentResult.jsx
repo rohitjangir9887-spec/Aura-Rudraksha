@@ -299,7 +299,7 @@ export function PaymentResult() {
           </p>
           {reason && (
             <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "10px 14px", fontSize: "12px", color: "#b91c1c", margin: "12px auto 24px", maxWidth: "480px" }}>
-              <b>Reason:</b> {decodeURIComponent(reason)}
+              <b>Reason:</b> {reason}
             </div>
           )}
           <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>

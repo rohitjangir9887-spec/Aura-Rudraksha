@@ -12,9 +12,12 @@ import crypto from "crypto";
  */
 
 export function getPayuConfig() {
-  const key = (process.env.PAYU_MERCHANT_KEY || "").trim();
-  const salt = (process.env.PAYU_MERCHANT_SALT || "").trim();
-  const env = (process.env.PAYU_ENV || "prod").toLowerCase().trim();
+  // Support both PAYU_MERCHANT_KEY (preferred) and PAYU_KEY (legacy alias)
+  const key = (process.env.PAYU_MERCHANT_KEY || process.env.PAYU_KEY || "").trim();
+  // Support both PAYU_MERCHANT_SALT (preferred) and PAYU_SALT (legacy alias)
+  const salt = (process.env.PAYU_MERCHANT_SALT || process.env.PAYU_SALT || "").trim();
+  // Support PAYU_ENV (preferred) and PAYU_MODE (legacy alias)
+  const env = (process.env.PAYU_ENV || process.env.PAYU_MODE || "prod").toLowerCase().trim();
   const isTest = env === "test" || env === "sandbox";
 
   // Strict separation of Test vs Production endpoints:
