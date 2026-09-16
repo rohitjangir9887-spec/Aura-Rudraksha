@@ -463,7 +463,7 @@ export function AdminPromotions() {
                         <Pencil size={16} />
                       </button>
                       <button 
-                        onClick={() => setDeleteId(promo.id)} 
+                        onClick={() => setDeleteId(promo.id || promo._id)} 
                         title="Delete Campaign"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d64b2e' }}
                       >

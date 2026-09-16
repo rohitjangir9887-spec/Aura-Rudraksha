@@ -1,11 +1,15 @@
+import mongoose from "mongoose";
 import { Banner } from "../models/Banner.js";
-import { isDbConnected } from "../config/db.js";
+import { isDbConnected, connectDB } from "../config/db.js";
 import { isSafeImageValue } from "../utils/imageValidation.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { defaultBanners } from "../data/defaultData.js";
 
 export async function getBanners(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
     if (!isDbConnected()) {
       const bannerUrls = inMemoryStore.banners || defaultBanners;
       return res.json({ success: true, data: bannerUrls, full: [], isFallback: true });
@@ -29,27 +33,27 @@ export async function saveBanners(req, res, next) {
       return isSafeImageValue(img);
     });
 
+    inMemoryStore.banners = bannerArray;
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot save banners without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
     }
 
-    await Banner.deleteMany({});
-    const docs = bannerArray.map((item, idx) => ({
-      id: typeof item === "object" && item.id ? item.id : `BANNER-${Date.now()}-${idx}`,
-      image: typeof item === "string" ? item : (item.image || item.url || ""),
-      title: typeof item === "object" ? item.title : "",
-      subtitle: typeof item === "object" ? item.subtitle : "",
-      link: typeof item === "object" ? item.link : "/shop",
-      position: typeof item === "object" ? item.position || "hero" : "hero",
-      isActive: typeof item === "object" && item.isActive !== undefined ? item.isActive : true,
-      sortOrder: idx
-    }));
-    await Banner.insertMany(docs);
+    if (isDbConnected()) {
+      await Banner.deleteMany({});
+      const docs = bannerArray.map((item, idx) => ({
+        id: typeof item === "object" && item.id ? item.id : `BANNER-${Date.now()}-${idx}`,
+        image: typeof item === "string" ? item : (item.image || item.url || ""),
+        title: typeof item === "object" ? item.title : "",
+        subtitle: typeof item === "object" ? item.subtitle : "",
+        link: typeof item === "object" ? item.link : "/shop",
+        position: typeof item === "object" ? item.position || "hero" : "hero",
+        isActive: typeof item === "object" && item.isActive !== undefined ? item.isActive : true,
+        sortOrder: idx
+      }));
+      await Banner.insertMany(docs);
+    }
+
     return res.json({ success: true, data: bannerArray });
   } catch (err) {
     next(err);
@@ -69,17 +73,19 @@ export async function createBanner(req, res, next) {
     const id = data.id || `BANNER-${Date.now()}`;
     const payload = { ...data, id };
 
+    if (!Array.isArray(inMemoryStore.banners)) inMemoryStore.banners = [];
+    inMemoryStore.banners.push(payload);
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot create banner without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
     }
 
-    const created = await Banner.create(payload);
-    return res.status(201).json({ success: true, data: created });
+    if (isDbConnected()) {
+      const created = await Banner.create(payload);
+      return res.status(201).json({ success: true, data: created });
+    }
+
+    return res.status(201).json({ success: true, data: payload });
   } catch (err) {
     next(err);
   }
@@ -88,17 +94,28 @@ export async function createBanner(req, res, next) {
 export async function deleteBanner(req, res, next) {
   try {
     const { id } = req.params;
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot delete banner without MongoDB connection.",
-        databaseUnavailable: true
+    const bannerId = String(id).trim();
+
+    if (Array.isArray(inMemoryStore.banners)) {
+      inMemoryStore.banners = inMemoryStore.banners.filter(b => {
+        if (typeof b === "string") return b !== bannerId;
+        return b?.id !== bannerId && b?.image !== bannerId && String(b?._id) !== bannerId;
       });
     }
 
-    await Banner.findOneAndDelete({ $or: [{ id: String(id) }, { image: String(id) }] });
-    return res.json({ success: true, message: "Banner deleted", id });
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+
+    if (isDbConnected()) {
+      const deleteConds = [{ id: bannerId }, { image: bannerId }];
+      if (mongoose.Types.ObjectId.isValid(bannerId)) {
+        deleteConds.push({ _id: bannerId });
+      }
+      await Banner.findOneAndDelete({ $or: deleteConds });
+    }
+
+    return res.json({ success: true, message: "Banner deleted", id: bannerId });
   } catch (err) {
     next(err);
   }

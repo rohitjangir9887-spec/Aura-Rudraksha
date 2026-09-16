@@ -157,7 +157,7 @@ export function AdminCoupons() {
       for (const off of existingOffers) {
         if (off.couponCode && String(off.couponCode).toUpperCase() === codeToDelete) {
           try {
-            await db.deleteOffer(off.id);
+            await db.deleteOffer(off.id || off._id);
           } catch (_) {}
         }
       }

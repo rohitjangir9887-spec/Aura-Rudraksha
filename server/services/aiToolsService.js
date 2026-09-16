@@ -207,7 +207,10 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
 
         if (isDbConnected()) {
           try {
-            if (productId) p = await Product.findOne({ $or: [{ id: productId }, { _id: productId }] }).lean();
+            if (productId) {
+              const isMongoId = mongoose.Types.ObjectId.isValid(productId);
+              p = await Product.findOne({ $or: [{ id: productId }, ...(isMongoId ? [{ _id: productId }] : [])] }).lean();
+            }
             else if (slug) p = await Product.findOne({ slug }).lean();
             else if (name) p = await Product.findOne({ name: new RegExp(name, "i") }).lean();
           } catch (_) {
@@ -249,7 +252,10 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         if (isDbConnected()) {
           try {
             let query = {};
-            if (productId) query = { $or: [{ id: productId }, { _id: productId }] };
+            if (productId) {
+              const isMongoId = mongoose.Types.ObjectId.isValid(productId);
+              query = { $or: [{ id: productId }, ...(isMongoId ? [{ _id: productId }] : [])] };
+            }
             else if (productName) query = { name: new RegExp(productName, "i") };
             else if (mukhi) {
               const num = parseInt(mukhi, 10);

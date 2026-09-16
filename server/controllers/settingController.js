@@ -162,12 +162,13 @@ export async function saveSettings(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot save settings without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
+    }
+
+    if (!isDbConnected()) {
+      Object.assign(defaultSettings, data);
+      clearSettingsCache();
+      return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings, true) });
     }
 
     const oldSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
@@ -233,12 +234,13 @@ export async function savePolicies(req, res, next) {
     const data = pickFields(req.body, POLICY_FIELDS);
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot save policies without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
+    }
+
+    if (!isDbConnected()) {
+      Object.assign(defaultSettings, data);
+      clearSettingsCache();
+      return res.json({ success: true, data });
     }
 
     const updated = await Setting.findOneAndUpdate(

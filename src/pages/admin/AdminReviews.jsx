@@ -406,6 +406,7 @@ export function AdminReviews() {
         await db.deleteReview(deleteTargetId);
         emitToast("Review deleted successfully.", "success");
         setDeleteTargetId(null);
+        loadData();
       } catch (err) {
         emitToast(err.message || "Failed to delete review", "error");
       }
@@ -2034,7 +2035,7 @@ Pooja Agarwal,4.6,"Premium 1 Mukhi Rudraksha ka look bahut beautiful hai."`);
 
                             <button 
                               className="admin-icon-btn danger" 
-                              onClick={() => setDeleteTargetId(r.id)}
+                              onClick={() => setDeleteTargetId(r.id || r._id)}
                               title="Delete Review"
                             >
                               <Trash2 size={15} />

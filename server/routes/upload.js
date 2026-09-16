@@ -572,15 +572,17 @@ router.delete("/media/:id", requireAdmin, async (req, res) => {
       return res.json({ success: true, message: "Media deleted in fallback mode" });
     }
 
-    const media = await Media.findOne({
-      $or: [
-        { _id: id },
-        { fileId: id },
-        { puterFileId: id },
-        { readURL: id },
-        { url: id }
-      ]
-    });
+    const conditions = [
+      { fileId: id },
+      { puterFileId: id },
+      { readURL: id },
+      { url: id }
+    ];
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      conditions.push({ _id: id });
+    }
+
+    const media = await Media.findOne({ $or: conditions });
 
     if (!media) {
       return res.status(404).json({ success: false, message: "Media item not found" });

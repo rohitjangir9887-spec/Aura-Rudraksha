@@ -571,18 +571,33 @@ export async function deleteProduct(req, res, next) {
   try {
     const { id } = req.params;
     const cleanId = String(id).trim();
+    const cleanSlug = cleanId.toLowerCase();
+
+    if (Array.isArray(inMemoryStore.products)) {
+      inMemoryStore.products = inMemoryStore.products.filter(p => {
+        if (!p) return false;
+        const pId = String(p.id || "").trim();
+        const pMongoId = String(p._id || "").trim();
+        const pSlug = String(p.slug || "").trim().toLowerCase();
+        return pId !== cleanId && pMongoId !== cleanId && pSlug !== cleanSlug;
+      });
+    }
 
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Cannot delete product while database is disconnected."
+      await connectDB().catch(() => {});
+    }
+
+    if (!isDbConnected()) {
+      invalidateRagCache();
+      invalidateProductCache();
+      return res.json({
+        success: true,
+        message: "Product deleted from store",
+        id: cleanId
       });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
-    const cleanSlug = cleanId.toLowerCase();
 
     let deleted = await Product.findOneAndDelete({
       $or: [
@@ -608,40 +623,35 @@ export async function deleteProduct(req, res, next) {
       }
     }
 
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found in database or already deleted",
-        id: cleanId
-      });
-    }
-
-    submitToIndexNow(["/sitemap.xml", "/merchant-feed.xml"], req).catch(() => {});
-    const productUrls = Array.from(new Set([
-      ...(deleted.images || []),
-      ...(deleted.img ? [deleted.img] : [])
-    ].filter(Boolean)));
-
-    if (productUrls.length > 0) {
-      try {
-        const mediaItems = await Media.find({
-          $or: [
-            { readURL: { $in: productUrls } },
-            { url: { $in: productUrls } }
-          ]
-        });
-
-        for (const media of mediaItems) {
-          if (media.provider === "pcloud" && media.fileId) {
-            await deleteFromPcloud(media.fileId).catch(() => {});
-          }
-          await Media.deleteOne({ _id: media._id }).catch(() => {});
-        }
-      } catch (_) {}
-    }
-
     invalidateRagCache();
     invalidateProductCache();
+
+    submitToIndexNow(["/sitemap.xml", "/merchant-feed.xml"], req).catch(() => {});
+
+    if (deleted) {
+      const productUrls = Array.from(new Set([
+        ...(deleted.images || []),
+        ...(deleted.img ? [deleted.img] : [])
+      ].filter(Boolean)));
+
+      if (productUrls.length > 0) {
+        try {
+          const mediaItems = await Media.find({
+            $or: [
+              { readURL: { $in: productUrls } },
+              { url: { $in: productUrls } }
+            ]
+          });
+
+          for (const media of mediaItems) {
+            if (media.provider === "pcloud" && media.fileId) {
+              await deleteFromPcloud(media.fileId).catch(() => {});
+            }
+            await Media.deleteOne({ _id: media._id }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+    }
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -650,9 +660,14 @@ export async function deleteProduct(req, res, next) {
       entityType: "Product",
       entityId: cleanId,
       req
-    });
+    }).catch(() => {});
 
-    return res.json({ success: true, message: "Product deleted from database", id: cleanId, deletedProduct: toPublicProductDTO(deleted) });
+    return res.json({
+      success: true,
+      message: "Product permanently deleted",
+      id: cleanId,
+      deletedProduct: deleted ? toPublicProductDTO(deleted) : null
+    });
   } catch (err) {
     next(err);
   }

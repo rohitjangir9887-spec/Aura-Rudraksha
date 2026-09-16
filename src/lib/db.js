@@ -186,7 +186,7 @@ async function apiRequest(endpoint, options = {}) {
       let token = "";
       if (options.requiresAuth) {
         token = await authClient.getToken(false, true).catch(() => "");
-      } else if (authClient.hasCurrentUser && authClient.hasCurrentUser()) {
+      } else {
         token = await authClient.getToken(false, false).catch(() => "");
       }
 
@@ -2228,7 +2228,8 @@ export const db = {
   saveBanners: async (arr) => {
     const res = await apiRequest("/banners", {
       method: "POST",
-      body: JSON.stringify(arr)
+      body: JSON.stringify(arr),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save banners. Database unavailable.");
@@ -2241,6 +2242,23 @@ export const db = {
     emitStoreUpdate("banners:saved", arr);
     fetchHomeData(true).catch(() => {});
     return arr;
+  },
+  deleteBanner: async (id) => {
+    const res = await apiRequest(`/banners/${encodeURIComponent(String(id))}`, {
+      method: "DELETE",
+      requiresAuth: true
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to delete banner. Database unavailable.");
+    }
+    storeCache.banners = storeCache.banners.filter(b => b.id !== id && b._id !== id);
+    try {
+      localStorage.setItem("aura_banners_cache", JSON.stringify(storeCache.banners));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
+    emitStoreUpdate("banners:deleted", id);
+    fetchHomeData(true).catch(() => {});
+    return true;
   },
 
   // ANALYTICS
@@ -2275,7 +2293,8 @@ export const db = {
 
     const res = await apiRequest("/promotions", {
       method: "POST",
-      body: JSON.stringify(finalPromo)
+      body: JSON.stringify(finalPromo),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save promotion. Database is unavailable.");
@@ -2289,11 +2308,14 @@ export const db = {
     return saved;
   },
   deletePromotion: async (id) => {
-    const res = await apiRequest(`/promotions/${id}`, { method: "DELETE" });
+    const res = await apiRequest(`/promotions/${encodeURIComponent(String(id))}`, {
+      method: "DELETE",
+      requiresAuth: true
+    });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete promotion. Database is unavailable.");
     }
-    storeCache.promotions = storeCache.promotions.filter(x => x.id !== id);
+    storeCache.promotions = storeCache.promotions.filter(x => x.id !== id && x._id !== id);
     emitStoreUpdate("promotion:deleted", id);
     return true;
   },
@@ -2334,7 +2356,8 @@ export const db = {
 
     const res = await apiRequest("/active-offer", {
       method: "POST",
-      body: JSON.stringify(updated)
+      body: JSON.stringify(updated),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save active offer. Database is unavailable.");
@@ -2358,7 +2381,8 @@ export const db = {
 
     const res = await apiRequest("/offers", {
       method: "POST",
-      body: JSON.stringify(finalOffer)
+      body: JSON.stringify(finalOffer),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save offer. Database is unavailable.");
@@ -2377,11 +2401,14 @@ export const db = {
     return saved;
   },
   deleteOffer: async (id) => {
-    const res = await apiRequest(`/offers/${id}`, { method: "DELETE" });
+    const res = await apiRequest(`/offers/${encodeURIComponent(String(id))}`, {
+      method: "DELETE",
+      requiresAuth: true
+    });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete offer. Database is unavailable.");
     }
-    storeCache.offers = storeCache.offers.filter(x => x.id !== id);
+    storeCache.offers = storeCache.offers.filter(x => x.id !== id && x._id !== id);
     try {
       localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
       localStorage.setItem("aura_last_fetch_time", "0");
@@ -3083,9 +3110,10 @@ export const db = {
   },
 
   updateReview: async (id, updatedFields) => {
-    const res = await apiRequest(`/reviews/${id}`, {
+    const res = await apiRequest(`/reviews/${encodeURIComponent(String(id))}`, {
       method: "PUT",
-      body: JSON.stringify(updatedFields)
+      body: JSON.stringify(updatedFields),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to update review. Database is unavailable.");
@@ -3135,7 +3163,10 @@ export const db = {
 
   deleteReview: async (id) => {
     const strId = String(id);
-    const res = await apiRequest(`/reviews/${strId}`, { method: "DELETE" });
+    const res = await apiRequest(`/reviews/${encodeURIComponent(strId)}`, {
+      method: "DELETE",
+      requiresAuth: true
+    });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete review. Database is unavailable.");
     }
@@ -3190,7 +3221,8 @@ export const db = {
   saveReviewSettings: async (settings) => {
     const res = await apiRequest("/reviews/settings", {
       method: "PUT",
-      body: JSON.stringify(settings)
+      body: JSON.stringify(settings),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save review settings. Database is unavailable.");
@@ -3209,6 +3241,7 @@ export const db = {
     const res = await apiRequest("/reviews/generate-drafts", {
       method: "POST",
       body: JSON.stringify(params),
+      requiresAuth: true,
       timeoutMs: 60000
     });
     if (!res?.success) {
@@ -3221,6 +3254,7 @@ export const db = {
     const res = await apiRequest("/reviews/bulk-save", {
       method: "POST",
       body: JSON.stringify({ reviews, allowDuplicates }),
+      requiresAuth: true,
       timeoutMs: 30000
     });
     if (!res?.success) {
@@ -3255,6 +3289,7 @@ export const db = {
     const res = await apiRequest("/reviews/preview-import", {
       method: "POST",
       body: JSON.stringify(params),
+      requiresAuth: true,
       timeoutMs: 45000
     });
     if (!res?.success) {
@@ -3267,6 +3302,7 @@ export const db = {
     const res = await apiRequest("/reviews/import-external", {
       method: "POST",
       body: JSON.stringify({ reviews, importDefaults, allowDuplicates }),
+      requiresAuth: true,
       timeoutMs: 30000
     });
     if (!res?.success) {
@@ -3297,6 +3333,7 @@ export const db = {
     const res = await apiRequest("/reviews/polish", {
       method: "POST",
       body: JSON.stringify({ id, text, author, rating, productName, language }),
+      requiresAuth: true,
       timeoutMs: 25000
     });
     if (!res?.success) {
@@ -3343,7 +3380,8 @@ export const db = {
   saveSettings: async (settings) => {
     const res = await apiRequest("/settings", {
       method: "PUT",
-      body: JSON.stringify(settings)
+      body: JSON.stringify(settings),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save settings. Database is unavailable.");
@@ -3372,7 +3410,8 @@ export const db = {
   savePolicies: async (policies) => {
     const res = await apiRequest("/settings/policies", {
       method: "PUT",
-      body: JSON.stringify(policies)
+      body: JSON.stringify(policies),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save policies. Database is unavailable.");

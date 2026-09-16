@@ -28,8 +28,8 @@ export function errorHandler(err, req, res, next) {
   }
 
   if (isCastOrValidation(err)) {
-    // Bad input (NoSQL-injection-shaped payloads, duplicate keys, failed casts)
-    return res.status(400).json({ success: false, message: FRIENDLY_MESSAGES[400] });
+    const customMsg = err?.message && !err.message.includes("Mongo") && !err.message.includes("econnrefused") ? err.message : FRIENDLY_MESSAGES[400];
+    return res.status(400).json({ success: false, message: customMsg });
   }
 
   const status = err?.status || err?.statusCode || 500;

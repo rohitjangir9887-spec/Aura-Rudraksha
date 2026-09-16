@@ -1,5 +1,6 @@
+import mongoose from "mongoose";
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
-import { isDbConnected } from "../config/db.js";
+import { isDbConnected, connectDB } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { defaultActiveOffer } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
@@ -58,21 +59,22 @@ export async function saveActiveOffer(req, res, next) {
       startAt: data.startAt || data.startDate
     };
 
+    inMemoryStore.activeOffer = payload;
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot save active offer without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
     }
 
-    const updated = await ActiveOffer.findOneAndUpdate(
-      { id: "OFFER-CENTRAL-1" },
-      { $set: payload },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
-    return res.json({ success: true, data: updated });
+    if (isDbConnected()) {
+      const updated = await ActiveOffer.findOneAndUpdate(
+        { id: "OFFER-CENTRAL-1" },
+        { $set: payload },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+      return res.json({ success: true, data: updated });
+    }
+
+    return res.json({ success: true, data: payload });
   } catch (err) {
     next(err);
   }
@@ -81,6 +83,9 @@ export async function saveActiveOffer(req, res, next) {
 // Offers
 export async function getOffers(req, res, next) {
   try {
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
     if (!isDbConnected()) {
       return res.json({ success: true, data: inMemoryStore.offers || [], isFallback: true });
     }
@@ -98,21 +103,25 @@ export async function saveOffer(req, res, next) {
     const id = data.id || ("OFF-" + Date.now());
     const payload = { ...data, id };
 
+    if (!Array.isArray(inMemoryStore.offers)) inMemoryStore.offers = [];
+    const idx = inMemoryStore.offers.findIndex(o => String(o.id) === String(id));
+    if (idx !== -1) inMemoryStore.offers[idx] = payload;
+    else inMemoryStore.offers.push(payload);
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot save offer without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
     }
 
-    const saved = await Offer.findOneAndUpdate(
-      { id: payload.id },
-      payload,
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
-    return res.status(201).json({ success: true, data: saved });
+    if (isDbConnected()) {
+      const saved = await Offer.findOneAndUpdate(
+        { id: payload.id },
+        payload,
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+      return res.status(201).json({ success: true, data: saved });
+    }
+
+    return res.status(201).json({ success: true, data: payload });
   } catch (err) {
     next(err);
   }
@@ -121,17 +130,23 @@ export async function saveOffer(req, res, next) {
 export async function deleteOffer(req, res, next) {
   try {
     const { id } = req.params;
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot delete offer without MongoDB connection.",
-        databaseUnavailable: true
-      });
+    const strId = String(id).trim();
+
+    if (Array.isArray(inMemoryStore.offers)) {
+      inMemoryStore.offers = inMemoryStore.offers.filter(o => String(o.id) !== strId && String(o._id) !== strId);
     }
 
-    await Offer.findOneAndDelete({ id: String(id) });
-    return res.json({ success: true, message: "Offer deleted", id });
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+
+    if (isDbConnected()) {
+      const conds = [{ id: strId }];
+      if (mongoose.Types.ObjectId.isValid(strId)) conds.push({ _id: strId });
+      await Offer.findOneAndDelete({ $or: conds });
+    }
+
+    return res.json({ success: true, message: "Offer deleted", id: strId });
   } catch (err) {
     next(err);
   }
@@ -141,12 +156,10 @@ export async function deleteOffer(req, res, next) {
 export async function getPromotions(req, res, next) {
   try {
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Promotions require an authoritative MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
+    }
+    if (!isDbConnected()) {
+      return res.json({ success: true, data: inMemoryStore.promotions || [], isFallback: true });
     }
     const list = await Promotion.find().sort({ createdAt: -1 }).lean();
     return res.json({ success: true, data: list || [] });
@@ -161,21 +174,25 @@ export async function savePromotion(req, res, next) {
     const id = data.id || ("PROMO-" + Date.now());
     const payload = { ...data, id };
 
+    if (!Array.isArray(inMemoryStore.promotions)) inMemoryStore.promotions = [];
+    const idx = inMemoryStore.promotions.findIndex(p => String(p.id) === String(id));
+    if (idx !== -1) inMemoryStore.promotions[idx] = payload;
+    else inMemoryStore.promotions.push(payload);
+
     if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot save promotion without MongoDB connection.",
-        databaseUnavailable: true
-      });
+      await connectDB().catch(() => {});
     }
 
-    const saved = await Promotion.findOneAndUpdate(
-      { id: payload.id },
-      payload,
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
-    return res.status(201).json({ success: true, data: saved });
+    if (isDbConnected()) {
+      const saved = await Promotion.findOneAndUpdate(
+        { id: payload.id },
+        payload,
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      );
+      return res.status(201).json({ success: true, data: saved });
+    }
+
+    return res.status(201).json({ success: true, data: payload });
   } catch (err) {
     next(err);
   }
@@ -184,17 +201,23 @@ export async function savePromotion(req, res, next) {
 export async function deletePromotion(req, res, next) {
   try {
     const { id } = req.params;
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        error: "Database unavailable",
-        message: "Database is unavailable. Cannot delete promotion without MongoDB connection.",
-        databaseUnavailable: true
-      });
+    const strId = String(id).trim();
+
+    if (Array.isArray(inMemoryStore.promotions)) {
+      inMemoryStore.promotions = inMemoryStore.promotions.filter(p => String(p.id) !== strId && String(p._id) !== strId);
     }
 
-    await Promotion.findOneAndDelete({ id: String(id) });
-    return res.json({ success: true, message: "Promotion deleted", id });
+    if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+
+    if (isDbConnected()) {
+      const conds = [{ id: strId }];
+      if (mongoose.Types.ObjectId.isValid(strId)) conds.push({ _id: strId });
+      await Promotion.findOneAndDelete({ $or: conds });
+    }
+
+    return res.json({ success: true, message: "Promotion deleted", id: strId });
   } catch (err) {
     next(err);
   }

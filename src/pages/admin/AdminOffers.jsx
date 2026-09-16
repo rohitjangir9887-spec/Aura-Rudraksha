@@ -1193,7 +1193,7 @@ export function AdminOffers() {
                       <button type="button" title="Edit deal" onClick={() => openDealEditor(o)} style={{ display: "grid", placeItems: "center", width: "34px", height: "34px", borderRadius: "8px", border: "1px solid #dcd1c6", background: "#fff", cursor: "pointer", color: "#1565c0" }}>
                         <Pencil size={14} />
                       </button>
-                      <button type="button" title="Delete deal" onClick={() => setDeleteDealId(o.id)} style={{ display: "grid", placeItems: "center", width: "34px", height: "34px", borderRadius: "8px", border: "1px solid #f0c8c8", background: "#fff", cursor: "pointer", color: "#c62828" }}>
+                      <button type="button" title="Delete deal" onClick={() => setDeleteDealId(o.id || o._id)} style={{ display: "grid", placeItems: "center", width: "34px", height: "34px", borderRadius: "8px", border: "1px solid #f0c8c8", background: "#fff", cursor: "pointer", color: "#c62828" }}>
                         <Trash2 size={14} />
                       </button>
                     </div>

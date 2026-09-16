@@ -1,7 +1,17 @@
+import mongoose from "mongoose";
 import { Review, ReviewSetting } from "../models/Review.js";
 import { Product } from "../models/Product.js";
 import { Order } from "../models/Order.js";
-import { isDbConnected } from "../config/db.js";
+import { isDbConnected, connectDB } from "../config/db.js";
+
+function buildReviewIdQuery(rawId) {
+  const strId = String(rawId || "").trim();
+  const conds = [{ id: strId }];
+  if (mongoose.Types.ObjectId.isValid(strId)) {
+    conds.push({ _id: strId });
+  }
+  return { $or: conds };
+}
 import { evaluateDraftSimilarity, getExactTextHash, getNormalizedTextHash, checkDuplicateReview } from "../utils/similarity.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
@@ -371,12 +381,15 @@ export async function updateReview(req, res, next) {
       return res.json({ success: true, data: item });
     }
 
-    const existing = await Review.findOne({ $or: [{ id: strId }, { _id: strId }] }).lean();
+    const existing = await Review.findOne(buildReviewIdQuery(strId)).lean();
 
     if (data.productId) {
-      const targetProduct = await Product.findOne({
-        $or: [{ id: String(data.productId) }, { slug: String(data.productId) }]
-      }).lean();
+      const pIdStr = String(data.productId).trim();
+      const pConds = [{ id: pIdStr }, { slug: pIdStr }];
+      if (mongoose.Types.ObjectId.isValid(pIdStr)) {
+        pConds.push({ _id: pIdStr });
+      }
+      const targetProduct = await Product.findOne({ $or: pConds }).lean();
       if (targetProduct) {
         data.productId = String(targetProduct.id);
         data.productName = targetProduct.name;
@@ -384,7 +397,7 @@ export async function updateReview(req, res, next) {
     }
 
     let updated = await Review.findOneAndUpdate(
-      { $or: [{ id: strId }, { _id: strId }] },
+      buildReviewIdQuery(strId),
       { $set: data },
       { returnDocument: "after" }
     );
@@ -414,29 +427,22 @@ export async function deleteReview(req, res, next) {
     const { id } = req.params;
     const reviewId = String(id);
 
-    if (!isDbConnected()) {
-      if (Array.isArray(inMemoryStore.reviews)) {
-        const item = inMemoryStore.reviews.find(r => String(r.id) === reviewId || String(r._id) === reviewId);
-        if (item) {
-          item.status = "deleted";
-          item.deletedAt = new Date();
-          await syncProductReviewStats(item.productId);
-        }
+    if (Array.isArray(inMemoryStore.reviews)) {
+      const item = inMemoryStore.reviews.find(r => String(r.id) === reviewId || String(r._id) === reviewId);
+      if (item) {
+        item.status = "deleted";
+        item.deletedAt = new Date();
+        await syncProductReviewStats(item.productId);
       }
+      inMemoryStore.reviews = inMemoryStore.reviews.filter(r => String(r.id) !== reviewId && String(r._id) !== reviewId);
+    }
+
+    if (!isDbConnected()) {
       return res.json({ success: true, message: "Review deleted successfully", id: reviewId });
     }
 
-    const existing = await Review.findOne({ $or: [{ id: reviewId }, { _id: reviewId }] }).lean();
-    await Review.findOneAndUpdate(
-      { $or: [{ id: reviewId }, { _id: reviewId }] },
-      {
-        $set: {
-          status: "deleted",
-          deletedAt: new Date(),
-          deletedBy: req.user?.email || "admin"
-        }
-      }
-    );
+    const existing = await Review.findOne(buildReviewIdQuery(reviewId)).lean();
+    await Review.deleteMany(buildReviewIdQuery(reviewId));
 
     if (existing && existing.productId) {
       await syncProductReviewStats(existing.productId);
@@ -464,7 +470,7 @@ export async function voteReview(req, res, next) {
 
     const inc = voteType === "up" ? { helpfulUp: 1 } : { helpfulDown: 1 };
     const updated = await Review.findOneAndUpdate(
-      { $or: [{ id: String(id) }, { _id: String(id) }] },
+      buildReviewIdQuery(id),
       { $inc: inc },
       { returnDocument: "after" }
     );
