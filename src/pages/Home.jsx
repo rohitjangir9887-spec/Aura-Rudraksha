@@ -142,10 +142,7 @@ export function Home() {
   };
 
   const loadHomeData = async () => {
-    // 1. Render initial state from local cache
     updateLocalState();
-
-    // 2. Fetch fresh home dataset directly from MongoDB backend
     if (db.fetchCoupons) {
       db.fetchCoupons().then(() => updateLocalState()).catch(() => {});
     }
@@ -161,7 +158,6 @@ export function Home() {
     loadHomeData();
     db.logVisit();
 
-    // Periodic product revalidation (60s) when tab is visible
     const intervalId = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         db.revalidateProducts().catch(() => {});
@@ -207,7 +203,7 @@ export function Home() {
     if (activeBanners.length <= 1) return;
     const interval = setInterval(() => {
       setHero((current) => (current + 1) % activeBanners.length);
-    }, 3500); 
+    }, 3500);
     return () => clearInterval(interval);
   }, [activeBanners.length]);
 
@@ -235,13 +231,12 @@ export function Home() {
       setHero((current) => (current === 0 ? activeBanners.length - 1 : current - 1));
     }
   };
-  
+
   const currentBannerSrc = activeBanners[hero] || activeBanners[0];
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const bannerWidth = isMobile ? 640 : 1200;
 
   return <Shell>
-    
     <section className="hero premium-slider"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -256,10 +251,10 @@ export function Home() {
           const bannerQuality = isMobile ? 78 : 84;
 
           return (
-            <OptimizedImage 
-              key={`${src}-${i}`} 
-              src={src} 
-              alt={`Aura Sacred Banner ${i + 1}`} 
+            <OptimizedImage
+              key={`${src}-${i}`}
+              src={src}
+              alt={`Aura Sacred Banner ${i + 1}`}
               width={bannerWidth}
               quality={bannerQuality}
               priority={i === 0}
@@ -272,13 +267,13 @@ export function Home() {
       {activeBanners.length > 1 && (
         <div className="hero-pagination" role="tablist" aria-label="Slider Pagination">
           {activeBanners.map((_, i) => (
-            <button 
-              key={i} 
+            <button
+              key={i}
               type="button"
               role="tab"
               aria-selected={i === hero}
               aria-label={`Go to slide ${i + 1}`}
-              className={`dot ${i === hero ? 'active' : ''}`} 
+              className={`dot ${i === hero ? 'active' : ''}`}
               onClick={() => setHero(i)}
             />
           ))}
@@ -286,24 +281,56 @@ export function Home() {
       )}
     </section>
 
-    
-
-
     <AuraTrustFeatureBar />
 
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
-    <motion.div    ><ShopByCategory /></motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
+      <ShopByCategory />
+    </motion.div>
 
     {/* HOME PRODUCT SHOWCASE / POPULAR SECTION (Admin Configurable) */}
-    <motion.div    ><HomeProductShowcase products={products} isLoading={isLoading} /></motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
+    >
+      <HomeProductShowcase products={products} isLoading={isLoading} />
+    </motion.div>
 
     {/* THE AURA EDITORIAL: ASYMMETRIC SACRED DISCOVERY SECTION */}
-    <motion.div    ><WhyAuraSection /></motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+    >
+      <WhyAuraSection />
+    </motion.div>
 
     {/* ALL PRODUCTS SECTION */}
-    <motion.div    ><AllProductsSection products={products} isLoading={isLoading} /></motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+    >
+      <AllProductsSection products={products} isLoading={isLoading} />
+    </motion.div>
 
     {/* THE AURA RASHI GUIDE: SHOP BY ZODIAC SIGN SECTION */}
-    <motion.div    ><ZodiacRudrakshaSection /></motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+    >
+      <ZodiacRudrakshaSection />
+    </motion.div>
   </Shell>
 }
