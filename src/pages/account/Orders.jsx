@@ -800,8 +800,8 @@ export function Orders() {
                           
                           {/* Actions: Retry Payment / Track / Details */}
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            {/* PayU Retry Button for Unpaid Orders */}
-                            {!isPaid && !isRefunded && (
+                            {/* PayU Retry Button ONLY for Active Pending Unpaid Orders (Never for Cancelled Orders) */}
+                            {!isPaid && !isCancelled && !isRefunded && isPendingActive && (
                               <button
                                 type="button"
                                 disabled={isRetrying}
@@ -829,9 +829,35 @@ export function Orders() {
                                 ) : (
                                   <>
                                     <RefreshCw size={13} />
-                                    <span>Retry Payment</span>
+                                    <span>Complete Payment</span>
                                   </>
                                 )}
+                              </button>
+                            )}
+
+                            {/* Explore collection for cancelled orders */}
+                            {isCancelled && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('/shop');
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  padding: '7px 12px',
+                                  background: '#fcf8f4',
+                                  color: '#a54d2b',
+                                  border: '1px solid #eadbc8',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <span>Re-order Products</span>
                               </button>
                             )}
 

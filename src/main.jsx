@@ -54,16 +54,19 @@ if (typeof window !== "undefined") {
     }
   });
 
-  // Register high-performance Service Worker for instant offline image & data caching
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((reg) => {
-          reg.update().catch(() => {});
-        })
-        .catch(() => {});
-    });
+  // Idle route prefetching for instant 0ms storefront page transitions
+  const prefetchCoreRoutes = () => {
+    try {
+      import("./pages/Shop").catch(() => {});
+      import("./pages/Product").catch(() => {});
+      import("./pages/Cart").catch(() => {});
+      import("./pages/Checkout").catch(() => {});
+    } catch (_) {}
+  };
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(prefetchCoreRoutes, { timeout: 3000 });
+  } else {
+    setTimeout(prefetchCoreRoutes, 1500);
   }
 }
 

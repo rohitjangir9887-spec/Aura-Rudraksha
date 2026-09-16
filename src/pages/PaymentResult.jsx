@@ -286,7 +286,7 @@ export function PaymentResult() {
   }
 
   // Failed or Cancelled
-  const isCancelled = status === "cancelled";
+  const isCancelled = status === "cancelled" || order?.paymentStatus === "Cancelled" || order?.status === "Cancelled";
 
   return (
     <Shell>
@@ -295,36 +295,42 @@ export function PaymentResult() {
           <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <AlertCircle size={36} />
           </div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#fee2e2", color: "#991b1b", padding: "4px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "700", marginBottom: "12px" }}>
+            {isCancelled ? "Order Cancelled • Payment Not Done" : "Payment Incomplete"}
+          </div>
           <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "32px", fontWeight: "700", color: "#991b1b", margin: "0 0 8px" }}>
-            {isCancelled ? "Payment Cancelled" : "Payment Incomplete"}
+            {isCancelled ? "भुगतान नहीं हुआ — आर्डर कैंसिल" : "Payment Not Completed"}
           </h1>
-          <p style={{ fontSize: "14px", color: "#4a3528", margin: "0 0 10px", lineHeight: "1.5" }}>
+          <p style={{ fontSize: "14.5px", color: "#4a3528", margin: "0 auto 14px", maxWidth: "520px", lineHeight: "1.6" }}>
             {isCancelled 
-              ? "Your payment was cancelled. Your order is safely saved in your account." 
-              : "The payment session could not be completed. Your order is safely saved."}
+              ? "आपका भुगतान पूरा नहीं हुआ था, इसलिए यह आर्डर कैंसिल कर दिया गया है। आपके बैंक खाते से कोई राशि नहीं कटी है। आप नीचे दिए गए बटन से पवित्र रुद्राक्ष संग्रह देख सकते हैं या नया आर्डर कर सकते हैं।" 
+              : "The payment session could not be completed with the payment gateway. No funds were debited."}
           </p>
           {reason && (
             <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "10px 14px", fontSize: "12px", color: "#b91c1c", margin: "12px auto 24px", maxWidth: "480px" }}>
               <b>Reason:</b> {decodeURIComponent(reason)}
             </div>
           )}
-          {orderId && (
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>
-              <button type="button" disabled={retrying} onClick={handleRetry} style={{ background: retrying ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)", color: "#ffffff", border: "none", borderRadius: "10px", padding: "13px 26px", fontSize: "14.5px", fontWeight: "700", cursor: retrying ? "wait" : "pointer", display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 14px rgba(165, 77, 43, 0.3)" }}>
-                {retrying ? <><Loader2 size={16} className="animate-spin" /><span>Connecting...</span></> : <><RefreshCw size={16} /><span>Retry Payment</span></>}
-              </button>
-              <button type="button" onClick={() => navigate(`/account/orders/${orderId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`, { replace: true })} className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>
+            <button 
+              type="button" 
+              onClick={() => navigate("/shop", { replace: true })} 
+              className="primary-btn" 
+              style={{ padding: "13px 26px", fontSize: "14.5px", fontWeight: "700" }}
+            >
+              Explore Rudraksha Catalog (दुकान देखें)
+            </button>
+            {orderId && (
+              <button 
+                type="button" 
+                onClick={() => navigate(`/account/orders/${orderId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`, { replace: true })} 
+                className="outline-btn" 
+                style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
+              >
                 View Order Details
               </button>
-            </div>
-          )}
-          {!orderId && (
-            <div style={{ marginTop: "24px" }}>
-              <button type="button" onClick={() => navigate("/cart", { replace: true })} className="primary-btn" style={{ padding: "12px 20px", fontSize: "14px" }}>
-                Return to Cart
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </main>
     </Shell>

@@ -85,9 +85,9 @@ export function getOptimizedImageUrl(url, { width = 1200, quality = 92 } = {}) {
     return clean;
   }
 
-  // Multiply target width by 2x for Retina High-DPI crisp displays (capped at 2400px)
-  const targetWidth = Math.min(Math.max(width * 2, 800), 2400);
-  const targetQuality = Math.max(quality, 90);
+  // Target width optimized for display size with high DPI support (capped smartly for speed)
+  const targetWidth = Math.min(Math.max(Math.round(width * 1.5), 240), 1600);
+  const targetQuality = Math.min(Math.max(quality, 78), 88);
 
   // If ImageKit URL, apply progressive transformation parameters (auto WebP, progressive render)
   if (clean.includes("ik.imagekit.io")) {

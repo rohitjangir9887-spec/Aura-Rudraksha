@@ -12,15 +12,16 @@ import { pct } from "../../data";
 export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   if (!product) return null;
 
-  const rawImages = (Array.isArray(product.images) && product.images.length > 0)
-    ? product.images
-    : getProductGalleryImages(product);
+  // Unique list of valid image URLs - memoized to prevent infinite preload loops
+  const images = React.useMemo(() => {
+    const rawImages = (Array.isArray(product.images) && product.images.length > 0)
+      ? product.images
+      : getProductGalleryImages(product);
+    const valid = (rawImages || []).filter(Boolean);
+    return valid.length > 0 ? valid : ["/images/placeholder.svg"];
+  }, [product?.id, product?.images, product?.img]);
 
-  // Unique list of valid image URLs
-  const images = rawImages.filter(Boolean);
-  if (images.length === 0) images.push("/images/placeholder.svg");
-
-  const [activeImg, setActiveImg] = useState(images[0]);
+  const [activeImg, setActiveImg] = useState(() => images[0]);
   const [slideDirection, setSlideDirection] = useState(1);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -38,20 +39,24 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
     if (images.length > 0) {
       setActiveImg(images[0]);
     }
-  }, [product?.id, images[0]]);
+  }, [product?.id, images]);
 
   const currentIndex = images.indexOf(activeImg);
   const activeIndex = currentIndex >= 0 ? currentIndex : 0;
   const discountPct = pct(product);
 
-  // Preload images
+  // Preload secondary images smoothly in background without locking network thread
   useEffect(() => {
-    images.forEach(src => {
-      if (src) {
-        const img = new Image();
-        img.src = src;
-      }
-    });
+    if (!images || images.length <= 1) return;
+    const timer = setTimeout(() => {
+      images.slice(1).forEach(src => {
+        if (src && typeof src === "string") {
+          const img = new Image();
+          img.src = src;
+        }
+      });
+    }, 400);
+    return () => clearTimeout(timer);
   }, [images]);
 
   const handlePrev = (e) => {
@@ -228,7 +233,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
-          <AnimatePresence mode="wait" initial={false}>
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.img
               key={activeImg || images[0]}
               src={getOptimizedImageUrl(activeImg || images[0], { width: 800, quality: 84 })}
@@ -242,10 +247,10 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                 transform: `scale(${zoomTransform.scale})`,
                 transition: isHoverZooming ? "transform 0.05s ease-out" : "transform 0.25s ease-out, transform-origin 0.25s ease-out"
               }}
-              initial={{ opacity: 0, x: slideDirection * 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -slideDirection * 10 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ opacity: 0.85 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: "easeOut" }}
               onError={(e) => {
                 if (!e.target.src.includes("placeholder.svg")) {
                   e.target.src = "/images/placeholder.svg";

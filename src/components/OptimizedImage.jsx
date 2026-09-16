@@ -32,13 +32,6 @@ export function OptimizedImage({
 
   const imgRef = useRef(null);
 
-  // Low-resolution placeholder (24px width blurred preview)
-  const placeholderSrc = React.useMemo(() => {
-    if (!src || typeof src !== "string") return "/images/placeholder.svg";
-    if (src.startsWith("data:") || src.endsWith(".svg")) return src;
-    return getOptimizedImageUrl(src, { width: 24, quality: 20 });
-  }, [src]);
-
   // Update image src when `src`, `width`, or `quality` change
   useEffect(() => {
     setIsLoaded(false);
@@ -90,32 +83,25 @@ export function OptimizedImage({
     position: "relative",
     overflow: "hidden",
     display: "block",
+    background: "#f7f2eb",
     ...(aspectRatio ? { aspectRatio } : {}),
     ...customContainerStyle,
   };
 
   return (
     <span style={containerStyle} className={`aura-opt-img-container ${containerClassName}`.trim()}>
-      {/* Low-Res Blurred Placeholder */}
-      {!isLoaded && placeholderSrc && (
-        <img
-          src={placeholderSrc}
-          alt=""
+      {/* 0-ms Instant CSS Shimmer Skeleton (Zero extra network requests) */}
+      {!isLoaded && (
+        <span
           aria-hidden="true"
           style={{
             position: "absolute",
             inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: style.objectFit || "cover",
-            objectPosition: style.objectPosition || "center",
-            filter: "blur(12px) scale(1.05)",
-            transform: "scale(1.08)",
-            opacity: 0.85,
-            transition: "opacity 0.4s ease-out",
+            background: "linear-gradient(90deg, #f5efe6 0%, #ece2d3 50%, #f5efe6 100%)",
+            backgroundSize: "200% 100%",
+            animation: "auraImgShimmer 1.4s infinite ease-in-out",
             pointerEvents: "none",
             zIndex: 1,
-            background: "#f7f2eb",
           }}
         />
       )}

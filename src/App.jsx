@@ -57,75 +57,39 @@ const AdminZodiac = lazy(() => import("./pages/admin/AdminZodiac").then(m => ({ 
 
 function PageLoader() {
   return (
-    <div
-      style={{
-        minHeight: "70vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#fdfbf7",
-        padding: "40px 20px"
-      }}
-    >
+    <>
       <div
+        aria-hidden="true"
         style={{
-          position: "relative",
-          width: 52,
-          height: 52,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center"
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "3.5px",
+          zIndex: 999999,
+          overflow: "hidden",
+          background: "rgba(184, 93, 37, 0.15)",
+          pointerEvents: "none"
         }}
       >
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            border: "2px solid #ecdac8",
-            borderTopColor: "#a54d2b",
-            borderRightColor: "#c2410c",
-            animation: "auraPageSpin 0.85s linear infinite"
+            width: "100%",
+            height: "100%",
+            background: "linear-gradient(90deg, #9a3412 0%, #d97706 50%, #ea580c 100%)",
+            boxShadow: "0 0 10px rgba(217, 119, 6, 0.6)",
+            animation: "auraLuxuryProgress 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite"
           }}
         />
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, #c2410c 0%, #7c2d12 100%)",
-            boxShadow: "0 2px 10px rgba(165, 77, 43, 0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: "15px",
-            fontWeight: "700"
-          }}
-        >
-          ॐ
-        </div>
-      </div>
-      <div
-        style={{
-          marginTop: 16,
-          fontFamily: '"Cormorant Garamond", serif',
-          fontSize: 16,
-          fontWeight: 700,
-          color: "#4a3528",
-          letterSpacing: "0.5px"
-        }}
-      >
-        Aura Rudraksha
       </div>
       <style>{`
-        @keyframes auraPageSpin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        @keyframes auraLuxuryProgress {
+          0% { transform: translateX(-100%); }
+          50% { transform: translateX(0%); }
+          100% { transform: translateX(100%); }
         }
       `}</style>
-    </div>
+    </>
   );
 }
 

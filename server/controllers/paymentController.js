@@ -718,6 +718,8 @@ export async function handlePayuCancel(req, res) {
 
         // Update order status if not paid
         order.paymentStatus = "Cancelled";
+        order.status = "Cancelled";
+        order.orderStatus = "Cancelled";
         order.payuStatus = params.status || "userCancelled";
         if (mihpayid) order.mihpayid = mihpayid;
         order.unmappedstatus = params.unmappedstatus || "userCancelled";
@@ -1245,6 +1247,8 @@ export async function verifyPaymentStatus(req, res, next) {
                 { _id: order._id, paymentStatus: { $ne: "Paid" } },
                 {
                   $set: {
+                    status: "Cancelled",
+                    orderStatus: "Cancelled",
                     paymentStatus: newPaymentStatus,
                     payuStatus: newPayuStatus,
                     paymentAttempts: attempts

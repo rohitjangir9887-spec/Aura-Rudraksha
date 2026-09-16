@@ -349,14 +349,14 @@ function detectUserIntent(msg) {
   return intents[0];
 }
 
-function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode }) {
+function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, activeCoupons = [] }) {
   const msgLower = (userMessage || "").toLowerCase();
   const replies = [];
   
   if (mode === "panditji") {
-    if (msgLower.includes("kundli") || msgLower.includes("kundali") || msgLower.includes("birth")) {
-      replies.push("🕉️ Kundali Form Kholen", "✨ Rashi Rudraksha", "🪐 Shani Shanti Upay", "📿 Mukhi Guide");
-    } else if (msgLower.includes("career") || msgLower.includes("dhan") || msgLower.includes("job")) {
+    if (targetMukhi) {
+      replies.push(`${targetMukhi} Mukhi Benefits`, "Dharan Vidhi", "Astrological Matching", `Buy ${targetMukhi} Mukhi`);
+    } else if (msgLower.includes("dhan") || msgLower.includes("wealth") || msgLower.includes("karz") || msgLower.includes("loss")) {
       replies.push("⚡ 7 Mukhi (Laxmi Kripa)", "💼 10 Mukhi Rudraksha", "📿 Siddh Mala", "🙏 Dharan Vidhi");
     } else {
       replies.push("✨ Meri Kundali Dekhein", "📿 Best Rudraksha For Me", "🪐 Graha Dasha Remedies", "🕉️ 108 Jaap Vidhi");
@@ -379,7 +379,12 @@ function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode })
   } else if (intent === "ORDER_TRACKING" || msgLower.includes("track") || msgLower.includes("order")) {
     replies.push("Track My Order", "Order History", "Shipping Help", "Talk to Support");
   } else if (intent === "COUPON" || intent === "OFFER" || msgLower.includes("offer") || msgLower.includes("discount")) {
-    replies.push("SHRAWAN200 Code", "AURA10 Discount", "Apply Coupon", "Best Sellers");
+    if (activeCoupons && activeCoupons.length > 0) {
+      replies.push(...activeCoupons.slice(0, 2).map(c => `${c.code} Code`));
+      replies.push("Apply Coupon", "Best Sellers");
+    } else {
+      replies.push("View Offers", "Best Sellers", "Shop Rudraksha", "Free Kundali");
+    }
   } else {
     replies.push("✨ Find Rudraksha", "🎁 Today's Offers", "📦 Track Order", "🕉 Jaap Mala");
   }
@@ -783,15 +788,44 @@ export async function chatAuraAI(req, res, next) {
       shouldPromptBirthForm = true;
     }
 
-    // 4. Fetch Live Catalog Products & RAG Context
+    // 4. Fetch Live Catalog Products, Active Coupons & RAG Context
     let allStoreProds = [];
+    let allStoreCoupons = [];
     if (isDbConnected()) {
       try {
         allStoreProds = await Product.find({ status: { $nin: ["Draft", "draft", "Inactive", "inactive"] } }).lean();
       } catch (_) {
         allStoreProds = [];
       }
+      try {
+        allStoreCoupons = await Coupon.find({ status: { $nin: ["Inactive", "inactive", "Expired", "expired"] } }).lean();
+      } catch (_) {
+        allStoreCoupons = [];
+      }
     }
+
+    const activeCoupons = (allStoreCoupons || []).filter(c => {
+      if (c.status && c.status.toLowerCase() !== "active") return false;
+      if (c.expiry) {
+        const expDate = new Date(c.expiry);
+        if (!isNaN(expDate.getTime()) && expDate.getTime() < Date.now()) return false;
+      }
+      return Boolean(c.code);
+    });
+
+    const isCouponInquiry = intent === "COUPON" || intent === "OFFER" || 
+      /(coupon|code|promo|voucher|discount|offer|chhut)/i.test(message || "");
+
+    const matchedCoupons = (isCouponInquiry && activeCoupons.length > 0)
+      ? activeCoupons.map(c => ({
+          id: c.id || String(c._id),
+          code: c.code,
+          discount: c.discount,
+          type: c.type || "percentage",
+          minAmount: c.minAmount || c.minOrderValue || 0,
+          description: c.description || (c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`)
+        }))
+      : [];
 
     let matchedProducts = [];
     if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
@@ -817,6 +851,10 @@ export async function chatAuraAI(req, res, next) {
       return `- Product Name: "${p.name}" | ID: ${pId} | Price: ₹${pPrice} | Category: ${p.category || 'Rudraksha'} | Valid Link: /product/${slug} (or /product/${pId})`;
     }).join("\n");
 
+    const couponsPromptSnippet = activeCoupons.length > 0
+      ? activeCoupons.map(c => `- Verified Coupon Code: "${c.code.toUpperCase()}" | Discount: ${c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`}${c.minAmount || c.minOrderValue ? ` | Min Order: ₹${c.minAmount || c.minOrderValue}` : ""} | Details: ${c.description || "Active Vedic Blessing Discount"}`).join("\n")
+      : "No promo coupon codes currently active. Current customer benefits: free Shiva Puja energization and free Pan-India shipping on prepaid orders.";
+
     const urlAndCatalogRulesText = `
 WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
 - Official Store Website URLs:
@@ -835,6 +873,14 @@ WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
   - ONLY recommend real products from the official catalog below.
   - Whenever linking to a product, ALWAYS use its exact Valid Link from the catalog below in markdown format:
     e.g. [Product Name](/product/${allStoreProds[0]?.slug || "slug"}) or [Product Name](/product/${allStoreProds[0]?.id || "id"})
+
+STRICT COUPON CODE INTEGRITY (ABSOLUTE ZERO-HALLUCINATION RULE):
+- REAL ACTIVE STORE COUPONS:
+${couponsPromptSnippet}
+- CRITICAL: NEVER invent, hallucinate, guess, or mention ANY coupon code not explicitly listed above!
+- NEVER suggest non-existent promo codes (e.g. "AURA10", "SHIV10", "SHRAWAN200", "DISCOUNT50", "FIRST100") unless they appear in the verified active list above.
+- If customer asks for a coupon or discount code and active coupons exist, share ONLY the verified codes above with their exact discount and conditions.
+- If NO active coupon codes are listed above, politely and transparently inform the customer: "Abhi koi separate coupon code live nahi hai, lekin sabhi products par direct seasonal discounts aur free Haridwar Shiva puja consecration uplabdh hai."
 
 REAL STORE PRODUCT CATALOG:
 ${storeCatalogPromptSnippet}
@@ -1075,7 +1121,8 @@ ${memoryContextText || "Guest shopper."}`;
       userMessage: message || "",
       intent,
       targetMukhi,
-      mode
+      mode,
+      activeCoupons
     });
 
     // 7. Handle SSE Streaming Request
@@ -1098,6 +1145,7 @@ ${memoryContextText || "Guest shopper."}`;
       res.write(`data: ${JSON.stringify({
         type: "meta",
         products: matchedProducts,
+        coupons: matchedCoupons,
         kundali: calculatedKundaliData,
         showBirthForm: shouldPromptBirthForm,
         quickReplies: dynamicQuickReplies,
@@ -1250,6 +1298,7 @@ ${memoryContextText || "Guest shopper."}`;
         sender: "ai",
         text: safeFinalStreamedText,
         products: matchedProducts,
+        coupons: matchedCoupons,
         kundali: calculatedKundaliData,
         timestamp: new Date()
       };
@@ -1287,6 +1336,7 @@ ${memoryContextText || "Guest shopper."}`;
           data: {
             text: safeFinalStreamedText,
             products: matchedProducts,
+            coupons: matchedCoupons,
             kundali: calculatedKundaliData,
             showBirthForm: shouldPromptBirthForm,
             quickReplies: dynamicQuickReplies,
@@ -1423,6 +1473,7 @@ ${memoryContextText || "Guest shopper."}`;
       sender: "ai",
       text: safeFinalText,
       products: matchedProducts,
+      coupons: matchedCoupons,
       kundali: calculatedKundaliData,
       timestamp: new Date()
     };
@@ -1463,6 +1514,7 @@ ${memoryContextText || "Guest shopper."}`;
       data: {
         text: safeFinalText,
         products: matchedProducts,
+        coupons: matchedCoupons,
         kundali: calculatedKundaliData,
         showBirthForm: shouldPromptBirthForm,
         quickReplies: dynamicQuickReplies,
