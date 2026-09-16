@@ -2578,53 +2578,44 @@ export const db = {
     } catch (_) {}
     return null;
   },
-  calculateCart: async (lines = [], couponCode = null) => {
-    try {
-      const res = await apiRequest("/cart/calculate", {
-        method: "POST",
-        body: JSON.stringify({ lines, couponCode })
-      });
-      if (res?.success && res.data) {
-        return res;
-      }
-    } catch (_) {}
-
-    // Fallback local calculations
+  calculateCartSync: (lines = [], couponCode = null) => {
     const prods = storeCache.products || [];
     let subtotal = 0;
     let totalMrp = 0;
     const validItems = [];
 
-    lines.forEach(l => {
-      const p = prods.find(x => String(x.id) === String(l.id));
+    (lines || []).forEach(l => {
+      const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id) || String(x._id) === String(l.id) || String(x.slug) === String(l.id));
       const price = p ? Number(p.price) : 0;
       const mrp = p ? Number(p.mrp || p.comparePrice || price) : price;
-      subtotal += price * l.qty;
-      totalMrp += mrp * l.qty;
+      subtotal += price * (l.qty || 1);
+      totalMrp += mrp * (l.qty || 1);
       validItems.push({
         id: l.id,
-        productId: l.id,
+        productId: p ? (p.productId || p.id) : l.id,
         name: p ? p.name : "Sacred Rudraksha Item",
         price,
         mrp,
-        quantity: l.qty,
-        qty: l.qty,
+        quantity: l.qty || 1,
+        qty: l.qty || 1,
+        isIndonesian: !!p?.isIndonesian,
+        origin: p?.origin || (p?.isIndonesian ? "Java / Indonesia" : "Nepal"),
         img: p ? getProductPrimaryImage(p) : null
       });
     });
 
+    const productSavings = Math.max(0, totalMrp - subtotal);
     const storeSettings = storeCache.settings || {};
     const standardFee = Number(storeSettings.standardShippingFee ?? 0);
     const threshold = Number(storeSettings.freeShippingThreshold ?? 0);
     const enableProductShipping = storeSettings.enableProductShipping !== false;
 
-    // Check product specific shipping fees
     let productShippingFees = 0;
     if (enableProductShipping) {
-      lines.forEach(l => {
-        const p = prods.find(x => String(x.id) === String(l.id));
+      (lines || []).forEach(l => {
+        const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id));
         if (p && p.freeShipping === false && Number(p.shippingFee) > 0) {
-          productShippingFees += Number(p.shippingFee) * l.qty;
+          productShippingFees += Number(p.shippingFee) * (l.qty || 1);
         }
       });
     }
@@ -2643,7 +2634,7 @@ export const db = {
 
     if (couponCode && String(couponCode).trim()) {
       const clean = String(couponCode).trim().toUpperCase();
-      const coup = storeCache.coupons.find(c => (c.code || "").toUpperCase() === clean);
+      const coup = (storeCache.coupons || []).find(c => (c.code || "").toUpperCase() === clean);
       if (coup) {
         const isExp = coup.expiry && new Date(coup.expiry).getTime() < Date.now();
         const isDisabled = coup.status === "Inactive" || coup.status === "Disabled";
@@ -2656,10 +2647,8 @@ export const db = {
           couponStatus = "NOT_ELIGIBLE";
           couponReason = `Minimum shopping amount of ₹${minSpend.toLocaleString()} required for coupon '${clean}'.`;
         } else {
-          // Check item eligibility (selected vs excluded products)
           let eligibleSubtotal = 0;
           let eligibleItemCount = 0;
-
           const selIds = (coup.selectedProducts || []).map(String);
           const excIds = (coup.excludedProducts || []).map(String);
           const targetType = coup.targetType || "all";
@@ -2668,15 +2657,11 @@ export const db = {
             const pid = String(it.productId || it.id || it._id || "");
             let isItemEligible = true;
 
-            if (excIds.length > 0 && excIds.includes(pid)) {
-              isItemEligible = false;
-            }
-            if (targetType === "selected" && selIds.length > 0 && !selIds.includes(pid)) {
-              isItemEligible = false;
-            }
+            if (excIds.length > 0 && excIds.includes(pid)) isItemEligible = false;
+            if (targetType === "selected" && selIds.length > 0 && !selIds.includes(pid)) isItemEligible = false;
 
             if (isItemEligible) {
-              eligibleSubtotal += Number(it.subtotal || (it.price * (it.qty || 1))) || 0;
+              eligibleSubtotal += Number(it.price * (it.qty || 1)) || 0;
               eligibleItemCount += (it.qty || 1);
             }
           });
@@ -2696,9 +2681,7 @@ export const db = {
             }
 
             const maxCap = Number(coup.maxDiscount || 0);
-            if (maxCap > 0 && rawDiscount > maxCap) {
-              rawDiscount = maxCap;
-            }
+            if (maxCap > 0 && rawDiscount > maxCap) rawDiscount = maxCap;
 
             couponDiscount = Math.min(rawDiscount, evalSubtotal);
             couponValid = true;
@@ -2751,10 +2734,21 @@ export const db = {
         couponValid,
         couponReason,
         items: validItems,
-        itemCount: validItems.reduce((acc, it) => acc + (it.qty || 1), 0),
-        freeShippingRemaining: isFreeShipping ? 0 : Math.max(0, 499 - subtotal)
+        itemCount: validItems.reduce((acc, it) => acc + (it.qty || 1), 0)
       }
     };
+  },
+  calculateCart: async (lines = [], couponCode = null) => {
+    // 1. Immediately return synchronous local result so UI renders at 0ms with zero lag
+    const localResult = db.calculateCartSync(lines, couponCode);
+
+    // 2. Background async API revalidation (non-blocking)
+    apiRequest("/cart/calculate", {
+      method: "POST",
+      body: JSON.stringify({ lines, couponCode })
+    }).catch(() => {});
+
+    return localResult;
   },
 
   validateCartCoupon: async (code, lines = []) => {

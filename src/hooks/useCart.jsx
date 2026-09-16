@@ -90,7 +90,14 @@ export function CartProvider({ children }) {
 
   const [lines, setLines] = useState(() => readStoredCart(user));
   const [couponCode, setCouponCode] = useState(() => readStoredCoupon(user));
-  const [totals, setTotals] = useState(defaultTotals);
+  const [totals, setTotals] = useState(() => {
+    const initLines = readStoredCart(user);
+    if (initLines && initLines.length > 0) {
+      const calc = db.calculateCartSync(initLines, "");
+      return calc?.data || defaultTotals;
+    }
+    return defaultTotals;
+  });
   const [loadingTotals, setLoadingTotals] = useState(false);
   const isMounted = useRef(false);
 

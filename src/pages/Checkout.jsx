@@ -262,14 +262,20 @@ export function Checkout() {
   const activeLines = buyNowLines || lines;
 
   // Real-time calculation for Buy Now items if distinct from cart
-  const [buyNowTotals, setBuyNowTotals] = useState(null);
+  const [buyNowTotals, setBuyNowTotals] = useState(() => {
+    if (buyNowLines && buyNowLines.length > 0) {
+      const calc = db.calculateCartSync(buyNowLines, couponCode);
+      return calc?.data || null;
+    }
+    return null;
+  });
+
   useEffect(() => {
     if (buyNowLines && buyNowLines.length > 0) {
-      db.calculateCart(buyNowLines, appliedCoupon?.code || couponCode).then((res) => {
-        if (res?.success && res.data) {
-          setBuyNowTotals(res.data);
-        }
-      }).catch(() => {});
+      const calc = db.calculateCartSync(buyNowLines, appliedCoupon?.code || couponCode);
+      if (calc?.success && calc.data) {
+        setBuyNowTotals(calc.data);
+      }
     } else {
       setBuyNowTotals(null);
     }
