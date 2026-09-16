@@ -73,8 +73,8 @@ export async function getOrders(req, res, next) {
 export async function getMyOrders(req, res, next) {
   try {
     const authUserId = req.user.authUserId;
-    const userEmail = (req.user.email || "").trim().toLowerCase();
-    const userPhone = (req.user.phone || "").trim();
+    let userEmail = (req.user.email || "").trim().toLowerCase();
+    let userPhone = (req.user.phone || "").trim();
 
     if (!isDbConnected()) {
       return res.status(503).json({
