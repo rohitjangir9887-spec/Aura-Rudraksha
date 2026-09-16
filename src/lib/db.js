@@ -539,6 +539,7 @@ const storeCache = {
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
+const CATALOG_CACHE_VERSION = "2026-09-16-v3"; // Versioned cache key to immediately bust obsolete/demo data on updates
 
 let isInitialized = false;
 let isHydrated = false;
@@ -555,6 +556,19 @@ export function isBackendSynced() {
 export function loadCacheFromLocalStorage() {
   if (typeof window === "undefined") return;
   try {
+    // One-time cache migration/invalidation if version mismatch
+    const currentVersion = localStorage.getItem("aura_catalog_cache_version");
+    if (currentVersion !== CATALOG_CACHE_VERSION) {
+      localStorage.removeItem("aura_products_cache");
+      localStorage.removeItem("aura_banners_cache");
+      localStorage.removeItem("aura_offers_cache");
+      localStorage.removeItem("aura_active_offer_cache");
+      localStorage.removeItem("aura_last_fetch_time");
+      localStorage.removeItem("aura_last_product_fetch_time");
+      localStorage.removeItem("aura_cache_hydrated");
+      localStorage.setItem("aura_catalog_cache_version", CATALOG_CACHE_VERSION);
+    }
+
     const cachedProducts = localStorage.getItem("aura_products_cache");
     if (cachedProducts) {
       const parsed = JSON.parse(cachedProducts);

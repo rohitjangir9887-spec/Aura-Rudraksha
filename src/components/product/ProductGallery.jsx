@@ -21,7 +21,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
     return valid.length > 0 ? valid : ["/images/placeholder.svg"];
   }, [product?.id, product?.images, product?.img]);
 
-  const [activeImg, setActiveImg] = useState(() => images[0]);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [slideDirection, setSlideDirection] = useState(1);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -34,15 +34,20 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
 
-  // Sync activeImg when product or active image array changes
+  // Track product ID to only reset index when transitioning to a different product
+  const prevProductIdRef = useRef(product?.id || product?._id);
   useEffect(() => {
-    if (images.length > 0) {
-      setActiveImg(images[0]);
+    const currentId = product?.id || product?._id;
+    if (currentId && currentId !== prevProductIdRef.current) {
+      prevProductIdRef.current = currentId;
+      setActiveIdx(0);
     }
-  }, [product?.id, images]);
+  }, [product?.id, product?._id]);
 
-  const currentIndex = images.indexOf(activeImg);
-  const activeIndex = currentIndex >= 0 ? currentIndex : 0;
+  // Safe active index bounded to current images array length
+  const safeIdx = (activeIdx >= 0 && activeIdx < images.length) ? activeIdx : 0;
+  const currentImg = images[safeIdx] || images[0] || "/images/placeholder.svg";
+  const activeIndex = safeIdx;
   const discountPct = pct(product);
 
   // Preload secondary images smoothly in background without locking network thread
@@ -63,22 +68,20 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
     if (e) e.stopPropagation();
     if (images.length <= 1) return;
     setSlideDirection(-1);
-    const prevIdx = (activeIndex - 1 + images.length) % images.length;
-    setActiveImg(images[prevIdx]);
+    setActiveIdx(prev => (prev - 1 + images.length) % images.length);
   };
 
   const handleNext = (e) => {
     if (e) e.stopPropagation();
     if (images.length <= 1) return;
     setSlideDirection(1);
-    const nextIdx = (activeIndex + 1) % images.length;
-    setActiveImg(images[nextIdx]);
+    setActiveIdx(prev => (prev + 1) % images.length);
   };
 
-  const handleSelectThumbnail = (imgUrl, idx) => {
-    if (imgUrl === activeImg) return;
-    setSlideDirection(idx > activeIndex ? 1 : -1);
-    setActiveImg(imgUrl);
+  const handleSelectThumbnail = (idx) => {
+    if (idx === safeIdx) return;
+    setSlideDirection(idx > safeIdx ? 1 : -1);
+    setActiveIdx(idx);
   };
 
   // Touch handlers for mobile swipe
@@ -235,8 +238,8 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
         >
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.img
-              key={activeImg || images[0]}
-              src={getOptimizedImageUrl(activeImg || images[0], { width: 800, quality: 84 })}
+              key={`img-${safeIdx}-${currentImg}`}
+              src={getOptimizedImageUrl(currentImg, { width: 800, quality: 84 })}
               alt={`${product.name} - Sacred View ${activeIndex + 1}`}
               className="aura-gallery-hero-img"
               loading="eager"
@@ -265,7 +268,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
       {images.length > 1 && (
         <div className="aura-gallery-thumbs-row" role="tablist" aria-label="Product thumbnails">
           {images.map((imgUrl, idx) => {
-            const isActive = (activeImg || images[0]) === imgUrl;
+            const isActive = safeIdx === idx;
             return (
               <button
                 key={idx}
@@ -274,7 +277,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                 aria-selected={isActive}
                 aria-label={`View photo ${idx + 1}`}
                 className={`aura-thumb-btn ${isActive ? "active" : ""}`}
-                onClick={() => handleSelectThumbnail(imgUrl, idx)}
+                onClick={() => handleSelectThumbnail(idx)}
               >
                 <OptimizedImage
                   src={imgUrl}
@@ -330,7 +333,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
               )}
 
               <img
-                src={activeImg || images[0]}
+                src={currentImg}
                 alt={product.name}
                 className="aura-lightbox-image"
                 decoding="async"

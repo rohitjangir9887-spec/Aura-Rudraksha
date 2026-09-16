@@ -25,6 +25,18 @@ if (typeof window !== "undefined") {
       localStorage.setItem("aura_review_cache_version", REVIEW_CACHE_VERSION);
       localStorage.setItem("aura_last_fetch_time", "0");
     }
+
+    const CATALOG_CACHE_VERSION = "2026-09-16-v3";
+    if (localStorage.getItem("aura_catalog_cache_version") !== CATALOG_CACHE_VERSION) {
+      localStorage.removeItem("aura_products_cache");
+      localStorage.removeItem("aura_banners_cache");
+      localStorage.removeItem("aura_offers_cache");
+      localStorage.removeItem("aura_active_offer_cache");
+      localStorage.removeItem("aura_last_fetch_time");
+      localStorage.removeItem("aura_last_product_fetch_time");
+      localStorage.removeItem("aura_cache_hydrated");
+      localStorage.setItem("aura_catalog_cache_version", CATALOG_CACHE_VERSION);
+    }
   } catch (_) {}
 
   // Prevent browser from restoring old scroll position across page reloads
