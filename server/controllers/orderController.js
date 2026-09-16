@@ -275,8 +275,8 @@ export async function getOrderById(req, res, next) {
             );
             order.paymentStatus = newPaymentStatus;
           }
-        } else {
-          // If PayU returns success: false and order is older than 15 minutes:
+        } else if (!verifyRes.isNetworkError && !verifyRes.isTimeout) {
+          // If PayU explicitly returned not found/unverified and order is older than 15 minutes:
           const orderAgeMs = Date.now() - new Date(order.createdAt || order.date || Date.now()).getTime();
           if (orderAgeMs > 15 * 60 * 1000) {
             await Order.updateOne(

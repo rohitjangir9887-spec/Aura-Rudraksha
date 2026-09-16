@@ -118,7 +118,7 @@ export function PaymentResult() {
         document.body.appendChild(form);
         
         // Use replaceState to clear this result page from history before redirecting to PayU
-        window.history.replaceState(null, "", "/account/orders");
+        window.history.replaceState(null, "", guestToken ? "/checkout" : "/account/orders");
         form.submit();
       } else {
         emitToast(res?.message || "Payment retry failed.", "error");
@@ -159,6 +159,38 @@ export function PaymentResult() {
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "640px", margin: "0 auto", paddingTop: "60px", textAlign: "center" }}>
            <Loader2 size={36} className="animate-spin mx-auto" style={{ color: "#a54d2b" }} />
            <p style={{ marginTop: "16px", color: "#4a3528" }}>Verifying your transaction securely...</p>
+        </main>
+      </Shell>
+    );
+  }
+
+  // Graceful handling for missing or malformed URL parameters
+  if (!orderId && !txnid) {
+    return (
+      <Shell>
+        <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
+          <div className="card" style={{ background: "#fffdf9", border: "1.5px solid #fed7aa", borderRadius: "16px", padding: "36px 20px", textAlign: "center" }}>
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#fff7ed", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <AlertCircle size={36} />
+            </div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#ffedd5", color: "#9a3412", padding: "4px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "700", marginBottom: "12px" }}>
+              Payment Session Notice
+            </div>
+            <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "30px", fontWeight: "700", color: "#7c2d12", margin: "0 0 8px" }}>
+              No Active Transaction Found
+            </h1>
+            <p style={{ fontSize: "14.5px", color: "#4a3528", margin: "0 auto 20px", maxWidth: "520px", lineHeight: "1.6" }}>
+              No recent payment session or transaction ID was found for this link. If you were attempting to place an order, you can review your cart or explore our sacred Rudraksha catalog.
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "16px" }}>
+              <Link to="/shop" className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
+                Explore Rudraksha Catalog
+              </Link>
+              <Link to="/cart" className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none" }}>
+                View Cart
+              </Link>
+            </div>
+          </div>
         </main>
       </Shell>
     );

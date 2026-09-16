@@ -1097,8 +1097,12 @@ export async function verifyPaymentStatus(req, res, next) {
           }
         }
 
-        for (const attempt of attemptsToCheck) {
-          if (!attempt.txnid || attempt.status === "success") continue;
+        // Check at most 2 active relevant attempts (starting with reqTxnid if provided) to stay well within serverless timeout
+        const relevantAttempts = attemptsToCheck
+          .filter(a => a && a.txnid && a.status !== "success" && a.status !== "cancelled" && a.status !== "usercancelled")
+          .slice(0, 2);
+
+        for (const attempt of relevantAttempts) {
           const verifyRes = await verifyPayuPaymentServerSide(attempt.txnid);
           const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
 

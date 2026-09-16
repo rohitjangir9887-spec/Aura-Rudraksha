@@ -204,91 +204,102 @@ export async function verifyPayuPaymentServerSide(txnid) {
     return { success: false, isPaid: false, message: "PayU credentials not configured" };
   }
 
+  const var1 = String(txnid).trim();
+  if (!var1) {
+    return { success: false, isPaid: false, message: "Transaction ID is required" };
+  }
+
+  // Hash sequence for verify_payment command: sha512(key|verify_payment|var1|salt)
+  const command = "verify_payment";
+  const hashString = `${key}|${command}|${var1}|${salt}`;
+  const hash = crypto.createHash("sha512").update(hashString).digest("hex").toLowerCase();
+
+  const postData = new URLSearchParams();
+  postData.append("key", key);
+  postData.append("command", command);
+  postData.append("var1", var1);
+  postData.append("hash", hash);
+
+  const TIMEOUT_MS = 7000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
   try {
-    // Hash sequence for verify_payment command: sha512(key|verify_payment|var1|salt)
-    const command = "verify_payment";
-    const var1 = String(txnid).trim();
-    const hashString = `${key}|${command}|${var1}|${salt}`;
-    const hash = crypto.createHash("sha512").update(hashString).digest("hex").toLowerCase();
+      const response = await fetch(commandUrl, {
+        method: "POST",
+        body: postData,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-    const postData = new URLSearchParams();
-    postData.append("key", key);
-    postData.append("command", command);
-    postData.append("var1", var1);
-    postData.append("hash", hash);
+      const rawText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (err) {
+        console.warn("[PayU verify_payment] Non-JSON response:", rawText.slice(0, 150));
+        return {
+          success: false,
+          isPaid: false,
+          isNetworkError: false,
+          message: "Invalid non-JSON response from PayU verification server"
+        };
+      }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+      let txn = null;
+      if (data && (data.status === 1 || data.status === "1" || data.status === "success") && data.transaction_details) {
+        if (data.transaction_details[var1]) {
+          txn = data.transaction_details[var1];
+        } else if (typeof data.transaction_details === "object") {
+          const cleanTxnid = var1.toLowerCase();
+          const foundKey = Object.keys(data.transaction_details).find(k => String(k).trim().toLowerCase() === cleanTxnid);
+          if (foundKey) {
+            txn = data.transaction_details[foundKey];
+          }
+        }
+      }
 
-    const response = await fetch(commandUrl, {
-      method: "POST",
-      body: postData,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+      if (txn) {
+        const txnStatus = (txn.status || txn.transaction_status || "").toLowerCase();
+        const unmappedStatus = (txn.unmappedstatus || "").toLowerCase();
+        const isPaid = txnStatus === "success" || unmappedStatus === "captured";
+        
+        return {
+          success: true,
+          isPaid,
+          status: txnStatus,
+          unmappedStatus,
+          txnDetails: txn,
+          mihpayid: txn.mihpayid,
+          bankRefNum: txn.bank_ref_num,
+          amount: Number(txn.amt || txn.amount || txn.transaction_amount || 0),
+          mode: txn.mode,
+          rawResponse: data
+        };
+      }
 
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch (err) {
-      console.warn("PayU JSON Parse Error:", err.message);
       return {
         success: false,
         isPaid: false,
-        message: "Invalid non-JSON response from PayU verification server"
-      };
-    }
-
-    let txn = null;
-    if (data && (data.status === 1 || data.status === "1" || data.status === "success") && data.transaction_details) {
-      if (data.transaction_details[txnid]) {
-        txn = data.transaction_details[txnid];
-      } else if (typeof data.transaction_details === "object") {
-        const cleanTxnid = String(txnid).trim().toLowerCase();
-        const foundKey = Object.keys(data.transaction_details).find(k => String(k).trim().toLowerCase() === cleanTxnid);
-        if (foundKey) {
-          txn = data.transaction_details[foundKey];
-        }
-      }
-    }
-
-    if (txn) {
-      const txnStatus = (txn.status || txn.transaction_status || "").toLowerCase();
-      const unmappedStatus = (txn.unmappedstatus || "").toLowerCase();
-      const isPaid = txnStatus === "success" || unmappedStatus === "captured";
-      
-      return {
-        success: true,
-        isPaid,
-        status: txnStatus,
-        unmappedStatus,
-        txnDetails: txn,
-        mihpayid: txn.mihpayid,
-        bankRefNum: txn.bank_ref_num,
-        amount: Number(txn.amt || txn.amount || txn.transaction_amount || 0),
-        mode: txn.mode,
+        isNetworkError: false,
+        message: data?.msg || data?.message || "Transaction not found or unverified in PayU",
         rawResponse: data
       };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isTimeout = err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("aborted")) || err.code === "ETIMEDOUT";
+      console.warn(`[PayU verify_payment notice]: ${isTimeout ? 'Network timeout / request aborted (PayU server slow)' : err.message} for txnid ${var1}`);
+      return {
+        success: false,
+        isPaid: false,
+        isTimeout,
+        isNetworkError: true,
+        message: isTimeout ? "PayU verification server timed out" : (err.message || "Failed to connect to PayU verification server")
+      };
     }
-
-    return {
-      success: false,
-      isPaid: false,
-      message: data?.msg || data?.message || "Transaction not found or unverified in PayU",
-      rawResponse: data
-    };
-  } catch (err) {
-    console.error("Error executing PayU verify_payment API:", err?.message || err);
-    return {
-      success: false,
-      isPaid: false,
-      message: err.message || "Failed to connect to PayU verification server"
-    };
-  }
 }
 
 /**
