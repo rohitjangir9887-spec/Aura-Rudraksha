@@ -16737,13 +16737,24 @@ a, button, select, input[type="radio"], input[type="checkbox"] {
               color 0.2s ease;
 }
 
-button:active, .primary-btn:active, .outline-btn:active {
+button:active, .primary-btn:active, .outline-btn:active, .secondary-btn:active {
   transform: scale(0.97) !important;
+  opacity: 0.94;
+  transition: transform 120ms ease-out, opacity 120ms ease-out !important;
 }
 
-.primary-btn:hover, .outline-btn:hover {
+.primary-btn:hover, .outline-btn:hover, .secondary-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(184, 93, 37, 0.22);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.aura-card-wish-btn {
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), background-color 160ms ease !important;
+}
+.aura-card-wish-btn:active {
+  transform: scale(0.86) !important;
+  transition: transform 100ms ease-out !important;
 }
 
 /* Option cards / radio selections hover & active states */
@@ -16932,6 +16943,11 @@ button,
 }
 
 @keyframes fastImageSkeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes auraImgShimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }

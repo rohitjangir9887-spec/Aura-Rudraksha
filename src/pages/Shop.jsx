@@ -184,7 +184,7 @@ export function Shop() {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         db.revalidateProducts().catch(() => {});
       }
-    }, 4000);
+    }, 60000);
 
     const handleFocus = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {

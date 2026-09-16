@@ -36,13 +36,6 @@ if (typeof window !== "undefined") {
     }
   }
 
-  // Ensure wheel and touch events use passive listeners for lag-free 60-90 FPS scrolling
-  try {
-    const passiveOpts = { passive: true, capture: false };
-    window.addEventListener("touchstart", () => {}, passiveOpts);
-    window.addEventListener("touchmove", () => {}, passiveOpts);
-    window.addEventListener("wheel", () => {}, passiveOpts);
-  } catch (_) {}
 
   // Handle Vite chunk load errors gracefully (e.g. after fresh deployments or flaky network)
   window.addEventListener("vite:preloadError", (event) => {

@@ -105,7 +105,6 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
       className="aura-shop-card" 
       onClick={handleCardClick}
       onPointerEnter={handlePreload}
-      onTouchStart={handlePreload}
       role="link"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter") handleCardClick(e); }}

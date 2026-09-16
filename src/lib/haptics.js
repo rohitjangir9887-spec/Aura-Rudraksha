@@ -58,23 +58,46 @@ export function setupGlobalTouchFeedback() {
 
   globalTouchInitialized = true;
   let lastHapticTimestamp = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let isScrolling = false;
 
-  const handleTouch = (e) => {
+  const handleTouchStart = (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isScrolling = false;
+  };
+
+  const handleTouchMove = (e) => {
+    if (isScrolling || !e.touches || e.touches.length !== 1) return;
+    const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+    const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+    // Movement over 8px indicates a scroll gesture, not a stationary tap
+    if (deltaX > 8 || deltaY > 8) {
+      isScrolling = true;
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (isScrolling) return; // Strict zero vibration when scrolling
     try {
       const target = e.target?.closest?.(
-        'button, [role="button"], a, .primary-btn, .outline-btn, .pill, .chip, .tab-btn, .product-card, .card, input[type="radio"], input[type="checkbox"]'
+        'button, [role="button"], .primary-btn, .outline-btn, .pill, .chip, .tab-btn, input[type="radio"], input[type="checkbox"], .aura-card-wish-btn'
       );
       if (!target) return;
 
       const now = Date.now();
-      // Throttle to 120ms to prevent duplicate vibrations on fast taps or scrolling
-      if (now - lastHapticTimestamp < 120) return;
+      // Throttle to 180ms to prevent duplicate vibrations on rapid consecutive taps
+      if (now - lastHapticTimestamp < 180) return;
       lastHapticTimestamp = now;
 
       triggerHaptic("selection");
     } catch (_) {}
   };
 
-  window.addEventListener("touchstart", handleTouch, { passive: true, capture: true });
+  window.addEventListener("touchstart", handleTouchStart, { passive: true });
+  window.addEventListener("touchmove", handleTouchMove, { passive: true });
+  window.addEventListener("touchend", handleTouchEnd, { passive: true });
 }
 

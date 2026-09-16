@@ -113,7 +113,7 @@ export function OptimizedImage({
         alt={alt}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
-        fetchpriority={priority ? "high" : "low"}
+        fetchPriority={priority ? "high" : "low"}
         onLoad={handleImageLoad}
         onError={handleImageError}
         className={className}
