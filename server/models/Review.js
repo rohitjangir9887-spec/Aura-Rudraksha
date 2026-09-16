@@ -51,6 +51,35 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
+// Legacy/imported reviews use a stable string `id`, while MongoDB's native
+// `_id` remains an ObjectId. Some older controller queries include both in an
+// `$or`; remove only invalid ObjectId branches so those requests never fail
+// Mongoose casting while the string `id` branch remains fully functional.
+function stripInvalidReviewObjectIdBranches(query) {
+  const conditions = query.getQuery();
+  if (!conditions || typeof conditions !== "object") return;
+
+  if (Object.prototype.hasOwnProperty.call(conditions, "_id") && typeof conditions._id === "string" && !mongoose.isValidObjectId(conditions._id)) {
+    conditions._id = { $in: [] };
+  }
+
+  if (Array.isArray(conditions.$or)) {
+    conditions.$or = conditions.$or.filter((branch) => {
+      if (!branch || typeof branch !== "object" || !Object.prototype.hasOwnProperty.call(branch, "_id")) return true;
+      const value = branch._id;
+      return !(typeof value === "string" && !mongoose.isValidObjectId(value));
+    });
+    if (conditions.$or.length === 0) conditions._id = { $in: [] };
+  }
+}
+
+for (const operation of ["find", "findOne", "findOneAndUpdate", "findOneAndDelete", "findOneAndReplace", "deleteOne", "deleteMany", "countDocuments"]) {
+  reviewSchema.pre(operation, function(next) {
+    stripInvalidReviewObjectIdBranches(this);
+    next();
+  });
+}
+
 // Virtual aliases for strict schema compatibility
 reviewSchema.virtual("reviewId").get(function() { return this.id; });
 reviewSchema.virtual("customerName").get(function() { return this.name; });
