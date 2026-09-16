@@ -12,6 +12,10 @@
 
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { connectDB, isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
@@ -1239,10 +1243,49 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     }
 
     crawlableHtml += `  </main>\n</div>`;
-    result = result.replace('<div id="root"></div>', crawlableHtml);
+    if (result.includes('<div id="root"></div>')) {
+      result = result.replace('<div id="root"></div>', crawlableHtml);
+    } else {
+      result = result.replace(/<div\s+id=["']root["']>[\s\S]*?<\/div>\s*<\/div>/i, crawlableHtml);
+    }
   }
 
   return result;
+}
+
+/**
+ * Scan for built assets in dist/assets to replace dev /src/main.jsx when serving production HTML
+ */
+function resolveProductionAssetTags(htmlContent) {
+  if (!htmlContent || typeof htmlContent !== "string") return htmlContent;
+  if (!htmlContent.includes("/src/main.jsx")) return htmlContent;
+
+  const assetDirCandidates = [
+    path.join(process.cwd(), "dist", "assets"),
+    path.resolve("./dist/assets"),
+    path.join(__dirname, "..", "..", "dist", "assets"),
+    path.join(__dirname, "..", "dist", "assets")
+  ];
+
+  for (const dir of assetDirCandidates) {
+    try {
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir);
+        const jsFile = files.find(f => f.startsWith("index-") && f.endsWith(".js") && !f.endsWith(".map"));
+        const cssFile = files.find(f => f.startsWith("index-") && f.endsWith(".css") && !f.endsWith(".map"));
+        if (jsFile) {
+          let assetInjections = "";
+          if (cssFile) {
+            assetInjections += `<link rel="stylesheet" crossorigin href="/assets/${cssFile}">\n    `;
+          }
+          assetInjections += `<script type="module" crossorigin src="/assets/${jsFile}"></script>`;
+          return htmlContent.replace(/<script\s+type=["']module["']\s+src=["']\/src\/main\.jsx["']><\/script>/i, assetInjections);
+        }
+      }
+    } catch (_) {}
+  }
+
+  return htmlContent;
 }
 
 let cachedTemplate = "";
@@ -1255,16 +1298,21 @@ export function getHtmlTemplate() {
 
   const candidatePaths = [
     path.join(process.cwd(), "dist", "index.html"),
-    path.join(process.cwd(), "index.html"),
     path.resolve("./dist/index.html"),
-    path.resolve("./index.html")
+    path.join(__dirname, "..", "..", "dist", "index.html"),
+    path.join(__dirname, "..", "dist", "index.html"),
+    path.join(process.cwd(), "index.html"),
+    path.resolve("./index.html"),
+    path.join(__dirname, "..", "..", "index.html"),
+    path.join(__dirname, "..", "index.html")
   ];
 
   for (const p of candidatePaths) {
     try {
       if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8");
-        if (content && content.includes("<div id=\"root\"></div>")) {
+        let content = fs.readFileSync(p, "utf-8");
+        if (content && (content.includes('id="root"') || content.includes("id='root'"))) {
+          content = resolveProductionAssetTags(content);
           cachedTemplate = content;
           return cachedTemplate;
         }
@@ -1273,7 +1321,7 @@ export function getHtmlTemplate() {
   }
 
   // Fallback base HTML if filesystem is not directly accessible
-  cachedTemplate = `<!doctype html>
+  const fallback = `<!doctype html>
 <html lang="en">
   <head>
     <!-- Google tag (gtag.js) -->
@@ -1282,7 +1330,6 @@ export function getHtmlTemplate() {
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'GT-NNMV4H8');
     </script>
     <meta charset="UTF-8" />
@@ -1296,11 +1343,34 @@ export function getHtmlTemplate() {
     <title>Aura Rudraksha — 100% Authentic Nepal &amp; Indonesian Rudraksha | Lab Certified</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="aura-initial-loader" style="position:fixed;inset:0;background:#fdfbf7;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;user-select:none;-webkit-user-select:none;">
+        <div style="position:relative;width:80px;height:80px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:absolute;inset:0;border-radius:50%;border:2px solid #edd9c7;border-top-color:#a54d2b;border-right-color:#c2410c;animation:auraInitSpin 0.9s cubic-bezier(0.4,0,0.2,1) infinite;"></div>
+          <div style="position:absolute;inset:6px;border-radius:50%;border:1px dashed #d97706;opacity:0.4;animation:auraInitSpinRev 3s linear infinite;"></div>
+          <div style="width:50px;height:50px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #c2410c 0%, #7c2d12 100%);box-shadow:0 4px 18px rgba(165,77,43,0.35);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:24px;font-weight:700;line-height:1;">
+            ॐ
+          </div>
+        </div>
+        <div style="margin-top:22px;text-align:center;">
+          <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;color:#2b170d;letter-spacing:1.5px;">
+            AURA RUDRAKSHA
+          </div>
+          <div style="margin-top:6px;font-size:12px;color:#78685c;letter-spacing:0.8px;">
+            Authentic Consecrated Beads
+          </div>
+        </div>
+        <style>
+          @keyframes auraInitSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          @keyframes auraInitSpinRev { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
+        </style>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>`;
 
+  cachedTemplate = resolveProductionAssetTags(fallback);
   return cachedTemplate;
 }
 

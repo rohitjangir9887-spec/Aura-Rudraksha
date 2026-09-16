@@ -27,7 +27,9 @@ export default async function handler(req, res) {
   if (req.headers && req.headers["x-matched-path"]) {
     const matched = req.headers["x-matched-path"];
     if (matched && matched !== "/api/index" && matched !== "/api/index.js") {
-      req.url = matched;
+      const qIdx = String(req.url || "").indexOf("?");
+      const query = qIdx !== -1 ? req.url.slice(qIdx) : "";
+      req.url = (matched.includes("?") || !query) ? matched : `${matched}${query}`;
     }
   }
 
