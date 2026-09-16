@@ -1617,20 +1617,44 @@ export const db = {
   getOrder: async (id, guestToken = "", txnid = "") => {
     if (!id) return { success: false, notFound: true, message: "Order ID is required" };
     try {
-      const gToken = guestToken || (typeof window !== "undefined" ? (sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "") : "");
+      const gToken = guestToken || (typeof window !== "undefined" ? (
+        sessionStorage.getItem(`aura_order_token_${id}`) ||
+        localStorage.getItem(`aura_order_token_${id}`) ||
+        sessionStorage.getItem("aura_guest_token") ||
+        localStorage.getItem("aura_guest_token") || ""
+      ) : "");
+      const tId = txnid || (typeof window !== "undefined" ? (
+        sessionStorage.getItem(`aura_order_txnid_${id}`) ||
+        localStorage.getItem(`aura_order_txnid_${id}`) ||
+        sessionStorage.getItem("aura_pending_txnid") || ""
+      ) : "");
       const headers = {};
       if (gToken) headers["x-guest-token"] = gToken;
-      if (txnid) headers["x-payu-txnid"] = txnid;
+      if (tId) headers["x-payu-txnid"] = tId;
 
       let url = `/orders/${id}`;
       const params = new URLSearchParams();
       if (gToken) params.set("guestToken", gToken);
-      if (txnid) params.set("txnid", txnid);
+      if (tId) params.set("txnid", tId);
       const q = params.toString();
       if (q) url += `?${q}`;
 
       const res = await apiRequest(url, { headers, timeoutMs: 15000 });
       if (res?.success && res.data) {
+        if (typeof window !== "undefined") {
+          const retToken = res.data.guestToken || gToken;
+          const retTxnid = res.data.txnid || tId;
+          const orderKey = res.data.orderNumber || res.data.id || id;
+          if (retToken) {
+            sessionStorage.setItem(`aura_order_token_${orderKey}`, retToken);
+            localStorage.setItem(`aura_order_token_${orderKey}`, retToken);
+            sessionStorage.setItem("aura_guest_token", retToken);
+          }
+          if (retTxnid) {
+            sessionStorage.setItem(`aura_order_txnid_${orderKey}`, retTxnid);
+            localStorage.setItem(`aura_order_txnid_${orderKey}`, retTxnid);
+          }
+        }
         return res;
       }
       return {

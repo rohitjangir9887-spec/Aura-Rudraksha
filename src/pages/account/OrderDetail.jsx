@@ -39,10 +39,25 @@ export function OrderDetail() {
   const guestToken = searchParams.get("guestToken") || searchParams.get("guest_token") || "";
   const txnid = searchParams.get("txnid") || searchParams.get("txnId") || "";
 
-  if (guestToken) {
+  const effectiveGuestToken = guestToken || (typeof window !== "undefined" ? (
+    sessionStorage.getItem(`aura_order_token_${id}`) ||
+    localStorage.getItem(`aura_order_token_${id}`) ||
+    sessionStorage.getItem("aura_guest_token") ||
+    localStorage.getItem("aura_guest_token") || ""
+  ) : "");
+
+  const effectiveTxnid = txnid || (typeof window !== "undefined" ? (
+    sessionStorage.getItem(`aura_order_txnid_${id}`) ||
+    localStorage.getItem(`aura_order_txnid_${id}`) ||
+    sessionStorage.getItem("aura_pending_txnid") || ""
+  ) : "");
+
+  if (effectiveGuestToken) {
     try {
-      sessionStorage.setItem("aura_guest_token", guestToken);
-      localStorage.setItem("aura_guest_token", guestToken);
+      sessionStorage.setItem("aura_guest_token", effectiveGuestToken);
+      localStorage.setItem("aura_guest_token", effectiveGuestToken);
+      sessionStorage.setItem(`aura_order_token_${id}`, effectiveGuestToken);
+      localStorage.setItem(`aura_order_token_${id}`, effectiveGuestToken);
     } catch (_) {}
   }
   
@@ -73,9 +88,9 @@ export function OrderDetail() {
     if (!targetOrderId) return;
     setRetryingPayment(true);
     try {
-      const effectiveGuestToken = guestToken || order?.guestToken || "";
-      const effectiveTxnid = txnid || order?.txnid || "";
-      const res = await db.retryPayment(targetOrderId, effectiveTxnid, effectiveGuestToken);
+      const targetGuestToken = effectiveGuestToken || order?.guestToken || "";
+      const targetTxnid = effectiveTxnid || order?.txnid || "";
+      const res = await db.retryPayment(targetOrderId, targetTxnid, targetGuestToken);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         emitToast("Redirecting to PayU Secure Gateway...", "info");
         const form = document.createElement("form");
@@ -112,12 +127,18 @@ export function OrderDetail() {
       setLoadError("");
       setIsNotFound(false);
       try {
-        const res = await db.getOrder(id, guestToken, txnid);
+        const res = await db.getOrder(id, effectiveGuestToken, effectiveTxnid);
         if (!isMounted) return;
         if (res?.success && res.data) {
           const normalized = db.normalizeOrder(res.data);
           setOrder(normalized);
           setEditAddressForm(normalized.address || "");
+          if (res.data.guestToken) {
+            try {
+              sessionStorage.setItem(`aura_order_token_${id}`, res.data.guestToken);
+              localStorage.setItem(`aura_order_token_${id}`, res.data.guestToken);
+            } catch (_) {}
+          }
         } else if (res?.notFound || res?.status === 404) {
           if (!order) {
             setIsNotFound(true);
@@ -151,18 +172,24 @@ export function OrderDetail() {
       isMounted = false;
       unsubscribe();
     };
-  }, [id, guestToken, txnid, navigate]);
+  }, [id, effectiveGuestToken, effectiveTxnid, navigate]);
   
   async function loadOrder() {
     setLoading(true);
     setLoadError("");
     setIsNotFound(false);
     try {
-      const res = await db.getOrder(id, guestToken, txnid);
+      const res = await db.getOrder(id, effectiveGuestToken, effectiveTxnid);
       if (res?.success && res.data) {
         const normalized = db.normalizeOrder(res.data);
         setOrder(normalized);
         setEditAddressForm(normalized.address || "");
+        if (res.data.guestToken) {
+          try {
+            sessionStorage.setItem(`aura_order_token_${id}`, res.data.guestToken);
+            localStorage.setItem(`aura_order_token_${id}`, res.data.guestToken);
+          } catch (_) {}
+        }
       } else if (res?.notFound || res?.status === 404) {
         setIsNotFound(true);
         setOrder(null);

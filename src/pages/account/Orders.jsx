@@ -592,7 +592,16 @@ export function Orders() {
 
                   return (
                     <motion.div 
-                      onClick={() => navigate(`/account/orders/${o.orderNumber || o.id}`)} 
+                      onClick={() => {
+                        const oNum = o.orderNumber || o.id;
+                        const gTok = o.guestToken || "";
+                        const tId = o.txnid || "";
+                        const qParams = new URLSearchParams();
+                        if (gTok) qParams.set("guestToken", gTok);
+                        if (tId) qParams.set("txnid", tId);
+                        const qStr = qParams.toString() ? `?${qParams.toString()}` : "";
+                        navigate(`/account/orders/${oNum}${qStr}`);
+                      }} 
                       key={o.orderNumber || o.id} 
                       whileHover={{ y: -3, boxShadow: '0 8px 24px rgba(184, 93, 37, 0.12)', borderColor: '#a54d2b' }}
                       whileTap={{ scale: 0.992 }}
@@ -909,24 +918,35 @@ export function Orders() {
                               </button>
                             )}
 
-                            <Link 
-                              to={`/account/orders/${o.orderNumber || o.id}`} 
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '8px 16px',
-                                background: '#fff',
-                                border: '1px solid #a54d2b',
-                                color: '#a54d2b',
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                textDecoration: 'none'
-                              }}
-                            >
-                              Details <ChevronRight size={13} />
-                            </Link>
+                            {(() => {
+                              const oNum = o.orderNumber || o.id;
+                              const gTok = o.guestToken || "";
+                              const tId = o.txnid || "";
+                              const qParams = new URLSearchParams();
+                              if (gTok) qParams.set("guestToken", gTok);
+                              if (tId) qParams.set("txnid", tId);
+                              const qStr = qParams.toString() ? `?${qParams.toString()}` : "";
+                              return (
+                                <Link 
+                                  to={`/account/orders/${oNum}${qStr}`} 
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    padding: '8px 16px',
+                                    background: '#fff',
+                                    border: '1px solid #a54d2b',
+                                    color: '#a54d2b',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    textDecoration: 'none'
+                                  }}
+                                >
+                                  Details <ChevronRight size={13} />
+                                </Link>
+                              );
+                            })()}
                           </div>
 
                           {/* Cancellation & Refund Processing Note */}

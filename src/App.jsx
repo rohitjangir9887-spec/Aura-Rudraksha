@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
@@ -95,7 +95,8 @@ function PageLoader() {
 
 function OrderParamRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/account/orders/${id}` : "/account/orders"} replace />;
+  const location = useLocation();
+  return <Navigate to={id ? `/account/orders/${id}${location.search}` : `/account/orders${location.search}`} replace />;
 }
 
 export function App() {

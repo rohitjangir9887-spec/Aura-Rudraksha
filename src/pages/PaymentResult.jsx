@@ -62,6 +62,23 @@ export function PaymentResult() {
 
         if (res?.success && res.data) {
           setOrder(res.data);
+          const oId = res.data.orderNumber || res.data.id || res.data._id || orderId;
+          const gTok = res.data.guestToken || guestToken;
+          const tId = res.data.txnid || txnid;
+          if (typeof window !== "undefined") {
+            if (gTok) {
+              sessionStorage.setItem("aura_guest_token", gTok);
+              localStorage.setItem("aura_guest_token", gTok);
+              if (oId) {
+                sessionStorage.setItem(`aura_order_token_${oId}`, gTok);
+                localStorage.setItem(`aura_order_token_${oId}`, gTok);
+              }
+            }
+            if (tId && oId) {
+              sessionStorage.setItem(`aura_order_txnid_${oId}`, tId);
+              localStorage.setItem(`aura_order_txnid_${oId}`, tId);
+            }
+          }
         }
         // Once user reaches PaymentResult for an order, clear the cart unconditionally
         try {
@@ -138,6 +155,23 @@ export function PaymentResult() {
       const res = await db.verifyPayment(orderId, txnid, guestToken);
       if (res?.success && res.data) {
         setOrder(res.data);
+        const oId = res.data.orderNumber || res.data.id || res.data._id || orderId;
+        const gTok = res.data.guestToken || guestToken;
+        const tId = res.data.txnid || txnid;
+        if (typeof window !== "undefined") {
+          if (gTok) {
+            sessionStorage.setItem("aura_guest_token", gTok);
+            localStorage.setItem("aura_guest_token", gTok);
+            if (oId) {
+              sessionStorage.setItem(`aura_order_token_${oId}`, gTok);
+              localStorage.setItem(`aura_order_token_${oId}`, gTok);
+            }
+          }
+          if (tId && oId) {
+            sessionStorage.setItem(`aura_order_txnid_${oId}`, tId);
+            localStorage.setItem(`aura_order_txnid_${oId}`, tId);
+          }
+        }
         if (res.data.paymentStatus === "Paid" || status === "success") {
           clear();
           emitToast("Payment confirmed successfully!", "success");
@@ -199,6 +233,14 @@ export function PaymentResult() {
   if (isVerifiedSuccess) {
     const orderNum = order?.orderNumber || order?.id || orderId;
     const finalTxnid = order?.txnid || txnid || "Verified";
+    const effectiveGuestToken = guestToken || order?.guestToken || "";
+    const effectiveTxnid = (txnid && txnid !== orderNum) ? txnid : (order?.txnid || "");
+    const orderDetailParams = new URLSearchParams();
+    if (effectiveGuestToken) orderDetailParams.set("guestToken", effectiveGuestToken);
+    if (effectiveTxnid) orderDetailParams.set("txnid", effectiveTxnid);
+    const orderDetailQuery = orderDetailParams.toString() ? `?${orderDetailParams.toString()}` : "";
+    const orderDetailLink = `/account/orders/${orderNum}${orderDetailQuery}`;
+
     return (
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto" }}>
@@ -211,11 +253,11 @@ export function PaymentResult() {
               Sacred Order Confirmed!
             </h1>
             <p style={{ fontSize: "15px", color: "#2b170d", margin: "0 0 20px" }}>
-              Thank you! Your sacred order <b>#{orderNum}</b> has been securely received. Redirecting to your order details...
+              Thank you! Your sacred order <b>#{orderNum}</b> has been securely received and confirmed.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-              <Link to={`/account/orders/${orderNum}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
-                View Order Details
+              <Link to={orderDetailLink} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
+                Go to My Order (View Order Details)
               </Link>
             </div>
           </div>
@@ -294,7 +336,16 @@ export function PaymentResult() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate(`/account/orders/${orderId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`, { replace: true })}
+                  onClick={() => {
+                    const oNum = order?.orderNumber || order?.id || orderId;
+                    const gTok = guestToken || order?.guestToken || "";
+                    const tId = (txnid && txnid !== oNum) ? txnid : (order?.txnid || "");
+                    const qParams = new URLSearchParams();
+                    if (gTok) qParams.set("guestToken", gTok);
+                    if (tId) qParams.set("txnid", tId);
+                    const qStr = qParams.toString() ? `?${qParams.toString()}` : "";
+                    navigate(`/account/orders/${oNum}${qStr}`, { replace: true });
+                  }}
                   className="outline-btn"
                   style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
                 >
@@ -346,7 +397,16 @@ export function PaymentResult() {
             {orderId && (
               <button 
                 type="button" 
-                onClick={() => navigate(`/account/orders/${orderId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ""}`, { replace: true })} 
+                onClick={() => {
+                  const oNum = order?.orderNumber || order?.id || orderId;
+                  const gTok = guestToken || order?.guestToken || "";
+                  const tId = (txnid && txnid !== oNum) ? txnid : (order?.txnid || "");
+                  const qParams = new URLSearchParams();
+                  if (gTok) qParams.set("guestToken", gTok);
+                  if (tId) qParams.set("txnid", tId);
+                  const qStr = qParams.toString() ? `?${qParams.toString()}` : "";
+                  navigate(`/account/orders/${oNum}${qStr}`, { replace: true });
+                }} 
                 className="outline-btn" 
                 style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
               >

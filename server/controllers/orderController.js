@@ -13,7 +13,7 @@ import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency } from
 import { isValidOrderTransition, isValidPaymentTransition, createStateHistoryEntry, ORDER_STATES, PAYMENT_STATES, REFUND_STATES } from "../services/stateMachineService.js";
 import { normalizeOrderState } from "../services/orderReconciliationService.js";
 import { logAuditEvent } from "../services/auditService.js";
-import { buildPhoneQueryVariants, normalizePhoneNumber } from "../utils/phoneUtils.js";
+import { buildPhoneQueryVariants, normalizePhoneNumber, extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 import { verifyPayuPaymentServerSide } from "../services/payuService.js";
 import crypto from "crypto";
 
@@ -85,7 +85,17 @@ export async function getMyOrders(req, res, next) {
       });
     }
 
-    const queryFilters = [{ authUserId }];
+    if (authUserId && (!userEmail || !userPhone)) {
+      try {
+        const cust = await Customer.findOne({ authUserId }).lean();
+        if (cust) {
+          if (!userEmail && cust.email) userEmail = cust.email.trim().toLowerCase();
+          if (!userPhone && cust.phone) userPhone = cust.phone.trim();
+        }
+      } catch (_) {}
+    }
+
+    const queryFilters = [{ authUserId }, { customerId: authUserId }];
     if (userEmail) {
       queryFilters.push({ customerEmail: userEmail });
       queryFilters.push({ email: userEmail });
@@ -210,29 +220,57 @@ export async function getOrderById(req, res, next) {
     // Authorization check
     const { isInitialAdmin } = isAdminUser(req.user);
     const isAdmin = isInitialAdmin || (authUserId ? await hasAdminRole(authUserId) : false);
-    
-    const oEmail = (order.customerEmail || order.email || order.shippingAddress?.email || "").toLowerCase();
-    const oPhone = order.customerPhone || order.phone || order.shippingAddress?.phone || "";
-    const isOwner = authUserId && (
-      order.authUserId === authUserId ||
-      (userEmail && oEmail === userEmail) ||
-      (userPhone && oPhone === userPhone)
+
+    // 2. Direct Auth User ID / Customer ID match
+    const isAuthOwner = Boolean(
+      authUserId && (
+        (order.authUserId && String(order.authUserId) === String(authUserId)) ||
+        (order.customerId && String(order.customerId) === String(authUserId))
+      )
     );
 
+    // 3. Normalized Phone matching (10 digits on both sides)
+    let userPhone10 = userPhone ? extractRaw10DigitPhone(userPhone) : "";
+    const orderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || order.shippingAddress?.phone || "");
+
+    // 4. Normalized Email matching
+    let userEmailNorm = (userEmail || "").trim().toLowerCase();
+    const orderEmailNorm = (order.customerEmail || order.email || order.shippingAddress?.email || "").trim().toLowerCase();
+
+    // Check Customer profile in DB if user object phone/email was missing
+    if (authUserId && (!userPhone10 || !userEmailNorm)) {
+      try {
+        const cust = await Customer.findOne({ authUserId }).lean();
+        if (cust) {
+          if (!userPhone10 && cust.phone) userPhone10 = extractRaw10DigitPhone(cust.phone);
+          if (!userEmailNorm && cust.email) userEmailNorm = cust.email.trim().toLowerCase();
+        }
+      } catch (_) {}
+    }
+
+    const isPhoneOwner = Boolean(userPhone10 && orderPhone10 && userPhone10 === orderPhone10);
+    const isEmailOwner = Boolean(userEmailNorm && orderEmailNorm && userEmailNorm === orderEmailNorm);
+
+    // 5. Cryptographic Guest Token match
+    const isGuestTokenMatch = Boolean(
+      order.guestToken && reqGuestToken && reqGuestToken === order.guestToken
+    );
+
+    // 6. PayU Transaction ID match
     const isTxnMatch = Boolean(
       (order.txnid && (order.txnid === String(id) || order.txnid === reqTxnid)) ||
       (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === String(id) || a.txnid === reqTxnid))
     );
 
-    const isGuestOrder = !order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_");
-    const isGuestOwner = isTxnMatch || (isGuestOrder && (
-      (Boolean(order.guestToken) && Boolean(reqGuestToken) && reqGuestToken === order.guestToken) ||
-      (userEmail && oEmail === userEmail) ||
-      (userPhone && oPhone === userPhone)
-    ));
+    const hasAccess = isAdmin || isAuthOwner || isPhoneOwner || isEmailOwner || isGuestTokenMatch || isTxnMatch;
 
-    if (!isAdmin && !isOwner && !isGuestOwner) {
+    if (!hasAccess) {
       return res.status(403).json({ success: false, message: "Access Denied: You can only view your own orders." });
+    }
+
+    // Auto-link guest order to authenticated user
+    if (authUserId && (!order.authUserId || order.authUserId === "guest" || String(order.authUserId).startsWith("guest_")) && (isPhoneOwner || isEmailOwner || isGuestTokenMatch)) {
+      Order.updateOne({ _id: order._id }, { $set: { authUserId, customerId: authUserId } }).catch(() => {});
     }
 
     // Live PayU check for pending status so order details always show current status
