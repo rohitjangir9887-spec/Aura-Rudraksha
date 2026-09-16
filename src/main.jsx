@@ -5,6 +5,7 @@ import { App } from "./App";
 import { CartProvider } from "./hooks/useCart";
 import { ToastProvider } from "./context/ToastContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { setupGlobalTouchFeedback } from "./lib/haptics";
 import "./styles.css";
 import "./pages/Shop.css";
 
@@ -12,6 +13,9 @@ import "./pages/Shop.css";
 // 60-90 FPS Smooth Scrolling & Hardware Acceleration Setup
 // ---------------------------------------------------------------------------
 if (typeof window !== "undefined") {
+  // Initialize native tactile touch feedback across buttons, chips, and links
+  setupGlobalTouchFeedback();
+
   // One-time invalidation after review-system fixes so old localStorage review
   // counts cannot keep showing deleted/stale reviews for up to 24 hours.
   try {

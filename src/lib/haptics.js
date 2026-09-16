@@ -46,3 +46,35 @@ export function triggerHaptic(type = "light") {
     // Silent fail-safe: never throw or block UI
   }
 }
+
+/**
+ * Attaches a lightweight, battery-friendly global touch listener that provides
+ * subtle native tactile feedback on interactive buttons, cards, pills, and links.
+ */
+let globalTouchInitialized = false;
+export function setupGlobalTouchFeedback() {
+  if (typeof window === "undefined" || globalTouchInitialized) return;
+  if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+
+  globalTouchInitialized = true;
+  let lastHapticTimestamp = 0;
+
+  const handleTouch = (e) => {
+    try {
+      const target = e.target?.closest?.(
+        'button, [role="button"], a, .primary-btn, .outline-btn, .pill, .chip, .tab-btn, .product-card, .card, input[type="radio"], input[type="checkbox"]'
+      );
+      if (!target) return;
+
+      const now = Date.now();
+      // Throttle to 120ms to prevent duplicate vibrations on fast taps or scrolling
+      if (now - lastHapticTimestamp < 120) return;
+      lastHapticTimestamp = now;
+
+      triggerHaptic("selection");
+    } catch (_) {}
+  };
+
+  window.addEventListener("touchstart", handleTouch, { passive: true, capture: true });
+}
+

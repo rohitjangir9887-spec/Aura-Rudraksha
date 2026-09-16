@@ -59,22 +59,66 @@ function PageLoader() {
   return (
     <div
       style={{
-        minHeight: "60vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#fdfbf7"
+        minHeight: "70vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#fdfbf7",
+        padding: "40px 20px"
       }}
     >
       <div
         style={{
-          width: 38,
-          height: 38,
-          borderRadius: "50%",
-          border: "3px solid #ebd8c5",
-          borderTopColor: "#a54d2b",
-          animation: "auraPageSpin 0.75s linear infinite"
+          position: "relative",
+          width: 52,
+          height: 52,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
         }}
-      />
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            border: "2px solid #ecdac8",
+            borderTopColor: "#a54d2b",
+            borderRightColor: "#c2410c",
+            animation: "auraPageSpin 0.85s linear infinite"
+          }}
+        />
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, #c2410c 0%, #7c2d12 100%)",
+            boxShadow: "0 2px 10px rgba(165, 77, 43, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontSize: "15px",
+            fontWeight: "700"
+          }}
+        >
+          ॐ
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: 16,
+          fontFamily: '"Cormorant Garamond", serif',
+          fontSize: 16,
+          fontWeight: 700,
+          color: "#4a3528",
+          letterSpacing: "0.5px"
+        }}
+      >
+        Aura Rudraksha
+      </div>
       <style>{`
         @keyframes auraPageSpin {
           0% { transform: rotate(0deg); }

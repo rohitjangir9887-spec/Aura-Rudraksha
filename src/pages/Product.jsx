@@ -85,13 +85,13 @@ export function Product() {
 
   // Keep selectedSize aligned if product loaded has specific custom sizes
   useEffect(() => {
-    if (rawP?.sizes && Array.isArray(rawP.sizes) && rawP.sizes.length > 0) {
-      const validNames = rawP.sizes.map(s => typeof s === "string" ? s : (s?.size || s?.name || ""));
+    if (product?.sizes && Array.isArray(product.sizes) && product.sizes.length > 0) {
+      const validNames = product.sizes.map(s => typeof s === "string" ? s : (s?.size || s?.name || ""));
       if (validNames.length > 0 && !validNames.includes(selectedSize)) {
         setSelectedSize(validNames[0]);
       }
     }
-  }, [rawP?.sizes]);
+  }, [product?.sizes, selectedSize]);
 
   // Sticky bar visibility tracking
   const [showStickyBar, setShowStickyBar] = useState(false);

@@ -513,15 +513,15 @@ export function OrderDetail() {
         >
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-              <ShieldCheck size={18} color={order.paymentStatus === "Paid" ? "#166534" : "#b85d25"} />
+              <ShieldCheck size={18} color={order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#991b1b" : "#b85d25")} />
               <span style={{ 
                 fontSize: "14px", 
                 fontWeight: "700", 
-                color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" ? "#991b1b" : "#2b170d") 
+                color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#991b1b" : "#2b170d") 
               }}>
                 {order.paymentStatus === "Paid" 
                   ? "PayU Live Payment Confirmed" 
-                  : (order.paymentStatus === "Failed" ? "PayU Payment Incomplete" : "PayU Payment Pending")}
+                  : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "PayU Payment Incomplete / Cancelled" : "PayU Payment Pending")}
               </span>
               <span 
                 style={{
@@ -529,8 +529,8 @@ export function OrderDetail() {
                   fontWeight: "700",
                   padding: "2px 8px",
                   borderRadius: "4px",
-                  background: order.paymentStatus === "Paid" ? "#dcfce7" : (order.paymentStatus === "Failed" ? "#fee2e2" : "#fef3c7"),
-                  color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" ? "#991b1b" : "#b45309")
+                  background: order.paymentStatus === "Paid" ? "#dcfce7" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#fee2e2" : "#fef3c7"),
+                  color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#991b1b" : "#b45309")
                 }}
               >
                 {order.paymentStatus || "Pending"}

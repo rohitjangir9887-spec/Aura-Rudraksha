@@ -1220,6 +1220,38 @@ export async function verifyPaymentStatus(req, res, next) {
                 }
               }
             );
+          } else {
+            // PayU returned success: false ("Transaction not found" or "No record")
+            // This occurs when the user visited PayU checkout and closed the browser/tab without completing payment
+            const orderAgeMs = Date.now() - new Date(order.createdAt || order.date || Date.now()).getTime();
+            const clientStatus = String(req.query.status || "").toLowerCase();
+            const isClientCancelOrFailed = clientStatus === "cancelled" || clientStatus === "failed";
+            
+            // If user explicitly returned via cancel/failure, or if more than 15 mins have elapsed:
+            if (isClientCancelOrFailed || orderAgeMs > 15 * 60 * 1000) {
+              const newPaymentStatus = (isClientCancelOrFailed && clientStatus === "cancelled") ? "Cancelled" : "Failed";
+              const newPayuStatus = isClientCancelOrFailed ? "userCancelled" : "abandoned";
+              
+              const attempts = order.paymentAttempts || [];
+              const attemptIdx = attempts.findIndex(a => a.txnid === txnidToSync);
+              if (attemptIdx >= 0) {
+                attempts[attemptIdx].paymentStatus = newPaymentStatus;
+                attempts[attemptIdx].payuStatus = newPayuStatus;
+                attempts[attemptIdx].error = "Transaction abandoned or unpaid at gateway";
+                attempts[attemptIdx].updatedAt = new Date().toISOString();
+              }
+
+              await Order.updateOne(
+                { _id: order._id, paymentStatus: { $ne: "Paid" } },
+                {
+                  $set: {
+                    paymentStatus: newPaymentStatus,
+                    payuStatus: newPayuStatus,
+                    paymentAttempts: attempts
+                  }
+                }
+              );
+            }
           }
         }
       }

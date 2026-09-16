@@ -201,14 +201,22 @@ export function PaymentResult() {
     );
   }
 
+  // If status parameter or order status explicitly indicates cancellation or failure,
+  // do not treat as pending verification.
+  const isExplicitCancelOrFailed = 
+    status === "cancelled" || 
+    status === "failed" || 
+    order?.paymentStatus === "Cancelled" || 
+    order?.paymentStatus === "Failed";
+
   // Pending Verification: when transaction was initiated or redirected back with success/processing,
   // but gateway or bank server confirmation is still pending. Never show false "Payment Failed" or "Incomplete".
-  const isPendingVerification = !isVerifiedSuccess && (
+  const isPendingVerification = !isVerifiedSuccess && !isExplicitCancelOrFailed && (
     order?.paymentStatus === "Pending" ||
     order?.paymentStatus === "Payment Pending" ||
     order?.paymentStatus === "Processing" ||
     status === "processing" ||
-    (status === "success" && order?.paymentStatus !== "Failed" && order?.paymentStatus !== "Cancelled")
+    status === "success"
   );
 
   if (isPendingVerification) {
@@ -251,6 +259,15 @@ export function PaymentResult() {
                   }}
                 >
                   {rechecking ? <><Loader2 size={16} className="animate-spin" /><span>Checking Status...</span></> : <><RefreshCw size={16} /><span>Check Status Again</span></>}
+                </button>
+                <button
+                  type="button"
+                  disabled={retrying}
+                  onClick={handleRetry}
+                  className="outline-btn"
+                  style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
+                >
+                  {retrying ? <><Loader2 size={15} className="animate-spin" /><span>Connecting...</span></> : <><RefreshCw size={15} /><span>Retry Payment with PayU</span></>}
                 </button>
                 <button
                   type="button"

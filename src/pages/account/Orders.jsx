@@ -581,8 +581,11 @@ export function Orders() {
                   const isDelivered = o.status === 'Delivered';
                   
                   const isPaid = o.paymentStatus === "Paid";
-                  const isFailed = o.paymentStatus === "Failed";
+                  const isFailed = o.paymentStatus === "Failed" || o.paymentStatus === "Cancelled";
+                  const orderAgeMs = Date.now() - getOrderTimestamp(o);
                   const isPending = !isPaid && !isFailed && (o.paymentStatus === "Pending" || !o.paymentStatus);
+                  const isPendingActive = isPending && orderAgeMs <= 20 * 60 * 1000;
+                  const isPendingExpired = isPending && orderAgeMs > 20 * 60 * 1000;
                   const isRefunded = o.paymentStatus === "Refunded" || o.paymentStatus === "Partially Refunded" || (o.amountRefunded > 0);
                   const paymentDate = o.paymentDetails?.verifiedAt || (isPaid ? o.date : null);
                   const isRetrying = retryingOrderId === (o.orderNumber || o.id);
@@ -662,7 +665,7 @@ export function Orders() {
                                 <CheckCircle2 size={11} /> Payment Successful
                               </span>
                             )}
-                            {isPending && !isCancelled && (
+                            {isPendingActive && !isCancelled && (
                               <span style={{
                                 background: '#fef3c7',
                                 color: '#b45309',
@@ -677,7 +680,7 @@ export function Orders() {
                                 <Clock size={11} /> Payment Verification Pending
                               </span>
                             )}
-                            {isFailed && !isCancelled && (
+                            {(isFailed || isPendingExpired) && !isCancelled && (
                               <span style={{
                                 background: '#fee2e2',
                                 color: '#991b1b',

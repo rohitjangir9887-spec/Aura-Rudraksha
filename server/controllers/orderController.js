@@ -140,6 +140,15 @@ export async function getMyOrders(req, res, next) {
                     { $set: { paymentStatus: newPaymentStatus, payuStatus: verifyRes.status || verifyRes.unmappedStatus } }
                   );
                 }
+              } else {
+                // If PayU returns success: false (Transaction not found / unpaid) and order is older than 15 minutes:
+                const orderAgeMs = Date.now() - new Date(pOrder.createdAt || pOrder.date || Date.now()).getTime();
+                if (orderAgeMs > 15 * 60 * 1000) {
+                  await Order.updateOne(
+                    { _id: pOrder._id, paymentStatus: { $ne: "Paid" } },
+                    { $set: { paymentStatus: "Cancelled", payuStatus: "abandoned" } }
+                  );
+                }
               }
             } catch (_) {}
           })
@@ -244,6 +253,17 @@ export async function getOrderById(req, res, next) {
               { $set: { paymentStatus: newPaymentStatus, payuStatus: verifyRes.status || verifyRes.unmappedStatus } }
             );
             order.paymentStatus = newPaymentStatus;
+          }
+        } else {
+          // If PayU returns success: false and order is older than 15 minutes:
+          const orderAgeMs = Date.now() - new Date(order.createdAt || order.date || Date.now()).getTime();
+          if (orderAgeMs > 15 * 60 * 1000) {
+            await Order.updateOne(
+              { _id: order._id, paymentStatus: { $ne: "Paid" } },
+              { $set: { paymentStatus: "Cancelled", payuStatus: "abandoned" } }
+            );
+            order.paymentStatus = "Cancelled";
+            order.payuStatus = "abandoned";
           }
         }
       } catch (_) {}
