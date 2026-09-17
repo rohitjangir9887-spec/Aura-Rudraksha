@@ -4,6 +4,7 @@ import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
 import { normalizeKeywordItems } from "./keywordUtils.js";
+import { resolveCartProduct } from "./productResolver.js";
 
 // Safe localStorage wrapper to prevent QuotaExceededError or security exceptions from halting execution
 export function safeLocalStorageSet(key, value) {

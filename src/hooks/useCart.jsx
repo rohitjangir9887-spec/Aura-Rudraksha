@@ -91,11 +91,13 @@ export function CartProvider({ children }) {
   const [lines, setLines] = useState(() => readStoredCart(user));
   const [couponCode, setCouponCode] = useState(() => readStoredCoupon(user));
   const [totals, setTotals] = useState(() => {
-    const initLines = readStoredCart(user);
-    if (initLines && initLines.length > 0) {
-      const calc = db.calculateCartSync(initLines, "");
-      return calc?.data || defaultTotals;
-    }
+    try {
+      const initLines = readStoredCart(user);
+      if (initLines && initLines.length > 0 && db && typeof db.calculateCartSync === "function") {
+        const calc = db.calculateCartSync(initLines, "");
+        return calc?.data || defaultTotals;
+      }
+    } catch (_) {}
     return defaultTotals;
   });
   const [loadingTotals, setLoadingTotals] = useState(false);

@@ -21,7 +21,9 @@ export function resolveCartProduct(products = [], lineOrId) {
 
   const baseId = rawId.replace(/-indo$|_indo$/i, "");
 
-  const productPool = Array.isArray(products) && products.length > 0 ? products : db.getProducts();
+  const productPool = (Array.isArray(products) && products.length > 0) 
+    ? products 
+    : (db && typeof db.getProducts === "function" ? db.getProducts() : []);
 
   // 1. Strict exact ID or Mongo _ID match (prevents slug collision with another product's ID)
   let baseProduct = productPool.find(p => 
@@ -38,7 +40,7 @@ export function resolveCartProduct(products = [], lineOrId) {
     baseProduct = productPool.find(p => p && (String(p.slug) === baseId || String(p.slug) === rawId));
   }
 
-  if (!baseProduct) {
+  if (!baseProduct && db && typeof db.getProduct === "function") {
     baseProduct = db.getProduct(baseId) || db.getProduct(rawId);
   }
 

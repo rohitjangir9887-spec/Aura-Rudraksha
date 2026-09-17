@@ -263,22 +263,26 @@ export function Checkout() {
 
   // Real-time calculation for Buy Now items if distinct from cart
   const [buyNowTotals, setBuyNowTotals] = useState(() => {
-    if (buyNowLines && buyNowLines.length > 0) {
-      const calc = db.calculateCartSync(buyNowLines, couponCode);
-      return calc?.data || null;
-    }
+    try {
+      if (buyNowLines && buyNowLines.length > 0 && db && typeof db.calculateCartSync === "function") {
+        const calc = db.calculateCartSync(buyNowLines, couponCode);
+        return calc?.data || null;
+      }
+    } catch (_) {}
     return null;
   });
 
   useEffect(() => {
-    if (buyNowLines && buyNowLines.length > 0) {
-      const calc = db.calculateCartSync(buyNowLines, appliedCoupon?.code || couponCode);
-      if (calc?.success && calc.data) {
-        setBuyNowTotals(calc.data);
+    try {
+      if (buyNowLines && buyNowLines.length > 0 && db && typeof db.calculateCartSync === "function") {
+        const calc = db.calculateCartSync(buyNowLines, appliedCoupon?.code || couponCode);
+        if (calc?.success && calc.data) {
+          setBuyNowTotals(calc.data);
+          return;
+        }
       }
-    } else {
-      setBuyNowTotals(null);
-    }
+    } catch (_) {}
+    setBuyNowTotals(null);
   }, [buyNowLines, appliedCoupon, couponCode]);
 
   const activeTotals = buyNowTotals || cartTotals;
