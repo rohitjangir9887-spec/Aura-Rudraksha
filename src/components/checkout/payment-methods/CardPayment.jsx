@@ -65,10 +65,11 @@ export function CardPayment({
       {/* Interactive Card Form Inputs */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "14px" }}>
         <div>
-          <label style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
+          <label htmlFor="card-number" style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
             Card Number
           </label>
           <input
+            id="card-number"
             type="text"
             placeholder="4532 •••• •••• 8920"
             value={cardDetails.number}
@@ -86,10 +87,11 @@ export function CardPayment({
 
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "10px" }}>
           <div>
-            <label style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
+            <label htmlFor="card-expiry" style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
               Valid Thru (MM / YY)
             </label>
             <input
+              id="card-expiry"
               type="text"
               placeholder="MM / YY"
               value={cardDetails.expiry}
@@ -105,10 +107,11 @@ export function CardPayment({
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
+            <label htmlFor="card-cvv" style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
               CVV / CVC
             </label>
             <input
+              id="card-cvv"
               type="password"
               placeholder="•••"
               maxLength={4}
@@ -127,10 +130,11 @@ export function CardPayment({
         </div>
 
         <div>
-          <label style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
+          <label htmlFor="card-name" style={{ display: "block", fontSize: "11.5px", fontWeight: "700", color: "#4a3528", marginBottom: "4px" }}>
             Name on Card
           </label>
           <input
+            id="card-name"
             type="text"
             placeholder="Devotee Name"
             value={cardDetails.name}
@@ -148,8 +152,9 @@ export function CardPayment({
       </div>
 
       {/* RBI Security Compliance Checkbox */}
-      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "#6e5d50", cursor: "pointer", marginBottom: "12px" }}>
+      <label htmlFor="save-card" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "#6e5d50", cursor: "pointer", marginBottom: "12px" }}>
         <input
+          id="save-card"
           type="checkbox"
           checked={saveCardCheck}
           onChange={(e) => setSaveCardCheck(e.target.checked)}
