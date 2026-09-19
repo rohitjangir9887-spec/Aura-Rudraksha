@@ -83,6 +83,7 @@ export function SupportChatView({ chatMessages, loadingAi, input, setInput, hand
         <button
           type="submit"
           disabled={!input.trim() || loadingAi}
+          aria-label="Send message"
           style={{
             background: "#8c2b10",
             color: "#fff",
