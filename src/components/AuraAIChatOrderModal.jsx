@@ -332,15 +332,25 @@ export function AuraAIChatOrderModal({
 
   return (
     <AnimatePresence>
-      <div className="aura-ai-order-modal-backdrop" onClick={onClose}>
+      {isOpen && (
         <motion.div 
-          className="aura-ai-order-modal-card"
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          key="order-modal-backdrop"
+          className="aura-ai-order-modal-backdrop" 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={onClose}
         >
+          <motion.div 
+            key="order-modal-card"
+            className="aura-ai-order-modal-card"
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            onClick={(e) => e.stopPropagation()}
+          >
           {/* Header */}
           <div className="aura-ai-order-modal-header">
             <div className="aura-ai-order-modal-title">
@@ -439,7 +449,8 @@ export function AuraAIChatOrderModal({
             </OrderModalErrorBoundary>
           </div>
         </motion.div>
-      </div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }

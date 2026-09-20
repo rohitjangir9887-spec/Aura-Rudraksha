@@ -73,18 +73,30 @@ export function AuraAIChatHistoryModal({ isOpen, onClose, onSelectSession, curre
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.93, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.93, y: 12 }}
-          className="w-full max-w-md bg-[#fdfaf5] border border-[#dfcfbc] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
-          style={{ boxShadow: "0 8px 36px rgba(74, 14, 23, 0.25)" }}
+      {isOpen && (
+        <motion.div 
+          key="chat-history-modal-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
         >
+          <motion.div
+            key="chat-history-modal-dialog"
+            initial={{ opacity: 0, scale: 0.93, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.93, y: 12 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="w-full max-w-md bg-[#fdfaf5] border border-[#dfcfbc] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            style={{ boxShadow: "0 8px 36px rgba(74, 14, 23, 0.25)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#8c2b10] to-[#5c1c0a] text-white">
             <div className="flex items-center gap-2">
@@ -181,7 +193,8 @@ export function AuraAIChatHistoryModal({ isOpen, onClose, onSelectSession, curre
             🔒 आपका चैट इतिहास 100% सुरक्षित एवं केवल आपके डिवाइस पर उपलब्ध है।
           </div>
         </motion.div>
-      </div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }

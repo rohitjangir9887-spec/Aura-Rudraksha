@@ -1371,17 +1371,18 @@ export function AuraAIFloating() {
       </AnimatePresence>
 
       {/* 3. Aura AI Window - Floating Interactive Guide + Full Window Mode */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isOpen && (
-          <>
+          <React.Fragment key="aura-ai-window-portal">
             {/* Backdrop overlay - rendered for full-window mode to focus conversation */}
             {isFullWindow && (
               <motion.div
+                key="aura-ai-backdrop-overlay"
                 className="aura-ai-floating-backdrop aura-ai-backdrop-full"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
                 onClick={(e) => {
                   if (e.target === e.currentTarget) {
                     setIsFullWindow(false);
@@ -1389,35 +1390,44 @@ export function AuraAIFloating() {
                 }}
               />
             )}
-            <div className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}>
             <motion.div
-              key={isFullWindow ? "full-modal" : "compact-panel"}
-              id="aura-ai-floating-panel"
-              className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
-              initial={{ opacity: 0, y: isFullWindow ? 0 : 20, scale: isFullWindow ? 0.98 : 0.94 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: isFullWindow ? 0 : 15, scale: 0.95 }}
-              transition={{ 
-                duration: 0.25,
-                ease: [0.16, 1, 0.3, 1]
+              key={isFullWindow ? "aura-ai-full-container" : "aura-ai-compact-container"}
+              className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}
+              initial={{ 
+                opacity: 0, 
+                scale: isFullWindow ? 0.95 : 0.88, 
+                y: isFullWindow ? 15 : 30,
+                transformOrigin: isFullWindow ? "center center" : "bottom right" 
               }}
-              drag={!isFullWindow}
-              dragControls={dragControls}
-              dragListener={false}
-              dragMomentum={false}
-              dragElastic={0.05}
-              dragConstraints={{
-                left: -Math.max(100, window.innerWidth - 300),
-                right: Math.max(100, window.innerWidth - 300),
-                top: -Math.max(100, window.innerHeight - 400),
-                bottom: 0
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ 
+                opacity: 0, 
+                scale: isFullWindow ? 0.95 : 0.86, 
+                y: isFullWindow ? 15 : 25,
+                transition: { duration: 0.22, ease: [0.32, 0, 0.67, 0] }
               }}
-              whileDrag={{ cursor: "grabbing" }}
-              style={{ transformOrigin: isFullWindow ? "center center" : "bottom left", willChange: "transform, width, height" }}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             >
+              <motion.div
+                id="aura-ai-floating-panel"
+                className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
+                drag={!isFullWindow}
+                dragControls={dragControls}
+                dragListener={false}
+                dragMomentum={false}
+                dragElastic={0.05}
+                dragConstraints={{
+                  left: -Math.max(100, window.innerWidth - 300),
+                  right: Math.max(100, window.innerWidth - 300),
+                  top: -Math.max(100, window.innerHeight - 400),
+                  bottom: 0
+                }}
+                whileDrag={{ cursor: "grabbing" }}
+                style={{ transformOrigin: isFullWindow ? "center center" : "bottom right", willChange: "transform, width, height" }}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
               {/* Header - Drag Handle Area (when compact) */}
               <div 
                 className={`aura-ai-header ${!isFullWindow ? "aura-ai-header-draggable" : ""} ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}
@@ -1935,7 +1945,13 @@ export function AuraAIFloating() {
                         </div>
                       )}
 
-                      <div id={m.id} className={`aura-ai-msg ${m.sender === "user" ? "aura-ai-msg-user" : "aura-ai-msg-ai"}`}>
+                      <motion.div 
+                        id={m.id} 
+                        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                        className={`aura-ai-msg ${m.sender === "user" ? "aura-ai-msg-user" : "aura-ai-msg-ai"}`}
+                      >
                         {m.sender === "ai" && (
                           <div className="aura-ai-msg-avatar">
                             <Sparkles size={13} />
@@ -2416,14 +2432,19 @@ export function AuraAIFloating() {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     </React.Fragment>
                   );
                 })}
 
 
                 {loading && (
-                  <div className="aura-ai-msg aura-ai-msg-ai">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="aura-ai-msg aura-ai-msg-ai"
+                  >
                     <div className="aura-ai-msg-avatar">
                       <Sparkles size={13} />
                     </div>
@@ -2441,7 +2462,7 @@ export function AuraAIFloating() {
                         {elapsedTime > 0 && <span style={{ opacity: 0.7, fontSize: "10px" }}>({elapsedTime}s)</span>}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -2537,8 +2558,8 @@ export function AuraAIFloating() {
                 </div>
               </div>
             </motion.div>
-          </div>
-          </>
+          </motion.div>
+          </React.Fragment>
         )}
       </AnimatePresence>
 

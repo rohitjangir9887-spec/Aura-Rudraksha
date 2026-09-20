@@ -1104,7 +1104,13 @@ export function AuraAIPage() {
                       </div>
                     )}
 
-                    <div id={m.id} className={`aura-ai-page-msg ${m.sender === "user" ? "user-msg" : "ai-msg"}`}>
+                    <motion.div 
+                      id={m.id} 
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                      className={`aura-ai-page-msg ${m.sender === "user" ? "user-msg" : "ai-msg"}`}
+                    >
                       {m.sender === "ai" && (
                         <div className="aura-ai-page-msg-avatar">
                           <Sparkles size={14} />
@@ -1453,7 +1459,7 @@ export function AuraAIPage() {
                           )}
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   </React.Fragment>
                 );
               })}
