@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
-import { parseAuraAiPayload, customerSafeAiText } from "../lib/auraAiResponse";
+import { parseAuraAiPayload, customerSafeAiText, isAuraResponseIncomplete } from "../lib/auraAiResponse";
 import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/auraChatStore";
 import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
@@ -328,6 +328,8 @@ export function AuraAIFloating() {
   const [errorOccurred, setErrorOccurred] = useState(false);
   const [lastUserQuery, setLastUserQuery] = useState("");
   const timerRef = useRef(null);
+  const turnSeqRef = useRef(0);
+  const autoContinuationCountRef = useRef(0);
   const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
 
   useEffect(() => {
@@ -664,6 +666,7 @@ export function AuraAIFloating() {
     // Reset and Start Live Status Tracking
     setLastUserQuery(textToSend ? textToSend.trim() : "Kundali Request");
     setErrorOccurred(false);
+    autoContinuationCountRef.current = 0;
     setStatusText(getDynamicThinkingStatus(0, mode));
     setElapsedTime(0);
     setLoading(true);
@@ -707,6 +710,7 @@ export function AuraAIFloating() {
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
+            setErrorOccurred(false);
           }
           if (partialData?.kundali) {
             const verified = partialData.kundali.verifiedBirthData || {
@@ -728,6 +732,7 @@ export function AuraAIFloating() {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             const existing = idx >= 0 ? prev[idx] : null;
             const liveMsg = {
+              ...(existing || {}),
               id: aiMsgId,
               sender: "ai",
               text: cleanText,
@@ -797,11 +802,23 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
+
+          // Automatic background continuation if response was cut off
+          if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 2) {
+            autoContinuationCountRef.current++;
+            setTimeout(() => {
+              handleContinueChat(aiMsg, autoContinuationCountRef.current);
+            }, 300);
+          } else {
+            autoContinuationCountRef.current = 0;
+          }
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
-          console.warn("Stream error in floating assistant:", err);
-          setErrorOccurred(true);
+          console.warn("Stream notice in floating assistant:", err);
+          if (!streamInitialized) {
+            setErrorOccurred(true);
+          }
           setLoading(false);
           if (timerRef.current) {
             clearInterval(timerRef.current);
@@ -811,7 +828,9 @@ export function AuraAIFloating() {
       });
     } catch (err) {
       if (currentTurnSeq !== turnSeqRef.current) return;
-      setErrorOccurred(true);
+      if (!streamInitialized) {
+        setErrorOccurred(true);
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -836,7 +855,7 @@ export function AuraAIFloating() {
     }
   };
 
-  const handleContinueChat = async (targetMsg) => {
+  const handleContinueChat = async (targetMsg, autoPassNumber = 0) => {
     if (loading || !targetMsg) return;
     const baseText = targetMsg.text || "";
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। (Please continue the rest of the answer seamlessly right from where it stopped).";
@@ -880,7 +899,7 @@ export function AuraAIFloating() {
         mode,
         cartItems: cart.lines || [],
         history: messages.slice(-8),
-        birthDetails: mode === "panditji" ? (activeKundaliProfile || auraChatStore.getVerifiedBirthDetails()) : null,
+        birthDetails: mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null,
         isContinuation: true,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -891,6 +910,7 @@ export function AuraAIFloating() {
           if (!streamInitialized) {
             streamInitialized = true;
             setLoading(false);
+            setErrorOccurred(false);
           }
           setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
           const cleanAccumulated = customerSafeAiText(accumulated);
@@ -953,11 +973,23 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
+
+          // Automatic background chain continuation if still incomplete
+          if (isAuraResponseIncomplete(finalMerged, mode) && autoPassNumber < 2) {
+            autoContinuationCountRef.current = autoPassNumber + 1;
+            setTimeout(() => {
+              handleContinueChat(aiMsg, autoPassNumber + 1);
+            }, 300);
+          } else {
+            autoContinuationCountRef.current = 0;
+          }
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Continue stream notice:", err);
-          setErrorOccurred(true);
+          if (!streamInitialized) {
+            setErrorOccurred(true);
+          }
           setLoading(false);
           if (timerRef.current) {
             clearInterval(timerRef.current);
@@ -967,7 +999,9 @@ export function AuraAIFloating() {
       });
     } catch (err) {
       if (currentTurnSeq !== turnSeqRef.current) return;
-      setErrorOccurred(true);
+      if (!streamInitialized) {
+        setErrorOccurred(true);
+      }
       setLoading(false);
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -2255,30 +2289,32 @@ export function AuraAIFloating() {
 
                             {m.sender === "ai" && (
                               <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleContinueChat(m);
-                                  }}
-                                  disabled={loading}
-                                  style={{
-                                    padding: "3px 7px",
-                                    background: "linear-gradient(135deg, #FFF9F0, #FDF3E3)",
-                                    border: "1px solid #d4af37",
-                                    borderRadius: "4px",
-                                    fontSize: "10.5px",
-                                    color: "#8c2b10",
-                                    fontWeight: 600,
-                                    cursor: loading ? "not-allowed" : "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "3px"
-                                  }}
-                                  title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response)"
-                                >
-                                  <Sparkles size={11} /> <span>पूरा करें</span>
-                                </button>
+                                {isAuraResponseIncomplete(m.text, mode) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleContinueChat(m);
+                                    }}
+                                    disabled={loading}
+                                    style={{
+                                      padding: "3px 7px",
+                                      background: "linear-gradient(135deg, #FFF9F0, #FDF3E3)",
+                                      border: "1px solid #d4af37",
+                                      borderRadius: "4px",
+                                      fontSize: "10.5px",
+                                      color: "#8c2b10",
+                                      fontWeight: 600,
+                                      cursor: loading ? "not-allowed" : "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "3px"
+                                    }}
+                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response)"
+                                  >
+                                    <Sparkles size={11} /> <span>पूरा करें</span>
+                                  </button>
+                                )}
 
                                 <button
                                   type="button"
@@ -2378,7 +2414,10 @@ export function AuraAIFloating() {
                   <textarea
                     ref={textareaRef}
                     value={input}
-                    onChange={e => setInput(e.target.value)}
+                    onChange={e => {
+                      setInput(e.target.value);
+                      if (errorOccurred) setErrorOccurred(false);
+                    }}
                     onKeyDown={e => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();

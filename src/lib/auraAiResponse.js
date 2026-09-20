@@ -297,3 +297,37 @@ export function customerSafeAiText(value) {
   }
   return sanitizeCustomerText(String(value));
 }
+
+export function isAuraResponseIncomplete(text, mode = "standard") {
+  if (!text || typeof text !== "string") return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 50) return false;
+
+  // 1. Explicit terminal tags = definitively complete
+  if (trimmed.includes("[AURA_KEYWORDS]:")) return false;
+
+  // 2. Unclosed code fences = incomplete
+  const codeBlockCount = (trimmed.match(/```/g) || []).length;
+  if (codeBlockCount % 2 !== 0) return true;
+
+  // 3. Unclosed markdown table row cut off mid-line
+  if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
+
+  // 4. Dangling connectors / list numbers
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/;
+  if (danglingConnectors.test(trimmed)) return true;
+
+  // 5. Check closing punctuation
+  const hasTerminalPunctuation = /([।!?.\n]\s*$|[।!?.]["'*)\]]\s*$|🙏\s*$|🕉️\s*$|✅\s*$|🌟\s*$|✨\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$)/.test(trimmed);
+  if (!hasTerminalPunctuation) {
+    return true;
+  }
+
+  // 6. In deep astrological reading, if it mentions horoscope/graha details but got cut before remedies/table
+  if (mode === "panditji" && trimmed.includes("लग्न") && trimmed.includes("ग्रह") && !trimmed.includes("सारांश") && !trimmed.includes("|") && trimmed.length > 700) {
+    return true;
+  }
+
+  return false;
+}
+

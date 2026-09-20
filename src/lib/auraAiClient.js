@@ -306,6 +306,24 @@ export const auraAiClient = {
         };
       }
       console.warn("Aura AI streaming notice:", err?.message || err);
+
+      // If chunks were already accumulated, gracefully finish with the accumulated text
+      if (accumulatedRaw.trim()) {
+        const partialResult = {
+          text: customerSafeAiText(accumulatedRaw),
+          products: finalData?.products || [],
+          coupons: finalData?.coupons || [],
+          kundali: finalData?.kundali || null,
+          quickReplies: finalData?.quickReplies || [],
+          requiresHuman: Boolean(finalData?.requiresHuman),
+          conversationId
+        };
+        if (onDone && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+          onDone(partialResult);
+        }
+        return partialResult;
+      }
+
       if (onError) onError(err);
       
       const preservedKundali = finalData?.kundali || null;
