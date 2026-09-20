@@ -12246,6 +12246,296 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   margin: 4px 0 2px 0;
 }
 
+/* --- Rich AI Kundali Report Component Styles --- */
+
+/* Greeting Banner */
+.aura-ai-greeting-banner {
+  background: linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 60%, #FFEDD5 100%);
+  border: 1px solid #F59E0B;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 6px 0 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 3px 12px rgba(245, 158, 11, 0.12);
+}
+
+.aura-ai-greeting-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.aura-ai-greeting-text {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #8C2B10;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+/* Sacred Gold Divider */
+.aura-ai-sacred-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0;
+  opacity: 0.85;
+}
+
+.aura-ai-divider-line {
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent 0%, #D97706 50%, transparent 100%);
+}
+
+.aura-ai-divider-symbol {
+  color: #B45309;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Enhanced Section Headings */
+.aura-ai-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #78240C;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #FFFDF8 0%, #FAF0E6 100%);
+  border-left: 3px solid #D97706;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 0 1px 3px rgba(120, 36, 12, 0.05);
+}
+
+/* Planet Information Cards & Grid */
+.aura-ai-planet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.aura-ai-planet-card {
+  background: #FFFDF8;
+  border: 1px solid #E5D5C5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 6px rgba(120, 36, 12, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aura-ai-planet-card:hover {
+  border-color: #D97706;
+  box-shadow: 0 3px 10px rgba(217, 119, 6, 0.08);
+}
+
+.aura-ai-planet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #E5D5C5;
+}
+
+.aura-ai-planet-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #5C1C0A;
+}
+
+.aura-ai-planet-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #78350F;
+  margin-bottom: 4px;
+}
+
+.aura-ai-planet-meta-item {
+  background: #FEF3C7;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 600;
+}
+
+.aura-ai-planet-interp {
+  font-size: 11.5px;
+  color: #3B1B10;
+  line-height: 1.45;
+}
+
+/* Status Badges */
+.aura-ai-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.aura-ai-status-exalted {
+  background: #D1FAE5;
+  color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+
+.aura-ai-status-own {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+}
+
+.aura-ai-status-debilitated {
+  background: #FFE4E6;
+  color: #9F1239;
+  border: 1px solid #FCA5A5;
+}
+
+.aura-ai-status-neutral {
+  background: #E0F2FE;
+  color: #0369A1;
+  border: 1px solid #7DD3FC;
+}
+
+/* Responsive Table */
+.aura-ai-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid #E5D5C5;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  background: #FFFDF8;
+}
+
+.aura-ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  text-align: left;
+}
+
+.aura-ai-table th {
+  background: #FEF3C7;
+  color: #782218;
+  font-weight: 800;
+  padding: 8px 10px;
+  border-bottom: 1px solid #F59E0B;
+  white-space: nowrap;
+}
+
+.aura-ai-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #F3E8DC;
+  color: #2B1408;
+  line-height: 1.4;
+}
+
+.aura-ai-table tr:nth-child(even) td {
+  background: #FDFBF7;
+}
+
+.aura-ai-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Sacred Mantra Card */
+.aura-ai-mantra-card {
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border: 1px solid #F59E0B;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aura-ai-mantra-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+  color: #B45309;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.aura-ai-mantra-text {
+  font-size: 14px;
+  font-weight: 800;
+  color: #782218;
+  font-family: inherit;
+  line-height: 1.5;
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* Subtle Warning / Dosh Card */
+.aura-ai-warning-card {
+  background: #FFF1F2;
+  border: 1px solid #FECDD3;
+  border-left: 4px solid #E11D48;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  color: #881337;
+  font-size: 12px;
+  line-height: 1.45;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.aura-ai-warning-icon {
+  color: #E11D48;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Keyword Highlight Badges */
+.aura-ai-highlight-exalted {
+  background: #D1FAE5;
+  color: #065F46;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.aura-ai-highlight-debilitated {
+  background: #FFE4E6;
+  color: #9F1239;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.aura-ai-highlight-neutral {
+  background: #FEF3C7;
+  color: #92400E;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 /* Typing Bubble */
 .aura-ai-typing-bubble {
   display: flex;
