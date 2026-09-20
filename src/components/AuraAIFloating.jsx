@@ -139,16 +139,25 @@ export function AuraAIFloating() {
   // Dynamic engaging status messages while AI analyzes / calculates before writing
   const getDynamicThinkingStatus = (seconds, currentMode) => {
     if (currentMode === "panditji") {
-      if (seconds <= 2) return "🕉️ जन्म लग्न, राशि व नक्षत्र गणना हो रही है...";
-      if (seconds <= 5) return "🪐 9 ग्रहों की स्थिति, भाव व दृष्टि का गहरा विश्लेषण...";
-      if (seconds <= 8) return "📜 विंशोत्तरी महादशा, गोचर व दोष विचार चल रहा है...";
-      if (seconds <= 12) return "✨ शिव पुराण व शास्त्रोक्त सिद्ध रुद्राक्ष अनुसंधान...";
-      return "🙏 जातक के लिए सर्वोत्तम कल्याणकारी परामर्श तैयार हो रहा है...";
+      const panditMessages = [
+        "🪐 ग्रहों की स्थिति का विश्लेषण किया जा रहा है...",
+        "📜 आपकी जन्म कुंडली का अध्ययन हो रहा है...",
+        "⏱️ दशा और अंतर्दशा की गणना की जा रही है...",
+        "✨ महत्वपूर्ण योगों की जाँच की जा रही है...",
+        "🔮 आपके प्रश्न के अनुसार ज्योतिषीय संकेत देखे जा रहे हैं...",
+        "✍️ अंतिम उत्तर तैयार किया जा रहा है..."
+      ];
+      const idx = Math.min(Math.floor(seconds / 2.5), panditMessages.length - 1);
+      return panditMessages[idx];
     } else {
-      if (seconds <= 2) return "🔍 प्रामाणिक स्टोर कैटलॉग व रुद्राक्ष खोज रहे हैं...";
-      if (seconds <= 5) return "🛡️ 100% लैब टेस्ट व X-Ray सर्टिफिकेशन जांच रहे हैं...";
-      if (seconds <= 8) return "🎁 सक्रिय डिस्काउंट कूपन व ऑफर्स चेक कर रहे हैं...";
-      return "✨ आपके लिए सर्वोत्तम उत्तर तैयार हो रहा है...";
+      const standardMessages = [
+        "🔍 प्रामाणिक स्टोर कैटलॉग व रुद्राक्ष खोज रहे हैं...",
+        "🛡️ 100% लैब टेस्ट व X-Ray सर्टिफिकेशन जांच रहे हैं...",
+        "🎁 सक्रिय डिस्काउंट कूपन व ऑफर्स चेक कर रहे हैं...",
+        "✨ आपके लिए सर्वोत्तम उत्तर तैयार हो रहा है..."
+      ];
+      const idx = Math.min(Math.floor(seconds / 2.5), standardMessages.length - 1);
+      return standardMessages[idx];
     }
   };
 
@@ -448,7 +457,6 @@ export function AuraAIFloating() {
     }).catch(() => {});
   }, []);
 
-  const turnSeqRef = useRef(0);
   const prevIsOpenRef = useRef(false);
 
   // Update messages when switching mode (e.g. standard vs panditji)
@@ -2243,15 +2251,26 @@ export function AuraAIFloating() {
 
                           {/* AURA_KEYWORDS Interactive Suggested Search Chips */}
                           {m.sender === "ai" && (() => {
-                            const kws = parseAuraKeywords(m.text || "");
-                            if (!kws.length) return null;
+                            const parsedKws = parseAuraKeywords(m.text || "");
+                            const isLastAi = idx === messages.length - 1;
+                            let effectiveKws = parsedKws;
+                            if (!effectiveKws.length && isLastAi && !loading) {
+                              if (Array.isArray(m.quickReplies) && m.quickReplies.length > 0) {
+                                effectiveKws = m.quickReplies.map(r => r.replace(/^[^\w\s\u0900-\u097F]+/, "").trim()).filter(Boolean);
+                              } else if (mode === "panditji") {
+                                effectiveKws = ["विवाह योग और विवाह का समय", "करियर और सरकारी नौकरी", "धन और आर्थिक स्थिति", "कल्याणकारी रुद्राक्ष व धारण विधि", "महादशा और अंतर्दशा", "स्वास्थ्य संबंधी ज्योतिषीय संकेत"];
+                              } else {
+                                effectiveKws = ["सिद्ध 1 से 14 मुखी रुद्राक्ष", "आज के एक्टिव डिस्काउंट कूपन", "ऑर्डर डिलीवरी व ट्रैकिंग", "100% X-Ray लैब सर्टिफिकेट", "हरिद्वार शिव पूजा व प्राण-प्रतिष्ठा"];
+                              }
+                            }
+                            if (!effectiveKws.length) return null;
                             return (
                               <div className="aura-ai-keyword-chips-wrap" style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed rgba(212, 175, 55, 0.3)" }}>
                                 <div style={{ fontSize: "10.5px", color: "#8a6014", fontWeight: 700, marginBottom: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
-                                  <span>🔍</span> <span>त्वरित खोज व आगे का परामर्श (Quick Actions):</span>
+                                  <span>🔍</span> <span>सुझावित विषय व आगे का परामर्श (Suggested Actions):</span>
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                                  {kws.map((kw, ki) => (
+                                  {effectiveKws.map((kw, ki) => (
                                     <button
                                       key={ki}
                                       type="button"
