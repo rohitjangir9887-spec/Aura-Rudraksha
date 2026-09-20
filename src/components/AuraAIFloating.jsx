@@ -776,6 +776,139 @@ export function AuraAIFloating() {
     }
   };
 
+  const handleContinueChat = async (targetMsg) => {
+    if (loading || !targetMsg) return;
+    const baseText = targetMsg.text || "";
+    const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। (Please continue the rest of the answer seamlessly right from where it stopped).";
+
+    auraAiClient.abortActiveStream();
+    const currentTurnSeq = ++turnSeqRef.current;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setLastUserQuery(prompt);
+    setErrorOccurred(false);
+    setStatusText(mode === "panditji" ? "उत्तर पूरा किया जा रहा है..." : "Completing answer...");
+    setElapsedTime(0);
+    setLoading(true);
+
+    timerRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
+
+    const aiMsgId = targetMsg.id;
+    let streamInitialized = false;
+
+    try {
+      const currentUser = authClient.getUser();
+      const userEmail = currentUser?.email || "";
+      const userName = currentUser?.displayName || "Devotee";
+
+      await auraAiClient.sendMessageStream({
+        message: prompt,
+        conversationId,
+        userEmail,
+        userName,
+        mode,
+        cartItems: cart.lines || [],
+        history: messages.slice(-8),
+        birthDetails: mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null,
+        onStatus: (statusMsg) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
+          setStatusText(statusMsg);
+        },
+        onChunk: (delta, accumulated, partialData) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
+          if (!streamInitialized) {
+            streamInitialized = true;
+            setLoading(false);
+          }
+          setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
+          const cleanAccumulated = customerSafeAiText(accumulated);
+          const merged = baseText ? `${baseText} ${cleanAccumulated}` : cleanAccumulated;
+          setMessages((prev) => {
+            if (currentTurnSeq !== turnSeqRef.current) return prev;
+            const idx = prev.findIndex((m) => m.id === aiMsgId);
+            const existing = idx >= 0 ? prev[idx] : null;
+            const liveMsg = {
+              ...(existing || targetMsg),
+              id: aiMsgId,
+              sender: "ai",
+              text: merged,
+              products: (partialData?.products && partialData.products.length > 0) ? partialData.products : (existing?.products || targetMsg.products || []),
+              coupons: (partialData?.coupons && partialData.coupons.length > 0) ? partialData.coupons : (existing?.coupons || targetMsg.coupons || []),
+              orderInfo: partialData?.orderInfo || existing?.orderInfo || targetMsg.orderInfo || null,
+              requiresHuman: Boolean(partialData?.requiresHuman || existing?.requiresHuman || targetMsg.requiresHuman),
+              quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : (existing?.quickReplies || targetMsg.quickReplies || []),
+              kundali: partialData?.kundali || existing?.kundali || targetMsg.kundali || null,
+              timestamp: existing?.timestamp || new Date().toISOString()
+            };
+            if (idx >= 0) {
+              const clone = [...prev];
+              clone[idx] = liveMsg;
+              return clone;
+            }
+            return [...prev, liveMsg];
+          });
+        },
+        onDone: (finalData) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          const cleanFinal = customerSafeAiText(finalData.text);
+          const finalMerged = baseText ? `${baseText} ${cleanFinal}` : cleanFinal;
+          const aiMsg = {
+            ...targetMsg,
+            id: aiMsgId,
+            sender: "ai",
+            text: finalMerged,
+            products: (finalData.products && finalData.products.length > 0) ? finalData.products : (targetMsg.products || []),
+            coupons: (finalData.coupons && finalData.coupons.length > 0) ? finalData.coupons : (targetMsg.coupons || []),
+            orderInfo: finalData.orderInfo || targetMsg.orderInfo || null,
+            requiresHuman: finalData.requiresHuman || targetMsg.requiresHuman || false,
+            quickReplies: (finalData.quickReplies && finalData.quickReplies.length > 0) ? finalData.quickReplies : (targetMsg.quickReplies || []),
+            kundali: finalData.kundali || targetMsg.kundali || null,
+            timestamp: new Date().toISOString()
+          };
+          auraChatStore.upsertMessage(aiMsg, mode);
+          setMessages((prev) => {
+            if (currentTurnSeq !== turnSeqRef.current) return prev;
+            const idx = prev.findIndex((m) => m.id === aiMsgId);
+            if (idx >= 0) {
+              const clone = [...prev];
+              clone[idx] = aiMsg;
+              return clone;
+            }
+            return [...prev, aiMsg];
+          });
+          setLoading(false);
+        },
+        onError: (err) => {
+          if (currentTurnSeq !== turnSeqRef.current) return;
+          console.warn("Continue stream notice:", err);
+          setErrorOccurred(true);
+          setLoading(false);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+        }
+      });
+    } catch (err) {
+      if (currentTurnSeq !== turnSeqRef.current) return;
+      setErrorOccurred(true);
+      setLoading(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
   const handleBirthFormSubmit = (e) => {
     e.preventDefault();
     if (!birthForm.name.trim()) {
@@ -1953,6 +2086,31 @@ export function AuraAIFloating() {
 
                             {m.sender === "ai" && (
                               <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleContinueChat(m);
+                                  }}
+                                  disabled={loading}
+                                  style={{
+                                    padding: "3px 7px",
+                                    background: "linear-gradient(135deg, #FFF9F0, #FDF3E3)",
+                                    border: "1px solid #d4af37",
+                                    borderRadius: "4px",
+                                    fontSize: "10.5px",
+                                    color: "#8c2b10",
+                                    fontWeight: 600,
+                                    cursor: loading ? "not-allowed" : "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "3px"
+                                  }}
+                                  title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response)"
+                                >
+                                  <Sparkles size={11} /> <span>पूरा करें</span>
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={(e) => {
