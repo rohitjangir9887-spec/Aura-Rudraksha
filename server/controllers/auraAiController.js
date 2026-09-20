@@ -277,6 +277,112 @@ function stripInternalJsonFromCustomerText(raw) {
   return text;
 }
 
+/**
+ * Intelligent parser to detect birth details typed directly in chat messages (Hindi or English).
+ * Supports names, DOBs (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, words), times (12/24hr, AM/PM, baje), and locations.
+ */
+export function extractBirthDetailsFromText(rawText) {
+  if (!rawText || typeof rawText !== "string") return null;
+  const text = rawText.trim();
+  if (text.length < 10) return null;
+
+  // 1. Date of Birth patterns
+  let dob = null;
+  // Pattern A: YYYY-MM-DD
+  const ymdMatch = text.match(/\b(19\d\d|20[0-2]\d)[-/.](\d{1,2})[-/.](\d{1,2})\b/);
+  if (ymdMatch) {
+    const y = ymdMatch[1];
+    const m = String(ymdMatch[2]).padStart(2, "0");
+    const d = String(ymdMatch[3]).padStart(2, "0");
+    dob = `${y}-${m}-${d}`;
+  } else {
+    // Pattern B: DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = text.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](19\d\d|20[0-2]\d)\b/);
+    if (dmyMatch) {
+      const d = String(dmyMatch[1]).padStart(2, "0");
+      const m = String(dmyMatch[2]).padStart(2, "0");
+      const y = dmyMatch[3];
+      dob = `${y}-${m}-${d}`;
+    } else {
+      // Pattern C: "15 August 1995" or "15 Aug 1995" or Hindi months
+      const months = {
+        jan: "01", january: "01", feb: "02", february: "02", mar: "03", march: "03",
+        apr: "04", april: "04", may: "05", jun: "06", june: "06", jul: "07", july: "07",
+        aug: "08", august: "08", sep: "09", sept: "09", september: "09", oct: "10",
+        october: "10", nov: "11", november: "11", dec: "12", december: "12",
+        जनवरी: "01", फ़रवरी: "02", फरवरी: "02", मार्च: "03", अप्रैल: "04", मई: "05",
+        जून: "06", जुलाई: "07", अगस्त: "08", सितंबर: "09", सितम्बर: "09", अक्टूबर: "10",
+        नवंबर: "11", नवम्बर: "11", दिसंबर: "12", दिसम्बर: "12"
+      };
+      const textMonthMatch = text.match(/\b(\d{1,2})\s+([a-zA-Z\u0900-\u097F]+)[,\s]+(19\d\d|20[0-2]\d)\b/i);
+      if (textMonthMatch) {
+        const d = String(textMonthMatch[1]).padStart(2, "0");
+        const mKey = textMonthMatch[2].toLowerCase();
+        const m = months[mKey];
+        const y = textMonthMatch[3];
+        if (m) {
+          dob = `${y}-${m}-${d}`;
+        }
+      }
+    }
+  }
+
+  // 2. Birth Time patterns
+  let birthTime = null;
+  const labeledTimeMatch = text.match(/(?:time|samay|समय|जन्म\s*समय)[\s:=-]+(\d{1,2}):(\d{2})(?:\s*(am|pm|बजे))?/i);
+  if (labeledTimeMatch) {
+    let hh = parseInt(labeledTimeMatch[1], 10);
+    const mm = String(labeledTimeMatch[2]).padStart(2, "0");
+    const ampm = (labeledTimeMatch[3] || "").toLowerCase();
+    if (ampm === "pm" && hh < 12) hh += 12;
+    if (ampm === "am" && hh === 12) hh = 0;
+    birthTime = `${String(hh).padStart(2, "0")}:${mm}`;
+  } else {
+    const genericTimeMatch = text.match(/\b(\d{1,2}):(\d{2})(?:\s*(am|pm))\b/i);
+    if (genericTimeMatch) {
+      let hh = parseInt(genericTimeMatch[1], 10);
+      const mm = String(genericTimeMatch[2]).padStart(2, "0");
+      const ampm = (genericTimeMatch[3] || "").toLowerCase();
+      if (ampm === "pm" && hh < 12) hh += 12;
+      if (ampm === "am" && hh === 12) hh = 0;
+      birthTime = `${String(hh).padStart(2, "0")}:${mm}`;
+    }
+  }
+
+  // 3. Birth Place patterns
+  let birthPlace = null;
+  const labeledPlaceMatch = text.match(/(?:place|city|location|sthan|स्थान|जन्म\s*स्थान|birth\s*place)[\s:=-]+([a-zA-Z\u0900-\u097F\s,]+?)(?=[•\n,;.]|$)/i);
+  if (labeledPlaceMatch) {
+    const rawPlace = labeledPlaceMatch[1].trim();
+    if (rawPlace && rawPlace.length >= 2) {
+      birthPlace = rawPlace;
+    }
+  }
+
+  // 4. Name patterns
+  let name = null;
+  const labeledNameMatch = text.match(/(?:name|devotee|naam|नाम|मेरा\s*नाम|mera\s*naam)[\s:=-]+([a-zA-Z\u0900-\u097F\s]+?)(?=[•\n,;.]|$|है)/i);
+  if (labeledNameMatch) {
+    const rawName = labeledNameMatch[1].trim().replace(/^is\s+/i, "").replace(/^hai\s+/i, "");
+    if (rawName && rawName.length >= 2) {
+      name = rawName;
+    }
+  }
+
+  // If at least DOB and Place are provided, time can fallback to standard noon if missing
+  if (dob && birthPlace) {
+    return {
+      dob,
+      birthTime: birthTime || "12:00",
+      birthPlace,
+      name: name || "Devotee",
+      concern: "career"
+    };
+  }
+
+  return null;
+}
+
 function detectUserIntent(msg) {
   msg = (msg || "").toLowerCase().trim();
   const intents = [];
@@ -754,18 +860,29 @@ export async function chatAuraAI(req, res, next) {
       } catch (_) {}
     }
 
-    const hasNewBirthDetails = birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace;
+    const extractedFromMsg = extractBirthDetailsFromText(message);
+    const passedBirthDetails = (birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace) ? birthDetails : null;
+    const incomingBirthDetails = passedBirthDetails || extractedFromMsg;
     const existingVerifiedBirthDetails = existingConvDoc?.verifiedBirthDetails || null;
 
+    let hasNewBirthDetails = false;
     let activeBirthDetails = null;
-    if (hasNewBirthDetails) {
+
+    if (incomingBirthDetails) {
+      const isDifferentFromExisting = !existingVerifiedBirthDetails ||
+        existingVerifiedBirthDetails.dob !== incomingBirthDetails.dob ||
+        existingVerifiedBirthDetails.birthTime !== incomingBirthDetails.birthTime ||
+        existingVerifiedBirthDetails.birthPlace !== incomingBirthDetails.birthPlace ||
+        (incomingBirthDetails.name && existingVerifiedBirthDetails.name && incomingBirthDetails.name.toLowerCase() !== existingVerifiedBirthDetails.name.toLowerCase());
+
+      hasNewBirthDetails = isDifferentFromExisting || Boolean(passedBirthDetails) || Boolean(req.body?.reset);
       activeBirthDetails = {
-        dob: birthDetails.dob,
-        birthTime: birthDetails.birthTime,
-        birthPlace: birthDetails.birthPlace,
-        name: birthDetails.name || verifiedName,
-        gender: birthDetails.gender || "",
-        concern: birthDetails.concern || "career"
+        dob: incomingBirthDetails.dob,
+        birthTime: incomingBirthDetails.birthTime,
+        birthPlace: incomingBirthDetails.birthPlace,
+        name: incomingBirthDetails.name || verifiedName,
+        gender: incomingBirthDetails.gender || "",
+        concern: incomingBirthDetails.concern || "career"
       };
     } else if (existingVerifiedBirthDetails) {
       activeBirthDetails = existingVerifiedBirthDetails;
@@ -1048,10 +1165,14 @@ AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TI
 - Manglik Status: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote}
 - Primary Recommended Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => r.mukhi).join(", ")}
 
-STRICT FORMATTING & RE-PROMPTING RULES:
-1. NEVER ask for DOB, birth time, or birth place again. Verified birth details already exist above.
-2. NEVER output raw HTML tags like <br>. Use standard clean linebreaks (\n).
-3. NEVER output masked date placeholders like 2024-XX-XX or XX-XX. Use the exact calculated Mahadasha and Antardasha dates provided above.
+STRICT SINGLE-DEVOTEE ISOLATION RULES (DO NOT COMBINE OR LEAK MULTIPLE CHARTS):
+1. This consultation is 100% EXCLUSIVELY for: ${calculatedKundaliData.verifiedBirthData.name} (DOB: ${calculatedKundaliData.verifiedBirthData.dob}).
+2. NEVER mention, compare, or combine details of any other person from previous chat history.
+3. If the user asks follow-up or general questions (e.g. "which rudraksha to wear", "dharan vidhi", "career analysis", "dasha"), answer SOLELY and ACCURATELY based on ${calculatedKundaliData.verifiedBirthData.name}'s chart above.
+4. NEVER say "Person A ke liye ye aur Person B ke liye wo". Give astrological guidance only for ${calculatedKundaliData.verifiedBirthData.name}.
+5. NEVER ask for DOB, birth time, or birth place again. Verified birth details already exist above.
+6. NEVER output raw HTML tags like <br>. Use standard clean linebreaks (\n).
+7. NEVER output masked date placeholders like 2024-XX-XX or XX-XX. Use the exact calculated Mahadasha and Antardasha dates provided above.
 ` : `
 - If the user asks for personalized Kundali, Rashi, or Graha Dosha analysis without providing complete birth details (DOB, Time, Place), politely request their birth details and explain why exact time and place are required for authentic sidereal mathematics. Do not fabricate positions.
 `}
@@ -1094,11 +1215,30 @@ CUSTOMER CONTEXT:
 ${memoryContextText || "Guest shopper."}`;
     }
 
+    let effectiveHistory = Array.isArray(history) ? history.slice(-6) : [];
+    if (hasNewBirthDetails) {
+      // User switched to a new person (e.g. Person B) -> isolate from Person A entirely
+      effectiveHistory = [];
+    } else if (activeBirthDetails) {
+      // Isolate to messages within the active consultation
+      let lastMarkerIdx = -1;
+      for (let i = effectiveHistory.length - 1; i >= 0; i--) {
+        const hText = String(effectiveHistory[i]?.text || "");
+        if (hText.includes("जन्म तिथि:") || hText.includes("Date of Birth:") || hText.includes("Vedic Consultation")) {
+          lastMarkerIdx = i;
+          break;
+        }
+      }
+      if (lastMarkerIdx >= 0) {
+        effectiveHistory = effectiveHistory.slice(lastMarkerIdx);
+      }
+    }
+
     const nimMessages = [
       { role: "system", content: systemPrompt }
     ];
 
-    for (const h of history.slice(-6)) {
+    for (const h of effectiveHistory) {
       if (h.sender === "user" && h.text) {
         nimMessages.push({ role: "user", content: String(h.text) });
       } else if (h.sender === "ai" && h.text) {
@@ -1164,7 +1304,7 @@ ${memoryContextText || "Guest shopper."}`;
           if (streamSucceeded || clientDisconnected) break;
           try {
             const geminiContents = [];
-            for (const h of history.slice(-6)) {
+            for (const h of effectiveHistory) {
               if (h.sender === "user" && h.text) {
                 geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
               } else if (h.sender === "ai" && h.text) {
@@ -1361,7 +1501,7 @@ ${memoryContextText || "Guest shopper."}`;
         if (generatedSuccessfully) break;
         try {
           const geminiContents = [];
-          for (const h of history.slice(-6)) {
+          for (const h of effectiveHistory) {
             if (h.sender === "user" && h.text) {
               geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
             } else if (h.sender === "ai" && h.text) {

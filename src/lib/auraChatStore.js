@@ -132,6 +132,14 @@ export const auraChatStore = {
     } catch (_) {}
   },
 
+  clearActiveBirthDetails() {
+    try {
+      const uid = this.getCurrentUserUid();
+      localStorage.removeItem(`aura_ai_birth_details_${uid}`);
+      window.dispatchEvent(new CustomEvent("aura_ai_birth_details_cleared", { detail: { uid } }));
+    } catch (_) {}
+  },
+
   getVerifiedBirthDetails() {
     try {
       const uid = this.getCurrentUserUid();
@@ -151,6 +159,7 @@ export const auraChatStore = {
     try {
       const uid = this.getCurrentUserUid();
       localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(details));
+      window.dispatchEvent(new CustomEvent("aura_ai_birth_details_updated", { detail: { uid, details } }));
     } catch (_) {}
   },
 
@@ -267,36 +276,32 @@ export const auraChatStore = {
     return updated;
   },
 
-  // Start a new chat session for active mode
-  startNewSession(mode = "standard") {
-    const newConvId = "conv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
-    try {
-      localStorage.setItem(STORAGE_KEY_CONV_ID, newConvId);
-    } catch (_) {}
+  // Start a new clean chat session for active mode
+  startNewSession(mode = "standard", options = {}) {
+    const uid = this.getCurrentUserUid();
+    const newConvId = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+    this.setConversationId(newConvId);
 
-    const dividerMessage = {
-      id: "session_div_" + Date.now(),
-      type: "session_divider",
-      text: "Nayi Baat-cheet Shuru Hui (New Session)",
-      timestamp: new Date().toISOString()
-    };
+    // Clear active birth details so new consultation starts 100% fresh for new person
+    if (options.clearBirthDetails !== false) {
+      this.clearActiveBirthDetails();
+    }
 
     const welcomeMessage = mode === "panditji" ? {
       id: "init_panditji_" + Date.now(),
       sender: "ai",
-      text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi Vedic consultation shuru ho gayi hai.\n\nAaj aap kis Rashi ya Rudraksha ke baare mein janna chahte hain?",
+      text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi Vedic consultation shuru ho gayi hai.\n\nAaj aap kis Rashi, Kundali ya Rudraksha ke baare mein janna chahte hain?",
       quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
       timestamp: new Date().toISOString()
     } : {
       id: "init_standard_" + Date.now(),
       sender: "ai",
-      text: "Namaste 🙏 Main Aura AI hoon. Nayi consultation shuru ho gayi hai.\n\nAaj aap kis Rudraksha ya Mala ke baare mein janna chahte hain?",
+      text: "Namaste 🙏 Main Aura AI hoon. Nayi shopping aur spiritual consultation shuru ho gayi hai.\n\nAaj main aapki kis cheez mein madad karun?",
       quickReplies: ["Find a Rudraksha", "Today's Offers", "Track Order", "Help Me Choose"],
       timestamp: new Date().toISOString()
     };
 
-    const current = this.getMessages(mode);
-    const updated = [...current, dividerMessage, welcomeMessage];
+    const updated = [welcomeMessage];
     this.saveMessages(updated, mode);
     return { newConvId, messages: updated };
   },

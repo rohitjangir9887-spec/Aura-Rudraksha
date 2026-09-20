@@ -240,7 +240,7 @@ export function AuraAIPage() {
     }
   }, []);
 
-  const handleSend = async (customText = null) => {
+  const handleSend = async (customText = null, customBirthDetails = null) => {
     const textToSend = customText || input;
     if (!textToSend || !textToSend.trim()) return;
 
@@ -293,6 +293,7 @@ export function AuraAIPage() {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
+      const verifiedDetails = customBirthDetails || (mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null);
 
       await auraAiClient.sendMessageStream({
         message: textToSend,
@@ -302,6 +303,7 @@ export function AuraAIPage() {
         mode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
+        birthDetails: verifiedDetails,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
