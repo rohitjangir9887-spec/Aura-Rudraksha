@@ -301,7 +301,7 @@ export function customerSafeAiText(value) {
 export function isAuraResponseIncomplete(text, mode = "standard") {
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
-  if (trimmed.length < 30) return false;
+  if (trimmed.length < 25) return false;
 
   // 1. Explicit terminal tags or standard keywords = definitively complete
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
@@ -313,8 +313,8 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   // 3. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // 4. Ends with dangling conjunctions, prepositions, or cut-off list numbers
-  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/;
+  // 4. Ends with dangling conjunctions, prepositions, connectors, or cut-off list numbers
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय|मंत्र|विधि|की|के|का|को|से|में|पर|है|हैं|हो|था|थी|थे|जो|जब|तब|यदि|तो|या|अथवा|इत्यादि|a|an|the|and|or|but|because|is|are|was|were|to|for|in|on|at|with|by|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
   if (danglingConnectors.test(trimmed)) return true;
 
   // 5. Check closing punctuation & terminal greetings
@@ -325,11 +325,12 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
     return false;
   }
 
-  // 6. Deep astrological reading without terminal summary or keywords if cut mid-way
-  if (mode === "panditji" && trimmed.includes("लग्न") && trimmed.includes("ग्रह") && !trimmed.includes("तालिका") && !trimmed.includes("|") && trimmed.length > 900) {
+  // 6. Deep astrological reading or long response without terminal punctuation = incomplete
+  if (mode === "panditji" && trimmed.includes("लग्न") && trimmed.includes("ग्रह") && !trimmed.includes("तालिका") && !trimmed.includes("|") && trimmed.length > 750) {
     return true;
   }
 
-  return false;
+  // If missing terminal punctuation and length > 60, mark as incomplete for seamless continuation
+  return trimmed.length > 60;
 }
 
