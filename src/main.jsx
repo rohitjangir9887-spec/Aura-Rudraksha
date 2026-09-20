@@ -63,8 +63,12 @@ if (typeof window !== "undefined") {
   const prefetchCoreRoutes = () => {
     try {
       import("./pages/Shop").catch(() => {});
+      import("./pages/Wishlist").catch(() => {});
       import("./pages/Product").catch(() => {});
       import("./pages/Cart").catch(() => {});
+      import("./pages/account/Account").catch(() => {});
+      import("./pages/account/Orders").catch(() => {});
+      import("./pages/AuraAIPage").catch(() => {});
       import("./pages/Checkout").catch(() => {});
     } catch (_) {}
   };

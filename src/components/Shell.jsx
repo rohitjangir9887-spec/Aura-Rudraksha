@@ -243,31 +243,37 @@ export function Shell({children}) {
             to="/" 
             className={isHomeActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/")}
+            onTouchStart={() => handlePreload("/")}
+            onPointerDown={() => handlePreload("/")}
             style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Home"
           >
-            <div className="nav-icon-box"><Home size={22} strokeWidth={1.8} /></div>
+            <div className="nav-icon-box"><Home size={22} strokeWidth={1.8} style={{ pointerEvents: 'none' }} /></div>
             <span className="nav-label">Home</span>
           </Link>
           <Link 
             to="/shop" 
             className={isShopActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/shop")}
+            onTouchStart={() => handlePreload("/shop")}
+            onPointerDown={() => handlePreload("/shop")}
             style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Shop"
           >
-            <div className="nav-icon-box"><ShoppingBag size={22} strokeWidth={1.8} /></div>
+            <div className="nav-icon-box"><ShoppingBag size={22} strokeWidth={1.8} style={{ pointerEvents: 'none' }} /></div>
             <span className="nav-label">Shop</span>
           </Link>
           <Link 
             to="/cart" 
             className={isCartActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/cart")}
+            onTouchStart={() => handlePreload("/cart")}
+            onPointerDown={() => handlePreload("/cart")}
             style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Cart"
           >
             <div className="nav-icon-box" style={{ position: 'relative' }}>
-              <ShoppingCart size={22} strokeWidth={1.8} />
+              <ShoppingCart size={22} strokeWidth={1.8} style={{ pointerEvents: 'none' }} />
               {count > 0 && <span className="mobile-nav-cart-badge">{count}</span>}
             </div>
             <span className="nav-label">Cart</span>
@@ -276,20 +282,24 @@ export function Shell({children}) {
             to="/account/orders" 
             className={isOrdersActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/account/orders")}
+            onTouchStart={() => handlePreload("/account/orders")}
+            onPointerDown={() => handlePreload("/account/orders")}
             style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Orders"
           >
-            <div className="nav-icon-box"><PackageCheck size={22} strokeWidth={1.8} /></div>
+            <div className="nav-icon-box"><PackageCheck size={22} strokeWidth={1.8} style={{ pointerEvents: 'none' }} /></div>
             <span className="nav-label">Orders</span>
           </Link>
           <Link 
             to="/account" 
             className={isAccountActive ? "active" : ""}
             onPointerEnter={() => handlePreload("/account")}
+            onTouchStart={() => handlePreload("/account")}
+            onPointerDown={() => handlePreload("/account")}
             style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             aria-label="Account"
           >
-            <div className="nav-icon-box"><User size={22} strokeWidth={1.8} /></div>
+            <div className="nav-icon-box"><User size={22} strokeWidth={1.8} style={{ pointerEvents: 'none' }} /></div>
             <span className="nav-label">Account</span>
           </Link>
         </div>
