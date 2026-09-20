@@ -259,7 +259,7 @@ export function Home() {
               quality={bannerQuality}
               priority={i === 0}
               containerClassName={`hero-slide ${i === hero ? 'active' : ''}`}
-              style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', display: 'block' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
             />
           );
         })}
