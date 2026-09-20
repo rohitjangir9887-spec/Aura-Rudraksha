@@ -46,6 +46,7 @@ export function CheckoutAuthModal({ isOpen, onClose, onSuccess }) {
       setLoading(true);
       setError("");
       const user = await authClient.signInWithGoogle();
+      if (!user) return;
       emitToast("Signed in with Google successfully!", "success");
       onSuccess(user);
     } catch (err) {

@@ -4,6 +4,8 @@ import {
   setPersistence,
   browserLocalPersistence,
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
@@ -350,23 +352,82 @@ export const authClient = {
     return auth.currentUser || inMemoryCachedUser;
   },
   
-  signInWithGoogle: async () => {
+  handleRedirectResult: async () => {
+    try {
+      const result = await getRedirectResult(auth);
+      if (result && result.user) {
+        saveCachedUser(result.user);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+        }
+        return result.user;
+      }
+    } catch (err) {
+      console.warn("[Auth] getRedirectResult notice:", err);
+      throw err;
+    }
+    return null;
+  },
+
+  signInWithGoogle: async (options = {}) => {
     try {
       localStorage.removeItem("aura_demo_user");
     } catch (_) {}
     try {
       await setPersistence(auth, browserLocalPersistence);
     } catch (_) {}
+
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
       prompt: "select_account"
     });
-    const result = await signInWithPopup(auth, provider);
-    saveCachedUser(result.user);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+
+    const isMobileBrowser = typeof window !== "undefined" && (
+      /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent || "") ||
+      (window.innerWidth <= 768)
+    );
+
+    // If caller explicitly requested redirect or is in strict mobile webview
+    if (options.preferRedirect) {
+      await signInWithRedirect(auth, provider);
+      return null;
     }
-    return result.user;
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      if (result && result.user) {
+        saveCachedUser(result.user);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("aura:auth-change", { detail: result.user }));
+        }
+        return result.user;
+      }
+      return null;
+    } catch (err) {
+      const code = err?.code || "";
+      const msg = err?.message || "";
+      console.warn("[Auth] signInWithPopup encountered notice:", code, msg);
+
+      // If popup failed due to missing initial state (cross-origin 3rd-party cookie block), popup-blocked, or cancelled request, fallback to redirect
+      if (
+        code === "auth/missing-initial-state" ||
+        code === "auth/popup-blocked" ||
+        code === "auth/cancelled-popup-request" ||
+        code === "auth/internal-error" ||
+        msg.includes("missing initial state") ||
+        isMobileBrowser
+      ) {
+        console.log("[Auth] Falling back to seamless signInWithRedirect...");
+        try {
+          // Clear any stale session keys
+          sessionStorage.removeItem("firebase:authUser:" + firebaseConfig.apiKey + ":[DEFAULT]");
+        } catch (_) {}
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
+
+      throw err;
+    }
   },
 
   signInAnonymously: async () => {
@@ -628,6 +689,9 @@ export const authClient = {
     if (code === "auth/unauthorized-domain" || msg.includes("unauthorized-domain")) {
       const currentHost = typeof window !== "undefined" ? window.location.hostname : "your-domain.run.app";
       return `Domain not authorized: Firebase requires "${currentHost}" to be added under Firebase Console > Authentication > Settings > Authorized Domains. (You can also use Email & Password sign-in or guest checkout in the meantime).`;
+    }
+    if (code === "auth/missing-initial-state" || msg.includes("missing initial state") || msg.includes("missing-initial-state")) {
+      return "Google Sign-In session could not be verified due to browser storage/cookie restrictions. Please try signing in again or use Email/Password sign-in.";
     }
     if (code === "auth/popup-blocked" || msg.includes("popup-blocked")) {
       return "The Google login popup was blocked by the browser. Please allow popups for this site or open the page in a new browser tab.";

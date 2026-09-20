@@ -38,6 +38,18 @@ export function AdminLogin() {
   };
 
   useEffect(() => {
+    async function checkRedirect() {
+      try {
+        const user = await authClient.handleRedirectResult();
+        if (user) {
+          await verifyAdminAndRedirect();
+        }
+      } catch (err) {
+        console.error("Admin redirect login error:", err);
+        setError(authClient.formatAuthError(err));
+      }
+    }
+    checkRedirect();
     const unsubscribe = authClient.onAuthStateChanged(async (user) => {
       if (user && !user.isAnonymous) {
         await verifyAdminAndRedirect();

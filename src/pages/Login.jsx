@@ -98,6 +98,32 @@ export function Login({ initialMode = "signin" }) {
     handleEmailVerificationAction();
   }, [urlMode, oobCode]);
 
+  // Check redirect sign-in results (e.g., Google login returning from mobile / redirect flow)
+  useEffect(() => {
+    let isMounted = true;
+    async function checkRedirect() {
+      try {
+        const user = await authClient.handleRedirectResult();
+        if (user && isMounted) {
+          emitToast("Signed in with Google successfully!", "success");
+          try {
+            if (user?.displayName) {
+              await db.updateCustomerMe({ name: user.displayName });
+            }
+          } catch (_) {}
+          redirectUser();
+        }
+      } catch (err) {
+        console.error("Google redirect sign in error:", err);
+        if (isMounted) {
+          setError(authClient.formatAuthError(err));
+        }
+      }
+    }
+    checkRedirect();
+    return () => { isMounted = false; };
+  }, []);
+
   // Check if existing user is already signed in
   useEffect(() => {
     const user = authClient.getUser();
@@ -172,6 +198,10 @@ export function Login({ initialMode = "signin" }) {
       setLoading(true);
       setError("");
       const user = await authClient.signInWithGoogle();
+      if (!user) {
+        // If signInWithGoogle redirected, the browser is redirecting or redirect listener will catch it
+        return;
+      }
       
       // Sync Google profile name with backend if available
       try {
