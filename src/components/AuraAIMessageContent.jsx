@@ -75,8 +75,8 @@ function sanitizeText(raw) {
 function renderInlineKeywords(text) {
   if (!text || typeof text !== "string") return text;
 
-  // Highlight terms: उच्च, नीच, साम्य, स्वगृही, मित्र, शत्रु, मांगलिक दोष, कालसर्प दोष, पितृ दोष, साढ़े साती, ढैय्या, राजयोग, गजकेसरी, बुधादित्य, रुद्राक्ष मुखी
-  const kwRegex = /(उच्च|नीच|साम्य|स्वगृही|मित्र\s*राशि|शत्रु\s*राशि|मांगलिक\s*दोष|कालसर्प\s*दोष|पितृ\s*दोष|साढ़े\s*साती|ढैय्या|चांडाल\s*दोष|ग्रहण\s*दोष|राजयोग|गजकेसरी\s*योग|बुधादित्य\s*योग|लक्ष्मी\s*योग|\d+\s*मुखी\s*रुद्राक्ष|गौरी\s*शंकर|गणेश\s*रुद्राक्ष)/gi;
+  // Highlight terms: उच्च, नीच, साम्य, स्वगृही, मित्र, शत्रु, मांगलिक दोष, कालसर्प दोष, पितृ दोष, साढ़े साती, ढैय्या, राजयोग, गजकेसरी, बुधादित्य, रुद्राक्ष मुखी, etc.
+  const kwRegex = /(उच्च|नीच|साम्य|सम\s*राशि|स्वगृही|मित्र\s*राशि|शत्रु\s*राशि|वक्री|मार्गी|अस्त|मांगलिक\s*दोष|कालसर्प\s*दोष|पितृ\s*दोष|साढ़े\s*साती|ढैय्या|चांडाल\s*दोष|गुरु\s*चांडाल\s*दोष|ग्रहण\s*दोष|केमद्रुम\s*दोष|विष\s*योग|अंगारक\s*दोष|राजयोग|गजकेसरी\s*योग|बुधादित्य\s*योग|लक्ष्मी\s*योग|धन\s*योग|मालव्य\s*योग|रूचक\s*योग|शश\s*योग|हंस\s*योग|भद्र\s*योग|\d+\s*मुखी\s*रुद्राक्ष|गौरी\s*शंकर|गणेश\s*रुद्राक्ष|गर्भ\s*गौरी|त्रिजुटी)/gi;
   const parts = text.split(kwRegex);
   if (parts.length === 1) return text;
 
@@ -84,23 +84,44 @@ function renderInlineKeywords(text) {
     if (!part) return null;
     const lower = part.toLowerCase();
 
-    if (lower === "उच्च" || lower === "स्वगृही" || lower.includes("मित्र") || lower.includes("राजयोग") || lower.includes("गजकेसरी") || lower.includes("बुधादित्य") || lower.includes("लक्ष्मी योग")) {
+    if (
+      lower === "उच्च" || 
+      lower === "स्वगृही" || 
+      lower.includes("मित्र") || 
+      lower.includes("राजयोग") || 
+      lower.includes("गजकेसरी") || 
+      lower.includes("बुधादित्य") || 
+      lower.includes("लक्ष्मी योग") ||
+      lower.includes("धन योग") ||
+      lower.includes("मालव्य") ||
+      lower.includes("रूचक") ||
+      lower.includes("शश योग") ||
+      lower.includes("हंस योग") ||
+      lower.includes("भद्र योग")
+    ) {
       return <span key={i} className="aura-ai-highlight-exalted">{part}</span>;
     }
-    if (lower === "नीच" || lower.includes("शत्रु")) {
+    if (lower === "नीच" || lower.includes("शत्रु") || lower === "अस्त") {
       return <span key={i} className="aura-ai-highlight-debilitated">{part}</span>;
     }
-    if (lower === "साम्य") {
+    if (lower === "साम्य" || lower.includes("सम") || lower === "वक्री" || lower === "मार्गी") {
       return <span key={i} className="aura-ai-highlight-neutral">{part}</span>;
     }
     if (
       lower.includes("दोष") || 
       lower.includes("साती") || 
-      lower.includes("ढैय्या")
+      lower.includes("ढैय्या") ||
+      lower.includes("विष योग")
     ) {
       return <span key={i} className="aura-ai-highlight-dosh">{part}</span>;
     }
-    if (lower.includes("मुखी") || lower.includes("गौरी शंकर") || lower.includes("गणेश रुद्राक्ष")) {
+    if (
+      lower.includes("मुखी") || 
+      lower.includes("गौरी शंकर") || 
+      lower.includes("गणेश रुद्राक्ष") ||
+      lower.includes("गर्भ गौरी") ||
+      lower.includes("त्रिजुटी")
+    ) {
       return <span key={i} className="aura-ai-highlight-rudraksha">{part}</span>;
     }
     return part;
