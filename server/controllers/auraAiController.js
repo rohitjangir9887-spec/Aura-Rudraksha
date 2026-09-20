@@ -129,6 +129,9 @@ export function isTextIncomplete(text, finishReason = "") {
   const trimmed = text.trim();
   if (trimmed.length < 60) return false;
 
+  // If response already has AURA_KEYWORDS section = it is definitively complete
+  if (trimmed.includes("[AURA_KEYWORDS]:")) return false;
+
   // Check unclosed code fences
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
@@ -136,18 +139,20 @@ export function isTextIncomplete(text, finishReason = "") {
   // Check unclosed markdown table row
   if (/\|[^\n|]+$/.test(trimmed)) return true;
 
-  // Check if ends with dangling connector words or unclosed list
-  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|•|\*\*)$/;
+  // Check if ends with dangling connector words or unclosed list items
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|\*\*|→|:$)$/;
   if (danglingConnectors.test(trimmed)) return true;
 
-  // Check for clean terminal punctuation
-  const hasTerminalPunctuation = /[।!?.।\n🙏🕉️"”’']\s*$/.test(trimmed);
-  if (!hasTerminalPunctuation) {
-    return true;
-  }
+  // Clean terminal signals — these definitively end a Vedic response
+  const hasTerminalSignal = /([।!?]\s*$|🙏\s*$|🕉️\s*$|✅\s*$|🌟\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|\[AURA_KEYWORDS\]:[^\n]*\s*$)/.test(trimmed);
+  if (hasTerminalSignal) return false;
+
+  // If text is long and no terminal, probably incomplete
+  if (trimmed.length > 200) return true;
 
   return false;
 }
+
 
 /**
  * Merge continuation chunk into existing text cleanly without duplicate repetitions
@@ -1262,21 +1267,79 @@ COMMON DEVOTEE EXPLANATION RULE (EXPLAIN IN SIMPLE, RELATABLE HINDI):
 - Common devotees do not know difficult astrological jargon. Explain what their Lagna, Rashi, Grahas, D9 Navamsha, and Mahadasha mean for their daily life, career, finances, health, family, and peace of mind in warm, crystal-clear, loving, and empathetic Hindi.
 - Keep tone calming, spiritually uplifting, positive, and solution-oriented. Never cause fear.
 
-MANDATORY STRUCTURED SUMMARY AT THE END:
-- At the end of every astrological reading/consultation, you MUST ALWAYS provide this clean, structured summary in Hindi:
-  🌟 **संपूर्ण वैदिक कुंडली व रुद्राक्ष सारांश (Detailed Astrological Summary)**
-  • **जातक (Devotee):** [Name]
-  • **लग्न व राशि (Lagna & Rashi):** [Lagna] लग्न (नवांश: [Navamsha]) / [Rashi] राशि (नक्षत्र: [Nakshatra], पद: [Pada])
-  • **पंचांग विवरण (Panchang):** [Tithi], [Vaar], [Yoga], [Karana]
-  • **स्वामी ग्रह (Ruling Planet):** [Lord]
-  • **वर्तमान महादशा (Current Dasha):** [Current Mahadasha & Phase]
-  • **मुख्य ग्रह योग व स्थिति (Key Yogas & Dignity):** [Yogas / Vargottama / Strength]
-  • **दोष निवारण परामर्श (Dosha & Shanti):** [Manglik / Sade Sati / Kaal Sarp Remedy]
-  • **अनुकूल रुद्राक्ष (Recommended Rudraksha):** [Specific Mukhi Beads]
-  • **मुख्य प्रभाव व लाभ (Core Life Benefits):** [Life clarity, career/wealth, peace, health & protection]
-  • **शुभ धारण वार व समय (Auspicious Day & Time):** [Day, e.g. सोमवार/शुभ मुहूर्त]
-  • **सिद्ध बीज मंत्र (Beej Mantra):** [Mantra] (108 बार ॐ नमः शिवाय या बीज मंत्र)
-  • **सरल दैनिक नियम व उपाय (Simple Daily Rules & Remedies):** [Jal Arpan, Shiv Puja, pure conduct]
+🚨 MANDATORY DEEP ANALYSIS ORDER — STRICTLY FOLLOW THIS SEQUENCE (DO NOT SKIP STEPS):
+Every Kundali consultation MUST follow this EXACT 11-step structure. You MUST complete ALL steps before mentioning Rudraksha:
+
+**STEP 1: 🙏 Vedic Greeting**
+- Begin with warm Vedic greeting: "प्रणाम भक्त! हर हर महादेव 🙏" etc.
+- Briefly welcome the devotee by name and acknowledge their concern.
+
+**STEP 2: 🔭 Lagna, Rashi, Nakshatra Analysis (D1 + D9 Navamsha)**
+- Explain Lagna (Ascendant) in simple Hindi — what it means for their personality, body, life path.
+- Explain Chandra Rashi and Nakshatra — what it means for their mind, emotions, destiny.
+- Explain Surya Rashi — soul purpose, father's influence, leadership.
+- Explain Navamsha (D9) Lagna — spiritual destiny, marriage quality, deeper life purpose.
+- Explain Vargottama planets if any — powerful natural strength.
+
+**STEP 3: 🪐 Graha (Planetary) House Analysis**
+- Analyze ALL 9 planets (Surya, Chandra, Mangal, Budha, Guru, Shukra, Shani, Rahu, Ketu).
+- For each major planet, tell devotee: in which house it sits, which area of life it affects, and whether it is strong/weak/afflicted.
+- Highlight: Lagna Lord placement, 7th Lord (marriage), 10th Lord (career), 9th Lord (luck), 11th Lord (income).
+
+**STEP 4: 📅 Panchanga Analysis**
+- Current Tithi (Paksha), Vaar (weekday lord), Yoga (27 yogas), Karana.
+- What this means for the devotee's current day/week — auspicious or inauspicious?
+
+**STEP 5: ⏱️ Vimshottari Mahadasha + Antardasha**
+- Name the current Mahadasha planet and Antardasha planet clearly.
+- Explain what this Mahadasha/Antardasha period means: timeline, life themes, challenges, opportunities.
+- How long is remaining? What major events might happen?
+
+**STEP 6: ⚠️ Dosha Analysis**
+- Manglik (Bhauma) Dosha: Present or absent? If present, level (mild/severe), cancellation factors.
+- Shani Sade Sati: Phase (Rising/Peak/Setting), impact, when it ends.
+- Kaal Sarp Dosha: Type (Anant/Kulik etc), axis (Rahu-Ketu), impact on life.
+- Pitra Dosha or Kemdrum Yoga if applicable.
+
+**STEP 7: ✨ Yogas Analysis**
+- List all major auspicious/inauspicious yogas found in chart.
+- Explain what each yoga gives: wealth, fame, spiritual power, challenges.
+- Gajakesari Yoga, Budhaditya Yoga, Pancha Mahapurusha, Vipreet Rajyoga, Vargottama planets.
+
+**STEP 8: 🎯 Concern-Specific Predictions**
+- Based on devotee's PRIMARY CONCERN, give deep specific predictions.
+- Use BPHS rules for the concern's relevant house (7th for marriage, 10th for career, etc.)
+- Give practical timeline predictions based on current Mahadasha.
+- Suggest dos and don'ts for their specific life situation.
+
+**STEP 9: 📿 Rudraksha Recommendation (ONLY HERE — NOT BEFORE)**
+- NOW (and only after completing steps 1-8) recommend appropriate Rudraksha.
+- Give specific Mukhi number(s) with reasoning tied to the Graha analysis above.
+- Include: exact Beej Mantra, number of times to chant (108), which day/time to wear.
+- Suggest Aura Rudraksha store products naturally (1 Mukhi, 5 Mukhi, Gauri Shankar, etc.)
+
+**STEP 10: 🌟 Structured Summary Table**
+- Provide this clean structured summary in Hindi:
+  🌟 **संपूर्ण वैदिक कुंडली व रुद्राक्ष सारांश (Astrological Summary)**
+  • **जातक:** [Name]
+  • **लग्न व राशि:** [Lagna] / [Rashi] (नक्षत्र: [Nakshatra], पद: [Pada])
+  • **पंचांग:** [Tithi], [Vaar], [Yoga], [Karana]
+  • **वर्तमान महादशा:** [Mahadasha Planet] → [Antardasha Planet]
+  • **मुख्य योग:** [Key Yogas]
+  • **दोष:** [Dosha Summary]
+  • **अनुकूल रुद्राक्ष:** [Recommended Mukhi Beads]
+  • **शुभ धारण वार:** [Auspicious Day]
+  • **सिद्ध बीज मंत्र:** [Mantra]
+  • **मुख्य उपाय:** [Key Remedy]
+
+**STEP 11: 🔤 Auto-Search Keywords (MANDATORY FINAL SECTION)**
+- At the VERY END of every Kundali response, ALWAYS output this exact line (no markdown around it):
+  [AURA_KEYWORDS]: [keyword1] | [keyword2] | [keyword3] | [keyword4] | [keyword5]
+- Generate 5 contextually relevant Hindi search keywords from this consultation.
+- Example: [AURA_KEYWORDS]: 5 मुखी रुद्राक्ष | शनि दशा उपाय | मंगलिक दोष शांति | गौरी शंकर रुद्राक्ष | आज का शुभ मुहूर्त
+- These become clickable follow-up search chips for the devotee. Make them SPECIFIC to this chart.
+
+🚨 CRITICAL ORDER RULE: RUDRAKSHA must NEVER appear before STEP 9. If you mention Rudraksha in any step before Step 9, the consultation is invalid. Complete all Graha, Dosha, Yoga, Dasha analysis FIRST.
 
 ${urlAndCatalogRulesText}
 
@@ -1287,29 +1350,27 @@ AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TI
 - Verified DOB: ${calculatedKundaliData.verifiedBirthData.dob} | Time: ${calculatedKundaliData.verifiedBirthData.birthTime} | Place: ${calculatedKundaliData.verifiedBirthData.birthPlace}
 - Primary Concern: ${activeBirthDetails?.concern || "General"} ${activeBirthDetails?.customConcern ? `(Custom: "${activeBirthDetails.customConcern}")` : ""}
 - Vedic Panchanga: Tithi: ${calculatedKundaliData.astronomicalKundali.panchanga?.tithi || "N/A"} | Vaar: ${calculatedKundaliData.astronomicalKundali.panchanga?.vaar || "N/A"} (Lord: ${calculatedKundaliData.astronomicalKundali.panchanga?.vaarLord || "N/A"}) | Yoga: ${calculatedKundaliData.astronomicalKundali.panchanga?.yoga || "N/A"} | Karana: ${calculatedKundaliData.astronomicalKundali.panchanga?.karana || "N/A"}
-- Lagna (Ascendant - D1): ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.lagna.degree} in Nakshatra ${calculatedKundaliData.astronomicalKundali.lagna.nakshatra} (Pada ${calculatedKundaliData.astronomicalKundali.lagna.pada}), Navamsha (D9): ${calculatedKundaliData.astronomicalKundali.lagna.navamsha || "N/A"}, Lord: ${calculatedKundaliData.astronomicalKundali.lagna.lord}
-- Chandra Rashi (Moon Sign - D1): ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.chandraRashi.degree} in Nakshatra ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (Pada ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada}), Navamsha (D9): ${calculatedKundaliData.astronomicalKundali.chandraRashi.navamsha || "N/A"}, Lord: ${calculatedKundaliData.astronomicalKundali.chandraRashi.lord}
-- Surya Rashi: ${calculatedKundaliData.astronomicalKundali.suryaRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.suryaRashi.degree || "N/A"})
-- Mulank: ${calculatedKundaliData.astronomicalKundali.mulank}
-- 9 Graha Placements: ${calculatedKundaliData.astronomicalKundali.planets?.map(p => `${p.name} in H${p.houseNumber} (${p.rashiHindi} ${p.degreeInSign}, D9:${p.navamshaRashiHindi || p.rashiHindi}${p.isVargottama ? ' [Vargottama]' : ''}, ${p.dignity})`).join("; ")}
-- Vimshottari Mahadasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaStartDate || 'date not available'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaEndDate || 'date not available'})
-- Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaStartDate || 'date not available'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaEndDate || 'date not available'})
-- Dosha Analysis:
-  * Manglik Status: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote}
-  * Shani Sade Sati: ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "None"} - ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.description || "Sade Sati mukt"}
-  * Kaal Sarp Status: ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.type || "None"} - ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.description || "Kaal Sarp mukt"}
-- Yogas Found: ${calculatedKundaliData.astronomicalKundali.yogas?.map(y => `${y.name}: ${y.description}`).join("; ") || "Shubha Graha Sthiti"}
-- Tailored Rudraksha Recommendations:
+- Lagna (Ascendant): ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish}) at ${calculatedKundaliData.astronomicalKundali.lagna.degree} | Nakshatra: ${calculatedKundaliData.astronomicalKundali.lagna.nakshatra} Pada ${calculatedKundaliData.astronomicalKundali.lagna.pada} | D9: ${calculatedKundaliData.astronomicalKundali.lagna.navamsha || "N/A"} | Lord: ${calculatedKundaliData.astronomicalKundali.lagna.lord}
+- Chandra Rashi: ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} at ${calculatedKundaliData.astronomicalKundali.chandraRashi.degree} | Nakshatra: ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} Pada ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada} | D9: ${calculatedKundaliData.astronomicalKundali.chandraRashi.navamsha || "N/A"}
+- Surya Rashi: ${calculatedKundaliData.astronomicalKundali.suryaRashi.rashiHindi} | Mulank: ${calculatedKundaliData.astronomicalKundali.mulank}
+- 9 Graha Placements: ${calculatedKundaliData.astronomicalKundali.planets?.map(p => `${p.name}→H${p.houseNumber}(${p.rashiHindi},D9:${p.navamshaRashiHindi || p.rashiHindi}${p.isVargottama ? "[VG]" : ""},${p.dignity})`).join("; ")}
+- Mahadasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaStartDate || "N/A"} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaEndDate || "N/A"})
+- Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaStartDate || "N/A"} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaEndDate || "N/A"})
+- Manglik: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote}
+- Sade Sati: ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "None"} - ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.description || "Sade Sati mukt"}
+- Kaal Sarp: ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.type || "None"} - ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.description || "Kaal Sarp mukt"}
+- Yogas: ${calculatedKundaliData.astronomicalKundali.yogas?.map(y => `${y.name}: ${y.description}`).join("; ") || "Shubha Graha Sthiti"}
+- Rudraksha Recommendations:
 ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations?.map((r, i) => `  ${i+1}. [${r.role}] -> ${r.mukhi} (${r.significance})`).join("\n")}
 
-STRICT SINGLE-DEVOTEE ISOLATION RULES (DO NOT COMBINE OR LEAK MULTIPLE CHARTS):
-1. This consultation is 100% EXCLUSIVELY for: ${calculatedKundaliData.verifiedBirthData.name} (DOB: ${calculatedKundaliData.verifiedBirthData.dob}).
-2. NEVER mention, compare, or combine details of any other person from previous chat history.
-3. Address the devotee's specific Primary Concern (${activeBirthDetails?.concern || "General"} ${activeBirthDetails?.customConcern ? `"${activeBirthDetails.customConcern}"` : ""}) with astrological depth and remedy.
-4. If the user asks follow-up questions, answer SOLELY and ACCURATELY based on ${calculatedKundaliData.verifiedBirthData.name}'s chart above.
-5. NEVER ask for DOB, birth time, or birth place again. Verified birth details already exist above.
-6. NEVER output raw HTML tags like <br>. Use standard clean linebreaks (\n).
-7. NEVER output masked date placeholders like 2024-XX-XX or XX-XX. Use the exact calculated Mahadasha and Antardasha dates provided above.
+STRICT SINGLE-DEVOTEE ISOLATION RULES:
+1. This consultation is EXCLUSIVELY for: ${calculatedKundaliData.verifiedBirthData.name} (DOB: ${calculatedKundaliData.verifiedBirthData.dob}).
+2. NEVER mention any other person's chart or combine charts from history.
+3. Address the Primary Concern (${activeBirthDetails?.concern || "General"}${activeBirthDetails?.customConcern ? ` "${activeBirthDetails.customConcern}"` : ""}) with astrological depth from Step 8.
+4. Follow-up questions: answer SOLELY based on ${calculatedKundaliData.verifiedBirthData.name}'s chart.
+5. NEVER ask for DOB/time/place again. Verified data is above.
+6. NEVER output raw HTML tags. Use clean linebreaks (\n).
+7. NEVER output masked dates like XX-XX. Use the exact Mahadasha/Antardasha dates above.
 ` : `
 CRITICAL: STRICT CLARIFICATION & ZERO-ASSUMPTION MANDATE (अनिवार्य स्पष्टीकरण नियम - कोई भी गलत या काल्पनिक जानकारी न दें):
 1. ZERO ASSUMPTION / ZERO GUESSING (कोई अनुमान न लगाएं):
@@ -1328,6 +1389,7 @@ CRITICAL: STRICT CLARIFICATION & ZERO-ASSUMPTION MANDATE (अनिवार्�
 4. GENERAL VEDIC QUESTIONS (सामान्य ज्ञान प्रश्न):
    - If the question is purely general/scriptural (e.g., "7 Mukhi ke labh", "Rudraksha dharan vidhi", "Shani mantra", "Manglik dosha kya hai"): Answer comprehensively with deep scriptural authority from Shiva Purana in pure Hindi without fabricating personal chart details.
 `}
+
 
 ORDER & DELIVERY INQUIRIES:
 - If customer asks about order status, delivery, tracking, or shipment: state respectfully: "Main AI Pandit Ji hoon; order aur delivery tracking ke liye Aura AI aapki sahayata karega." Guide them to the [Track Order](/track-order) page.
@@ -1463,23 +1525,27 @@ ${memoryContextText || "Guest shopper."}`;
 
       // 1. In Pandit Ji mode, prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first with Multi-turn Automatic Continuation
       if (mode === "panditji" && nvidiaClient && !clientDisconnected) {
+        const isNvidiaNIM = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
+          // Only apply NIM-specific params when actually hitting NVIDIA's API
+          const nimSpecificParams = isNvidiaNIM ? { chat_template_kwargs: { enable_thinking: false } } : {};
           try {
             const streamCompletion = await nvidiaClient.chat.completions.create(
               {
                 model: modelCandidate,
                 messages: nimMessages,
                 temperature: 0.35,
-                max_tokens: 4096,
+                max_tokens: 6144,
                 stream: true,
-                chat_template_kwargs: { enable_thinking: false },
-                reasoning_effort: "none"
+                stream_options: { include_usage: true },
+                ...nimSpecificParams
               },
               { signal: abortController.signal }
             );
 
             let lastFinishReason = "";
+            let nimTruncations = 0;
             for await (const chunk of streamCompletion) {
               if (clientDisconnected) break;
               const deltaContent = chunk.choices?.[0]?.delta?.content || "";
@@ -1497,13 +1563,14 @@ ${memoryContextText || "Guest shopper."}`;
             const MAX_CONTINUATION_PASSES = 3;
             while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
               passCount++;
+              if (lastFinishReason === "length") nimTruncations++;
               try {
                 const continuationMessages = [
                   ...nimMessages,
                   { role: "assistant", content: fullStreamedText },
                   {
                     role: "user",
-                    content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, and auspicious timings."
+                    content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, auspicious timings, and the MANDATORY [AURA_KEYWORDS] section at the end."
                   }
                 ];
 
@@ -1512,10 +1579,10 @@ ${memoryContextText || "Guest shopper."}`;
                     model: modelCandidate,
                     messages: continuationMessages,
                     temperature: 0.35,
-                    max_tokens: 4096,
+                    max_tokens: 6144,
                     stream: true,
-                    chat_template_kwargs: { enable_thinking: false },
-                    reasoning_effort: "none"
+                    stream_options: { include_usage: true },
+                    ...nimSpecificParams
                   },
                   { signal: abortController.signal }
                 );
@@ -1558,6 +1625,7 @@ ${memoryContextText || "Guest shopper."}`;
           }
         }
       }
+
 
       // 2. Try Gemini streaming (Primary for Standard mode, or Resilient Fallback for Pandit Ji mode)
       if (!streamSucceeded && geminiClient && !clientDisconnected) {
@@ -1668,6 +1736,8 @@ ${memoryContextText || "Guest shopper."}`;
 
       // 3. Fallback to NVIDIA NIM streaming for standard mode if Gemini produced empty output
       if (!streamSucceeded && mode !== "panditji" && nvidiaClient && !clientDisconnected) {
+        const isNvidiaNIM3 = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
+        const nimParams3 = isNvidiaNIM3 ? { chat_template_kwargs: { enable_thinking: false } } : {};
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
           try {
@@ -1678,8 +1748,8 @@ ${memoryContextText || "Guest shopper."}`;
                 temperature: 0.35,
                 max_tokens: 4096,
                 stream: true,
-                chat_template_kwargs: { enable_thinking: false },
-                reasoning_effort: "none"
+                stream_options: { include_usage: true },
+                ...nimParams3
               },
               { signal: abortController.signal }
             );
@@ -1707,6 +1777,7 @@ ${memoryContextText || "Guest shopper."}`;
           }
         }
       }
+
 
       // Clear heartbeat timer before concluding
       clearInterval(heartbeatTimer);
@@ -1815,6 +1886,8 @@ ${memoryContextText || "Guest shopper."}`;
     if (mode === "panditji") {
       const nvidiaClient = getNvidiaClient();
       if (nvidiaClient) {
+        const isNvidiaNIM_ns = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
+        const nimSpecificParams_ns = isNvidiaNIM_ns ? { chat_template_kwargs: { enable_thinking: false } } : {};
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (generatedSuccessfully) break;
           try {
@@ -1822,9 +1895,8 @@ ${memoryContextText || "Guest shopper."}`;
               model: modelCandidate,
               messages: nimMessages,
               temperature: 0.35,
-              max_tokens: 4096,
-              chat_template_kwargs: { enable_thinking: false },
-              reasoning_effort: "none"
+              max_tokens: 6144,
+              ...nimSpecificParams_ns
             });
 
             let outContent = completion.choices?.[0]?.message?.content || "";
@@ -1838,12 +1910,11 @@ ${memoryContextText || "Guest shopper."}`;
                   messages: [
                     ...nimMessages,
                     { role: "assistant", content: outContent },
-                    { role: "user", content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis." }
+                    { role: "user", content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis and the MANDATORY [AURA_KEYWORDS] section at the end." }
                   ],
                   temperature: 0.35,
-                  max_tokens: 4096,
-                  chat_template_kwargs: { enable_thinking: false },
-                  reasoning_effort: "none"
+                  max_tokens: 6144,
+                  ...nimSpecificParams_ns
                 });
                 const contText = contCompletion.choices?.[0]?.message?.content || "";
                 if (contText.trim()) {
@@ -1863,6 +1934,7 @@ ${memoryContextText || "Guest shopper."}`;
         }
       }
     }
+
 
     // 2. Try Gemini models (Primary for Standard mode, or Resilient Fallback for Pandit Ji mode)
     const nonStreamGeminiClient = getGeminiClient();
@@ -1940,6 +2012,8 @@ ${memoryContextText || "Guest shopper."}`;
     if (!generatedSuccessfully && mode !== "panditji") {
       const nvidiaClient = getNvidiaClient();
       if (nvidiaClient) {
+        const isNvidiaNIM_std = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
+        const nimParams_std = isNvidiaNIM_std ? { chat_template_kwargs: { enable_thinking: false } } : {};
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (generatedSuccessfully) break;
           try {
@@ -1948,8 +2022,7 @@ ${memoryContextText || "Guest shopper."}`;
               messages: nimMessages,
               temperature: 0.35,
               max_tokens: 4096,
-              chat_template_kwargs: { enable_thinking: false },
-              reasoning_effort: "none"
+              ...nimParams_std
             });
 
             const outContent = completion.choices?.[0]?.message?.content || "";
@@ -1964,6 +2037,7 @@ ${memoryContextText || "Guest shopper."}`;
         }
       }
     }
+
 
     // Deterministic Vedic / Store Fallback if AI models are momentarily disconnected
     if (!generatedSuccessfully || !aiResponseText.trim()) {

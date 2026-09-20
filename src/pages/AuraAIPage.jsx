@@ -57,7 +57,20 @@ export function AuraAIPage() {
   });
 
   const [mode, setMode] = useState("standard"); // "standard" | "panditji"
-  // Shared persistent chat history per mode
+  // Parse [AURA_KEYWORDS]: kw1 | kw2 | ... from AI text
+  const parseAuraKeywords = (text) => {
+    if (!text) return [];
+    const match = text.match(/\[AURA_KEYWORDS\]:\s*([^\n]+)/);
+    if (!match) return [];
+    return match[1].split("|").map(k => k.trim()).filter(Boolean).slice(0, 6);
+  };
+
+  // Strip [AURA_KEYWORDS] line from visible display text
+  const stripAuraKeywords = (text) => {
+    if (!text) return text;
+    return text.replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "").trim();
+  };
+
   const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1093,13 +1106,14 @@ export function AuraAIPage() {
                       )}
                       <div className="aura-ai-page-msg-bubble">
                         <div className="aura-ai-page-text">
-                          <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
+                          <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
                         </div>
                         {m.sender === "ai" && m.text && (
                           <div style={{ marginTop: "6px" }}>
-                            <VoiceReader text={customerSafeAiText(m.text)} />
+                            <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
                           </div>
                         )}
+
 
                         {/* Inline Recommended Product Cards */}
                         {m.products && m.products.length > 0 && (
@@ -1286,6 +1300,38 @@ export function AuraAIPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* AURA_KEYWORDS Auto-Search Chips */}
+                        {m.sender === "ai" && (() => {
+                          const kws = parseAuraKeywords(m.text || "");
+                          if (!kws.length) return null;
+                          return (
+                            <div className="mt-2.5 pt-2 border-t border-amber-900/10">
+                              <div className="text-[11px] text-amber-900/70 font-semibold mb-1.5 flex items-center gap-1">
+                                🔍 त्वरित खोज व आगे का परामर्श (Quick Actions):
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {kws.map((kw, ki) => (
+                                  <button
+                                    key={ki}
+                                    type="button"
+                                    onClick={() => handleSend(kw)}
+                                    className="px-3 py-1 text-xs font-medium rounded-full border transition-all hover:scale-105"
+                                    style={{
+                                      background: "linear-gradient(135deg, #fff9f0, #fdf0e0)",
+                                      borderColor: "#c47a3a",
+                                      color: "#7c3305",
+                                      boxShadow: "0 1px 4px rgba(140,43,16,0.12)"
+                                    }}
+                                  >
+                                    🔎 {kw}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
 
                         {/* Timestamp & Quick Action Toolbar */}
                         <div className="flex items-center justify-between gap-1 mt-1">
