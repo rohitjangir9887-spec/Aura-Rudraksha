@@ -136,6 +136,22 @@ export function AuraAIFloating() {
     return text.replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "").trim();
   };
 
+  // Dynamic engaging status messages while AI analyzes / calculates before writing
+  const getDynamicThinkingStatus = (seconds, currentMode) => {
+    if (currentMode === "panditji") {
+      if (seconds <= 2) return "🕉️ जन्म लग्न, राशि व नक्षत्र गणना हो रही है...";
+      if (seconds <= 5) return "🪐 9 ग्रहों की स्थिति, भाव व दृष्टि का गहरा विश्लेषण...";
+      if (seconds <= 8) return "📜 विंशोत्तरी महादशा, गोचर व दोष विचार चल रहा है...";
+      if (seconds <= 12) return "✨ शिव पुराण व शास्त्रोक्त सिद्ध रुद्राक्ष अनुसंधान...";
+      return "🙏 जातक के लिए सर्वोत्तम कल्याणकारी परामर्श तैयार हो रहा है...";
+    } else {
+      if (seconds <= 2) return "🔍 प्रामाणिक स्टोर कैटलॉग व रुद्राक्ष खोज रहे हैं...";
+      if (seconds <= 5) return "🛡️ 100% लैब टेस्ट व X-Ray सर्टिफिकेशन जांच रहे हैं...";
+      if (seconds <= 8) return "🎁 सक्रिय डिस्काउंट कूपन व ऑफर्स चेक कर रहे हैं...";
+      return "✨ आपके लिए सर्वोत्तम उत्तर तैयार हो रहा है...";
+    }
+  };
+
   const [addedItems, setAddedItems] = useState({});
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [orderModalProduct, setOrderModalProduct] = useState(null);
@@ -637,12 +653,18 @@ export function AuraAIFloating() {
     // Reset and Start Live Status Tracking
     setLastUserQuery(textToSend ? textToSend.trim() : "Kundali Request");
     setErrorOccurred(false);
-    setStatusText(mode === "panditji" ? "गणित व नक्षत्र गणना..." : "Thinking...");
+    setStatusText(getDynamicThinkingStatus(0, mode));
     setElapsedTime(0);
     setLoading(true);
 
     timerRef.current = setInterval(() => {
-      setElapsedTime((prev) => prev + 1);
+      setElapsedTime((prev) => {
+        const next = prev + 1;
+        if (!streamInitialized) {
+          setStatusText(getDynamicThinkingStatus(next, mode));
+        }
+        return next;
+      });
     }, 1000);
 
     const aiMsgId = "ai_" + Date.now();
@@ -674,7 +696,7 @@ export function AuraAIFloating() {
             streamInitialized = true;
             setLoading(false);
           }
-          setStatusText(mode === "panditji" ? "वैदिक परामर्श लिखा जा रहा है..." : "Writing answer...");
+          setStatusText(mode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
           const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
@@ -790,12 +812,18 @@ export function AuraAIFloating() {
 
     setLastUserQuery(prompt);
     setErrorOccurred(false);
-    setStatusText(mode === "panditji" ? "उत्तर पूरा किया जा रहा है..." : "Completing answer...");
+    setStatusText(mode === "panditji" ? "🕉️ उत्तर का अगला भाग तैयार हो रहा है..." : "🔍 Analyzing continuation...");
     setElapsedTime(0);
     setLoading(true);
 
     timerRef.current = setInterval(() => {
-      setElapsedTime((prev) => prev + 1);
+      setElapsedTime((prev) => {
+        const next = prev + 1;
+        if (!streamInitialized) {
+          setStatusText(mode === "panditji" ? "🕉️ वैदिक गणना व विश्लेषण जारी है..." : "🔍 Completing response...");
+        }
+        return next;
+      });
     }, 1000);
 
     const aiMsgId = targetMsg.id;
@@ -2172,15 +2200,16 @@ export function AuraAIFloating() {
                     <div className="aura-ai-msg-avatar">
                       <Sparkles size={13} />
                     </div>
-                    <div className="flex flex-col gap-1 items-start" style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
-                      <div className="aura-ai-typing-bubble">
+                    <div style={{ display: "flex", flexDirection: "column", gap: "5px", alignItems: "flex-start" }}>
+                      <div className="aura-ai-typing-bubble" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <span className="dot" />
                         <span className="dot" />
                         <span className="dot" />
                       </div>
-                      <span className="aura-ai-status-text" style={{ fontSize: "10.5px", color: "#8c2b10", fontStyle: "italic", fontWeight: "500", paddingLeft: "4px" }}>
-                        {statusText} {elapsedTime > 0 ? `(${elapsedTime}s)` : ""}
-                      </span>
+                      <div className="aura-ai-status-text" style={{ fontSize: "11px", color: "#8c2b10", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "5px", background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)", padding: "4px 10px", borderRadius: "14px", border: "1px solid rgba(212, 175, 55, 0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                        <span>{statusText}</span>
+                        {elapsedTime > 0 && <span style={{ opacity: 0.7, fontSize: "10px" }}>({elapsedTime}s)</span>}
+                      </div>
                     </div>
                   </div>
                 )}

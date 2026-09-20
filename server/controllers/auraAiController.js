@@ -73,9 +73,57 @@ export const BACKUP_NIM_MODELS = ["nvidia/nemotron-3-super-120b-a12b", "nemotron
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 let cachedNvidiaKey = "";
+let cachedGeminiKey = "";
 
 export function setCachedNvidiaKey(key) {
   cachedNvidiaKey = (key || "").trim();
+}
+
+export async function resolveNvidiaKey() {
+  if (cachedNvidiaKey) return cachedNvidiaKey;
+  const envKey = (
+    process.env.NVIDIA_API_KEY ||
+    process.env.NEMOTRON_API_KEY ||
+    process.env.NVIDIA_NIM_API_KEY ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    ""
+  ).trim();
+  if (envKey) {
+    cachedNvidiaKey = envKey;
+    return envKey;
+  }
+  if (isDbConnected()) {
+    try {
+      const setting = await AuraAISetting.findOne().select("nvidiaApiKey nemotronApiKey apiKey").lean();
+      const dbKey = (setting?.nvidiaApiKey || setting?.nemotronApiKey || setting?.apiKey || "").trim();
+      if (dbKey) {
+        cachedNvidiaKey = dbKey;
+        return dbKey;
+      }
+    } catch (_) {}
+  }
+  return "";
+}
+
+export async function resolveGeminiKey() {
+  if (cachedGeminiKey) return cachedGeminiKey;
+  const envKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (envKey) {
+    cachedGeminiKey = envKey;
+    return envKey;
+  }
+  if (isDbConnected()) {
+    try {
+      const setting = await AuraAISetting.findOne().select("geminiApiKey apiKey").lean();
+      const dbKey = (setting?.geminiApiKey || setting?.apiKey || "").trim();
+      if (dbKey) {
+        cachedGeminiKey = dbKey;
+        return dbKey;
+      }
+    } catch (_) {}
+  }
+  return "";
 }
 
 export function getNvidiaClient(customKey = "") {
@@ -168,8 +216,8 @@ export function mergeContinuation(existingText, continuationText) {
   return existingText + (needsSpace ? " " : "") + cleanContinuation;
 }
 
-export function getGeminiClient() {
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+export function getGeminiClient(customKey = "") {
+  const apiKey = (customKey || cachedGeminiKey || process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) return null;
   try {
     return new GoogleGenAI({
@@ -707,6 +755,8 @@ export async function calculateKundaliEndpoint(req, res, next) {
 
     // 3. Generate Vedic Interpretation prioritizing NVIDIA NIM (nemotron-3-super-120b-a12b)
     let aiInterpretation = "";
+    await resolveNvidiaKey();
+    await resolveGeminiKey();
     const nvidiaClient = getNvidiaClient();
     const geminiClient = getGeminiClient();
 
@@ -1384,10 +1434,17 @@ ${memoryContextText || "Guest shopper."}`;
         conversationId: targetConversationId,
         guestSessionId: effectiveGuestSessionId
       })}\n\n`);
+
+      res.write(`data: ${JSON.stringify({
+        type: "status",
+        message: mode === "panditji" ? "🕉️ जन्म लग्न व ग्रह गोचर गणना हो रही है..." : "🔍 प्रामाणिक स्टोर कैटलॉग व रुद्राक्ष खोज रहे हैं..."
+      })}\n\n`);
       res.flush?.();
 
       let fullStreamedText = "";
       let streamSucceeded = false;
+      await resolveNvidiaKey();
+      await resolveGeminiKey();
       const geminiClient = getGeminiClient();
       const nvidiaClient = getNvidiaClient();
 
@@ -1422,7 +1479,7 @@ ${memoryContextText || "Guest shopper."}`;
 
             // Automatic Multi-Turn Continuation if response hit token limits or was truncated mid-sentence
             let passCount = 0;
-            const MAX_CONTINUATION_PASSES = 2;
+            const MAX_CONTINUATION_PASSES = 3;
             while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
               passCount++;
               try {
@@ -1431,7 +1488,7 @@ ${memoryContextText || "Guest shopper."}`;
                   { role: "assistant", content: fullStreamedText },
                   {
                     role: "user",
-                    content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table, and the MANDATORY [AURA_KEYWORDS] section at the end."
+                    content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table, and the MANDATORY [AURA_KEYWORDS] section at the end."
                   }
                 ];
 
@@ -1645,6 +1702,8 @@ ${memoryContextText || "Guest shopper."}`;
     // 8. Non-Streaming Execution
     let aiResponseText = "";
     let generatedSuccessfully = false;
+    await resolveNvidiaKey();
+    await resolveGeminiKey();
 
     // 1. Prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first
     const nonStreamNvidiaClient = getNvidiaClient();
@@ -1663,23 +1722,31 @@ ${memoryContextText || "Guest shopper."}`;
           const finishReason = completion.choices?.[0]?.finish_reason || "";
 
           // Continuation if truncated
-          if (isTextIncomplete(outContent, finishReason)) {
+          let nonStreamPass = 0;
+          let currentFinishReason = finishReason;
+          while (nonStreamPass < 3 && isTextIncomplete(outContent, currentFinishReason)) {
+            nonStreamPass++;
             try {
               const contCompletion = await nonStreamNvidiaClient.chat.completions.create({
                 model: modelCandidate,
                 messages: [
                   ...nimMessages,
                   { role: "assistant", content: outContent },
-                  { role: "user", content: "Continue your comprehensive reading exactly from where you stopped. Complete the analysis, remedies, Final Summary, and [AURA_KEYWORDS]." }
+                  { role: "user", content: "Continue your comprehensive reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]." }
                 ],
                 temperature: 0.35,
                 max_tokens: 4096
               });
+              currentFinishReason = contCompletion.choices?.[0]?.finish_reason || "";
               const contText = contCompletion.choices?.[0]?.message?.content || "";
               if (contText.trim()) {
                 outContent = mergeContinuation(outContent, contText);
+              } else {
+                break;
               }
-            } catch (_) {}
+            } catch (_) {
+              break;
+            }
           }
 
           if (outContent.trim()) {
