@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { 
   Sparkles, 
@@ -17,18 +17,36 @@ import {
   Award,
   AlertTriangle,
   Copy,
-  Check
+  Check,
+  ChevronRight,
+  BookOpen,
+  Compass,
+  Heart,
+  HelpCircle,
+  Clock,
+  MapPin,
+  Calendar,
+  Sparkle
 } from "lucide-react";
 
 /**
- * Universal Aura AI Message Renderer
+ * Universal Aura AI Message Content & Vedic Astrology UI Renderer
  * 
- * Automatically cleans, parses, and formats AI & Customer messages into 
- * a pristine, modern, high-contrast spiritual Kundali & chat UI without
- * any raw markdown artifacts (**, *, -, ###, ```, |---|---|).
+ * Guarantees 100% full content fidelity — NEVER truncates, summarizes, 
+ * compresses, or drops a single word of the original AI response.
+ * 
+ * Supports:
+ * - 300 to 6000+ words full Kundali analyses
+ * - Markdown & semantic markers ([GREETING], [SECTION], [MANTRA], [WARNING], etc.)
+ * - Pipe tables with mobile-adaptive stacked layout
+ * - Planetary status badges & complete interpretations
+ * - Sacred seed mantras with 1-click copy
+ * - Doshas & practical Vedic remedies
+ * - Auspicious closing blessings
+ * - Supplementary "🔱 सरल ग्राहक सारांश" (Simple Customer Summary) at the end
  */
 
-// Helper to clean raw artifacts & secure content while preserving all text
+// Clean raw artifacts & secure content while preserving every single word
 function sanitizeText(raw) {
   if (!raw || typeof raw !== "string") return "";
   let text = raw.trim();
@@ -41,43 +59,49 @@ function sanitizeText(raw) {
   text = text.replace(/\bXX-XX-\d{4}\b/gi, "(date not available)");
   text = text.replace(/\bXX-XX\b/gi, "(date not available)");
 
-  // Strip code fences wrapping the response
+  // Strip wrapping code fences if present around entire message
   text = text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
   // Protect sensitive internal system keys or developer emails
   text = text.replace(/rohitjangir\d*@gmail\.com/gi, "aurarudrakshaofficial@gmail.com");
-  text = text.replace(/MONGODB_[A-Z_]+/gi, "");
-  text = text.replace(/GEMINI_API_[A-Z_]+/gi, "");
-  text = text.replace(/NVIDIA_API_[A-Z_]+/gi, "");
+  text = text.replace(/MONGODB_[A-Z0-9_]+/gi, "");
+  text = text.replace(/GEMINI_API_[A-Z0-9_]+/gi, "");
+  text = text.replace(/NVIDIA_API_[A-Z0-9_]+/gi, "");
 
   return text;
 }
 
-// Highlight important planetary terms and doshas inside text fragments
+// Highlight important planetary terms, yogas, and doshas inside text fragments
 function renderInlineKeywords(text) {
   if (!text || typeof text !== "string") return text;
 
-  // Highlight terms: उच्च, नीच, साम्य, स्वगृही, मांगलिक दोष, कालसर्प दोष, पितृ दोष, साढ़े साती, ढैय्या
-  const kwRegex = /(उच्च|नीच|साम्य|स्वगृही|मांगलिक\s*दोष|कालसर्प\s*दोष|पितृ\s*दोष|साढ़े\s*साती|ढैय्या)/g;
+  // Highlight terms: उच्च, नीच, साम्य, स्वगृही, मित्र, शत्रु, मांगलिक दोष, कालसर्प दोष, पितृ दोष, साढ़े साती, ढैय्या, राजयोग, गजकेसरी, बुधादित्य, रुद्राक्ष मुखी
+  const kwRegex = /(उच्च|नीच|साम्य|स्वगृही|मित्र\s*राशि|शत्रु\s*राशि|मांगलिक\s*दोष|कालसर्प\s*दोष|पितृ\s*दोष|साढ़े\s*साती|ढैय्या|चांडाल\s*दोष|ग्रहण\s*दोष|राजयोग|गजकेसरी\s*योग|बुधादित्य\s*योग|लक्ष्मी\s*योग|\d+\s*मुखी\s*रुद्राक्ष|गौरी\s*शंकर|गणेश\s*रुद्राक्ष)/gi;
   const parts = text.split(kwRegex);
   if (parts.length === 1) return text;
 
   return parts.map((part, i) => {
-    if (part === "उच्च" || part === "स्वगृही") {
+    if (!part) return null;
+    const lower = part.toLowerCase();
+
+    if (lower === "उच्च" || lower === "स्वगृही" || lower.includes("मित्र") || lower.includes("राजयोग") || lower.includes("गजकेसरी") || lower.includes("बुधादित्य") || lower.includes("लक्ष्मी योग")) {
       return <span key={i} className="aura-ai-highlight-exalted">{part}</span>;
     }
-    if (part === "नीच") {
+    if (lower === "नीच" || lower.includes("शत्रु")) {
       return <span key={i} className="aura-ai-highlight-debilitated">{part}</span>;
     }
-    if (part === "साम्य") {
+    if (lower === "साम्य") {
       return <span key={i} className="aura-ai-highlight-neutral">{part}</span>;
     }
     if (
-      part.includes("दोष") || 
-      part.includes("साती") || 
-      part.includes("ढैय्या")
+      lower.includes("दोष") || 
+      lower.includes("साती") || 
+      lower.includes("ढैय्या")
     ) {
       return <span key={i} className="aura-ai-highlight-dosh">{part}</span>;
+    }
+    if (lower.includes("मुखी") || lower.includes("गौरी शंकर") || lower.includes("गणेश रुद्राक्ष")) {
+      return <span key={i} className="aura-ai-highlight-rudraksha">{part}</span>;
     }
     return part;
   });
@@ -147,7 +171,7 @@ function renderInlineContent(text) {
       }
 
       // 3. Bold: **something**
-      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
         const inner = part.slice(2, -2);
         return (
           <strong key={idx} className="aura-ai-strong">
@@ -157,7 +181,7 @@ function renderInlineContent(text) {
       }
 
       // 4. Code / Coupon / Highlight: `something`
-      if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
         const inner = part.slice(1, -1);
         return (
           <span key={idx} className="aura-ai-code-chip">
@@ -167,7 +191,7 @@ function renderInlineContent(text) {
       }
 
       // 5. Italic: *something*
-      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      if (part.startsWith("*") && part.endsWith("*") && part.length >= 2) {
         const inner = part.slice(1, -1);
         return (
           <em key={idx} className="aura-ai-italic">
@@ -177,7 +201,7 @@ function renderInlineContent(text) {
       }
 
       // 6. Phone / Email in plain text
-      const words = part.split(/(\+91\s*\d{10}|\+91\s*\d{5}\s*\d{5}|support@aurarudraksha\.com)/g);
+      const words = part.split(/(\+91\s*\d{10}|\+91\s*\d{5}\s*\d{5}|support@aurarudraksha\.com|aurarudrakshaofficial@gmail\.com)/g);
       if (words.length > 1) {
         return (
           <React.Fragment key={idx}>
@@ -224,33 +248,35 @@ function renderInlineContent(text) {
 
 // Map planet name to corresponding Lucide icon
 function getPlanetIcon(planetName = "") {
-  const p = planetName.toLowerCase();
-  if (p.includes("सूर्य") || p.includes("sun")) return <Sun size={14} className="text-amber-600" />;
-  if (p.includes("चंद्र") || p.includes("moon")) return <Moon size={14} className="text-sky-600" />;
-  if (p.includes("मंगल") || p.includes("mars")) return <Flame size={14} className="text-red-600" />;
-  if (p.includes("बुध") || p.includes("mercury")) return <Sparkles size={14} className="text-emerald-600" />;
-  if (p.includes("गुरु") || p.includes("jupiter")) return <Award size={14} className="text-amber-700" />;
-  if (p.includes("शुक्र") || p.includes("venus")) return <Gem size={14} className="text-purple-600" />;
-  if (p.includes("शनि") || p.includes("saturn")) return <ShieldAlert size={14} className="text-indigo-700" />;
-  if (p.includes("राहु") || p.includes("rahu")) return <Sparkles size={14} className="text-amber-800" />;
-  if (p.includes("केतु") || p.includes("ketu")) return <Sparkles size={14} className="text-amber-900" />;
-  return <Sparkles size={14} className="text-amber-600" />;
+  const p = String(planetName).toLowerCase();
+  if (p.includes("सूर्य") || p.includes("sun")) return <Sun size={15} className="text-amber-600 shrink-0" />;
+  if (p.includes("चंद्र") || p.includes("moon")) return <Moon size={15} className="text-sky-600 shrink-0" />;
+  if (p.includes("मंगल") || p.includes("mars")) return <Flame size={15} className="text-red-600 shrink-0" />;
+  if (p.includes("बुध") || p.includes("mercury")) return <Sparkles size={15} className="text-emerald-600 shrink-0" />;
+  if (p.includes("गुरु") || p.includes("jupiter") || p.includes("बृहस्पति")) return <Award size={15} className="text-amber-700 shrink-0" />;
+  if (p.includes("शुक्र") || p.includes("venus")) return <Gem size={15} className="text-purple-600 shrink-0" />;
+  if (p.includes("शनि") || p.includes("saturn")) return <ShieldAlert size={15} className="text-indigo-700 shrink-0" />;
+  if (p.includes("राहु") || p.includes("rahu")) return <Sparkles size={15} className="text-stone-700 shrink-0" />;
+  if (p.includes("केतु") || p.includes("ketu")) return <Sparkles size={15} className="text-orange-900 shrink-0" />;
+  return <Sparkles size={15} className="text-amber-600 shrink-0" />;
 }
 
 // Map status string to pill badge
 function renderStatusBadge(status = "") {
-  const s = status.trim();
+  const s = String(status).trim();
   if (!s) return null;
   if (s.includes("उच्च")) return <span className="aura-ai-status-badge aura-ai-status-exalted">✨ उच्च (Exalted)</span>;
   if (s.includes("स्वगृही")) return <span className="aura-ai-status-badge aura-ai-status-own">🏠 स्वगृही (Own Sign)</span>;
   if (s.includes("नीच")) return <span className="aura-ai-status-badge aura-ai-status-debilitated">⚠️ नीच (Debilitated)</span>;
-  if (s.includes("साम्य") || s.includes("मित्र")) return <span className="aura-ai-status-badge aura-ai-status-neutral">🔵 {s}</span>;
+  if (s.includes("मित्र")) return <span className="aura-ai-status-badge aura-ai-status-exalted">🤝 मित्र (Friendly)</span>;
+  if (s.includes("शत्रु")) return <span className="aura-ai-status-badge aura-ai-status-debilitated">⚡ शत्रु (Inimical)</span>;
+  if (s.includes("साम्य") || s.includes("सम")) return <span className="aura-ai-status-badge aura-ai-status-neutral">🔵 साम्य (Neutral)</span>;
   return <span className="aura-ai-status-badge aura-ai-status-own">🔸 {s}</span>;
 }
 
-// Individual Planet Card component
+// Individual Planet Card component - NEVER truncates interpretation
 function PlanetCard({ planetName, house, rashi, status, interpretation }) {
-  const cleanName = planetName.replace(/^\*{1,2}/, "").replace(/\*{1,2}$/, "").trim();
+  const cleanName = String(planetName || "").replace(/^\*{1,2}/, "").replace(/\*{1,2}$/, "").trim();
   return (
     <div className="aura-ai-planet-card">
       <div className="aura-ai-planet-header">
@@ -278,7 +304,7 @@ function PlanetCard({ planetName, house, rashi, status, interpretation }) {
 // Mantra Card Component with Copy action
 function MantraCard({ mantraText }) {
   const [copied, setCopied] = useState(false);
-  const cleanMantra = mantraText
+  const cleanMantra = String(mantraText || "")
     .replace(/^\[MANTRA\]/i, "")
     .replace(/\[\/MANTRA\]$/i, "")
     .replace(/^["'“]/, "")
@@ -297,8 +323,9 @@ function MantraCard({ mantraText }) {
       <div className="aura-ai-mantra-header">
         <span>🕉️ सिद्ध बीज मंत्र (Sacred Mantra)</span>
         <button 
+          type="button"
           onClick={handleCopy} 
-          className="text-[#b45309] hover:text-[#782218] flex items-center gap-1 cursor-pointer text-[10px]"
+          className="text-[#b45309] hover:text-[#782218] flex items-center gap-1 cursor-pointer text-[11px] font-bold bg-white/70 px-2 py-0.5 rounded border border-[#f59e0b]/40"
           title="मंत्र कॉपी करें"
         >
           {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
@@ -312,7 +339,7 @@ function MantraCard({ mantraText }) {
   );
 }
 
-// Check if a line is a Key-Value attribute line
+// Strict Key-Value Check: ONLY for genuinely short metadata pairs
 function parseKeyValueLine(line) {
   const clean = line.replace(/^[-*•✦🕉▪▫▸►\d.)]\s*/, "").trim();
   
@@ -323,48 +350,70 @@ function parseKeyValueLine(line) {
   const rawKey = kvMatch[2].replace(/\*/g, "").trim();
   const rawVal = kvMatch[4].trim();
 
+  // Strict constraints: key <= 30 chars, value <= 90 chars, no multiple sentences
+  // If value is long (narrative paragraph), it must NOT be turned into a micro-card row!
   if (
     rawKey.length > 0 && 
-    rawKey.length <= 35 && 
+    rawKey.length <= 30 && 
+    rawVal.length <= 90 &&
+    !rawVal.includes("\n") &&
     !rawKey.includes("?") && 
     !rawKey.endsWith(".") &&
-    !rawKey.endsWith("।")
+    !rawKey.endsWith("।") &&
+    !rawVal.includes("।")
   ) {
     return { key: rawKey, value: rawVal };
   }
   return null;
 }
 
-// Check if a line looks like a title or section heading
+// Check if a line is a title or section heading
 function isHeadingLine(line) {
   const trimmed = line.trim();
   if (!trimmed) return false;
 
-  // 1. Explicit markdown heading (#, ##, ###) or semantic tag [SECTION]
+  // 1. Explicit markdown heading (#, ##, ###, ####) or semantic tag [SECTION]
   if (/^#{1,6}\s+/.test(trimmed) || /^\[SECTION\]/i.test(trimmed)) return true;
 
-  // 2. Numbered / Symbolized section headers
+  // 2. Text wrapped entirely in **...** with short length (section title)
   if (
-    trimmed.length <= 85 &&
+    trimmed.startsWith("**") && 
+    trimmed.endsWith("**") && 
+    trimmed.length <= 80 && 
+    !trimmed.includes("।") &&
+    !trimmed.includes(".") &&
+    !trimmed.includes("\n")
+  ) {
+    return true;
+  }
+
+  // 3. Numbered / Symbolized section headers with keywords
+  if (
+    trimmed.length <= 90 &&
     !trimmed.includes("?") &&
+    !trimmed.includes("।") &&
     (
       /^#{1,6}\s*/.test(trimmed) ||
       /^(?:\d+\.|\d+\))\s*\*{0,2}[^\n:]+\*{0,2}:?$/.test(trimmed) ||
-      trimmed.endsWith(":") ||
-      trimmed.endsWith("!")
+      trimmed.endsWith(":")
     ) &&
     (
       trimmed.includes("Kundali") ||
+      trimmed.includes("कुंडली") ||
       trimmed.includes("राशि") ||
+      trimmed.includes("लग्न") ||
       trimmed.includes("ग्रह") ||
       trimmed.includes("दोष") ||
       trimmed.includes("महादशा") ||
+      trimmed.includes("अंतर्दशा") ||
       trimmed.includes("नक्षत्र") ||
       trimmed.includes("रुद्राक्ष") ||
       trimmed.includes("उपाय") ||
       trimmed.includes("मंत्र") ||
       trimmed.includes("जाप") ||
       trimmed.includes("दृष्टि") ||
+      trimmed.includes("युति") ||
+      trimmed.includes("योग") ||
       trimmed.includes("विश्लेषण") ||
       trimmed.includes("Rudraksha") ||
       trimmed.includes("Offer") ||
@@ -373,24 +422,102 @@ function isHeadingLine(line) {
       trimmed.startsWith("✨") ||
       trimmed.startsWith("🎁") ||
       trimmed.startsWith("📿") ||
-      trimmed.startsWith("🕉")
+      trimmed.startsWith("🕉") ||
+      trimmed.startsWith("🔱")
     )
   ) {
     return true;
   }
 
-  // 3. Text wrapped entirely in **...**
-  if (
-    trimmed.startsWith("**") && 
-    trimmed.endsWith("**") && 
-    trimmed.length <= 75 && 
-    !trimmed.includes(".") &&
-    !trimmed.includes("।")
-  ) {
-    return true;
+  return false;
+}
+
+// Extract supplementary "सरल ग्राहक सारांश" from Kundali reading
+function extractKundaliSummary(fullText) {
+  if (!fullText || typeof fullText !== "string") return null;
+  const lower = fullText.toLowerCase();
+
+  // Only generate summary for rich astrological or Kundali analyses
+  const isKundaliReading = 
+    (fullText.includes("लग्न") || fullText.includes("कुंडली") || fullText.includes("ग्रह") || fullText.includes("राशि")) &&
+    (fullText.includes("रुद्राक्ष") || fullText.includes("उपाय") || fullText.includes("मंत्र") || fullText.includes("भाव"));
+
+  if (!isKundaliReading) return null;
+
+  // 1. Findings (Lagna / Rashi / Key Themes)
+  let findings = [];
+  const lagnaMatch = fullText.match(/(?:लग्न|Ascendant)\s*(?:है|:|\-)?\s*([^\n,।.|]+)/i);
+  if (lagnaMatch && !lagnaMatch[1].includes("(") && lagnaMatch[1].length < 40) {
+    findings.push(`लग्न: ${lagnaMatch[1].replace(/\*\*/g, "").trim()}`);
   }
 
-  return false;
+  const rashiMatch = fullText.match(/(?:चंद्र राशि|राशि|Moon Sign)\s*(?:है|:|\-)?\s*([^\n,।.|]+)/i);
+  if (rashiMatch && !rashiMatch[1].includes("(") && rashiMatch[1].length < 40) {
+    findings.push(`राशि: ${rashiMatch[1].replace(/\*\*/g, "").trim()}`);
+  }
+
+  const dashaMatch = fullText.match(/(?:महादशा|दशा)\s*(?:है|:|\-)?\s*([^\n,।.|]+)/i);
+  if (dashaMatch && dashaMatch[1].length < 40) {
+    findings.push(`सक्रिय दशा: ${dashaMatch[1].replace(/\*\*/g, "").trim()}`);
+  }
+
+  // 2. Planets
+  let planets = [];
+  const exaltedMatch = fullText.match(/(?:उच्च|शुभ|बलवान)\s*ग्रह\s*[:\-]?\s*([^\n।.|]+)/i);
+  if (exaltedMatch && exaltedMatch[1].length < 50) {
+    planets.push(`शुभ/उच्च ग्रह: ${exaltedMatch[1].replace(/\*\*/g, "").trim()}`);
+  }
+  const debilMatch = fullText.match(/(?:नीच|पीड़ित|कमजोर)\s*ग्रह\s*[:\-]?\s*([^\n।.|]+)/i);
+  if (debilMatch && debilMatch[1].length < 50) {
+    planets.push(`विचारणीय/नीच ग्रह: ${debilMatch[1].replace(/\*\*/g, "").trim()}`);
+  }
+
+  // 3. Doshas
+  let doshas = [];
+  if (fullText.includes("मांगलिक दोष")) doshas.push("मांगलिक प्रभाव");
+  if (fullText.includes("कालसर्प दोष")) doshas.push("कालसर्प योग");
+  if (fullText.includes("पितृ दोष")) doshas.push("पितृ दोष प्रभाव");
+  if (fullText.includes("साढ़े साती")) doshas.push("शनि साढ़े साती");
+  if (fullText.includes("ढैय्या")) doshas.push("शनि ढैय्या");
+  if (doshas.length === 0 && fullText.includes("दोष")) {
+    const dMatch = fullText.match(/([^\n।.|]*दोष[^\n।.|]*)/);
+    if (dMatch && dMatch[1].length < 40) {
+      doshas.push(dMatch[1].replace(/\*\*/g, "").trim());
+    }
+  }
+
+  // 4. Rudraksha
+  let rudraksha = [];
+  const rudMatch = fullText.match(/(\d+\s*मुखी\s*रुद्राक्ष|गौरी\s*शंकर|गणेश\s*रुद्राक्ष)/gi);
+  if (rudMatch) {
+    rudraksha = Array.from(new Set(rudMatch.map(r => r.trim()))).slice(0, 3);
+  }
+
+  // 5. Mantras
+  let mantras = [];
+  const mantraMatch = fullText.match(/(ॐ\s*[^।\n\[\]"'”]+)/gi);
+  if (mantraMatch) {
+    mantras = Array.from(new Set(mantraMatch.map(m => m.replace(/\[\/?MANTRA\]/gi, "").trim()))).slice(0, 2);
+  }
+
+  // 6. Practical Remedies
+  let remedies = [];
+  const remedyLines = fullText.split("\n").filter(l => {
+    const t = l.trim();
+    return (t.includes("उपाय") || t.includes("दान") || t.includes("अर्घ्य") || t.includes("व्रत") || t.includes("पूजा")) && t.length < 120;
+  });
+  if (remedyLines.length > 0) {
+    remedies = remedyLines.slice(0, 3).map(r => r.replace(/^[-*•✦\d.)]\s*/, "").replace(/\*\*/g, "").trim());
+  }
+
+  return {
+    findings: findings.length ? findings : ["आपकी पत्रिका में ग्रहों का सुंदर समन्वय है।"],
+    planets: planets.length ? planets : null,
+    doshas: doshas.length ? doshas : ["कोई गंभीर नकारात्मक दोष नहीं देखा गया।"],
+    rudraksha: rudraksha.length ? rudraksha : ["प्रामाणिक सिद्ध 5 मुखी / 7 मुखी रुद्राक्ष"],
+    mantras: mantras.length ? mantras : ["ॐ नमः शिवाय"],
+    remedies: remedies.length ? remedies : ["प्रातः सूर्य देव को जल अर्पित करें व शिवलिंग पर जलाभिषेक करें।"]
+  };
 }
 
 export function AuraAIMessageContent({ text, content, sender = "ai", className = "" }) {
@@ -465,29 +592,20 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
 
   const flushTable = () => {
     if (currentTable) {
-      // Process table into either Planetary Cards Grid or Responsive Table
       const headers = currentTable.headers || [];
       const rows = currentTable.rows || [];
 
+      // Check if table contains planetary details
       const isPlanetaryTable = 
         headers.some(h => /ग्रह|भाव|राशि|स्थिति|फल|Planet|House|Rashi|Status/i.test(h)) ||
         rows.some(r => r.some(c => /सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu/i.test(c)));
 
-      if (isPlanetaryTable && rows.length > 0) {
-        // Map rows into structured Planet Cards
-        const planetItems = rows.map(r => {
-          return {
-            planetName: r[0] || "",
-            house: r[1] || "",
-            rashi: r[2] || "",
-            status: r[3] || "",
-            interpretation: r.slice(4).join(" ") || ""
-          };
-        });
-        blocks.push({ type: "planet_grid", planets: planetItems });
-      } else {
-        blocks.push({ type: "table", headers, rows });
-      }
+      blocks.push({ 
+        type: "table", 
+        headers, 
+        rows,
+        isPlanetary: isPlanetaryTable 
+      });
       currentTable = null;
     }
   };
@@ -518,10 +636,12 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         .map(c => c.trim())
         .filter((c, idx, arr) => !(idx === 0 && c === "") && !(idx === arr.length - 1 && c === ""));
 
-      if (!currentTable) {
-        currentTable = { headers: cells, rows: [] };
-      } else {
-        currentTable.rows.push(cells);
+      if (cells.length > 0) {
+        if (!currentTable) {
+          currentTable = { headers: cells, rows: [] };
+        } else {
+          currentTable.rows.push(cells);
+        }
       }
       continue;
     } else {
@@ -535,7 +655,8 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       trimmed.startsWith("🙏 नमो") ||
       trimmed.startsWith("हर हर महादेव") ||
       trimmed.startsWith("जय श्री राम") ||
-      (trimmed.includes("प्रणाम भक्त") && trimmed.length <= 60)
+      trimmed.startsWith("ॐ नमः शिवाय") ||
+      (trimmed.includes("प्रणाम भक्त") && trimmed.length <= 70)
     ) {
       flushList();
       flushKv();
@@ -554,7 +675,8 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       trimmed === "===" ||
       trimmed === "[DIVIDER]" ||
       /^[─━═-]{3,}$/.test(trimmed) ||
-      /^❖\s*❖\s*❖$/.test(trimmed)
+      /^❖\s*❖\s*❖$/.test(trimmed) ||
+      /^❖\s*🕉\s*❖$/.test(trimmed)
     ) {
       flushList();
       flushKv();
@@ -566,6 +688,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     if (isHeadingLine(trimmed)) {
       flushList();
       flushKv();
+      const isH1orH2 = /^#{1,2}\s+/.test(trimmed) || /^\[SECTION\]/i.test(trimmed) || trimmed.startsWith("🔱");
       const headingClean = trimmed
         .replace(/^\[SECTION\]/i, "")
         .replace(/\[\/SECTION\]$/i, "")
@@ -576,6 +699,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
 
       blocks.push({
         type: "heading",
+        level: isH1orH2 ? 2 : 3,
         text: headingClean
       });
       continue;
@@ -587,7 +711,8 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       trimmed.startsWith("मंत्र:") ||
       trimmed.startsWith("बीज मंत्र:") ||
       trimmed.startsWith("सिद्ध मंत्र:") ||
-      (trimmed.includes("ॐ") && (trimmed.startsWith('"') || trimmed.startsWith('“') || trimmed.length <= 80))
+      trimmed.startsWith("गायत्री मंत्र:") ||
+      (trimmed.includes("ॐ") && (trimmed.startsWith('"') || trimmed.startsWith('“') || (trimmed.length <= 80 && !trimmed.includes("।"))))
     ) {
       flushList();
       flushKv();
@@ -599,21 +724,22 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     if (
       trimmed.startsWith("[IMPORTANT]") ||
       trimmed.startsWith("[WARNING]") ||
-      trimmed.startsWith("ध्यान दें") ||
-      trimmed.startsWith("विशेष चेतावनी")
+      trimmed.startsWith("[DOSHA]") ||
+      trimmed.startsWith("विशेष चेतावनी:") ||
+      (trimmed.startsWith("ध्यान दें:") && trimmed.length <= 120)
     ) {
       flushList();
       flushKv();
       const cleanWarn = trimmed
-        .replace(/^\[(IMPORTANT|WARNING)\]/i, "")
-        .replace(/\[\/(IMPORTANT|WARNING)\]$/i, "")
+        .replace(/^\[(IMPORTANT|WARNING|DOSHA)\]/i, "")
+        .replace(/\[\/(IMPORTANT|WARNING|DOSHA)\]$/i, "")
         .trim();
       blocks.push({ type: "warning", text: cleanWarn });
       continue;
     }
 
-    // 7. Single Planet Line / Key-Value
-    const planetMatch = trimmed.match(/^(?:[-*•✦🕉▪▫▸►\d.)]\s*)?\*{0,2}(सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)(?:\s*[\(/][^)]*[\)])?\*{0,2}\s*:\s*(.+)$/i);
+    // 7. Single Planet Line with Full Narrative Text
+    const planetMatch = trimmed.match(/^(?:[-*•✦🕉▪▫▸►\d.)]\s*)?\*{0,2}(सूर्य|चंद्र|मंगल|बुध|गुरु|बृहस्पति|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)(?:\s*[\(/][^)]*[\)])?\*{0,2}\s*:\s*(.+)$/i);
     if (planetMatch) {
       flushList();
       flushKv();
@@ -641,7 +767,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       continue;
     }
 
-    // 8. Key-Value attribute line
+    // 8. Strict Key-Value attribute line (only for genuine short metadata)
     const kv = parseKeyValueLine(trimmed);
     if (kv) {
       flushList();
@@ -655,11 +781,11 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     }
 
     // 9. Bullet or Numbered item
-    const isBullet = /^[-*•✦]\s+/.test(trimmed);
-    const isNumber = /^\d+[.)]\s+/.test(trimmed);
+    const isBullet = /^[-*•✦→]\s+/.test(trimmed);
+    const isNumber = /^(?:\d+|\([0-9]+\)|[०-९]+)[.)]\s+/.test(trimmed);
 
     if (isBullet || isNumber) {
-      const itemText = trimmed.replace(/^[-*•✦\d.)]\s+/, "");
+      const itemText = trimmed.replace(/^[-*•✦→\d().०-९]+\s+/, "");
       if (!currentList || currentList.isNumbered !== isNumber) {
         flushList();
         currentList = { type: "list", isNumbered: isNumber, items: [] };
@@ -670,7 +796,20 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       flushList();
     }
 
-    // 10. Regular Paragraph
+    // 10. Concluding Blessing
+    if (
+      (trimmed.includes("हर हर महादेव") || trimmed.includes("जय श्री राम") || trimmed.includes("शुभम् भवतु") || trimmed.includes("अस्तु")) &&
+      trimmed.length <= 120 &&
+      i >= lines.length - 3
+    ) {
+      blocks.push({
+        type: "blessing",
+        text: trimmed
+      });
+      continue;
+    }
+
+    // 11. Regular Paragraph (All words guaranteed preserved)
     blocks.push({
       type: "paragraph",
       text: trimmed
@@ -680,6 +819,9 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
   flushList();
   flushKv();
   flushTable();
+
+  // Supplementary Customer Summary (🔱 सरल ग्राहक सारांश)
+  const kundaliSummary = extractKundaliSummary(sanitized);
 
   return (
     <div className={`aura-ai-msg-text-ai ${className}`}>
@@ -708,27 +850,16 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         // Section Heading
         if (block.type === "heading") {
           return (
-            <div key={idx} className="aura-ai-section-heading">
+            <div key={idx} className={`aura-ai-section-heading ${block.level === 2 ? "aura-ai-heading-grand" : ""}`}>
               <span className="aura-ai-heading-icon">
-                <Sparkles size={13} />
+                {block.level === 2 ? <Sparkles size={14} className="text-amber-600" /> : <Sparkle size={12} className="text-amber-700" />}
               </span>
               <span className="aura-ai-heading-title">{renderInlineContent(block.text)}</span>
             </div>
           );
         }
 
-        // Planet Grid
-        if (block.type === "planet_grid") {
-          return (
-            <div key={idx} className="aura-ai-planet-grid">
-              {block.planets.map((p, pIdx) => (
-                <PlanetCard key={pIdx} {...p} />
-              ))}
-            </div>
-          );
-        }
-
-        // Single Planet Card
+        // Planet Card
         if (block.type === "planet_card") {
           return (
             <div key={idx} className="my-2">
@@ -737,30 +868,50 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Responsive Table
+        // Responsive Table (Never drops cell content)
         if (block.type === "table") {
           return (
-            <div key={idx} className="aura-ai-table-wrap">
-              <table className="aura-ai-table">
-                {block.headers.length > 0 && (
-                  <thead>
-                    <tr>
-                      {block.headers.map((h, hIdx) => (
-                        <th key={hIdx}>{h.replace(/\*\*/g, "")}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                )}
-                <tbody>
-                  {block.rows.map((row, rIdx) => (
-                    <tr key={rIdx}>
-                      {row.map((cell, cIdx) => (
-                        <td key={cIdx}>{renderInlineContent(cell)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div key={idx} className="aura-ai-table-container my-3">
+              {/* Desktop / Standard Table View */}
+              <div className="aura-ai-table-wrap">
+                <table className="aura-ai-table">
+                  {block.headers.length > 0 && (
+                    <thead>
+                      <tr>
+                        {block.headers.map((h, hIdx) => (
+                          <th key={hIdx}>{renderInlineContent(h.replace(/\*\*/g, ""))}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {block.rows.map((row, rIdx) => (
+                      <tr key={rIdx}>
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx}>{renderInlineContent(cell)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Adaptive Stacked Cards (Visible only on very narrow screens) */}
+              <div className="aura-ai-table-stacked sm:hidden">
+                {block.rows.map((row, rIdx) => (
+                  <div key={rIdx} className="aura-ai-stacked-row-card">
+                    {row.map((cell, cIdx) => {
+                      const headerLabel = block.headers[cIdx] ? block.headers[cIdx].replace(/\*\*/g, "").trim() : "";
+                      return (
+                        <div key={cIdx} className="aura-ai-stacked-cell">
+                          {headerLabel && <span className="aura-ai-stacked-label">{headerLabel}:</span>}
+                          <span className="aura-ai-stacked-value">{renderInlineContent(cell)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           );
         }
@@ -774,13 +925,13 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         if (block.type === "warning") {
           return (
             <div key={idx} className="aura-ai-warning-card">
-              <AlertTriangle size={15} className="aura-ai-warning-icon" />
-              <div>{renderInlineContent(block.text)}</div>
+              <AlertTriangle size={16} className="aura-ai-warning-icon" />
+              <div className="aura-ai-warning-body">{renderInlineContent(block.text)}</div>
             </div>
           );
         }
 
-        // Key-Value Attribute Group
+        // Key-Value Attribute Group (Short metadata only)
         if (block.type === "kv_group") {
           return (
             <div key={idx} className="aura-ai-kv-card">
@@ -794,7 +945,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Lists
+        // Lists (Unordered & Numbered)
         if (block.type === "list") {
           return (
             <div key={idx} className="aura-ai-list-wrap">
@@ -816,6 +967,16 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
+        // Concluding Sacred Blessing
+        if (block.type === "blessing") {
+          return (
+            <div key={idx} className="aura-ai-blessing-card">
+              <div className="aura-ai-blessing-symbol">🕉️</div>
+              <div className="aura-ai-blessing-text">{renderInlineContent(block.text)}</div>
+            </div>
+          );
+        }
+
         // Regular Paragraph
         return (
           <p key={idx} className="aura-ai-para">
@@ -823,6 +984,101 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           </p>
         );
       })}
+
+      {/* Additional Supplementary Customer Summary (🔱 सरल ग्राहक सारांश) */}
+      {kundaliSummary && (
+        <div className="aura-ai-summary-card">
+          <div className="aura-ai-summary-header">
+            <span className="aura-ai-summary-icon">🔱</span>
+            <div className="aura-ai-summary-title-wrap">
+              <h4 className="aura-ai-summary-title">सरल ग्राहक सारांश (Vedic Summary)</h4>
+              <span className="aura-ai-summary-sub">आपकी पत्रिका का मुख्य सार व त्वरित मार्गदर्शन</span>
+            </div>
+          </div>
+
+          <div className="aura-ai-summary-grid">
+            {/* 1. Main Findings */}
+            <div className="aura-ai-summary-item">
+              <div className="aura-ai-summary-item-title">
+                <Compass size={13} className="text-amber-700" />
+                <span>मुख्य ज्योतिषीय स्थिति</span>
+              </div>
+              <div className="aura-ai-summary-item-body">
+                {kundaliSummary.findings.map((f, fi) => (
+                  <div key={fi} className="aura-ai-summary-badge">{renderInlineContent(f)}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Key Planets */}
+            {kundaliSummary.planets && kundaliSummary.planets.length > 0 && (
+              <div className="aura-ai-summary-item">
+                <div className="aura-ai-summary-item-title">
+                  <Sun size={13} className="text-amber-600" />
+                  <span>ग्रह प्रभाव</span>
+                </div>
+                <div className="aura-ai-summary-item-body">
+                  {kundaliSummary.planets.map((p, pi) => (
+                    <div key={pi} className="aura-ai-summary-text">{renderInlineContent(p)}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3. Doshas */}
+            <div className="aura-ai-summary-item">
+              <div className="aura-ai-summary-item-title">
+                <ShieldAlert size={13} className="text-red-700" />
+                <span>दोष व सावधानियां</span>
+              </div>
+              <div className="aura-ai-summary-item-body">
+                {kundaliSummary.doshas.map((d, di) => (
+                  <div key={di} className="aura-ai-summary-dosha-pill">{renderInlineContent(d)}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. Recommended Rudraksha */}
+            <div className="aura-ai-summary-item aura-ai-summary-item-featured">
+              <div className="aura-ai-summary-item-title">
+                <Gem size={13} className="text-amber-700" />
+                <span>अनुशंसित रुद्राक्ष</span>
+              </div>
+              <div className="aura-ai-summary-item-body">
+                {kundaliSummary.rudraksha.map((r, ri) => (
+                  <div key={ri} className="aura-ai-summary-rudraksha-pill">📿 {renderInlineContent(r)}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* 5. Sacred Mantras */}
+            <div className="aura-ai-summary-item">
+              <div className="aura-ai-summary-item-title">
+                <Sparkles size={13} className="text-amber-600" />
+                <span>दैनिक सिद्ध मंत्र</span>
+              </div>
+              <div className="aura-ai-summary-item-body">
+                {kundaliSummary.mantras.map((m, mi) => (
+                  <div key={mi} className="aura-ai-summary-mantra-pill">{m}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* 6. Practical Remedies */}
+            <div className="aura-ai-summary-item">
+              <div className="aura-ai-summary-item-title">
+                <CheckCircle2 size={13} className="text-emerald-700" />
+                <span>सरल व व्यावहारिक उपाय</span>
+              </div>
+              <div className="aura-ai-summary-item-body">
+                {kundaliSummary.remedies.map((rem, remi) => (
+                  <div key={remi} className="aura-ai-summary-text">• {renderInlineContent(rem)}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

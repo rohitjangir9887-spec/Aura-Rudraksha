@@ -12545,6 +12545,220 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border-radius: 4px;
 }
 
+.aura-ai-highlight-rudraksha {
+  background: #FEF3C7;
+  color: #78350F;
+  font-weight: 700;
+  padding: 1px 6px;
+  border: 1px solid #FCD34D;
+  border-radius: 4px;
+}
+
+/* Grand H1/H2 Section Headings */
+.aura-ai-heading-grand {
+  background: linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 50%, #FAF0E6 100%) !important;
+  border-left: 4px solid #B45309 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #78240C !important;
+  padding: 7px 12px !important;
+  border-radius: 0 10px 10px 0 !important;
+  box-shadow: 0 2px 5px rgba(180, 83, 9, 0.08) !important;
+  margin-top: 14px !important;
+  margin-bottom: 8px !important;
+}
+
+/* Auspicious Concluding Blessing Card */
+.aura-ai-blessing-card {
+  background: linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 60%, #FFEDD5 100%);
+  border: 1px solid #F59E0B;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 14px 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12);
+}
+
+.aura-ai-blessing-symbol {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.aura-ai-blessing-text {
+  font-size: 13px;
+  font-weight: 800;
+  color: #782218;
+  line-height: 1.45;
+}
+
+/* Mobile Adaptive Stacked Table View */
+.aura-ai-stacked-row-card {
+  background: #FFFDF8;
+  border: 1px solid #E5D5C5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.aura-ai-stacked-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.aura-ai-stacked-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #78350F;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.aura-ai-stacked-value {
+  color: #2B1408;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* Supplementary Customer Summary (🔱 सरल ग्राहक सारांश) */
+.aura-ai-summary-card {
+  background: linear-gradient(145deg, #FFFDF9 0%, #FEF3C7 35%, #FFFBEB 70%, #FAF0E6 100%);
+  border: 1.5px solid #D97706;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-top: 18px;
+  margin-bottom: 6px;
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.14);
+}
+
+.aura-ai-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(217, 119, 6, 0.35);
+}
+
+.aura-ai-summary-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.aura-ai-summary-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.aura-ai-summary-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #782218;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.aura-ai-summary-sub {
+  font-size: 11px;
+  color: #92400E;
+  font-weight: 600;
+}
+
+.aura-ai-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.aura-ai-summary-item {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #E5D5C5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aura-ai-summary-item-featured {
+  background: linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 100%);
+  border-color: #F59E0B;
+}
+
+.aura-ai-summary-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #782218;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.aura-ai-summary-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aura-ai-summary-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #451A03;
+  background: #FEF3C7;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #FDE68A;
+}
+
+.aura-ai-summary-dosha-pill {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #9F1239;
+  background: #FFE4E6;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #FECDD3;
+}
+
+.aura-ai-summary-rudraksha-pill {
+  font-size: 12px;
+  font-weight: 800;
+  color: #78350F;
+  background: #FEF3C7;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #F59E0B;
+}
+
+.aura-ai-summary-mantra-pill {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #782218;
+  background: #FFFBEB;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px dashed #D97706;
+  text-align: center;
+}
+
+.aura-ai-summary-text {
+  font-size: 11.5px;
+  color: #3B1B10;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
 /* Typing Bubble */
 .aura-ai-typing-bubble {
   display: flex;
