@@ -1,7 +1,7 @@
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { Setting } from "../models/Setting.js";
-import { ActiveOffer, Promotion } from "../models/Promotion.js";
+import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { defaultCoupons } from "../data/defaultData.js";
@@ -168,7 +168,26 @@ export async function getAuthoritativeCoupon(couponCode) {
         };
       }
 
-      // DB is connected, but coupon was not found in Coupon, ActiveOffer, or Promotion.
+      // Also check banner offers / deals
+      const offer = await Offer.findOne({
+        $or: [{ code: cleanCode }, { couponCode: cleanCode }],
+        status: "Active"
+      }).lean();
+
+      if (offer) {
+        return {
+          id: offer.id || String(offer._id),
+          code: cleanCode,
+          discount: Number(offer.discountValue || 0),
+          type: offer.type?.toLowerCase() === "fixed" || offer.type?.toLowerCase() === "flat amount" ? "fixed" : "percentage",
+          status: "Active",
+          expiry: null,
+          minAmount: 0,
+          description: offer.description || offer.title
+        };
+      }
+
+      // DB is connected, but coupon was not found in Coupon, ActiveOffer, Promotion, or Offer.
       // Do NOT fall back to inMemoryStore so deleted coupons are strictly rejected!
       return null;
     } catch (err) {

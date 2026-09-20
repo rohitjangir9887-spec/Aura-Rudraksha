@@ -105,10 +105,17 @@ export function AuraAIChatOrderModal({
       return;
     }
 
-    // Load available coupons
+    // Load available active coupons
     try {
       const allCoupons = db.getCoupons ? db.getCoupons() : [];
-      setAvailableCoupons(allCoupons.filter(c => c.active !== false));
+      setAvailableCoupons((allCoupons || []).filter(c => c.status === "Active" && c.active !== false));
+      if (db.fetchCoupons) {
+        db.fetchCoupons().then(list => {
+          if (Array.isArray(list)) {
+            setAvailableCoupons(list.filter(c => c.status === "Active" && c.active !== false));
+          }
+        }).catch(() => {});
+      }
     } catch (_) {}
 
     // Load user pre-fills
@@ -170,28 +177,27 @@ export function AuraAIChatOrderModal({
       return;
     }
 
-    // First check in-memory / cache
-    const found = availableCoupons.find(c => c.code.toUpperCase() === code);
-    if (found) {
-      if (found.minOrder && subtotal < found.minOrder) {
-        setCouponError(`Minimum order amount of ₹${found.minOrder} required for ${code}`);
-        setAppliedCoupon(null);
-        triggerHaptic("warning");
-        return;
-      }
-      setAppliedCoupon(found);
-      setCouponCode(found.code);
-      setCouponError("");
-      triggerHaptic("success");
-      return;
-    }
-
-    // Validate with server
+    // Strictly validate with authoritative backend API
     try {
       const res = await db.validateCoupon(code, subtotal);
-      if (res?.success && res.data) {
-        setAppliedCoupon(res.data);
-        setCouponCode(res.data.code || code);
+      if (res?.success && res.data && res.valid !== false) {
+        const validatedData = res.data;
+        if (validatedData.minOrder && subtotal < validatedData.minOrder) {
+          setCouponError(`Minimum order amount of ₹${validatedData.minOrder} required for ${code}`);
+          setAppliedCoupon(null);
+          triggerHaptic("warning");
+          return;
+        }
+        setAppliedCoupon({
+          id: validatedData.id || code,
+          code: validatedData.code || code,
+          discount: Number(validatedData.discount || 0),
+          type: validatedData.type || "percentage",
+          maxDiscount: Number(validatedData.maxDiscount || 0),
+          minOrder: Number(validatedData.minOrder || 0),
+          description: validatedData.description || ""
+        });
+        setCouponCode(validatedData.code || code);
         setCouponError("");
         triggerHaptic("success");
       } else {

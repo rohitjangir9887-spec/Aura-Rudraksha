@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
+import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { Order } from "../models/Order.js";
 import { Customer } from "../models/Customer.js";
 import { Setting } from "../models/Setting.js";
@@ -1038,7 +1039,7 @@ export async function chatAuraAI(req, res, next) {
       shouldPromptBirthForm = true;
     }
 
-    // 4. Fetch Live Catalog Products, Active Coupons & RAG Context
+    // 4. Fetch Live Catalog Products, Active Coupons & Admin Deals/Promotions
     let allStoreProds = [];
     let allStoreCoupons = [];
     if (isDbConnected()) {
@@ -1048,14 +1049,112 @@ export async function chatAuraAI(req, res, next) {
         allStoreProds = [];
       }
       try {
-        allStoreCoupons = await Coupon.find({ status: { $nin: ["Inactive", "inactive", "Expired", "expired"] } }).lean();
-      } catch (_) {
+        const [dbCoupons, dbActiveOffers, dbPromotions, dbOffers] = await Promise.all([
+          Coupon.find({ status: { $nin: ["Inactive", "inactive", "Expired", "expired", "Disabled", "disabled"] } }).lean(),
+          ActiveOffer.find({ status: { $nin: ["Inactive", "inactive", "Disabled", "disabled", "Expired", "expired"] }, enabled: { $ne: false } }).lean(),
+          Promotion.find({ status: { $nin: ["Inactive", "inactive", "Disabled", "disabled", "Expired", "expired"] }, isActive: { $ne: false } }).lean(),
+          Offer.find({ status: { $nin: ["Inactive", "inactive", "Disabled", "disabled", "Expired", "expired"] } }).lean()
+        ]);
+
+        const couponMap = new Map();
+        const nowTime = Date.now();
+
+        // 1. Process standard Coupons from Admin Coupons section
+        (dbCoupons || []).forEach(c => {
+          const code = (c.code || "").trim().toUpperCase();
+          if (!code) return;
+          if (c.expiry) {
+            const exp = new Date(c.expiry).getTime();
+            if (!isNaN(exp) && exp < nowTime) return;
+          }
+          couponMap.set(code, {
+            id: c.id || String(c._id),
+            code,
+            discount: Number(c.discount || c.value || 0),
+            type: c.type || "percentage",
+            minAmount: Number(c.minAmount || c.minOrderValue || 0),
+            maxDiscount: Number(c.maxDiscount || 0),
+            expiry: c.expiry || null,
+            description: c.description || (c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`),
+            source: "Admin Coupon"
+          });
+        });
+
+        // 2. Process ActiveOffers from Admin Deals / Active Offer section
+        (dbActiveOffers || []).forEach(o => {
+          const code = (o.couponCode || o.code || "").trim().toUpperCase();
+          if (!code) return;
+          const expiry = o.expiresAt || o.expiry;
+          if (expiry) {
+            const exp = new Date(expiry).getTime();
+            if (!isNaN(exp) && exp < nowTime) return;
+          }
+          if (!couponMap.has(code)) {
+            couponMap.set(code, {
+              id: o.id || String(o._id),
+              code,
+              discount: Number(o.discountValue || 0),
+              type: o.discountType === "percentage" ? "percentage" : "fixed",
+              minAmount: 0,
+              maxDiscount: 0,
+              expiry: expiry || null,
+              description: o.subtitle || o.title || `Special Deal Offer: ${code}`,
+              source: "Admin Active Deal"
+            });
+          }
+        });
+
+        // 3. Process Promotions from Admin Promotions section
+        (dbPromotions || []).forEach(p => {
+          const code = (p.couponCode || p.code || "").trim().toUpperCase();
+          if (!code) return;
+          const expiry = p.expiresAt || p.expiry;
+          if (expiry) {
+            const exp = new Date(expiry).getTime();
+            if (!isNaN(exp) && exp < nowTime) return;
+          }
+          if (!couponMap.has(code)) {
+            couponMap.set(code, {
+              id: p.id || String(p._id),
+              code,
+              discount: Number(p.discountValue || p.value || 0),
+              type: p.discountType === "percentage" || p.type === "percentage" ? "percentage" : "fixed",
+              minAmount: Number(p.minOrderValue || p.minAmount || 0),
+              maxDiscount: 0,
+              expiry: expiry || null,
+              description: p.description || p.subtitle || p.title || `Promo Offer: ${code}`,
+              source: "Admin Promotion"
+            });
+          }
+        });
+
+        // 4. Process Offers from Admin Banner Deals section
+        (dbOffers || []).forEach(of => {
+          const code = (of.couponCode || of.code || "").trim().toUpperCase();
+          if (!code) return;
+          if (!couponMap.has(code)) {
+            couponMap.set(code, {
+              id: of.id || String(of._id),
+              code,
+              discount: Number(of.discountValue || 0),
+              type: of.type?.toLowerCase() === "fixed" ? "fixed" : "percentage",
+              minAmount: 0,
+              maxDiscount: 0,
+              expiry: null,
+              description: of.description || of.title || `Banner Deal: ${code}`,
+              source: "Admin Offer Deal"
+            });
+          }
+        });
+
+        allStoreCoupons = Array.from(couponMap.values());
+      } catch (err) {
+        console.warn("Error fetching store coupons/promotions in AI controller:", err.message);
         allStoreCoupons = [];
       }
     }
 
     const activeCoupons = (allStoreCoupons || []).filter(c => {
-      if (c.status && c.status.toLowerCase() !== "active") return false;
       if (c.expiry) {
         const expDate = new Date(c.expiry);
         if (!isNaN(expDate.getTime()) && expDate.getTime() < Date.now()) return false;
@@ -1064,7 +1163,7 @@ export async function chatAuraAI(req, res, next) {
     });
 
     const isCouponInquiry = intent === "COUPON" || intent === "OFFER" || 
-      /(coupon|code|promo|voucher|discount|offer|chhut)/i.test(message || "");
+      /(coupon|code|promo|voucher|discount|offer|chhut|off|deal)/i.test(message || "");
 
     const matchedCoupons = (isCouponInquiry && activeCoupons.length > 0)
       ? activeCoupons.map(c => ({
@@ -1072,7 +1171,7 @@ export async function chatAuraAI(req, res, next) {
           code: c.code,
           discount: c.discount,
           type: c.type || "percentage",
-          minAmount: c.minAmount || c.minOrderValue || 0,
+          minAmount: c.minAmount || 0,
           description: c.description || (c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`)
         }))
       : [];
@@ -1102,8 +1201,8 @@ export async function chatAuraAI(req, res, next) {
     }).join("\n");
 
     const couponsPromptSnippet = activeCoupons.length > 0
-      ? activeCoupons.map(c => `- Verified Coupon Code: "${c.code.toUpperCase()}" | Discount: ${c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`}${c.minAmount || c.minOrderValue ? ` | Min Order: ₹${c.minAmount || c.minOrderValue}` : ""} | Details: ${c.description || "Active Vedic Blessing Discount"}`).join("\n")
-      : "No promo coupon codes currently active. Current customer benefits: free Shiva Puja energization and free Pan-India shipping on prepaid orders.";
+      ? activeCoupons.map(c => `- Verified Active Code: "${c.code.toUpperCase()}" | Discount: ${c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`}${c.minAmount ? ` | Min Order: ₹${c.minAmount}` : ""} | Source: ${c.source} | Description: ${c.description || "Active Store Discount"}`).join("\n")
+      : "No promo coupon codes currently active in MongoDB. Current customer benefits: free Shiva Puja energization and free Pan-India shipping on prepaid orders.";
 
     const urlAndCatalogRulesText = `
 WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
@@ -1124,13 +1223,15 @@ WEBSITE URL & PRODUCT LINKING RULES (CRITICAL):
   - Whenever linking to a product, ALWAYS use its exact Valid Link from the catalog below in markdown format:
     e.g. [Product Name](/product/${allStoreProds[0]?.slug || "slug"}) or [Product Name](/product/${allStoreProds[0]?.id || "id"})
 
-STRICT COUPON CODE INTEGRITY (ABSOLUTE ZERO-HALLUCINATION RULE):
-- REAL ACTIVE STORE COUPONS:
+STRICT COUPON CODE & DEALS INTEGRITY (ABSOLUTE ZERO-HALLUCINATION RULE):
+- REAL ACTIVE STORE COUPONS & ADMIN DEALS (LIVE FROM MONGODB):
 ${couponsPromptSnippet}
-- CRITICAL: NEVER invent, hallucinate, guess, or mention ANY coupon code not explicitly listed above!
-- NEVER suggest non-existent promo codes (e.g. "AURA10", "SHIV10", "SHRAWAN200", "DISCOUNT50", "FIRST100") unless they appear in the verified active list above.
-- If customer asks for a coupon or discount code and active coupons exist, share ONLY the verified codes above with their exact discount and conditions.
-- If NO active coupon codes are listed above, politely and transparently inform the customer: "Abhi koi separate coupon code live nahi hai, lekin sabhi products par direct seasonal discounts aur free Haridwar Shiva puja consecration uplabdh hai."
+- CRITICAL ANTI-HALLUCINATION MANDATE:
+  - NEVER invent, hallucinate, guess, or mention ANY coupon code not explicitly listed in the verified list above!
+  - NEVER generate random promo codes (such as "AURA10", "SHIV10", "DISCOUNT50", "FIRST100", "FESTIVAL20") unless they appear in the verified active list above.
+  - If a user asks for discounts, offers, or coupon codes, share ONLY the exact verified active codes from above with their terms and conditions.
+  - If NO coupon codes are listed above (i.e. "No promo coupon codes currently active"), you MUST tell the customer transparently and politely in Hindi: "वर्तमान में कोई अलग कूपन कोड सक्रिय नहीं है, लेकिन आपको हर ऑर्डर पर निःशुल्क प्राण-प्रतिष्ठा पूजा और निःशुल्क शिपिंग की सुविधा मिल रही है।"
+  - Remind the user that only official active coupon codes apply during checkout.
 
 REAL STORE PRODUCT CATALOG:
 ${storeCatalogPromptSnippet}
