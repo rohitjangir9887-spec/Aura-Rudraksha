@@ -113,13 +113,13 @@ export function getNvidiaClient(customKey = "") {
 }
 
 /**
- * Detect if AI generated response is truncated, cut off mid-sentence, or hit token limits
+ * Detect if AI generated response is genuinely truncated, cut off mid-sentence, or hit token limits
  */
 export function isTextIncomplete(text, finishReason = "") {
   if (finishReason === "length") return true;
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
-  if (trimmed.length < 60) return false;
+  if (trimmed.length < 40) return false;
 
   // If response already has AURA_KEYWORDS section = it is definitively complete
   if (trimmed.includes("[AURA_KEYWORDS]:")) return false;
@@ -128,19 +128,16 @@ export function isTextIncomplete(text, finishReason = "") {
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
 
-  // Check unclosed markdown table row
-  if (/\|[^\n|]+$/.test(trimmed)) return true;
+  // Check unclosed markdown table row that got cut off mid-line
+  if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // Check if ends with dangling connector words or unclosed list items
-  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|\*\*|→|:$)$/;
+  // Check if ends with dangling connector words or unclosed bullet points
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*)$/;
   if (danglingConnectors.test(trimmed)) return true;
 
-  // Clean terminal signals — these definitively end a Vedic response
-  const hasTerminalSignal = /([।!?]\s*$|🙏\s*$|🕉️\s*$|✅\s*$|🌟\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|\[AURA_KEYWORDS\]:[^\n]*\s*$)/.test(trimmed);
+  // Clean terminal signals — these definitively end a response
+  const hasTerminalSignal = /([।!?.\n]\s*$|[।!?.]["'*)\]]\s*$|🙏\s*$|🕉️\s*$|✅\s*$|🌟\s*$|✨\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|\[AURA_KEYWORDS\]:[^\n]*\s*$)/.test(trimmed);
   if (hasTerminalSignal) return false;
-
-  // If text is long and has no terminal punctuation, consider incomplete
-  if (trimmed.length > 200) return true;
 
   return false;
 }
@@ -1396,9 +1393,6 @@ ${memoryContextText || "Guest shopper."}`;
 
       // 1. Primary Streaming Execution: Prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first with Multi-turn Automatic Continuation
       if (nvidiaClient && !clientDisconnected) {
-        const isNvidia = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
-        const nimParams = isNvidia ? { chat_template_kwargs: { enable_thinking: false } } : {};
-
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
           try {
@@ -1407,10 +1401,8 @@ ${memoryContextText || "Guest shopper."}`;
                 model: modelCandidate,
                 messages: nimMessages,
                 temperature: 0.35,
-                max_tokens: 8192,
-                stream: true,
-                stream_options: { include_usage: true },
-                ...nimParams
+                max_tokens: 4096,
+                stream: true
               },
               { signal: abortController.signal }
             );
@@ -1430,7 +1422,7 @@ ${memoryContextText || "Guest shopper."}`;
 
             // Automatic Multi-Turn Continuation if response hit token limits or was truncated mid-sentence
             let passCount = 0;
-            const MAX_CONTINUATION_PASSES = 3;
+            const MAX_CONTINUATION_PASSES = 2;
             while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
               passCount++;
               try {
@@ -1448,10 +1440,8 @@ ${memoryContextText || "Guest shopper."}`;
                     model: modelCandidate,
                     messages: continuationMessages,
                     temperature: 0.35,
-                    max_tokens: 8192,
-                    stream: true,
-                    stream_options: { include_usage: true },
-                    ...nimParams
+                    max_tokens: 4096,
+                    stream: true
                   },
                   { signal: abortController.signal }
                 );
@@ -1659,7 +1649,6 @@ ${memoryContextText || "Guest shopper."}`;
     // 1. Prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first
     const nonStreamNvidiaClient = getNvidiaClient();
     if (nonStreamNvidiaClient) {
-      const isNvidia = (nonStreamNvidiaClient.baseURL || "").includes("nvidia") || (nonStreamNvidiaClient.baseURL || "").includes("integrate.api");
       for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
         if (generatedSuccessfully) break;
         try {
@@ -1667,8 +1656,7 @@ ${memoryContextText || "Guest shopper."}`;
             model: modelCandidate,
             messages: nimMessages,
             temperature: 0.35,
-            max_tokens: 8192,
-            ...(isNvidia ? { chat_template_kwargs: { enable_thinking: false } } : {})
+            max_tokens: 4096
           });
 
           let outContent = completion.choices?.[0]?.message?.content || "";
@@ -1685,8 +1673,7 @@ ${memoryContextText || "Guest shopper."}`;
                   { role: "user", content: "Continue your comprehensive reading exactly from where you stopped. Complete the analysis, remedies, Final Summary, and [AURA_KEYWORDS]." }
                 ],
                 temperature: 0.35,
-                max_tokens: 8192,
-                ...(isNvidia ? { chat_template_kwargs: { enable_thinking: false } } : {})
+                max_tokens: 4096
               });
               const contText = contCompletion.choices?.[0]?.message?.content || "";
               if (contText.trim()) {

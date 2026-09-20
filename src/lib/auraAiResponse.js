@@ -31,17 +31,20 @@ export function stripThinkingAndReasoning(raw) {
   text = text.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "");
   text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
 
-  // 2. Remove unclosed thinking / reasoning / analysis tags (for active streaming)
-  text = text.replace(/<think>[\s\S]*/gi, "");
-  text = text.replace(/<reasoning>[\s\S]*/gi, "");
-  text = text.replace(/<analysis>[\s\S]*/gi, "");
+  // 2. If unclosed <think> tag is at the start (active thinking phase before response), strip it
+  if (/^[\s\n]*<think>/i.test(text) && !text.includes("</think>")) {
+    return "";
+  }
+  if (/^[\s\n]*<reasoning>/i.test(text) && !text.includes("</reasoning>")) {
+    return "";
+  }
 
   // 3. Remove internal chain-of-thought phrases & line narrations
   const reasoningRegexes = [
-    /^[\s\n]*okay,?\s+the\s+user[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
-    /^[\s\n]*let\s+me\s+check[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
-    /^[\s\n]*looking\s+at\s+the\s+context[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i,
-    /^[\s\n]*first,?\s+they\s+started[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|$)/i
+    /^[\s\n]*okay,?\s+the\s+user[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|pranam|har har|$)/i,
+    /^[\s\n]*let\s+me\s+check[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|pranam|har har|$)/i,
+    /^[\s\n]*looking\s+at\s+the\s+context[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|pranam|har har|$)/i,
+    /^[\s\n]*first,?\s+they\s+started[\s\S]*?(?=\n\n|namaste|hello|hii|aap|haaye|haan|kaise|rudraksha|1000|pranam|har har|$)/i
   ];
 
   for (const reg of reasoningRegexes) {
@@ -93,33 +96,12 @@ export function sanitizeCustomerText(raw) {
   text = text.replace(/NVIDIA_API_[A-Z0-9_]+/gi, "");
   text = text.replace(/admin\s*portal\s*url/gi, "Aura Rudraksha Support");
 
-  // 3. Remove raw JSON object embeddings from conversation
-  const firstBrace = text.indexOf("{");
-  if (firstBrace !== -1) {
-    if (firstBrace === 0 || /^[\s\n]*\{/.test(text)) {
-      const parsed = tryParseJsonObject(text);
-      if (parsed && looksLikeInternalJson(parsed)) {
-        return sanitizeCustomerText(String(parsed.text || parsed.message || ""));
-      }
-    }
-    const lastBrace = text.lastIndexOf("}");
-    if (lastBrace > firstBrace) {
-      const maybeJson = text.slice(firstBrace, lastBrace + 1);
-      const parsed = tryParseJsonObject(maybeJson);
-      if (parsed && looksLikeInternalJson(parsed)) {
-        const before = text.slice(0, firstBrace).trim();
-        const inner = String(parsed.text || parsed.message || "").trim();
-        if (before && inner && !before.includes(inner.slice(0, 24))) {
-          text = `${before}\n\n${inner}`.trim();
-        } else {
-          text = inner || before;
-        }
-      }
-    }
-    if (INTERNAL_KEYS.some((k) => text.includes(`"${k}"`))) {
-      const parsed = tryParseJsonObject(text.slice(firstBrace));
-      if (parsed && parsed.text) return sanitizeCustomerText(String(parsed.text));
-      text = text.slice(0, firstBrace).trim();
+  // 3. Remove raw JSON object wrapper if entire response is a JSON envelope
+  if (/^[\s\n]*\{/.test(text)) {
+    const parsed = tryParseJsonObject(text);
+    if (parsed && typeof parsed === "object") {
+      if (parsed.text) return sanitizeCustomerText(String(parsed.text));
+      if (parsed.message) return sanitizeCustomerText(String(parsed.message));
     }
   }
 

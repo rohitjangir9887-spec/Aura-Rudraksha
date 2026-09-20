@@ -396,6 +396,7 @@ export function AuraAIPage() {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream error in full-page Aura AI:", err);
           setErrorOccurred(true);
+          setLoading(false);
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;

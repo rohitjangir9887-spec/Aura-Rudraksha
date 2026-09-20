@@ -742,6 +742,7 @@ export function AuraAIFloating() {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream error in floating assistant:", err);
           setErrorOccurred(true);
+          setLoading(false);
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
