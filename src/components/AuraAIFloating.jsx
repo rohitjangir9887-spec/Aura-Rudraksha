@@ -2252,7 +2252,7 @@ export function AuraAIFloating() {
                           {/* AURA_KEYWORDS Interactive Suggested Search Chips */}
                           {m.sender === "ai" && (() => {
                             const parsedKws = parseAuraKeywords(m.text || "");
-                            const isLastAi = idx === messages.length - 1;
+                            const isLastAi = index === messages.length - 1;
                             let effectiveKws = parsedKws;
                             if (!effectiveKws.length && isLastAi && !loading) {
                               if (Array.isArray(m.quickReplies) && m.quickReplies.length > 0) {
