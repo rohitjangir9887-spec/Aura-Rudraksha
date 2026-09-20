@@ -9,6 +9,7 @@ import {
   HelpCircle, ArrowRight, ShieldCheck, X, Plus, Pencil, Trash2, ShoppingBag
 } from "lucide-react";
 import { AdminProductMultiSelector } from "../../components/admin/AdminProductMultiSelector";
+import { getOfferDisplayTitle } from "../../hooks/useActiveOffer";
 import "./admin-pages.css";
 
 export function AdminOffers() {
@@ -53,6 +54,23 @@ export function AdminOffers() {
   const handleChange = (field, val) => {
     setActiveOffer(prev => {
       const updated = { ...prev, [field]: val };
+      if (field === "discountType" && val === "percentage") {
+        if (!prev.title || prev.title.includes("₹") || prev.title === "₹200 OFF") {
+          const discountVal = updated.discountValue || 10;
+          updated.title = `Flat ${discountVal}% OFF`;
+        }
+      } else if (field === "discountType" && val === "fixed") {
+        if (!prev.title || prev.title.includes("%")) {
+          const discountVal = updated.discountValue || 200;
+          updated.title = `₹${discountVal} OFF`;
+        }
+      } else if (field === "discountValue") {
+        if (prev.discountType === "percentage" && (prev.title?.includes("%") || prev.title?.includes("₹"))) {
+          updated.title = `Flat ${val}% OFF`;
+        } else if (prev.discountType === "fixed" && (prev.title?.includes("₹") || prev.title?.includes("%"))) {
+          updated.title = `₹${val} OFF`;
+        }
+      }
       return updated;
     });
   };
@@ -125,6 +143,12 @@ export function AdminOffers() {
     setIsSaving(true);
     try {
       let offerToSave = { ...activeOffer };
+      if (offerToSave.discountType === "percentage") {
+        if (!offerToSave.title || offerToSave.title.includes("₹") || offerToSave.title === "₹200 OFF") {
+          const val = offerToSave.discountValue || 10;
+          offerToSave.title = `Flat ${val}% OFF`;
+        }
+      }
       if (offerToSave.status === "Active" && offerToSave.enabled !== false) {
         const expTime = offerToSave.expiresAt ? new Date(offerToSave.expiresAt).getTime() : 0;
         if (!expTime || expTime <= Date.now()) {
@@ -1054,7 +1078,7 @@ export function AdminOffers() {
                       )}
                     </div>
                     <strong style={{ fontSize: "14px", color: activeOffer.textColor, display: "block" }}>
-                      Save Extra <span style={{ color: activeOffer.accentColor }}>{activeOffer.title}</span>
+                      Save Extra <span style={{ color: activeOffer.accentColor }}>{getOfferDisplayTitle(activeOffer)}</span>
                     </strong>
                     <span style={{ fontSize: "11.5px", color: `${activeOffer.textColor}bb`, display: "block", marginTop: "2px" }}>
                       Use code <strong style={{ color: activeOffer.accentColor }}>{activeOffer.couponCode}</strong> at checkout
@@ -1095,7 +1119,7 @@ export function AdminOffers() {
                     boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700 }}>
-                      <span>🎁</span> <span>{activeOffer.title}</span>
+                      <span>🎁</span> <span>{getOfferDisplayTitle(activeOffer)}</span>
                     </div>
                     <span style={{ fontSize: "9px", color: activeOffer.accentColor, fontWeight: 700, background: "rgba(255,255,255,0.12)", padding: "1px 4px", borderRadius: "3px", textAlign: "center" }}>
                       {activeOffer.couponCode}
@@ -1117,7 +1141,7 @@ export function AdminOffers() {
                     boxShadow: "0 4px 14px rgba(0,0,0,0.2)"
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", color: activeOffer.accentColor, fontWeight: 700 }}>
-                      <span>🎁 {activeOffer.title}</span>
+                      <span>🎁 {getOfferDisplayTitle(activeOffer)}</span>
                       <span style={{ color: `${activeOffer.textColor}60` }}>×</span>
                     </div>
                     <span style={{ fontSize: "9.5px", color: activeOffer.textColor, display: "block" }}>

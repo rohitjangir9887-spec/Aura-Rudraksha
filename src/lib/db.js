@@ -2404,9 +2404,15 @@ export const db = {
     if (res?.success && res.data) {
       const expiresAt = res.data.expiresAt || res.data.expiry || storeCache.activeOffer?.expiresAt;
       const startDate = res.data.startDate || res.data.startAt || storeCache.activeOffer?.startDate;
+      let title = res.data.title;
+      if (res.data.discountType === "percentage" && (!title || title.includes("₹") || title === "₹200 OFF")) {
+        const val = res.data.discountValue || 10;
+        title = `Flat ${val}% OFF`;
+      }
       storeCache.activeOffer = { 
         ...storeCache.activeOffer, 
         ...res.data,
+        title: title || res.data.title,
         expiresAt,
         expiry: expiresAt,
         startDate,
@@ -2418,9 +2424,15 @@ export const db = {
   },
 
   saveActiveOffer: async (offer) => {
+    let title = offer.title;
+    if (offer.discountType === "percentage" && (!title || title.includes("₹") || title === "₹200 OFF")) {
+      const val = offer.discountValue || 10;
+      title = `Flat ${val}% OFF`;
+    }
     const updated = {
       ...storeCache.activeOffer,
       ...offer,
+      title: title || offer.title,
       id: "OFFER-CENTRAL-1",
       expiresAt: offer.expiresAt || offer.expiry || storeCache.activeOffer.expiresAt,
       expiry: offer.expiresAt || offer.expiry || storeCache.activeOffer.expiry,

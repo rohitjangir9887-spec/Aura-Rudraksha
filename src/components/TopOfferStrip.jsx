@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { emitToast } from '../context/ToastContext';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useActiveOffer } from '../hooks/useActiveOffer';
+import { useActiveOffer, getOfferDisplayTitle } from '../hooks/useActiveOffer';
 
 export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
   const { offer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer(null, { withTimer: true });
@@ -86,7 +86,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
             🎁
           </span>
           <span style={{ fontWeight: '700', color: offerTextColor, letterSpacing: '0.2px', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', fontSize: '13.5px' }}>
-            {offer.title || "Special Offer"}
+            {getOfferDisplayTitle(offer)}
           </span>
 
           {offer.couponCode && (

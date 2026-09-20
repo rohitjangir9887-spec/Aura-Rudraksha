@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Sparkles, Copy, Check, Clock, Tag, ArrowRight } from "lucide-react";
-import { useActiveOffer } from "../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 
 /**
  * Premium Offer Card for Product Detail page near price & purchase buttons
@@ -17,7 +17,7 @@ export function OfferCard({ product = null }) {
     setTimeout(() => setCopied(false), 2400);
   };
 
-  const title = offer.title || "₹200 OFF";
+  const title = getOfferDisplayTitle(offer);
   const subtitle = offer.subtitle || "Limited Time Festival Offer";
   const code = offer.couponCode || "";
   const hasTimer = offer.timerEnabled !== false && !timeLeft.isExpired;

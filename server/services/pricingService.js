@@ -137,15 +137,17 @@ export async function getAuthoritativeCoupon(couponCode) {
       }).lean();
 
       if (activeOffer) {
+        const isPct = activeOffer.discountType === "percentage";
+        const val = Number(activeOffer.discountValue) || (isPct ? 10 : 200);
         return {
           id: activeOffer.id || "OFFER-CENTRAL-1",
           code: cleanCode,
-          discount: Number(activeOffer.discountValue) || 200,
-          type: activeOffer.discountType === "percentage" ? "percentage" : "fixed",
+          discount: val,
+          type: isPct ? "percentage" : "fixed",
           status: "Active",
           expiry: activeOffer.expiresAt || activeOffer.expiry,
           minAmount: 0,
-          description: activeOffer.subtitle || activeOffer.title
+          description: isPct ? `${val}% OFF` : (activeOffer.subtitle || activeOffer.title || "Central Live Offer")
         };
       }
 

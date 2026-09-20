@@ -10,7 +10,7 @@ import { money, pct } from "../data";
 import { db } from "../lib/db";
 import { useWishlist } from "../hooks/useWishlist";
 import { useCart } from "../hooks/useCart";
-import { useActiveOffer } from "../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 import { emitToast } from "../context/ToastContext";
 
 export function ProductCardSkeleton() {
@@ -89,7 +89,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   };
 
   // Dynamic offer display text
-  const offerTitle = offer?.title || "Special Offer";
+  const offerTitle = getOfferDisplayTitle(offer);
   const offerCode = offer?.couponCode || "";
 
   const handlePreload = () => {

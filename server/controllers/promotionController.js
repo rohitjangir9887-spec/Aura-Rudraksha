@@ -58,9 +58,19 @@ export async function getActiveOffer(req, res, next) {
 export async function saveActiveOffer(req, res, next) {
   try {
     const data = pickFields(req.body, ACTIVE_OFFER_FIELDS);
+    const isPct = data.discountType === "percentage";
+    const discountVal = Number(data.discountValue) || (isPct ? 10 : 200);
+    
+    let resolvedTitle = data.title;
+    if (isPct && (!resolvedTitle || resolvedTitle.includes("₹") || resolvedTitle === "₹200 OFF")) {
+      resolvedTitle = `Flat ${discountVal}% OFF`;
+    }
+
     const payload = {
       ...data,
       id: "OFFER-CENTRAL-1",
+      title: resolvedTitle,
+      discountValue: discountVal,
       expiry: data.expiresAt || data.expiry,
       expiresAt: data.expiresAt || data.expiry,
       startDate: data.startAt || data.startDate,
@@ -83,19 +93,18 @@ export async function saveActiveOffer(req, res, next) {
       // Also ensure coupon code is synchronized in Coupon collection if offer is active
       const cleanCode = (payload.couponCode || "").trim().toUpperCase();
       if (cleanCode && payload.enabled !== false && payload.status === "Active") {
-        const resolvedDiscount = Number(payload.discountValue || 200);
         await Coupon.findOneAndUpdate(
           { code: cleanCode },
           {
             $set: {
               id: "COUP-" + cleanCode,
               code: cleanCode,
-              discount: resolvedDiscount,
-              type: payload.discountType === "percentage" ? "percentage" : "fixed",
+              discount: discountVal,
+              type: isPct ? "percentage" : "fixed",
               status: "Active",
               expiry: payload.expiresAt || payload.expiry || null,
               minAmount: 0,
-              description: payload.subtitle || payload.title || "Central Live Offer"
+              description: isPct ? `${discountVal}% OFF` : (payload.subtitle || payload.title || "Central Live Offer")
             }
           },
           { upsert: true, setDefaultsOnInsert: true }

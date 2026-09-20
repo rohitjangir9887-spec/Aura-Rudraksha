@@ -1,25 +1,19 @@
 import React, { useState } from "react";
 import { Tag, Copy, Check, Sparkles } from "lucide-react";
 import { emitToast } from "../../context/ToastContext";
+import { getOfferDisplayTitle } from "../../hooks/useActiveOffer";
 
 export function ProductOfferCard({ coupons = [], activeOffer = null }) {
   const [copiedCode, setCopiedCode] = useState("");
 
-  const validCoupon = (Array.isArray(coupons) ? coupons.find(c => c.status === "Active") : null) || (activeOffer?.couponCode ? {
-    code: activeOffer.couponCode,
-    discountPercent: activeOffer.discountType === "percentage" ? (activeOffer.discountValue || activeOffer.discount || 10) : 0,
-    discountAmount: activeOffer.discountType !== "percentage" ? (activeOffer.discountValue || activeOffer.discount || 200) : 0,
-    title: activeOffer.title || "Special Vedic Blessing Offer"
-  } : null);
+  const offerToUse = activeOffer || ((Array.isArray(coupons) ? coupons.find(c => c.status === "Active") : null));
 
-  if (!validCoupon && !activeOffer) return null;
+  if (!offerToUse) return null;
 
-  const code = validCoupon?.code || activeOffer?.couponCode || "";
+  const code = offerToUse.couponCode || offerToUse.code || "";
   if (!code) return null;
 
-  const discountText = activeOffer?.title || (validCoupon?.discountPercent 
-    ? `Flat ${validCoupon.discountPercent}% OFF` 
-    : (validCoupon?.discountAmount ? `Flat ₹${validCoupon.discountAmount} OFF` : (validCoupon?.discount ? (validCoupon?.type === "fixed" ? `Flat ₹${validCoupon.discount} OFF` : `${validCoupon.discount}% OFF`) : "Special Discount")));
+  const discountText = getOfferDisplayTitle(offerToUse);
 
   const handleCopy = (e) => {
     e.stopPropagation();

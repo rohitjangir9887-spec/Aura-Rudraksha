@@ -1,6 +1,6 @@
 import React from "react";
 import { Gift, ShieldCheck, Sparkles, Copy, Check, Clock } from "lucide-react";
-import { useActiveOffer } from "../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function ShopOfferBanner() {
@@ -12,7 +12,7 @@ export function ShopOfferBanner() {
     return null;
   }
 
-  const offerTitle = offer.title || "Special Offer";
+  const offerTitle = getOfferDisplayTitle(offer);
   const couponCode = offer.couponCode || "";
   const subtitle = offer.subtitle || "Limited time sacred festival discount on authentic Nepali rudrakshas.";
 

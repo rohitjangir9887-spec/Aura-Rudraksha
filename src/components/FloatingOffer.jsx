@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Gift, X, Copy, Check, Clock } from "lucide-react";
-import { useActiveOffer } from "../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 
 /**
  * Scroll-based Floating Offer UI for Product Detail page
@@ -66,7 +66,7 @@ export function FloatingOffer({ product = null, hasStickyBar = false }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const title = offer.title || "₹200 OFF";
+  const title = getOfferDisplayTitle(offer);
   const subtitle = offer.subtitle || "Limited Time Offer";
   const code = offer.couponCode || "";
   const hasTimer = offer.timerEnabled !== false && !timeLeft.isExpired;

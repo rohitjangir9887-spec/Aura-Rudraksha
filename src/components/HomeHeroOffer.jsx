@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Gift, Copy, Check, Clock, Sparkles, ArrowRight, ShieldCheck, Flame } from "lucide-react";
-import { useActiveOffer } from "../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { OptimizedImage } from "./OptimizedImage";
 
@@ -22,7 +22,7 @@ export function HomeHeroOffer() {
     setTimeout(() => setCopied(false), 2400);
   };
 
-  const title = offer.title || "Special Offer";
+  const title = getOfferDisplayTitle(offer);
   const subtitle = offer.subtitle || "Limited Time Offer On Certified Rudraksha";
   const code = offer.couponCode || "";
   const hasTimer = offer.timerEnabled !== false && !timeLeft.isExpired;

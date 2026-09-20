@@ -3,6 +3,47 @@ import { db, onStoreUpdate } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
 
 /**
+ * Utility function to dynamically generate a clean display title for an offer or coupon.
+ * Prevents ₹ icon/symbol from appearing when discountType is "percentage".
+ */
+export function getOfferDisplayTitle(offer) {
+  if (!offer) return "Special Offer";
+
+  const discountType = offer.discountType || (offer.type?.toLowerCase() === "percentage" ? "percentage" : (offer.type?.toLowerCase() === "fixed" ? "fixed" : null));
+  const val = Number(offer.discountValue ?? offer.discount ?? offer.value ?? 0);
+
+  if (discountType === "percentage") {
+    // If title already has percentage like "15% OFF", return it
+    if (offer.title && offer.title.includes("%")) {
+      return offer.title;
+    }
+    // If title has ₹ symbol or is equal to "₹200 OFF" or missing/generic:
+    if (!offer.title || offer.title.includes("₹") || offer.title === "₹200 OFF" || offer.title === "Special Offer") {
+      return val ? `Flat ${val}% OFF` : "Percentage Discount";
+    }
+    // Custom title without rupee symbol
+    return offer.title || (val ? `Flat ${val}% OFF` : "Percentage Discount");
+  } else if (discountType === "fixed") {
+    // If title has percentage symbol but discountType is fixed
+    if (offer.title && offer.title.includes("%") && !offer.title.includes("₹")) {
+      return val ? `Flat ₹${val} OFF` : "Special Discount";
+    }
+    if (!offer.title || offer.title === "Special Offer") {
+      return val ? `Flat ₹${val} OFF` : "Special Discount";
+    }
+    return offer.title;
+  }
+
+  // Fallback if discountType is not specified
+  if (offer.title && offer.title.includes("₹") && (offer.discountPercent || offer.discountType === "percentage")) {
+    const pctVal = offer.discountPercent || offer.discountValue || offer.discount || 10;
+    return `Flat ${pctVal}% OFF`;
+  }
+
+  return offer.title || "Special Offer";
+}
+
+/**
  * Calculates remaining time broken down into padded strings and numerical values
  * Guarantees no negative values, safe NaN guards, and explicit isExpired flag.
  */

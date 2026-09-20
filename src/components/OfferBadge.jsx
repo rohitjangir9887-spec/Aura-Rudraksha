@@ -1,6 +1,6 @@
 import React from "react";
 import { Gift } from "lucide-react";
-import { useActiveOffer } from "../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 
 /**
  * Premium Offer Badge for Product Cards & Gallery view
@@ -14,7 +14,7 @@ export function OfferBadge({ product = null, variant = "card" }) {
   if (variant === "card" && offer.productCardEnabled === false) return null;
   if (variant === "image" && offer.imageBadgeEnabled === false) return null;
 
-  const title = offer.title || "₹200 OFF";
+  const title = getOfferDisplayTitle(offer);
   const code = offer.couponCode || "";
   const subtitle = offer.subtitle || "LIMITED OFFER";
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Tag, Clock, Copy, Check, Sparkles } from "lucide-react";
 import { emitToast } from "../../context/ToastContext";
-import { useActiveOffer } from "../../hooks/useActiveOffer";
+import { useActiveOffer, getOfferDisplayTitle } from "../../hooks/useActiveOffer";
 
 export function CheckoutTopOffer({ activeOffer: propOffer, onApplyCoupon }) {
   const { offer: hookOffer, isActive, isExpired, timeLeft, copyCoupon } = useActiveOffer(null, { withTimer: true });
@@ -15,7 +15,7 @@ export function CheckoutTopOffer({ activeOffer: propOffer, onApplyCoupon }) {
   }
 
   const couponCode = offer?.couponCode || "";
-  const title = offer?.title || "🎁 Special Festival Discount";
+  const title = getOfferDisplayTitle(offer);
   const subtitle = offer?.subtitle || "Save extra on your sacred spiritual order";
   const hasTimer = offer?.timerEnabled !== false && (offer?.expiresAt || offer?.expiry) && !timeLeft.isExpired;
   const showDays = Number(timeLeft.days) > 0;
