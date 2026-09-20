@@ -1,10 +1,9 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { RefreshCw, ShoppingCart, Check, Sparkles, MessageCircle, ArrowRight, Share2, Copy, BookmarkCheck } from "lucide-react";
-import { emitToast } from "../../context/ToastContext";
+import { RefreshCw, ShoppingCart, Check, Sparkles, MessageCircle, ArrowRight } from "lucide-react";
 
 export function PanditjiResult({
   result,
@@ -13,40 +12,7 @@ export function PanditjiResult({
   handleAskInChat,
   addedSuccess
 }) {
-  const [copied, setCopied] = useState(false);
-
   if (!result) return null;
-
-  const buildSummaryText = () => {
-    return `🕉️ *श्री ${result.devoteeName} जी का वैदिक कुंडली व रुद्राक्ष परामर्श (Aura Rudraksha)*\n\n` +
-      `📅 जन्म विवरण: ${result.dob} (${result.birthTime}) • ${result.birthPlace}\n` +
-      `✨ लग्न: ${result.lagnaHindi || result.rashiHindi} | राशि: ${result.rashiHindi} (${result.rashiEng})\n` +
-      `🌟 नक्षत्र: ${result.nakshatra || 'वैदिक'} (पद ${result.pada || 1}) | स्वामी: ${result.lord}\n` +
-      `🔢 मूलांक: ${result.mulank} | तत्व: ${result.element}\n` +
-      `🪐 वर्तमान महादशा: ${result.currentMahadasha || 'शुभ'}\n\n` +
-      `📿 *अनुशंसित रुद्राक्ष:* ${result.recommendedMukhi}\n` +
-      `🕉️ *बीज मंत्र:* ${result.beejMantra}\n` +
-      `🗓️ *शुभ धारण वार:* ${result.wearingDay}\n\n` +
-      `🔗 अधिक जानकारी व 100% ओरिजिनल नेपाली रुद्राक्ष हेतु: https://aurarudraksha.bond`;
-  };
-
-  const handleCopySummary = () => {
-    try {
-      const text = buildSummaryText();
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      emitToast("कुंडली सारांश क्लिपबोर्ड पर कॉपी हो गया!", "success");
-      setTimeout(() => setCopied(false), 3000);
-    } catch {
-      emitToast("कॉपी करने में त्रुटि हुई", "error");
-    }
-  };
-
-  const handleShareWhatsApp = () => {
-    const text = buildSummaryText();
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
 
   return (
     <motion.div
@@ -90,22 +56,9 @@ export function PanditjiResult({
             }}>
               श्री {result.devoteeName} जी का वैदिक रुद्राक्ष परामर्श
             </h3>
-            <span style={{
-              fontSize: '10px',
-              background: '#ecfdf5',
-              color: '#065f46',
-              border: '1px solid #a7f3d0',
-              padding: '1px 6px',
-              borderRadius: 10,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 3
-            }}>
-              <BookmarkCheck size={10} /> सहेजा गया
-            </span>
           </div>
           <div style={{ fontSize: '11.5px', color: '#7a685b', marginTop: 2, wordBreak: 'break-word' }}>
-            जन्म: {new Date(result.dob).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ({result.birthTime}) • {result.birthPlace}
+            जन्म: {new Date(result.dob).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {result.birthPlace}
           </div>
         </div>
 
@@ -151,9 +104,9 @@ export function PanditjiResult({
           </b>
         </div>
         <div style={{ background: '#ffffff', border: '1px solid #ebdccb', borderRadius: 7, padding: '6px 10px', minWidth: 0 }}>
-          <div style={{ fontSize: '9.5px', color: '#8c786a', textTransform: 'uppercase' }}>नक्षत्र (Star)</div>
+          <div style={{ fontSize: '9.5px', color: '#8c786a', textTransform: 'uppercase' }}>तत्व (Element)</div>
           <b style={{ fontSize: '11.5px', color: '#4A0E17', display: 'block', wordBreak: 'break-word' }}>
-            {result.nakshatra ? `${result.nakshatra} (${result.pada || 1})` : result.element}
+            {result.element}
           </b>
         </div>
         <div style={{ background: '#ffffff', border: '1px solid #ebdccb', borderRadius: 7, padding: '6px 10px', minWidth: 0 }}>
@@ -186,33 +139,6 @@ export function PanditjiResult({
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '11px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 6 }}>
           <span>📿 बीज मंत्र: <b style={{ color: '#FFE082' }}>{result.beejMantra}</b></span>
           <span>🗓️ शुभ धारण वार: <b style={{ color: '#FFE082' }}>{result.wearingDay}</b></span>
-        </div>
-      </div>
-
-      {/* DETAILED ASTROLOGICAL SUMMARY & GRAHA DETAILS */}
-      <div style={{
-        background: '#ffffff',
-        border: '1px solid #ebdccb',
-        borderRadius: 8,
-        padding: '10px 12px',
-        marginBottom: 12
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: 700, color: '#4A0E17', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span>🌟</span> विस्तृत वैदिक कुंडली व ग्रह सारांश (Detailed Astrological Summary)
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '6px 12px', fontSize: '11px', color: '#443329' }}>
-          <div><b>• लग्न (Lagna):</b> {result.lagnaHindi || result.rashiHindi} ({result.lagnaEng || 'Ascendant'})</div>
-          <div><b>• राशि (Moon Sign):</b> {result.rashiHindi} ({result.rashiEng})</div>
-          <div><b>• नक्षत्र:</b> {result.nakshatra || 'वैदिक'} (चरण {result.pada || 1})</div>
-          <div><b>• वर्तमान महादशा:</b> <span style={{ color: '#b45309', fontWeight: 700 }}>{result.currentMahadasha || 'अनुकूल'}</span></div>
-          {result.currentAntardasha && (
-            <div><b>• अन्तर्दशा:</b> {result.currentAntardasha}</div>
-          )}
-          {result.yogas && result.yogas.length > 0 && (
-            <div style={{ gridColumn: '1 / -1', color: '#047857', fontWeight: 600 }}>
-              <b>• शुभ योग:</b> {result.yogas.map(y => y.name).join(', ')}
-            </div>
-          )}
         </div>
       </div>
 
@@ -326,56 +252,7 @@ export function PanditjiResult({
         </div>
       </div>
 
-      {/* Actions: WhatsApp Share, Copy Summary, Ask More */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-        <button
-          type="button"
-          onClick={handleShareWhatsApp}
-          style={{
-            flex: '1 1 140px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 5,
-            background: '#25D366',
-            color: '#ffffff',
-            border: 'none',
-            padding: '8px 12px',
-            borderRadius: 7,
-            fontSize: '11.5px',
-            fontWeight: 700,
-            cursor: 'pointer'
-          }}
-        >
-          <Share2 size={13} />
-          <span>WhatsApp पर शेयर</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleCopySummary}
-          style={{
-            flex: '1 1 130px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 5,
-            background: copied ? '#15803d' : '#f8f4ec',
-            color: copied ? '#ffffff' : '#4A0E17',
-            border: '1px solid #d4af37',
-            padding: '8px 12px',
-            borderRadius: 7,
-            fontSize: '11.5px',
-            fontWeight: 700,
-            cursor: 'pointer'
-          }}
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          <span>{copied ? 'कॉपी हो गया' : 'विवरण कॉपी करें'}</span>
-        </button>
-      </div>
-
-      {/* Bottom Row: Chat & Shop Link */}
+      {/* Actions: Ask More to Pandit Ji via AI Chat */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
@@ -387,9 +264,9 @@ export function PanditjiResult({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 5,
-            background: '#4A0E17',
-            border: 'none',
-            color: '#FFFDF7',
+            background: '#fdf3e7',
+            border: '1px solid #d4af37',
+            color: '#4A0E17',
             padding: '8px 14px',
             borderRadius: 7,
             fontSize: '12px',
@@ -397,7 +274,7 @@ export function PanditjiResult({
             cursor: 'pointer'
           }}
         >
-          <MessageCircle size={15} color="#FFE082" />
+          <MessageCircle size={15} color="#a54d2b" />
           <span>पंडित जी से AI Chat में और पूछें</span>
         </button>
 

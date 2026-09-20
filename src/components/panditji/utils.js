@@ -15,7 +15,6 @@ export const RASHI_DATA = [
 ];
 
 export const CONCERN_OPTIONS = [
-  { id: "all", label: "🌟 संपूर्ण जीवन मार्गदर्शन (करियर, स्वास्थ्य, विवाह, धन, शांति व मोक्ष - All)", bead: "1 to 14 Mukhi / Siddh Combination" },
   { id: "career", label: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)", bead: "7 Mukhi / 1 Mukhi" },
   { id: "peace", label: "🧘 मानसिक शांति, एकाग्रता व तनाव मुक्ति (Peace & Focus)", bead: "5 Mukhi / 2 Mukhi" },
   { id: "shani_dosha", label: "🛡️ शनि साढ़े साती, राहु-केतु व ग्रह दोष निवारण (Dosha Shanti)", bead: "7 Mukhi / 11 Mukhi" },

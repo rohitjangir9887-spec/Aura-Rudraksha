@@ -25,12 +25,7 @@ import {
   MessageSquare,
   Sparkle,
   Zap,
-  ArrowDown,
-  Plus,
-  Bookmark,
-  History,
-  Share2,
-  Copy
+  ArrowDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
@@ -44,9 +39,6 @@ import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 import { VoiceReader } from "../components/VoiceReader";
-import { AuraAIChatHistoryModal } from "../components/AuraAIChatHistoryModal";
-import { AuraAISavedKundaliModal } from "../components/AuraAISavedKundaliModal";
-import { AuraAIChatShareModal } from "../components/AuraAIChatShareModal";
 import { useSeo } from "../hooks/useSeo";
 
 export function AuraAIPage() {
@@ -57,20 +49,7 @@ export function AuraAIPage() {
   });
 
   const [mode, setMode] = useState("standard"); // "standard" | "panditji"
-  // Parse [AURA_KEYWORDS]: kw1 | kw2 | ... from AI text
-  const parseAuraKeywords = (text) => {
-    if (!text) return [];
-    const match = text.match(/\[AURA_KEYWORDS\]:\s*([^\n]+)/);
-    if (!match) return [];
-    return match[1].split("|").map(k => k.trim()).filter(Boolean).slice(0, 6);
-  };
-
-  // Strip [AURA_KEYWORDS] line from visible display text
-  const stripAuraKeywords = (text) => {
-    if (!text) return text;
-    return text.replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "").trim();
-  };
-
+  // Shared persistent chat history per mode
   const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -86,141 +65,6 @@ export function AuraAIPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshPhase, setRefreshPhase] = useState("idle"); // "idle" | "fading-out" | "fading-in"
   const [showRefreshToast, setShowRefreshToast] = useState(false);
-
-  // Chat History, Saved Kundalis, and Share Modals
-  const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
-  const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
-  const [showChatShareModal, setShowChatShareModal] = useState(false);
-  const [savedKundalisCount, setSavedKundalisCount] = useState(() => {
-    try {
-      return auraChatStore.getSavedKundalis().length;
-    } catch (_) {
-      return 0;
-    }
-  });
-
-  const [showBirthForm, setShowBirthForm] = useState(false);
-  const [birthForm, setBirthForm] = useState({
-    name: "",
-    dob: "",
-    time: "",
-    place: "",
-    concern: "career",
-    customConcern: ""
-  });
-
-  const refreshSavedKundalisCount = () => {
-    try {
-      setSavedKundalisCount(auraChatStore.getSavedKundalis().length);
-    } catch (_) {}
-  };
-
-  const handleBirthFormSubmit = (e) => {
-    if (e) e.preventDefault();
-    if (!birthForm.name.trim()) {
-      emitToast("कृपया अपना नाम दर्ज करें", "warning");
-      return;
-    }
-    if (!birthForm.dob) {
-      emitToast("कृपया जन्म तिथि (DOB) दर्ज करें", "warning");
-      return;
-    }
-    if (!birthForm.time || !birthForm.time.trim()) {
-      emitToast("कृपया जन्म समय (Birth Time) दर्ज करें (Time is required)", "warning");
-      return;
-    }
-    if (!birthForm.place.trim()) {
-      emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
-      return;
-    }
-    if (birthForm.concern === "custom" && !birthForm.customConcern.trim()) {
-      emitToast("कृपया अपना विशेष प्रश्न या समस्या दर्ज करें", "warning");
-      return;
-    }
-
-    const concernLabels = {
-      career: "⚡ करियर व आजीविका (Career & Job)",
-      business: "💼 व्यापार व व्यवसाय वृद्धि (Business & Trade)",
-      education: "📚 शिक्षा, विद्या व परीक्षा (Education & Studies)",
-      marriage: "💍 विवाह व दांपत्य सुख (Marriage & Delay Removal)",
-      love: "❤️ प्रेम संबंध व आकर्षण (Love & Relationship)",
-      family: "🏡 पारिवारिक शांति व सद्भाव (Family Peace)",
-      health: "🩺 स्वास्थ्य, आरोग्य व दीर्घायु (Health & Vitality)",
-      finance: "💰 धन, आर्थिक संपन्नता व ऋण मुक्ति (Finance & Wealth)",
-      children: "👶 संतान सुख व संतान कल्याण (Children & Progeny)",
-      property: "🏠 भूमि, भवन व वाहन योग (Property & Assets)",
-      spiritual: "🕉️ आध्यात्मिक उन्नति व साधना (Spirituality & Moksha)",
-      foreign_travel: "✈️ विदेश यात्रा व विदेश योग (Foreign Travel & Visa)",
-      legal: "⚖️ कोर्ट-कचहरी व कानूनी मामले (Legal Matters & Victory)",
-      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष शांति (Dosha Shanti)",
-      general: "🌟 संपूर्ण जीवन विश्लेषण (General Life Analysis)",
-      other: "🔮 अन्य आध्यात्मिक मार्गदर्शन (Other Spiritual Guidance)",
-      custom: `✍️ विशेष प्रश्न: ${birthForm.customConcern?.trim() || "व्यक्तिगत चिंता"}`
-    };
-
-    const effectiveConcernText = birthForm.concern === "custom" 
-      ? `विशेष व्यक्तिगत प्रश्न: ${birthForm.customConcern.trim()}`
-      : (concernLabels[birthForm.concern] || birthForm.concern);
-
-    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${effectiveConcernText}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
-
-    const verifiedDetails = {
-      name: birthForm.name.trim(),
-      dob: birthForm.dob,
-      birthTime: birthForm.time.trim(),
-      birthPlace: birthForm.place.trim(),
-      concern: birthForm.concern,
-      customConcern: birthForm.customConcern?.trim() || ""
-    };
-    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
-
-    setShowBirthForm(false);
-    setMode("panditji");
-    handleSend(promptText, verifiedDetails);
-  };
-
-  const handleSelectSession = (session) => {
-    if (!session) return;
-    const targetMode = session.mode || mode;
-    if (targetMode !== mode) {
-      setMode(targetMode);
-    }
-    const restored = auraChatStore.loadArchivedSession(session.id, targetMode);
-    const msgs = Array.isArray(restored) ? restored : (restored?.messages || []);
-    if (msgs.length > 0) {
-      setMessages(msgs);
-      setConversationId(session.conversationId || session.id);
-      emitToast("📜 पुरानी बातचीत पुनः शुरू हो गई (Chat Resumed)", "success");
-    } else {
-      emitToast("बातचीत लोड करने में समस्या आई", "error");
-    }
-  };
-
-  const handleSelectKundali = (profile) => {
-    if (!profile) return;
-    setMode("panditji");
-    const verifiedDetails = {
-      name: profile.name.trim(),
-      dob: profile.dob,
-      birthTime: profile.birthTime.trim(),
-      birthPlace: profile.birthPlace.trim(),
-      concern: profile.concern || "career"
-    };
-    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
-
-    const concernLabels = {
-      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
-      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
-      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
-      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
-      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
-      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
-    };
-
-    const promptText = `🙏 प्रणाम पंडित जी! कृपया मेरी सहेजी गई जन्म कुंडली का संपूर्ण प्रामाणिक वैदिक विश्लेषण करें:\n• जातक का नाम: ${profile.name}\n• जन्म तिथि: ${profile.dob}\n• जन्म समय: ${profile.birthTime}\n• जन्म स्थान: ${profile.birthPlace}\n• मुख्य संकल्प / समस्या: ${concernLabels[profile.concern] || profile.concern}\n\nकृपया मेरी जन्म कुंडली, लग्न, नक्षत्र, वर्तमान महादशा एवं अनुकूल सिद्ध रुद्राक्ष विस्तार से शुद्ध हिंदी में बताइए।`;
-
-    handleSend(promptText, verifiedDetails);
-  };
 
   // Aura AI Live Status and Stop/Retry State Variables
   const [statusText, setStatusText] = useState("Thinking...");
@@ -524,12 +368,6 @@ export function AuraAIPage() {
             }
             return [...prev, aiMsg];
           });
-          if (finalData?.showBirthForm) {
-            const existingDetails = auraChatStore.getVerifiedBirthDetails();
-            if (!existingDetails) {
-              setShowBirthForm(true);
-            }
-          }
           setLoading(false);
         },
         onError: (err) => {
@@ -831,63 +669,18 @@ export function AuraAIPage() {
 
                 <div className="aura-ai-toolbar-separator" aria-hidden="true" />
 
-                {/* Actions Group: New Chat, History, Saved Kundali, Share, Cart */}
+                {/* New Chat & Cart Actions */}
                 <div className="aura-ai-toolbar-group" role="group" aria-label="Session Actions">
-                  {/* New Chat */}
                   <button 
                     type="button"
                     onClick={handleNewChat} 
                     className={`aura-ai-icon-action-btn ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                    title="नयी बातचीत शुरू करें (New Chat)"
-                    aria-label="New Chat"
+                    title="New Chat Session (Preserves Past History)"
+                    aria-label="New Chat Session"
                     disabled={isRefreshing}
                   >
-                    <Plus size={18} className="aura-ai-action-icon" />
+                    <RotateCcw size={18} className="aura-ai-action-icon" />
                   </button>
-
-                  {/* Chat History */}
-                  <button 
-                    type="button"
-                    onClick={() => setShowChatHistoryModal(true)} 
-                    className="aura-ai-icon-action-btn"
-                    title="पुरानी बातचीत का इतिहास देखें (Chat History)"
-                    aria-label="Chat History"
-                  >
-                    <History size={18} className="aura-ai-action-icon" />
-                  </button>
-
-                  {/* Saved Kundalis (Panditji Mode) */}
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      refreshSavedKundalisCount();
-                      setShowSavedKundaliModal(true);
-                    }} 
-                    className="aura-ai-icon-action-btn relative"
-                    title="सहेजी गई कुंडलियां (Saved Kundalis)"
-                    aria-label="Saved Kundalis"
-                  >
-                    <Bookmark size={18} className="aura-ai-action-icon" />
-                    {savedKundalisCount > 0 && (
-                      <span className="aura-ai-action-cart-badge" style={{ background: "#d97706" }} aria-hidden="true">
-                        {savedKundalisCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Share Chat */}
-                  <button 
-                    type="button"
-                    onClick={() => setShowChatShareModal(true)} 
-                    className="aura-ai-icon-action-btn"
-                    title="परामर्श शेयर करें (WhatsApp / Copy)"
-                    aria-label="Share Chat"
-                  >
-                    <Share2 size={18} className="aura-ai-action-icon" />
-                  </button>
-
-                  <div className="aura-ai-toolbar-separator" aria-hidden="true" />
-
                   <Link 
                     to="/cart" 
                     className="aura-ai-icon-action-btn aura-ai-cart-action-btn"
@@ -930,144 +723,6 @@ export function AuraAIPage() {
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
             >
-              {/* Interactive Kundali Birth Form in Pandit Ji Mode */}
-              <AnimatePresence>
-                {showBirthForm && mode === "panditji" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="mb-4 mx-2 p-4 bg-gradient-to-br from-[#FFFDF9] to-[#FAF4EB] border-2 border-amber-300 rounded-xl shadow-md"
-                  >
-                    <div className="flex items-center justify-between mb-3 border-b border-amber-200/60 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">🕉️</span>
-                        <h4 className="font-bold text-sm text-[#4A0E17]">
-                          वैदिक जन्म विवरण (Vedic Birth Details for Kundali)
-                        </h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowBirthForm(false)}
-                        className="text-gray-400 hover:text-gray-600 text-xs px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-100"
-                      >
-                        ✕ बंद करें
-                      </button>
-                    </div>
-
-                    <form onSubmit={handleBirthFormSubmit}>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
-                            जातक का नाम (Full Name) *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="उदा. राहुल शर्मा"
-                            value={birthForm.name}
-                            onChange={(e) => setBirthForm({ ...birthForm, name: e.target.value })}
-                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
-                            जन्म तिथि (Date of Birth) *
-                          </label>
-                          <input
-                            type="date"
-                            required
-                            value={birthForm.dob}
-                            onChange={(e) => setBirthForm({ ...birthForm, dob: e.target.value })}
-                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
-                            जन्म स्थान (City / State) *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="उदा. जयपुर, राजस्थान"
-                            value={birthForm.place}
-                            onChange={(e) => setBirthForm({ ...birthForm, place: e.target.value })}
-                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
-                            जन्म समय (Exact Birth Time) *
-                          </label>
-                          <input
-                            type="time"
-                            required
-                            value={birthForm.time}
-                            onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
-                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mb-3">
-                        <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
-                          मुख्य संकल्प / समस्या (Primary Concern)
-                        </label>
-                        <select
-                          value={birthForm.concern}
-                          onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
-                          className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
-                        >
-                          <option value="career">⚡ करियर व आजीविका (Career & Job)</option>
-                          <option value="business">💼 व्यापार व व्यवसाय (Business & Trade)</option>
-                          <option value="education">📚 शिक्षा, विद्या व परीक्षा (Education & Studies)</option>
-                          <option value="marriage">💍 विवाह व दांपत्य सुख (Marriage & Delay Removal)</option>
-                          <option value="love">❤️ प्रेम संबंध व आकर्षण (Love & Relationship)</option>
-                          <option value="family">🏡 पारिवारिक शांति व सुख (Family Harmony)</option>
-                          <option value="health">🩺 स्वास्थ्य, आरोग्य व दीर्घायु (Health & Vitality)</option>
-                          <option value="finance">💰 धन, आर्थिक संपन्नता व ऋण मुक्ति (Finance & Wealth)</option>
-                          <option value="children">👶 संतान सुख व संतान कल्याण (Children & Progeny)</option>
-                          <option value="property">🏠 भूमि, भवन व वाहन योग (Property & Assets)</option>
-                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति व साधना (Spirituality & Moksha)</option>
-                          <option value="foreign_travel">✈️ विदेश यात्रा व विदेश योग (Foreign Travel & Visa)</option>
-                          <option value="legal">⚖️ कोर्ट-कचहरी व कानूनी मामले (Legal Victory)</option>
-                          <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष शांति (Dosha Shanti)</option>
-                          <option value="general">🌟 संपूर्ण जीवन विश्लेषण (General Life Analysis)</option>
-                          <option value="other">🔮 अन्य आध्यात्मिक मार्गदर्शन (Other Guidance)</option>
-                          <option value="custom">✍️ अपनी चिंता स्वयं लिखें (Custom Concern)</option>
-                        </select>
-
-                        {birthForm.concern === "custom" && (
-                          <div className="mt-2">
-                            <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
-                              अपनी विशेष चिंता / प्रश्न लिखें (Your Custom Concern) *
-                            </label>
-                            <textarea
-                              rows={2}
-                              required
-                              placeholder="उदा. क्या मेरी इस वर्ष सरकारी नौकरी लगेगी? या कौन सा रुद्राक्ष मेरे लिए सबसे उत्तम है?"
-                              value={birthForm.customConcern}
-                              onChange={(e) => setBirthForm({ ...birthForm, customConcern: e.target.value })}
-                              className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      <button
-                        type="submit"
-                        className="w-full py-2 bg-gradient-to-r from-[#651520] to-[#781B28] text-white rounded-lg text-xs font-bold border border-amber-400 hover:brightness-110 shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <span>🙏 पंडित जी से कुंडली विश्लेषण प्राप्त करें (Submit for Authentic Kundali)</span>
-                      </button>
-                    </form>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               {messages.map((m, index) => {
                 // Session divider
                 if (m.type === "session_divider") {
@@ -1106,14 +761,13 @@ export function AuraAIPage() {
                       )}
                       <div className="aura-ai-page-msg-bubble">
                         <div className="aura-ai-page-text">
-                          <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
+                          <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
                         </div>
                         {m.sender === "ai" && m.text && (
                           <div style={{ marginTop: "6px" }}>
-                            <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
+                            <VoiceReader text={customerSafeAiText(m.text)} />
                           </div>
                         )}
-
 
                         {/* Inline Recommended Product Cards */}
                         {m.products && m.products.length > 0 && (
@@ -1301,74 +955,12 @@ export function AuraAIPage() {
                           </div>
                         )}
 
-                        {/* AURA_KEYWORDS Auto-Search Chips */}
-                        {m.sender === "ai" && (() => {
-                          const kws = parseAuraKeywords(m.text || "");
-                          if (!kws.length) return null;
-                          return (
-                            <div className="mt-2.5 pt-2 border-t border-amber-900/10">
-                              <div className="text-[11px] text-amber-900/70 font-semibold mb-1.5 flex items-center gap-1">
-                                🔍 त्वरित खोज व आगे का परामर्श (Quick Actions):
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {kws.map((kw, ki) => (
-                                  <button
-                                    key={ki}
-                                    type="button"
-                                    onClick={() => handleSend(kw)}
-                                    className="px-3 py-1 text-xs font-medium rounded-full border transition-all hover:scale-105"
-                                    style={{
-                                      background: "linear-gradient(135deg, #fff9f0, #fdf0e0)",
-                                      borderColor: "#c47a3a",
-                                      color: "#7c3305",
-                                      boxShadow: "0 1px 4px rgba(140,43,16,0.12)"
-                                    }}
-                                  >
-                                    🔎 {kw}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-
-                        {/* Timestamp & Quick Action Toolbar */}
-                        <div className="flex items-center justify-between gap-1 mt-1">
-                          {timeString && (
-                            <div className="aura-ai-page-msg-time">
-                              {timeString}
-                            </div>
-                          )}
-
-                          {m.sender === "ai" && (
-                            <div className="flex items-center gap-1 ml-auto opacity-70 hover:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  auraChatStore.copyChatToClipboard([m]);
-                                  emitToast("📋 उत्तर कॉपी हो गया (Copied)", "success");
-                                }}
-                                className="p-1 text-stone-500 hover:text-stone-800 hover:bg-stone-200/50 rounded transition-colors text-[11px] flex items-center gap-0.5"
-                                title="यह उत्तर कॉपी करें (Copy answer)"
-                              >
-                                <Copy size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  auraChatStore.shareChatOnWhatsApp([m]);
-                                }}
-                                className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors text-[11px] flex items-center gap-0.5"
-                                title="WhatsApp पर शेयर करें (Share on WhatsApp)"
-                              >
-                                <Share2 size={12} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        {/* Timestamp */}
+                        {timeString && (
+                          <div className="aura-ai-page-msg-time">
+                            {timeString}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </React.Fragment>
@@ -1615,30 +1207,6 @@ export function AuraAIPage() {
           }}
         />
       )}
-
-      {/* Chat History Modal (Purani Chat Dekhein) */}
-      <AuraAIChatHistoryModal 
-        isOpen={showChatHistoryModal} 
-        onClose={() => setShowChatHistoryModal(false)} 
-        onSelectSession={handleSelectSession}
-        currentMode={mode}
-      />
-
-      {/* Saved Kundali Profiles Modal (Kundali Save / Use Karein) */}
-      <AuraAISavedKundaliModal 
-        isOpen={showSavedKundaliModal} 
-        onClose={() => setShowSavedKundaliModal(false)} 
-        onSelectKundali={handleSelectKundali}
-        onProfilesUpdated={refreshSavedKundalisCount}
-      />
-
-      {/* Chat Share Modal (WhatsApp & Copy) */}
-      <AuraAIChatShareModal 
-        isOpen={showChatShareModal} 
-        onClose={() => setShowChatShareModal(false)} 
-        messages={messages}
-        mode={mode}
-      />
     </Shell>
   );
 }

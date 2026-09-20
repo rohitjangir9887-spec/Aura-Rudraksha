@@ -1,14 +1,37 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=GT-NNMVH4H8"></script>
     <script>
+      // Global error shield to prevent benign third-party/iframe cross-origin script errors from crashing the app
+      window.addEventListener('error', function(event) {
+        if (event && (event.message === 'Script error.' || !event.filename || !event.filename.includes(window.location.host))) {
+          if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+          return true;
+        }
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event && event.reason && (event.reason.message === 'Script error.' || String(event.reason).includes('Script error'))) {
+          if (event.preventDefault) event.preventDefault();
+        }
+      });
+
+      // Google tag (gtag.js) safe asynchronous initialization
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'GT-NNMVH4H8');
+
+      (function() {
+        try {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=GT-NNMVH4H8';
+          s.onerror = function() {
+            // Silently handle blocked/offline tracker script in preview/sandbox
+          };
+          document.head.appendChild(s);
+        } catch(e) {}
+      })();
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

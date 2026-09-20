@@ -307,19 +307,13 @@ export const auraAiClient = {
       if (onError) onError(err);
       
       const preservedKundali = finalData?.kundali || null;
-      const safeAccumulated = customerSafeAiText(accumulatedRaw);
-      let errorText = safeAccumulated;
-      
-      if (!errorText || !errorText.trim()) {
-        if (preservedKundali) {
-          errorText = "🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका की खगोलीय गणना पूर्ण हो चुकी है (नीचे विवरण देखें)। AI पंडित जी का विस्तृत विश्लेषण वर्तमान में लोड हो रहा है, कृपया एक क्षण पुनः प्रयास करें।";
-        } else {
-          const errMsg = String(err?.message || "").toLowerCase();
-          if (errMsg.includes("503") || errMsg.includes("database") || errMsg.includes("html") || errMsg.includes("json") || errMsg.includes("status")) {
-            errorText = "Namaste! 🙏 Our digital temple is currently undergoing a brief Vedic alignment & routine maintenance. Our sevaks are working swiftly to restore full access. Please try again in a few moments or reach out to us on WhatsApp!";
-          } else {
-            errorText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
-          }
+      let errorText = "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.";
+      if (preservedKundali) {
+        errorText = "🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका की खगोलीय गणना पूर्ण हो चुकी है (नीचे विवरण देखें)। AI पंडित जी का विस्तृत विश्लेषण वर्तमान में अनुपलब्ध है, परंतु आपके परिणाम नीचे सुरक्षित हैं।";
+      } else {
+        const errMsg = String(err?.message || "").toLowerCase();
+        if (errMsg.includes("503") || errMsg.includes("database") || errMsg.includes("html") || errMsg.includes("json") || errMsg.includes("status")) {
+          errorText = "Namaste! 🙏 Our digital temple is currently undergoing a brief Vedic alignment & routine maintenance. Our sevaks are working swiftly to restore full access. Please try again in a few moments or reach out to us on WhatsApp!";
         }
       }
 

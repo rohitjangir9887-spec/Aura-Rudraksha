@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { User, Calendar, MapPin, Clock, Compass, Sparkles, ArrowRight, RefreshCw, ShieldCheck, History, Trash2 } from "lucide-react";
+import React from "react";
+import { User, Calendar, MapPin, Clock, Compass, Sparkles, ArrowRight, RefreshCw, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { CONCERN_OPTIONS } from "./utils";
-import { auraChatStore } from "../../lib/auraChatStore";
 
 export function PanditjiForm({
   name, setName,
@@ -13,27 +12,6 @@ export function PanditjiForm({
   isCalculating,
   handleCalculate
 }) {
-  const [savedProfiles, setSavedProfiles] = useState([]);
-
-  useEffect(() => {
-    const list = auraChatStore.getSavedKundalis();
-    setSavedProfiles(list);
-  }, []);
-
-  const handleSelectProfile = (profile) => {
-    if (profile.name) setName(profile.name);
-    if (profile.dob) setDob(profile.dob);
-    if (profile.birthPlace) setBirthPlace(profile.birthPlace);
-    if (profile.birthTime) setBirthTime(profile.birthTime);
-    if (profile.concern) setConcern(profile.concern);
-  };
-
-  const handleDeleteProfile = (e, profileId) => {
-    e.stopPropagation();
-    auraChatStore.deleteKundaliProfile(profileId);
-    setSavedProfiles(auraChatStore.getSavedKundalis());
-  };
-
   return (
     <motion.form
       key="form"
@@ -51,61 +29,6 @@ export function PanditjiForm({
         width: '100%'
       }}
     >
-      {/* SAVED PROFILES QUICK STRIP (IF ANY SAVED) */}
-      {savedProfiles.length > 0 && (
-        <div style={{
-          marginBottom: 12,
-          padding: '8px 10px',
-          background: '#fcf8ee',
-          border: '1px solid #ebdccb',
-          borderRadius: 8
-        }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#78350f', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <History size={12} color="#b45309" /> सहेजी गई कुंडलियां (Saved Profiles - 1-Click Fill):
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {savedProfiles.map((p) => (
-              <div
-                key={p.id}
-                onClick={() => handleSelectProfile(p)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: '#ffffff',
-                  border: '1px solid #d4af37',
-                  borderRadius: 14,
-                  padding: '3px 9px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: '#4A0E17',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}
-              >
-                <span>👤 {p.name} ({p.dob ? new Date(p.dob).getFullYear() : ''})</span>
-                <button
-                  type="button"
-                  onClick={(e) => handleDeleteProfile(e, p.id)}
-                  title="हटाएं"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#999',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <Trash2 size={10} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',

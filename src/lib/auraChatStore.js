@@ -35,8 +35,8 @@ const DEFAULT_INITIAL_MESSAGE_STANDARD = {
 const DEFAULT_INITIAL_MESSAGE_PANDITJI = {
   id: "init_welcome_panditji",
   sender: "ai",
-  text: "🙏 प्रणाम भक्त! मैं AI पंडित जी (🕉️) हूँ — वैदिक ज्योतिष, जन्म कुंडली, नक्षत्र, ग्रह दशा व सिद्ध रुद्राक्ष विशेषज्ञ।\n\nआज मैं आपकी कुंडली, राशि, ग्रह शांति या रुद्राक्ष धारण विधि में किस प्रकार सहायता करूँ?",
-  quickReplies: ["🌟 मेरी कुंडली विश्लेषण", "📿 राशि अनुसार रुद्राक्ष", "🌿 रुद्राक्ष धारण विधि", "🛡️ शनि व ग्रह दोष शांति"],
+  text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon — 35+ varshon ke anubhav ke sath aapka Vedic Jyotish, Rashi, Nakshatra aur Rudraksha Guide.\n\nAaj main aapki Rashi, Kundali ya Rudraksha dharan vidhi mein kis prakar sahayata karun?",
+  quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
   timestamp: new Date().toISOString()
 };
 
@@ -160,242 +160,7 @@ export const auraChatStore = {
       const uid = this.getCurrentUserUid();
       localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(details));
       window.dispatchEvent(new CustomEvent("aura_ai_birth_details_updated", { detail: { uid, details } }));
-      // Also automatically save to saved Kundali library for future quick recall
-      this.saveKundaliProfile(details);
     } catch (_) {}
-  },
-
-  // --- SAVED KUNDALI PROFILES LIBRARY ---
-  getSavedKundalis() {
-    try {
-      const uid = this.getCurrentUserUid();
-      const key = `aura_ai_saved_kundalis_${uid}`;
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  },
-
-  saveKundaliProfile(profile) {
-    if (!profile || !profile.name || !profile.dob) return;
-    try {
-      const uid = this.getCurrentUserUid();
-      const key = `aura_ai_saved_kundalis_${uid}`;
-      const existing = this.getSavedKundalis();
-      
-      const newEntry = {
-        id: profile.id || `kundali_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: profile.name.trim(),
-        dob: profile.dob,
-        birthTime: profile.birthTime || "12:00",
-        birthPlace: profile.birthPlace || "",
-        concern: profile.concern || "all",
-        rashi: profile.rashi || profile.rashiHindi || "",
-        recommendedMukhi: profile.recommendedMukhi || profile.recommended || "",
-        savedAt: new Date().toISOString()
-      };
-
-      // Replace if same name & DOB exist, else prepend
-      const filtered = existing.filter(
-        (k) => !(k.name.toLowerCase() === newEntry.name.toLowerCase() && k.dob === newEntry.dob)
-      );
-      const updated = [newEntry, ...filtered].slice(0, 20); // Keep last 20 profiles
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: updated }));
-      return updated;
-    } catch (_) {}
-  },
-
-  deleteSavedKundali(id) {
-    try {
-      const uid = this.getCurrentUserUid();
-      const key = `aura_ai_saved_kundalis_${uid}`;
-      const existing = this.getSavedKundalis();
-      const updated = existing.filter((k) => k.id !== id);
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: updated }));
-      return updated;
-    } catch (_) {}
-  },
-
-  // Alias for compatibility with PanditjiForm
-  deleteKundaliProfile(id) {
-    return this.deleteSavedKundali(id);
-  },
-
-  // --- SAVED / ARCHIVED SESSION HISTORY ---
-  getArchivedSessions(mode = "standard") {
-    try {
-      const uid = this.getCurrentUserUid();
-      if (mode === "all") {
-        const standard = this.getArchivedSessions("standard");
-        const panditji = this.getArchivedSessions("panditji");
-        const map = new Map();
-        [...panditji, ...standard].forEach((s) => {
-          if (s && s.id) map.set(s.id, s);
-        });
-        const combined = Array.from(map.values()).sort(
-          (a, b) => new Date(b.savedAt || 0) - new Date(a.savedAt || 0)
-        );
-        return combined;
-      }
-      const key = `aura_ai_archived_sessions_${mode}_${uid}`;
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  },
-
-  archiveCurrentSession(mode = "standard", customTitle = "") {
-    try {
-      const msgs = this.getMessages(mode);
-      // Only archive if there is actual conversation beyond the initial greeting
-      const userMsg = msgs.find((m) => m.sender === "user");
-      if (!userMsg) return null;
-
-      const uid = this.getCurrentUserUid();
-      const key = `aura_ai_archived_sessions_${mode}_${uid}`;
-      const existing = this.getArchivedSessions(mode);
-
-      const title = customTitle || userMsg.text.slice(0, 60) || "Astrology Consultation";
-      const sessionEntry = {
-        id: "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
-        title,
-        conversationId: this.getConversationId(),
-        mode,
-        messagesCount: msgs.length,
-        messages: msgs,
-        savedAt: new Date().toISOString()
-      };
-
-      const updated = [sessionEntry, ...existing].slice(0, 30); // Keep last 30 sessions
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent("aura_ai_sessions_archived", { detail: { mode, updated } }));
-      return sessionEntry;
-    } catch (e) {
-      console.warn("Could not archive session:", e);
-      return null;
-    }
-  },
-
-  deleteArchivedSession(id, mode = "standard") {
-    try {
-      const uid = this.getCurrentUserUid();
-      const modesToDelete = (mode === "all" || !mode) ? ["standard", "panditji"] : [mode];
-      let lastUpdated = [];
-
-      for (const m of modesToDelete) {
-        const key = `aura_ai_archived_sessions_${m}_${uid}`;
-        const existing = this.getArchivedSessions(m);
-        const updated = existing.filter((s) => s.id !== id);
-        if (updated.length !== existing.length) {
-          localStorage.setItem(key, JSON.stringify(updated));
-          lastUpdated = updated;
-          window.dispatchEvent(new CustomEvent("aura_ai_sessions_archived", { detail: { mode: m, updated } }));
-        }
-      }
-      return lastUpdated;
-    } catch (_) {}
-  },
-
-  loadArchivedSession(id, mode = "standard") {
-    try {
-      // Look in requested mode first, then search all modes as fallback
-      let sessions = this.getArchivedSessions(mode);
-      let target = sessions.find((s) => s.id === id);
-      if (!target && mode !== "all") {
-        const altMode = mode === "panditji" ? "standard" : "panditji";
-        sessions = this.getArchivedSessions(altMode);
-        target = sessions.find((s) => s.id === id);
-      }
-      if (!target) {
-        const allSessions = this.getArchivedSessions("all");
-        target = allSessions.find((s) => s.id === id);
-      }
-
-      if (target && Array.isArray(target.messages)) {
-        const targetMode = target.mode || mode;
-        this.saveMessages(target.messages, targetMode);
-        if (target.conversationId) {
-          this.setConversationId(target.conversationId);
-        }
-        return target.messages;
-      }
-    } catch (_) {}
-    return null;
-  },
-
-  // --- EXPORT, COPY & WHATSAPP SHARING ---
-  formatChatForExport(messages, mode = "standard", extra = {}) {
-    const list = Array.isArray(messages) ? messages : this.getMessages(mode);
-    const isPandit = mode === "panditji";
-    let output = isPandit 
-      ? "🕉️ *AURA RUDRAKSHA - वैदिक कुंडली व रुद्राक्ष परामर्श*\n====================================\n\n"
-      : "📿 *AURA RUDRAKSHA - Consultation Report*\n====================================\n\n";
-
-    if (extra.devoteeName) {
-      output += `👤 जातक: ${extra.devoteeName}\n`;
-    }
-    if (extra.dob) {
-      output += `🗓️ जन्म तिथि: ${extra.dob} (${extra.birthPlace || ""})\n`;
-    }
-    if (extra.recommendedMukhi) {
-      output += `📿 अनुशंसित रुद्राक्ष: ${extra.recommendedMukhi}\n\n`;
-    }
-
-    list.forEach((m) => {
-      if (!m.text) return;
-      const isAI = m.sender === "ai";
-      const senderName = isAI ? (isPandit ? "🕉️ AI पंडित जी:" : "📿 Aura AI:") : "👤 भक्त / User:";
-      output += `${senderName}\n${m.text.trim()}\n\n`;
-    });
-
-    output += "------------------------------------\n";
-    output += "🌿 100% प्राण-प्रतिष्ठित व सिद्ध लैब प्रमाणित रुद्राक्ष हेतु विज़िट करें:\n";
-    output += "🌐 https://aurarudraksha.bond\n";
-    output += "हर हर महादेव! 🙏";
-
-    return output;
-  },
-
-  async copyChatToClipboard(messages, mode = "standard", extra = {}) {
-    try {
-      const formatted = this.formatChatForExport(messages, mode, extra);
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(formatted);
-        return true;
-      }
-      // Fallback
-      const textArea = document.createElement("textarea");
-      textArea.value = formatted;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      return true;
-    } catch (e) {
-      console.warn("Clipboard copy error:", e);
-      return false;
-    }
-  },
-
-  shareChatOnWhatsApp(messages, mode = "standard", extra = {}) {
-    try {
-      const formatted = this.formatChatForExport(messages, mode, extra);
-      const encoded = encodeURIComponent(formatted);
-      const waUrl = `https://api.whatsapp.com/send?text=${encoded}`;
-      window.open(waUrl, "_blank", "noopener,noreferrer");
-      return true;
-    } catch (e) {
-      console.warn("WhatsApp share error:", e);
-      return false;
-    }
   },
 
   getStorageKey(mode = "standard") {
@@ -513,11 +278,6 @@ export const auraChatStore = {
 
   // Start a new clean chat session for active mode
   startNewSession(mode = "standard", options = {}) {
-    // Automatically archive current active conversation before starting fresh
-    if (options.autoArchive !== false) {
-      this.archiveCurrentSession(mode);
-    }
-
     const uid = this.getCurrentUserUid();
     const newConvId = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
     this.setConversationId(newConvId);
@@ -530,8 +290,8 @@ export const auraChatStore = {
     const welcomeMessage = mode === "panditji" ? {
       id: "init_panditji_" + Date.now(),
       sender: "ai",
-      text: "🙏 प्रणाम भक्त! मैं AI पंडित जी (🕉️) हूँ। आपकी नई वैदिक परामर्श शुरू हो गई है।\n\nआज आप किस राशि, कुंडली, ग्रह शांति या सिद्ध रुद्राक्ष के बारे में जानना चाहते हैं?",
-      quickReplies: ["🌟 मेरी कुंडली विश्लेषण", "📿 राशि अनुसार रुद्राक्ष", "🌿 रुद्राक्ष धारण विधि", "🛡️ शनि व ग्रह दोष शांति"],
+      text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi Vedic consultation shuru ho gayi hai.\n\nAaj aap kis Rashi, Kundali ya Rudraksha ke baare mein janna chahte hain?",
+      quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
       timestamp: new Date().toISOString()
     } : {
       id: "init_standard_" + Date.now(),

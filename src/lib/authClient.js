@@ -21,7 +21,7 @@ import {
   updateProfile,
   reload
 } from "firebase/auth";
-import firebaseAppletConfig from "../../firebase-applet-config.json" with { type: "json" };
+import firebaseAppletConfig from "../../firebase-applet-config.json";
 
 export const firebaseConfig = {
   projectId: firebaseAppletConfig.projectId || "aura-rudraksha-afde8",

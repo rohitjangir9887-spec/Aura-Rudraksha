@@ -12,8 +12,10 @@
 
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const baseDir = typeof __dirname !== "undefined" ? __dirname : (process.cwd ? process.cwd() : ".");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { connectDB, isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 import { Setting } from "../models/Setting.js";
@@ -1261,8 +1263,8 @@ function resolveProductionAssetTags(htmlContent) {
   const assetDirCandidates = [
     path.join(process.cwd(), "dist", "assets"),
     path.resolve("./dist/assets"),
-    path.join(baseDir, "..", "..", "dist", "assets"),
-    path.join(baseDir, "..", "dist", "assets")
+    path.join(__dirname, "..", "..", "dist", "assets"),
+    path.join(__dirname, "..", "dist", "assets")
   ];
 
   for (const dir of assetDirCandidates) {
@@ -1297,12 +1299,12 @@ export function getHtmlTemplate() {
   const candidatePaths = [
     path.join(process.cwd(), "dist", "index.html"),
     path.resolve("./dist/index.html"),
-    path.join(baseDir, "..", "..", "dist", "index.html"),
-    path.join(baseDir, "..", "dist", "index.html"),
+    path.join(__dirname, "..", "..", "dist", "index.html"),
+    path.join(__dirname, "..", "dist", "index.html"),
     path.join(process.cwd(), "index.html"),
     path.resolve("./index.html"),
-    path.join(baseDir, "..", "..", "index.html"),
-    path.join(baseDir, "..", "index.html")
+    path.join(__dirname, "..", "..", "index.html"),
+    path.join(__dirname, "..", "index.html")
   ];
 
   for (const p of candidatePaths) {
