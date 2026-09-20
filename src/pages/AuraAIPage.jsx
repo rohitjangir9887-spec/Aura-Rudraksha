@@ -550,6 +550,14 @@ export function AuraAIPage() {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
+      const currentStoreMsgs = auraChatStore.getMessages(mode);
+      const effectiveHistory = [...currentStoreMsgs];
+      const existingIdx = effectiveHistory.findIndex(m => m.id === targetMsg.id);
+      if (existingIdx >= 0) {
+        effectiveHistory[existingIdx] = targetMsg;
+      } else {
+        effectiveHistory.push(targetMsg);
+      }
 
       await auraAiClient.sendMessageStream({
         message: prompt,
@@ -558,7 +566,7 @@ export function AuraAIPage() {
         userName,
         mode,
         cartItems: cart.lines || [],
-        history: messages.slice(-8),
+        history: effectiveHistory.slice(-8),
         birthDetails: mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null,
         isContinuation: true,
         onStatus: (statusMsg) => {
@@ -596,7 +604,7 @@ export function AuraAIPage() {
               clone[idx] = liveMsg;
               return clone;
             }
-            return [...prev, aiMsg];
+            return [...prev, liveMsg];
           });
         },
         onDone: (finalData) => {

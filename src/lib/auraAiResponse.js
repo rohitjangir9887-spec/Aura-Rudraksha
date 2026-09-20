@@ -301,30 +301,32 @@ export function customerSafeAiText(value) {
 export function isAuraResponseIncomplete(text, mode = "standard") {
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
-  if (trimmed.length < 50) return false;
+  if (trimmed.length < 30) return false;
 
-  // 1. Explicit terminal tags = definitively complete
-  if (trimmed.includes("[AURA_KEYWORDS]:")) return false;
+  // 1. Explicit terminal tags or standard keywords = definitively complete
+  if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
 
   // 2. Unclosed code fences = incomplete
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
 
-  // 3. Unclosed markdown table row cut off mid-line
+  // 3. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // 4. Dangling connectors / list numbers
+  // 4. Ends with dangling conjunctions, prepositions, or cut-off list numbers
   const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/;
   if (danglingConnectors.test(trimmed)) return true;
 
-  // 5. Check closing punctuation
-  const hasTerminalPunctuation = /([।!?.\n]\s*$|[।!?.]["'*)\]]\s*$|🙏\s*$|🕉️\s*$|✅\s*$|🌟\s*$|✨\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$)/.test(trimmed);
-  if (!hasTerminalPunctuation) {
-    return true;
+  // 5. Check closing punctuation & terminal greetings
+  const hasTerminalPunctuation = /([।!?.\n]\s*$|[।!?.]["'*)\]_~]*\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|धन्यवाद\.?\s*$)/.test(trimmed);
+
+  if (hasTerminalPunctuation) {
+    // If it has terminal punctuation and is not cut off mid-sentence, it is COMPLETE
+    return false;
   }
 
-  // 6. In deep astrological reading, if it mentions horoscope/graha details but got cut before remedies/table
-  if (mode === "panditji" && trimmed.includes("लग्न") && trimmed.includes("ग्रह") && !trimmed.includes("सारांश") && !trimmed.includes("|") && trimmed.length > 700) {
+  // 6. Deep astrological reading without terminal summary or keywords if cut mid-way
+  if (mode === "panditji" && trimmed.includes("लग्न") && trimmed.includes("ग्रह") && !trimmed.includes("तालिका") && !trimmed.includes("|") && trimmed.length > 900) {
     return true;
   }
 

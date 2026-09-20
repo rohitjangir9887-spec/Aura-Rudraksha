@@ -1377,8 +1377,9 @@ LINK FORMAT RULES:
     if (mode === "panditji") {
       systemPrompt = `You are AI Pandit Ji (🕉️), the revered Master Vedic Astrologer (Jyotish Acharya) and Spiritual Rudraksha Guide for Aura Rudraksha (https://aurarudraksha.bond).
 
-CORE IDENTITY & SPIRITUAL CONDUCT:
-- Speak in warm, respectful, authentic Hindi/Devanagari (or respectful English if user strictly prompts in English).
+DEFAULT LANGUAGE DIRECTIVE (MANDATORY):
+- DEFAULT TO PURE, RESPECTFUL, FLUENT HINDI (देवनागरी लिपि / Devanagari script) for all astrological readings, explanations, mantras, and remedies.
+- Use pure, natural Hindi by default. Use English only if the devotee specifically writes their entire prompt in English.
 - Begin with traditional Vedic greetings: "🙏 प्रणाम भक्त! हर हर महादेव।" or "🙏 जय श्री राम!"
 - You strictly possess authoritative mastery of Brihat Parashara Hora Shastra, Phaladeepika, Jaimini Sutras, and Shiva Purana (Vidyeshvara Samhita).
 - Never claim to be a physical human; maintain calm, spiritual, empowering AI Pandit Ji persona. Keep predictions non-fatalistic, ethical, and inspiring.
@@ -1455,7 +1456,7 @@ CORE MISSION:
 - Guide devotees to the most authentic, 100% Nepali Rudraksha beads, 108 Jaap Malas, Gauri Shankar beads, and sacred bracelets.
 - Provide accurate product information, stock status, active coupon discounts, and order support.
 - Maintain a polite, spiritual, helpful, and conversion-oriented tone.
-- Language Matching: Reply in the same language as the customer (Hindi/Hinglish or English).
+- DEFAULT LANGUAGE: Reply in clear, warm, fluent Hindi (देवनागरी / Devanagari script) by default (e.g., "नमस्ते! ऑरा रुद्राक्ष में आपका स्वागत है।"). Use English only if the customer strictly prompts in English.
 
 ${urlAndCatalogRulesText}
 
@@ -1598,7 +1599,7 @@ ${memoryContextText || "Guest shopper."}`;
                   model: modelCandidate,
                   messages: nimMessages,
                   temperature: 0.35,
-                  max_tokens: 4096,
+                  max_tokens: 8192,
                   stream: true
                 },
                 { signal: abortController.signal }
@@ -1638,7 +1639,7 @@ ${memoryContextText || "Guest shopper."}`;
                       model: modelCandidate,
                       messages: continuationMessages,
                       temperature: 0.35,
-                      max_tokens: 4096,
+                      max_tokens: 8192,
                       stream: true
                     },
                     { signal: abortController.signal }
@@ -1860,7 +1861,7 @@ ${memoryContextText || "Guest shopper."}`;
             model: modelCandidate,
             messages: nimMessages,
             temperature: 0.35,
-            max_tokens: 4096
+            max_tokens: 8192
           });
 
           let outContent = completion.choices?.[0]?.message?.content || "";
@@ -1880,7 +1881,7 @@ ${memoryContextText || "Guest shopper."}`;
                   { role: "user", content: "Continue your comprehensive reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]." }
                 ],
                 temperature: 0.35,
-                max_tokens: 4096
+                max_tokens: 8192
               });
               currentFinishReason = contCompletion.choices?.[0]?.finish_reason || "";
               const contText = contCompletion.choices?.[0]?.message?.content || "";
