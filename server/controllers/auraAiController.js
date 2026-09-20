@@ -785,7 +785,15 @@ Provide an authentic, respectful, spiritual, and uplifting Vedic analysis in war
 2. Explain the influence of their running ${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} Mahadasha and timeline.
 3. Address their primary concern with deep Vedic remedies.
 4. Recommend the exact consecrated Rudraksha beads (Lagna Lord bead, Rashi bead, Dasha bead) to enhance spiritual balance, aura protection, and peace.
-5. Conclude with a clean Final Astrological Summary (सरल सारांश तालिका) and Beej Mantra.
+5. Conclude with a clean Final Astrological Summary table (सरल सारांश तालिका):
+| विषय (Area) | विवरण (Details) | सरल फल / लाभ (Simple Meaning & Benefit) |
+|---|---|---|
+| **जन्म लग्न** | ... | ... |
+| **जन्म राशि व नक्षत्र** | ... | ... |
+| **वर्तमान महादशा** | ... | ... |
+| **मुख्य दोष / प्रभाव** | ... | ... |
+| **कल्याणकारी रुद्राक्ष** | ... | ... |
+| **दैनिक सिद्ध बीज मंत्र** | ... | ... |
 6. End with [AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5.
 Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji persona. Keep predictions non-fatalistic, empowering, and positive.`;
 
@@ -1299,7 +1307,15 @@ When providing a Kundali consultation reading, you MUST systematically cover:
 7. ✨ शुभ योग व वर्गोत्तम ग्रह (राजयोग, गजकेसरी योग, बुधादित्य योग)
 8. 🎯 जातक के मुख्य संकल्प/समस्या पर विशेष ज्योतिषीय मार्गदर्शन (${calculatedKundaliData.verifiedBirthData.concern || 'All Life Areas'})
 9. 📿 **वैदिक रुद्राक्ष परामर्श (Lagna bead, Rashi bead, Dasha bead & Shiva Purana Dharan Vidhi)** — *Give Rudraksha recommendation strictly here at Step 9, not earlier.*
-10. 🌟 **सरल व स्पष्ट सारांश तालिका (Final Astrological Summary)** — Provide an easy-to-read summary table with: लग्न, राशि, नक्षत्र, महादशा, मुख्य दोष, धारण हेतु रुद्राक्ष, एवं सिद्ध बीज मंत्र so everyday devotees who cannot read complex astrological charts understand everything instantly.
+10. 🌟 **सरल व स्पष्ट सारांश तालिका (Final Astrological Summary)** — Provide an easy-to-read summary table so everyday devotees who cannot read complex astrological charts understand everything instantly:
+| विषय (Area) | विवरण (Details) | सरल फल / लाभ (Simple Meaning & Benefit) |
+|---|---|---|
+| **जन्म लग्न** | ... | ... |
+| **जन्म राशि व नक्षत्र** | ... | ... |
+| **वर्तमान महादशा** | ... | ... |
+| **मुख्य ग्रह स्थिति / दोष** | ... | ... |
+| **कल्याणकारी रुद्राक्ष** | ... | ... |
+| **दैनिक सिद्ध बीज मंत्र** | ... | ... |
 11. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5** — Mandatorily output 4 to 6 concise follow-up search keywords separated by | on the very last line.
 
 STRICT ISOLATION & ACCURACY RULES:
@@ -1452,92 +1468,103 @@ ${memoryContextText || "Guest shopper."}`;
       if (nvidiaClient && !clientDisconnected) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
-          try {
-            const streamCompletion = await nvidiaClient.chat.completions.create(
-              {
-                model: modelCandidate,
-                messages: nimMessages,
-                temperature: 0.35,
-                max_tokens: 4096,
-                stream: true
-              },
-              { signal: abortController.signal }
-            );
+          
+          let attempt = 0;
+          const MAX_CANDIDATE_ATTEMPTS = 2;
 
-            let lastFinishReason = "";
-            for await (const chunk of streamCompletion) {
-              if (clientDisconnected) break;
-              const deltaContent = chunk.choices?.[0]?.delta?.content || "";
-              const fReason = chunk.choices?.[0]?.finish_reason;
-              if (fReason) lastFinishReason = fReason;
-              if (deltaContent) {
-                fullStreamedText += deltaContent;
-                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
-                res.flush?.();
-              }
-            }
+          while (attempt < MAX_CANDIDATE_ATTEMPTS && !streamSucceeded && !clientDisconnected) {
+            attempt++;
+            try {
+              const streamCompletion = await nvidiaClient.chat.completions.create(
+                {
+                  model: modelCandidate,
+                  messages: nimMessages,
+                  temperature: 0.35,
+                  max_tokens: 4096,
+                  stream: true
+                },
+                { signal: abortController.signal }
+              );
 
-            // Automatic Multi-Turn Continuation if response hit token limits or was truncated mid-sentence
-            let passCount = 0;
-            const MAX_CONTINUATION_PASSES = 3;
-            while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
-              passCount++;
-              try {
-                const continuationMessages = [
-                  ...nimMessages,
-                  { role: "assistant", content: fullStreamedText },
-                  {
-                    role: "user",
-                    content: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table, and the MANDATORY [AURA_KEYWORDS] section at the end."
-                  }
-                ];
-
-                const continuationStream = await nvidiaClient.chat.completions.create(
-                  {
-                    model: modelCandidate,
-                    messages: continuationMessages,
-                    temperature: 0.35,
-                    max_tokens: 4096,
-                    stream: true
-                  },
-                  { signal: abortController.signal }
-                );
-
-                let thisPassText = "";
-                lastFinishReason = "";
-                for await (const chunk of continuationStream) {
-                  if (clientDisconnected) break;
-                  const deltaContent = chunk.choices?.[0]?.delta?.content || "";
-                  const fReason = chunk.choices?.[0]?.finish_reason;
-                  if (fReason) lastFinishReason = fReason;
-                  if (deltaContent) {
-                    thisPassText += deltaContent;
-                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
-                    res.flush?.();
-                  }
+              let lastFinishReason = "";
+              for await (const chunk of streamCompletion) {
+                if (clientDisconnected) break;
+                const deltaContent = chunk.choices?.[0]?.delta?.content || "";
+                const fReason = chunk.choices?.[0]?.finish_reason;
+                if (fReason) lastFinishReason = fReason;
+                if (deltaContent) {
+                  fullStreamedText += deltaContent;
+                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+                  res.flush?.();
                 }
+              }
 
-                if (thisPassText.trim()) {
-                  fullStreamedText = mergeContinuation(fullStreamedText, thisPassText);
-                } else {
+              // Automatic Multi-Turn Continuation if response hit token limits or was truncated mid-sentence
+              let passCount = 0;
+              const MAX_CONTINUATION_PASSES = 4;
+              while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
+                passCount++;
+                try {
+                  const continuationPrompt = mode === "panditji"
+                    ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table (सरल सारांश तालिका), and the MANDATORY [AURA_KEYWORDS] section at the end."
+                    : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance and recommendations.";
+
+                  const continuationMessages = [
+                    ...nimMessages,
+                    { role: "assistant", content: fullStreamedText },
+                    { role: "user", content: continuationPrompt }
+                  ];
+
+                  const continuationStream = await nvidiaClient.chat.completions.create(
+                    {
+                      model: modelCandidate,
+                      messages: continuationMessages,
+                      temperature: 0.35,
+                      max_tokens: 4096,
+                      stream: true
+                    },
+                    { signal: abortController.signal }
+                  );
+
+                  let thisPassText = "";
+                  lastFinishReason = "";
+                  for await (const chunk of continuationStream) {
+                    if (clientDisconnected) break;
+                    const deltaContent = chunk.choices?.[0]?.delta?.content || "";
+                    const fReason = chunk.choices?.[0]?.finish_reason;
+                    if (fReason) lastFinishReason = fReason;
+                    if (deltaContent) {
+                      thisPassText += deltaContent;
+                      res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+                      res.flush?.();
+                    }
+                  }
+
+                  if (thisPassText.trim()) {
+                    fullStreamedText = mergeContinuation(fullStreamedText, thisPassText);
+                  } else {
+                    break;
+                  }
+                } catch (cErr) {
+                  console.warn(`[Aura AI Streaming Continuation] Pass ${passCount} notice:`, cErr?.message || cErr);
                   break;
                 }
-              } catch (cErr) {
-                console.warn(`[Aura AI Streaming Continuation] Pass ${passCount} notice:`, cErr?.message || cErr);
+              }
+
+              if (fullStreamedText.trim()) {
+                streamSucceeded = true;
                 break;
               }
+            } catch (streamErr) {
+              if (streamErr.name === "AbortError" || clientDisconnected) {
+                clearInterval(heartbeatTimer);
+                return;
+              }
+              console.warn(`[Aura AI Streaming] NVIDIA NIM notice (${modelCandidate}, attempt ${attempt}):`, streamErr?.message || streamErr);
+              if (!fullStreamedText.trim() && attempt < MAX_CANDIDATE_ATTEMPTS) {
+                await new Promise((r) => setTimeout(r, 400 * attempt));
+              }
             }
-
-            if (fullStreamedText.trim()) {
-              streamSucceeded = true;
-              break;
-            }
-          } catch (streamErr) {
-            if (streamErr.name === "AbortError" || clientDisconnected) {
-              clearInterval(heartbeatTimer);
-              return;
-            }
-            console.warn(`[Aura AI Streaming] NVIDIA NIM notice (${modelCandidate}):`, streamErr?.message || streamErr);
           }
         }
       }
