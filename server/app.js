@@ -118,11 +118,14 @@ export function createApp(options = {}) {
     next();
   });
 
-  // Performance: Fast Gzip/Deflate compression for all responses > 1KB
+  // Performance: Fast Gzip/Deflate compression for all responses > 1KB (Exclude SSE text/event-stream)
   app.use(compression({
     threshold: 1024,
     filter: (req, res) => {
       if (req.headers["x-no-compression"]) return false;
+      if (req.headers.accept?.includes("text/event-stream") || req.path?.includes("/chat")) return false;
+      const contentType = res.getHeader("content-type") || "";
+      if (typeof contentType === "string" && contentType.includes("text/event-stream")) return false;
       return compression.filter(req, res);
     }
   }));

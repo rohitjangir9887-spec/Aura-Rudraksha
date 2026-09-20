@@ -92,7 +92,8 @@ export function AuraAIPage() {
     dob: "",
     time: "",
     place: "",
-    concern: "career"
+    concern: "career",
+    customConcern: ""
   });
 
   const refreshSavedKundalisCount = () => {
@@ -119,24 +120,44 @@ export function AuraAIPage() {
       emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
       return;
     }
+    if (birthForm.concern === "custom" && !birthForm.customConcern.trim()) {
+      emitToast("कृपया अपना विशेष प्रश्न या समस्या दर्ज करें", "warning");
+      return;
+    }
 
     const concernLabels = {
-      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
-      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
-      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
-      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
-      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
-      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
+      career: "⚡ करियर व आजीविका (Career & Job)",
+      business: "💼 व्यापार व व्यवसाय वृद्धि (Business & Trade)",
+      education: "📚 शिक्षा, विद्या व परीक्षा (Education & Studies)",
+      marriage: "💍 विवाह व दांपत्य सुख (Marriage & Delay Removal)",
+      love: "❤️ प्रेम संबंध व आकर्षण (Love & Relationship)",
+      family: "🏡 पारिवारिक शांति व सद्भाव (Family Peace)",
+      health: "🩺 स्वास्थ्य, आरोग्य व दीर्घायु (Health & Vitality)",
+      finance: "💰 धन, आर्थिक संपन्नता व ऋण मुक्ति (Finance & Wealth)",
+      children: "👶 संतान सुख व संतान कल्याण (Children & Progeny)",
+      property: "🏠 भूमि, भवन व वाहन योग (Property & Assets)",
+      spiritual: "🕉️ आध्यात्मिक उन्नति व साधना (Spirituality & Moksha)",
+      foreign_travel: "✈️ विदेश यात्रा व विदेश योग (Foreign Travel & Visa)",
+      legal: "⚖️ कोर्ट-कचहरी व कानूनी मामले (Legal Matters & Victory)",
+      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष शांति (Dosha Shanti)",
+      general: "🌟 संपूर्ण जीवन विश्लेषण (General Life Analysis)",
+      other: "🔮 अन्य आध्यात्मिक मार्गदर्शन (Other Spiritual Guidance)",
+      custom: `✍️ विशेष प्रश्न: ${birthForm.customConcern?.trim() || "व्यक्तिगत चिंता"}`
     };
 
-    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
+    const effectiveConcernText = birthForm.concern === "custom" 
+      ? `विशेष व्यक्तिगत प्रश्न: ${birthForm.customConcern.trim()}`
+      : (concernLabels[birthForm.concern] || birthForm.concern);
+
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${effectiveConcernText}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
 
     const verifiedDetails = {
       name: birthForm.name.trim(),
       dob: birthForm.dob,
       birthTime: birthForm.time.trim(),
       birthPlace: birthForm.place.trim(),
-      concern: birthForm.concern
+      concern: birthForm.concern,
+      customConcern: birthForm.customConcern?.trim() || ""
     };
     auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
 
@@ -987,13 +1008,40 @@ export function AuraAIPage() {
                           onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
                           className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
                         >
-                          <option value="career">⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)</option>
-                          <option value="peace">🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)</option>
-                          <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)</option>
-                          <option value="marriage">❤️ विवाह, प्रेम व परिवार (Relationships)</option>
-                          <option value="health">🩺 स्वास्थ्य व आरोग्य (Health & Vitality)</option>
-                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)</option>
+                          <option value="career">⚡ करियर व आजीविका (Career & Job)</option>
+                          <option value="business">💼 व्यापार व व्यवसाय (Business & Trade)</option>
+                          <option value="education">📚 शिक्षा, विद्या व परीक्षा (Education & Studies)</option>
+                          <option value="marriage">💍 विवाह व दांपत्य सुख (Marriage & Delay Removal)</option>
+                          <option value="love">❤️ प्रेम संबंध व आकर्षण (Love & Relationship)</option>
+                          <option value="family">🏡 पारिवारिक शांति व सुख (Family Harmony)</option>
+                          <option value="health">🩺 स्वास्थ्य, आरोग्य व दीर्घायु (Health & Vitality)</option>
+                          <option value="finance">💰 धन, आर्थिक संपन्नता व ऋण मुक्ति (Finance & Wealth)</option>
+                          <option value="children">👶 संतान सुख व संतान कल्याण (Children & Progeny)</option>
+                          <option value="property">🏠 भूमि, भवन व वाहन योग (Property & Assets)</option>
+                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति व साधना (Spirituality & Moksha)</option>
+                          <option value="foreign_travel">✈️ विदेश यात्रा व विदेश योग (Foreign Travel & Visa)</option>
+                          <option value="legal">⚖️ कोर्ट-कचहरी व कानूनी मामले (Legal Victory)</option>
+                          <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष शांति (Dosha Shanti)</option>
+                          <option value="general">🌟 संपूर्ण जीवन विश्लेषण (General Life Analysis)</option>
+                          <option value="other">🔮 अन्य आध्यात्मिक मार्गदर्शन (Other Guidance)</option>
+                          <option value="custom">✍️ अपनी चिंता स्वयं लिखें (Custom Concern)</option>
                         </select>
+
+                        {birthForm.concern === "custom" && (
+                          <div className="mt-2">
+                            <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
+                              अपनी विशेष चिंता / प्रश्न लिखें (Your Custom Concern) *
+                            </label>
+                            <textarea
+                              rows={2}
+                              required
+                              placeholder="उदा. क्या मेरी इस वर्ष सरकारी नौकरी लगेगी? या कौन सा रुद्राक्ष मेरे लिए सबसे उत्तम है?"
+                              value={birthForm.customConcern}
+                              onChange={(e) => setBirthForm({ ...birthForm, customConcern: e.target.value })}
+                              className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
+                            />
+                          </div>
+                        )}
                       </div>
 
                       <button
