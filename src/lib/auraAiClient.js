@@ -58,6 +58,7 @@ export const auraAiClient = {
     history = [],
     birthDetails = null,
     notesContext = "",
+    isContinuation = false,
     onChunk,
     onStatus,
     onDone,
@@ -139,6 +140,7 @@ export const auraAiClient = {
           history,
           birthDetails: effectiveBirthDetails,
           notesContext,
+          isContinuation: Boolean(isContinuation),
           stream: true
         })
       });

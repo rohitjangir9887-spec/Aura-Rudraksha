@@ -880,7 +880,8 @@ export function AuraAIFloating() {
         mode,
         cartItems: cart.lines || [],
         history: messages.slice(-8),
-        birthDetails: mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null,
+        birthDetails: mode === "panditji" ? (activeKundaliProfile || auraChatStore.getVerifiedBirthDetails()) : null,
+        isContinuation: true,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -893,7 +894,7 @@ export function AuraAIFloating() {
           }
           setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
           const cleanAccumulated = customerSafeAiText(accumulated);
-          const merged = baseText ? `${baseText} ${cleanAccumulated}` : cleanAccumulated;
+          const merged = baseText ? `${baseText}\n\n${cleanAccumulated}` : cleanAccumulated;
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -925,8 +926,8 @@ export function AuraAIFloating() {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          const cleanFinal = customerSafeAiText(finalData.text);
-          const finalMerged = baseText ? `${baseText} ${cleanFinal}` : cleanFinal;
+          const cleanFinal = customerSafeAiText(finalData.text || "");
+          const finalMerged = baseText ? `${baseText}\n\n${cleanFinal}` : cleanFinal;
           const aiMsg = {
             ...targetMsg,
             id: aiMsgId,
@@ -1415,13 +1416,19 @@ export function AuraAIFloating() {
 
                   {/* New Chat Button - positioned right next to the Close icon */}
                   <button 
-                    onClick={handleNewChat} 
-                    className={`aura-ai-btn-icon ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNewChat();
+                    }} 
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className={`aura-ai-btn-icon aura-ai-btn-newchat ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
                     title="New Chat / Nayi Baat-cheet (Purani chat safe rahegi)"
                     aria-label="New Chat"
                     disabled={isRefreshing}
                   >
-                    <RotateCcw size={12} />
+                    <RotateCcw size={13} />
                   </button>
 
                   {/* Close Chat Button */}
@@ -1484,6 +1491,17 @@ export function AuraAIFloating() {
                 {mode === "panditji" ? (
                   <>
                     <button 
+                      type="button"
+                      onClick={handleNewChat} 
+                      className="aura-ai-strip-btn"
+                      title="New Chat / Nayi Baat-cheet"
+                      style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b", fontWeight: 700 }}
+                    >
+                      <RotateCcw size={10.5} />
+                      <span>🔄 New Chat</span>
+                    </button>
+
+                    <button 
                       onClick={() => setShowBirthForm((prev) => !prev)} 
                       className={`aura-ai-strip-btn ${showBirthForm ? "active" : ""}`}
                       style={{ background: "#fef3c7", color: "#78350f", border: "1.5px solid #f59e0b", fontWeight: 700 }}
@@ -1534,6 +1552,17 @@ export function AuraAIFloating() {
                   </>
                 ) : (
                   <>
+                    <button 
+                      type="button"
+                      onClick={handleNewChat} 
+                      className="aura-ai-strip-btn"
+                      title="New Chat / Nayi Baat-cheet"
+                      style={{ background: "#fdf3e3", color: "#8c2b10", border: "1px solid #d4af37", fontWeight: 700 }}
+                    >
+                      <RotateCcw size={10.5} />
+                      <span>🔄 New Chat</span>
+                    </button>
+
                     <button 
                       onClick={() => handleSend("📦 Track my recent order status")} 
                       className="aura-ai-strip-btn"

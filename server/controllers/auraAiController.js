@@ -995,6 +995,9 @@ export async function chatAuraAI(req, res, next) {
     const incomingBirthDetails = passedBirthDetails || extractedFromMsg;
     const existingVerifiedBirthDetails = existingConvDoc?.verifiedBirthDetails || null;
 
+    const isContinuation = Boolean(req.body?.isContinuation) || 
+      /continue|रुका था|जारी रखें|पूरा करें|incomplete|jahan se ruka/i.test(message || "");
+
     let hasNewBirthDetails = false;
     let activeBirthDetails = null;
 
@@ -1005,7 +1008,7 @@ export async function chatAuraAI(req, res, next) {
         existingVerifiedBirthDetails.birthPlace !== incomingBirthDetails.birthPlace ||
         (incomingBirthDetails.name && existingVerifiedBirthDetails.name && incomingBirthDetails.name.toLowerCase() !== existingVerifiedBirthDetails.name.toLowerCase());
 
-      hasNewBirthDetails = isDifferentFromExisting || Boolean(passedBirthDetails) || Boolean(req.body?.reset);
+      hasNewBirthDetails = !isContinuation && (Boolean(req.body?.reset) || (isDifferentFromExisting && (!existingConvDoc || (existingConvDoc.messages && existingConvDoc.messages.length > 0))));
       activeBirthDetails = {
         dob: incomingBirthDetails.dob,
         birthTime: incomingBirthDetails.birthTime,
@@ -1369,10 +1372,10 @@ CUSTOMER CONTEXT:
 ${memoryContextText || "Guest shopper."}`;
     }
 
-    let effectiveHistory = Array.isArray(history) ? history.slice(-6) : [];
-    if (hasNewBirthDetails) {
+    let effectiveHistory = Array.isArray(history) ? history.slice(-8) : [];
+    if (hasNewBirthDetails && !isContinuation) {
       effectiveHistory = [];
-    } else if (activeBirthDetails) {
+    } else if (activeBirthDetails && !isContinuation) {
       let lastMarkerIdx = -1;
       for (let i = effectiveHistory.length - 1; i >= 0; i--) {
         const hText = String(effectiveHistory[i]?.text || "");
@@ -1396,6 +1399,16 @@ ${memoryContextText || "Guest shopper."}`;
       } else if (h.sender === "ai" && h.text) {
         nimMessages.push({ role: "assistant", content: String(h.text) });
       }
+    }
+
+    if (isContinuation) {
+      nimMessages.push({
+        role: "system",
+        content: `CONTINUATION DIRECTIVE (MANDATORY): The user is asking to seamlessly continue the previous response directly from where it stopped.
+- DO NOT start with any greeting (e.g. "Namaste", "🙏", "Pranam", or "Devotee").
+- DO NOT repeat what was already written in the assistant's previous message above.
+- Continue directly from the exact point of interruption. Complete any unfinished sentences, remaining Graha/Bhava analysis, remedies, Final Astrological Summary table, and [AURA_KEYWORDS].`
+      });
     }
 
     if (message && message.trim()) {

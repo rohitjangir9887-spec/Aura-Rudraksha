@@ -533,7 +533,8 @@ export function AuraAIPage() {
         mode,
         cartItems: cart.lines || [],
         history: messages.slice(-8),
-        birthDetails: mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null,
+        birthDetails: mode === "panditji" ? (activeKundaliProfile || auraChatStore.getVerifiedBirthDetails()) : null,
+        isContinuation: true,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -546,7 +547,7 @@ export function AuraAIPage() {
           }
           setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
           const cleanAccumulated = customerSafeAiText(accumulated);
-          const merged = baseText ? `${baseText} ${cleanAccumulated}` : cleanAccumulated;
+          const merged = baseText ? `${baseText}\n\n${cleanAccumulated}` : cleanAccumulated;
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -577,8 +578,8 @@ export function AuraAIPage() {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          const cleanFinal = customerSafeAiText(finalData.text);
-          const finalMerged = baseText ? `${baseText} ${cleanFinal}` : cleanFinal;
+          const cleanFinal = customerSafeAiText(finalData.text || "");
+          const finalMerged = baseText ? `${baseText}\n\n${cleanFinal}` : cleanFinal;
           const aiMsg = {
             ...targetMsg,
             id: aiMsgId,
