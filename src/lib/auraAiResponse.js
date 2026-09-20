@@ -298,39 +298,82 @@ export function customerSafeAiText(value) {
   return sanitizeCustomerText(String(value));
 }
 
+/**
+ * Smartly merge continuation text into existing base text cleanly without broken newlines,
+ * repeated greetings, or duplicated overlapping words.
+ */
+export function smartMergeContinuation(baseText, continuationText) {
+  if (!baseText) return continuationText || "";
+  if (!continuationText) return baseText || "";
+
+  let cleanBase = String(baseText).trimEnd();
+  let cleanCont = String(continuationText).trimStart();
+
+  // Strip repeated greeting restarts or AI intro prefixes if present at start of continuation
+  cleanCont = cleanCont.replace(/^(🙏\s*)?(प्रणाम(\s*भक्त)?|हर\s*हर\s*महादेव|नमस्ते|शुभ\s*आशीर्वाद|जी\s*हाँ|आगे\s*का\s*उत्तर|उत्तर\s*आगे)[!।:]?\s*/i, "");
+
+  // 1. Check for overlapping suffix/prefix (10 to 180 characters)
+  const maxOverlap = Math.min(180, cleanBase.length, cleanCont.length);
+  for (let len = maxOverlap; len >= 10; len--) {
+    const baseSuffix = cleanBase.slice(-len);
+    if (cleanCont.startsWith(baseSuffix)) {
+      return cleanBase + cleanCont.slice(len);
+    }
+  }
+
+  // 2. If base ends with a newline, join with newline
+  if (/[\n|]$/.test(cleanBase)) {
+    return cleanBase + "\n" + cleanCont;
+  }
+
+  // 3. If base ends with sentence punctuation (danda । , period , exclamation , colon)
+  if (/[।!?.:]$/.test(cleanBase)) {
+    return cleanBase + " " + cleanCont;
+  }
+
+  // 4. If base ended mid-word or mid-sentence without punctuation
+  const needsSpace = !/\s$/.test(cleanBase) && !/^\s/.test(cleanCont) && !/^[।,.;:!?]/.test(cleanCont);
+  return cleanBase + (needsSpace ? " " : "") + cleanCont;
+}
+
 export function isAuraResponseIncomplete(text, mode = "standard") {
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
   if (trimmed.length < 25) return false;
 
-  // 1. Explicit terminal tags or standard keywords = definitively complete
+  // 1. Explicit terminal keywords or tag = definitively complete
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
 
-  // 2. Unclosed code fences = incomplete
-  const codeBlockCount = (trimmed.match(/```/g) || []).length;
-  if (codeBlockCount % 2 !== 0) return true;
-
-  // 3. Unclosed markdown table row cut off mid-cell
-  if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
-
-  // 4. Ends with dangling conjunctions, prepositions, connectors, or cut-off list numbers
-  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय|मंत्र|विधि|की|के|का|को|से|में|पर|है|हैं|हो|था|थी|थे|जो|जब|तब|यदि|तो|या|अथवा|इत्यादि|a|an|the|and|or|but|because|is|are|was|were|to|for|in|on|at|with|by|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
-  if (danglingConnectors.test(trimmed)) return true;
-
-  // 5. Check closing punctuation & terminal greetings
-  const hasTerminalPunctuation = /([।!?.\n]\s*$|[।!?.]["'*)\]_~]*\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|धन्यवाद\.?\s*$)/.test(trimmed);
-
-  if (hasTerminalPunctuation) {
-    // If it has terminal punctuation and is not cut off mid-sentence, it is COMPLETE
+  // 2. Explicit terminal blessings = complete
+  if (/(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$)/i.test(trimmed)) {
     return false;
   }
 
-  // 6. Deep astrological reading or long response without terminal punctuation = incomplete
-  if (mode === "panditji" && trimmed.includes("लग्न") && trimmed.includes("ग्रह") && !trimmed.includes("तालिका") && !trimmed.includes("|") && trimmed.length > 750) {
-    return true;
+  // 3. Unclosed code fences = incomplete
+  const codeBlockCount = (trimmed.match(/```/g) || []).length;
+  if (codeBlockCount % 2 !== 0) return true;
+
+  // 4. Unclosed markdown table row cut off mid-cell
+  if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
+
+  // 5. Ends with dangling conjunctions, prepositions, connectors, or cut-off list numbers
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय|मंत्र|विधि|की|के|का|को|से|में|पर|है|हैं|हो|था|थी|थे|जो|जब|तब|यदि|तो|या|अथवा|इत्यादि|a|an|the|and|or|but|because|is|are|was|were|to|for|in|on|at|with|by|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
+  if (danglingConnectors.test(trimmed)) return true;
+
+  // 6. Detailed Kundali reading (Panditji mode) missing summary table / remedies / keywords
+  if (mode === "panditji" && (trimmed.includes("लग्न") || trimmed.includes("कुंडली") || trimmed.includes("ग्रह"))) {
+    // If it hasn't reached remedies / summary table / mantras / keywords yet, it is INCOMPLETE
+    const hasRemediesOrSummary = trimmed.includes("सारणी") || trimmed.includes("तालिका") || trimmed.includes("बीज मंत्र") || trimmed.includes("धारण विधि") || trimmed.includes("शुभ रुद्राक्ष");
+    if (!hasRemediesOrSummary) return true;
   }
 
-  // If missing terminal punctuation and length > 60, mark as incomplete for seamless continuation
-  return trimmed.length > 60;
+  // 7. Check terminal punctuation on last line
+  const hasTerminalPunctuation = /([।!?.\n]\s*$|[।!?.]["'*)\]_~]*\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
+  if (hasTerminalPunctuation) {
+    return false;
+  }
+
+  // If missing terminal punctuation and length > 50, mark as incomplete for seamless continuation
+  return trimmed.length > 50;
 }
 

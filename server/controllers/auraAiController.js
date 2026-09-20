@@ -164,31 +164,42 @@ export function getNvidiaClient(customKey = "") {
 /**
  * Detect if AI generated response is genuinely truncated, cut off mid-sentence, or hit token limits
  */
-export function isTextIncomplete(text, finishReason = "") {
+export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   if (finishReason === "length") return true;
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
   if (trimmed.length < 40) return false;
 
-  // If response already has AURA_KEYWORDS section = it is definitively complete
-  if (trimmed.includes("[AURA_KEYWORDS]:")) return false;
+  // 1. Explicit terminal keywords section = definitively complete
+  if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
 
-  // Check unclosed code fences
+  // 2. Explicit terminal blessings = complete
+  if (/(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$)/i.test(trimmed)) {
+    return false;
+  }
+
+  // 3. Check unclosed code fences
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
 
-  // Check unclosed markdown table row that got cut off mid-line
+  // 4. Check unclosed markdown table row that got cut off mid-line
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // Check if ends with dangling connector words or unclosed bullet points
-  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय|मंत्र|विधि|की|के|का|को|से|में|पर|है|हैं|हो|था|थी|थे|जो|जब|तब|यदि|तो|या|अथवा|इत्यादि|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
+  // 5. Check if ends with dangling connector words or unclosed bullet points
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय|मंत्र|विधि|की|के|का|को|се|में|पर|है|हैं|हो|था|थी|थे|जो|जब|तब|यदि|तो|या|अथवा|इत्यादि|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
   if (danglingConnectors.test(trimmed)) return true;
 
-  // Clean terminal signals — these definitively end a response
-  const hasTerminalSignal = /([।!?.\n]\s*$|[।!?.]["'*)\]]\s*$|🙏\s*$|🕉️\s*$|✅\s*$|🌟\s*$|✨\s*$|अस्तु\.?\s*$|इति\.?\s*$|शुभम्\.?\s*$|ॐ\s*शांति\.?\s*$|\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|\[AURA_KEYWORDS\]:[^\n]*\s*$)/.test(trimmed);
+  // 6. Detailed Kundali reading (Panditji mode) missing remedies / summary table / keywords
+  if (mode === "panditji" && (trimmed.includes("लग्न") || trimmed.includes("कुंडली") || trimmed.includes("ग्रह"))) {
+    const hasRemediesOrSummary = trimmed.includes("सारणी") || trimmed.includes("तालिका") || trimmed.includes("बीज मंत्र") || trimmed.includes("धारण विधि") || trimmed.includes("शुभ रुद्राक्ष");
+    if (!hasRemediesOrSummary) return true;
+  }
+
+  // 7. Check terminal signals
+  const hasTerminalSignal = /([।!?.\n]\s*$|[।!?.]["'*)\]]\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
   if (hasTerminalSignal) return false;
 
-  return false;
+  return trimmed.length > 50;
 }
 
 /**
@@ -198,23 +209,34 @@ export function mergeContinuation(existingText, continuationText) {
   if (!existingText) return continuationText || "";
   if (!continuationText) return existingText || "";
 
-  let cleanContinuation = continuationText.trim();
+  let cleanBase = String(existingText).trimEnd();
+  let cleanCont = String(continuationText).trimStart();
 
   // Strip repeated greeting restarts from continuation
-  cleanContinuation = cleanContinuation.replace(/^(🙏\s*)?(प्रणाम(\s*भक्त)?|हर\s*हर\s*महादेव|नमस्ते|शुभ\s*आशीर्वाद)[!।]?\s*/i, "");
+  cleanCont = cleanCont.replace(/^(🙏\s*)?(प्रणाम(\s*भक्त)?|हर\s*हर\s*महादेव|नमस्ते|शुभ\s*आशीर्वाद|जी\s*हाँ|आगे\s*का\s*उत्तर|उत्तर\s*आगे)[!।:]?\s*/i, "");
 
   // Search for overlapping suffix/prefix (10 to 180 chars)
-  const maxOverlap = Math.min(180, existingText.length, cleanContinuation.length);
+  const maxOverlap = Math.min(180, cleanBase.length, cleanCont.length);
   for (let len = maxOverlap; len >= 10; len--) {
-    const existingSuffix = existingText.slice(-len);
-    if (cleanContinuation.startsWith(existingSuffix)) {
-      return existingText + cleanContinuation.slice(len);
+    const baseSuffix = cleanBase.slice(-len);
+    if (cleanCont.startsWith(baseSuffix)) {
+      return cleanBase + cleanCont.slice(len);
     }
   }
 
+  // If base ends with newline
+  if (/[\n|]$/.test(cleanBase)) {
+    return cleanBase + "\n" + cleanCont;
+  }
+
+  // If base ends with sentence punctuation
+  if (/[।!?.:]$/.test(cleanBase)) {
+    return cleanBase + " " + cleanCont;
+  }
+
   // If existing ends without punctuation and continuation starts with words, join with space
-  const needsSpace = !/[\s\n।,.;:!?]$/.test(existingText) && !/^[\s\n।,.;:!?]/.test(cleanContinuation);
-  return existingText + (needsSpace ? " " : "") + cleanContinuation;
+  const needsSpace = !/\s$/.test(cleanBase) && !/^\s/.test(cleanCont) && !/^[।,.;:!?]/.test(cleanCont);
+  return cleanBase + (needsSpace ? " " : "") + cleanCont;
 }
 
 /**
@@ -1647,7 +1669,7 @@ ${memoryContextText || "Guest shopper."}`;
               // Automatic Multi-Turn Continuation (up to 10 passes) if response hit token limits or was truncated
               let passCount = 0;
               const MAX_CONTINUATION_PASSES = 10;
-              while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
+              while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason, mode)) {
                 passCount++;
                 try {
                   const continuationPrompt = mode === "panditji"

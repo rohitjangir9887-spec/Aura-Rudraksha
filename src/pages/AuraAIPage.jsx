@@ -34,7 +34,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
 import { auraAiClient } from "../lib/auraAiClient";
-import { parseAuraAiPayload, customerSafeAiText, isAuraResponseIncomplete } from "../lib/auraAiResponse";
+import { parseAuraAiPayload, customerSafeAiText, isAuraResponseIncomplete, smartMergeContinuation } from "../lib/auraAiResponse";
 import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/auraChatStore";
 import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
@@ -517,12 +517,12 @@ export function AuraAIPage() {
 
   const handleContinueChat = async (targetMsg, autoPassNumber = 0) => {
     if (!targetMsg) return;
-    if (loading && autoPassNumber === 0) return;
     const baseText = targetMsg.text || "";
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। (Please continue the rest of the answer seamlessly right from where it stopped).";
 
     auraAiClient.abortActiveStream();
     const currentTurnSeq = ++turnSeqRef.current;
+    activeAiMsgIdRef.current = targetMsg.id;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -583,7 +583,7 @@ export function AuraAIPage() {
             setErrorOccurred(false);
           }
           setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
-          const merged = baseText ? `${baseText}\n\n${cleanAccumulated}` : cleanAccumulated;
+          const merged = smartMergeContinuation(baseText, cleanAccumulated);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -615,7 +615,7 @@ export function AuraAIPage() {
             timerRef.current = null;
           }
           const cleanFinal = customerSafeAiText(finalData.text || "");
-          const finalMerged = baseText ? `${baseText}\n\n${cleanFinal}` : cleanFinal;
+          const finalMerged = smartMergeContinuation(baseText, cleanFinal);
           const aiMsg = {
             ...targetMsg,
             id: aiMsgId,
@@ -640,13 +640,16 @@ export function AuraAIPage() {
             return [...prev, aiMsg];
           });
           setLoading(false);
+          if (activeAiMsgIdRef.current === aiMsgId) {
+            activeAiMsgIdRef.current = null;
+          }
 
           // Automatic background chain continuation if still incomplete
           if (isAuraResponseIncomplete(finalMerged, mode) && autoPassNumber < 10) {
             autoContinuationCountRef.current = autoPassNumber + 1;
             setTimeout(() => {
               handleContinueChat(aiMsg, autoPassNumber + 1);
-            }, 100);
+            }, 200);
           } else {
             autoContinuationCountRef.current = 0;
           }
@@ -654,25 +657,31 @@ export function AuraAIPage() {
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Continue stream notice in full-page:", err);
-          if (!streamInitialized && !baseText.trim()) {
-            setErrorOccurred(true);
-          }
           setLoading(false);
+          if (activeAiMsgIdRef.current === aiMsgId) {
+            activeAiMsgIdRef.current = null;
+          }
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
+          }
+          if (!streamInitialized && autoPassNumber === 0) {
+            emitToast("उत्तर पूरा करने में संपर्क त्रुटि, कृपया 'पूरा करें' बटन पर दोबारा क्लिक करें।", "info");
           }
         }
       });
     } catch (err) {
       if (currentTurnSeq !== turnSeqRef.current) return;
-      if (!streamInitialized && !baseText.trim()) {
-        setErrorOccurred(true);
-      }
       setLoading(false);
+      if (activeAiMsgIdRef.current === aiMsgId) {
+        activeAiMsgIdRef.current = null;
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
+      }
+      if (autoPassNumber === 0) {
+        emitToast("उत्तर पूरा करने में समस्या आई, कृपया पुनः प्रयास करें।", "error");
       }
     }
   };
@@ -1365,9 +1374,9 @@ export function AuraAIPage() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleContinueChat(m);
+                                  handleContinueChat(m, 0);
                                 }}
-                                disabled={loading}
+                                disabled={loading && activeAiMsgIdRef.current === m.id}
                                 style={{
                                   padding: "4px 10px",
                                   background: isAuraResponseIncomplete(m.text, mode) || index === messages.length - 1
@@ -1380,7 +1389,7 @@ export function AuraAIPage() {
                                   fontSize: "11px",
                                   color: "#8c2b10",
                                   fontWeight: 700,
-                                  cursor: loading ? "not-allowed" : "pointer",
+                                  cursor: "pointer",
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: "4px",
@@ -1389,8 +1398,8 @@ export function AuraAIPage() {
                                 }}
                                 title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff)"
                               >
-                                <Sparkles size={11} style={{ color: "#d97706" }} />
-                                <span>{loading ? "पूरा किया जा रहा है..." : "✨ पूरा करें"}</span>
+                                <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
+                                <span>{(loading && activeAiMsgIdRef.current === m.id) ? "पूरा किया जा रहा है..." : "✨ पूरा करें"}</span>
                               </button>
 
                               <button
