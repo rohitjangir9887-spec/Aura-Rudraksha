@@ -715,7 +715,8 @@ export function AuraAIFloating() {
         },
         onChunk: (delta, accumulated, partialData) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
-          if (!streamInitialized) {
+          const cleanText = customerSafeAiText(accumulated);
+          if (!streamInitialized && cleanText.trim().length > 0) {
             streamInitialized = true;
             setLoading(false);
             setErrorOccurred(false);
@@ -734,7 +735,6 @@ export function AuraAIFloating() {
             }
           }
           setStatusText(mode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
-          const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -922,13 +922,13 @@ export function AuraAIFloating() {
         },
         onChunk: (delta, accumulated, partialData) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
-          if (!streamInitialized) {
+          const cleanAccumulated = customerSafeAiText(accumulated);
+          if (!streamInitialized && cleanAccumulated.trim().length > 0) {
             streamInitialized = true;
             setLoading(false);
             setErrorOccurred(false);
           }
           setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
-          const cleanAccumulated = customerSafeAiText(accumulated);
           const merged = baseText ? `${baseText}\n\n${cleanAccumulated}` : cleanAccumulated;
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;

@@ -227,6 +227,34 @@ function isHeadingLine(line) {
 
 export function AuraAIMessageContent({ text, content, sender = "ai", className = "" }) {
   const actualText = text !== undefined && text !== null && text !== "" ? text : content;
+
+  // Render glowing thinking badge if AI message text is empty during reasoning phase
+  if (sender === "ai" && (!actualText || !String(actualText).trim())) {
+    return (
+      <div className={`aura-ai-msg-text-ai ${className}`}>
+        <div 
+          className="aura-ai-thinking-badge"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 14px",
+            background: "linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 100%)",
+            border: "1px solid #F59E0B",
+            borderRadius: "14px",
+            color: "#78350F",
+            fontSize: "12px",
+            fontWeight: 700,
+            boxShadow: "0 2px 6px rgba(245, 158, 11, 0.12)"
+          }}
+        >
+          <span style={{ fontSize: "15px", display: "inline-block" }}>💭</span>
+          <span>वैदिक विश्लेषण व विचार प्रक्रिया जारी है... (Analyzing & Thinking)</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!actualText) return null;
 
   // For User message: clean, high contrast with linebreaks
