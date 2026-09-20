@@ -751,9 +751,59 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
   // Lagna Analysis & Yogakaraka
   const lagnaBeneficInfo = getLagnaBenefics(lagnaRashiIndex);
 
-  // Astrological Dosha checks
+  // Astrological Dosha & Yoga checks
   const marsHouse = planets.find(p => p.englishName === "Mars")?.houseNumber || 1;
   const isManglik = [1, 4, 7, 8, 12].includes(marsHouse);
+
+  // Classical Vedic Yogas Detection
+  const yogasFound = [];
+  const sunHouse = planets.find(p => p.englishName === "Sun")?.houseNumber;
+  const mercHouse = planets.find(p => p.englishName === "Mercury")?.houseNumber;
+  const jupHouse = planets.find(p => p.englishName === "Jupiter")?.houseNumber;
+  const moonHouse = planets.find(p => p.englishName === "Moon")?.houseNumber;
+  const venHouse = planets.find(p => p.englishName === "Venus")?.houseNumber;
+  const satHouse = planets.find(p => p.englishName === "Saturn")?.houseNumber;
+
+  // 1. Budhaditya Yoga (Sun & Mercury in same house)
+  if (sunHouse && mercHouse && sunHouse === mercHouse) {
+    yogasFound.push({
+      name: "Budhaditya Yoga (बुधादित्य राजयोग)",
+      description: "सूर्य एवं बुध की युति तीक्ष्ण बुद्धि, प्रशासनिक कौशल और समाज में मान-प्रतिष्ठा प्रदान करती है।"
+    });
+  }
+
+  // 2. Gajakesari Yoga (Jupiter in Kendra from Moon - 1, 4, 7, 10)
+  if (jupHouse && moonHouse) {
+    const jupFromMoon = ((jupHouse - moonHouse + 12) % 12) + 1;
+    if ([1, 4, 7, 10].includes(jupFromMoon)) {
+      yogasFound.push({
+        name: "Gajakesari Yoga (गजकेसरी महायोग)",
+        description: "चंद्रमा से केंद्र में गुरु की स्थिति जातक को अपार यश, दीर्घायु, विद्वता और उच्च पद प्रदान करती है।"
+      });
+    }
+  }
+
+  // 3. Chandra-Mangal Dhan Yoga
+  if (marsHouse && moonHouse && marsHouse === moonHouse) {
+    yogasFound.push({
+      name: "Chandra-Mangal Yoga (महालक्ष्मी धन योग)",
+      description: "चंद्र व मंगल की युति व्यापारिक उन्नति, आर्थिक संपन्नता और स्थायी संपत्ति का निर्माण करती है।"
+    });
+  }
+
+  // 4. Pancha Mahapurusha Yogas (Mars, Mercury, Jupiter, Venus, Saturn in Kendra and Exalted/Own)
+  if ([1, 4, 7, 10].includes(marsHouse) && [0, 7, 9].includes(planets.find(p => p.englishName === "Mars")?.details?.rashiIndex)) {
+    yogasFound.push({ name: "Ruchaka Yoga (रुचक महापुरुष योग)", description: "मंगल का रुचक योग जातक को साहसी, पराक्रमी और नेतृत्वकारी बनाता है।" });
+  }
+  if ([1, 4, 7, 10].includes(jupHouse) && [3, 8, 11].includes(planets.find(p => p.englishName === "Jupiter")?.details?.rashiIndex)) {
+    yogasFound.push({ name: "Hamsa Yoga (हंस महापुरुष योग)", description: "गुरु का हंस योग जातक को आध्यात्मिक, विद्वान और परोपकारी बनाता है।" });
+  }
+  if ([1, 4, 7, 10].includes(venHouse) && [1, 6, 11].includes(planets.find(p => p.englishName === "Venus")?.details?.rashiIndex)) {
+    yogasFound.push({ name: "Malavya Yoga (मालव्य महापुरुष योग)", description: "शुक्र का मालव्य योग कला, वैभव, सौन्दर्य और भौतिक सुख-साधनों की प्राप्ति कराता है।" });
+  }
+  if ([1, 4, 7, 10].includes(satHouse) && [6, 9, 10].includes(planets.find(p => p.englishName === "Saturn")?.details?.rashiIndex)) {
+    yogasFound.push({ name: "Sasa Yoga (शश महापुरुष योग)", description: "शनि का शश योग दूरदर्शिता, अनुशासन और संगठन कौशल प्रदान करता है।" });
+  }
 
   // Rudraksha recommendations tailored from Lagna + Rashi + Dasha + Concern
   const rudrakshaRecommendations = [];
@@ -789,6 +839,58 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
     mukhi: dashaInfo.recommendedDashaRudraksha,
     mukhiNumber: parseInt(dashaInfo.recommendedDashaRudraksha, 10) || 5
   });
+
+  // 4. Concern-Specific or Master Siddh Recommendation ("all" or specific)
+  if (concern === "all" || !concern) {
+    rudrakshaRecommendations.push({
+      role: "Sarva Siddha Sampurna Kalyan (सर्व सिद्ध संपूर्ण जीवन कल्याण)",
+      significance: `करियर, स्वास्थ्य, विवाह, धन एवं ग्रह दोषों की संपूर्ण शांति हेतु 1 से 14 मुखी सिद्ध संयोजन अथवा त्रि-शक्ति (7+5+11 मुखी) दिव्य कवच सर्वोत्तम है।`,
+      mukhi: "1 to 14 Mukhi / Siddh Combination",
+      mukhiNumber: 7
+    });
+  } else if (concern === "career") {
+    rudrakshaRecommendations.push({
+      role: "Career & Wealth Alignment (व्यापार व धन वृद्धि)",
+      significance: "मां महालक्ष्मी एवं कुबेर कृपा हेतु 7 मुखी एवं 10 मुखी रुद्राक्ष व्यापारिक बाधाएं दूर करते हैं।",
+      mukhi: "7 Mukhi Rudraksha",
+      mukhiNumber: 7
+    });
+  } else if (concern === "peace") {
+    rudrakshaRecommendations.push({
+      role: "Mental Peace & Focus (मानसिक शांति व एकाग्रता)",
+      significance: "पंचमुख ब्रह्मा एवं चंद्र शांति हेतु 5 मुखी रुद्राक्ष एवं 108 जाप माला मानसिक तनाव समाप्त करती है।",
+      mukhi: "5 Mukhi Rudraksha",
+      mukhiNumber: 5
+    });
+  } else if (concern === "shani_dosha") {
+    rudrakshaRecommendations.push({
+      role: "Shani & Rahu-Ketu Shanti (ग्रह दोष निवारण)",
+      significance: "शनि साढ़े साती एवं राहु-केतु दोष निवारण हेतु 7 मुखी, 8 मुखी एवं 11 मुखी रुद्राक्ष परम रक्षा कवच हैं।",
+      mukhi: "7 Mukhi / 11 Mukhi Rudraksha",
+      mukhiNumber: 11
+    });
+  } else if (concern === "marriage") {
+    rudrakshaRecommendations.push({
+      role: "Relationships & Harmony (विवाह व पारिवारिक सद्भाव)",
+      significance: "शिव-पार्वती मिलन के प्रतीक गौरी शंकर रुद्राक्ष एवं 2 मुखी दांपत्य जीवन में मधुरता लाते हैं।",
+      mukhi: "Gauri Shankar / 2 Mukhi Rudraksha",
+      mukhiNumber: 2
+    });
+  } else if (concern === "health") {
+    rudrakshaRecommendations.push({
+      role: "Health & Immunity (स्वास्थ्य व दीर्घायु)",
+      significance: "अग्नि स्वरूप 3 मुखी एवं 5 मुखी रुद्राक्ष रक्तचाप, तनाव व शारीरिक ऊर्जा को संतुलित करते हैं।",
+      mukhi: "3 Mukhi / 5 Mukhi Rudraksha",
+      mukhiNumber: 3
+    });
+  } else if (concern === "spiritual") {
+    rudrakshaRecommendations.push({
+      role: "Spiritual Upliftment (आध्यात्मिक उन्नति व मोक्ष)",
+      significance: "साक्षात शिव स्वरूप 1 मुखी रुद्राक्ष एवं प्राण-प्रतिष्ठित सिद्ध माला ध्यान व साधना में सिद्धि दिलाती है।",
+      mukhi: "1 Mukhi Rudraksha",
+      mukhiNumber: 1
+    });
+  }
 
   // Numerology Mulank (Day of Birth)
   const mulank = ((day - 1) % 9) + 1;
@@ -839,6 +941,7 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
         isManglik,
         manglikNote: isManglik ? `Mangal ${marsHouse}th House mein sthit hai (Manglik Prabhav Shanti ke liye 3 Mukhi / 11 Mukhi upyogi hai).` : "Kendra ya Trikon mein Mangal anukool sthiti mein hai."
       },
+      yogas: yogasFound,
       rudrakshaRecommendations
     }
   };

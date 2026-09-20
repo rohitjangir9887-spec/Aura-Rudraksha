@@ -62,15 +62,30 @@ export function PanditjiSection() {
         const astro = serverKundali.astronomicalKundali || serverKundali;
         const birth = serverKundali.verifiedBirthData || {};
         const chandra = astro.chandraRashi || serverKundali.rashi || {};
+        const lagna = astro.lagna || {};
+        const surya = astro.suryaRashi || {};
+        const dasha = astro.vimshottariDasha || {};
         const matchedProd = serverKundali.matchedProduct || (db.getProducts()[0]);
 
-        setResult({
+        const fullResult = {
           devoteeName: birth.name || name.trim(),
           rashiHindi: chandra.rashiHindi || chandra.nameHindi || "वैदिक",
           rashiEng: chandra.rashiEnglish || chandra.nameEng || "Vedic",
           symbol: chandra.rashiSymbol || chandra.symbol || "✨",
           lord: chandra.lord || "शिव",
           element: chandra.element || "Agni",
+          nakshatra: chandra.nakshatra || "वैदिक",
+          pada: chandra.pada || 1,
+          lagnaHindi: lagna.rashiHindi || "शुभ लग्न",
+          lagnaEng: lagna.rashiEnglish || "Ascendant",
+          lagnaLord: lagna.lord || "ग्रह",
+          suryaHindi: surya.rashiHindi || "सूर्य",
+          dasha: dasha,
+          currentMahadasha: dasha.currentMahadashaHindi || dasha.currentMahadasha || "चालू महादशा",
+          currentAntardasha: dasha.currentAntardashaHindi || dasha.currentAntardasha || "",
+          doshaSummary: astro.doshaSummary,
+          yogas: astro.yogas || [],
+          recommendations: astro.rudrakshaRecommendations || [],
           mulank: astro.mulank || serverKundali.numerology?.mulank || (((new Date(dob).getDate() - 1) % 9) + 1),
           dob: birth.dob || dob,
           birthPlace: birth.birthPlace || birthPlace.trim(),
@@ -81,7 +96,28 @@ export function PanditjiSection() {
           wearingDay: serverKundali.wearingDay || chandra.day || "सोमवार / शिव तिथि",
           matchedProduct: matchedProd,
           astroReason: serverKundali.aiInterpretation || serverKundali.astroAnalysis || `आपकी जन्म कुंडली के प्रामाणिक वैदिक विश्लेषण अनुसार आपकी राशि ${chandra.rashiHindi || chandra.nameHindi || "वैदिक"} है।`
+        };
+
+        setResult(fullResult);
+        
+        // Persist verified birth details and saved profile for instant access & memory
+        auraChatStore.saveVerifiedBirthDetails({
+          name: birth.name || name.trim(),
+          dob: birth.dob || dob,
+          birthTime: birth.birthTime || birthTime || "12:00",
+          birthPlace: birth.birthPlace || birthPlace.trim(),
+          concern: concern
         });
+        auraChatStore.saveKundaliProfile({
+          name: birth.name || name.trim(),
+          dob: birth.dob || dob,
+          birthTime: birth.birthTime || birthTime || "12:00",
+          birthPlace: birth.birthPlace || birthPlace.trim(),
+          concern: concern,
+          rashi: `${chandra.rashiHindi || ''} (${chandra.rashiEnglish || ''})`,
+          recommended: fullResult.recommendedMukhi
+        });
+
         setIsCalculating(false);
         emitToast("पंडित जी द्वारा आपकी कुंडली का वैदिक विश्लेषण तैयार है!", "success");
         return;

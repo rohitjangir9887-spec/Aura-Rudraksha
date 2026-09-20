@@ -685,7 +685,7 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
             config: {
               systemInstruction: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish.",
               temperature: 0.35,
-              maxOutputTokens: 1500
+              maxOutputTokens: 4096
             }
           });
           aiInterpretation = geminiRes.text || "";
@@ -704,7 +704,7 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
             { role: "user", content: astroPrompt }
           ],
           temperature: 0.35,
-          max_tokens: 1500,
+          max_tokens: 4096,
           chat_template_kwargs: { enable_thinking: false },
           reasoning_effort: "none"
         });
@@ -1143,11 +1143,35 @@ LINK FORMAT RULES:
     if (mode === "panditji") {
       systemPrompt = `You are AI Pandit Ji, the revered Vedic Astrology (Jyotish) & Spiritual Guide for Aura Rudraksha (https://aurarudraksha.bond).
 
-CORE IDENTITY & TRANSPARENCY:
-- You are an authentic Vedic spiritual AI assistant ("AI Pandit Ji"). Always maintain high respect, calm demeanor, and deep traditional knowledge.
-- Strictly identify as AI; never claim to be a physical living human or invent fake degrees/claims.
-- Use warm, respectful Hindi/Hinglish greetings (e.g. "🙏 प्रणाम", "हर हर महादेव", "जय श्री राम", "शुभ प्रभात / शुभ संध्या").
-- Language Matching: If customer speaks in Hindi or Hinglish, reply in warm, respectful Hindi/Hinglish. If they speak in English, reply in English. Never randomly switch languages.
+DEEP VEDIC ASTROLOGY (JYOTISH) & CLASSICAL SCRIPTURAL KNOWLEDGE BASE:
+- You possess profound mastery of classical Jyotish texts: Brihat Parashara Hora Shastra (BPHS), Phaladeepika, Saravali, Jaimini Upadesha Sutras, Lal Kitab, Shiva Purana (Vidyeshvara Samhita), Padma Purana, and Shrimad Devi Bhagavatam.
+- Deep knowledge of 9 Grahas (Surya, Chandra, Mangal, Budha, Guru, Shukra, Shani, Rahu, Ketu), their Uccha (exaltation), Neecha (debilitation), Moolatrikona, Karakatwas, Aspects (Drishti), and Bhavas (1st to 12th Houses).
+- Mastery of 27 Nakshatras (Ashwini to Revati), their Lords, Deities, and 108 Padas.
+- Deep understanding of Major Yogas (Gajakesari, Budhaditya, Pancha Mahapurusha Yogas: Ruchaka, Bhadra, Hamsa, Malavya, Sasa; Lakshmi Yoga, Vipreet Rajyoga, Neechbhanga Rajyoga, Chandra-Mangal Dhan Yoga).
+- Authentic Dosha Remedies:
+  * Shani Sade Sati (Rising, Peak, Setting phases) & Dhaiya -> 7 Mukhi / 14 Mukhi / 11 Mukhi / Shani Mantra.
+  * Manglik (Bhauma) Dosha -> 3 Mukhi / 11 Mukhi / Gauri Shankar / Hanuman Chalisa.
+  * Kaal Sarp Dosha (Anant, Kulik, Vasuki, Shankhpal, Padma, Mahapadma, Takshak, Karkotak, Shankhachood, Ghatak, Vishdhar, Sheshnag) -> 8 Mukhi (Rahu) + 9 Mukhi (Ketu) + 11 Mukhi (Shiva Kavach) + Maha Mrityunjaya.
+  * Pitra Dosha -> 1 Mukhi / 10 Mukhi / 12 Mukhi / Surya Arghya.
+  * Kemdrum Yoga -> 2 Mukhi / 5 Mukhi / Chandra Jaap.
+- Rudraksha Mukhi Classifications (1 to 21 Mukhi, Gauri Shankar, Ganesh Rudraksha, Garbh Gauri, Trijuti, 108 Jaap Mala) and exact Beej Mantras according to Shiva Purana.
+
+COMMON DEVOTEE EXPLANATION RULE (EXPLAIN IN SIMPLE, RELATABLE HINDI/HINGLISH):
+- Common devotees do not know difficult astrological jargon. Explain what their Lagna, Rashi, Grahas, and Mahadasha mean for their daily life, career, finances, health, family, and peace of mind in warm, crystal-clear, loving, and empathetic Hindi/Hinglish.
+- Keep tone calming, spiritually uplifting, positive, and solution-oriented. Never cause fear.
+
+MANDATORY STRUCTURED SUMMARY AT THE END:
+- At the end of every astrological reading/consultation, you MUST ALWAYS provide this clean, structured summary:
+  🌟 **संपूर्ण वैदिक कुंडली व रुद्राक्ष सारांश (Detailed Astrological Summary)**
+  • **जातक (Devotee):** [Name]
+  • **लग्न व राशि (Lagna & Rashi):** [Lagna] लग्न / [Rashi] राशि (नक्षत्र: [Nakshatra], पद: [Pada])
+  • **स्वामी ग्रह (Ruling Planet):** [Lord]
+  • **वर्तमान महादशा (Current Dasha):** [Current Mahadasha & Phase]
+  • **अनुकूल रुद्राक्ष (Recommended Rudraksha):** [Specific Mukhi Beads]
+  • **मुख्य प्रभाव व लाभ (Core Life Benefits):** [Life clarity, career/wealth, peace, health & protection]
+  • **शुभ धारण वार व समय (Auspicious Day & Time):** [Day, e.g. सोमवार/शुभ मुहूर्त]
+  • **सिद्ध बीज मंत्र (Beej Mantra):** [Mantra] (108 बार ॐ नमः शिवाय या बीज मंत्र)
+  • **सरल दैनिक नियम व उपाय (Simple Daily Rules & Remedies):** [Jal Arpan, Shiv Puja, pure conduct]
 
 ${urlAndCatalogRulesText}
 
@@ -1330,7 +1354,7 @@ ${memoryContextText || "Guest shopper."}`;
               config: {
                 systemInstruction: systemPrompt,
                 temperature: 0.35,
-                maxOutputTokens: 1800
+                maxOutputTokens: 5000
               }
             });
 
@@ -1366,7 +1390,7 @@ ${memoryContextText || "Guest shopper."}`;
                 model: modelCandidate,
                 messages: nimMessages,
                 temperature: 0.35,
-                max_tokens: 1800,
+                max_tokens: 4096,
                 stream: true,
                 chat_template_kwargs: { enable_thinking: false },
                 reasoning_effort: "none"
@@ -1527,7 +1551,7 @@ ${memoryContextText || "Guest shopper."}`;
             config: {
               systemInstruction: systemPrompt,
               temperature: 0.35,
-              maxOutputTokens: 1800
+              maxOutputTokens: 5000
             }
           });
           const outText = geminiRes.text || "";
@@ -1553,7 +1577,7 @@ ${memoryContextText || "Guest shopper."}`;
               model: modelCandidate,
               messages: nimMessages,
               temperature: 0.35,
-              max_tokens: 1800,
+              max_tokens: 4096,
               chat_template_kwargs: { enable_thinking: false },
               reasoning_effort: "none"
             });
