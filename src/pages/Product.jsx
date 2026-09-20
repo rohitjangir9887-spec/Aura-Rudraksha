@@ -756,7 +756,7 @@ export function Product() {
               <ProductPricing product={p} />
 
               {/* Limited Period Coupon Offer Card */}
-              <ProductOfferCard coupons={coupons} activeOffer={p.activeOffer} />
+              <ProductOfferCard coupons={coupons} activeOffer={p.activeOffer || db.getActiveOffer()} />
 
               {/* Variant / Size / Dimension & Origin Selector */}
               <ProductVariantSelector

@@ -5,18 +5,21 @@ import { emitToast } from "../../context/ToastContext";
 export function ProductOfferCard({ coupons = [], activeOffer = null }) {
   const [copiedCode, setCopiedCode] = useState("");
 
-  const validCoupon = coupons.find(c => c.status === "Active") || (activeOffer?.couponCode ? {
+  const validCoupon = (Array.isArray(coupons) ? coupons.find(c => c.status === "Active") : null) || (activeOffer?.couponCode ? {
     code: activeOffer.couponCode,
-    discountPercent: activeOffer.discountPercent || activeOffer.discount || 10,
+    discountPercent: activeOffer.discountType === "percentage" ? (activeOffer.discountValue || activeOffer.discount || 10) : 0,
+    discountAmount: activeOffer.discountType !== "percentage" ? (activeOffer.discountValue || activeOffer.discount || 200) : 0,
     title: activeOffer.title || "Special Vedic Blessing Offer"
   } : null);
 
   if (!validCoupon && !activeOffer) return null;
 
-  const code = validCoupon?.code || activeOffer?.couponCode || "AURA10";
-  const discountText = validCoupon?.discountPercent 
+  const code = validCoupon?.code || activeOffer?.couponCode || "";
+  if (!code) return null;
+
+  const discountText = activeOffer?.title || (validCoupon?.discountPercent 
     ? `Flat ${validCoupon.discountPercent}% OFF` 
-    : (validCoupon?.discountAmount ? `Flat ₹${validCoupon.discountAmount} OFF` : "Extra Discount");
+    : (validCoupon?.discountAmount ? `Flat ₹${validCoupon.discountAmount} OFF` : (validCoupon?.discount ? (validCoupon?.type === "fixed" ? `Flat ₹${validCoupon.discount} OFF` : `${validCoupon.discount}% OFF`) : "Special Discount")));
 
   const handleCopy = (e) => {
     e.stopPropagation();

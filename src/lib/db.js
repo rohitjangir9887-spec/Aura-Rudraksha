@@ -52,7 +52,7 @@ function applyStoreUpdatePayload(type, payload) {
     storeCache.products = storeCache.products.filter(p => 
       String(p.id) !== String(payload) && String(p._id) !== String(payload) && p.slug !== String(payload)
     );
-  } else if (type === "active-offer:saved" && payload) {
+  } else if ((type === "active-offer:saved" || type === "active-offer:synced" || type === "active-offer:updated") && payload) {
     storeCache.activeOffer = payload;
   } else if ((type === "offer:saved" || type === "offer:updated") && payload) {
     const idx = storeCache.offers.findIndex(x => String(x.id) === String(payload.id));

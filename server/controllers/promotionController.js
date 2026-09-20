@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
+import { Coupon } from "../models/Coupon.js";
 import { isDbConnected, connectDB } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { defaultActiveOffer } from "../data/defaultData.js";
@@ -37,11 +38,18 @@ const ACTIVE_OFFER_FIELDS = {
 export async function getActiveOffer(req, res, next) {
   try {
     if (!isDbConnected()) {
+      await connectDB().catch(() => {});
+    }
+    if (!isDbConnected()) {
       return res.json({ success: true, data: inMemoryStore.activeOffer || defaultActiveOffer, isFallback: true });
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    const offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
-    return res.json({ success: true, data: offer || null });
+    let offer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1" }).lean();
+    if (!offer) {
+      offer = await ActiveOffer.findOne().sort({ updatedAt: -1 }).lean();
+    }
+    const resolvedOffer = offer || inMemoryStore.activeOffer || defaultActiveOffer;
+    return res.json({ success: true, data: resolvedOffer });
   } catch (err) {
     next(err);
   }
@@ -71,6 +79,29 @@ export async function saveActiveOffer(req, res, next) {
         { $set: payload },
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
+
+      // Also ensure coupon code is synchronized in Coupon collection if offer is active
+      const cleanCode = (payload.couponCode || "").trim().toUpperCase();
+      if (cleanCode && payload.enabled !== false && payload.status === "Active") {
+        const resolvedDiscount = Number(payload.discountValue || 200);
+        await Coupon.findOneAndUpdate(
+          { code: cleanCode },
+          {
+            $set: {
+              id: "COUP-" + cleanCode,
+              code: cleanCode,
+              discount: resolvedDiscount,
+              type: payload.discountType === "percentage" ? "percentage" : "fixed",
+              status: "Active",
+              expiry: payload.expiresAt || payload.expiry || null,
+              minAmount: 0,
+              description: payload.subtitle || payload.title || "Central Live Offer"
+            }
+          },
+          { upsert: true, setDefaultsOnInsert: true }
+        ).catch(() => {});
+      }
+
       return res.json({ success: true, data: updated });
     }
 
