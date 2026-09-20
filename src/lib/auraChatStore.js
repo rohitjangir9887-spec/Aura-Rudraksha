@@ -369,6 +369,58 @@ export const auraChatStore = {
     } catch (_) {}
   },
 
+  // Copy single message or entire conversation to clipboard
+  copyChatToClipboard(messagesToCopy = null, mode = "standard") {
+    try {
+      const msgs = messagesToCopy || this.getMessages(mode);
+      if (!Array.isArray(msgs) || msgs.length === 0) return false;
+      const formatted = msgs
+        .map((m) => {
+          const senderLabel = m.sender === "user" ? "जातक (Devotee):" : "AI पंडित जी (Aura AI):";
+          const text = (m.text || "").replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "").trim();
+          return `${senderLabel}\n${text}`;
+        })
+        .join("\n\n---\n\n");
+
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(formatted);
+        return true;
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = formatted;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        return true;
+      }
+    } catch (e) {
+      console.warn("Could not copy chat:", e);
+      return false;
+    }
+  },
+
+  // Share conversation directly on WhatsApp
+  shareChatOnWhatsApp(messagesToShare = null, mode = "standard") {
+    try {
+      const msgs = messagesToShare || this.getMessages(mode);
+      if (!Array.isArray(msgs) || msgs.length === 0) return;
+      const lastAiMsg = [...msgs].reverse().find(m => m.sender === "ai");
+      const summaryText = (lastAiMsg?.text || "")
+        .replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "")
+        .slice(0, 750)
+        .trim();
+
+      const shareContent = `🕉️ *Aura Rudraksha — AI Pandit Ji Consultation*\n\n${summaryText}\n\n👉 अपनी जन्म कुंडली व सिद्ध रुद्राक्ष जानने के लिए देखें: https://aurarudraksha.bond/aura-ai`;
+      const encoded = encodeURIComponent(shareContent);
+      window.open(`https://wa.me/?text=${encoded}`, "_blank");
+    } catch (e) {
+      console.warn("Could not share on WhatsApp:", e);
+    }
+  },
+
   // Helper to trigger chat assistant in standard or panditji mode
   triggerChat(prompt = "", mode = "standard") {
     this.setMode(mode);
@@ -384,4 +436,5 @@ export const auraChatStore = {
     } catch (_) {}
   }
 };
+
 

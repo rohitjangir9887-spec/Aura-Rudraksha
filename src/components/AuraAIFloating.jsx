@@ -30,7 +30,11 @@ import {
   ArrowDown,
   Notebook,
   Plus,
-  Trash2
+  Trash2,
+  History,
+  Bookmark,
+  Copy,
+  Share2
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -44,6 +48,9 @@ import { safePrice } from "../lib/productHelper";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 import { VoiceReader } from "./VoiceReader";
+import { AuraAIChatHistoryModal } from "./AuraAIChatHistoryModal";
+import { AuraAISavedKundaliModal } from "./AuraAISavedKundaliModal";
+
 
 export function AuraAIFloating() {
   const location = useLocation();
@@ -112,6 +119,23 @@ export function AuraAIFloating() {
     }
   }, [loading]);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
+  const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
+  const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
+
+  // Helper to parse [AURA_KEYWORDS]: kw1 | kw2 | ... from AI text
+  const parseAuraKeywords = (text) => {
+    if (!text) return [];
+    const match = text.match(/\[AURA_KEYWORDS\]:\s*([^\n]+)/);
+    if (!match) return [];
+    return match[1].split("|").map(k => k.trim()).filter(Boolean).slice(0, 6);
+  };
+
+  // Helper to strip [AURA_KEYWORDS] line from visible display text
+  const stripAuraKeywords = (text) => {
+    if (!text) return text;
+    return text.replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "").trim();
+  };
+
   const [addedItems, setAddedItems] = useState({});
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [orderModalProduct, setOrderModalProduct] = useState(null);
@@ -120,6 +144,7 @@ export function AuraAIFloating() {
   const [showRefreshToast, setShowRefreshToast] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
+
 
   const handleMicToggle = useCallback(() => {
     if (isListening) {
@@ -1263,6 +1288,26 @@ export function AuraAIFloating() {
                     >
                       📋 {showBirthForm ? "✕ बंद करें" : "📋 Kundli Form"}
                     </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => setShowSavedKundaliModal(true)} 
+                      className="aura-ai-strip-btn"
+                      title="Saved Kundali Profiles"
+                      style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
+                    >
+                      <Bookmark size={11} />
+                      <span>💾 Saved Kundalis</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setShowChatHistoryModal(true)} 
+                      className="aura-ai-strip-btn"
+                      title="View Past Consultations"
+                    >
+                      <History size={11} />
+                      <span>📜 History</span>
+                    </button>
                     <button 
                       type="button"
                       onClick={() => {
@@ -1301,6 +1346,15 @@ export function AuraAIFloating() {
                     </button>
                     <button 
                       type="button"
+                      onClick={() => setShowChatHistoryModal(true)} 
+                      className="aura-ai-strip-btn"
+                      title="View Past Consultations"
+                    >
+                      <History size={11} />
+                      <span>📜 History</span>
+                    </button>
+                    <button 
+                      type="button"
                       onClick={() => {
                         fetchNotes();
                         setShowNotepad(true);
@@ -1330,6 +1384,7 @@ export function AuraAIFloating() {
                   {isFullWindow ? "Compact" : "Full Window"} <ChevronRight size={11} />
                 </button>
               </div>
+
 
               {/* Interactive Kundli Birth Details Form Card for AI Panditji */}
               <AnimatePresence>
@@ -1427,13 +1482,26 @@ export function AuraAIFloating() {
                           onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
                           style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11px", background: "#fff", color: "#333", outline: "none" }}
                         >
-                          <option value="career">⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)</option>
-                          <option value="peace">🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)</option>
-                          <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)</option>
-                          <option value="marriage">❤️ विवाह, प्रेम व परिवार (Relationships)</option>
-                          <option value="health">🩺 स्वास्थ्य व आरोग्य (Health & Vitality)</option>
-                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)</option>
+                          <option value="all">🌟 संपूर्ण जीवन मार्गदर्शन (All Concerns - Complete Life Guidance)</option>
+                          <option value="career">⚡ नौकरी, पदोन्नति व नेतृत्व (Career & Leadership)</option>
+                          <option value="business">💼 व्यापार, दुकान व व्यवसाय वृद्धि (Business & Trade)</option>
+                          <option value="finance">💰 धन समृद्धि, बचत व ऋण मुक्ति (Wealth & Debt Relief)</option>
+                          <option value="health">🩺 स्वास्थ्य, ऊर्जा व दीर्घायु (Health & Vitality)</option>
+                          <option value="peace">🧘 मानसिक शांति, एकाग्रता व तनाव मुक्ति (Mental Peace & Focus)</option>
+                          <option value="marriage">❤️ विवाह, शीघ्र रिश्ता व दांपत्य सुख (Marriage & Harmony)</option>
+                          <option value="love">💑 प्रेम संबंध व आकर्षण (Love & Relationships)</option>
+                          <option value="family">🏠 पारिवारिक शांति व सद्भाव (Family Peace & Unity)</option>
+                          <option value="children">👶 संतान सुख व बच्चों का कल्याण (Children & Progeny)</option>
+                          <option value="education">📚 विद्या, पढ़ाई, परीक्षा व स्मरण शक्ति (Education & Memory)</option>
+                          <option value="property">🏢 भूमि, भवन, घर व वाहन सुख (Property & Real Estate)</option>
+                          <option value="foreign_travel">✈️ विदेश यात्रा, वीजा व विदेश योग (Foreign Travel & Settlement)</option>
+                          <option value="legal">⚖️ कोर्ट-कचहरी, शत्रु व कानूनी विजय (Legal Victory & Protection)</option>
+                          <option value="shani_dosha">🛡️ शनि साढ़े साती, ढैया व राहु-केतु शांति (Dosha Shanti)</option>
+                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति, साधना व शिव कृपा (Moksha & Spiritual Growth)</option>
+                          <option value="general">🌸 सर्वकल्याण, रक्षा व सकारात्मक ऊर्जा (General Well-being & Luck)</option>
+                          <option value="custom">✍️ अन्य विशेष संकल्प (Custom Concern)</option>
                         </select>
+
                       </div>
 
                       <button
@@ -1511,13 +1579,14 @@ export function AuraAIFloating() {
                         )}
                         <div className="aura-ai-msg-content">
                           <div className="aura-ai-msg-text">
-                            <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
+                            <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
                           </div>
                           {m.sender === "ai" && m.text && (
                             <div style={{ marginTop: "4px" }}>
-                              <VoiceReader text={customerSafeAiText(m.text)} />
+                              <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
                             </div>
                           )}
+
 
                           {/* Authentic Vedic Kundli Result Card */}
                           {m.kundali && (
@@ -1835,17 +1904,109 @@ export function AuraAIFloating() {
                             </div>
                           )}
 
-                          {/* Message Time display */}
-                          {timeString && (
-                            <div className="aura-ai-msg-time">
-                              {timeString}
-                            </div>
-                          )}
+                          {/* AURA_KEYWORDS Interactive Suggested Search Chips */}
+                          {m.sender === "ai" && (() => {
+                            const kws = parseAuraKeywords(m.text || "");
+                            if (!kws.length) return null;
+                            return (
+                              <div className="aura-ai-keyword-chips-wrap" style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed rgba(212, 175, 55, 0.3)" }}>
+                                <div style={{ fontSize: "10.5px", color: "#8a6014", fontWeight: 700, marginBottom: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                  <span>🔍</span> <span>त्वरित खोज व आगे का परामर्श (Quick Actions):</span>
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                  {kws.map((kw, ki) => (
+                                    <button
+                                      key={ki}
+                                      type="button"
+                                      onClick={() => handleSend(kw)}
+                                      style={{
+                                        padding: "4px 10px",
+                                        background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)",
+                                        border: "1px solid #D4AF37",
+                                        borderRadius: "20px",
+                                        fontSize: "11px",
+                                        fontWeight: 600,
+                                        color: "#6b2a0c",
+                                        cursor: "pointer",
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                                        transition: "all 0.2s ease"
+                                      }}
+                                      onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.borderColor = "#8c2b10"; }}
+                                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = "#D4AF37"; }}
+                                    >
+                                      🔎 {kw}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Message Time & Action Toolbar (Copy & WhatsApp Share) */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", marginTop: "4px" }}>
+                            {timeString && (
+                              <div className="aura-ai-msg-time">
+                                {timeString}
+                              </div>
+                            )}
+
+                            {m.sender === "ai" && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    auraChatStore.copyChatToClipboard([m]);
+                                    emitToast("📋 उत्तर कॉपी हो गया (Copied)", "success");
+                                  }}
+                                  style={{
+                                    padding: "3px 7px",
+                                    background: "rgba(0,0,0,0.04)",
+                                    border: "1px solid rgba(0,0,0,0.09)",
+                                    borderRadius: "4px",
+                                    fontSize: "10.5px",
+                                    color: "#555",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "3px"
+                                  }}
+                                  title="उत्तर कॉपी करें (Copy answer)"
+                                >
+                                  <Copy size={11} /> <span>कॉपी</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    auraChatStore.shareChatOnWhatsApp([m]);
+                                  }}
+                                  style={{
+                                    padding: "3px 7px",
+                                    background: "rgba(37, 211, 102, 0.12)",
+                                    border: "1px solid rgba(37, 211, 102, 0.35)",
+                                    borderRadius: "4px",
+                                    fontSize: "10.5px",
+                                    color: "#075e54",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "3px"
+                                  }}
+                                  title="WhatsApp पर शेयर करें (Share on WhatsApp)"
+                                >
+                                  <Share2 size={11} /> <span>शेयर</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </React.Fragment>
                   );
                 })}
+
 
                 {loading && (
                   <div className="aura-ai-msg aura-ai-msg-ai">
@@ -2070,6 +2231,50 @@ export function AuraAIFloating() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Chat History Modal */}
+      <AuraAIChatHistoryModal
+
+        isOpen={showChatHistoryModal}
+        onClose={() => setShowChatHistoryModal(false)}
+        currentMode={mode}
+        onSelectSession={(session) => {
+          if (session?.id) {
+            auraChatStore.setConversationId(session.id);
+            setConversationId(session.id);
+          }
+          if (session?.messages) {
+            setMessages(session.messages);
+            auraChatStore.saveMessages(session.messages, mode);
+          }
+        }}
+      />
+
+      {/* Saved Kundalis Modal */}
+      <AuraAISavedKundaliModal
+        isOpen={showSavedKundaliModal}
+        onClose={() => setShowSavedKundaliModal(false)}
+        onSelectKundali={(prof) => {
+          setBirthForm({
+            name: prof.name || "",
+            dob: prof.dob || "",
+            place: prof.birthPlace || "",
+            time: prof.birthTime || "",
+            concern: prof.concern || "all"
+          });
+          setShowBirthForm(false);
+          // Auto-send kundali calculation request for this profile
+          const query = `🙏 श्री ${prof.name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${prof.dob}, Time: ${prof.birthTime || "12:00"}, Place: ${prof.birthPlace})`;
+          handleSend(query, {
+            name: prof.name,
+            dob: prof.dob,
+            birthTime: prof.birthTime || "12:00",
+            birthPlace: prof.birthPlace,
+            concern: prof.concern || "all"
+          });
+        }}
+      />
     </>
   );
 }
+

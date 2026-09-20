@@ -25,7 +25,11 @@ import {
   MessageSquare,
   Sparkle,
   Zap,
-  ArrowDown
+  ArrowDown,
+  Copy,
+  Share2,
+  Bookmark,
+  History
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
@@ -39,6 +43,8 @@ import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 import { VoiceReader } from "../components/VoiceReader";
+import { AuraAIChatHistoryModal } from "../components/AuraAIChatHistoryModal";
+import { AuraAISavedKundaliModal } from "../components/AuraAISavedKundaliModal";
 import { useSeo } from "../hooks/useSeo";
 
 export function AuraAIPage() {
@@ -65,6 +71,22 @@ export function AuraAIPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshPhase, setRefreshPhase] = useState("idle"); // "idle" | "fading-out" | "fading-in"
   const [showRefreshToast, setShowRefreshToast] = useState(false);
+  const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
+  const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
+
+  // Helper to parse [AURA_KEYWORDS]: kw1 | kw2 | ... from AI text
+  const parseAuraKeywords = (text) => {
+    if (!text) return [];
+    const match = text.match(/\[AURA_KEYWORDS\]:\s*([^\n]+)/);
+    if (!match) return [];
+    return match[1].split("|").map(k => k.trim()).filter(Boolean).slice(0, 6);
+  };
+
+  // Helper to strip [AURA_KEYWORDS] line from visible display text
+  const stripAuraKeywords = (text) => {
+    if (!text) return text;
+    return text.replace(/\[AURA_KEYWORDS\]:[^\n]*/g, "").trim();
+  };
 
   // Aura AI Live Status and Stop/Retry State Variables
   const [statusText, setStatusText] = useState("Thinking...");
@@ -597,6 +619,28 @@ export function AuraAIPage() {
                 </button>
               </div>
 
+              {/* Saved Kundalis & History buttons */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSavedKundaliModal(true)}
+                  className="aura-ai-action-btn"
+                  style={{ justifyContent: "center", padding: "6px 8px", fontSize: "11px", background: "linear-gradient(135deg, #FFF9F0, #FDF3E3)", border: "1px solid #d4af37", color: "#8c2b10", fontWeight: 600 }}
+                  title="Manage Saved Kundalis"
+                >
+                  <Bookmark size={12} /> Saved Kundalis
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowChatHistoryModal(true)}
+                  className="aura-ai-action-btn"
+                  style={{ justifyContent: "center", padding: "6px 8px", fontSize: "11px", background: "linear-gradient(135deg, #FFF9F0, #FDF3E3)", border: "1px solid #d4af37", color: "#8c2b10", fontWeight: 600 }}
+                  title="Past Chat Sessions"
+                >
+                  <History size={12} /> History
+                </button>
+              </div>
+
               {/* Floating icon toggle */}
               <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #ebdccb' }}>
                 <div style={{ fontSize: '12px', color: '#5c3516', marginBottom: '6px', fontWeight: 600 }}>
@@ -761,11 +805,11 @@ export function AuraAIPage() {
                       )}
                       <div className="aura-ai-page-msg-bubble">
                         <div className="aura-ai-page-text">
-                          <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
+                          <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
                         </div>
                         {m.sender === "ai" && m.text && (
                           <div style={{ marginTop: "6px" }}>
-                            <VoiceReader text={customerSafeAiText(m.text)} />
+                            <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
                           </div>
                         )}
 
@@ -955,12 +999,101 @@ export function AuraAIPage() {
                           </div>
                         )}
 
-                        {/* Timestamp */}
-                        {timeString && (
-                          <div className="aura-ai-page-msg-time">
-                            {timeString}
-                          </div>
-                        )}
+                        {/* AURA_KEYWORDS Interactive Suggested Search Chips */}
+                        {m.sender === "ai" && (() => {
+                          const kws = parseAuraKeywords(m.text || "");
+                          if (!kws.length) return null;
+                          return (
+                            <div className="aura-ai-keyword-chips-wrap" style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed rgba(212, 175, 55, 0.3)" }}>
+                              <div style={{ fontSize: "11px", color: "#8a6014", fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                <span>🔍</span> <span>त्वरित खोज व आगे का परामर्श (Quick Actions):</span>
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                {kws.map((kw, ki) => (
+                                  <button
+                                    key={ki}
+                                    type="button"
+                                    onClick={() => handleSend(kw)}
+                                    style={{
+                                      padding: "5px 12px",
+                                      background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)",
+                                      border: "1px solid #D4AF37",
+                                      borderRadius: "20px",
+                                      fontSize: "11.5px",
+                                      fontWeight: 600,
+                                      color: "#6b2a0c",
+                                      cursor: "pointer",
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                                      transition: "all 0.2s ease"
+                                    }}
+                                  >
+                                    🔎 {kw}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Message Time & Action Toolbar (Copy & WhatsApp Share) */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", marginTop: "6px" }}>
+                          {timeString && (
+                            <div className="aura-ai-page-msg-time">
+                              {timeString}
+                            </div>
+                          )}
+
+                          {m.sender === "ai" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  auraChatStore.copyChatToClipboard([m]);
+                                  emitToast("📋 उत्तर कॉपी हो गया (Copied)", "success");
+                                }}
+                                style={{
+                                  padding: "3px 8px",
+                                  background: "rgba(0,0,0,0.04)",
+                                  border: "1px solid rgba(0,0,0,0.09)",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  color: "#555",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                                title="उत्तर कॉपी करें (Copy answer)"
+                              >
+                                <Copy size={11} /> <span>कॉपी</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  auraChatStore.shareChatOnWhatsApp([m]);
+                                }}
+                                style={{
+                                  padding: "3px 8px",
+                                  background: "rgba(37, 211, 102, 0.12)",
+                                  border: "1px solid rgba(37, 211, 102, 0.35)",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  color: "#075e54",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                                title="WhatsApp पर शेयर करें (Share on WhatsApp)"
+                              >
+                                <Share2 size={11} /> <span>शेयर</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </React.Fragment>
@@ -1207,6 +1340,35 @@ export function AuraAIPage() {
           }}
         />
       )}
+
+      {/* Chat Sessions History Modal */}
+      <AuraAIChatHistoryModal
+        isOpen={showChatHistoryModal}
+        onClose={() => setShowChatHistoryModal(false)}
+        mode={mode}
+        onSelectSession={(convId) => {
+          setConversationId(convId);
+          setMessages(auraChatStore.getMessages(mode));
+        }}
+        onNewChat={() => {
+          handleNewChat();
+        }}
+      />
+
+      {/* Saved Devotee Kundali Modal */}
+      <AuraAISavedKundaliModal
+        isOpen={showSavedKundaliModal}
+        onClose={() => setShowSavedKundaliModal(false)}
+        onSelectProfile={(profile) => {
+          handleSend(`नमस्ते पंडित जी, कृपया ${profile.name} (जन्म: ${profile.dob}, समय: ${profile.time}, स्थान: ${profile.place}) की जन्म पत्रिका का विस्तृत वैदिक विश्लेषण करें।`, {
+            name: profile.name,
+            dob: profile.dob,
+            time: profile.time,
+            place: profile.place,
+            concern: profile.concern || "all"
+          });
+        }}
+      />
     </Shell>
   );
 }

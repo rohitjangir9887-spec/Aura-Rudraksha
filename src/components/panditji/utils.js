@@ -15,13 +15,26 @@ export const RASHI_DATA = [
 ];
 
 export const CONCERN_OPTIONS = [
-  { id: "career", label: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)", bead: "7 Mukhi / 1 Mukhi" },
-  { id: "peace", label: "🧘 मानसिक शांति, एकाग्रता व तनाव मुक्ति (Peace & Focus)", bead: "5 Mukhi / 2 Mukhi" },
-  { id: "shani_dosha", label: "🛡️ शनि साढ़े साती, राहु-केतु व ग्रह दोष निवारण (Dosha Shanti)", bead: "7 Mukhi / 11 Mukhi" },
-  { id: "marriage", label: "❤️ विवाह, प्रेम व पारिवारिक सद्भाव (Relationships)", bead: "2 Mukhi / 6 Mukhi" },
-  { id: "health", label: "🩺 स्वास्थ्य, ऊर्जा व दीर्घायु (Health & Vitality)", bead: "3 Mukhi / 5 Mukhi" },
-  { id: "spiritual", label: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)", bead: "1 Mukhi / Rudraksha Mala" },
+  { id: "all", label: "🌟 संपूर्ण जीवन मार्गदर्शन (All Concerns - Complete Life Guidance)", bead: "1 Mukhi / 5 Mukhi / Siddha Mala" },
+  { id: "career", label: "⚡ नौकरी, पदोन्नति व नेतृत्व (Career & Leadership)", bead: "7 Mukhi / 10 Mukhi / 14 Mukhi" },
+  { id: "business", label: "💼 व्यापार, दुकान व व्यवसाय वृद्धि (Business & Trade)", bead: "7 Mukhi / 8 Mukhi / 12 Mukhi" },
+  { id: "finance", label: "💰 धन समृद्धि, बचत व ऋण मुक्ति (Wealth & Debt Relief)", bead: "7 Mukhi / 13 Mukhi / 21 Mukhi" },
+  { id: "health", label: "🩺 स्वास्थ्य, ऊर्जा व दीर्घायु (Health & Vitality)", bead: "3 Mukhi / 5 Mukhi / 11 Mukhi" },
+  { id: "peace", label: "🧘 मानसिक शांति, एकाग्रता व तनाव मुक्ति (Mental Peace & Focus)", bead: "2 Mukhi / 5 Mukhi" },
+  { id: "marriage", label: "❤️ विवाह, शीघ्र रिश्ता व दांपत्य सुख (Marriage & Harmony)", bead: "2 Mukhi / Gauri Shankar" },
+  { id: "love", label: "💑 प्रेम संबंध व आकर्षण (Love & Relationships)", bead: "2 Mukhi / 6 Mukhi / 13 Mukhi" },
+  { id: "family", label: "🏠 पारिवारिक शांति व सद्भाव (Family Peace & Unity)", bead: "2 Mukhi / 3 Mukhi / Gauri Shankar" },
+  { id: "children", label: "👶 संतान सुख व बच्चों का कल्याण (Children & Progeny)", bead: "Garbh Gauri / 5 Mukhi / 9 Mukhi" },
+  { id: "education", label: "📚 विद्या, पढ़ाई, परीक्षा व स्मरण शक्ति (Education & Memory)", bead: "4 Mukhi / 5 Mukhi / Saraswati Bandh" },
+  { id: "property", label: "🏢 भूमि, भवन, घर व वाहन सुख (Property & Real Estate)", bead: "3 Mukhi / 10 Mukhi / 14 Mukhi" },
+  { id: "foreign_travel", label: "✈️ विदेश यात्रा, वीजा व विदेश योग (Foreign Travel & Settlement)", bead: "8 Mukhi / 12 Mukhi" },
+  { id: "legal", label: "⚖️ कोर्ट-कचहरी, शत्रु व कानूनी विजय (Legal Victory & Protection)", bead: "8 Mukhi / 10 Mukhi / 11 Mukhi" },
+  { id: "shani_dosha", label: "🛡️ शनि साढ़े साती, ढैया व राहु-केतु शांति (Dosha Shanti)", bead: "7 Mukhi / 14 Mukhi / 11 Mukhi" },
+  { id: "spiritual", label: "🕉️ आध्यात्मिक उन्नति, साधना व शिव कृपा (Moksha & Spiritual Growth)", bead: "1 Mukhi / 14 Mukhi / 108 Jaap Mala" },
+  { id: "general", label: "🌸 सर्वकल्याण, रक्षा व सकारात्मक ऊर्जा (General Well-being & Luck)", bead: "5 Mukhi / 7 Mukhi / 108 Jaap Mala" },
+  { id: "custom", label: "✍️ अन्य विशेष संकल्प (Custom Concern)", bead: "1 Mukhi / 5 Mukhi / 11 Mukhi" }
 ];
+
 
 // Helper to get Rashi from DOB
 export const calculateRashi = (dateStr) => {

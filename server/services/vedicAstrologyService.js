@@ -525,17 +525,101 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
 }
 
 /**
+ * Calculate D9 Navamsha Rashi from Sidereal Longitude
+ * Each sign (30°) is divided into 9 Navamshas of 3°20' (3.333333°)
+ */
+export function calculateNavamshaRashi(deg) {
+  const norm = normalizeDeg(deg);
+  const totalNavamshaIndex = Math.floor(norm / (30 / 9)); // 0 to 107
+  const navamshaRashiIndex = totalNavamshaIndex % 12;
+  const rashiObj = RASHIS[navamshaRashiIndex] || RASHIS[0];
+  return {
+    rashiIndex: navamshaRashiIndex,
+    rashiName: rashiObj.name,
+    rashiEnglish: rashiObj.english,
+    rashiSymbol: rashiObj.symbol,
+    lord: rashiObj.lord
+  };
+}
+
+/**
+ * Calculate Authentic Vedic Panchanga Elements
+ * Tithi (1-30), Vaar (0-6) + Lord, Yoga (1-27), Karana (1-11)
+ */
+export function calculatePanchanga(sunSid, moonSid, birthDateObj) {
+  // 1. Tithi: (Moon Longitude - Sun Longitude) / 12°
+  const diffDeg = normalizeDeg(moonSid - sunSid);
+  const tithiIndex = Math.floor(diffDeg / 12) + 1; // 1 to 30
+  const isShukla = tithiIndex <= 15;
+  const tithiNumberInPaksha = isShukla ? tithiIndex : tithiIndex - 15;
+  const tithiNames = [
+    "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
+    "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
+    "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi",
+    isShukla ? "Purnima" : "Amavasya"
+  ];
+  const tithiName = `${isShukla ? "Shukla Paksha" : "Krishna Paksha"} ${tithiNames[tithiNumberInPaksha - 1] || "Purnima"}`;
+
+  // 2. Vaar (Day of Week)
+  const dayIndex = birthDateObj.getUTCDay(); // 0: Sun, 1: Mon, ...
+  const vaarMap = [
+    { vaarHindi: "रविवार (Sunday)", lord: "Surya Dev (Sun)" },
+    { vaarHindi: "सोमवार (Monday)", lord: "Chandra Dev (Moon)" },
+    { vaarHindi: "मंगलवार (Tuesday)", lord: "Mangal Dev (Mars)" },
+    { vaarHindi: "बुधवार (Wednesday)", lord: "Budha Dev (Mercury)" },
+    { vaarHindi: "गुरुवार (Thursday)", lord: "Guru Brihaspati (Jupiter)" },
+    { vaarHindi: "शुक्रवार (Friday)", lord: "Shukra Dev (Venus)" },
+    { vaarHindi: "शनिवार (Saturday)", lord: "Shani Dev (Saturn)" }
+  ];
+  const vaar = vaarMap[dayIndex] || vaarMap[0];
+
+  // 3. 27 Vedic Yogas: (Sun Longitude + Moon Longitude) / 13°20'
+  const sumDeg = normalizeDeg(sunSid + moonSid);
+  const yogaIndex = Math.floor(sumDeg / (360 / 27));
+  const YOGA_NAMES = [
+    "Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana",
+    "Atiganda", "Sukarma", "Dhriti", "Shula", "Ganda",
+    "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra",
+    "Siddhi", "Vyatipata", "Variyan", "Parigha", "Shiva",
+    "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma", "Indra", "Vaidhriti"
+  ];
+  const yoga = YOGA_NAMES[yogaIndex] || YOGA_NAMES[0];
+
+  // 4. 11 Karanas: Half of a Tithi (6° per Karana)
+  const karanaIndex = Math.floor(diffDeg / 6) + 1;
+  const movableKaranas = ["Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti (Bhadra)"];
+  let karana = "";
+  if (karanaIndex === 1) karana = "Kimstughna";
+  else if (karanaIndex >= 58) {
+    if (karanaIndex === 58) karana = "Shakuni";
+    else if (karanaIndex === 59) karana = "Chatushpada";
+    else karana = "Naga";
+  } else {
+    karana = movableKaranas[(karanaIndex - 2) % 7];
+  }
+
+  return {
+    tithi: tithiName,
+    tithiIndex,
+    vaar: vaar.vaarHindi,
+    vaarLord: vaar.lord,
+    yoga,
+    karana
+  };
+}
+
+/**
  * Determine Planetary Dignity (Uchha / Neecha / Swa-kshetra / Mitra / Shatru)
  */
 function getPlanetaryDignity(planetName, rashiIndex) {
   const dignityMap = {
-    "Sun": { exalted: 0, debilitated: 6, own: [4] }, // Aries exalted, Libra debilitated, Leo own
-    "Moon": { exalted: 1, debilitated: 7, own: [3] }, // Taurus exalted, Scorpio debilitated, Cancer own
-    "Mars": { exalted: 9, debilitated: 3, own: [0, 7] }, // Capricorn exalted, Cancer debilitated, Aries/Scorpio own
-    "Mercury": { exalted: 5, debilitated: 11, own: [2, 5] }, // Virgo exalted, Pisces debilitated, Gemini/Virgo own
-    "Jupiter": { exalted: 3, debilitated: 9, own: [8, 11] }, // Cancer exalted, Capricorn debilitated, Sag/Pisces own
-    "Venus": { exalted: 11, debilitated: 5, own: [1, 6] }, // Pisces exalted, Virgo debilitated, Taurus/Libra own
-    "Saturn": { exalted: 6, debilitated: 0, own: [9, 10] }, // Libra exalted, Aries debilitated, Cap/Aquarius own
+    "Sun": { exalted: 0, debilitated: 6, own: [4] },
+    "Moon": { exalted: 1, debilitated: 7, own: [3] },
+    "Mars": { exalted: 9, debilitated: 3, own: [0, 7] },
+    "Mercury": { exalted: 5, debilitated: 11, own: [2, 5] },
+    "Jupiter": { exalted: 3, debilitated: 9, own: [8, 11] },
+    "Venus": { exalted: 11, debilitated: 5, own: [1, 6] },
+    "Saturn": { exalted: 6, debilitated: 0, own: [9, 10] },
     "Rahu": { exalted: 1, debilitated: 7, own: [10] },
     "Ketu": { exalted: 7, debilitated: 1, own: [7] }
   };
@@ -553,31 +637,18 @@ function getPlanetaryDignity(planetName, rashiIndex) {
  * Vedic Functional Benefic & Yogakaraka Determination based on Lagna
  */
 function getLagnaBenefics(lagnaRashiIndex) {
-  // Standard Parashari Jyotish rules for Yogakaraka and Benefic planets
   const lagnaRules = [
-    // 0: Mesh (Aries) - Mars lagnesh, Sun (5th lord), Jupiter (9th lord)
     { lagna: "Mesh", lagnesh: "Mars", yogakaraka: "Jupiter & Sun", benefics: ["Sun", "Jupiter", "Mars"], rudraksha: "3 Mukhi & 5 Mukhi", primeMukhi: 3 },
-    // 1: Vrishabh (Taurus) - Venus lagnesh, Saturn (9th & 10th Yogakaraka)
     { lagna: "Vrishabh", lagnesh: "Venus", yogakaraka: "Saturn", benefics: ["Saturn", "Mercury", "Venus"], rudraksha: "6 Mukhi & 7 Mukhi", primeMukhi: 6 },
-    // 2: Mithun (Gemini) - Mercury lagnesh, Venus (5th lord)
     { lagna: "Mithun", lagnesh: "Mercury", yogakaraka: "Venus", benefics: ["Venus", "Mercury"], rudraksha: "4 Mukhi & 6 Mukhi", primeMukhi: 4 },
-    // 3: Kark (Cancer) - Moon lagnesh, Mars (5th & 10th Yogakaraka)
     { lagna: "Kark", lagnesh: "Moon", yogakaraka: "Mars", benefics: ["Mars", "Jupiter", "Moon"], rudraksha: "2 Mukhi & 3 Mukhi", primeMukhi: 2 },
-    // 4: Singh (Leo) - Sun lagnesh, Mars (4th & 9th Yogakaraka)
     { lagna: "Singh", lagnesh: "Sun", yogakaraka: "Mars", benefics: ["Mars", "Sun", "Jupiter"], rudraksha: "1 Mukhi & 3 Mukhi", primeMukhi: 1 },
-    // 5: Kanya (Virgo) - Mercury lagnesh, Venus (9th lord)
     { lagna: "Kanya", lagnesh: "Mercury", yogakaraka: "Venus", benefics: ["Venus", "Mercury"], rudraksha: "4 Mukhi & 6 Mukhi", primeMukhi: 4 },
-    // 6: Tula (Libra) - Venus lagnesh, Saturn (4th & 5th Yogakaraka)
     { lagna: "Tula", lagnesh: "Venus", yogakaraka: "Saturn", benefics: ["Saturn", "Mercury", "Venus"], rudraksha: "6 Mukhi & 7 Mukhi", primeMukhi: 6 },
-    // 7: Vrischika (Scorpio) - Mars lagnesh, Jupiter (5th lord), Sun (10th lord)
     { lagna: "Vrischika", lagnesh: "Mars", yogakaraka: "Jupiter & Sun", benefics: ["Jupiter", "Sun", "Mars"], rudraksha: "3 Mukhi & 11 Mukhi", primeMukhi: 3 },
-    // 8: Dhanu (Sagittarius) - Jupiter lagnesh, Mars (5th lord), Sun (9th lord)
     { lagna: "Dhanu", lagnesh: "Jupiter", yogakaraka: "Mars & Sun", benefics: ["Sun", "Mars", "Jupiter"], rudraksha: "5 Mukhi & 1 Mukhi", primeMukhi: 5 },
-    // 9: Makar (Capricorn) - Saturn lagnesh, Venus (5th & 10th Yogakaraka)
     { lagna: "Makar", lagnesh: "Saturn", yogakaraka: "Venus", benefics: ["Venus", "Mercury", "Saturn"], rudraksha: "7 Mukhi & 14 Mukhi", primeMukhi: 7 },
-    // 10: Kumbh (Aquarius) - Saturn lagnesh, Venus (4th & 9th Yogakaraka)
     { lagna: "Kumbh", lagnesh: "Saturn", yogakaraka: "Venus", benefics: ["Venus", "Saturn"], rudraksha: "7 Mukhi & 11 Mukhi", primeMukhi: 7 },
-    // 11: Meen (Pisces) - Jupiter lagnesh, Moon (5th lord), Mars (9th lord)
     { lagna: "Meen", lagnesh: "Jupiter", yogakaraka: "Moon & Mars", benefics: ["Moon", "Mars", "Jupiter"], rudraksha: "5 Mukhi & 2 Mukhi", primeMukhi: 5 }
   ];
 
@@ -585,28 +656,125 @@ function getLagnaBenefics(lagnaRashiIndex) {
 }
 
 /**
+ * 12 Classical Types of Kaal Sarp Dosha Determination
+ */
+function getKaalSarpType(rahuHouse, ketuHouse, planets) {
+  const nonNodePlanets = planets.filter(p => p.englishName !== "Rahu" && p.englishName !== "Ketu");
+  const houses = nonNodePlanets.map(p => p.houseNumber);
+
+  // Check if all planets lie on one side of Rahu-Ketu axis
+  let allOneSide = true;
+  for (const h of houses) {
+    const diff = (h - rahuHouse + 12) % 12;
+    if (diff > 6) {
+      allOneSide = false;
+      break;
+    }
+  }
+
+  if (!allOneSide) {
+    let allOtherSide = true;
+    for (const h of houses) {
+      const diff = (h - ketuHouse + 12) % 12;
+      if (diff > 6) {
+        allOtherSide = false;
+        break;
+      }
+    }
+    if (!allOtherSide) return null;
+  }
+
+  const KAALSARP_TYPES = {
+    1: { type: "Anant Kaal Sarp Dosha (1st-7th House Axis)", description: "Affects self-identity, marriage, health & focus. Remedy: 8 Mukhi + 9 Mukhi + 11 Mukhi Rudraksha." },
+    2: { type: "Kulik Kaal Sarp Dosha (2nd-8th House Axis)", description: "Affects family wealth, speech & financial stability. Remedy: 8 Mukhi + 10 Mukhi Rudraksha." },
+    3: { type: "Vasuki Kaal Sarp Dosha (3rd-9th House Axis)", description: "Affects courage, siblings & fortune. Remedy: 8 Mukhi + 9 Mukhi Rudraksha." },
+    4: { type: "Shankhpal Kaal Sarp Dosha (4th-10th House Axis)", description: "Affects mental peace, mother, property & career. Remedy: 8 Mukhi + 4 Mukhi Rudraksha." },
+    5: { type: "Padma Kaal Sarp Dosha (5th-11th House Axis)", description: "Affects education, progeny, investments & gains. Remedy: 8 Mukhi + 5 Mukhi Rudraksha." },
+    6: { type: "Mahapadma Kaal Sarp Dosha (6th-12th House Axis)", description: "Affects health, litigation, debts & overseas travel. Remedy: 8 Mukhi + 11 Mukhi Rudraksha." },
+    7: { type: "Takshak Kaal Sarp Dosha (7th-1st House Axis)", description: "Affects partnerships, marital harmony & business ventures. Remedy: 8 Mukhi + Gauri Shankar Rudraksha." },
+    8: { type: "Karkotak Kaal Sarp Dosha (8th-2nd House Axis)", description: "Affects longevity, sudden obstacles & paternal inheritance. Remedy: 8 Mukhi + 7 Mukhi Rudraksha." },
+    9: { type: "Shankhachud Kaal Sarp Dosha (9th-3rd House Axis)", description: "Affects spiritual fortune, father & dharma. Remedy: 8 Mukhi + 9 Mukhi Rudraksha." },
+    10: { type: "Ghatak Kaal Sarp Dosha (10th-4th House Axis)", description: "Affects career promotions, status & reputation. Remedy: 8 Mukhi + 10 Mukhi Rudraksha." },
+    11: { type: "Vishdhar Kaal Sarp Dosha (11th-5th House Axis)", description: "Affects regular income, elder siblings & memory. Remedy: 8 Mukhi + 11 Mukhi Rudraksha." },
+    12: { type: "Sheshnag Kaal Sarp Dosha (12th-6th House Axis)", description: "Affects secret enemies, expenditures & sleep. Remedy: 8 Mukhi + 12 Mukhi Rudraksha." }
+  };
+
+  return KAALSARP_TYPES[rahuHouse] || { type: "Kaal Sarp Yoga", description: "Planets hemmed between Rahu and Ketu. Remedy: 8 Mukhi + 9 Mukhi Rudraksha." };
+}
+
+/**
+ * Shani Sade Sati and Dhaiya Tracker
+ * Based on natal Moon sign and Saturn transit
+ */
+function getSadeSatiStatus(moonRashiIdx, saturnSid) {
+  const currentSaturnRashiIdx = getRashiAndDegree(saturnSid).rashiIndex;
+  const diff = (currentSaturnRashiIdx - moonRashiIdx + 12) % 12;
+
+  if (diff === 11) {
+    return {
+      phase: "Rising Phase (प्रथम चरण - उदय चरण)",
+      description: "शनि साढ़े साती का प्रथम चरण — मानसिक चिंता व व्यय की अधिकता। उपाय: 7 मुखी अथवा 14 मुखी रुद्राक्ष।"
+    };
+  } else if (diff === 0) {
+    return {
+      phase: "Peak / Madhya Phase (द्वितीय चरण - शिखर चरण)",
+      description: "शनि साढ़े साती का मध्य चरण — करियर व व्यक्तिगत जीवन में कर्म फल व संघर्ष। उपाय: 7 मुखी व 11 मुखी रुद्राक्ष।"
+    };
+  } else if (diff === 1) {
+    return {
+      phase: "Setting / Asta Phase (तृतीय चरण - अस्त चरण)",
+      description: "शनि साढ़े साती का अंतिम चरण — राहत, स्थिरता व नवीन दिशा। उपाय: 7 मुखी रुद्राक्ष।"
+    };
+  } else if (diff === 3) {
+    return {
+      phase: "Kantaka Shani / Dhaiya (चौथा शनि ढैया)",
+      description: "शनि की लघु कल्याणी ढैया (4th House)। उपाय: 7 मुखी रुद्राक्ष।"
+    };
+  } else if (diff === 7) {
+    return {
+      phase: "Ashtama Shani / Dhaiya (अष्टम शनि ढैया)",
+      description: "शनि की अष्टम ढैया (8th House)। उपाय: 7 मुखी व 11 मुखी रुद्राक्ष।"
+    };
+  }
+
+  return {
+    phase: "Sade Sati Mukt (साढ़े साती मुक्त)",
+    description: "वर्तमान में साढ़े साती का प्रत्यक्ष प्रभाव नहीं है। शुभ गोचर है।"
+  };
+}
+
+/**
  * Master Function: Calculate Authentic Full Vedic Kundali from verified Birth Details
  * 
- * @param {Object} params
- * @param {string} params.dob - YYYY-MM-DD
- * @param {string} params.birthTime - HH:MM (24h) or 12h with AM/PM
- * @param {string} params.birthPlace - City / Place of Birth
- * @param {string} [params.name] - Devotee name (optional)
- * @param {string} [params.gender] - Devotee gender (optional)
- * @param {string} [params.concern] - Primary spiritual/life area (optional)
+ * Accepts flexible parameter object with aliases:
+ * dob/birthDate/dateOfBirth, birthTime/time/tob, birthPlace/place/pob, name, gender, concern, customConcern
  */
-export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "Devotee", gender = "", concern = "career" }) {
-  if (!dob || typeof dob !== "string" || !dob.trim()) {
+export function calculateAuthenticKundali(params = {}) {
+  // Support positional backward-compatibility
+  let resolvedParams = params;
+  if (typeof params === "string") {
+    resolvedParams = { dob: arguments[0], birthTime: arguments[1], birthPlace: arguments[2], name: arguments[3], gender: arguments[4], concern: arguments[5] };
+  }
+
+  const rawDob = resolvedParams.dob || resolvedParams.birthDate || resolvedParams.dateOfBirth;
+  const rawTime = resolvedParams.birthTime || resolvedParams.time || resolvedParams.tob || resolvedParams.birth_time;
+  const rawPlace = resolvedParams.birthPlace || resolvedParams.place || resolvedParams.pob || resolvedParams.birth_place;
+  const name = resolvedParams.name || "Devotee";
+  const gender = resolvedParams.gender || "Not Specified";
+  const concern = resolvedParams.concern || "career";
+  const customConcern = resolvedParams.customConcern || "";
+
+  if (!rawDob || typeof rawDob !== "string" || !rawDob.trim()) {
     throw new Error("Date of Birth (dob) is required for authentic Kundali calculation.");
   }
-  if (!birthTime || typeof birthTime !== "string" || !birthTime.trim()) {
+  if (!rawTime || typeof rawTime !== "string" || !rawTime.trim()) {
     throw new Error("Exact Birth Time (birthTime) is required for authentic Lagna & Kundali calculation.");
   }
-  if (!birthPlace || typeof birthPlace !== "string" || !birthPlace.trim()) {
+  if (!rawPlace || typeof rawPlace !== "string" || !rawPlace.trim()) {
     throw new Error("Birth Place (birthPlace) is required for authentic Vedic Kundali coordinates.");
   }
 
-  const cleanDob = dob.trim();
+  const cleanDob = rawDob.trim();
   const [yStr, mStr, dStr] = cleanDob.split(/[-/.]/);
   const year = parseInt(yStr, 10);
   const month = parseInt(mStr, 10);
@@ -619,7 +787,7 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
   // Robust Time Parser (supports "14:30", "2:30 PM", "08:15 AM", "14.30")
   let hour = 12;
   let minute = 0;
-  const cleanTime = birthTime.trim();
+  const cleanTime = String(rawTime).trim();
   const isPm = /pm/i.test(cleanTime);
   const isAm = /am/i.test(cleanTime);
   const timeDigits = cleanTime.replace(/[^\d:]/g, "").split(":");
@@ -642,7 +810,7 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
   const formattedBirthTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
   // Resolve Location Coordinates and Timezone
-  const location = resolveLocationCoordinates(birthPlace);
+  const location = resolveLocationCoordinates(rawPlace);
   if (!location) {
     throw new Error("Birth place could not be identified. Please enter a valid city or district name.");
   }
@@ -680,12 +848,19 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
   // Rashi & Nakshatra breakdowns
   const lagnaDetails = getRashiAndDegree(lagnaSid);
   const lagnaNak = getNakshatraAndPada(lagnaSid);
+  const lagnaNavamsha = calculateNavamshaRashi(lagnaSid);
 
   const moonDetails = getRashiAndDegree(moonSid);
   const moonNak = getNakshatraAndPada(moonSid);
+  const moonNavamsha = calculateNavamshaRashi(moonSid);
 
   const sunDetails = getRashiAndDegree(sunSid);
   const sunNak = getNakshatraAndPada(sunSid);
+  const sunNavamsha = calculateNavamshaRashi(sunSid);
+
+  // Panchanga
+  const birthDateObj = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const panchanga = calculatePanchanga(sunSid, moonSid, birthDateObj);
 
   // Calculate 12 Houses (Bhavas) relative to Lagna
   const lagnaRashiIndex = lagnaDetails.rashiIndex;
@@ -694,22 +869,23 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
     return ((planetRashiIndex - lagnaRashiIndex + 12) % 12) + 1;
   }
 
-  // Planets Table
+  // Planets Table with D9 Navamsha & Vargottama Detection
   const rawPlanets = [
-    { name: "Surya (Sun)", key: "Sun", english: "Sun", deg: sunSid, details: sunDetails, nak: sunNak },
-    { name: "Chandra (Moon)", key: "Moon", english: "Moon", deg: moonSid, details: moonDetails, nak: moonNak },
-    { name: "Mangal (Mars)", key: "Mars", english: "Mars", deg: marsSid, details: getRashiAndDegree(marsSid), nak: getNakshatraAndPada(marsSid) },
-    { name: "Budha (Mercury)", key: "Mercury", english: "Mercury", deg: mercSid, details: getRashiAndDegree(mercSid), nak: getNakshatraAndPada(mercSid) },
-    { name: "Guru (Jupiter)", key: "Jupiter", english: "Jupiter", deg: jupSid, details: getRashiAndDegree(jupSid), nak: getNakshatraAndPada(jupSid) },
-    { name: "Shukra (Venus)", key: "Venus", english: "Venus", deg: venSid, details: getRashiAndDegree(venSid), nak: getNakshatraAndPada(venSid) },
-    { name: "Shani (Saturn)", key: "Saturn", english: "Saturn", deg: satSid, details: getRashiAndDegree(satSid), nak: getNakshatraAndPada(satSid) },
-    { name: "Rahu (North Node)", key: "Rahu", english: "Rahu", deg: rahuSid, details: getRashiAndDegree(rahuSid), nak: getNakshatraAndPada(rahuSid) },
-    { name: "Ketu (South Node)", key: "Ketu", english: "Ketu", deg: ketuSid, details: getRashiAndDegree(ketuSid), nak: getNakshatraAndPada(ketuSid) }
+    { name: "Surya (Sun)", key: "Sun", english: "Sun", deg: sunSid, details: sunDetails, nak: sunNak, d9: sunNavamsha },
+    { name: "Chandra (Moon)", key: "Moon", english: "Moon", deg: moonSid, details: moonDetails, nak: moonNak, d9: moonNavamsha },
+    { name: "Mangal (Mars)", key: "Mars", english: "Mars", deg: marsSid, details: getRashiAndDegree(marsSid), nak: getNakshatraAndPada(marsSid), d9: calculateNavamshaRashi(marsSid) },
+    { name: "Budha (Mercury)", key: "Mercury", english: "Mercury", deg: mercSid, details: getRashiAndDegree(mercSid), nak: getNakshatraAndPada(mercSid), d9: calculateNavamshaRashi(mercSid) },
+    { name: "Guru (Jupiter)", key: "Jupiter", english: "Jupiter", deg: jupSid, details: getRashiAndDegree(jupSid), nak: getNakshatraAndPada(jupSid), d9: calculateNavamshaRashi(jupSid) },
+    { name: "Shukra (Venus)", key: "Venus", english: "Venus", deg: venSid, details: getRashiAndDegree(venSid), nak: getNakshatraAndPada(venSid), d9: calculateNavamshaRashi(venSid) },
+    { name: "Shani (Saturn)", key: "Saturn", english: "Saturn", deg: satSid, details: getRashiAndDegree(satSid), nak: getNakshatraAndPada(satSid), d9: calculateNavamshaRashi(satSid) },
+    { name: "Rahu (North Node)", key: "Rahu", english: "Rahu", deg: rahuSid, details: getRashiAndDegree(rahuSid), nak: getNakshatraAndPada(rahuSid), d9: calculateNavamshaRashi(rahuSid) },
+    { name: "Ketu (South Node)", key: "Ketu", english: "Ketu", deg: ketuSid, details: getRashiAndDegree(ketuSid), nak: getNakshatraAndPada(ketuSid), d9: calculateNavamshaRashi(ketuSid) }
   ];
 
   const planets = rawPlanets.map((p) => {
     const house = getHouseNumber(p.details.rashiIndex);
     const dignity = getPlanetaryDignity(p.key, p.details.rashiIndex);
+    const isVargottama = p.details.rashiIndex === p.d9.rashiIndex;
     return {
       name: p.name,
       englishName: p.english,
@@ -723,7 +899,10 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
       nakshatra: p.nak.name,
       nakshatraLord: p.nak.lord,
       pada: p.nak.pada,
-      dignity
+      dignity,
+      navamshaRashiHindi: p.d9.rashiName,
+      navamshaRashiEnglish: p.d9.rashiEnglish,
+      isVargottama
     };
   });
 
@@ -745,15 +924,53 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
   }
 
   // Vimshottari Dasha
-  const birthDateObj = new Date(`${dob}T${formattedBirthTime}:00Z`);
   const dashaInfo = calculateVimshottariDasha(moonSid, birthDateObj, new Date());
 
   // Lagna Analysis & Yogakaraka
   const lagnaBeneficInfo = getLagnaBenefics(lagnaRashiIndex);
 
   // Astrological Dosha checks
-  const marsHouse = planets.find(p => p.englishName === "Mars")?.houseNumber || 1;
-  const isManglik = [1, 4, 7, 8, 12].includes(marsHouse);
+  const marsPlanet = planets.find(p => p.englishName === "Mars");
+  const marsHouse = marsPlanet?.houseNumber || 1;
+  const isManglikPosition = [1, 4, 7, 8, 12].includes(marsHouse);
+  
+  // Parashari Manglik cancellation checks:
+  // Mars in own sign (Aries/Scorpio) or exalted (Capricorn), or Jupiter aspect
+  const marsDignity = marsPlanet?.dignity || "";
+  const isMarsInOwnOrExalted = marsDignity.includes("Own") || marsDignity.includes("Exalted");
+  const isManglik = isManglikPosition && !isMarsInOwnOrExalted;
+
+  // Kaal Sarp Dosha Check
+  const rahuHouse = planets.find(p => p.englishName === "Rahu")?.houseNumber || 1;
+  const ketuHouse = planets.find(p => p.englishName === "Ketu")?.houseNumber || 7;
+  const kaalSarpInfo = getKaalSarpType(rahuHouse, ketuHouse, planets);
+
+  // Sade Sati Status
+  const sadeSatiInfo = getSadeSatiStatus(moonDetails.rashiIndex, satSid);
+
+  // Major Yogas Analysis
+  const yogas = [];
+  const jupPlanet = planets.find(p => p.englishName === "Jupiter");
+  const moonPlanet = planets.find(p => p.englishName === "Moon");
+  const sunPlanet = planets.find(p => p.englishName === "Sun");
+  const mercPlanet = planets.find(p => p.englishName === "Mercury");
+
+  if (jupPlanet && moonPlanet) {
+    const jupMoonDiff = Math.abs(jupPlanet.houseNumber - moonPlanet.houseNumber);
+    if ([0, 3, 6, 9].includes(jupMoonDiff)) {
+      yogas.push({ name: "Gajakesari Yoga (गजकेसरी योग)", description: "Jupiter in Kendra from Moon. Bestows wisdom, prosperity, reputation, and divine protection." });
+    }
+  }
+  if (sunPlanet && mercPlanet && sunPlanet.houseNumber === mercPlanet.houseNumber) {
+    yogas.push({ name: "Budhaditya Yoga (बुधादित्य योग)", description: "Sun and Mercury conjunction. Bestows sharp intellect, administrative success, and communication mastery." });
+  }
+  const vargottamaPlanets = planets.filter(p => p.isVargottama);
+  if (vargottamaPlanets.length > 0) {
+    yogas.push({
+      name: `Vargottama Graha Yoga (${vargottamaPlanets.map(p => p.name).join(", ")})`,
+      description: "Planets occupying identical signs in D1 (Rashi) and D9 (Navamsha). Imparts immense strength and auspicious results."
+    });
+  }
 
   // Rudraksha recommendations tailored from Lagna + Rashi + Dasha + Concern
   const rudrakshaRecommendations = [];
@@ -790,6 +1007,36 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
     mukhiNumber: parseInt(dashaInfo.recommendedDashaRudraksha, 10) || 5
   });
 
+  // 4. Concern-Specific Rudraksha Recommendation (17 Life Areas + All + Custom)
+  const concernMap = {
+    "all": { mukhi: "1 Mukhi / 5 Mukhi / 108 Jaap Mala / Siddha Mala", role: "Complete Life Guidance (संपूर्ण जीवन संरक्षण व सिद्धि)", significance: "समस्त 16 जीवन क्षेत्रों (करियर, स्वास्थ्य, धन, विवाह, संतान व मोक्ष) की समग्र उन्नति व सुरक्षा हेतु।" },
+    "career": { mukhi: "7 Mukhi / 10 Mukhi / 14 Mukhi", role: "Career & Leadership (करियर व आजीविका)", significance: "Lord Shiva & Lakshmi blessing for profession, stable growth, authority & promotion." },
+    "business": { mukhi: "7 Mukhi / 8 Mukhi / 12 Mukhi", role: "Business & Trade (व्यापार व व्यवसाय वृद्धि)", significance: "Vighnaharta Ganesha & Mahalakshmi grace for business expansion and cash flow." },
+    "education": { mukhi: "4 Mukhi / 5 Mukhi / Saraswati Bandh", role: "Education & Intellect (विद्या व एकाग्रता)", significance: "Lord Brahma & Devi Saraswati blessings for memory, concentration & exam success." },
+    "marriage": { mukhi: "2 Mukhi / Gauri Shankar", role: "Marriage & Harmony (विवाह व दांपत्य सुख)", significance: "Ardhanarishvara blessing to remove delays in marriage and bless couples with lifelong unity." },
+    "love": { mukhi: "2 Mukhi / 6 Mukhi / 13 Mukhi", role: "Love & Attraction (प्रेम संबंध व आकर्षण)", significance: "Kamadeva & Kartikeya grace for sincere relationships, magnetism and mutual respect." },
+    "family": { mukhi: "2 Mukhi / 3 Mukhi / Gauri Shankar", role: "Family Peace (पारिवारिक शांति)", significance: "Harmonizes relations with parents, spouse and relatives, eliminates domestic discord." },
+    "health": { mukhi: "3 Mukhi / 5 Mukhi / 11 Mukhi", role: "Health & Longevity (आरोग्य व दीर्घायु)", significance: "Lord Agni & Hanuman blessing for vitality, digestion, immunity and chronic illness protection." },
+    "finance": { mukhi: "7 Mukhi / 13 Mukhi / 21 Mukhi", role: "Wealth & Debt Relief (धन समृद्धि व ऋण मुक्ति)", significance: "Mahalakshmi & Kubera grace for debt clearance, wealth retention and abundance." },
+    "children": { mukhi: "Garbh Gauri / 5 Mukhi / 9 Mukhi", role: "Children & Progeny (संतान सुख व कल्याण)", significance: "Devi Parvati & Ganesha blessings for progeny happiness, child protection and intelligence." },
+    "property": { mukhi: "3 Mukhi / 10 Mukhi / 14 Mukhi", role: "Property & Assets (भूमि, भवन व वाहन योग)", significance: "Lord Vishnu & Mangal dev blessings for real estate gains and dispute clearance." },
+    "spiritual": { mukhi: "1 Mukhi / 14 Mukhi / 108 Jaap Mala", role: "Spiritual Upliftment (आध्यात्मिक उन्नति व साधना)", significance: "Supreme Shiva consciousness for deep meditation, Kundalini awakening and peace." },
+    "foreign_travel": { mukhi: "8 Mukhi / 12 Mukhi", role: "Foreign Travel & Visa (विदेश यात्रा व विदेश योग)", significance: "Removes foreign settlement hurdles, visa delays and overseas career friction." },
+    "legal": { mukhi: "8 Mukhi / 10 Mukhi / 11 Mukhi", role: "Legal Victory (कोर्ट-कचहरी व कानूनी विजय)", significance: "Lord Hanuman & Yamraj protection against false allegations, lawsuits and enemies." },
+    "shani_dosha": { mukhi: "7 Mukhi / 14 Mukhi / 11 Mukhi", role: "Dosha & Shani Shanti (शनि साढ़े साती व ग्रह दोष)", significance: "Lord Shani & Rudra blessing to pacify Sade Sati, Dhaiya, Rahu/Ketu & Kaal Sarp afflictions." },
+    "peace": { mukhi: "2 Mukhi / 5 Mukhi", role: "Mental Peace (मानसिक शांति व तनाव मुक्ति)", significance: "Calms overthinking, anxiety, removes Chandra afflictions and brings serene focus." },
+    "general": { mukhi: "5 Mukhi / 7 Mukhi / 108 Jaap Mala", role: "General Auspiciousness (सर्वकल्याण व रक्षा)", significance: "Universal Kalagni Rudra protection for everyday well-being, luck and positivity." },
+    "custom": { mukhi: "1 Mukhi / 5 Mukhi / 11 Mukhi", role: "Special Purpose (विशेष संकल्प)", significance: customConcern ? `Devotee's custom concern: "${customConcern}".` : "Tailored Vedic solution for personal intention." }
+  };
+
+  const selectedConcern = concernMap[concern] || concernMap["all"];
+  rudrakshaRecommendations.push({
+    role: `Primary Life Goal (${selectedConcern.role})`,
+    significance: selectedConcern.significance,
+    mukhi: selectedConcern.mukhi,
+    mukhiNumber: parseInt(selectedConcern.mukhi, 10) || 5
+  });
+
   // Numerology Mulank (Day of Birth)
   const mulank = ((day - 1) % 9) + 1;
 
@@ -797,9 +1044,11 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
     verifiedBirthData: {
       name: name || "Devotee",
       gender: gender || "Not Specified",
-      dob,
+      dob: cleanDob,
       birthTime: formattedBirthTime,
       birthPlace: location.name,
+      concern,
+      customConcern,
       coordinates: { lat: location.lat, lon: location.lon, tz: location.tz },
       julianDay: jd.toFixed(4),
       ayanamsha: `${Math.floor(ayanamsha)}° ${Math.floor((ayanamsha % 1) * 60)}' (Lahiri)`
@@ -812,6 +1061,7 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
         degree: lagnaDetails.formattedDegree,
         nakshatra: lagnaNak.name,
         pada: lagnaNak.pada,
+        navamsha: `${lagnaNavamsha.rashiName} (${lagnaNavamsha.rashiEnglish})`,
         lord: lagnaDetails.lord,
         element: lagnaDetails.element
       },
@@ -822,6 +1072,7 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
         degree: moonDetails.formattedDegree,
         nakshatra: moonNak.name,
         pada: moonNak.pada,
+        navamsha: `${moonNavamsha.rashiName} (${moonNavamsha.rashiEnglish})`,
         lord: moonDetails.lord,
         element: moonDetails.element
       },
@@ -832,14 +1083,22 @@ export function calculateAuthenticKundali({ dob, birthTime, birthPlace, name = "
         nakshatra: sunNak.name
       },
       mulank,
+      panchanga,
       planets,
       houses,
       vimshottariDasha: dashaInfo,
       doshaSummary: {
         isManglik,
-        manglikNote: isManglik ? `Mangal ${marsHouse}th House mein sthit hai (Manglik Prabhav Shanti ke liye 3 Mukhi / 11 Mukhi upyogi hai).` : "Kendra ya Trikon mein Mangal anukool sthiti mein hai."
+        isManglikPosition,
+        manglikNote: isManglik 
+          ? `Mangal ${marsHouse}th House mein sthit hai (Manglik Prabhav Shanti ke liye 3 Mukhi / 11 Mukhi upyogi hai).` 
+          : (isMarsInOwnOrExalted ? `Mangal ${marsHouse}th House mein swarashi/uchha hone se Manglik dosha Parashari niyam se cancel (Nivritti) ho gaya hai.` : "Kendra ya Trikon mein Mangal anukool sthiti mein hai (Manglik dosha mukt)."),
+        sadeSati: sadeSatiInfo,
+        kaalSarp: kaalSarpInfo || { type: "Kaal Sarp Mukt", description: "Kundali mein sabhi grah Rahu-Ketu ke bahar sthit hain (Kaal Sarp dosha nahi hai)." }
       },
+      yogas,
       rudrakshaRecommendations
     }
   };
 }
+
