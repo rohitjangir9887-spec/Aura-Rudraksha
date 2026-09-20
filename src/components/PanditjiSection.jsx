@@ -115,6 +115,7 @@ export function PanditjiSection() {
           birthPlace: birth.birthPlace || birthPlace.trim(),
           concern: concern,
           rashi: `${chandra.rashiHindi || ''} (${chandra.rashiEnglish || ''})`,
+          recommendedMukhi: fullResult.recommendedMukhi,
           recommended: fullResult.recommendedMukhi
         });
 

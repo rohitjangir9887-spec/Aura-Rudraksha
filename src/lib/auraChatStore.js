@@ -194,7 +194,7 @@ export const auraChatStore = {
         birthPlace: profile.birthPlace || "",
         concern: profile.concern || "all",
         rashi: profile.rashi || profile.rashiHindi || "",
-        recommendedMukhi: profile.recommendedMukhi || "",
+        recommendedMukhi: profile.recommendedMukhi || profile.recommended || "",
         savedAt: new Date().toISOString()
       };
 
@@ -221,10 +221,27 @@ export const auraChatStore = {
     } catch (_) {}
   },
 
+  // Alias for compatibility with PanditjiForm
+  deleteKundaliProfile(id) {
+    return this.deleteSavedKundali(id);
+  },
+
   // --- SAVED / ARCHIVED SESSION HISTORY ---
   getArchivedSessions(mode = "standard") {
     try {
       const uid = this.getCurrentUserUid();
+      if (mode === "all") {
+        const standard = this.getArchivedSessions("standard");
+        const panditji = this.getArchivedSessions("panditji");
+        const map = new Map();
+        [...panditji, ...standard].forEach((s) => {
+          if (s && s.id) map.set(s.id, s);
+        });
+        const combined = Array.from(map.values()).sort(
+          (a, b) => new Date(b.savedAt || 0) - new Date(a.savedAt || 0)
+        );
+        return combined;
+      }
       const key = `aura_ai_archived_sessions_${mode}_${uid}`;
       const raw = localStorage.getItem(key);
       if (raw) {
@@ -270,25 +287,45 @@ export const auraChatStore = {
   deleteArchivedSession(id, mode = "standard") {
     try {
       const uid = this.getCurrentUserUid();
-      const key = `aura_ai_archived_sessions_${mode}_${uid}`;
-      const existing = this.getArchivedSessions(mode);
-      const updated = existing.filter((s) => s.id !== id);
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent("aura_ai_sessions_archived", { detail: { mode, updated } }));
-      return updated;
+      const modesToDelete = (mode === "all" || !mode) ? ["standard", "panditji"] : [mode];
+      let lastUpdated = [];
+
+      for (const m of modesToDelete) {
+        const key = `aura_ai_archived_sessions_${m}_${uid}`;
+        const existing = this.getArchivedSessions(m);
+        const updated = existing.filter((s) => s.id !== id);
+        if (updated.length !== existing.length) {
+          localStorage.setItem(key, JSON.stringify(updated));
+          lastUpdated = updated;
+          window.dispatchEvent(new CustomEvent("aura_ai_sessions_archived", { detail: { mode: m, updated } }));
+        }
+      }
+      return lastUpdated;
     } catch (_) {}
   },
 
   loadArchivedSession(id, mode = "standard") {
     try {
-      const sessions = this.getArchivedSessions(mode);
-      const target = sessions.find((s) => s.id === id);
+      // Look in requested mode first, then search all modes as fallback
+      let sessions = this.getArchivedSessions(mode);
+      let target = sessions.find((s) => s.id === id);
+      if (!target && mode !== "all") {
+        const altMode = mode === "panditji" ? "standard" : "panditji";
+        sessions = this.getArchivedSessions(altMode);
+        target = sessions.find((s) => s.id === id);
+      }
+      if (!target) {
+        const allSessions = this.getArchivedSessions("all");
+        target = allSessions.find((s) => s.id === id);
+      }
+
       if (target && Array.isArray(target.messages)) {
-        this.saveMessages(target.messages, mode);
+        const targetMode = target.mode || mode;
+        this.saveMessages(target.messages, targetMode);
         if (target.conversationId) {
           this.setConversationId(target.conversationId);
         }
-        return target;
+        return target.messages;
       }
     } catch (_) {}
     return null;

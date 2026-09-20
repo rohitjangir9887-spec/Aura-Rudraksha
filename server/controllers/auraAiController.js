@@ -67,10 +67,15 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Strict NVIDIA NIM Model Configuration
-export const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
-export const BACKUP_NIM_MODELS = ["nvidia/nemotron-3-super-120b-a12b", "nemotron-3-super-120b-a12b"];
-export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
+// Strict NVIDIA NIM Model Configuration (nemotron-3-super-120b-a12b)
+export const PRIMARY_NIM_MODEL = process.env.NEMOTRON_MODEL || "nvidia/nemotron-3-super-120b-a12b";
+export const BACKUP_NIM_MODELS = [
+  process.env.NEMOTRON_MODEL || "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/nemotron-3-super-120b-a12b",
+  "nemotron-3-super-120b-a12b",
+  "nvidia/nemotron-4-340b-instruct"
+];
+export const NVIDIA_NIM_BASE_URL = process.env.NEMOTRON_BASE_URL || "https://integrate.api.nvidia.com/v1";
 
 let cachedNvidiaKey = "";
 
@@ -868,31 +873,37 @@ export async function chatAuraAI(req, res, next) {
     let hasNewBirthDetails = false;
     let activeBirthDetails = null;
 
-    if (incomingBirthDetails) {
+    const isNewConsultationRequested = Boolean(
+      req.body?.reset || 
+      req.body?.resetBirthDetails ||
+      (message && /(naya|nayi|doosra|dusra|new consultation|new kundli|new chart|different person|reset|restart|pehla nahi|meri kundli dekho|kisi aur ki)/i.test(message))
+    );
+
+    if (incomingBirthDetails && incomingBirthDetails.dob && incomingBirthDetails.birthPlace) {
       const isDifferentFromExisting = !existingVerifiedBirthDetails ||
         existingVerifiedBirthDetails.dob !== incomingBirthDetails.dob ||
         existingVerifiedBirthDetails.birthTime !== incomingBirthDetails.birthTime ||
         existingVerifiedBirthDetails.birthPlace !== incomingBirthDetails.birthPlace ||
         (incomingBirthDetails.name && existingVerifiedBirthDetails.name && incomingBirthDetails.name.toLowerCase() !== existingVerifiedBirthDetails.name.toLowerCase());
 
-      hasNewBirthDetails = isDifferentFromExisting || Boolean(passedBirthDetails) || Boolean(req.body?.reset);
+      hasNewBirthDetails = isDifferentFromExisting || Boolean(passedBirthDetails) || isNewConsultationRequested;
       activeBirthDetails = {
         dob: incomingBirthDetails.dob,
-        birthTime: incomingBirthDetails.birthTime,
+        birthTime: incomingBirthDetails.birthTime || "12:00",
         birthPlace: incomingBirthDetails.birthPlace,
         name: incomingBirthDetails.name || verifiedName,
         gender: incomingBirthDetails.gender || "",
         concern: incomingBirthDetails.concern || "career"
       };
-    } else if (existingVerifiedBirthDetails) {
+    } else if (existingVerifiedBirthDetails && !isNewConsultationRequested) {
       activeBirthDetails = existingVerifiedBirthDetails;
     }
 
-    if (activeBirthDetails) {
+    if (activeBirthDetails && activeBirthDetails.dob && activeBirthDetails.birthPlace) {
       try {
         calculatedKundaliData = calculateAuthenticKundali({
           dob: activeBirthDetails.dob,
-          birthTime: activeBirthDetails.birthTime,
+          birthTime: activeBirthDetails.birthTime || "12:00",
           birthPlace: activeBirthDetails.birthPlace,
           name: activeBirthDetails.name || verifiedName,
           gender: activeBirthDetails.gender || "",
@@ -901,8 +912,14 @@ export async function chatAuraAI(req, res, next) {
       } catch (kErr) {
         console.warn("[Aura AI] Kundali calculation warning:", kErr?.message);
       }
-    } else if (mode === "panditji" && (intent === "KUNDALI" || (message || "").toLowerCase().includes("kundli") || (message || "").toLowerCase().includes("kundali") || (message || "").toLowerCase().includes("horoscope") || (message || "").toLowerCase().includes("rashi"))) {
-      shouldPromptBirthForm = true;
+    } else if (mode === "panditji") {
+      const isPersonalAstrologyQuery = (
+        intent === "KUNDALI" ||
+        /(kundli|kundali|horoscope|rashi|raashi|lagna|nakshatra|graha|grah|dasha|mahadasha|bhavishya|future|shadi|vivah|marriage|career|job|naukri|dhan|wealth|finance|swasthya|health|dosha|dosh|manglik|sadesati|sade\s*sati|kaalsarp|kaal\s*sarp|pitra|remedy|upay|kaunsa\s*rudraksha|konsa\s*rudraksha|mera\s*rudraksha|pehan|dharan|birth|janam|janampatri)/i.test(message || "")
+      );
+      if (isPersonalAstrologyQuery) {
+        shouldPromptBirthForm = true;
+      }
     }
 
     // 4. Fetch Live Catalog Products, Active Coupons & RAG Context
@@ -1205,7 +1222,22 @@ STRICT SINGLE-DEVOTEE ISOLATION RULES (DO NOT COMBINE OR LEAK MULTIPLE CHARTS):
 6. NEVER output raw HTML tags like <br>. Use standard clean linebreaks (\n).
 7. NEVER output masked date placeholders like 2024-XX-XX or XX-XX. Use the exact calculated Mahadasha and Antardasha dates provided above.
 ` : `
-- If the user asks for personalized Kundali, Rashi, or Graha Dosha analysis without providing complete birth details (DOB, Time, Place), politely request their birth details and explain why exact time and place are required for authentic sidereal mathematics. Do not fabricate positions.
+CRITICAL: STRICT CLARIFICATION & ZERO-ASSUMPTION MANDATE (अनिवार्य स्पष्टीकरण नियम - कोई भी गलत या काल्पनिक जानकारी न दें):
+1. ZERO ASSUMPTION / ZERO GUESSING (कोई अनुमान न लगाएं):
+   - You MUST NEVER assume, guess, invent, or estimate the user's Rashi, Lagna, Nakshatra, Graha placements, Mahadasha, or Doshas.
+   - If the devotee asks about their Kundali, personal future, career, marriage, health, dasha, Sade Sati, or which Rudraksha to wear according to their Kundali: YOU MUST NOT give a guessed or fabricated reading!
+2. MANDATORY CLARIFICATION REQUEST (सटीक विवरण मांगें):
+   - In pure, respectful Hindi, politely request their 3 required birth details:
+     "🙏 **प्रणाम भक्त! हर हर महादेव।**
+     आपकी जन्म कुंडली व ग्रह गोचर का प्रामाणिक व अचूक वैदिक विश्लेषण करने हेतु मुझे आपकी पूर्ण जन्म विवरणी की आवश्यकता है। कृपया मुझे बताएं:
+     1. **जन्म तिथि (Date of Birth)** — उदा. DD/MM/YYYY
+     2. **जन्म का सटीक समय (Exact Time of Birth)** — उदा. प्रातः 10:25 या रात्रि 08:40
+     3. **जन्म स्थान (Birth City & State)** — उदा. जयपुर, राजस्थान
+     (यदि सटीक समय ज्ञात नहीं है, तो कृपया स्पष्ट बताएं ताकि हम प्रश्न कुंडली अथवा नाम राशि पद्धति से विचार करें।)"
+3. VEDIC REASONING (शास्त्रसम्मत कारण):
+   - Respectfully explain that according to Brihat Parashara Hora Shastra, Lagna changes every two hours and planetary degrees depend on local latitude/longitude. Without exact time and place, calculating an authentic Kundali is scientifically impossible and astrologically improper.
+4. GENERAL VEDIC QUESTIONS (सामान्य ज्ञान प्रश्न):
+   - If the question is purely general/scriptural (e.g., "7 Mukhi ke labh", "Rudraksha dharan vidhi", "Shani mantra", "Manglik dosha kya hai"): Answer comprehensively with deep scriptural authority from Shiva Purana in pure Hindi without fabricating personal chart details.
 `}
 
 ORDER & DELIVERY INQUIRIES:
@@ -1329,8 +1361,48 @@ ${memoryContextText || "Guest shopper."}`;
       const geminiClient = getGeminiClient();
       const nvidiaClient = getNvidiaClient();
 
-      // 1. Try Gemini streaming with resilient multi-model fallback (Skip for Pandit Ji)
-      if (mode !== "panditji" && geminiClient && !clientDisconnected) {
+      // 1. In Pandit Ji mode, prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first
+      if (mode === "panditji" && nvidiaClient && !clientDisconnected) {
+        for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+          if (streamSucceeded || clientDisconnected) break;
+          try {
+            const streamCompletion = await nvidiaClient.chat.completions.create(
+              {
+                model: modelCandidate,
+                messages: nimMessages,
+                temperature: 0.35,
+                max_tokens: 4096,
+                stream: true,
+                chat_template_kwargs: { enable_thinking: false },
+                reasoning_effort: "none"
+              },
+              { signal: abortController.signal }
+            );
+
+            for await (const chunk of streamCompletion) {
+              if (clientDisconnected) break;
+              const deltaContent = chunk.choices?.[0]?.delta?.content || "";
+              if (deltaContent) {
+                fullStreamedText += deltaContent;
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+              }
+            }
+
+            if (fullStreamedText.trim()) {
+              streamSucceeded = true;
+              break;
+            }
+          } catch (streamErr) {
+            if (streamErr.name === "AbortError" || clientDisconnected) {
+              return;
+            }
+            console.warn(`[Aura AI Streaming] Panditji NVIDIA notice (${modelCandidate}):`, streamErr?.message || streamErr);
+          }
+        }
+      }
+
+      // 2. Try Gemini streaming (Primary for Standard mode, or Resilient Fallback for Pandit Ji mode)
+      if (!streamSucceeded && geminiClient && !clientDisconnected) {
         for (const gModel of GEMINI_TEXT_MODELS) {
           if (streamSucceeded || clientDisconnected) break;
           try {
@@ -1387,8 +1459,8 @@ ${memoryContextText || "Guest shopper."}`;
         }
       }
 
-      // 2. Fallback to NVIDIA NIM streaming if Gemini was not available or produced empty output
-      if (!streamSucceeded && nvidiaClient && !clientDisconnected) {
+      // 3. Fallback to NVIDIA NIM streaming for standard mode if Gemini produced empty output
+      if (!streamSucceeded && mode !== "panditji" && nvidiaClient && !clientDisconnected) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
           try {
@@ -1434,9 +1506,9 @@ ${memoryContextText || "Guest shopper."}`;
           if (calculatedKundaliData) {
             fallbackText = `🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विश्लेषण के अनुसार:\n- **लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (पद ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n- **वर्तमान महादशा:** ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi}\n\n**वैदिक रुद्राक्ष परामर्श:**\nआपके लग्न एवं संकल्प की सिद्धि हेतु **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** धारण करना सर्वोत्तम रहेगा। यह आपके आत्मबल, स्वास्थ्य एवं ग्रह शांति के लिए अत्यंत लाभकारी है।`;
           } else if (shouldPromptBirthForm) {
-            fallbackText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nआपकी जन्म कुंडली का सटीक एवं प्रामाणिक वैदिक विश्लेषण करने हेतु आपकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** एवं **जन्म स्थान (City)** की आवश्यकता है।\n\nकृपया नीचे दिए गए फॉर्म में अपना विवरण दर्ज करें ताकि मैं आपकी कुंडली का सही विश्लेषण कर सकूँ।`;
+            fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी जन्म कुंडली व ग्रह गोचर का सटीक व प्रामाणिक वैदिक विश्लेषण करने हेतु आपकी **जन्म तिथि (Date of Birth)**, **जन्म समय (Exact Time of Birth)** एवं **जन्म स्थान (Birth City / State)** की आवश्यकता है।\n\nबृहत्पाराशर होराशास्त्र के अनुसार लग्न हर 2 घंटे में बदलता है, अतः बिना सटीक समय व स्थान के कोई भी ग्रह स्थिति बताना शास्त्र विरुद्ध व अनुचित होगा।\n\nकृपया नीचे दिए गए फॉर्म में अपना विवरण दर्ज करें ताकि मैं आपकी कुंडली की संपूर्ण गणना कर आपको सटीक मार्गदर्शन प्रदान कर सकूँ।`;
           } else {
-            fallbackText = `🙏 **प्रणाम! Main AI Pandit Ji hoon — Aura Rudraksha का वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।**\n\nआप अपनी जन्म कुंडली विश्लेषण, राशि अनुसार रुद्राक्ष चयन, ग्रह शांति उपाय या किसी विशेष संकल्प हेतु परामर्श ले सकते हैं। आज मैं आपकी क्या सहायता करूँ?`;
+            fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nमैं AI पंडित जी (🕉️) हूँ — Aura Rudraksha का वैदिक ज्योतिष, जन्म कुंडली व आध्यात्मिक मार्गदर्शक।\n\nआप अपनी जन्म कुंडली विश्लेषण, राशि अनुसार सिद्ध रुद्राक्ष चयन, ग्रह शांति उपाय या किसी विशेष संकल्प हेतु परामर्श ले सकते हैं। आज मैं आपकी क्या सहायता करूँ?`;
           }
         } else {
           fallbackText = `🙏 **Namaste! Main Aura AI hoon — Aura Rudraksha ka shopping aur support assistant.**\n\nMain aapki 100% authentic Nepali Rudraksha, Jaap Mala, discount coupons aur order tracking mein madad kar sakta hoon. Aaj aap kya dekhna chahte hain?`;
@@ -1525,9 +1597,38 @@ ${memoryContextText || "Guest shopper."}`;
     let aiResponseText = "";
     let generatedSuccessfully = false;
 
-    // Try Gemini models first (Skip for Pandit Ji)
+    // 1. In Pandit Ji mode, prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first
+    if (mode === "panditji") {
+      const nvidiaClient = getNvidiaClient();
+      if (nvidiaClient) {
+        for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+          if (generatedSuccessfully) break;
+          try {
+            const completion = await nvidiaClient.chat.completions.create({
+              model: modelCandidate,
+              messages: nimMessages,
+              temperature: 0.35,
+              max_tokens: 4096,
+              chat_template_kwargs: { enable_thinking: false },
+              reasoning_effort: "none"
+            });
+
+            const outContent = completion.choices?.[0]?.message?.content || "";
+            if (outContent.trim()) {
+              aiResponseText = outContent;
+              generatedSuccessfully = true;
+              break;
+            }
+          } catch (nimErr) {
+            console.warn(`[Aura AI Non-Stream] Panditji NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
+          }
+        }
+      }
+    }
+
+    // 2. Try Gemini models (Primary for Standard mode, or Resilient Fallback for Pandit Ji mode)
     const nonStreamGeminiClient = getGeminiClient();
-    if (mode !== "panditji" && nonStreamGeminiClient) {
+    if (!generatedSuccessfully && nonStreamGeminiClient) {
       for (const gModel of GEMINI_TEXT_MODELS) {
         if (generatedSuccessfully) break;
         try {
@@ -1573,8 +1674,8 @@ ${memoryContextText || "Guest shopper."}`;
       }
     }
 
-    // Try NVIDIA NIM if Gemini was not available or failed
-    if (!generatedSuccessfully) {
+    // 3. Try NVIDIA NIM for standard mode if Gemini was not available or failed
+    if (!generatedSuccessfully && mode !== "panditji") {
       const nvidiaClient = getNvidiaClient();
       if (nvidiaClient) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
@@ -1608,9 +1709,9 @@ ${memoryContextText || "Guest shopper."}`;
         if (calculatedKundaliData) {
           aiResponseText = `🙏 **प्रणाम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विश्लेषण के अनुसार:\n- **लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (पद ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n- **वर्तमान महादशा:** ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi}\n\n**वैदिक रुद्राक्ष परामर्श:**\nआपके लग्न एवं संकल्प की सिद्धि हेतु **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** धारण करना सर्वोत्तम रहेगा। यह आपके आत्मबल, स्वास्थ्य एवं ग्रह शांति के लिए अत्यंत लाभकारी है।`;
         } else if (shouldPromptBirthForm) {
-          aiResponseText = `🙏 **प्रणाम! Main AI Pandit Ji hoon.**\n\nआपकी जन्म कुंडली का सटीक एवं प्रामाणिक वैदिक विश्लेषण करने हेतु आपकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** एवं **जन्म स्थान (City)** की आवश्यकता है।\n\nकृपया नीचे दिए गए फॉर्म में अपना विवरण दर्ज करें ताकि मैं आपकी कुंडली का सही विश्लेषण कर सकूँ।`;
+          aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी जन्म कुंडली व ग्रह गोचर का सटीक व प्रामाणिक वैदिक विश्लेषण करने हेतु आपकी **जन्म तिथि (Date of Birth)**, **जन्म समय (Exact Time of Birth)** एवं **जन्म स्थान (Birth City / State)** की आवश्यकता है।\n\nबृहत्पाराशर होराशास्त्र के अनुसार लग्न हर 2 घंटे में बदलता है, अतः बिना सटीक समय व स्थान के कोई भी ग्रह स्थिति बताना शास्त्र विरुद्ध व अनुचित होगा।\n\nकृपया नीचे दिए गए फॉर्म में अपना विवरण दर्ज करें ताकि मैं आपकी कुंडली की संपूर्ण गणना कर आपको सटीक मार्गदर्शन प्रदान कर सकूँ।`;
         } else {
-          aiResponseText = `🙏 **प्रणाम! Main AI Pandit Ji hoon — Aura Rudraksha का वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।**\n\nआप अपनी जन्म कुंडली विश्लेषण, राशि अनुसार रुद्राक्ष चयन, ग्रह शांति उपाय या किसी विशेष संकल्प हेतु परामर्श ले सकते हैं। आज मैं आपकी क्या सहायता करूँ?`;
+          aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nमैं AI पंडित जी (🕉️) हूँ — Aura Rudraksha का वैदिक ज्योतिष, जन्म कुंडली व आध्यात्मिक मार्गदर्शक।\n\nआप अपनी जन्म कुंडली विश्लेषण, राशि अनुसार सिद्ध रुद्राक्ष चयन, ग्रह शांति उपाय या किसी विशेष संकल्प हेतु परामर्श ले सकते हैं। आज मैं आपकी क्या सहायता करूँ?`;
         }
       } else {
         if (matchedProducts.length > 0) {

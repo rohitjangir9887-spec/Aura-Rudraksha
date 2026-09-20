@@ -86,21 +86,80 @@ export function AuraAIPage() {
     }
   });
 
+  const [showBirthForm, setShowBirthForm] = useState(false);
+  const [birthForm, setBirthForm] = useState({
+    name: "",
+    dob: "",
+    time: "",
+    place: "",
+    concern: "career"
+  });
+
   const refreshSavedKundalisCount = () => {
     try {
       setSavedKundalisCount(auraChatStore.getSavedKundalis().length);
     } catch (_) {}
   };
 
+  const handleBirthFormSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!birthForm.name.trim()) {
+      emitToast("कृपया अपना नाम दर्ज करें", "warning");
+      return;
+    }
+    if (!birthForm.dob) {
+      emitToast("कृपया जन्म तिथि (DOB) दर्ज करें", "warning");
+      return;
+    }
+    if (!birthForm.time || !birthForm.time.trim()) {
+      emitToast("कृपया जन्म समय (Birth Time) दर्ज करें (Time is required)", "warning");
+      return;
+    }
+    if (!birthForm.place.trim()) {
+      emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
+      return;
+    }
+
+    const concernLabels = {
+      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
+      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
+      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
+      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
+      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
+      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
+    };
+
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
+
+    const verifiedDetails = {
+      name: birthForm.name.trim(),
+      dob: birthForm.dob,
+      birthTime: birthForm.time.trim(),
+      birthPlace: birthForm.place.trim(),
+      concern: birthForm.concern
+    };
+    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
+
+    setShowBirthForm(false);
+    setMode("panditji");
+    handleSend(promptText, verifiedDetails);
+  };
+
   const handleSelectSession = (session) => {
     if (!session) return;
-    if (session.mode && session.mode !== mode) {
-      setMode(session.mode);
+    const targetMode = session.mode || mode;
+    if (targetMode !== mode) {
+      setMode(targetMode);
     }
-    const restoredMsgs = auraChatStore.loadArchivedSession(session.id, session.mode);
-    setMessages(restoredMsgs);
-    setConversationId(session.id);
-    emitToast("📜 पुरानी बातचीत लोड हो गई (Chat restored)", "success");
+    const restored = auraChatStore.loadArchivedSession(session.id, targetMode);
+    const msgs = Array.isArray(restored) ? restored : (restored?.messages || []);
+    if (msgs.length > 0) {
+      setMessages(msgs);
+      setConversationId(session.conversationId || session.id);
+      emitToast("📜 पुरानी बातचीत पुनः शुरू हो गई (Chat Resumed)", "success");
+    } else {
+      emitToast("बातचीत लोड करने में समस्या आई", "error");
+    }
   };
 
   const handleSelectKundali = (profile) => {
@@ -431,6 +490,12 @@ export function AuraAIPage() {
             }
             return [...prev, aiMsg];
           });
+          if (finalData?.showBirthForm) {
+            const existingDetails = auraChatStore.getVerifiedBirthDetails();
+            if (!existingDetails) {
+              setShowBirthForm(true);
+            }
+          }
           setLoading(false);
         },
         onError: (err) => {
@@ -831,6 +896,117 @@ export function AuraAIPage() {
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
             >
+              {/* Interactive Kundali Birth Form in Pandit Ji Mode */}
+              <AnimatePresence>
+                {showBirthForm && mode === "panditji" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mb-4 mx-2 p-4 bg-gradient-to-br from-[#FFFDF9] to-[#FAF4EB] border-2 border-amber-300 rounded-xl shadow-md"
+                  >
+                    <div className="flex items-center justify-between mb-3 border-b border-amber-200/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🕉️</span>
+                        <h4 className="font-bold text-sm text-[#4A0E17]">
+                          वैदिक जन्म विवरण (Vedic Birth Details for Kundali)
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowBirthForm(false)}
+                        className="text-gray-400 hover:text-gray-600 text-xs px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-100"
+                      >
+                        ✕ बंद करें
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleBirthFormSubmit}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
+                            जातक का नाम (Full Name) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="उदा. राहुल शर्मा"
+                            value={birthForm.name}
+                            onChange={(e) => setBirthForm({ ...birthForm, name: e.target.value })}
+                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
+                            जन्म तिथि (Date of Birth) *
+                          </label>
+                          <input
+                            type="date"
+                            required
+                            value={birthForm.dob}
+                            onChange={(e) => setBirthForm({ ...birthForm, dob: e.target.value })}
+                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
+                            जन्म स्थान (City / State) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="उदा. जयपुर, राजस्थान"
+                            value={birthForm.place}
+                            onChange={(e) => setBirthForm({ ...birthForm, place: e.target.value })}
+                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
+                            जन्म समय (Exact Birth Time) *
+                          </label>
+                          <input
+                            type="time"
+                            required
+                            value={birthForm.time}
+                            onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
+                            className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="block text-xs font-semibold text-[#4A0E17] mb-1">
+                          मुख्य संकल्प / समस्या (Primary Concern)
+                        </label>
+                        <select
+                          value={birthForm.concern}
+                          onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-amber-300 rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#4A0E17]"
+                        >
+                          <option value="career">⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)</option>
+                          <option value="peace">🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)</option>
+                          <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)</option>
+                          <option value="marriage">❤️ विवाह, प्रेम व परिवार (Relationships)</option>
+                          <option value="health">🩺 स्वास्थ्य व आरोग्य (Health & Vitality)</option>
+                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)</option>
+                        </select>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-2 bg-gradient-to-r from-[#651520] to-[#781B28] text-white rounded-lg text-xs font-bold border border-amber-400 hover:brightness-110 shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <span>🙏 पंडित जी से कुंडली विश्लेषण प्राप्त करें (Submit for Authentic Kundali)</span>
+                      </button>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {messages.map((m, index) => {
                 // Session divider
                 if (m.type === "session_divider") {

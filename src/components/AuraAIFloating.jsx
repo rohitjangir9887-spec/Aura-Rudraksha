@@ -198,13 +198,19 @@ export function AuraAIFloating() {
   const handleSelectSession = (session) => {
     if (!session) return;
     triggerHaptic("medium");
-    if (session.mode && session.mode !== mode) {
-      setMode(session.mode);
+    const targetMode = session.mode || mode;
+    if (targetMode !== mode) {
+      setMode(targetMode);
     }
-    const restoredMsgs = auraChatStore.loadArchivedSession(session.id, session.mode);
-    setMessages(restoredMsgs);
-    setConversationId(session.id);
-    emitToast("📜 पुरानी बातचीत लोड हो गई (Chat restored)", "success");
+    const restored = auraChatStore.loadArchivedSession(session.id, targetMode);
+    const msgs = Array.isArray(restored) ? restored : (restored?.messages || []);
+    if (msgs.length > 0) {
+      setMessages(msgs);
+      setConversationId(session.conversationId || session.id);
+      emitToast("📜 पुरानी बातचीत पुनः शुरू हो गई (Chat Resumed)", "success");
+    } else {
+      emitToast("बातचीत लोड करने में समस्या आई", "error");
+    }
   };
 
   const handleSelectKundali = (profile) => {

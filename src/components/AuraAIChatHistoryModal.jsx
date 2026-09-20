@@ -20,6 +20,7 @@ export function AuraAIChatHistoryModal({
   isOpen,
   onClose,
   activeMode = "standard",
+  currentMode,
   onSelectSession,
   onStartNewChat
 }) {
@@ -237,7 +238,7 @@ export function AuraAIChatHistoryModal({
                           </span>
                           <span className="text-[10px] text-gray-400 flex items-center gap-1">
                             <Clock size={9} />
-                            {formatDate(session.timestamp)}
+                            {formatDate(session.savedAt || session.timestamp)}
                           </span>
                         </div>
                         <h4 className="text-xs font-semibold text-gray-900 line-clamp-1 group-hover:text-[#4A0E17]">
