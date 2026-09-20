@@ -73,6 +73,7 @@ export function AuraAIPage() {
   const [showRefreshToast, setShowRefreshToast] = useState(false);
   const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
+  const [activeBirthDetails, setActiveBirthDetails] = useState(() => auraChatStore.getVerifiedBirthDetails());
 
   // Helper to parse [AURA_KEYWORDS]: kw1 | kw2 | ... from AI text
   const parseAuraKeywords = (text) => {
@@ -197,13 +198,24 @@ export function AuraAIPage() {
       }
     };
 
+    const handleBirthDetailsUpdate = (e) => {
+      setActiveBirthDetails(e.detail?.details || auraChatStore.getVerifiedBirthDetails());
+    };
+    const handleBirthDetailsCleared = () => {
+      setActiveBirthDetails(null);
+    };
+
     window.addEventListener("aura_ai_chat_sync", handleChatSync);
     window.addEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
+    window.addEventListener("aura_ai_birth_details_updated", handleBirthDetailsUpdate);
+    window.addEventListener("aura_ai_birth_details_cleared", handleBirthDetailsCleared);
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
       window.removeEventListener("aura_ai_chat_sync", handleChatSync);
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
+      window.removeEventListener("aura_ai_birth_details_updated", handleBirthDetailsUpdate);
+      window.removeEventListener("aura_ai_birth_details_cleared", handleBirthDetailsCleared);
       window.removeEventListener("storage", handleStorageChange);
     };
   }, [mode]);
@@ -304,11 +316,10 @@ export function AuraAIPage() {
     userHasScrolledUpRef.current = false;
     setShowJumpToBottom(false);
 
-    // Scroll smoothly to newly sent user message at top of viewing area
+    // Scroll smoothly to bottom of viewing area
     requestAnimationFrame(() => {
-      const userEl = document.getElementById(userMsg.id);
-      if (userEl && chatScrollContainerRef.current) {
-        userEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (chatScrollContainerRef.current) {
+        chatScrollContainerRef.current.scrollTo({ top: chatScrollContainerRef.current.scrollHeight, behavior: "smooth" });
       }
     });
 
@@ -337,7 +348,7 @@ export function AuraAIPage() {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
-      const verifiedDetails = customBirthDetails || (mode === "panditji" ? auraChatStore.getVerifiedBirthDetails() : null);
+      const verifiedDetails = customBirthDetails || (mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null);
 
       await auraAiClient.sendMessageStream({
         message: textToSend,
@@ -358,6 +369,19 @@ export function AuraAIPage() {
             streamInitialized = true;
             setLoading(false);
           }
+          if (partialData?.kundali) {
+            const verified = partialData.kundali.verifiedBirthData || {
+              dob: partialData.kundali.dob,
+              birthTime: partialData.kundali.birthTime,
+              birthPlace: partialData.kundali.birthPlace,
+              name: partialData.kundali.devoteeName || partialData.kundali.name || "Devotee",
+              concern: partialData.kundali.concern || "career"
+            };
+            if (verified && verified.dob) {
+              auraChatStore.saveVerifiedBirthDetails(verified);
+              setActiveBirthDetails(verified);
+            }
+          }
           setStatusText(mode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
           const cleanText = customerSafeAiText(accumulated);
           setMessages((prev) => {
@@ -373,6 +397,7 @@ export function AuraAIPage() {
               orderInfo: partialData?.orderInfo || existing?.orderInfo || null,
               requiresHuman: Boolean(partialData?.requiresHuman || existing?.requiresHuman),
               quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : (existing?.quickReplies || []),
+              kundali: partialData?.kundali || existing?.kundali || null,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
             if (idx >= 0) {
@@ -389,6 +414,19 @@ export function AuraAIPage() {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
+          if (finalData.kundali) {
+            const verified = finalData.kundali.verifiedBirthData || {
+              dob: finalData.kundali.dob,
+              birthTime: finalData.kundali.birthTime,
+              birthPlace: finalData.kundali.birthPlace,
+              name: finalData.kundali.devoteeName || finalData.kundali.name || "Devotee",
+              concern: finalData.kundali.concern || "career"
+            };
+            if (verified && verified.dob) {
+              auraChatStore.saveVerifiedBirthDetails(verified);
+              setActiveBirthDetails(verified);
+            }
+          }
           const cleanText = customerSafeAiText(finalData.text);
           const aiMsg = {
             id: aiMsgId,
@@ -399,6 +437,7 @@ export function AuraAIPage() {
             orderInfo: finalData.orderInfo || null,
             requiresHuman: finalData.requiresHuman || false,
             quickReplies: finalData.quickReplies || [],
+            kundali: finalData.kundali || null,
             timestamp: new Date().toISOString()
           };
           auraChatStore.upsertMessage(aiMsg, mode);
@@ -901,6 +940,54 @@ export function AuraAIPage() {
                 </div>
               </div>
             </div>
+
+            {/* Persistent Active Kundali Profile Banner */}
+            {mode === "panditji" && activeBirthDetails && activeBirthDetails.dob && (
+              <div 
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 16px",
+                  background: "linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 100%)",
+                  borderBottom: "1.5px solid #F59E0B",
+                  fontSize: "12px",
+                  color: "#78350F",
+                  gap: "10px",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.04)"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: "14px" }}>🕉️</span>
+                  <span style={{ fontWeight: 700, color: "#8c2b10" }}>सक्रिय कुंडली:</span>
+                  <span style={{ fontWeight: 600 }}>{activeBirthDetails.name || "Devotee"}</span>
+                  <span style={{ opacity: 0.8, fontSize: "11px" }}>({activeBirthDetails.dob}{activeBirthDetails.birthTime ? ` ${activeBirthDetails.birthTime}` : ""}{activeBirthDetails.birthPlace ? ` • ${activeBirthDetails.birthPlace}` : ""})</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      auraChatStore.clearActiveBirthDetails();
+                      setActiveBirthDetails(null);
+                      emitToast("सक्रिय कुंडली हटा दी गई", "info");
+                    }}
+                    style={{
+                      background: "#FEE2E2",
+                      border: "1px solid #EF4444",
+                      color: "#991B1B",
+                      borderRadius: "10px",
+                      padding: "3px 8px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      cursor: "pointer"
+                    }}
+                    title="कुंडली हटाएं (Delete Kundali)"
+                  >
+                    🗑️ हटाएं
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Refresh Toast Banner */}
             <AnimatePresence>

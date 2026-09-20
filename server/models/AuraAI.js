@@ -37,7 +37,8 @@ const auraAIMessageSchema = new mongoose.Schema({
   cartAction: { type: Object, default: null },
   orderInfo: { type: Object, default: null },
   requiresHuman: { type: Boolean, default: false },
-  quickReplies: { type: Array, default: [] }
+  quickReplies: { type: Array, default: [] },
+  kundali: { type: Object, default: null }
 });
 
 const auraAIConversationSchema = new mongoose.Schema(
