@@ -181,7 +181,7 @@ export function isTextIncomplete(text, finishReason = "") {
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
   // Check if ends with dangling connector words or unclosed bullet points
-  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय:|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*)$/;
+  const danglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|होता|होती|होते|प्रदान|धारण|उपाय|मंत्र|विधि|की|के|का|को|से|में|पर|है|हैं|हो|था|थी|थे|जो|जब|तब|यदि|तो|या|अथवा|इत्यादि|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
   if (danglingConnectors.test(trimmed)) return true;
 
   // Clean terminal signals — these definitively end a response
@@ -1491,8 +1491,16 @@ ${memoryContextText || "Guest shopper."}`;
       }
     }
 
+    let effectiveSystemPrompt = systemPrompt;
+    if (isContinuation) {
+      effectiveSystemPrompt += `\n\nCONTINUATION DIRECTIVE (MANDATORY): The user is asking to seamlessly continue the previous response directly from where it stopped.
+- DO NOT start with any greeting (e.g. "Namaste", "🙏", "Pranam", or "Devotee").
+- DO NOT repeat what was already written in the assistant's previous message above.
+- Continue directly from the exact point of interruption. Complete any unfinished sentences, remaining Graha/Bhava analysis, remedies, Final Astrological Summary table, and [AURA_KEYWORDS].`;
+    }
+
     const nimMessages = [
-      { role: "system", content: systemPrompt }
+      { role: "system", content: effectiveSystemPrompt }
     ];
 
     for (const h of effectiveHistory) {
@@ -1501,16 +1509,6 @@ ${memoryContextText || "Guest shopper."}`;
       } else if (h.sender === "ai" && h.text) {
         nimMessages.push({ role: "assistant", content: String(h.text) });
       }
-    }
-
-    if (isContinuation) {
-      nimMessages.push({
-        role: "system",
-        content: `CONTINUATION DIRECTIVE (MANDATORY): The user is asking to seamlessly continue the previous response directly from where it stopped.
-- DO NOT start with any greeting (e.g. "Namaste", "🙏", "Pranam", or "Devotee").
-- DO NOT repeat what was already written in the assistant's previous message above.
-- Continue directly from the exact point of interruption. Complete any unfinished sentences, remaining Graha/Bhava analysis, remedies, Final Astrological Summary table, and [AURA_KEYWORDS].`
-      });
     }
 
     if (message && message.trim()) {
@@ -1599,7 +1597,7 @@ ${memoryContextText || "Guest shopper."}`;
                   model: modelCandidate,
                   messages: nimMessages,
                   temperature: 0.35,
-                  max_tokens: 8192,
+                  max_tokens: 16384,
                   stream: true
                 },
                 { signal: abortController.signal }
@@ -1639,7 +1637,7 @@ ${memoryContextText || "Guest shopper."}`;
                       model: modelCandidate,
                       messages: continuationMessages,
                       temperature: 0.35,
-                      max_tokens: 8192,
+                      max_tokens: 16384,
                       stream: true
                     },
                     { signal: abortController.signal }
@@ -1720,7 +1718,7 @@ ${memoryContextText || "Guest shopper."}`;
               config: {
                 systemInstruction: systemPrompt,
                 temperature: 0.35,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384
               }
             });
 
@@ -1731,6 +1729,54 @@ ${memoryContextText || "Guest shopper."}`;
                 fullStreamedText += deltaContent;
                 res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
                 res.flush?.();
+              }
+            }
+
+            // Automatic Gemini Multi-Turn Continuation if response was cut off
+            let gPassCount = 0;
+            const MAX_GEMINI_PASSES = 4;
+            while (!clientDisconnected && gPassCount < MAX_GEMINI_PASSES && isTextIncomplete(fullStreamedText)) {
+              gPassCount++;
+              try {
+                const continuationPrompt = mode === "panditji"
+                  ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table, and [AURA_KEYWORDS]."
+                  : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance.";
+
+                const gContinuationContents = [
+                  ...geminiContents,
+                  { role: "model", parts: [{ text: fullStreamedText }] },
+                  { role: "user", parts: [{ text: continuationPrompt }] }
+                ];
+
+                const gContinuationStream = await geminiClient.models.generateContentStream({
+                  model: gModel,
+                  contents: gContinuationContents,
+                  config: {
+                    systemInstruction: systemPrompt,
+                    temperature: 0.35,
+                    maxOutputTokens: 16384
+                  }
+                });
+
+                let gPassText = "";
+                for await (const chunk of gContinuationStream) {
+                  if (clientDisconnected) break;
+                  const deltaContent = chunk.text || "";
+                  if (deltaContent) {
+                    gPassText += deltaContent;
+                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+                    res.flush?.();
+                  }
+                }
+
+                if (gPassText.trim()) {
+                  fullStreamedText = mergeContinuation(fullStreamedText, gPassText);
+                } else {
+                  break;
+                }
+              } catch (gCErr) {
+                console.warn(`[Aura AI Gemini Continuation] Pass ${gPassCount} notice:`, gCErr?.message || gCErr);
+                break;
               }
             }
 
@@ -1861,7 +1907,7 @@ ${memoryContextText || "Guest shopper."}`;
             model: modelCandidate,
             messages: nimMessages,
             temperature: 0.35,
-            max_tokens: 8192
+            max_tokens: 16384
           });
 
           let outContent = completion.choices?.[0]?.message?.content || "";
@@ -1881,7 +1927,7 @@ ${memoryContextText || "Guest shopper."}`;
                   { role: "user", content: "Continue your comprehensive reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]." }
                 ],
                 temperature: 0.35,
-                max_tokens: 8192
+                max_tokens: 16384
               });
               currentFinishReason = contCompletion.choices?.[0]?.finish_reason || "";
               const contText = contCompletion.choices?.[0]?.message?.content || "";
@@ -1939,7 +1985,7 @@ ${memoryContextText || "Guest shopper."}`;
             config: {
               systemInstruction: systemPrompt,
               temperature: 0.35,
-              maxOutputTokens: 8192
+              maxOutputTokens: 16384
             }
           });
           const outText = geminiRes.text || "";

@@ -864,7 +864,8 @@ export function AuraAIFloating() {
   };
 
   const handleContinueChat = async (targetMsg, autoPassNumber = 0) => {
-    if (loading || !targetMsg) return;
+    if (!targetMsg) return;
+    if (loading && autoPassNumber === 0) return;
     const baseText = targetMsg.text || "";
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। (Please continue the rest of the answer seamlessly right from where it stopped).";
 
@@ -994,7 +995,7 @@ export function AuraAIFloating() {
             autoContinuationCountRef.current = autoPassNumber + 1;
             setTimeout(() => {
               handleContinueChat(aiMsg, autoPassNumber + 1);
-            }, 300);
+            }, 100);
           } else {
             autoContinuationCountRef.current = 0;
           }
@@ -1002,7 +1003,7 @@ export function AuraAIFloating() {
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Continue stream notice:", err);
-          if (!streamInitialized) {
+          if (!streamInitialized && !baseText.trim()) {
             setErrorOccurred(true);
           }
           setLoading(false);
@@ -1014,7 +1015,7 @@ export function AuraAIFloating() {
       });
     } catch (err) {
       if (currentTurnSeq !== turnSeqRef.current) return;
-      if (!streamInitialized) {
+      if (!streamInitialized && !baseText.trim()) {
         setErrorOccurred(true);
       }
       setLoading(false);
