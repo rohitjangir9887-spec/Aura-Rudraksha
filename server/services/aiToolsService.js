@@ -62,7 +62,7 @@ export const GEMINI_TOOL_DECLARATIONS = [
     parameters: {
       type: "OBJECT",
       properties: {
-        code: { type: "STRING", description: "Coupon code entered by user e.g. 'SHRAWAN200', 'AURA10'" },
+        code: { type: "STRING", description: "Coupon code entered by user e.g. 'FESTIVE10'" },
         cartTotal: { type: "NUMBER", description: "Total cart value in INR" }
       },
       required: ["code"]
@@ -289,15 +289,11 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         }
 
         return {
-          siteOffers: [
-            { code: "SHRAWAN200", description: "Flat ₹200 OFF on orders above ₹1499", minOrder: 1499 },
-            { code: "AURA10", description: "10% Instant Discount on all Lab-Certified Beads", minOrder: 999 }
-          ],
           activeCoupons: coupons.map(c => ({
             code: c.code,
             discount: c.discount,
             type: c.type,
-            minPurchase: c.minPurchase
+            minPurchase: c.minPurchase || c.minAmount || 0
           })),
           freeShipping: "FREE Express Delivery on all prepaid & COD orders across India"
         };
@@ -315,14 +311,6 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
         }
 
         if (!coupon) {
-          if (upperCode === "SHRAWAN200") {
-            if (cartTotal >= 1499) return { valid: true, discountAmount: 200, finalPrice: cartTotal - 200, message: "₹200 discount applied!" };
-            return { valid: false, message: "Code 'SHRAWAN200' requires minimum cart total of ₹1499." };
-          }
-          if (upperCode === "AURA10") {
-            const discount = Math.round(cartTotal * 0.10);
-            return { valid: true, discountAmount: discount, finalPrice: cartTotal - discount, message: "10% discount applied!" };
-          }
           return { valid: false, message: `Coupon code '${upperCode}' is not active or invalid.` };
         }
 

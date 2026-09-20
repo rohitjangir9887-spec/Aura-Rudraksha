@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { MobileHeader } from "./MobileHeader";
 import { emitToast } from "../../context/ToastContext";
+import { db } from "../../lib/db";
 
 /**
  * Screen 2 — Mobile Checkout
@@ -45,19 +46,17 @@ export function Screen2MobileCheckout({
   const finalTotal = Math.max(0, subtotal - productDiscount - effectiveCouponDiscount + shipping);
   const totalSavings = productDiscount + effectiveCouponDiscount;
 
-  const handleApplyCoupon = (e) => {
+  const handleApplyCoupon = async (e) => {
     e.preventDefault();
     if (!couponCode.trim()) return;
     const code = couponCode.trim().toUpperCase();
-    if (code === "AURA10" || code === "SHIV10") {
+    const result = await db.validateCoupon(code, subtotal);
+    if (result && result.valid) {
       setAppliedCoupon(code);
-      setCouponDiscount(1500);
-    } else if (code === "SHRAWAN200" || code === "WELCOME") {
-      setAppliedCoupon(code);
-      setCouponDiscount(500);
+      setCouponDiscount(result.discountAmount || 0);
+      emitToast(result.message || `Coupon '${code}' applied!`, "success");
     } else {
-      setAppliedCoupon(code);
-      setCouponDiscount(750);
+      emitToast(result?.message || `Coupon '${code}' is invalid or inactive.`, "error");
     }
   };
 
@@ -435,7 +434,7 @@ export function Screen2MobileCheckout({
                 <form onSubmit={handleApplyCoupon} style={{ display: "flex", gap: "6px" }}>
                   <input
                     type="text"
-                    placeholder="Enter coupon code (e.g. AURA10)"
+                    placeholder="Enter coupon code"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                     disabled={!!appliedCoupon}

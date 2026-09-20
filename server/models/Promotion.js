@@ -3,11 +3,11 @@ import mongoose from "mongoose";
 const activeOfferSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, default: "OFFER-CENTRAL-1", unique: true, index: true },
-    enabled: { type: Boolean, default: true },
-    status: { type: String, enum: ["Active", "Inactive", "Disabled", "Expired"], default: "Active" },
-    title: { type: String, default: "₹200 OFF" },
-    subtitle: { type: String, default: "Limited Time Festival Offer" },
-    couponCode: { type: String, default: "SHRAWAN200" },
+    enabled: { type: Boolean, default: false },
+    status: { type: String, enum: ["Active", "Inactive", "Disabled", "Expired"], default: "Inactive" },
+    title: { type: String, default: "Special Offer" },
+    subtitle: { type: String, default: "Authentic Consecrated Rudraksha" },
+    couponCode: { type: String, default: "" },
     discountType: { type: String, enum: ["fixed", "percentage"], default: "fixed" },
     discountValue: { type: Number, default: 200 },
     startDate: { type: String, default: () => new Date(Date.now() - 3600000).toISOString() },

@@ -804,10 +804,10 @@ export function buildAuthenticVedicResponse({ message, userIntent, products = []
       coupons.forEach(c => {
         resp += `✦ Code: \`${c.code}\` — ${c.type === "percentage" ? `${c.discount}% OFF` : `Flat ₹${c.discount} OFF`}\n`;
       });
+      resp += `\nAap cart ya checkout par in coupons ko apply karke discount prapt kar sakte hain!`;
     } else {
-      resp += `✦ Code: \`SHRAWAN200\` — Flat ₹200 OFF on orders\n✦ Code: \`AURA10\` — 10% Instant Discount\n`;
+      resp += `Vartaman mein koi alag coupon code sakriya nahi hai. Lekin aapko har order par Free Shiva Puja Pran-Pratishta aur Free Pan-India Shipping ka labh mil raha hai!`;
     }
-    resp += `\nAap cart ya checkout par in coupons ko apply karke discount prapt kar sakte hain!`;
     return resp;
   }
 

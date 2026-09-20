@@ -23,8 +23,8 @@ class InMemoryStore {
         link: "/shop",
         image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png",
         type: "Percentage",
-        discountValue: 20,
-        couponCode: "AURA20",
+        discountValue: 0,
+        couponCode: "",
         shownOn: "Home Banner",
         status: "Active",
         order: 1

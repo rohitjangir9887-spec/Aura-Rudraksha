@@ -15,7 +15,7 @@ export function CouponInputBox({
         <div style={{ position: "relative", flex: 1 }}>
           <input
             id="input-coupon-code"
-            placeholder="Enter Coupon Code (e.g. AURA10)"
+            placeholder="Enter Coupon Code"
             value={couponInput}
             onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {

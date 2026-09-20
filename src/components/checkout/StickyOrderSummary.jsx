@@ -1,3 +1,4 @@
+import { db } from "../../lib/db";
 import { getProductPrimaryImage } from "../../lib/imageUtils";
 import { getProductRoute } from "../../lib/routes";
 import React, { useState } from "react";
@@ -58,10 +59,11 @@ export function StickyOrderSummary({
   const totalSavings = (productDiscount + (couponDiscount || 0));
   const finalTotal = totals.finalTotal ?? Math.max(0, subtotal - productDiscount - (couponDiscount || 0) + shipping);
 
-  const availableCoupons = [
-    { code: "AURA10", desc: "10% Extra Off on Sacred Orders" },
-    { code: "SHRAWAN200", desc: "Flat ₹200 Sacred Consecration Gift" }
-  ];
+  const activeStoreCoupons = (db.getCoupons() || []).filter(c => c.status === "Active" || c.status === "active");
+  const availableCoupons = activeStoreCoupons.map(c => ({
+    code: c.code,
+    desc: c.description || (c.type === "percentage" ? `${c.discount}% Discount` : `Flat ₹${c.discount} Off`)
+  }));
 
   return (
     <div

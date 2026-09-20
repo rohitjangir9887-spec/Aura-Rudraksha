@@ -193,11 +193,11 @@ export function AdminOffers() {
   const handleResetToAuraDefaults = async () => {
     const defaults = {
       id: "OFFER-CENTRAL-1",
-      enabled: true,
-      status: "Active",
-      title: "₹200 OFF",
-      subtitle: "Limited Time Festival Offer",
-      couponCode: "SHRAWAN200",
+      enabled: false,
+      status: "Inactive",
+      title: "Special Offer",
+      subtitle: "Authentic Consecrated Rudraksha",
+      couponCode: "",
       discountType: "fixed",
       discountValue: 200,
       startDate: new Date(Date.now() - 3600000).toISOString().slice(0, 16),

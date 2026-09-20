@@ -56,7 +56,7 @@ export function PriceListCoupon({
         <form onSubmit={handleApply} style={{ display: "flex", gap: "6px" }}>
           <input
             type="text"
-            placeholder="Enter coupon code (e.g. AURA10)"
+            placeholder="Enter coupon code"
             value={couponInput}
             onChange={(e) => setCouponInput(e.target.value)}
             style={{

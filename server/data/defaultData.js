@@ -478,19 +478,15 @@ export const defaultBanners = [
   "https://i.ibb.co/vvjdFqNQ/file-0000000057548208a095c1d1fc26f78c.jpg"
 ];
 
-export const defaultCoupons = [
-  { id: "COUP-AURA10", code: "AURA10", discount: 10, type: "percentage", limit: 1000, status: "Active", usage: 0 },
-  { id: "COUP-AURA20", code: "AURA20", discount: 20, type: "percentage", limit: 500, status: "Active", usage: 0 },
-  { id: "COUP-SHRAWAN200", code: "SHRAWAN200", discount: 200, type: "fixed", limit: 1000, status: "Active", usage: 0 }
-];
+export const defaultCoupons = [];
 
 export const defaultActiveOffer = {
   id: "OFFER-CENTRAL-1",
-  enabled: true,
-  status: "Active",
-  title: "₹200 OFF",
-  subtitle: "Limited Time Festival Offer",
-  couponCode: "SHRAWAN200",
+  enabled: false,
+  status: "Inactive",
+  title: "Special Blessings",
+  subtitle: "Authentic Consecrated Rudraksha",
+  couponCode: "",
   discountType: "fixed",
   discountValue: 200,
   startDate: new Date(Date.now() - 3600000).toISOString(),

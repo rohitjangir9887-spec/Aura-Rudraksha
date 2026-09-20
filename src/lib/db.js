@@ -420,8 +420,8 @@ const storeCache = {
       link: "/shop",
       image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png",
       type: "Percentage",
-      discountValue: 20,
-      couponCode: "AURA20",
+      discountValue: 0,
+      couponCode: "",
       shownOn: "Home Banner",
       status: "Active",
       order: 1
@@ -463,9 +463,9 @@ const storeCache = {
     id: "OFFER-CENTRAL-1",
     enabled: false,
     status: "Inactive",
-    title: "₹200 OFF",
-    subtitle: "Limited Time Festival Offer",
-    couponCode: "SHRAWAN200",
+    title: "Special Offer",
+    subtitle: "Authentic Consecrated Rudraksha",
+    couponCode: "",
     discountType: "fixed",
     discountValue: 200,
     startDate: new Date(Date.now() - 3600000).toISOString(),
@@ -2686,8 +2686,8 @@ export const db = {
             const evalSubtotal = eligibleSubtotal > 0 ? eligibleSubtotal : subtotal;
             let rawDiscount = 0;
 
-            if (coup.type === "fixed" || clean === "SHRAWAN200" || clean === "MAHASHIVRATRI") {
-              rawDiscount = Number(coup.discount || 200);
+            if (coup.type === "fixed") {
+              rawDiscount = Number(coup.discount || 0);
             } else {
               const pct = Number(coup.discount || 10);
               rawDiscount = Math.round((evalSubtotal * pct) / 100);
