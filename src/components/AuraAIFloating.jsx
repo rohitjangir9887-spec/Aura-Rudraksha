@@ -1359,16 +1359,6 @@ export function AuraAIFloating() {
                 </div>
 
                 <div className="aura-ai-header-actions">
-                  <button 
-                    onClick={handleNewChat} 
-                    className={`aura-ai-btn-icon ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                    title="New Chat / Nayi Baat-cheet (Purani chat safe rahegi)"
-                    aria-label="New Chat"
-                    disabled={isRefreshing}
-                  >
-                    <RotateCcw size={12} />
-                  </button>
-
                   {/* Full Window / Maximize Toggle */}
                   <button 
                     type="button"
@@ -1385,6 +1375,18 @@ export function AuraAIFloating() {
                     {isFullWindow ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                   </button>
 
+                  {/* New Chat Button - positioned right next to the Close icon */}
+                  <button 
+                    onClick={handleNewChat} 
+                    className={`aura-ai-btn-icon ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
+                    title="New Chat / Nayi Baat-cheet (Purani chat safe rahegi)"
+                    aria-label="New Chat"
+                    disabled={isRefreshing}
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+
+                  {/* Close Chat Button */}
                   <button 
                     type="button"
                     onClick={(e) => {

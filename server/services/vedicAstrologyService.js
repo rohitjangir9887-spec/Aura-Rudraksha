@@ -475,24 +475,7 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
     dashaElapsed = checkElapsed;
   }
 
-  // Antardasha calculation
-  const totalMahaYears = runningMahadasha.years;
-  let antarElapsed = 0;
-  let runningAntardasha = runningMahadasha;
-
-  for (let i = 0; i < 9; i++) {
-    const antarIdx = (currentDashaIndex + i) % 9;
-    const antarPlanet = VIMSHOTTARI_DASHA_ORDER[antarIdx];
-    const antarSpanYears = (totalMahaYears * antarPlanet.years) / 120;
-
-    if (dashaElapsed >= antarElapsed && dashaElapsed < antarElapsed + antarSpanYears) {
-      runningAntardasha = antarPlanet;
-      break;
-    }
-    antarElapsed += antarSpanYears;
-  }
-
-  // Compute exact start and end dates for running Mahadasha and Antardasha
+  // Compute exact start and end dates for running Mahadasha and Antardashas
   const msPerYear = 365.2422 * 24 * 3600 * 1000;
   
   // Mahadasha Start & End
@@ -502,12 +485,60 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
   const mahaStartDate = new Date(mahaStartMs).toISOString().split("T")[0];
   const mahaEndDate = new Date(mahaEndMs).toISOString().split("T")[0];
 
+  // Antardasha calculation with full timeline
+  const totalMahaYears = runningMahadasha.years;
+  let antarElapsed = 0;
+  let runningAntardasha = runningMahadasha;
+  const antardashasTimeline = [];
+  let runningAntarAcc = 0;
+
+  for (let i = 0; i < 9; i++) {
+    const antarIdx = (currentDashaIndex + i) % 9;
+    const antarPlanet = VIMSHOTTARI_DASHA_ORDER[antarIdx];
+    const antarSpanYears = (totalMahaYears * antarPlanet.years) / 120;
+    const thisAntarStartMs = mahaStartMs + (runningAntarAcc * msPerYear);
+    const thisAntarEndMs = thisAntarStartMs + (antarSpanYears * msPerYear);
+    const isCurrent = dashaElapsed >= runningAntarAcc && dashaElapsed < runningAntarAcc + antarSpanYears;
+
+    if (isCurrent) {
+      runningAntardasha = antarPlanet;
+      antarElapsed = runningAntarAcc;
+    }
+
+    antardashasTimeline.push({
+      planet: antarPlanet.planet,
+      planetHindi: antarPlanet.planetHindi || antarPlanet.planet,
+      startDate: new Date(thisAntarStartMs).toISOString().split("T")[0],
+      endDate: new Date(thisAntarEndMs).toISOString().split("T")[0],
+      isCurrent
+    });
+
+    runningAntarAcc += antarSpanYears;
+  }
+
   // Antardasha Start & End
   const antarStartMs = mahaStartMs + (antarElapsed * msPerYear);
   const antarEndMs = antarStartMs + ((runningMahadasha.years * runningAntardasha.years / 120) * msPerYear);
   
   const antarStartDate = new Date(antarStartMs).toISOString().split("T")[0];
   const antarEndDate = new Date(antarEndMs).toISOString().split("T")[0];
+
+  // Next 3 Upcoming Mahadashas
+  const upcomingMahadashas = [];
+  let nextMahaStartMs = mahaEndMs;
+  for (let m = 1; m <= 3; m++) {
+    const nextMahaIdx = (currentDashaIndex + m) % 9;
+    const nextMaha = VIMSHOTTARI_DASHA_ORDER[nextMahaIdx];
+    const nextMahaEndMs = nextMahaStartMs + (nextMaha.years * msPerYear);
+    upcomingMahadashas.push({
+      planet: nextMaha.planet,
+      planetHindi: nextMaha.planetHindi || nextMaha.planet,
+      years: nextMaha.years,
+      startDate: new Date(nextMahaStartMs).toISOString().split("T")[0],
+      endDate: new Date(nextMahaEndMs).toISOString().split("T")[0]
+    });
+    nextMahaStartMs = nextMahaEndMs;
+  }
 
   return {
     birthDashaLord: initialDasha.planet,
@@ -520,6 +551,8 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
     currentAntardashaHindi: runningAntardasha.planetHindi || runningAntardasha.planet,
     antardashaStartDate: antarStartDate,
     antardashaEndDate: antarEndDate,
+    antardashasTimeline,
+    upcomingMahadashas,
     recommendedDashaRudraksha: runningMahadasha.rudraksha
   };
 }

@@ -772,8 +772,10 @@ Calculated Astronomical Placements:
 - Chandra Rashi (Moon Sign): ${kundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${kundaliData.astronomicalKundali.chandraRashi.rashiEnglish}) at ${kundaliData.astronomicalKundali.chandraRashi.degree} in Nakshatra ${kundaliData.astronomicalKundali.chandraRashi.nakshatra} (Pada ${kundaliData.astronomicalKundali.chandraRashi.pada}), Swami: ${kundaliData.astronomicalKundali.chandraRashi.lord}
 - Surya Rashi (Sun Sign): ${kundaliData.astronomicalKundali.suryaRashi.rashiHindi} (${kundaliData.astronomicalKundali.suryaRashi.rashiEnglish})
 - Numerology Mulank: ${kundaliData.astronomicalKundali.mulank}
-- Panchanga: Tithi: ${kundaliData.astronomicalKundali.panchanga?.tithi || "N/A"} | Vaar: ${kundaliData.astronomicalKundali.panchanga?.vaar || "N/A"} | Yoga: ${kundaliData.astronomicalKundali.panchanga?.yoga || "N/A"}
-- Vimshottari Mahadasha: ${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} Mahadasha (Antardasha: ${kundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi})
+- Vimshottari Mahadasha: ${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (${kundaliData.astronomicalKundali.vimshottariDasha.mahadashaStartDate} से ${kundaliData.astronomicalKundali.vimshottariDasha.mahadashaEndDate})
+- Current Antardasha: ${kundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi} (${kundaliData.astronomicalKundali.vimshottariDasha.antardashaStartDate} से ${kundaliData.astronomicalKundali.vimshottariDasha.antardashaEndDate})
+- Antardashas Timeline: ${kundaliData.astronomicalKundali.vimshottariDasha.antardashasTimeline?.map(a => `${a.planetHindi} (${a.startDate} से ${a.endDate})${a.isCurrent ? ' [वर्तमान]' : ''}`).join(" | ") || 'N/A'}
+- Upcoming Future Mahadashas: ${kundaliData.astronomicalKundali.vimshottariDasha.upcomingMahadashas?.map(m => `${m.planetHindi} (${m.years} वर्ष, ${m.startDate} से ${m.endDate})`).join(" | ") || 'N/A'}
 - Manglik Status: ${kundaliData.astronomicalKundali.doshaSummary.manglikNote}
 - Sade Sati: ${kundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "None"}
 
@@ -1291,7 +1293,9 @@ AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TI
 - Numerology Mulank: ${calculatedKundaliData.astronomicalKundali.mulank}
 - Panchanga: Tithi: ${calculatedKundaliData.astronomicalKundali.panchanga?.tithi || "N/A"} | Vaar: ${calculatedKundaliData.astronomicalKundali.panchanga?.vaar || "N/A"} | Yoga: ${calculatedKundaliData.astronomicalKundali.panchanga?.yoga || "N/A"} | Karana: ${calculatedKundaliData.astronomicalKundali.panchanga?.karana || "N/A"}
 - Vimshottari Mahadasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaStartDate || '2022'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaEndDate || '2030'})
-- Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaStartDate || '2024'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaEndDate || '2026'})
+- Current Antardasha: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi} (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaStartDate || '2024'} to ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashaEndDate || '2026'})
+- Antardashas Timeline: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.antardashasTimeline?.map(a => `${a.planetHindi} (${a.startDate} से ${a.endDate})${a.isCurrent ? ' [वर्तमान]' : ''}`).join(" | ") || 'N/A'}
+- Upcoming Future Mahadashas: ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.upcomingMahadashas?.map(m => `${m.planetHindi} (${m.years} वर्ष, ${m.startDate} से ${m.endDate})`).join(" | ") || 'N/A'}
 - Planetary Placements: ${calculatedKundaliData.astronomicalKundali.planets.map(p => `${p.name} in House ${p.houseNumber} (${p.rashiHindi}, ${p.dignity}, D9: ${p.navamshaRashiHindi}${p.isVargottama ? ' [Vargottama]' : ''})`).join(" | ")}
 - Dosha Analysis: Manglik: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote} | Shani Sade Sati: ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "Sade Sati Mukt"} | Kaal Sarp: ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.type || "None"}
 - Recommended Vedic Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => `${r.role}: ${r.mukhi}`).join(" | ")}
