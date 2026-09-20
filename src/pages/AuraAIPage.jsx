@@ -25,7 +25,12 @@ import {
   MessageSquare,
   Sparkle,
   Zap,
-  ArrowDown
+  ArrowDown,
+  Plus,
+  Bookmark,
+  History,
+  Share2,
+  Copy
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
@@ -39,6 +44,9 @@ import { emitToast } from "../context/ToastContext";
 import { AuraAIChatOrderModal } from "../components/AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 import { VoiceReader } from "../components/VoiceReader";
+import { AuraAIChatHistoryModal } from "../components/AuraAIChatHistoryModal";
+import { AuraAISavedKundaliModal } from "../components/AuraAISavedKundaliModal";
+import { AuraAIChatShareModal } from "../components/AuraAIChatShareModal";
 import { useSeo } from "../hooks/useSeo";
 
 export function AuraAIPage() {
@@ -65,6 +73,61 @@ export function AuraAIPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshPhase, setRefreshPhase] = useState("idle"); // "idle" | "fading-out" | "fading-in"
   const [showRefreshToast, setShowRefreshToast] = useState(false);
+
+  // Chat History, Saved Kundalis, and Share Modals
+  const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
+  const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
+  const [showChatShareModal, setShowChatShareModal] = useState(false);
+  const [savedKundalisCount, setSavedKundalisCount] = useState(() => {
+    try {
+      return auraChatStore.getSavedKundalis().length;
+    } catch (_) {
+      return 0;
+    }
+  });
+
+  const refreshSavedKundalisCount = () => {
+    try {
+      setSavedKundalisCount(auraChatStore.getSavedKundalis().length);
+    } catch (_) {}
+  };
+
+  const handleSelectSession = (session) => {
+    if (!session) return;
+    if (session.mode && session.mode !== mode) {
+      setMode(session.mode);
+    }
+    const restoredMsgs = auraChatStore.loadArchivedSession(session.id, session.mode);
+    setMessages(restoredMsgs);
+    setConversationId(session.id);
+    emitToast("📜 पुरानी बातचीत लोड हो गई (Chat restored)", "success");
+  };
+
+  const handleSelectKundali = (profile) => {
+    if (!profile) return;
+    setMode("panditji");
+    const verifiedDetails = {
+      name: profile.name.trim(),
+      dob: profile.dob,
+      birthTime: profile.birthTime.trim(),
+      birthPlace: profile.birthPlace.trim(),
+      concern: profile.concern || "career"
+    };
+    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
+
+    const concernLabels = {
+      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
+      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
+      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
+      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
+      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
+      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
+    };
+
+    const promptText = `🙏 प्रणाम पंडित जी! कृपया मेरी सहेजी गई जन्म कुंडली का संपूर्ण प्रामाणिक वैदिक विश्लेषण करें:\n• जातक का नाम: ${profile.name}\n• जन्म तिथि: ${profile.dob}\n• जन्म समय: ${profile.birthTime}\n• जन्म स्थान: ${profile.birthPlace}\n• मुख्य संकल्प / समस्या: ${concernLabels[profile.concern] || profile.concern}\n\nकृपया मेरी जन्म कुंडली, लग्न, नक्षत्र, वर्तमान महादशा एवं अनुकूल सिद्ध रुद्राक्ष विस्तार से शुद्ध हिंदी में बताइए।`;
+
+    handleSend(promptText, verifiedDetails);
+  };
 
   // Aura AI Live Status and Stop/Retry State Variables
   const [statusText, setStatusText] = useState("Thinking...");
@@ -669,18 +732,63 @@ export function AuraAIPage() {
 
                 <div className="aura-ai-toolbar-separator" aria-hidden="true" />
 
-                {/* New Chat & Cart Actions */}
+                {/* Actions Group: New Chat, History, Saved Kundali, Share, Cart */}
                 <div className="aura-ai-toolbar-group" role="group" aria-label="Session Actions">
+                  {/* New Chat */}
                   <button 
                     type="button"
                     onClick={handleNewChat} 
                     className={`aura-ai-icon-action-btn ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                    title="New Chat Session (Preserves Past History)"
-                    aria-label="New Chat Session"
+                    title="नयी बातचीत शुरू करें (New Chat)"
+                    aria-label="New Chat"
                     disabled={isRefreshing}
                   >
-                    <RotateCcw size={18} className="aura-ai-action-icon" />
+                    <Plus size={18} className="aura-ai-action-icon" />
                   </button>
+
+                  {/* Chat History */}
+                  <button 
+                    type="button"
+                    onClick={() => setShowChatHistoryModal(true)} 
+                    className="aura-ai-icon-action-btn"
+                    title="पुरानी बातचीत का इतिहास देखें (Chat History)"
+                    aria-label="Chat History"
+                  >
+                    <History size={18} className="aura-ai-action-icon" />
+                  </button>
+
+                  {/* Saved Kundalis (Panditji Mode) */}
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      refreshSavedKundalisCount();
+                      setShowSavedKundaliModal(true);
+                    }} 
+                    className="aura-ai-icon-action-btn relative"
+                    title="सहेजी गई कुंडलियां (Saved Kundalis)"
+                    aria-label="Saved Kundalis"
+                  >
+                    <Bookmark size={18} className="aura-ai-action-icon" />
+                    {savedKundalisCount > 0 && (
+                      <span className="aura-ai-action-cart-badge" style={{ background: "#d97706" }} aria-hidden="true">
+                        {savedKundalisCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Share Chat */}
+                  <button 
+                    type="button"
+                    onClick={() => setShowChatShareModal(true)} 
+                    className="aura-ai-icon-action-btn"
+                    title="परामर्श शेयर करें (WhatsApp / Copy)"
+                    aria-label="Share Chat"
+                  >
+                    <Share2 size={18} className="aura-ai-action-icon" />
+                  </button>
+
+                  <div className="aura-ai-toolbar-separator" aria-hidden="true" />
+
                   <Link 
                     to="/cart" 
                     className="aura-ai-icon-action-btn aura-ai-cart-action-btn"
@@ -955,12 +1063,42 @@ export function AuraAIPage() {
                           </div>
                         )}
 
-                        {/* Timestamp */}
-                        {timeString && (
-                          <div className="aura-ai-page-msg-time">
-                            {timeString}
-                          </div>
-                        )}
+                        {/* Timestamp & Quick Action Toolbar */}
+                        <div className="flex items-center justify-between gap-1 mt-1">
+                          {timeString && (
+                            <div className="aura-ai-page-msg-time">
+                              {timeString}
+                            </div>
+                          )}
+
+                          {m.sender === "ai" && (
+                            <div className="flex items-center gap-1 ml-auto opacity-70 hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  auraChatStore.copyChatToClipboard([m]);
+                                  emitToast("📋 उत्तर कॉपी हो गया (Copied)", "success");
+                                }}
+                                className="p-1 text-stone-500 hover:text-stone-800 hover:bg-stone-200/50 rounded transition-colors text-[11px] flex items-center gap-0.5"
+                                title="यह उत्तर कॉपी करें (Copy answer)"
+                              >
+                                <Copy size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  auraChatStore.shareChatOnWhatsApp([m]);
+                                }}
+                                className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors text-[11px] flex items-center gap-0.5"
+                                title="WhatsApp पर शेयर करें (Share on WhatsApp)"
+                              >
+                                <Share2 size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </React.Fragment>
@@ -1207,6 +1345,30 @@ export function AuraAIPage() {
           }}
         />
       )}
+
+      {/* Chat History Modal (Purani Chat Dekhein) */}
+      <AuraAIChatHistoryModal 
+        isOpen={showChatHistoryModal} 
+        onClose={() => setShowChatHistoryModal(false)} 
+        onSelectSession={handleSelectSession}
+        currentMode={mode}
+      />
+
+      {/* Saved Kundali Profiles Modal (Kundali Save / Use Karein) */}
+      <AuraAISavedKundaliModal 
+        isOpen={showSavedKundaliModal} 
+        onClose={() => setShowSavedKundaliModal(false)} 
+        onSelectKundali={handleSelectKundali}
+        onProfilesUpdated={refreshSavedKundalisCount}
+      />
+
+      {/* Chat Share Modal (WhatsApp & Copy) */}
+      <AuraAIChatShareModal 
+        isOpen={showChatShareModal} 
+        onClose={() => setShowChatShareModal(false)} 
+        messages={messages}
+        mode={mode}
+      />
     </Shell>
   );
 }

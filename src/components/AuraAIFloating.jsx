@@ -30,7 +30,11 @@ import {
   ArrowDown,
   Notebook,
   Plus,
-  Trash2
+  Trash2,
+  Share2,
+  Bookmark,
+  History,
+  Copy
 } from "lucide-react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
@@ -44,6 +48,9 @@ import { safePrice } from "../lib/productHelper";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 import { VoiceReader } from "./VoiceReader";
+import { AuraAIChatHistoryModal } from "./AuraAIChatHistoryModal";
+import { AuraAISavedKundaliModal } from "./AuraAISavedKundaliModal";
+import { AuraAIChatShareModal } from "./AuraAIChatShareModal";
 
 export function AuraAIFloating() {
   const location = useLocation();
@@ -169,6 +176,72 @@ export function AuraAIFloating() {
     place: "",
     concern: "career"
   });
+
+  // Chat History, Saved Kundalis, and Share Modals
+  const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
+  const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
+  const [showChatShareModal, setShowChatShareModal] = useState(false);
+  const [savedKundalisCount, setSavedKundalisCount] = useState(() => {
+    try {
+      return auraChatStore.getSavedKundalis().length;
+    } catch (_) {
+      return 0;
+    }
+  });
+
+  const refreshSavedKundalisCount = () => {
+    try {
+      setSavedKundalisCount(auraChatStore.getSavedKundalis().length);
+    } catch (_) {}
+  };
+
+  const handleSelectSession = (session) => {
+    if (!session) return;
+    triggerHaptic("medium");
+    if (session.mode && session.mode !== mode) {
+      setMode(session.mode);
+    }
+    const restoredMsgs = auraChatStore.loadArchivedSession(session.id, session.mode);
+    setMessages(restoredMsgs);
+    setConversationId(session.id);
+    emitToast("📜 पुरानी बातचीत लोड हो गई (Chat restored)", "success");
+  };
+
+  const handleSelectKundali = (profile) => {
+    if (!profile) return;
+    triggerHaptic("success");
+    setMode("panditji");
+    setBirthForm({
+      name: profile.name || "",
+      dob: profile.dob || "",
+      time: profile.birthTime || "",
+      place: profile.birthPlace || "",
+      concern: profile.concern || "career"
+    });
+
+    const verifiedDetails = {
+      name: profile.name.trim(),
+      dob: profile.dob,
+      birthTime: profile.birthTime.trim(),
+      birthPlace: profile.birthPlace.trim(),
+      concern: profile.concern || "career"
+    };
+    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
+
+    const concernLabels = {
+      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
+      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
+      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
+      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
+      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
+      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
+    };
+
+    const promptText = `🙏 प्रणाम पंडित जी! कृपया मेरी सहेजी गई जन्म कुंडली का संपूर्ण प्रामाणिक वैदिक विश्लेषण करें:\n• जातक का नाम: ${profile.name}\n• जन्म तिथि: ${profile.dob}\n• जन्म समय: ${profile.birthTime}\n• जन्म स्थान: ${profile.birthPlace}\n• मुख्य संकल्प / समस्या: ${concernLabels[profile.concern] || profile.concern}\n\nकृपया मेरी जन्म कुंडली, लग्न, नक्षत्र, वर्तमान महादशा एवं अनुकूल सिद्ध रुद्राक्ष विस्तार से शुद्ध हिंदी में बताइए।`;
+
+    setShowBirthForm(false);
+    handleSend(promptText, verifiedDetails);
+  };
 
   // Smart Scroll Lock & Jump to Bottom states
   const userHasScrolledUpRef = useRef(false);
@@ -1172,14 +1245,69 @@ export function AuraAIFloating() {
                 </div>
 
                 <div className="aura-ai-header-actions">
+                  {/* New Chat Button */}
                   <button 
                     onClick={handleNewChat} 
                     className={`aura-ai-btn-icon ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                    title="New Chat / Nayi Baat-cheet (Purani chat safe rahegi)"
+                    title="नयी बातचीत शुरू करें (New Chat - Purani chat history mein safe rahegi)"
                     aria-label="New Chat"
                     disabled={isRefreshing}
                   >
-                    <RotateCcw size={12} />
+                    <Plus size={13} />
+                  </button>
+
+                  {/* Chat History Button */}
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowChatHistoryModal(true);
+                    }} 
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="aura-ai-btn-icon"
+                    title="पुरानी बातचीत का इतिहास देखें (Chat History)"
+                    aria-label="Chat History"
+                  >
+                    <History size={13} />
+                  </button>
+
+                  {/* Saved Kundalis Button (Always quick accessible, especially in Panditji mode) */}
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      refreshSavedKundalisCount();
+                      setShowSavedKundaliModal(true);
+                    }} 
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="aura-ai-btn-icon relative"
+                    title="सहेजी गई कुंडलियां (Saved Kundalis)"
+                    aria-label="Saved Kundalis"
+                  >
+                    <Bookmark size={13} />
+                    {savedKundalisCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                        {savedKundalisCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Share Chat Button */}
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowChatShareModal(true);
+                    }} 
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="aura-ai-btn-icon"
+                    title="परामर्श शेयर करें (WhatsApp / Copy)"
+                    aria-label="Share Chat"
+                  >
+                    <Share2 size={13} />
                   </button>
 
                   {/* Full Window / Maximize Toggle */}
@@ -1266,6 +1394,37 @@ export function AuraAIFloating() {
                     <button 
                       type="button"
                       onClick={() => {
+                        refreshSavedKundalisCount();
+                        setShowSavedKundaliModal(true);
+                      }}
+                      className="aura-ai-strip-btn"
+                      style={{ background: "#fff7ed", color: "#9a3412", border: "1px solid #fdba74" }}
+                      title="सहेजी गई कुंडलियां देखें"
+                    >
+                      <Bookmark size={11} />
+                      <span>💾 कुंडलियां {savedKundalisCount > 0 ? `(${savedKundalisCount})` : ""}</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setShowChatHistoryModal(true)}
+                      className="aura-ai-strip-btn"
+                      title="पुरानी बातचीत का इतिहास"
+                    >
+                      <History size={11} />
+                      <span>📜 पुरानी चैट</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setShowChatShareModal(true)}
+                      className="aura-ai-strip-btn"
+                      title="परामर्श शेयर करें"
+                    >
+                      <Share2 size={11} />
+                      <span>📤 शेयर</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
                         fetchNotes();
                         setShowNotepad(true);
                       }}
@@ -1287,6 +1446,24 @@ export function AuraAIFloating() {
                   </>
                 ) : (
                   <>
+                    <button 
+                      type="button"
+                      onClick={() => setShowChatHistoryModal(true)}
+                      className="aura-ai-strip-btn"
+                      title="पुरानी बातचीत का इतिहास"
+                    >
+                      <History size={11} />
+                      <span>📜 पुरानी चैट</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setShowChatShareModal(true)}
+                      className="aura-ai-strip-btn"
+                      title="बातचीत शेयर करें"
+                    >
+                      <Share2 size={11} />
+                      <span>📤 शेयर</span>
+                    </button>
                     <button 
                       onClick={() => handleSend("📦 Track my recent order status")} 
                       className="aura-ai-strip-btn"
@@ -1835,12 +2012,42 @@ export function AuraAIFloating() {
                             </div>
                           )}
 
-                          {/* Message Time display */}
-                          {timeString && (
-                            <div className="aura-ai-msg-time">
-                              {timeString}
-                            </div>
-                          )}
+                          {/* Message Time and Quick Actions display */}
+                          <div className="flex items-center justify-between gap-1 mt-1">
+                            {timeString && (
+                              <div className="aura-ai-msg-time">
+                                {timeString}
+                              </div>
+                            )}
+
+                            {m.sender === "ai" && (
+                              <div className="flex items-center gap-1 ml-auto opacity-70 hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    auraChatStore.copyChatToClipboard([m]);
+                                    emitToast("📋 उत्तर कॉपी हो गया (Copied)", "success");
+                                  }}
+                                  className="p-1 text-stone-500 hover:text-stone-800 hover:bg-stone-200/50 rounded transition-colors text-[10px] flex items-center gap-0.5"
+                                  title="यह उत्तर कॉपी करें (Copy answer)"
+                                >
+                                  <Copy size={11} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    auraChatStore.shareChatOnWhatsApp([m]);
+                                  }}
+                                  className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors text-[10px] flex items-center gap-0.5"
+                                  title="WhatsApp पर शेयर करें (Share on WhatsApp)"
+                                >
+                                  <Share2 size={11} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </React.Fragment>
@@ -2070,6 +2277,30 @@ export function AuraAIFloating() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Chat History Modal (Purani Chat Dekhein) */}
+      <AuraAIChatHistoryModal 
+        isOpen={showChatHistoryModal} 
+        onClose={() => setShowChatHistoryModal(false)} 
+        onSelectSession={handleSelectSession}
+        currentMode={mode}
+      />
+
+      {/* Saved Kundali Profiles Modal (Kundali Save / Use Karein) */}
+      <AuraAISavedKundaliModal 
+        isOpen={showSavedKundaliModal} 
+        onClose={() => setShowSavedKundaliModal(false)} 
+        onSelectKundali={handleSelectKundali}
+        onProfilesUpdated={refreshSavedKundalisCount}
+      />
+
+      {/* Chat Share Modal (WhatsApp & Copy) */}
+      <AuraAIChatShareModal 
+        isOpen={showChatShareModal} 
+        onClose={() => setShowChatShareModal(false)} 
+        messages={messages}
+        mode={mode}
+      />
     </>
   );
 }

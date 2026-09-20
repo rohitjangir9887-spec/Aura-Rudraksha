@@ -35,8 +35,8 @@ const DEFAULT_INITIAL_MESSAGE_STANDARD = {
 const DEFAULT_INITIAL_MESSAGE_PANDITJI = {
   id: "init_welcome_panditji",
   sender: "ai",
-  text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon — 35+ varshon ke anubhav ke sath aapka Vedic Jyotish, Rashi, Nakshatra aur Rudraksha Guide.\n\nAaj main aapki Rashi, Kundali ya Rudraksha dharan vidhi mein kis prakar sahayata karun?",
-  quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
+  text: "🙏 प्रणाम भक्त! मैं AI पंडित जी (🕉️) हूँ — वैदिक ज्योतिष, जन्म कुंडली, नक्षत्र, ग्रह दशा व सिद्ध रुद्राक्ष विशेषज्ञ।\n\nआज मैं आपकी कुंडली, राशि, ग्रह शांति या रुद्राक्ष धारण विधि में किस प्रकार सहायता करूँ?",
+  quickReplies: ["🌟 मेरी कुंडली विश्लेषण", "📿 राशि अनुसार रुद्राक्ष", "🌿 रुद्राक्ष धारण विधि", "🛡️ शनि व ग्रह दोष शांति"],
   timestamp: new Date().toISOString()
 };
 
@@ -476,6 +476,11 @@ export const auraChatStore = {
 
   // Start a new clean chat session for active mode
   startNewSession(mode = "standard", options = {}) {
+    // Automatically archive current active conversation before starting fresh
+    if (options.autoArchive !== false) {
+      this.archiveCurrentSession(mode);
+    }
+
     const uid = this.getCurrentUserUid();
     const newConvId = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
     this.setConversationId(newConvId);
@@ -488,8 +493,8 @@ export const auraChatStore = {
     const welcomeMessage = mode === "panditji" ? {
       id: "init_panditji_" + Date.now(),
       sender: "ai",
-      text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi Vedic consultation shuru ho gayi hai.\n\nAaj aap kis Rashi, Kundali ya Rudraksha ke baare mein janna chahte hain?",
-      quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
+      text: "🙏 प्रणाम भक्त! मैं AI पंडित जी (🕉️) हूँ। आपकी नई वैदिक परामर्श शुरू हो गई है।\n\nआज आप किस राशि, कुंडली, ग्रह शांति या सिद्ध रुद्राक्ष के बारे में जानना चाहते हैं?",
+      quickReplies: ["🌟 मेरी कुंडली विश्लेषण", "📿 राशि अनुसार रुद्राक्ष", "🌿 रुद्राक्ष धारण विधि", "🛡️ शनि व ग्रह दोष शांति"],
       timestamp: new Date().toISOString()
     } : {
       id: "init_standard_" + Date.now(),
