@@ -991,7 +991,7 @@ export function AuraAIFloating() {
           setLoading(false);
 
           // Automatic background chain continuation if still incomplete
-          if (isAuraResponseIncomplete(finalMerged, mode) && autoPassNumber < 5) {
+          if (isAuraResponseIncomplete(finalMerged, mode) && autoPassNumber < 10) {
             autoContinuationCountRef.current = autoPassNumber + 1;
             setTimeout(() => {
               handleContinueChat(aiMsg, autoPassNumber + 1);
@@ -1932,7 +1932,14 @@ export function AuraAIFloating() {
                         )}
                         <div className="aura-ai-msg-content">
                           <div className="aura-ai-msg-text">
-                            <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
+                            {!m.text && m.sender === "ai" ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#8c2b10", fontWeight: "600", padding: "2px 0" }}>
+                                <Sparkles size={13} className="animate-spin" style={{ color: "#d4af37" }} />
+                                <span>💭 विश्लेषण चल रहा है (Thinking...)...</span>
+                              </div>
+                            ) : (
+                              <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
+                            )}
                           </div>
                           {m.sender === "ai" && m.text && (
                             <div style={{ marginTop: "4px" }}>
@@ -2410,13 +2417,16 @@ export function AuraAIFloating() {
                       <Sparkles size={13} />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "5px", alignItems: "flex-start" }}>
-                      <div className="aura-ai-typing-bubble" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <div className="aura-ai-typing-bubble" style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}>
                         <span className="dot" />
                         <span className="dot" />
                         <span className="dot" />
+                        <span style={{ fontSize: "11px", color: "#8c2b10", fontWeight: "700", marginLeft: "4px" }}>
+                          💭 विश्लेषण चल रहा है (Thinking...)...
+                        </span>
                       </div>
                       <div className="aura-ai-status-text" style={{ fontSize: "11px", color: "#8c2b10", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "5px", background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)", padding: "4px 10px", borderRadius: "14px", border: "1px solid rgba(212, 175, 55, 0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                        <span>{statusText}</span>
+                        <span>💭 {statusText || "विश्लेषण व गणना जारी है..."}</span>
                         {elapsedTime > 0 && <span style={{ opacity: 0.7, fontSize: "10px" }}>({elapsedTime}s)</span>}
                       </div>
                     </div>

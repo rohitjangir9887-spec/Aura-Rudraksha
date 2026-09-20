@@ -217,6 +217,33 @@ export function mergeContinuation(existingText, continuationText) {
   return existingText + (needsSpace ? " " : "") + cleanContinuation;
 }
 
+/**
+ * Smart token/word sliding window pruner to ensure NVIDIA NIM requests never hit context token limits.
+ * Trims oldest chat turns if total words exceed ~4000-5000 words while preserving system prompt,
+ * birth/Kundali details, and recent messages.
+ */
+export function pruneMessagesForTokenLimit(messages, maxWords = 4000) {
+  if (!Array.isArray(messages) || messages.length <= 1) return messages;
+
+  const countWords = (text) => (typeof text === "string" ? text.trim().split(/\s+/).filter(Boolean).length : 0);
+
+  let totalWords = messages.reduce((acc, msg) => acc + countWords(msg?.content || msg?.text || ""), 0);
+
+  if (totalWords <= maxWords) return messages;
+
+  // Preserve system message (index 0) and the last user/assistant message
+  const systemMsg = messages[0];
+  const lastMsg = messages[messages.length - 1];
+  let middleMsgs = messages.slice(1, messages.length - 1);
+
+  while (middleMsgs.length > 1 && totalWords > maxWords) {
+    const dropped = middleMsgs.shift();
+    totalWords -= countWords(dropped?.content || dropped?.text || "");
+  }
+
+  return [systemMsg, ...middleMsgs, lastMsg];
+}
+
 export function getGeminiClient(customKey = "") {
   const apiKey = (customKey || cachedGeminiKey || process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) return null;
@@ -1577,11 +1604,12 @@ ${memoryContextText || "Guest shopper."}`;
       let fullStreamedText = "";
       let streamSucceeded = false;
       await resolveNvidiaKey();
-      await resolveGeminiKey();
-      const geminiClient = getGeminiClient();
       const nvidiaClient = getNvidiaClient();
 
-      // 1. Primary Streaming Execution: Prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first with Multi-turn Automatic Continuation
+      // Prune initial context messages if token count is near ~4000-5000 words limit
+      const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 4000);
+
+      // 1. Primary Streaming Execution: Exclusively NVIDIA NIM models with Multi-turn Automatic Continuation (up to 10 passes)
       if (nvidiaClient && !clientDisconnected) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
@@ -1595,7 +1623,7 @@ ${memoryContextText || "Guest shopper."}`;
               const streamCompletion = await nvidiaClient.chat.completions.create(
                 {
                   model: modelCandidate,
-                  messages: nimMessages,
+                  messages: prunedNimMessages,
                   temperature: 0.35,
                   max_tokens: 16384,
                   stream: true
@@ -1616,9 +1644,9 @@ ${memoryContextText || "Guest shopper."}`;
                 }
               }
 
-              // Automatic Multi-Turn Continuation if response hit token limits or was truncated mid-sentence
+              // Automatic Multi-Turn Continuation (up to 10 passes) if response hit token limits or was truncated
               let passCount = 0;
-              const MAX_CONTINUATION_PASSES = 4;
+              const MAX_CONTINUATION_PASSES = 10;
               while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason)) {
                 passCount++;
                 try {
@@ -1626,11 +1654,17 @@ ${memoryContextText || "Guest shopper."}`;
                     ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table (सरल सारांश तालिका), and the MANDATORY [AURA_KEYWORDS] section at the end."
                     : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance and recommendations.";
 
-                  const continuationMessages = [
-                    ...nimMessages,
-                    { role: "assistant", content: fullStreamedText },
+                  // Limit assistant context tail to last 1200 words to ensure total input stays within token budget (~4000-5000 words)
+                  const wordsArr = fullStreamedText.trim().split(/\s+/);
+                  const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : fullStreamedText;
+
+                  const rawContinuationMsgs = [
+                    prunedNimMessages[0], // system prompt
+                    { role: "assistant", content: assistantTail },
                     { role: "user", content: continuationPrompt }
                   ];
+
+                  const continuationMessages = pruneMessagesForTokenLimit(rawContinuationMsgs, 4000);
 
                   const continuationStream = await nvidiaClient.chat.completions.create(
                     {
@@ -1682,114 +1716,6 @@ ${memoryContextText || "Guest shopper."}`;
                 await new Promise((r) => setTimeout(r, 400 * attempt));
               }
             }
-          }
-        }
-      }
-
-      // 2. Fallback to Gemini streaming if NVIDIA NIM was not available or produced empty output
-      if (!streamSucceeded && geminiClient && !clientDisconnected) {
-        for (const gModel of GEMINI_TEXT_MODELS) {
-          if (streamSucceeded || clientDisconnected) break;
-          try {
-            const geminiContents = [];
-            for (const h of effectiveHistory) {
-              if (h.sender === "user" && h.text) {
-                geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
-              } else if (h.sender === "ai" && h.text) {
-                geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
-              }
-            }
-            if (message && message.trim()) {
-              geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
-            } else if (calculatedKundaliData) {
-              geminiContents.push({
-                role: "user",
-                parts: [{
-                  text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
-                }]
-              });
-            } else {
-              geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
-            }
-
-            const geminiStream = await geminiClient.models.generateContentStream({
-              model: gModel,
-              contents: geminiContents,
-              config: {
-                systemInstruction: systemPrompt,
-                temperature: 0.35,
-                maxOutputTokens: 16384
-              }
-            });
-
-            for await (const chunk of geminiStream) {
-              if (clientDisconnected) break;
-              const deltaContent = chunk.text || "";
-              if (deltaContent) {
-                fullStreamedText += deltaContent;
-                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
-                res.flush?.();
-              }
-            }
-
-            // Automatic Gemini Multi-Turn Continuation if response was cut off
-            let gPassCount = 0;
-            const MAX_GEMINI_PASSES = 4;
-            while (!clientDisconnected && gPassCount < MAX_GEMINI_PASSES && isTextIncomplete(fullStreamedText)) {
-              gPassCount++;
-              try {
-                const continuationPrompt = mode === "panditji"
-                  ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table, and [AURA_KEYWORDS]."
-                  : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance.";
-
-                const gContinuationContents = [
-                  ...geminiContents,
-                  { role: "model", parts: [{ text: fullStreamedText }] },
-                  { role: "user", parts: [{ text: continuationPrompt }] }
-                ];
-
-                const gContinuationStream = await geminiClient.models.generateContentStream({
-                  model: gModel,
-                  contents: gContinuationContents,
-                  config: {
-                    systemInstruction: systemPrompt,
-                    temperature: 0.35,
-                    maxOutputTokens: 16384
-                  }
-                });
-
-                let gPassText = "";
-                for await (const chunk of gContinuationStream) {
-                  if (clientDisconnected) break;
-                  const deltaContent = chunk.text || "";
-                  if (deltaContent) {
-                    gPassText += deltaContent;
-                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
-                    res.flush?.();
-                  }
-                }
-
-                if (gPassText.trim()) {
-                  fullStreamedText = mergeContinuation(fullStreamedText, gPassText);
-                } else {
-                  break;
-                }
-              } catch (gCErr) {
-                console.warn(`[Aura AI Gemini Continuation] Pass ${gPassCount} notice:`, gCErr?.message || gCErr);
-                break;
-              }
-            }
-
-            if (fullStreamedText.trim()) {
-              streamSucceeded = true;
-              break;
-            }
-          } catch (geminiStreamErr) {
-            if (geminiStreamErr.name === "AbortError" || clientDisconnected) {
-              clearInterval(heartbeatTimer);
-              return;
-            }
-            console.warn(`[Aura AI Streaming] Gemini notice (${gModel}):`, geminiStreamErr?.message || geminiStreamErr);
           }
         }
       }
@@ -1895,9 +1821,11 @@ ${memoryContextText || "Guest shopper."}`;
     let aiResponseText = "";
     let generatedSuccessfully = false;
     await resolveNvidiaKey();
-    await resolveGeminiKey();
 
-    // 1. Prioritize NVIDIA NIM (nemotron-3-super-120b-a12b) first
+    // Prune initial messages if near token budget limit (~4000 words)
+    const nonStreamPrunedMsgs = pruneMessagesForTokenLimit(nimMessages, 4000);
+
+    // 1. Prioritize NVIDIA NIM models strictly
     const nonStreamNvidiaClient = getNvidiaClient();
     if (nonStreamNvidiaClient) {
       for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
@@ -1905,31 +1833,41 @@ ${memoryContextText || "Guest shopper."}`;
         try {
           const completion = await nonStreamNvidiaClient.chat.completions.create({
             model: modelCandidate,
-            messages: nimMessages,
+            messages: nonStreamPrunedMsgs,
             temperature: 0.35,
             max_tokens: 16384
           });
 
           let outContent = completion.choices?.[0]?.message?.content || "";
-          const finishReason = completion.choices?.[0]?.finish_reason || "";
+          let finishReason = completion.choices?.[0]?.finish_reason || "";
 
-          // Continuation if truncated
+          // Automatic Multi-Turn Continuation (up to 10 passes) if truncated
           let nonStreamPass = 0;
-          let currentFinishReason = finishReason;
-          while (nonStreamPass < 3 && isTextIncomplete(outContent, currentFinishReason)) {
+          const MAX_NONSTREAM_PASSES = 10;
+          while (nonStreamPass < MAX_NONSTREAM_PASSES && isTextIncomplete(outContent, finishReason)) {
             nonStreamPass++;
             try {
+              const contPrompt = mode === "panditji"
+                ? "Continue your comprehensive Vedic Jyotish reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]."
+                : "Continue your response exactly from where you stopped. Complete the guidance and recommendations.";
+
+              const wordsArr = outContent.trim().split(/\s+/);
+              const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : outContent;
+
+              const contMsgs = pruneMessagesForTokenLimit([
+                nonStreamPrunedMsgs[0],
+                { role: "assistant", content: assistantTail },
+                { role: "user", content: contPrompt }
+              ], 4000);
+
               const contCompletion = await nonStreamNvidiaClient.chat.completions.create({
                 model: modelCandidate,
-                messages: [
-                  ...nimMessages,
-                  { role: "assistant", content: outContent },
-                  { role: "user", content: "Continue your comprehensive reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]." }
-                ],
+                messages: contMsgs,
                 temperature: 0.35,
                 max_tokens: 16384
               });
-              currentFinishReason = contCompletion.choices?.[0]?.finish_reason || "";
+
+              finishReason = contCompletion.choices?.[0]?.finish_reason || "";
               const contText = contCompletion.choices?.[0]?.message?.content || "";
               if (contText.trim()) {
                 outContent = mergeContinuation(outContent, contText);
@@ -1948,54 +1886,6 @@ ${memoryContextText || "Guest shopper."}`;
           }
         } catch (nimErr) {
           console.warn(`[Aura AI Non-Stream] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
-        }
-      }
-    }
-
-    // 2. Fallback to Gemini if NVIDIA NIM was not available
-    const nonStreamGeminiClient = getGeminiClient();
-    if (!generatedSuccessfully && nonStreamGeminiClient) {
-      for (const gModel of GEMINI_TEXT_MODELS) {
-        if (generatedSuccessfully) break;
-        try {
-          const geminiContents = [];
-          for (const h of effectiveHistory) {
-            if (h.sender === "user" && h.text) {
-              geminiContents.push({ role: "user", parts: [{ text: String(h.text) }] });
-            } else if (h.sender === "ai" && h.text) {
-              geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
-            }
-          }
-          if (message && message.trim()) {
-            geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
-          } else if (calculatedKundaliData) {
-            geminiContents.push({
-              role: "user",
-              parts: [{
-                text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
-              }]
-            });
-          } else {
-            geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
-          }
-
-          const geminiRes = await nonStreamGeminiClient.models.generateContent({
-            model: gModel,
-            contents: geminiContents,
-            config: {
-              systemInstruction: systemPrompt,
-              temperature: 0.35,
-              maxOutputTokens: 16384
-            }
-          });
-          const outText = geminiRes.text || "";
-          if (outText.trim()) {
-            aiResponseText = outText;
-            generatedSuccessfully = true;
-            break;
-          }
-        } catch (geminiErr) {
-          console.warn(`[Aura AI Non-Stream] Gemini notice (${gModel}):`, geminiErr?.message || geminiErr);
         }
       }
     }
