@@ -67,13 +67,16 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Strict NVIDIA NIM Model Configuration (nemotron-3-super-120b-a12b)
+// Strict NVIDIA NIM Model Configuration (nemotron-3-super-120b-a12b) with multi-provider fallbacks
 export const PRIMARY_NIM_MODEL = process.env.NEMOTRON_MODEL || "nvidia/nemotron-3-super-120b-a12b";
 export const BACKUP_NIM_MODELS = [
   process.env.NEMOTRON_MODEL || "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/nemotron-3-super-120b-a12b",
   "nemotron-3-super-120b-a12b",
-  "nvidia/nemotron-4-340b-instruct"
+  "nvidia/nemotron-4-340b-instruct",
+  "meta-llama/llama-3.3-70b-instruct",
+  "gpt-4o-mini",
+  "gpt-4o"
 ];
 export const NVIDIA_NIM_BASE_URL = process.env.NEMOTRON_BASE_URL || "https://integrate.api.nvidia.com/v1";
 
@@ -91,15 +94,18 @@ export function getNvidiaClient(customKey = "") {
     process.env.NEMOTRON_API_KEY ||
     process.env.NVIDIA_NIM_API_KEY ||
     process.env.OPENROUTER_API_KEY ||
+    process.env.OPENAI_API_KEY ||
     ""
   ).trim();
   if (!apiKey) return null;
 
-  const baseURL = (
+  let baseURL = (
     process.env.NEMOTRON_BASE_URL ||
     (process.env.OPENROUTER_API_KEY && !process.env.NVIDIA_API_KEY && !process.env.NEMOTRON_API_KEY
       ? "https://openrouter.ai/api/v1"
-      : NVIDIA_NIM_BASE_URL)
+      : (process.env.OPENAI_API_KEY && !process.env.NVIDIA_API_KEY && !process.env.NEMOTRON_API_KEY && !process.env.OPENROUTER_API_KEY
+          ? "https://api.openai.com/v1"
+          : NVIDIA_NIM_BASE_URL))
   ).trim();
 
   try {
@@ -109,7 +115,7 @@ export function getNvidiaClient(customKey = "") {
       timeout: 120000 // 120 seconds timeout to safely stream long 2000+ word Vedic analyses
     });
   } catch (err) {
-    console.warn("Could not initialize NVIDIA NIM client:", err?.message || err);
+    console.warn("Could not initialize NVIDIA NIM / OpenAI client:", err?.message || err);
     return null;
   }
 }
@@ -186,8 +192,15 @@ export function getGeminiClient() {
   }
 }
 
-// Resilient Gemini text models fallback list in order of preference
-export const GEMINI_TEXT_MODELS = ['gemini-3.7-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+// Resilient Gemini text models fallback list in order of preference (Production Google GenAI models)
+export const GEMINI_TEXT_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro'
+].filter(Boolean);
 
 // Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
@@ -655,7 +668,7 @@ export async function verifyConversationOwnership(conv, req) {
  */
 export async function calculateKundaliEndpoint(req, res, next) {
   try {
-    const { dob, birthTime, birthPlace, name, gender, concern } = req.body;
+    const { dob, birthTime, birthPlace, name, gender, concern, customConcern } = req.body;
 
     if (!dob || !birthTime || !birthPlace) {
       return res.status(400).json({
@@ -671,7 +684,8 @@ export async function calculateKundaliEndpoint(req, res, next) {
       birthPlace,
       name: name || "Devotee",
       gender: gender || "",
-      concern: concern || "career"
+      concern: concern || "career",
+      customConcern: customConcern || ""
     });
 
     // 2. Fetch Matching Authentic Store Catalog Products
@@ -703,8 +717,7 @@ export async function calculateKundaliEndpoint(req, res, next) {
       recommendedProducts.push(formatProductForResponse(allProducts[0]));
     }
 
-    // 3. Generate Vedic Interpretation using NVIDIA NIM (nemotron-3-super-120b-a12b)
-    // Generate AI interpretation using NVIDIA NIM or Gemini (gemini-3.8-flash)
+    // 3. Generate Vedic Interpretation using NVIDIA NIM (Primary: nemotron-3-super-120b-a12b) with Gemini Fallback
     let aiInterpretation = "";
     const nvidiaClient = getNvidiaClient();
     const geminiClient = getGeminiClient();
@@ -724,7 +737,7 @@ Calculated Astronomical Placements:
 - Vimshottari Mahadasha: ${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} Mahadasha (Antardasha: ${kundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi})
 - Manglik Status: ${kundaliData.astronomicalKundali.doshaSummary.manglikNote}
 
-Primary Devotee Concern: ${concern}
+Primary Devotee Concern: ${concern}${customConcern ? ` (${customConcern})` : ""}
 
 YOUR TASK:
 Provide an authentic, respectful, spiritual, and uplifting Vedic analysis in warm Hindi/Hinglish (Devanagari/Hinglish friendly).
@@ -733,6 +746,33 @@ Provide an authentic, respectful, spiritual, and uplifting Vedic analysis in war
 3. Recommend the exact consecrated Rudraksha beads (Lagna Lord bead, Rashi bead, Dasha bead) to enhance spiritual balance, aura protection, and peace.
 4. Conclude with traditional Dharan Vidhi and Beej Mantra.
 Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji persona. Keep predictions non-fatalistic and positive.`;
+
+    if (nvidiaClient && !aiInterpretation) {
+      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+        if (aiInterpretation) break;
+        try {
+          const completion = await nvidiaClient.chat.completions.create({
+            model: modelCandidate,
+            messages: [
+              { role: "system", content: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish." },
+              { role: "user", content: astroPrompt }
+            ],
+            temperature: 0.35,
+            max_tokens: 4096,
+            chat_template_kwargs: { enable_thinking: false },
+            reasoning_effort: "none"
+          });
+
+          const outText = completion.choices?.[0]?.message?.content || "";
+          if (outText.trim()) {
+            aiInterpretation = outText;
+            break;
+          }
+        } catch (nimErr) {
+          console.warn(`[Kundali Endpoint] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
+        }
+      }
+    }
 
     if (geminiClient && !aiInterpretation) {
       for (const gModel of GEMINI_TEXT_MODELS) {
@@ -751,26 +791,6 @@ Never claim to be a physical human; maintain calm, spiritual AI Pandit Ji person
         } catch (gErr) {
           console.warn(`[Kundali Endpoint] Gemini notice (${gModel}):`, gErr?.message || gErr);
         }
-      }
-    }
-
-    if (nvidiaClient && !aiInterpretation) {
-      try {
-        const completion = await nvidiaClient.chat.completions.create({
-          model: PRIMARY_NIM_MODEL,
-          messages: [
-            { role: "system", content: "You are AI Pandit Ji (Vedic Astrology AI Guide) for Aura Rudraksha. Speak calmly, spiritually, and respectfully in warm Hindi/Hinglish." },
-            { role: "user", content: astroPrompt }
-          ],
-          temperature: 0.35,
-          max_tokens: 4096,
-          chat_template_kwargs: { enable_thinking: false },
-          reasoning_effort: "none"
-        });
-
-        aiInterpretation = completion.choices?.[0]?.message?.content || "";
-      } catch (nimErr) {
-        console.warn("[Kundali Endpoint] NVIDIA NIM notice:", nimErr?.message || nimErr);
       }
     }
 
@@ -1552,17 +1572,29 @@ ${memoryContextText || "Guest shopper."}`;
                 geminiContents.push({ role: "model", parts: [{ text: String(h.text) }] });
               }
             }
-            if (message && message.trim()) {
-              geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
-            } else if (calculatedKundaliData) {
+
+            // If partial text was already streamed to the client, ask Gemini to continue seamlessly
+            if (fullStreamedText.trim().length > 60) {
+              geminiContents.push({ role: "model", parts: [{ text: fullStreamedText }] });
               geminiContents.push({
                 role: "user",
                 parts: [{
-                  text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+                  text: "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the rest of the analysis."
                 }]
               });
             } else {
-              geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
+              if (message && message.trim()) {
+                geminiContents.push({ role: "user", parts: [{ text: String(message).trim() }] });
+              } else if (calculatedKundaliData) {
+                geminiContents.push({
+                  role: "user",
+                  parts: [{
+                    text: `Please provide a comprehensive Vedic Jyotish reading and Rudraksha guidance based on my calculated birth data (${calculatedKundaliData.verifiedBirthData.dob}, ${calculatedKundaliData.verifiedBirthData.birthTime}, ${calculatedKundaliData.verifiedBirthData.birthPlace}).`
+                  }]
+                });
+              } else {
+                geminiContents.push({ role: "user", parts: [{ text: "Namaste" }] });
+              }
             }
 
             const geminiStream = await geminiClient.models.generateContentStream({
