@@ -813,15 +813,7 @@ export function AuraAIFloating() {
           });
           setLoading(false);
 
-          // Automated background continuation: If text is incomplete, automatically trigger continuation passes up to 10 times for big chats
-          if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 10) {
-            autoContinuationCountRef.current = 1;
-            setTimeout(() => {
-              handleContinueChat(aiMsg, 1, 10);
-            }, 300);
-          } else {
-            autoContinuationCountRef.current = 0;
-          }
+          autoContinuationCountRef.current = 0;
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -2326,7 +2318,11 @@ export function AuraAIFloating() {
                               {m.quickReplies.map((q, qi) => (
                                 <button
                                   key={qi}
-                                  onClick={() => handleSend(q)}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSend(q);
+                                  }}
                                   className="aura-ai-chip-btn"
                                 >
                                   {q}
@@ -2360,7 +2356,10 @@ export function AuraAIFloating() {
                                     <button
                                       key={ki}
                                       type="button"
-                                      onClick={() => handleSend(kw)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSend(kw);
+                                      }}
                                       style={{
                                         padding: "4px 10px",
                                         background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)",
@@ -2621,7 +2620,7 @@ export function AuraAIFloating() {
       {/* Spiritual & Shopping Notepad Modal */}
       <AnimatePresence>
         {showNotepad && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.92, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

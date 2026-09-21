@@ -140,17 +140,18 @@ export function createApp(options = {}) {
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
 
+    const isDev = process.env.NODE_ENV !== "production";
     const cspDirectives = [
-      "default-src 'self' https:",
-      "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in",
+      "default-src 'self' https: data: blob:",
+      `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.razorpay.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https: wss:",
-      "frame-src 'self' https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
+      "connect-src 'self' https: wss: ws:",
+      "frame-src 'self' https: http: https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
       "object-src 'none'",
       "base-uri 'self'",
-      "frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com https://*.run.app https://*.aistudio.google.com https://ai.studio"
+      "frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com https://*.run.app https://*.aistudio.google.com https://ai.studio *"
     ].join("; ");
 
     res.setHeader("Content-Security-Policy", cspDirectives);
