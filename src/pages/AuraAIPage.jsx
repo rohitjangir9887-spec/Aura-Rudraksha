@@ -464,7 +464,14 @@ export function AuraAIPage() {
             return [...prev, aiMsg];
           });
           setLoading(false);
-          autoContinuationCountRef.current = 0;
+
+          // Automated background continuation: If text is incomplete, automatically trigger continuation pass
+          if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 4) {
+            autoContinuationCountRef.current += 1;
+            handleContinueChat(aiMsg, autoContinuationCountRef.current);
+          } else {
+            autoContinuationCountRef.current = 0;
+          }
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -509,12 +516,6 @@ export function AuraAIPage() {
   const handleContinueChat = async (targetMsg, autoPassNumber = 0) => {
     if (!targetMsg) return;
     const baseText = targetMsg.text || "";
-    
-    // Guard: If response is already complete and user manually triggered, do not send duplicate continuation request
-    if (!isAuraResponseIncomplete(baseText, mode) && autoPassNumber === 0) {
-      emitToast("यह उत्तर पहले से ही पूर्ण है 🙏", "info");
-      return;
-    }
 
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। यदि उत्तर पहले ही पूर्ण हो चुका है, तो कुछ भी दोहराएं नहीं। (Please continue the rest of the answer seamlessly right from where it stopped without repeating any previous text).";
 
@@ -641,7 +642,13 @@ export function AuraAIPage() {
           if (activeAiMsgIdRef.current === aiMsgId) {
             activeAiMsgIdRef.current = null;
           }
-          autoContinuationCountRef.current = 0;
+          // If still incomplete and under pass limit, continue in background
+          if (isAuraResponseIncomplete(finalMerged, mode) && autoPassNumber < 4) {
+            autoContinuationCountRef.current = autoPassNumber + 1;
+            handleContinueChat(aiMsg, autoPassNumber + 1);
+          } else {
+            autoContinuationCountRef.current = 0;
+          }
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -1365,7 +1372,7 @@ export function AuraAIPage() {
 
                           {m.sender === "ai" && (
                             <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                              {isAuraResponseIncomplete(m.text, mode) && (
+                              {(isAuraResponseIncomplete(m.text, mode) || (m.text && m.text.length > 250 && !m.text.includes("[AURA_KEYWORDS]"))) && (
                                 <button
                                   type="button"
                                   onClick={(e) => {

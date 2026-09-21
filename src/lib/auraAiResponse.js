@@ -310,7 +310,7 @@ export function smartMergeContinuation(baseText, continuationText) {
   let cleanCont = String(continuationText).trimStart();
 
   // Strip repeated greeting restarts or AI intro prefixes if present at start of continuation
-  cleanCont = cleanCont.replace(/^(🙏\s*)?(प्रणाम(\s*भक्त)?|हर\s*हर\s*महादेव|नमस्ते|शुभ\s*आशीर्वाद|जी\s*हाँ|आगे\s*का\s*उत्तर|उत्तर\s*आगे)[!।:]?\s*/i, "");
+  cleanCont = cleanCont.replace(/^(🙏\s*)?(प्रणाम(\s*भक्त)?|हर\s*हर\s*महादेव|नमस्ते|शुभ\s*आशीर्वाद|जी\s*हाँ|आगे\s*का\s*उत्तर|उत्तर\s*आगे|शेष\s*विवरण)[!।:]?\s*/i, "");
 
   const trimmedBase = cleanBase.trim();
   const trimmedCont = cleanCont.trim();
@@ -326,11 +326,11 @@ export function smartMergeContinuation(baseText, continuationText) {
   }
 
   // 3. Sentence-level deduplication: If continuation repeats sentences from baseText
-  const baseSentences = cleanBase.split(/(?<=[।!?.\n])\s+/).map(s => s.trim()).filter(s => s.length > 10);
+  const baseSentences = cleanBase.split(/(?<=[।!?.\n])\s+/).map(s => s.trim()).filter(s => s.length > 8);
   let contSentences = cleanCont.split(/(?<=[।!?.\n])\s+/).map(s => s.trim()).filter(Boolean);
   while (contSentences.length > 0) {
     const firstContSentence = contSentences[0];
-    if (firstContSentence.length > 10 && baseSentences.some(bs => bs === firstContSentence || bs.includes(firstContSentence) || (bs.length > 20 && firstContSentence.includes(bs)))) {
+    if (firstContSentence.length > 8 && baseSentences.some(bs => bs === firstContSentence || bs.includes(firstContSentence) || (bs.length > 15 && firstContSentence.includes(bs)))) {
       contSentences.shift();
     } else {
       break;
@@ -341,9 +341,9 @@ export function smartMergeContinuation(baseText, continuationText) {
     return cleanBase;
   }
 
-  // 4. Character-level suffix/prefix overlap search (from 250 down to 8 characters)
+  // 4. Character-level suffix/prefix overlap search (from 250 down to 6 characters)
   const maxOverlap = Math.min(250, cleanBase.length, cleanCont.length);
-  for (let len = maxOverlap; len >= 8; len--) {
+  for (let len = maxOverlap; len >= 6; len--) {
     const baseSuffix = cleanBase.slice(-len);
     if (cleanCont.startsWith(baseSuffix)) {
       return cleanBase + cleanCont.slice(len);
@@ -369,14 +369,13 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
   
-  // Short answers, greetings, brief SMS messages (< 80 chars) are complete unless explicitly cut off
+  // Short answers (< 80 chars)
   if (trimmed.length < 80) {
-    // Check if ends with dangling comma, colon, or open parenthesis
     if (/[,:(-]\s*$/.test(trimmed)) return true;
     return false;
   }
 
-  // 1. Explicit terminal keywords or tag = definitively complete
+  // 1. Explicit terminal keywords section = complete
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
 
   // 2. Explicit terminal blessings = complete
@@ -391,26 +390,24 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   // 4. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // 5. Explicit terminal punctuation on last line = complete!
-  // (Danda । , exclamation ! , question mark ? , period . , closing brackets/quotes, or blessings emojis)
-  const hasTerminalPunctuation = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
-  if (hasTerminalPunctuation) {
-    return false;
-  }
-
-  // 6. Check if ends with TRUE dangling connectors (conjunctions cut off mid-sentence, trailing colon, bullet numbers)
+  // 5. Check true dangling connectors at end of string
   const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जो कि|यानी|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 7. In detailed Kundali analysis (only if already very long > 600 chars), check if summary table was cut off
-  if (mode === "panditji" && trimmed.length > 600 && (trimmed.includes("तालिका") || trimmed.includes("सारणी"))) {
-    // If a table started but didn't finish
+  // 6. In detailed Kundali analysis (if > 500 chars), check if summary table was cut off
+  if (mode === "panditji" && trimmed.length > 500 && (trimmed.includes("तालिका") || trimmed.includes("सारणी"))) {
     if (trimmed.includes("|") && !trimmed.endsWith("|") && !trimmed.includes("[AURA_KEYWORDS]")) {
       return true;
     }
   }
 
-  // If text is longer than 250 characters and does not have any terminal punctuation or closing marks, mark incomplete
-  return trimmed.length > 250 && !hasTerminalPunctuation;
+  // 7. Check if last character has concluding punctuation (danda ।, period, exclamation, question mark, terminal emojis)
+  const hasTerminalPunctuation = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
+  if (hasTerminalPunctuation) {
+    return false;
+  }
+
+  // If text is longer than 180 characters and does not have any terminal punctuation or closing marks, mark incomplete
+  return trimmed.length > 180 && !hasTerminalPunctuation;
 }
 
