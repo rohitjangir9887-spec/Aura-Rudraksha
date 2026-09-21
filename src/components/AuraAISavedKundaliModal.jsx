@@ -4,7 +4,7 @@ import { Bookmark, X, Trash2, Plus, User, Calendar, Clock, MapPin, Sparkles, Che
 import { auraChatStore } from "../lib/auraChatStore";
 import { emitToast } from "../context/ToastContext";
 
-export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onProfilesUpdated }) {
+export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSelectProfile, onProfilesUpdated }) {
   const [profiles, setProfiles] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -31,8 +31,8 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onPr
             id: "prof_initial_" + Date.now(),
             name: active.name || "Devotee",
             dob: active.dob,
-            birthTime: active.birthTime,
-            birthPlace: active.birthPlace,
+            birthTime: active.birthTime || active.time || "12:00",
+            birthPlace: active.birthPlace || active.place || "",
             concern: active.concern || "all",
             relation: "Self",
             savedAt: new Date().toISOString()
@@ -67,6 +67,8 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onPr
       const newProf = {
         id: "prof_" + Date.now(),
         ...formData,
+        time: formData.birthTime,
+        place: formData.birthPlace,
         savedAt: new Date().toISOString()
       };
       const updated = [newProf, ...profiles];
@@ -93,11 +95,26 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onPr
   };
 
   const handleSelect = (prof) => {
-    if (onSelectKundali) {
-      onSelectKundali(prof);
-    }
-    emitToast(`🙏 ${prof.name} की जन्म कुंडली लोड हो गई`, "success");
     onClose();
+    const normalized = {
+      ...prof,
+      name: prof.name || prof.devoteeName || "Devotee",
+      dob: prof.dob || "",
+      birthTime: prof.birthTime || prof.time || "12:00",
+      time: prof.time || prof.birthTime || "12:00",
+      birthPlace: prof.birthPlace || prof.place || "",
+      place: prof.place || prof.birthPlace || "",
+      concern: prof.concern || "all"
+    };
+    emitToast(`🙏 ${normalized.name} की जन्म कुंडली लोड हो गई`, "success");
+    setTimeout(() => {
+      if (onSelectKundali) {
+        onSelectKundali(normalized);
+      }
+      if (onSelectProfile) {
+        onSelectProfile(normalized);
+      }
+    }, 50);
   };
 
   return (
@@ -109,7 +126,7 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onPr
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}

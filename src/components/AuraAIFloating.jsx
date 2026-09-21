@@ -2739,22 +2739,30 @@ export function AuraAIFloating() {
         isOpen={showSavedKundaliModal}
         onClose={() => setShowSavedKundaliModal(false)}
         onSelectKundali={(prof) => {
+          setShowSavedKundaliModal(false);
+          const devoteeName = prof.name || prof.devoteeName || "Devotee";
+          const dob = prof.dob || "";
+          const birthTime = prof.birthTime || prof.time || "12:00";
+          const birthPlace = prof.birthPlace || prof.place || "";
+          const concern = prof.concern || "all";
+
           setBirthForm({
-            name: prof.name || "",
-            dob: prof.dob || "",
-            place: prof.birthPlace || "",
-            time: prof.birthTime || "",
-            concern: prof.concern || "all"
+            name: devoteeName,
+            dob,
+            place: birthPlace,
+            time: birthTime,
+            concern
           });
           setShowBirthForm(false);
+
           // Auto-send kundali calculation request for this profile
-          const query = `🙏 श्री ${prof.name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${prof.dob}, Time: ${prof.birthTime || "12:00"}, Place: ${prof.birthPlace})`;
+          const query = `🙏 श्री ${devoteeName} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`;
           handleSend(query, {
-            name: prof.name,
-            dob: prof.dob,
-            birthTime: prof.birthTime || "12:00",
-            birthPlace: prof.birthPlace,
-            concern: prof.concern || "all"
+            name: devoteeName,
+            dob,
+            birthTime,
+            birthPlace,
+            concern
           });
         }}
       />

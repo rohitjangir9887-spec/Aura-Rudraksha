@@ -47,6 +47,9 @@ async function runEvaluationSuite() {
 
   // TEST 2: Question Intent Determination
   console.log("\n--- TEST SET 2: Question Intent Determination ---");
+  const intent0 = determineAstrologicalIntent("hii");
+  assert(intent0.type === "greeting", "Simple 'hii' correctly classified as 'greeting'");
+
   const intent1 = determineAstrologicalIntent("कैरियर में सफलता कब मिलेगी और कौन सी नौकरी अच्छी रहेगी?");
   assert(intent1.type === "career", "Career query correctly classified as 'career'");
 

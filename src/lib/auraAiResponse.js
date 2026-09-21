@@ -369,11 +369,7 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
   
-  // Very short answers (< 40 chars)
-  if (trimmed.length < 40) {
-    if (/[,:(-]\s*$/.test(trimmed)) return true;
-    return false;
-  }
+  if (trimmed.length < 50) return false;
 
   // 1. Explicit terminal keywords section = complete
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
@@ -387,31 +383,13 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
 
-  // 4. Unclosed markdown table row cut off mid-cell or unfinished table
+  // 4. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
   // 5. Check true dangling connectors or open punctuation at end of string
-  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|जैसे|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.|\(-|\bभाव\s*\d*\s*$|\bग्रह\s*$|\bराशि\s*$)$/i;
+  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.|\(-)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 6. In Panditji Vedic analysis: if > 350 chars and has table or remedies without ending blessing
-  if (mode === "panditji" && trimmed.length > 350) {
-    if (trimmed.includes("|") && !trimmed.endsWith("|")) {
-      return true;
-    }
-    // If heading started at the end but has no body text under it
-    if (/(?:###|\*\*)[^\n]+(?:\*\*|:)?\s*$/.test(trimmed) && !trimmed.includes("हर हर महादेव")) {
-      return true;
-    }
-  }
-
-  // 7. Check if last character has concluding punctuation (danda ।, period, exclamation, question mark, terminal emojis)
-  const hasTerminalPunctuation = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
-  if (hasTerminalPunctuation) {
-    return false;
-  }
-
-  // If text is longer than 150 characters and does not have any terminal punctuation or closing marks, mark incomplete
-  return trimmed.length > 150 && !hasTerminalPunctuation;
+  return false;
 }
 

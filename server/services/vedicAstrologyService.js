@@ -1452,6 +1452,15 @@ export function determineAstrologicalIntent(userQuery = "") {
   if (!userQuery || typeof userQuery !== "string") return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
   const q = userQuery.toLowerCase().trim();
 
+  // Greetings & Casual Hi (when user just greets without specific query)
+  if (
+    /^(hi|hii|hiii|hiiii|helo|hello|hey|namaste|namaskar|pranam|ram ram|radhe radhe|jai shree ram|har har mahadev|greetings)$/i.test(q) ||
+    /^(नमस्ते|प्रणाम|नमस्कार|जय श्री राम|हर हर महादेव|राधे राधे|हेलो|हाय)$/i.test(q) ||
+    (q.length <= 25 && /^(hi|hii|hello|hey|namaste|pranam|namaskar|नमस्ते|प्रणाम|नमस्कार)\b/i.test(q) && !/kundali|dasha|rashi|graha|job|shaadi|future|batao|bataiye|dekh/i.test(q))
+  ) {
+    return { type: "greeting", label: "Devotee Greeting" };
+  }
+
   // Full Kundali triggers
   if (/puri kundali|poori kundali|full kundali|complete reading|poori jankari|sampurna kundali|har har mahadev|sab batayein|sabhi grah|विस्तार से|पूरी कुंडली/i.test(q)) {
     return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };

@@ -1419,8 +1419,8 @@ export function AuraAIPage() {
                           )}
 
                           {m.sender === "ai" && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                              {(isAuraResponseIncomplete(m.text, mode) || (m.text && m.text.length > 250 && !m.text.includes("[AURA_KEYWORDS]"))) && (
+                            <div style={{ display: "flex", items: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
+                              {isAuraResponseIncomplete(m.text, mode) && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1772,13 +1772,36 @@ export function AuraAIPage() {
       <AuraAISavedKundaliModal
         isOpen={showSavedKundaliModal}
         onClose={() => setShowSavedKundaliModal(false)}
+        onSelectKundali={(profile) => {
+          setShowSavedKundaliModal(false);
+          const name = profile.name || profile.devoteeName || "Devotee";
+          const dob = profile.dob || "";
+          const birthTime = profile.birthTime || profile.time || "12:00";
+          const birthPlace = profile.birthPlace || profile.place || "";
+          const concern = profile.concern || "all";
+
+          handleSend(`नमस्ते पंडित जी, कृपया ${name} (जन्म: ${dob}, समय: ${birthTime}, स्थान: ${birthPlace}) की जन्म पत्रिका का विस्तृत वैदिक विश्लेषण करें।`, {
+            name,
+            dob,
+            birthTime,
+            birthPlace,
+            concern
+          });
+        }}
         onSelectProfile={(profile) => {
-          handleSend(`नमस्ते पंडित जी, कृपया ${profile.name} (जन्म: ${profile.dob}, समय: ${profile.time}, स्थान: ${profile.place}) की जन्म पत्रिका का विस्तृत वैदिक विश्लेषण करें।`, {
-            name: profile.name,
-            dob: profile.dob,
-            time: profile.time,
-            place: profile.place,
-            concern: profile.concern || "all"
+          setShowSavedKundaliModal(false);
+          const name = profile.name || profile.devoteeName || "Devotee";
+          const dob = profile.dob || "";
+          const birthTime = profile.birthTime || profile.time || "12:00";
+          const birthPlace = profile.birthPlace || profile.place || "";
+          const concern = profile.concern || "all";
+
+          handleSend(`नमस्ते पंडित जी, कृपया ${name} (जन्म: ${dob}, समय: ${birthTime}, स्थान: ${birthPlace}) की जन्म पत्रिका का विस्तृत वैदिक विश्लेषण करें।`, {
+            name,
+            dob,
+            birthTime,
+            birthPlace,
+            concern
           });
         }}
       />

@@ -190,12 +190,7 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   if (finishReason === "length") return true;
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
-  
-  // Short messages (< 80 chars) are complete unless ends with trailing colon/comma/dash
-  if (trimmed.length < 80) {
-    if (/[,:(-]\s*$/.test(trimmed)) return true;
-    return false;
-  }
+  if (trimmed.length < 50) return false;
 
   // 1. Explicit terminal keywords section = definitively complete
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
@@ -212,7 +207,7 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   // 4. Check unclosed markdown table row that got cut off mid-line
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // 5. Check terminal punctuation (Danda, period, exclamation, question mark, blessings emoji) = complete
+  // 5. Check terminal punctuation or emojis
   const hasTerminalSignal = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
   if (hasTerminalSignal) return false;
 
@@ -220,14 +215,8 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जो कि|यानी|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 7. In detailed Kundali reading (> 600 chars), check if summary table was cut off mid-table
-  if (mode === "panditji" && trimmed.length > 600 && (trimmed.includes("तालिका") || trimmed.includes("सारणी"))) {
-    if (trimmed.includes("|") && !trimmed.endsWith("|") && !trimmed.includes("[AURA_KEYWORDS]")) {
-      return true;
-    }
-  }
-
-  return trimmed.length > 250 && !hasTerminalSignal;
+  // If finishReason is stop/end_turn or normal completion, treat as complete
+  return false;
 }
 
 /**
@@ -344,10 +333,9 @@ export function getGeminiClient(customKey = "") {
 // Resilient Gemini text models fallback list in order of preference
 export const GEMINI_TEXT_MODELS = [
   process.env.GEMINI_MODEL,
-  'gemini-3.8-flash',
+  'gemini-2.5-flash',
   'gemini-flash-latest',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash'
+  'gemini-2.5-flash-lite'
 ].filter(Boolean);
 
 /**
@@ -1579,7 +1567,17 @@ DETECTED QUERY INTENT:
 
 JYOTISH REASONING & CONSULTATION GUIDELINES:
 1. Determine the user's intent:
-${astroIntent.type === "full_kundali" ? `
+${astroIntent.type === "greeting" ? `
+   - Devotee sent a simple greeting ("${message || 'hii'}").
+   - Respond ONLY with a short, warm, respectful 2-line Vedic greeting in pure Hindi.
+   - Example:
+     "🙏 **प्रणाम भक्त! हर हर महादेव।**
+
+     मैं AI पंडित जी हूँ — ऑरा रुद्राक्ष का प्रामाणिक वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।
+
+     आज मैं आपकी जन्म कुंडली, विंशोत्तरी महादशा, गोचर ग्रह स्थिति या कल्याणकारी रुद्राक्ष उपाय के विषय में क्या सेवा करूँ?"
+   - DO NOT dump a massive 25-point Kundali reading or long text. Keep it short, elegant, welcoming, and concise.
+` : astroIntent.type === "full_kundali" ? `
    - Devotee requested FULL KUNDALI ANALYSIS ("पूरी कुंडली बताओ").
    - Provide an exhaustive, beautifully structured 25-point comprehensive analysis:
      1. 🙏 वैदिक अभिवादन व जातक परिचय (${calculatedKundaliData.verifiedBirthData.name})
