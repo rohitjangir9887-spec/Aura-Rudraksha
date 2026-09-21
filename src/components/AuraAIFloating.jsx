@@ -811,16 +811,7 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
-
-          // Automatic background continuation if response was cut off
-          if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 5) {
-            autoContinuationCountRef.current++;
-            setTimeout(() => {
-              handleContinueChat(aiMsg, autoContinuationCountRef.current);
-            }, 300);
-          } else {
-            autoContinuationCountRef.current = 0;
-          }
+          autoContinuationCountRef.current = 0;
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -867,7 +858,14 @@ export function AuraAIFloating() {
   const handleContinueChat = async (targetMsg, autoPassNumber = 0) => {
     if (!targetMsg) return;
     const baseText = targetMsg.text || "";
-    const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। (Please continue the rest of the answer seamlessly right from where it stopped).";
+    
+    // Guard: If response is already complete and user manually triggered, do not send duplicate continuation request
+    if (!isAuraResponseIncomplete(baseText, mode) && autoPassNumber === 0) {
+      emitToast("यह उत्तर पहले से ही पूर्ण है 🙏", "info");
+      return;
+    }
+
+    const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। यदि उत्तर पहले ही पूर्ण हो चुका है, तो कुछ भी दोहराएं नहीं। (Please continue the rest of the answer seamlessly right from where it stopped without repeating any previous text).";
 
     auraAiClient.abortActiveStream();
     const currentTurnSeq = ++turnSeqRef.current;
@@ -994,16 +992,7 @@ export function AuraAIFloating() {
           if (activeAiMsgIdRef.current === aiMsgId) {
             activeAiMsgIdRef.current = null;
           }
-
-          // Automatic background chain continuation if still incomplete
-          if (isAuraResponseIncomplete(finalMerged, mode) && autoPassNumber < 10) {
-            autoContinuationCountRef.current = autoPassNumber + 1;
-            setTimeout(() => {
-              handleContinueChat(aiMsg, autoPassNumber + 1);
-            }, 200);
-          } else {
-            autoContinuationCountRef.current = 0;
-          }
+          autoContinuationCountRef.current = 0;
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -2350,37 +2339,35 @@ export function AuraAIFloating() {
 
                             {m.sender === "ai" && (
                               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleContinueChat(m, 0);
-                                  }}
-                                  disabled={loading && activeAiMsgIdRef.current === m.id}
-                                  style={{
-                                    padding: "4px 10px",
-                                    background: isAuraResponseIncomplete(m.text, mode) || index === messages.length - 1
-                                      ? "linear-gradient(135deg, #FFF7ED, #FEF3C7)"
-                                      : "linear-gradient(135deg, #FFFDF8, #F9F1E6)",
-                                    border: isAuraResponseIncomplete(m.text, mode) || index === messages.length - 1
-                                      ? "1.5px solid #D97706"
-                                      : "1px solid #d4af37",
-                                    borderRadius: "14px",
-                                    fontSize: "11px",
-                                    color: "#8c2b10",
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    boxShadow: isAuraResponseIncomplete(m.text, mode) ? "0 2px 6px rgba(217, 119, 6, 0.25)" : "0 1px 3px rgba(0,0,0,0.05)",
-                                    transition: "all 0.15s ease"
-                                  }}
-                                  title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff)"
-                                >
-                                  <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                  <span>{(loading && activeAiMsgIdRef.current === m.id) ? "पूरा किया जा रहा है..." : "✨ पूरा करें"}</span>
-                                </button>
+                                {isAuraResponseIncomplete(m.text, mode) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleContinueChat(m, 0);
+                                    }}
+                                    disabled={loading && activeAiMsgIdRef.current === m.id}
+                                    style={{
+                                      padding: "4px 10px",
+                                      background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
+                                      border: "1.5px solid #D97706",
+                                      borderRadius: "14px",
+                                      fontSize: "11px",
+                                      color: "#8c2b10",
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
+                                      transition: "all 0.15s ease"
+                                    }}
+                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff)"
+                                  >
+                                    <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
+                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? "पूरा किया जा रहा है..." : "✨ पूरा करें"}</span>
+                                  </button>
+                                )}
 
                                 <button
                                   type="button"

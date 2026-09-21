@@ -150,7 +150,7 @@ export function createApp(options = {}) {
       "frame-src 'self' https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
       "object-src 'none'",
       "base-uri 'self'",
-      "frame-ancestors 'self' https://*.google.com https://*.run.app https://ai.studio"
+      "frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com https://*.run.app https://*.aistudio.google.com https://ai.studio"
     ].join("; ");
 
     res.setHeader("Content-Security-Policy", cspDirectives);
