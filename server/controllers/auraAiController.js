@@ -28,7 +28,8 @@ const AI_SETTING_FIELDS = {
   enabled: "bool", showFloatingButton: "bool", showHeaderButton: "bool",
   language: "string", tone: "string", greeting: "string",
   recommendProducts: "bool", recommendOffers: "bool", cartActions: "bool",
-  orderSupport: "bool", humanSupport: "bool", personalization: "bool"
+  orderSupport: "bool", humanSupport: "bool", personalization: "bool",
+  nvidiaApiKey: "string", nemotronApiKey: "string", nemotronModel: "string"
 };
 
 // Rate limiting in-memory map
@@ -68,9 +69,21 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Strict NVIDIA NIM Model Configuration - Exclusively nemotron-3-super-120b-a12b
-export const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
-export const BACKUP_NIM_MODELS = ["nvidia/nemotron-3-super-120b-a12b", "nemotron-3-super-120b-a12b"];
+// Strict NVIDIA NIM Model Configuration
+export const PRIMARY_NIM_MODEL = (process.env.NEMOTRON_MODEL || process.env.NVIDIA_MODEL || "nvidia/nemotron-3-super-120b-a12b").trim();
+export const BACKUP_NIM_MODELS = [
+  process.env.NEMOTRON_MODEL,
+  process.env.NVIDIA_MODEL,
+  "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/llama-3.1-nemotron-70b-instruct",
+  "meta/llama-3.3-70b-instruct",
+  "meta/llama-3.1-70b-instruct",
+  "meta/llama-3.1-8b-instruct",
+  "nvidia/nemotron-4-340b-instruct",
+  "mistralai/mistral-7b-instruct-v0.3",
+  "nemotron-3-super-120b-a12b",
+  "deepseek-ai/deepseek-r1"
+].filter(Boolean);
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 let cachedNvidiaKey = "";
@@ -98,6 +111,14 @@ export async function resolveNvidiaKey() {
     try {
       const setting = await AuraAISetting.findOne().select("nvidiaApiKey nemotronApiKey apiKey").lean();
       const dbKey = (setting?.nvidiaApiKey || setting?.nemotronApiKey || setting?.apiKey || "").trim();
+      if (dbKey) {
+        cachedNvidiaKey = dbKey;
+        return dbKey;
+      }
+    } catch (_) {}
+    try {
+      const storeSetting = await Setting.findOne().select("nvidiaApiKey nemotronApiKey apiKey").lean();
+      const dbKey = (storeSetting?.nvidiaApiKey || storeSetting?.nemotronApiKey || storeSetting?.apiKey || "").trim();
       if (dbKey) {
         cachedNvidiaKey = dbKey;
         return dbKey;
@@ -320,7 +341,13 @@ export function getGeminiClient(customKey = "") {
 }
 
 // Resilient Gemini text models fallback list in order of preference
-export const GEMINI_TEXT_MODELS = [process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].filter(Boolean);
+export const GEMINI_TEXT_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-3.8-flash',
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash'
+].filter(Boolean);
 
 /**
  * Convert OpenAI/NIM formatted messages array to @google/genai Content array.
@@ -329,8 +356,8 @@ export function convertNimMessagesToGemini(nimMessages = []) {
   const contents = [];
   for (const m of nimMessages) {
     if (!m || m.role === "system") continue;
-    const role = m.role === "assistant" ? "model" : "user";
-    const text = String(m.content || "").trim();
+    const role = (m.role === "assistant" || m.role === "model") ? "model" : "user";
+    const text = String(m.content || m.text || "").trim();
     if (!text) continue;
 
     if (contents.length > 0 && contents[contents.length - 1].role === role) {
@@ -344,6 +371,8 @@ export function convertNimMessagesToGemini(nimMessages = []) {
   }
   if (contents.length === 0) {
     contents.push({ role: "user", parts: [{ text: "Namaste" }] });
+  } else if (contents[0].role === "model") {
+    contents.unshift({ role: "user", parts: [{ text: "Namaste" }] });
   }
   return contents;
 }
@@ -1726,7 +1755,7 @@ ${memoryContextText || "Guest shopper."}`;
                   model: modelCandidate,
                   messages: prunedNimMessages,
                   temperature: 0.35,
-                  max_tokens: 16384,
+                  max_tokens: 4096,
                   stream: true
                 },
                 { signal: abortController.signal }
@@ -1772,7 +1801,7 @@ ${memoryContextText || "Guest shopper."}`;
                       model: modelCandidate,
                       messages: continuationMessages,
                       temperature: 0.35,
-                      max_tokens: 16384,
+                      max_tokens: 4096,
                       stream: true
                     },
                     { signal: abortController.signal }
@@ -1816,6 +1845,45 @@ ${memoryContextText || "Guest shopper."}`;
               if (!fullStreamedText.trim() && attempt < MAX_CANDIDATE_ATTEMPTS) {
                 await new Promise((r) => setTimeout(r, 400 * attempt));
               }
+            }
+          }
+        }
+      }
+
+      // 2. Secondary Streaming Engine: Google Gemini if NVIDIA NIM was unavailable or did not produce output
+      if (!streamSucceeded && !clientDisconnected) {
+        await resolveGeminiKey();
+        const geminiClient = getGeminiClient();
+        if (geminiClient) {
+          const geminiContents = convertNimMessagesToGemini(prunedNimMessages);
+          for (const gModel of GEMINI_TEXT_MODELS) {
+            if (streamSucceeded || clientDisconnected) break;
+            try {
+              const streamRes = await geminiClient.models.generateContentStream({
+                model: gModel,
+                contents: geminiContents,
+                config: {
+                  systemInstruction: effectiveSystemPrompt,
+                  temperature: 0.35,
+                }
+              });
+
+              for await (const chunk of streamRes) {
+                if (clientDisconnected) break;
+                const textChunk = chunk.text || "";
+                if (textChunk) {
+                  fullStreamedText += textChunk;
+                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: textChunk })}\n\n`);
+                  res.flush?.();
+                }
+              }
+
+              if (fullStreamedText.trim()) {
+                streamSucceeded = true;
+                break;
+              }
+            } catch (gErr) {
+              console.warn(`[Aura AI Streaming] Gemini notice (${gModel}):`, gErr?.message || gErr);
             }
           }
         }
@@ -1943,7 +2011,7 @@ ${memoryContextText || "Guest shopper."}`;
             model: modelCandidate,
             messages: nonStreamPrunedMsgs,
             temperature: 0.35,
-            max_tokens: 16384
+            max_tokens: 4096
           });
 
           let outContent = completion.choices?.[0]?.message?.content || "";
@@ -1972,7 +2040,7 @@ ${memoryContextText || "Guest shopper."}`;
                 model: modelCandidate,
                 messages: contMsgs,
                 temperature: 0.35,
-                max_tokens: 16384
+                max_tokens: 4096
               });
 
               finishReason = contCompletion.choices?.[0]?.finish_reason || "";
@@ -1994,6 +2062,36 @@ ${memoryContextText || "Guest shopper."}`;
           }
         } catch (nimErr) {
           console.warn(`[Aura AI Non-Stream] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
+        }
+      }
+    }
+
+    // 2. Secondary Non-Streaming Engine: Google Gemini fallback
+    if (!generatedSuccessfully || !aiResponseText.trim()) {
+      await resolveGeminiKey();
+      const geminiClient = getGeminiClient();
+      if (geminiClient) {
+        const geminiContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          if (generatedSuccessfully) break;
+          try {
+            const geminiRes = await geminiClient.models.generateContent({
+              model: gModel,
+              contents: geminiContents,
+              config: {
+                systemInstruction: effectiveSystemPrompt,
+                temperature: 0.35,
+              }
+            });
+            const gText = geminiRes.text || "";
+            if (gText.trim()) {
+              aiResponseText = gText;
+              generatedSuccessfully = true;
+              break;
+            }
+          } catch (geminiErr) {
+            console.warn(`[Aura AI Non-Stream] Gemini notice (${gModel}):`, geminiErr?.message || geminiErr);
+          }
         }
       }
     }
@@ -2098,6 +2196,24 @@ ${memoryContextText || "Guest shopper."}`;
     });
 
   } catch (err) {
+    console.error("[chatAuraAI uncaught error]:", err?.message || err);
+    if (res.headersSent) {
+      if (!res.writableEnded) {
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: "final",
+            data: {
+              text: "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.",
+              products: [],
+              coupons: []
+            }
+          })}\n\n`);
+          res.write("data: [DONE]\n\n");
+          res.end();
+        } catch (_) {}
+      }
+      return;
+    }
     next(err);
   }
 }
@@ -2937,17 +3053,21 @@ Instructions:
         const userPrompt = lastUserMsg ? (lastUserMsg.text || lastUserMsg.content || "") : "Analyze catalog";
         
         const catalogSummary = await getCatalogSummary();
-        const fallbackRes = await geminiClient.models.generateContent({
-          model: "gemini-3.7-flash",
-          contents: [{ role: "user", parts: [{ text: `Store Catalog:\n${catalogSummary}\n\nUser Question: ${userPrompt}` }] }],
-          config: {
-            systemInstruction: "You are the Aura AI Admin Agent. Answer concisely, professionally, and accurately regarding store operations, products, or SEO.",
-            temperature: 0.7
-          }
-        });
-        const outText = fallbackRes.text || "";
-        if (outText.trim()) {
-          return res.json({ text: outText });
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          try {
+            const fallbackRes = await geminiClient.models.generateContent({
+              model: gModel,
+              contents: [{ role: "user", parts: [{ text: `Store Catalog:\n${catalogSummary}\n\nUser Question: ${userPrompt}` }] }],
+              config: {
+                systemInstruction: "You are the Aura AI Admin Agent. Answer concisely, professionally, and accurately regarding store operations, products, or SEO.",
+                temperature: 0.7
+              }
+            });
+            const outText = fallbackRes.text || "";
+            if (outText.trim()) {
+              return res.json({ text: outText });
+            }
+          } catch (_) {}
         }
       }
     } catch (_) {}

@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getExactTextHash, getNormalizedTextHash } from "../utils/similarity.js";
 
 const NEMOTRON_MODEL = "nvidia/nemotron-3-super-120b-a12b";
-const GEMINI_TEXT_MODELS = ['gemini-3.7-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_TEXT_MODELS = [process.env.GEMINI_MODEL, 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-2.5-flash'].filter(Boolean);
 
 function getGeminiClient() {
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();

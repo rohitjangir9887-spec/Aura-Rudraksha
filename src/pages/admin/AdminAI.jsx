@@ -909,6 +909,47 @@ export function AdminAI() {
               </div>
 
               <div className="settings-section-card">
+                <h3 className="section-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Sparkles size={18} color="#b45309" /> NVIDIA NIM Engine Configuration
+                </h3>
+                <p style={{ fontSize: "13px", color: "#6b5e52", marginBottom: "16px" }}>
+                  Configure your high-performance NVIDIA NIM API key and model for real-time customer consultations, AI Pandit Ji, and catalog recommendations.
+                </p>
+
+                <div className="form-field-group">
+                  <label>NVIDIA NIM / Nemotron Model</label>
+                  <select
+                    value={settings.nemotronModel || "nvidia/nemotron-3-super-120b-a12b"}
+                    onChange={e => setSettings({ ...settings, nemotronModel: e.target.value })}
+                    className="admin-select"
+                  >
+                    <option value="nvidia/nemotron-3-super-120b-a12b">⚡ Nemotron-3 Super 120B (nvidia/nemotron-3-super-120b-a12b) [Default]</option>
+                    <option value="nvidia/llama-3.1-nemotron-70b-instruct">⚡ Llama 3.1 Nemotron 70B (nvidia/llama-3.1-nemotron-70b-instruct)</option>
+                    <option value="meta/llama-3.3-70b-instruct">✨ Meta Llama 3.3 70B (meta/llama-3.3-70b-instruct)</option>
+                    <option value="meta/llama-3.1-70b-instruct">✨ Meta Llama 3.1 70B (meta/llama-3.1-70b-instruct)</option>
+                    <option value="nvidia/nemotron-4-340b-instruct">🚀 Nemotron-4 340B (nvidia/nemotron-4-340b-instruct)</option>
+                    <option value="meta/llama-3.1-8b-instruct">⚡ Fast Llama 3.1 8B (meta/llama-3.1-8b-instruct)</option>
+                    <option value="mistralai/mistral-7b-instruct-v0.3">⚡ Mistral 7B Instruct v0.3</option>
+                  </select>
+                </div>
+
+                <div className="form-field-group">
+                  <label>NVIDIA NIM API Key (nvapi-...)</label>
+                  <input
+                    type="password"
+                    placeholder="nvapi-xxxxxxxxxxxxxxxxxxxxxxxx"
+                    value={settings.nvidiaApiKey || settings.nemotronApiKey || ""}
+                    onChange={e => setSettings({ ...settings, nvidiaApiKey: e.target.value, nemotronApiKey: e.target.value })}
+                    className="admin-input"
+                    autoComplete="off"
+                  />
+                  <small style={{ fontSize: "11.5px", color: "#8c786a", marginTop: "4px", display: "block" }}>
+                    Your NVIDIA API key is securely encrypted on the server and used directly with integrate.api.nvidia.com.
+                  </small>
+                </div>
+              </div>
+
+              <div className="settings-section-card">
                 <h3 className="section-title">Feature Capabilities</h3>
 
                 <div className="setting-toggle-row">
