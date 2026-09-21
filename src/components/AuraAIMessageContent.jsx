@@ -290,9 +290,9 @@ export function PlanetCard({ planetName = "", house = "", rashi = "", status = "
   );
 }
 
-// Interactive Multi-View Component: Cards vs Kundali Chart vs Table
+// Interactive Multi-View Component: Kundali Chart vs Table
 export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows = [], detectedLagna = 1 }) {
-  const [viewMode, setViewMode] = useState("table"); // 'table' | 'chart' | 'cards'
+  const [viewMode, setViewMode] = useState("table"); // 'table' | 'chart'
 
   return (
     <div className="w-full my-3 bg-gradient-to-b from-[#FFFDF9] to-[#FAF5EE] border border-[#E5D5C5] rounded-2xl p-2.5 sm:p-3.5 shadow-sm overflow-hidden box-border">
@@ -302,7 +302,7 @@ export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows 
           <span className="text-base text-amber-700 flex-shrink-0">🪐</span>
           <div className="min-w-0">
             <h4 className="text-xs font-bold text-[#5C1C0A] leading-tight truncate">ग्रह गोचर व भाव स्थिति</h4>
-            <p className="text-[10px] text-stone-600 font-medium">वैदिक कुण्डली विश्लेषण ({planets.length} ग्रह)</p>
+            <p className="text-[10px] text-stone-600 font-medium">वैदिक कुण्डली विश्लेषण ({planets.length || rawRows.length} ग्रह)</p>
           </div>
         </div>
 
@@ -310,15 +310,15 @@ export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows 
         <div className="flex items-center bg-[#F3E8DC] p-0.5 rounded-lg border border-[#E5D5C5] flex-shrink-0">
           <button
             type="button"
-            onClick={() => setViewMode("cards")}
+            onClick={() => setViewMode("table")}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
-              viewMode === "cards"
+              viewMode === "table"
                 ? "bg-[#8C2B10] text-white shadow-xs"
                 : "text-[#78350F] hover:text-[#8C2B10]"
             }`}
           >
-            <Grid size={11} />
-            <span>कार्ड्स</span>
+            <TableIcon size={11} />
+            <span>तालिका</span>
           </button>
           <button
             type="button"
@@ -332,30 +332,10 @@ export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows 
             <span>🕉️</span>
             <span>कुण्डली चक्र</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("table")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
-              viewMode === "table"
-                ? "bg-[#8C2B10] text-white shadow-xs"
-                : "text-[#78350F] hover:text-[#8C2B10]"
-            }`}
-          >
-            <TableIcon size={11} />
-            <span>तालिका</span>
-          </button>
         </div>
       </div>
 
       {/* Content based on ViewMode */}
-      {viewMode === "cards" && (
-        <div className="aura-ai-planet-grid">
-          {planets.map((p, idx) => (
-            <PlanetCard key={idx} {...p} />
-          ))}
-        </div>
-      )}
-
       {viewMode === "chart" && (
         <VedicKundaliChart
           lagnaRashiNumber={detectedLagna}
@@ -914,11 +894,15 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Single Planet Card
+        // Single Planet Line (Rendered as clean continuous text instead of boxy card)
         if (block.type === "planet_card") {
+          const { planetName, house, rashi, status, interpretation } = block.planet || {};
           return (
-            <div key={idx} className="my-2">
-              <PlanetCard {...block.planet} />
+            <div key={idx} className="my-1.5 leading-relaxed text-[#2b1408]">
+              <strong className="text-[#8c2b10] font-bold">{planetName}</strong>
+              {house && <span className="ml-1 text-[#6e2008] font-semibold">({house}{rashi ? `, ${rashi}` : ""}):</span>}
+              {status && <span className="ml-1 font-semibold">{status} -</span>}
+              <span className="ml-1">{renderInlineContent(interpretation)}</span>
             </div>
           );
         }
