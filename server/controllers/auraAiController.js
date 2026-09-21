@@ -179,7 +179,7 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
 
   // 2. Explicit terminal blessings = complete
-  if (/(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*नमः\s*शिवाय\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$|शुभकामनाएं\.?\s*$)/i.test(trimmed)) {
+  if (/(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$)/i.test(trimmed)) {
     return false;
   }
 
@@ -190,24 +190,22 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   // 4. Check unclosed markdown table row that got cut off mid-line
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // 5. Check if ends with TRUE dangling connector words or unclosed bullet points
-  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|जैसे|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
+  // 5. Check terminal punctuation (Danda, period, exclamation, question mark, blessings emoji) = complete
+  const hasTerminalSignal = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
+  if (hasTerminalSignal) return false;
+
+  // 6. Check if ends with TRUE dangling connector words or unclosed bullet points
+  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जो कि|यानी|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 6. In Panditji Vedic analysis: if > 250 chars and has not reached terminal blessing or AURA_KEYWORDS, mark incomplete
-  if (mode === "panditji" && trimmed.length > 250) {
-    const hasTerminalBlessing = /(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव|जय\s*श्री\s*राम|ॐ\s*नमः\s*शिवाय|शुभकामनाएं)/i.test(trimmed);
-    const hasKeywords = trimmed.includes("[AURA_KEYWORDS]") || trimmed.includes("AURA_KEYWORDS");
-    if (!hasTerminalBlessing && !hasKeywords) {
+  // 7. In detailed Kundali reading (> 600 chars), check if summary table was cut off mid-table
+  if (mode === "panditji" && trimmed.length > 600 && (trimmed.includes("तालिका") || trimmed.includes("सारणी"))) {
+    if (trimmed.includes("|") && !trimmed.endsWith("|") && !trimmed.includes("[AURA_KEYWORDS]")) {
       return true;
     }
   }
 
-  // 7. Check terminal punctuation (Danda, period, exclamation, question mark, blessings emoji)
-  const hasTerminalSignal = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
-  if (hasTerminalSignal) return false;
-
-  return trimmed.length > 150;
+  return trimmed.length > 250 && !hasTerminalSignal;
 }
 
 /**
@@ -1712,7 +1710,7 @@ ${memoryContextText || "Guest shopper."}`;
       // Prune initial context messages if token count is near ~4000-5000 words limit
       const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 4000);
 
-      // 1. Primary Streaming Execution: NVIDIA NIM nemotron-3-super-120b-a12b with Multi-turn Automatic Continuation (up to 10 passes)
+      // 1. Primary Streaming Execution: Exclusively NVIDIA NIM nemotron-3-super-120b-a12b with Multi-turn Automatic Continuation (up to 10 passes)
       if (nvidiaClient && !clientDisconnected) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
@@ -1757,6 +1755,7 @@ ${memoryContextText || "Guest shopper."}`;
                     ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table (सरल सारांश तालिका), and the MANDATORY [AURA_KEYWORDS] section at the end."
                     : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance and recommendations.";
 
+                  // Limit assistant context tail to last 1200 words to ensure total input stays within token budget (~4000-5000 words)
                   const wordsArr = fullStreamedText.trim().split(/\s+/);
                   const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : fullStreamedText;
 
@@ -1817,94 +1816,6 @@ ${memoryContextText || "Guest shopper."}`;
               if (!fullStreamedText.trim() && attempt < MAX_CANDIDATE_ATTEMPTS) {
                 await new Promise((r) => setTimeout(r, 400 * attempt));
               }
-            }
-          }
-        }
-      }
-
-      // 2. Resilient Gemini Streaming Support (using @google/genai SDK)
-      if (!streamSucceeded && !clientDisconnected) {
-        await resolveGeminiKey();
-        const geminiClient = getGeminiClient();
-        if (geminiClient) {
-          const geminiContents = convertNimMessagesToGemini(prunedNimMessages);
-          for (const gModel of GEMINI_TEXT_MODELS) {
-            if (streamSucceeded || clientDisconnected) break;
-            try {
-              const responseStream = await geminiClient.models.generateContentStream({
-                model: gModel,
-                contents: geminiContents,
-                config: {
-                  systemInstruction: effectiveSystemPrompt,
-                  temperature: 0.35
-                }
-              });
-
-              for await (const chunk of responseStream) {
-                if (clientDisconnected) break;
-                const chunkText = chunk.text || "";
-                if (chunkText) {
-                  fullStreamedText += chunkText;
-                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
-                  res.flush?.();
-                }
-              }
-
-              // Automatic Multi-turn Continuation for Gemini if response is incomplete (up to 10 passes)
-              let gPassCount = 0;
-              const MAX_GEMINI_CONTINUATION = 10;
-              while (!clientDisconnected && gPassCount < MAX_GEMINI_CONTINUATION && isTextIncomplete(fullStreamedText, "", mode)) {
-                gPassCount++;
-                try {
-                  const continuationPrompt = mode === "panditji"
-                    ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table (सरल सारांश तालिका), and the MANDATORY [AURA_KEYWORDS] section at the end."
-                    : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance and recommendations.";
-
-                  const wordsArr = fullStreamedText.trim().split(/\s+/);
-                  const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : fullStreamedText;
-
-                  const contContents = [
-                    { role: "model", parts: [{ text: assistantTail }] },
-                    { role: "user", parts: [{ text: continuationPrompt }] }
-                  ];
-
-                  const contStream = await geminiClient.models.generateContentStream({
-                    model: gModel,
-                    contents: contContents,
-                    config: {
-                      systemInstruction: effectiveSystemPrompt,
-                      temperature: 0.35
-                    }
-                  });
-
-                  let thisPassText = "";
-                  for await (const chunk of contStream) {
-                    if (clientDisconnected) break;
-                    const chunkText = chunk.text || "";
-                    if (chunkText) {
-                      thisPassText += chunkText;
-                      res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
-                      res.flush?.();
-                    }
-                  }
-
-                  if (thisPassText.trim()) {
-                    fullStreamedText = mergeContinuation(fullStreamedText, thisPassText);
-                  } else {
-                    break;
-                  }
-                } catch (gcErr) {
-                  console.warn(`[Aura AI Gemini Streaming Continuation] Pass ${gPassCount} notice:`, gcErr?.message || gcErr);
-                  break;
-                }
-              }
-
-              if (fullStreamedText.trim()) {
-                streamSucceeded = true;
-                break;
-              }
-            } catch (gErr) {
-              console.warn(`[Aura AI Gemini Streaming] (${gModel}) notice:`, gErr?.message || gErr);
             }
           }
         }
@@ -2083,67 +1994,6 @@ ${memoryContextText || "Guest shopper."}`;
           }
         } catch (nimErr) {
           console.warn(`[Aura AI Non-Stream] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
-        }
-      }
-    }
-
-    // 2. Resilient Gemini Non-Streaming Fallback
-    if (!generatedSuccessfully) {
-      await resolveGeminiKey();
-      const geminiClient = getGeminiClient();
-      if (geminiClient) {
-        const geminiContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
-        for (const gModel of GEMINI_TEXT_MODELS) {
-          if (generatedSuccessfully) break;
-          try {
-            const resp = await geminiClient.models.generateContent({
-              model: gModel,
-              contents: geminiContents,
-              config: {
-                systemInstruction: effectiveSystemPrompt,
-                temperature: 0.35
-              }
-            });
-            let outContent = resp.text || "";
-            let gPass = 0;
-            while (gPass < 10 && isTextIncomplete(outContent, "", mode)) {
-              gPass++;
-              try {
-                const contPrompt = mode === "panditji"
-                  ? "Continue your comprehensive Vedic Jyotish reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]."
-                  : "Continue your response exactly from where you stopped. Complete the guidance and recommendations.";
-                const wordsArr = outContent.trim().split(/\s+/);
-                const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : outContent;
-                const contContents = [
-                  { role: "model", parts: [{ text: assistantTail }] },
-                  { role: "user", parts: [{ text: contPrompt }] }
-                ];
-                const contResp = await geminiClient.models.generateContent({
-                  model: gModel,
-                  contents: contContents,
-                  config: {
-                    systemInstruction: effectiveSystemPrompt,
-                    temperature: 0.35
-                  }
-                });
-                const contText = contResp.text || "";
-                if (contText.trim()) {
-                  outContent = mergeContinuation(outContent, contText);
-                } else {
-                  break;
-                }
-              } catch (_) {
-                break;
-              }
-            }
-            if (outContent.trim()) {
-              aiResponseText = outContent;
-              generatedSuccessfully = true;
-              break;
-            }
-          } catch (gErr) {
-            console.warn(`[Aura AI Gemini Non-Stream] (${gModel}) notice:`, gErr?.message || gErr);
-          }
         }
       }
     }

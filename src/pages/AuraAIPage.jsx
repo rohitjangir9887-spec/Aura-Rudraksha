@@ -470,7 +470,7 @@ export function AuraAIPage() {
           if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 10) {
             autoContinuationCountRef.current = 1;
             setTimeout(() => {
-              handleContinueChat(aiMsg, 0, 10);
+              handleContinueChat(aiMsg, 1, 10);
             }, 300);
           } else {
             autoContinuationCountRef.current = 0;
@@ -619,7 +619,7 @@ export function AuraAIPage() {
           }
           const cleanFinal = customerSafeAiText(finalData.text || "");
           const finalMerged = smartMergeContinuation(baseText, cleanFinal);
-          const hasNewContent = finalMerged.length > baseText.length + 2;
+          const hasNewContent = finalMerged.length > baseText.length + 10;
           const aiMsg = {
             ...targetMsg,
             id: aiMsgId,
@@ -1420,6 +1420,36 @@ export function AuraAIPage() {
 
                           {m.sender === "ai" && (
                             <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
+                              {(isAuraResponseIncomplete(m.text, mode) || (m.text && m.text.length > 250 && !m.text.includes("[AURA_KEYWORDS]"))) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleContinueChat(m, 0, 10);
+                                  }}
+                                  disabled={loading && activeAiMsgIdRef.current === m.id}
+                                  style={{
+                                    padding: "4px 10px",
+                                    background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
+                                    border: "1.5px solid #D97706",
+                                    borderRadius: "14px",
+                                    fontSize: "11px",
+                                    color: "#8c2b10",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
+                                    transition: "all 0.15s ease"
+                                  }}
+                                  title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff - 10 passes)"
+                                >
+                                  <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
+                                  <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ पूरा करें"}</span>
+                                </button>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={(e) => {

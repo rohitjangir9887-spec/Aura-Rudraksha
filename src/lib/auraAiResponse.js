@@ -394,11 +394,13 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|जैसे|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.|\(-|\bभाव\s*\d*\s*$|\bग्रह\s*$|\bराशि\s*$)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 6. In Panditji Vedic analysis: if > 250 chars and has not reached terminal blessing or AURA_KEYWORDS, mark incomplete
-  if (mode === "panditji" && trimmed.length > 250) {
-    const hasTerminalBlessing = /(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव|जय\s*श्री\s*राम|ॐ\s*नमः\s*शिवाय|शुभकामनाएं)/i.test(trimmed);
-    const hasKeywords = trimmed.includes("[AURA_KEYWORDS]") || trimmed.includes("AURA_KEYWORDS");
-    if (!hasTerminalBlessing && !hasKeywords) {
+  // 6. In Panditji Vedic analysis: if > 350 chars and has table or remedies without ending blessing
+  if (mode === "panditji" && trimmed.length > 350) {
+    if (trimmed.includes("|") && !trimmed.endsWith("|")) {
+      return true;
+    }
+    // If heading started at the end but has no body text under it
+    if (/(?:###|\*\*)[^\n]+(?:\*\*|:)?\s*$/.test(trimmed) && !trimmed.includes("हर हर महादेव")) {
       return true;
     }
   }
