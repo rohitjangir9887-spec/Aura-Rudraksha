@@ -817,7 +817,7 @@ export function AuraAIFloating() {
           if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 10) {
             autoContinuationCountRef.current = 1;
             setTimeout(() => {
-              handleContinueChat(aiMsg, 1, 10);
+              handleContinueChat(aiMsg, 0, 10);
             }, 300);
           } else {
             autoContinuationCountRef.current = 0;
@@ -969,7 +969,7 @@ export function AuraAIFloating() {
           }
           const cleanFinal = customerSafeAiText(finalData.text || "");
           const finalMerged = smartMergeContinuation(baseText, cleanFinal);
-          const hasNewContent = finalMerged.length > baseText.length + 10;
+          const hasNewContent = finalMerged.length > baseText.length + 2;
           const aiMsg = {
             ...targetMsg,
             id: aiMsgId,
@@ -2394,36 +2394,6 @@ export function AuraAIFloating() {
 
                             {m.sender === "ai" && (
                               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                                {isAuraResponseIncomplete(m.text, mode) && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleContinueChat(m, 0, 10);
-                                    }}
-                                    disabled={loading && activeAiMsgIdRef.current === m.id}
-                                    style={{
-                                      padding: "4px 10px",
-                                      background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
-                                      border: "1.5px solid #D97706",
-                                      borderRadius: "14px",
-                                      fontSize: "11px",
-                                      color: "#8c2b10",
-                                      fontWeight: 700,
-                                      cursor: "pointer",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
-                                      transition: "all 0.15s ease"
-                                    }}
-                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff - 10 passes)"
-                                  >
-                                    <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ पूरा करें"}</span>
-                                  </button>
-                                )}
-
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -2621,12 +2591,18 @@ export function AuraAIFloating() {
       {/* Spiritual & Shopping Notepad Modal */}
       <AnimatePresence>
         {showNotepad && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div 
+            className="fixed inset-0 z-[10020] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowNotepad(false);
+            }}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.92, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 10 }}
               className="w-full max-w-md bg-[#fdfaf5] border border-[#dfcfbc] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#8c2b10] to-[#5c1c0a] text-white">
