@@ -4,7 +4,7 @@ import { Setting } from "../models/Setting.js";
 import { Banner } from "../models/Banner.js";
 import { Coupon } from "../models/Coupon.js";
 import { Review } from "../models/Review.js";
-import { ActiveOffer } from "../models/Promotion.js";
+import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import {
   defaultProducts,
   defaultBanners,
