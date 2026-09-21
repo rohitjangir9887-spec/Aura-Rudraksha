@@ -576,6 +576,215 @@ export function calculateNavamshaRashi(deg) {
 }
 
 /**
+ * Calculate Key Divisional Charts (Vargas) for a given sidereal longitude
+ * D2 (Hora), D3 (Drekkana), D4 (Chaturthamsha), D7 (Saptamsha), D9 (Navamsha), D10 (Dashamsha), D12 (Dwadashamsha)
+ */
+export function calculateDivisionalCharts(deg) {
+  const norm = normalizeDeg(deg);
+  const signIndex = Math.floor(norm / 30); // 0-11
+  const degInSign = norm % 30;
+  const isOddSign = signIndex % 2 === 0; // Aries=0 (odd in astrology), Taurus=1 (even), etc.
+
+  // D2 Hora (15° per division)
+  // Odd signs: 0-15° Sun (Leo - idx 4), 15-30° Moon (Cancer - idx 3)
+  // Even signs: 0-15° Moon (Cancer - idx 3), 15-30° Sun (Leo - idx 4)
+  let d2Index = 4;
+  if (isOddSign) {
+    d2Index = degInSign < 15 ? 4 : 3;
+  } else {
+    d2Index = degInSign < 15 ? 3 : 4;
+  }
+
+  // D3 Drekkana (10° per division)
+  // 1st (0-10°): sign itself; 2nd (10-20°): 5th from sign; 3rd (20-30°): 9th from sign
+  const drekkanaPart = Math.min(2, Math.floor(degInSign / 10));
+  const d3Offset = drekkanaPart === 0 ? 0 : (drekkanaPart === 1 ? 4 : 8);
+  const d3Index = (signIndex + d3Offset) % 12;
+
+  // D4 Chaturthamsha (7°30' = 7.5° per division)
+  // 1st: sign itself; 2nd: 4th; 3rd: 7th; 4th: 10th
+  const d4Part = Math.min(3, Math.floor(degInSign / 7.5));
+  const d4Index = (signIndex + d4Part * 3) % 12;
+
+  // D7 Saptamsha (30 / 7 = 4.2857° per division)
+  // Odd signs start from sign itself; Even signs start from 7th from sign
+  const d7Part = Math.min(6, Math.floor(degInSign / (30 / 7)));
+  const d7Start = isOddSign ? signIndex : (signIndex + 6) % 12;
+  const d7Index = (d7Start + d7Part) % 12;
+
+  // D9 Navamsha
+  const d9Index = Math.floor(norm / (30 / 9)) % 12;
+
+  // D10 Dashamsha (3° per division)
+  // Odd signs start from sign itself; Even signs start from 9th from sign
+  const d10Part = Math.min(9, Math.floor(degInSign / 3));
+  const d10Start = isOddSign ? signIndex : (signIndex + 8) % 12;
+  const d10Index = (d10Start + d10Part) % 12;
+
+  // D12 Dwadashamsha (2.5° per division)
+  // Starts from sign itself, steps by 1
+  const d12Part = Math.min(11, Math.floor(degInSign / 2.5));
+  const d12Index = (signIndex + d12Part) % 12;
+
+  return {
+    d2Hora: { signIndex: d2Index, name: RASHIS[d2Index].name, english: RASHIS[d2Index].english },
+    d3Drekkana: { signIndex: d3Index, name: RASHIS[d3Index].name, english: RASHIS[d3Index].english },
+    d4Chaturthamsha: { signIndex: d4Index, name: RASHIS[d4Index].name, english: RASHIS[d4Index].english },
+    d7Saptamsha: { signIndex: d7Index, name: RASHIS[d7Index].name, english: RASHIS[d7Index].english },
+    d9Navamsha: { signIndex: d9Index, name: RASHIS[d9Index].name, english: RASHIS[d9Index].english },
+    d10Dashamsha: { signIndex: d10Index, name: RASHIS[d10Index].name, english: RASHIS[d10Index].english },
+    d12Dwadashamsha: { signIndex: d12Index, name: RASHIS[d12Index].name, english: RASHIS[d12Index].english }
+  };
+}
+
+/**
+ * Calculate Jaimini 7 Chara Karakas (AK, AmK, BK, MK, PK, GK, DK)
+ * Sorted by raw degrees in sign in descending order (excluding Rahu/Ketu)
+ */
+export function calculateJaiminiCharaKarakas(planets) {
+  const eligible = planets.filter(p => ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"].includes(p.key || p.englishName));
+  const sorted = [...eligible].sort((a, b) => (b.rawDegreeInSign || 0) - (a.rawDegreeInSign || 0));
+
+  const titles = [
+    { code: "AK", nameHindi: "आत्मकारक (Atmakaraka)", meaning: "Soul's true purpose, inner potential & spiritual core", role: "Supreme chart ruler of destiny" },
+    { code: "AmK", nameHindi: "अमात्यकारक (Amatyakaraka)", meaning: "Career, intellect, professional execution & status", role: "Key significator for profession and success" },
+    { code: "BK", nameHindi: "भ्रातृकारक (Bhratrukaraka)", meaning: "Siblings, courage, mentors, gurus & willpower", role: "Key significator for guidance and enterprise" },
+    { code: "MK", nameHindi: "मातृकारक (Matrukaraka)", meaning: "Mother, domestic peace, vehicles, foundation & assets", role: "Key significator for inner emotional fulfillment" },
+    { code: "PK", nameHindi: "पुत्रकारक (Putrakaraka)", meaning: "Children, creativity, higher wisdom, intellect & disciples", role: "Key significator for intellect and progeny" },
+    { code: "GK", nameHindi: "ज्ञातिवाहिक/ज्ञातिकारक (Gnatikaraka)", meaning: "Challenges, rivalries, health hurdles & karmic debts", role: "Key significator for competition and obstacles" },
+    { code: "DK", nameHindi: "दाराकारक (Darakaraka)", meaning: "Spouse, life partner, business alliances & intimate bonds", role: "Key significator for marriage and partnership" }
+  ];
+
+  return sorted.map((p, idx) => {
+    const t = titles[idx] || titles[titles.length - 1];
+    return {
+      karakaCode: t.code,
+      karakaName: t.nameHindi,
+      planetName: p.name,
+      planetEnglish: p.englishName || p.name,
+      degreeInSign: p.degreeInSign,
+      signName: p.rashiHindi,
+      signEnglish: p.rashiEnglish,
+      houseNumber: p.houseNumber,
+      meaning: t.meaning,
+      role: t.role
+    };
+  });
+}
+
+/**
+ * Calculate Combustion (Asta Graha) status and distances relative to Sun
+ */
+export function calculateCombustion(planets, sunTotalDeg) {
+  const combustionThresholds = {
+    "Moon": 12.0,
+    "Mars": 17.0,
+    "Mercury": 14.0,
+    "Jupiter": 11.0,
+    "Venus": 10.0,
+    "Saturn": 15.0
+  };
+
+  return planets.map(p => {
+    const pKey = p.key || p.englishName;
+    if (pKey === "Sun" || pKey === "Rahu" || pKey === "Ketu") {
+      return { ...p, isCombust: false, combustionAngle: null, combustionNote: "N/A" };
+    }
+
+    const threshold = combustionThresholds[pKey] || 10.0;
+    const diff = Math.abs(normalizeDeg((p.totalDegree || p.deg) - sunTotalDeg));
+    const angle = diff > 180 ? 360 - diff : diff;
+    const isCombust = angle <= threshold;
+
+    return {
+      ...p,
+      isCombust,
+      combustionAngle: `${angle.toFixed(2)}°`,
+      combustionNote: isCombust ? `Asta (अस्त - Sun ke nikat ${angle.toFixed(1)}° par)` : `Udaya (उदित - सुरक्षित दूरी ${angle.toFixed(1)}°)`
+    };
+  });
+}
+
+/**
+ * Calculate Parashari Drishti (Aspects) for all planets and houses
+ */
+export function calculatePlanetaryAspects(planets) {
+  const houseAspects = {};
+  for (let h = 1; h <= 12; h++) {
+    houseAspects[h] = [];
+  }
+
+  planets.forEach(p => {
+    const fromHouse = p.houseNumber;
+    const aspects = [];
+
+    // All planets cast 7th aspect
+    aspects.push({ targetHouse: ((fromHouse + 6 - 1) % 12) + 1, strength: "100% (7th Full Drishti)" });
+
+    // Special aspects
+    if (p.englishName === "Mars") {
+      aspects.push({ targetHouse: ((fromHouse + 3 - 1) % 12) + 1, strength: "100% (4th Special Drishti)" });
+      aspects.push({ targetHouse: ((fromHouse + 7 - 1) % 12) + 1, strength: "100% (8th Special Drishti)" });
+    } else if (p.englishName === "Jupiter") {
+      aspects.push({ targetHouse: ((fromHouse + 4 - 1) % 12) + 1, strength: "100% (5th Amrit Drishti)" });
+      aspects.push({ targetHouse: ((fromHouse + 8 - 1) % 12) + 1, strength: "100% (9th Amrit Drishti)" });
+    } else if (p.englishName === "Saturn") {
+      aspects.push({ targetHouse: ((fromHouse + 2 - 1) % 12) + 1, strength: "100% (3rd Special Drishti)" });
+      aspects.push({ targetHouse: ((fromHouse + 9 - 1) % 12) + 1, strength: "100% (10th Special Drishti)" });
+    } else if (p.englishName === "Rahu" || p.englishName === "Ketu") {
+      aspects.push({ targetHouse: ((fromHouse + 4 - 1) % 12) + 1, strength: "100% (5th Drishti)" });
+      aspects.push({ targetHouse: ((fromHouse + 8 - 1) % 12) + 1, strength: "100% (9th Drishti)" });
+    }
+
+    aspects.forEach(asp => {
+      if (houseAspects[asp.targetHouse]) {
+        houseAspects[asp.targetHouse].push(`${p.name} (${asp.strength})`);
+      }
+    });
+  });
+
+  return houseAspects;
+}
+
+/**
+ * Determine Badhaka and Maraka Houses and Lords
+ */
+export function getBadhakaAndMaraka(lagnaRashiIndex, houses) {
+  // Movable / Chara (Aries 0, Cancer 3, Libra 6, Capricorn 9): 11th House is Badhaka
+  // Fixed / Sthira (Taurus 1, Leo 4, Scorpio 7, Aquarius 10): 9th House is Badhaka
+  // Dual / Dwiswabhava (Gemini 2, Virgo 5, Sagittarius 8, Pisces 11): 7th House is Badhaka
+  let badhakaHouseNum = 11;
+  let lagnaNature = "Movable (Chara)";
+  if ([1, 4, 7, 10].includes(lagnaRashiIndex)) {
+    badhakaHouseNum = 9;
+    lagnaNature = "Fixed (Sthira)";
+  } else if ([2, 5, 8, 11].includes(lagnaRashiIndex)) {
+    badhakaHouseNum = 7;
+    lagnaNature = "Dual (Dwiswabhava)";
+  }
+
+  const badhakaHouse = houses.find(h => h.houseNumber === badhakaHouseNum) || houses[0];
+  const marakaHouse2 = houses.find(h => h.houseNumber === 2) || houses[1];
+  const marakaHouse7 = houses.find(h => h.houseNumber === 7) || houses[6];
+
+  return {
+    lagnaNature,
+    badhaka: {
+      houseNumber: badhakaHouseNum,
+      rashi: badhakaHouse.rashiHindi,
+      rashiEnglish: badhakaHouse.rashiEnglish,
+      lord: badhakaHouse.lord,
+      note: `${lagnaNature} Lagna hone ke kaaran ${badhakaHouseNum}th House (${badhakaHouse.rashiHindi}) aur iske swami ${badhakaHouse.lord} बाधक (Badhakesh) hain.`
+    },
+    maraka: {
+      house2Lord: marakaHouse2.lord,
+      house7Lord: marakaHouse7.lord,
+      note: `2nd House (${marakaHouse2.rashiHindi} - ${marakaHouse2.lord}) aur 7th House (${marakaHouse7.rashiHindi} - ${marakaHouse7.lord}) मारक स्थान हैं।`
+    }
+  };
+}
+
+/**
  * Calculate Authentic Vedic Panchanga Elements
  * Tithi (1-30), Vaar (0-6) + Lord, Yoga (1-27), Karana (1-11)
  */
@@ -902,26 +1111,27 @@ export function calculateAuthenticKundali(params = {}) {
     return ((planetRashiIndex - lagnaRashiIndex + 12) % 12) + 1;
   }
 
-  // Planets Table with D9 Navamsha & Vargottama Detection
+  // Planets Table with D9 Navamsha, Divisional Charts & Vargottama Detection
   const rawPlanets = [
-    { name: "Surya (Sun)", key: "Sun", english: "Sun", deg: sunSid, details: sunDetails, nak: sunNak, d9: sunNavamsha },
-    { name: "Chandra (Moon)", key: "Moon", english: "Moon", deg: moonSid, details: moonDetails, nak: moonNak, d9: moonNavamsha },
-    { name: "Mangal (Mars)", key: "Mars", english: "Mars", deg: marsSid, details: getRashiAndDegree(marsSid), nak: getNakshatraAndPada(marsSid), d9: calculateNavamshaRashi(marsSid) },
-    { name: "Budha (Mercury)", key: "Mercury", english: "Mercury", deg: mercSid, details: getRashiAndDegree(mercSid), nak: getNakshatraAndPada(mercSid), d9: calculateNavamshaRashi(mercSid) },
-    { name: "Guru (Jupiter)", key: "Jupiter", english: "Jupiter", deg: jupSid, details: getRashiAndDegree(jupSid), nak: getNakshatraAndPada(jupSid), d9: calculateNavamshaRashi(jupSid) },
-    { name: "Shukra (Venus)", key: "Venus", english: "Venus", deg: venSid, details: getRashiAndDegree(venSid), nak: getNakshatraAndPada(venSid), d9: calculateNavamshaRashi(venSid) },
-    { name: "Shani (Saturn)", key: "Saturn", english: "Saturn", deg: satSid, details: getRashiAndDegree(satSid), nak: getNakshatraAndPada(satSid), d9: calculateNavamshaRashi(satSid) },
-    { name: "Rahu (North Node)", key: "Rahu", english: "Rahu", deg: rahuSid, details: getRashiAndDegree(rahuSid), nak: getNakshatraAndPada(rahuSid), d9: calculateNavamshaRashi(rahuSid) },
-    { name: "Ketu (South Node)", key: "Ketu", english: "Ketu", deg: ketuSid, details: getRashiAndDegree(ketuSid), nak: getNakshatraAndPada(ketuSid), d9: calculateNavamshaRashi(ketuSid) }
+    { name: "Surya (Sun)", key: "Sun", english: "Sun", deg: sunSid, details: sunDetails, nak: sunNak, d9: sunNavamsha, vargas: calculateDivisionalCharts(sunSid) },
+    { name: "Chandra (Moon)", key: "Moon", english: "Moon", deg: moonSid, details: moonDetails, nak: moonNak, d9: moonNavamsha, vargas: calculateDivisionalCharts(moonSid) },
+    { name: "Mangal (Mars)", key: "Mars", english: "Mars", deg: marsSid, details: getRashiAndDegree(marsSid), nak: getNakshatraAndPada(marsSid), d9: calculateNavamshaRashi(marsSid), vargas: calculateDivisionalCharts(marsSid) },
+    { name: "Budha (Mercury)", key: "Mercury", english: "Mercury", deg: mercSid, details: getRashiAndDegree(mercSid), nak: getNakshatraAndPada(mercSid), d9: calculateNavamshaRashi(mercSid), vargas: calculateDivisionalCharts(mercSid) },
+    { name: "Guru (Jupiter)", key: "Jupiter", english: "Jupiter", deg: jupSid, details: getRashiAndDegree(jupSid), nak: getNakshatraAndPada(jupSid), d9: calculateNavamshaRashi(jupSid), vargas: calculateDivisionalCharts(jupSid) },
+    { name: "Shukra (Venus)", key: "Venus", english: "Venus", deg: venSid, details: getRashiAndDegree(venSid), nak: getNakshatraAndPada(venSid), d9: calculateNavamshaRashi(venSid), vargas: calculateDivisionalCharts(venSid) },
+    { name: "Shani (Saturn)", key: "Saturn", english: "Saturn", deg: satSid, details: getRashiAndDegree(satSid), nak: getNakshatraAndPada(satSid), d9: calculateNavamshaRashi(satSid), vargas: calculateDivisionalCharts(satSid) },
+    { name: "Rahu (North Node)", key: "Rahu", english: "Rahu", deg: rahuSid, details: getRashiAndDegree(rahuSid), nak: getNakshatraAndPada(rahuSid), d9: calculateNavamshaRashi(rahuSid), vargas: calculateDivisionalCharts(rahuSid) },
+    { name: "Ketu (South Node)", key: "Ketu", english: "Ketu", deg: ketuSid, details: getRashiAndDegree(ketuSid), nak: getNakshatraAndPada(ketuSid), d9: calculateNavamshaRashi(ketuSid), vargas: calculateDivisionalCharts(ketuSid) }
   ];
 
-  const planets = rawPlanets.map((p) => {
+  let calculatedPlanets = rawPlanets.map((p) => {
     const house = getHouseNumber(p.details.rashiIndex);
     const dignity = getPlanetaryDignity(p.key, p.details.rashiIndex);
     const isVargottama = p.details.rashiIndex === p.d9.rashiIndex;
     return {
       name: p.name,
       englishName: p.english,
+      key: p.key,
       rashiHindi: p.details.rashiName,
       rashiEnglish: p.details.rashiEnglish,
       rashiSymbol: p.details.rashiSymbol,
@@ -935,16 +1145,24 @@ export function calculateAuthenticKundali(params = {}) {
       dignity,
       navamshaRashiHindi: p.d9.rashiName,
       navamshaRashiEnglish: p.d9.rashiEnglish,
+      vargas: p.vargas,
       isVargottama
     };
   });
 
-  // Bhavas (Houses) distribution
+  // Calculate Combustion status
+  const planets = calculateCombustion(calculatedPlanets, sunSid);
+
+  // Calculate Planetary Aspects
+  const planetaryAspects = calculatePlanetaryAspects(planets);
+
+  // Bhavas (Houses) distribution with Aspects & Lords
   const houses = [];
   for (let h = 1; h <= 12; h++) {
     const houseRashiIdx = (lagnaRashiIndex + h - 1) % 12;
     const rashiObj = RASHIS[houseRashiIdx];
     const occupants = planets.filter((p) => p.houseNumber === h).map((p) => p.name);
+    const aspectsOnHouse = planetaryAspects[h] || [];
     houses.push({
       houseNumber: h,
       rashiHindi: rashiObj.name,
@@ -952,9 +1170,16 @@ export function calculateAuthenticKundali(params = {}) {
       rashiSymbol: rashiObj.symbol,
       lord: rashiObj.lord,
       element: rashiObj.element,
-      occupants: occupants.length > 0 ? occupants : ["Shunya (No direct planet)"]
+      occupants: occupants.length > 0 ? occupants : ["Shunya (No direct planet)"],
+      aspects: aspectsOnHouse
     });
   }
+
+  // Jaimini 7 Chara Karakas
+  const jaiminiKarakas = calculateJaiminiCharaKarakas(planets);
+
+  // Badhaka & Maraka Analysis
+  const badhakaMarakaInfo = getBadhakaAndMaraka(lagnaRashiIndex, houses);
 
   // Vimshottari Dasha
   const dashaInfo = calculateVimshottariDasha(moonSid, birthDateObj, new Date());
@@ -981,27 +1206,110 @@ export function calculateAuthenticKundali(params = {}) {
   // Sade Sati Status
   const sadeSatiInfo = getSadeSatiStatus(moonDetails.rashiIndex, satSid);
 
-  // Major Yogas Analysis
+  // Classical & Parashari Yogas Analysis
   const yogas = [];
   const jupPlanet = planets.find(p => p.englishName === "Jupiter");
   const moonPlanet = planets.find(p => p.englishName === "Moon");
   const sunPlanet = planets.find(p => p.englishName === "Sun");
   const mercPlanet = planets.find(p => p.englishName === "Mercury");
+  const satPlanet = planets.find(p => p.englishName === "Saturn");
+  const venPlanet = planets.find(p => p.englishName === "Venus");
 
+  // 1. Gajakesari Yoga
   if (jupPlanet && moonPlanet) {
     const jupMoonDiff = Math.abs(jupPlanet.houseNumber - moonPlanet.houseNumber);
     if ([0, 3, 6, 9].includes(jupMoonDiff)) {
-      yogas.push({ name: "Gajakesari Yoga (गजकेसरी योग)", description: "Jupiter in Kendra from Moon. Bestows wisdom, prosperity, reputation, and divine protection." });
+      yogas.push({ name: "Gajakesari Yoga (गजकेसरी योग)", category: "Auspicious Raja Yoga", description: "Jupiter in Kendra (1st, 4th, 7th, 10th) from Moon. Bestows wisdom, high social respect, lasting prosperity, and divine protection." });
     }
   }
+
+  // 2. Budhaditya Yoga
   if (sunPlanet && mercPlanet && sunPlanet.houseNumber === mercPlanet.houseNumber) {
-    yogas.push({ name: "Budhaditya Yoga (बुधादित्य योग)", description: "Sun and Mercury conjunction. Bestows sharp intellect, administrative success, and communication mastery." });
+    const isMercCombust = mercPlanet.isCombust;
+    yogas.push({ 
+      name: "Budhaditya Yoga (बुधादित्य योग)", 
+      category: "Intellectual Raja Yoga", 
+      description: isMercCombust 
+        ? "Sun and Mercury conjunction in House " + sunPlanet.houseNumber + ". Bestows sharp intellect, commercial acumen, and analytical prowess." 
+        : "Pure uncombust Sun-Mercury conjunction in House " + sunPlanet.houseNumber + ". Bestows extraordinary intelligence, administrative success, eloquence, and sharp judgment." 
+    });
   }
+
+  // 3. Pancha Mahapurusha Yogas (Kendra + Own/Exalted)
+  const kendraHouses = [1, 4, 7, 10];
+  if (marsPlanet && kendraHouses.includes(marsPlanet.houseNumber) && (marsPlanet.dignity.includes("Exalted") || marsPlanet.dignity.includes("Own"))) {
+    yogas.push({ name: "Ruchaka Mahapurusha Yoga (रुचक महापुरुष योग)", category: "Pancha Mahapurusha", description: "Mars in Kendra in Own/Exalted sign. Bestows immense physical courage, leadership, high administrative/military rank, and land authority." });
+  }
+  if (mercPlanet && kendraHouses.includes(mercPlanet.houseNumber) && (mercPlanet.dignity.includes("Exalted") || mercPlanet.dignity.includes("Own"))) {
+    yogas.push({ name: "Bhadra Mahapurusha Yoga (भद्र महापुरुष योग)", category: "Pancha Mahapurusha", description: "Mercury in Kendra in Gemini/Virgo. Bestows profound intellectual genius, scholarly eloquence, longevity, and high commercial mastery." });
+  }
+  if (jupPlanet && kendraHouses.includes(jupPlanet.houseNumber) && (jupPlanet.dignity.includes("Exalted") || jupPlanet.dignity.includes("Own"))) {
+    yogas.push({ name: "Hamsa Mahapurusha Yoga (हंस महापुरुष योग)", category: "Pancha Mahapurusha", description: "Jupiter in Kendra in Cancer/Sagittarius/Pisces. Bestows righteousness, supreme spiritual wisdom, high respect from rulers, and noble character." });
+  }
+  if (venPlanet && kendraHouses.includes(venPlanet.houseNumber) && (venPlanet.dignity.includes("Exalted") || venPlanet.dignity.includes("Own"))) {
+    yogas.push({ name: "Malavya Mahapurusha Yoga (मालव्य महापुरुष योग)", category: "Pancha Mahapurusha", description: "Venus in Kendra in Taurus/Libra/Pisces. Bestows magnetic charisma, artistic elegance, luxurious conveyances, marital bliss, and wealth." });
+  }
+  if (satPlanet && kendraHouses.includes(satPlanet.houseNumber) && (satPlanet.dignity.includes("Exalted") || satPlanet.dignity.includes("Own"))) {
+    yogas.push({ name: "Sasa Mahapurusha Yoga (शश महापुरुष योग)", category: "Pancha Mahapurusha", description: "Saturn in Kendra in Capricorn/Aquarius/Libra. Bestows steadfast perseverance, mass leadership, strategic patience, authority over land and institutions." });
+  }
+
+  // 4. Vipreet Raja Yogas (Harsha, Sarala, Vimala)
+  const house6Lord = houses[5]?.lord;
+  const house8Lord = houses[7]?.lord;
+  const house12Lord = houses[11]?.lord;
+
+  const house6LordPlanet = planets.find(p => p.name.includes(house6Lord) || p.englishName.includes(house6Lord));
+  const house8LordPlanet = planets.find(p => p.name.includes(house8Lord) || p.englishName.includes(house8Lord));
+  const house12LordPlanet = planets.find(p => p.name.includes(house12Lord) || p.englishName.includes(house12Lord));
+
+  if (house6LordPlanet && [6, 8, 12].includes(house6LordPlanet.houseNumber)) {
+    yogas.push({ name: "Harsha Vipreet Raja Yoga (हर्ष विपरीत राजयोग)", category: "Vipreet Raja Yoga", description: "6th Lord placed in Trik House (6th, 8th, or 12th). Grants victory over enemies, resilience against illness, and rise after initial struggle." });
+  }
+  if (house8LordPlanet && [6, 8, 12].includes(house8LordPlanet.houseNumber)) {
+    yogas.push({ name: "Sarala Vipreet Raja Yoga (सरल विपरीत राजयोग)", category: "Vipreet Raja Yoga", description: "8th Lord placed in Trik House (6th, 8th, or 12th). Bestows fearlessness, unexpected windfalls, deep longevity, and triumph over adversities." });
+  }
+  if (house12LordPlanet && [6, 8, 12].includes(house12LordPlanet.houseNumber)) {
+    yogas.push({ name: "Vimala Vipreet Raja Yoga (विमल विपरीत राजयोग)", category: "Vipreet Raja Yoga", description: "12th Lord placed in Trik House (6th, 8th, or 12th). Bestows noble character, financial independence, spiritual inclination, and freedom from heavy debts." });
+  }
+
+  // 5. Chandra-Mangal Yoga (Wealth from Enterprise)
+  if (moonPlanet && marsPlanet && moonPlanet.houseNumber === marsPlanet.houseNumber) {
+    yogas.push({ name: "Chandra-Mangal Yoga (चंद्र-मंगल धन योग)", category: "Dhana Yoga", description: "Moon and Mars conjunction. Bestows energetic business acumen, financial enterprise, real estate accumulation, and strong earning capability." });
+  }
+
+  // 6. Neecha Bhanga Raja Yoga (NBRY) check
+  planets.filter(p => p.dignity.includes("Debilitated")).forEach(debPlanet => {
+    // Check if dispositor is in Kendra from Lagna or Moon
+    const debSignIdx = debPlanet.rawDegreeInSign !== undefined ? Math.floor(debPlanet.totalDegree / 30) : 0;
+    const dispositorLordName = RASHIS[debSignIdx]?.lord;
+    const dispositorPlanet = planets.find(p => p.name.includes(dispositorLordName) || p.englishName.includes(dispositorLordName));
+    
+    let isDispositorInKendra = false;
+    if (dispositorPlanet) {
+      const fromLagna = kendraHouses.includes(dispositorPlanet.houseNumber);
+      const fromMoon = moonPlanet ? kendraHouses.includes(((dispositorPlanet.houseNumber - moonPlanet.houseNumber + 12) % 12) + 1) : false;
+      isDispositorInKendra = fromLagna || fromMoon;
+    }
+
+    const isDebInKendra = kendraHouses.includes(debPlanet.houseNumber);
+    const isExaltedInD9 = debPlanet.navamshaRashiHindi && debPlanet.navamshaRashiHindi.includes(RASHIS[debSignIdx]?.name);
+
+    if (isDispositorInKendra || isDebInKendra || isExaltedInD9) {
+      yogas.push({
+        name: `Neecha Bhanga Raja Yoga for ${debPlanet.name} (नीचभंग राजयोग)`,
+        category: "Neecha Bhanga",
+        description: `${debPlanet.name} debilitated in D1 parantu Parashari NBRY rules se dosha cancel hokar powerful Raja Yoga mein transform ho gaya hai. Shuruaati sangharsh ke baad apratim safalta milegi.`
+      });
+    }
+  });
+
+  // 7. Vargottama Yoga
   const vargottamaPlanets = planets.filter(p => p.isVargottama);
   if (vargottamaPlanets.length > 0) {
     yogas.push({
       name: `Vargottama Graha Yoga (${vargottamaPlanets.map(p => p.name).join(", ")})`,
-      description: "Planets occupying identical signs in D1 (Rashi) and D9 (Navamsha). Imparts immense strength and auspicious results."
+      category: "Varga Strength",
+      description: "Planets occupying identical signs in D1 (Rashi) and D9 (Navamsha). Imparts steadfast strength, pure natural karakatwa, and auspicious longevity."
     });
   }
 
@@ -1130,6 +1438,8 @@ export function calculateAuthenticKundali(params = {}) {
         kaalSarp: kaalSarpInfo || { type: "Kaal Sarp Mukt", description: "Kundali mein sabhi grah Rahu-Ketu ke bahar sthit hain (Kaal Sarp dosha nahi hai)." }
       },
       yogas,
+      jaiminiKarakas,
+      badhakaMarakaInfo,
       rudrakshaRecommendations
     }
   };

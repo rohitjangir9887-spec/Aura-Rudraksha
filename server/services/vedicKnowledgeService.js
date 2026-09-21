@@ -1,14 +1,149 @@
+export const VEDIC_SHASTRA_KNOWLEDGE = {
+  classicalCanons: {
+    bphs: {
+      title: "Brihat Parashara Hora Shastra (BPHS)",
+      author: "Maharishi Parashara",
+      authority: "The supreme foundational compendium of Vedic Astrology (Hora Shastra)",
+      corePrinciples: [
+        "Lagna establishes the physical vehicle (Deha) and life foundation, while Chandra represents the emotional mind (Manas) and Surya is the soul (Atma).",
+        "Kendra houses (1, 4, 7, 10) are Vishnu Sthanas representing action, pillar strength, and sustained worldly execution.",
+        "Trikona houses (1, 5, 9) are Lakshmi Sthanas representing divine grace, Purva Punya (past karmic merits), dharma, and unearned fortune.",
+        "Dusthana houses (6, 8, 12) represent worldly struggles (Roga, Shatru, Rina, Ayush, Moksha, Vyaya) which catalyze karmic evolution.",
+        "Upachaya houses (3, 6, 10, 11) grow stronger with age, effort, discipline, and persistent sadhana.",
+        "Bhavat Bhavam: The principle of derivative houses (e.g., 5th from 5th is 9th house of higher intellect; 9th from 9th is 5th house of fortune; 10th from 10th is 7th house of public commerce)."
+      ]
+    },
+    phaladeepika: {
+      title: "Phaladeepika",
+      author: "Mantreswara",
+      authority: "Premier classical manual on practical predictive synthesis, Vimshottari Dasha results, and planetary transits (Gochar)",
+      corePrinciples: [
+        "The Mahadasha lord sets the seasonal backdrop of life; the Antardasha lord executes the specific karma.",
+        "Benefics (Jupiter, Venus, unblemished Mercury, waxing Moon) in Kendras protect the overall chart vitality.",
+        "When judging any Bhava, evaluate: 1. The Bhava itself, 2. The Bhava Lord, 3. The Natural Karaka (Significator)."
+      ]
+    },
+    saravali: {
+      title: "Saravali",
+      author: "Kalyanavarma",
+      authority: "Classical masterpiece on royal combinations (Raja Yogas), planetary conjunctions, and character analysis",
+      corePrinciples: [
+        "Planetary conjunctions create compound energies where the planet with higher dignity or yogakaraka status dictates results.",
+        "Pancha Mahapurusha Yogas manifest best when the planet is uncombust and receives benefic aspects."
+      ]
+    },
+    jaimini: {
+      title: "Jaimini Upadesha Sutras",
+      author: "Maharishi Jaimini",
+      authority: "Foundational esoteric system utilizing Chara Karakas, Arudha Lagna (AL), and Upapada Lagna (UL)",
+      corePrinciples: [
+        "Atmakaraka (AK - highest degree planet): Represents the innermost longing and spiritual evolutionary mission of the soul.",
+        "Amatyakaraka (AmK - 2nd highest degree): Represents professional intellect, executive action, and worldly standing.",
+        "Darakaraka (DK - lowest degree planet): Represents intimate partnerships, spouse, and relational mirror.",
+        "Upapada Lagna (UL): Reveals the nature of marriage, marital stability, and spouse's background."
+      ]
+    },
+    shivaPurana: {
+      title: "Shiva Purana (Vidyeshvara Samhita)",
+      authority: "Supreme scriptural source on sacred Rudraksha beads, their divine origins from Lord Shiva's tears of compassion, and their consecration",
+      corePrinciples: [
+        "Rudraksha beads are consecrated manifestations of cosmic Shiva-Shakti energies that balance the subtle Pranic nadis and bio-energetic chakras.",
+        "Every Mukhi has a governing deity, planetary vibration, and authentic Vedic/Puranic Beej Mantra.",
+        "Conscious wearing (Dharan Vidhi) with devotion, truthfulness, and mantra japa magnifies the spiritual and mental resonance of the bead."
+      ]
+    }
+  },
+
+  lifeDomainMatrices: {
+    careerAndLeadership: {
+      domain: "Career, Profession & Administrative Success",
+      primaryHouses: ["10th House (Karma/Status)", "1st House (Identity/Leadership)", "6th House (Service/Competence)", "2nd & 11th (Income & Career Gains)"],
+      primaryKarakas: ["Sun (Authority, Governance)", "Mars (Executive drive, Military, Engineering)", "Saturn (Service, Industry, Masses)", "Mercury (Commerce, Analytics, Strategy)", "Amatyakaraka (AmK)"],
+      divisionalCharts: ["D10 Dashamsha (Career execution & fame)", "D9 Navamsha (Inherent strength of 10th lord)"],
+      yogas: ["Pancha Mahapurusha Yogas", "Dharma-Karmadhipati Raja Yoga", "Budhaditya Yoga", "Amala Yoga"],
+      rudrakshaGuidance: "7 Mukhi (Mahalakshmi stability), 10 Mukhi (Vishnu career protection), 12 Mukhi (Surya administrative radiance), 14 Mukhi (Devamani high strategy)."
+    },
+    businessAndTrade: {
+      domain: "Business, Commerce & Entrepreneurship",
+      primaryHouses: ["7th House (Marketplace & Partnerships)", "3rd House (Enterprise & Risk-taking)", "11th House (Profits & Cash Flow)", "2nd House (Accumulation)"],
+      primaryKarakas: ["Mercury (Trade, Accounting, Negotiations)", "Venus (Retail, Luxury, Hospitality, Arts)", "Jupiter (Expansion, Advisory)", "Mars (Pioneering ventures)"],
+      divisionalCharts: ["D10 Dashamsha", "D9 Navamsha", "D2 Hora (Wealth liquidity)"],
+      yogas: ["Chandra-Mangal Dhana Yoga", "Budhaditya Yoga", "Lakshmi Yoga", "11th Lord in Kendra/Trikona"],
+      rudrakshaGuidance: "7 Mukhi (Cash flow & Lakshmi grace), 8 Mukhi (Vighnaharta Ganesha hurdle clearance), 13 Mukhi (Kamadeva magnetism & client attraction)."
+    },
+    educationAndIntellect: {
+      domain: "Education, Higher Learning & Competitive Exams",
+      primaryHouses: ["4th House (Foundational Schooling)", "5th House (Buddhi, Memory, Creativity)", "9th House (Higher Research, Guru)", "6th House (Competitive Exams & Victory)"],
+      primaryKarakas: ["Mercury (Intellect, Analytical Logic)", "Jupiter (Wisdom, Comprehensive Understanding)", "Devi Saraswati / Lord Brahma"],
+      divisionalCharts: ["D24 Chaturvimshamsha (Learning & Intellect)", "D9 Navamsha"],
+      yogas: ["Bhadra Mahapurusha Yoga", "Budhaditya Yoga", "Saraswati Yoga", "5th-9th Lord Parivartana"],
+      rudrakshaGuidance: "4 Mukhi (Brahma intellect & memory), 5 Mukhi (Guru wisdom & focus), Saraswati Bandh (4+6 Mukhi or 4+4+4 Mukhi combination)."
+    },
+    marriageAndRelationships: {
+      domain: "Marriage, Harmony & Partner Compatibility",
+      primaryHouses: ["7th House (Spouse & Marital Bond)", "2nd House (Family Harmony)", "4th House (Domestic Peace)", "8th House (Mangalya / Marital Longevity)"],
+      primaryKarakas: ["Venus (Karaka for love, romance & male's wife)", "Jupiter (Karaka for husband in female chart)", "Darakaraka (DK in Jaimini)", "Upapada Lagna (UL)"],
+      divisionalCharts: ["D9 Navamsha (The definitive chart for marital harmony and spouse's nature)"],
+      yogas: ["Malavya Yoga", "Benefics in 7th House", "Gauri Yoga", "Parashari Manglik checks"],
+      rudrakshaGuidance: "2 Mukhi (Ardhanarishvara unity & mutual understanding), Gauri Shankar Rudraksha (Divine Shiva-Parvati marital bliss & delay removal)."
+    },
+    childrenAndProgeny: {
+      domain: "Children, Lineage & Progeny (Santan Sukha)",
+      primaryHouses: ["5th House (Progeny & Purva Punya)", "9th House (Secondary Progeny)", "2nd House (Family growth)"],
+      primaryKarakas: ["Jupiter (Putrakaraka)", "Putrakaraka (PK in Jaimini)", "5th Lord strength"],
+      divisionalCharts: ["D7 Saptamsha (Detailed progeny chart)"],
+      yogas: ["Jupiter well-placed in Kendra/Trikona", "5th Lord unafflicted by Rahu/Ketu"],
+      rudrakshaGuidance: "Garbh Gauri Rudraksha (Maa Parvati & Ganesha blessings for conception and child safety), 5 Mukhi (Jupiter blessing)."
+    },
+    wealthAndDebtRelief: {
+      domain: "Wealth Accumulation, Debt Relief & Financial Abundance",
+      primaryHouses: ["2nd House (Dhana Sthana - Accumulated Assets)", "11th House (Labha Sthana - Incomes & Gains)", "5th & 9th (Lakshmi Sthanas)", "6th (Debts / Rina - pacification required)"],
+      primaryKarakas: ["Jupiter (Wealth karaka)", "Venus (Luxury & Assets)", "Mercury (Commerce)", "Saturn (Stability)"],
+      divisionalCharts: ["D2 Hora (Solar & Lunar wealth distribution)", "D9 Navamsha"],
+      yogas: ["Dhana Yogas (1st, 2nd, 5th, 9th, 11th connections)", "Maha Lakshmi Yoga", "Neecha Bhanga Raja Yoga"],
+      rudrakshaGuidance: "7 Mukhi (Mahalakshmi abundance), 13 Mukhi (Kubera & Kamadeva wealth attraction), 21 Mukhi (Supreme Kubera wealth)."
+    },
+    propertyAndVehicles: {
+      domain: "Real Estate, Property & Vehicles (Bhumi, Bhavana, Vahana)",
+      primaryHouses: ["4th House (Matru, Griha & Vahana Sthana)", "4th Lord", "10th House (Opposite 4th)", "2nd House (Family estate)"],
+      primaryKarakas: ["Mars (Bhoomi Karaka for Land & Construction)", "Venus (Vahana Karaka for Vehicles & Luxury)", "Saturn (Ancient Land & Structures)"],
+      divisionalCharts: ["D4 Chaturthamsha (Immovable Assets & Land)", "D16 Shodashamsha (Vehicles & Conveyances)"],
+      yogas: ["4th Lord in Kendra/Trikona", "Exalted Mars or Venus", "Ruchaka Yoga"],
+      rudrakshaGuidance: "3 Mukhi (Mars land authority), 6 Mukhi (Venus luxury), 10 Mukhi (Vishnu stable real estate security), 14 Mukhi (Devamani)."
+    },
+    foreignTravelAndSettlement: {
+      domain: "Foreign Travel, Relocation & Overseas Settlement",
+      primaryHouses: ["12th House (Foreign Lands, Overseas Residence)", "9th House (Long-distance Journeys, Higher Wisdom)", "3rd House (Short travels, Visa paperwork)", "7th House (Travel for trade)"],
+      primaryKarakas: ["Rahu (Foreign lands, Alien cultures, Cross-border migration)", "Moon (Water crossings, Mental relocation)", "Movable (Chara) signs (Aries, Cancer, Libra, Capricorn)"],
+      divisionalCharts: ["D9 Navamsha (9th/12th lords)", "D12 Dwadashamsha"],
+      yogas: ["12th Lord in 9th House or 9th Lord in 12th House", "Rahu in 9th or 12th in friendly/movable sign", "Lagna Lord associated with 12th House"],
+      rudrakshaGuidance: "8 Mukhi (Ganesha obstacle clearance for visas), 12 Mukhi (Surya overseas authority & recognition)."
+    },
+    spiritualityAndMeditation: {
+      domain: "Spiritual Sadhana, Meditation & Moksha",
+      primaryHouses: ["12th House (Moksha & Dissolution)", "9th House (Dharma & Guru Bhakti)", "8th House (Kundalini Awakening & Esoteric Wisdom)", "5th House (Mantra Siddhi & Ishta Devata)"],
+      primaryKarakas: ["Ketu (Moksha Karaka)", "Jupiter (Dharma & Guru Karaka)", "Saturn (Vairagya & Tapasya)", "Sun (Atma Karaka)"],
+      divisionalCharts: ["D20 Vimshamsha (Spiritual Sadhana & Devotion)", "D9 Navamsha (Atmakaraka placement)"],
+      yogas: ["Pravrajya Yoga", "Ketu in 12th House", "Jupiter in Kendra/Trikona with Ketu", "Atmakaraka in Navamsha Lagna (Karakamsha)"],
+      rudrakshaGuidance: "1 Mukhi (Supreme Shiva consciousness), 14 Mukhi (Third eye Ajna chakra awakening), 108+1 Vedic Japa Mala (Mantra chanting & aura purification)."
+    },
+    healthAndVitality: {
+      domain: "Health, Vitality & Longevity (Arogya & Ayurdaya)",
+      primaryHouses: ["1st House (Lagna - Physical Constitution & Immunity)", "6th House (Roga Sthana - Acute Illnesses)", "8th House (Ayush Sthana - Chronic Issues & Longevity)", "12th House (Vyaya Sthana - Hospitalization)"],
+      primaryKarakas: ["Sun (Vitality, Heart, Bones, Immunity)", "Moon (Mental health, Digestion, Fluids)", "Mars (Muscles, Blood, Surgery)", "Saturn (Nerves, Chronic delays, Ayush Karaka)"],
+      divisionalCharts: ["D30 Trimshamsha (Misfortunes & health challenges)", "D1 Rashi"],
+      yogas: ["Lagnesh well-placed in Kendra/Trikona", "No malefics in 6th/8th lords without benefic aspect", "Vipreet Raja Yoga (Harsha/Sarala) providing disease resilience"],
+      rudrakshaGuidance: "3 Mukhi (Agni digestive vitality & energy), 5 Mukhi (Kalagni Rudra calm heart & blood pressure balance), 11 Mukhi (Hanuman physical strength & immunity). *Always observe medical disclaimer.*"
+    }
+  }
+};
+
 /**
  * Vedic Knowledge Service & Catalog Intelligence for Aura Rudraksha
  * 
  * LAYER 1 — LIVE AURA STORE DATA (Products, price, stock, offers, orders)
  * LAYER 2 — RUDRAKSHA / VEDIC KNOWLEDGE (1 to 21+ Mukhi, Gauri Shankar, Garbh Gauri, Trijuti, Malas, Dharan Vidhi, Astrology)
- * 
- * Complies with Aura AI Master System Prompt:
- * - Authoritative Vedic wisdom across 1 to 21 Mukhi and special beads
- * - Honest inventory transparency (Never falsely claim an unavailable Mukhi is in store)
- * - Spiritual disclaimers (No medical claims or guarantees)
- * - Authentic Astrology assistant guidelines
+ * LAYER 3 — VEDIC SHASTRA & ASTROLOGICAL INTERPRETATION KNOWLEDGE
  */
 
 export const VEDIC_BEADS_KNOWLEDGE = {

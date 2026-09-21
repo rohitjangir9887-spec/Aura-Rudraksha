@@ -4,7 +4,7 @@ import { Coupon } from "../models/Coupon.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { isDbConnected } from "../config/db.js";
-import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
+import { VEDIC_BEADS_KNOWLEDGE, VEDIC_SHASTRA_KNOWLEDGE } from "./vedicKnowledgeService.js";
 
 // Global in-memory cache for ultra-fast RAG retrieval
 let ragCacheDocs = [];
@@ -65,6 +65,29 @@ export async function buildStoreRagIndex() {
       content: `${kb.name} (${kb.deity} - ${kb.planet}). Traditional significance: ${kb.traditionalSignificance}. Primary benefits: ${kb.primaryBenefits}. Dharan Vidhi: ${kb.dharanVidhi}. Beej Mantra: ${kb.beejMantra}. Care: ${kb.careGuidance}. Keywords: ${(kb.keywords || []).join(", ")}`,
       metadata: { mukhiKey: key, planet: kb.planet, deity: kb.deity }
     });
+  }
+
+  // 2.5 Index Classical Vedic Shastra Canons & Life Domain Matrices
+  if (VEDIC_SHASTRA_KNOWLEDGE) {
+    for (const [canonKey, canon] of Object.entries(VEDIC_SHASTRA_KNOWLEDGE.classicalCanons || {})) {
+      docs.push({
+        docId: `shastra_${canonKey}`,
+        docType: "shastra",
+        title: `Classical Authority: ${canon.title}`,
+        content: `${canon.title} by ${canon.author || 'Vedic Tradition'}. Authority: ${canon.authority}. Principles: ${(canon.corePrinciples || []).join(" ")}`,
+        metadata: { canon: canonKey }
+      });
+    }
+
+    for (const [domainKey, domain] of Object.entries(VEDIC_SHASTRA_KNOWLEDGE.lifeDomainMatrices || {})) {
+      docs.push({
+        docId: `domain_${domainKey}`,
+        docType: "astrology_domain",
+        title: `Astrological Analysis: ${domain.domain}`,
+        content: `Domain: ${domain.domain}. Houses: ${(domain.primaryHouses || []).join(", ")}. Karakas: ${(domain.primaryKarakas || []).join(", ")}. Divisional Charts: ${(domain.divisionalCharts || []).join(", ")}. Yogas: ${(domain.yogas || []).join(", ")}. Rudraksha Guidance: ${domain.rudrakshaGuidance}`,
+        metadata: { domain: domainKey }
+      });
+    }
   }
 
   // 3. Index Live Products from MongoDB
