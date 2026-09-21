@@ -292,7 +292,7 @@ export function PlanetCard({ planetName = "", house = "", rashi = "", status = "
 
 // Interactive Multi-View Component: Cards vs Kundali Chart vs Table
 export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows = [], detectedLagna = 1 }) {
-  const [viewMode, setViewMode] = useState("cards"); // 'cards' | 'chart' | 'table'
+  const [viewMode, setViewMode] = useState("table"); // 'table' | 'chart' | 'cards'
 
   return (
     <div className="w-full my-3 bg-gradient-to-b from-[#FFFDF9] to-[#FAF5EE] border border-[#E5D5C5] rounded-2xl p-2.5 sm:p-3.5 shadow-sm overflow-hidden box-border">
@@ -711,7 +711,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       flushList();
       flushKv();
       flushTable();
-      flushPlanetCards();
       continue;
     }
 
@@ -719,7 +718,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     if (trimmed.includes("|") && (trimmed.startsWith("|") || trimmed.endsWith("|") || trimmed.split("|").length >= 3)) {
       flushList();
       flushKv();
-      flushPlanetCards();
 
       // Skip markdown table separator line like "|---|---|---|"
       if (/^\|?\s*:?-+:?\s*\|/.test(trimmed)) {
@@ -750,11 +748,10 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       trimmed.startsWith("🙏 नमो") ||
       trimmed.startsWith("हर हर महादेव") ||
       trimmed.startsWith("जय श्री राम") ||
-      (trimmed.includes("प्रणाम भक्त") && trimmed.length <= 60)
+      (trimmed.includes("प्रणाम भक्त") && trimmed.length <= 70)
     ) {
       flushList();
       flushKv();
-      flushPlanetCards();
       const cleanGreeting = trimmed
         .replace(/^\[GREETING\]/i, "")
         .replace(/\[\/GREETING\]$/i, "")
@@ -774,7 +771,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
-      flushPlanetCards();
       blocks.push({ type: "divider" });
       continue;
     }
@@ -783,7 +779,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     if (isHeadingLine(trimmed)) {
       flushList();
       flushKv();
-      flushPlanetCards();
       const headingClean = trimmed
         .replace(/^\[SECTION\]/i, "")
         .replace(/\[\/SECTION\]$/i, "")
@@ -809,7 +804,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
-      flushPlanetCards();
       blocks.push({ type: "mantra", text: trimmed });
       continue;
     }
@@ -823,7 +817,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
-      flushPlanetCards();
       const cleanWarn = trimmed
         .replace(/^\[(IMPORTANT|WARNING)\]/i, "")
         .replace(/\[\/(IMPORTANT|WARNING)\]$/i, "")
@@ -832,35 +825,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       continue;
     }
 
-    // 7. Single Planet Line / Bullet (e.g., "- सूर्य: प्रथम भाव में मेष राशि (उच्च)")
-    const planetMatch = trimmed.match(/^(?:[-*•✦🕉▪▫▸►\d.)]\s*)?\*{0,2}(सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)(?:\s*[\(/][^)]*[\)])?\*{0,2}\s*[:|-]\s*(.+)$/i);
-    if (planetMatch) {
-      flushList();
-      flushKv();
-      const name = planetMatch[1];
-      const rest = planetMatch[2];
-      
-      let house = "";
-      let rashi = "";
-      let status = "";
-      let interpretation = rest;
-
-      const houseMatch = rest.match(/(\d+\s*(?:वां|वें|था|रा|रां|st|nd|rd|th)?\s*भाव|भाव\s*\d+|\d+\s*(?:st|nd|rd|th)?\s*house)/i);
-      if (houseMatch) house = houseMatch[1];
-
-      const rashiMatch = rest.match(/(सिंह|कन्या|तुला|वृश्चिक|धनु|मकर|कुंभ|कुम्भ|मीन|मेष|वृषभ|मिथुन|कर्क)\s*(?:राशि)?/);
-      if (rashiMatch) rashi = rashiMatch[1];
-
-      const statusMatch = rest.match(/(उच्च|नीच|साम्य|स्वगृही|मित्र|शत्रु|Exalted|Debilitated|Neutral|Own Sign)/i);
-      if (statusMatch) status = statusMatch[1];
-
-      pendingPlanetCards.push({ planetName: name, house, rashi, status, interpretation });
-      continue;
-    } else {
-      flushPlanetCards();
-    }
-
-    // 8. Key-Value attribute line
+    // 7. Key-Value attribute line (Birth details summary)
     const kv = parseKeyValueLine(trimmed);
     if (kv) {
       flushList();
@@ -873,7 +838,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       flushKv();
     }
 
-    // 9. Bullet or Numbered item
+    // 8. Bullet or Numbered item
     const isBullet = /^[-*•✦]\s+/.test(trimmed);
     const isNumber = /^\d+[.)]\s+/.test(trimmed);
 
@@ -889,7 +854,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       flushList();
     }
 
-    // 10. Regular Paragraph
+    // 9. Regular Paragraph (Continuous long-form prose)
     blocks.push({
       type: "paragraph",
       text: trimmed
@@ -899,7 +864,6 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
   flushList();
   flushKv();
   flushTable();
-  flushPlanetCards();
 
   return (
     <div className={`aura-ai-msg-text-ai ${className}`}>
