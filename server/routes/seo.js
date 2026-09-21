@@ -2,7 +2,8 @@ import express from "express";
 import {
   generateSitemapXml,
   generateMerchantFeedXml,
-  generateRobotsTxt
+  generateRobotsTxt,
+  getPublicProductsForSeo
 } from "../services/seoService.js";
 import { getIndexNowKey } from "../services/indexNowService.js";
 import { connectDB, isDbConnected } from "../config/db.js";
@@ -35,21 +36,29 @@ async function ensureSeoDatabase() {
 }
 
 async function getPublishedCatalogKeys() {
-  if (!(await ensureSeoDatabase())) return null;
-  const products = await Product.find(PUBLIC_PRODUCT_FILTER)
-    .select({ _id: 0, id: 1, slug: 1, mukhi: 1, name: 1 })
-    .lean();
-
+  const products = await getPublicProductsForSeo();
   const slugs = new Set();
   const mukhiNumbers = new Set();
-  for (const product of products) {
-    const key = String(product.slug || product.id || "").trim().toLowerCase();
-    if (key) slugs.add(key);
 
-    const mukhiText = `${product.mukhi || ""} ${product.name || ""}`;
-    const match = mukhiText.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
-    if (match) mukhiNumbers.add(Number(match[1]));
+  if (Array.isArray(products)) {
+    for (const product of products) {
+      if (!product) continue;
+      const slugKey = String(product.slug || "").trim().toLowerCase();
+      const idKey = String(product.id || "").trim().toLowerCase();
+      if (slugKey) slugs.add(slugKey);
+      if (idKey) slugs.add(idKey);
+
+      const mukhiText = `${product.mukhi || ""} ${product.name || ""}`;
+      const match = mukhiText.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
+      if (match) mukhiNumbers.add(Number(match[1]));
+    }
   }
+
+  // Always allow Mukhi 1 to 21 landing routes in sitemap
+  for (let i = 1; i <= 21; i++) {
+    mukhiNumbers.add(i);
+  }
+
   return { slugs, mukhiNumbers };
 }
 

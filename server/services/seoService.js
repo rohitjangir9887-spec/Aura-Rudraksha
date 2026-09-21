@@ -164,6 +164,146 @@ export const CATEGORIES_SEO_REGISTRY = {
       { q: "What are the key benefits of wearing Ganesh Rudraksha?", a: "It removes sudden hurdles, helps students excel in complex studies, and brings luck in business and official ventures." }
     ]
   },
+  "/rudraksha/1-mukhi": {
+    h1: "1 Mukhi Rudraksha (Ek Mukhi) — Lord Shiva Supreme Bead",
+    title: "1 Mukhi Rudraksha (Ek Mukhi) — Authentic Lab Certified | Aura Rudraksha",
+    description: "Buy authentic 1 Mukhi Rudraksha (Ek Mukhi) blessed by Lord Shiva & Surya Dev. Awakens Sahasrara chakra, removes sins & brings divine leadership.",
+    categoryName: "1 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "1 Mukhi", path: "/rudraksha/1-mukhi" }],
+    intro: "The 1 Mukhi Rudraksha is revered as the physical manifestation of Lord Shiva Himself. Blessed by Surya Dev (the Sun), it eliminates past negative karma and awakens supreme mental clarity."
+  },
+  "/rudraksha/2-mukhi": {
+    h1: "2 Mukhi Rudraksha (Do Mukhi) — Ardhanarishvara Unity Bead",
+    title: "2 Mukhi Rudraksha (Do Mukhi) — Marital Harmony & Moon | Aura Rudraksha",
+    description: "Authentic 2 Mukhi Rudraksha blessed by Lord Ardhanarishvara (Shiva & Parvati) and Moon (Chandra). Fosters relationship harmony and emotional peace.",
+    categoryName: "2 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "2 Mukhi", path: "/rudraksha/2-mukhi" }],
+    intro: "Symbolizing Lord Ardhanarishvara, the 2 Mukhi Rudraksha heals strained relationships, fosters deep domestic peace, and calms emotional turbulence caused by Chandra dosha."
+  },
+  "/rudraksha/3-mukhi": {
+    h1: "3 Mukhi Rudraksha (Teen Mukhi) — Agni Dev Purification Bead",
+    title: "3 Mukhi Rudraksha (Teen Mukhi) — Vitality & Mars | Aura Rudraksha",
+    description: "Buy genuine 3 Mukhi Rudraksha blessed by Agni Dev and Mars (Mangal). Cleanses past emotional baggage, boosts confidence and removes laziness.",
+    categoryName: "3 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "3 Mukhi", path: "/rudraksha/3-mukhi" }],
+    intro: "Governed by Agni Devta, the 3 Mukhi burns past sins, overcomes inferiority complexes, dissolves chronic laziness, and infuses dynamic vitality."
+  },
+  "/rudraksha/4-mukhi": {
+    h1: "4 Mukhi Rudraksha (Chaar Mukhi) — Lord Brahma & Saraswati Bead",
+    title: "4 Mukhi Rudraksha (Chaar Mukhi) — Intellect & Mercury | Aura Rudraksha",
+    description: "Authentic 4 Mukhi Rudraksha representing four heads of Lord Brahma and Goddess Saraswati. Enhances memory, communication and logical thinking.",
+    categoryName: "4 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "4 Mukhi", path: "/rudraksha/4-mukhi" }],
+    intro: "Blessed by Lord Brahma and Goddess Saraswati, the 4 Mukhi Rudraksha stimulates intellectual prowess, public speaking, and focus for students and researchers."
+  },
+  "/rudraksha/5-mukhi": {
+    h1: "5 Mukhi Rudraksha (Paanch Mukhi) — Kalagni Rudra Universal Bead",
+    title: "5 Mukhi Rudraksha (Paanch Mukhi) — Peace & Jupiter | Aura Rudraksha",
+    description: "Buy consecrated 5 Mukhi Rudraksha beads & Japa Malas blessed by Kalagni Rudra. Universally auspicious for peace, health, and Jupiter alignment.",
+    categoryName: "5 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "5 Mukhi", path: "/rudraksha/5-mukhi" }],
+    intro: "The most sacred and universally worn bead, representing the five forms of Lord Shiva. It destroys negative thought patterns and brings calm mental serenity."
+  },
+  "/rudraksha/6-mukhi": {
+    h1: "6 Mukhi Rudraksha (Chhah Mukhi) — Lord Kartikeya Willpower Bead",
+    title: "6 Mukhi Rudraksha (Chhah Mukhi) — Courage & Venus | Aura Rudraksha",
+    description: "Genuine 6 Mukhi Rudraksha blessed by Lord Kartikeya and Venus (Shukra). Bestows focus, grounding energy, artistic talent, and attraction.",
+    categoryName: "6 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "6 Mukhi", path: "/rudraksha/6-mukhi" }],
+    intro: "Blessed by Lord Kartikeya, the commander of divine forces, 6 Mukhi bestows courage, focus, stability, and pacifies Venus (Shukra) afflictions."
+  },
+  "/rudraksha/7-mukhi": {
+    h1: "7 Mukhi Rudraksha (Saat Mukhi) — Mahalakshmi Prosperity Bead",
+    title: "7 Mukhi Rudraksha (Saat Mukhi) — Wealth & Saturn | Aura Rudraksha",
+    description: "Buy authentic 7 Mukhi Rudraksha blessed by Goddess Mahalakshmi & Saturn (Shani). Removes financial constraints and Shani Sade Sati obstacles.",
+    categoryName: "7 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "7 Mukhi", path: "/rudraksha/7-mukhi" }],
+    intro: "Blessed by Goddess Mahalakshmi and Seven Divine Mothers, 7 Mukhi attracts wealth, business growth, and mitigates Saturn (Shani) transits."
+  },
+  "/rudraksha/8-mukhi": {
+    h1: "8 Mukhi Rudraksha (Aath Mukhi) — Lord Ganesha Vighnaharta Bead",
+    title: "8 Mukhi Rudraksha (Aath Mukhi) — Obstacle Removal & Rahu | Aura Rudraksha",
+    description: "Authentic 8 Mukhi Rudraksha blessed by Lord Ganesha and Rahu. Clears sudden obstacles, bestows wisdom, and protects against negativity.",
+    categoryName: "8 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "8 Mukhi", path: "/rudraksha/8-mukhi" }],
+    intro: "Blessed by Lord Ganesha, the remover of hurdles, 8 Mukhi eliminates unexpected delays, grants analytical wisdom, and harmonizes Rahu."
+  },
+  "/rudraksha/9-mukhi": {
+    h1: "9 Mukhi Rudraksha (Nau Mukhi) — Goddess Durga Shakti Bead",
+    title: "9 Mukhi Rudraksha (Nau Mukhi) — Power & Ketu | Aura Rudraksha",
+    description: "Buy 9 Mukhi Rudraksha blessed by Navadurga and Ketu. Instills fearlessness, physical protection, energy, and spiritual power.",
+    categoryName: "9 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "9 Mukhi", path: "/rudraksha/9-mukhi" }],
+    intro: "Blessed by Goddess Durga's nine forms (Navadurga), 9 Mukhi confers fearlessness, destroys inner phobias, and shields against psychic disturbances."
+  },
+  "/rudraksha/10-mukhi": {
+    h1: "10 Mukhi Rudraksha (Das Mukhi) — Lord Vishnu Protection Bead",
+    title: "10 Mukhi Rudraksha (Das Mukhi) — Universal Shield | Aura Rudraksha",
+    description: "Authentic 10 Mukhi Rudraksha blessed by Lord Vishnu and 10 Mahavidyas. Shields from black magic, evil eye, and directional doshas.",
+    categoryName: "10 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "10 Mukhi", path: "/rudraksha/10-mukhi" }],
+    intro: "Representing Lord Vishnu's ten avatars, 10 Mukhi forms a cosmic protective armor around the wearer, neutralizing evil eye and negative influences."
+  },
+  "/rudraksha/11-mukhi": {
+    h1: "11 Mukhi Rudraksha (Ekadash Mukhi) — Lord Hanuman Rudra Bead",
+    title: "11 Mukhi Rudraksha (Ekadash) — High Energy & Courage | Aura Rudraksha",
+    description: "Buy 11 Mukhi Rudraksha blessed by 11 Rudras & Lord Hanuman. Enhances yogic focus, courage, decision-making, and physical stamina.",
+    categoryName: "11 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "11 Mukhi", path: "/rudraksha/11-mukhi" }],
+    intro: "Blessed by the 11 forms of Lord Rudra and Lord Hanuman, 11 Mukhi grants unshakeable conviction, sharp judgment, and physical protection."
+  },
+  "/rudraksha/12-mukhi": {
+    h1: "12 Mukhi Rudraksha (Barah Mukhi) — Surya Tejas Authority Bead",
+    title: "12 Mukhi Rudraksha (Barah Mukhi) — Leadership & Sun | Aura Rudraksha",
+    description: "Authentic 12 Mukhi Rudraksha blessed by Surya Dev (Sun). Bestows radiance, executive leadership, high vitality, and social fame.",
+    categoryName: "12 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "12 Mukhi", path: "/rudraksha/12-mukhi" }],
+    intro: "Blessed by the 12 Adityas (Sun God), 12 Mukhi fills the wearer with magnetic tejas (radiance), authority, administrative brilliance, and vitality."
+  },
+  "/rudraksha/13-mukhi": {
+    h1: "13 Mukhi Rudraksha (Terah Mukhi) — Lord Kamadeva Attraction Bead",
+    title: "13 Mukhi Rudraksha (Terah Mukhi) — Charisma & Venus | Aura Rudraksha",
+    description: "Buy 13 Mukhi Rudraksha blessed by Lord Kamadeva & King Indra. Bestows hypnotic charisma, persuasion, artistic fame, and worldly success.",
+    categoryName: "13 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "13 Mukhi", path: "/rudraksha/13-mukhi" }],
+    intro: "Blessed by Lord Kamadeva and Lord Indra, 13 Mukhi bestows captivating magnetism, oratorical eloquence, fulfillment of desires, and success."
+  },
+  "/rudraksha/14-mukhi": {
+    h1: "14 Mukhi Rudraksha (Chaudah Mukhi) — Deva Mani Ajna Chakra Bead",
+    title: "14 Mukhi Rudraksha (Chaudah Mukhi) — Deva Mani & Intuition | Aura Rudraksha",
+    description: "Rare 14 Mukhi Rudraksha (Deva Mani) blessed by Lord Shiva & Lord Hanuman. Awakens third eye intuition, bestows fearlessness, and clears Shani dosha.",
+    categoryName: "14 Mukhi Rudraksha",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [{ name: "Home", path: "/" }, { name: "Rudraksha", path: "/rudraksha" }, { name: "14 Mukhi", path: "/rudraksha/14-mukhi" }],
+    intro: "Revered in Shiva Purana as Deva Mani (divine gem), 14 Mukhi directly awakens the Ajna Chakra (third eye), conferring supreme intuitive vision and decision-making power."
+  },
   "/rudraksha-for-rashi": {
     h1: "Rudraksha for Your Rashi & Zodiac Sign — Vedic Astrology Guide",
     title: "Rudraksha for Your Rashi & Zodiac Sign — Vedic Guide | Aura Rudraksha",
@@ -1382,8 +1522,18 @@ export function setHtmlTemplate(html) {
  * High-level SSR Renderer that returns injected HTML and proper HTTP status
  */
 export async function renderSsrHtml(pathname, req, customTemplate = null) {
-  const template = customTemplate || getHtmlTemplate();
+  const cleanPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
   const seo = await resolveSeoData(pathname, req);
+
+  // Check if non-canonical path requested for a product (e.g. /product/1 -> 301 redirect to /product/1-mukhi-rudraksha)
+  if (seo.canonical && !seo.noindex && cleanPath.startsWith("/product/")) {
+    const canonicalPath = seo.canonical.replace(/^https?:\/\/[^\/]+/, "");
+    if (canonicalPath && cleanPath !== canonicalPath) {
+      return { html: "", status: 301, redirectUrl: seo.canonical, seo };
+    }
+  }
+
+  const template = customTemplate || getHtmlTemplate();
   const finalHtml = await injectSeoIntoHtml(template, pathname, req);
   const isNotFound = Boolean((seo.title && seo.title.includes("Product Not Found")) || (seo.noindex && pathname.startsWith("/product/")));
   const status = isNotFound ? 404 : 200;

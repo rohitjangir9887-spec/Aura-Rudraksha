@@ -330,7 +330,10 @@ export function createApp(options = {}) {
       }
 
       try {
-        const { html, status } = await renderSsrHtml(req.path, req);
+        const { html, status, redirectUrl } = await renderSsrHtml(req.path, req);
+        if (status === 301 && redirectUrl) {
+          return res.redirect(301, redirectUrl);
+        }
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(status).send(html);

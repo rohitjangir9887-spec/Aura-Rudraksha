@@ -118,6 +118,15 @@ export function AuraAIFloating() {
       return () => clearTimeout(readyTimer);
     }
   }, [loading]);
+
+  // Listen for link navigation events from AI messages to close drawer smoothly
+  useEffect(() => {
+    const handleNavigate = () => {
+      setIsOpen(false);
+    };
+    window.addEventListener("aura-ai-navigate", handleNavigate);
+    return () => window.removeEventListener("aura-ai-navigate", handleNavigate);
+  }, [setIsOpen]);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
   const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);

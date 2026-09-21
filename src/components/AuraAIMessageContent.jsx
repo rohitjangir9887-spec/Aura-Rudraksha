@@ -95,13 +95,66 @@ function renderInlineKeywords(text) {
   });
 }
 
-// Tokenize a line of text for inline formatting & keyword badges
+// Helper to strip trailing punctuation or quotes from URLs
+function cleanRawUrl(urlStr) {
+  if (!urlStr) return "";
+  let clean = urlStr.trim();
+  clean = clean.replace(/^["'“(]+/, "").replace(/["'”)]+$/, "");
+  clean = clean.replace(/[.,;:!?]+$/, "");
+  return clean;
+}
+
+// Extract internal route path if URL points to our app/product or relative path
+function extractInternalRoute(rawUrl) {
+  if (!rawUrl) return null;
+  const clean = cleanRawUrl(rawUrl);
+  if (!clean) return null;
+
+  // Case 1: Direct relative path starting with /
+  if (clean.startsWith("/")) {
+    return clean;
+  }
+
+  // Case 2: Starts with product/, shop/, categories/, cart/, checkout/, wishlist/, account/
+  if (/^(product|shop|categories|cart|checkout|wishlist|account)(\/|\?|$)/i.test(clean)) {
+    return "/" + clean;
+  }
+
+  // Case 3: Full URL or domain string
+  try {
+    let full = clean;
+    if (!full.startsWith("http://") && !full.startsWith("https://")) {
+      full = "https://" + full;
+    }
+    const parsed = new URL(full);
+    const pathname = parsed.pathname || "/";
+    const search = parsed.search || "";
+
+    const isCurrentHost = typeof window !== "undefined" && window.location.hostname === parsed.hostname;
+    const isKnownDomain = 
+      parsed.hostname.includes("aurarudraksha") ||
+      parsed.hostname.includes("run.app") ||
+      parsed.hostname.includes("localhost") ||
+      parsed.hostname.includes("127.0.0.1") ||
+      parsed.hostname.includes("vercel.app");
+
+    const isAppPath = /^\/(product|shop|categories|cart|checkout|wishlist|account)(\/|\?|$)/i.test(pathname);
+
+    if (isCurrentHost || isKnownDomain || isAppPath) {
+      return (pathname + search) || "/";
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+// Tokenize a line of text for inline formatting, links & keyword badges
 export function renderInlineContent(text) {
   if (!text) return null;
 
   try {
-    // Split by inline tokens: [link](url), https?://..., **bold**, `code`, *italic*
-    const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+    // Split by inline tokens: [link](url), https?://..., domain links, relative /product/... paths, **bold**, `code`, *italic*
+    const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<)\]]+|(?:www\.)?(?:aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app)[^\s<)\]]*|\/(?:product|shop|categories|cart|checkout|wishlist|account)[^\s<)\]]*|\b(?:product|shop|categories|cart)\/[a-zA-Z0-9_-]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
     const parts = text.split(tokenRegex);
 
     return parts.map((part, idx) => {
@@ -111,54 +164,74 @@ export function renderInlineContent(text) {
       const mdLinkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (mdLinkMatch) {
         const label = mdLinkMatch[1];
-        let url = mdLinkMatch[2].trim();
+        const rawUrl = mdLinkMatch[2];
+        const internalRoute = extractInternalRoute(rawUrl);
 
-        if (url.includes("aurarudraksha.bond") || url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
-          try {
-            const parsed = new URL(url);
-            url = parsed.pathname + parsed.search;
-          } catch (_) {
-            url = url.replace(/^https?:\/\/(www\.)?(aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app)/i, "") || "/";
-          }
-        }
-
-        if (url.startsWith("/")) {
+        if (internalRoute) {
           return (
-            <Link key={idx} to={url} className="aura-ai-inline-link">
+            <Link
+              key={idx}
+              to={internalRoute}
+              className="aura-ai-inline-link hover:underline font-semibold text-[#8c2b10] inline-flex items-center gap-0.5 cursor-pointer"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent("aura-ai-navigate"));
+              }}
+            >
               {label}
             </Link>
           );
         }
 
+        const cleanExtUrl = cleanRawUrl(rawUrl);
         return (
-          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="aura-ai-inline-link">
+          <a
+            key={idx}
+            href={cleanExtUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="aura-ai-inline-link hover:underline font-semibold text-[#8c2b10] inline-flex items-center gap-0.5 cursor-pointer"
+          >
             {label} <ExternalLink size={10} className="inline ml-0.5" />
           </a>
         );
       }
 
-      // 2. Direct Raw HTTP / HTTPS URL
-      if (part.startsWith("http://") || part.startsWith("https://")) {
-        let url = part;
-        if (url.includes("aurarudraksha.bond") || url.includes("aurarudraksha.com") || url.includes("aura-rudraksha.vercel.app")) {
-          try {
-            const parsed = new URL(url);
-            const relPath = parsed.pathname + parsed.search;
-            return (
-              <Link key={idx} to={relPath || "/"} className="aura-ai-inline-link">
-                {part}
-              </Link>
-            );
-          } catch (_) {}
-        }
+      // 2. Internal Path / Product Link / Domain URL / Full URL
+      const internalRoute = extractInternalRoute(part);
+      if (internalRoute) {
+        const displayLabel = cleanRawUrl(part);
         return (
-          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="aura-ai-inline-link">
-            {part} <ExternalLink size={10} className="inline ml-0.5" />
+          <Link
+            key={idx}
+            to={internalRoute}
+            className="aura-ai-inline-link hover:underline font-semibold text-[#8c2b10] inline-flex items-center gap-0.5 cursor-pointer"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("aura-ai-navigate"));
+            }}
+          >
+            {displayLabel}
+          </Link>
+        );
+      }
+
+      // 3. External HTTP / HTTPS / WWW URL
+      if (part.startsWith("http://") || part.startsWith("https://") || part.startsWith("www.")) {
+        const cleanExtUrl = cleanRawUrl(part);
+        const href = cleanExtUrl.startsWith("http") ? cleanExtUrl : `https://${cleanExtUrl}`;
+        return (
+          <a
+            key={idx}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="aura-ai-inline-link hover:underline font-semibold text-[#8c2b10] inline-flex items-center gap-0.5 cursor-pointer"
+          >
+            {cleanExtUrl} <ExternalLink size={10} className="inline ml-0.5" />
           </a>
         );
       }
 
-      // 3. Bold: **something**
+      // 4. Bold: **something**
       if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
         const inner = part.slice(2, -2);
         return (
@@ -168,7 +241,7 @@ export function renderInlineContent(text) {
         );
       }
 
-      // 4. Code / Coupon / Highlight: `something`
+      // 5. Code / Coupon / Highlight: `something`
       if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
         const inner = part.slice(1, -1);
         return (
@@ -178,7 +251,7 @@ export function renderInlineContent(text) {
         );
       }
 
-      // 5. Italic: *something*
+      // 6. Italic: *something*
       if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
         const inner = part.slice(1, -1);
         return (
@@ -188,7 +261,7 @@ export function renderInlineContent(text) {
         );
       }
 
-      // 6. Phone / Email in plain text
+      // 7. Phone / Email in plain text
       const words = part.split(/(\+91\s*\d{10}|\+91\s*\d{5}\s*\d{5}|support@aurarudraksha\.com)/g);
       if (words.length > 1) {
         return (
@@ -295,9 +368,9 @@ export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows 
   const [viewMode, setViewMode] = useState("table"); // 'table' | 'chart'
 
   return (
-    <div className="w-full my-3 bg-gradient-to-b from-[#FFFDF9] to-[#FAF5EE] border border-[#E5D5C5] rounded-2xl p-2.5 sm:p-3.5 shadow-sm overflow-hidden box-border">
+    <div className="w-full my-2.5 overflow-hidden box-border">
       {/* Top Controls Bar with View Switcher Tabs */}
-      <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 mb-2.5 border-b border-[#EADCCF]">
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 mb-2 border-b border-[#EADCCF]">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-base text-amber-700 flex-shrink-0">🪐</span>
           <div className="min-w-0">
@@ -373,7 +446,7 @@ export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows 
   );
 }
 
-// Mantra Card Component with Copy action
+// Mantra Line Component with Copy action
 function MantraCard({ mantraText }) {
   const [copied, setCopied] = useState(false);
   const cleanMantra = mantraText
@@ -391,21 +464,18 @@ function MantraCard({ mantraText }) {
   };
 
   return (
-    <div className="aura-ai-mantra-card">
-      <div className="aura-ai-mantra-header">
-        <span>🕉️ सिद्ध बीज मंत्र (Sacred Mantra)</span>
-        <button 
-          onClick={handleCopy} 
-          className="text-[#b45309] hover:text-[#782218] flex items-center gap-1 cursor-pointer text-[10px]"
-          title="मंत्र कॉपी करें"
-        >
-          {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
-          <span>{copied ? "कॉपी हो गया!" : "कॉपी करें"}</span>
-        </button>
-      </div>
-      <div className="aura-ai-mantra-text">
+    <div className="my-2 py-2 px-3 bg-[#fbf8f3] border-l-3 border-[#8c2b10] rounded-r flex items-center justify-between gap-2">
+      <span className="font-semibold text-[#5c1c0a] text-[13.5px]">
         {cleanMantra}
-      </div>
+      </span>
+      <button 
+        onClick={handleCopy} 
+        className="text-[#8c2b10] hover:text-[#5c1c0a] flex items-center gap-1 cursor-pointer text-[11px] font-medium flex-shrink-0"
+        title="मंत्र कॉपी करें"
+      >
+        {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+        <span>{copied ? "कॉपी हुआ!" : "कॉपी"}</span>
+      </button>
     </div>
   );
 }
@@ -848,36 +918,30 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
   return (
     <div className={`aura-ai-msg-text-ai ${className}`}>
       {blocks.map((block, idx) => {
-        // Greeting Banner
+        // Greeting Banner (Rendered as clean normal chat text)
         if (block.type === "greeting") {
           return (
-            <div key={idx} className="aura-ai-greeting-banner">
-              <span className="aura-ai-greeting-icon">🙏</span>
-              <span className="aura-ai-greeting-text">{renderInlineContent(block.text)}</span>
-            </div>
+            <p key={idx} className="font-semibold text-[#8c2b10] text-[15px] my-1 leading-relaxed">
+              <span className="mr-1.5">🙏</span>
+              {renderInlineContent(block.text)}
+            </p>
           );
         }
 
         // Sacred Divider
         if (block.type === "divider") {
           return (
-            <div key={idx} className="aura-ai-sacred-divider">
-              <span className="aura-ai-divider-line" />
-              <span className="aura-ai-divider-symbol">❖ 🕉 ❖</span>
-              <span className="aura-ai-divider-line" />
-            </div>
+            <div key={idx} className="my-2 border-b border-[#ebdccb]" />
           );
         }
 
         // Section Heading
         if (block.type === "heading") {
           return (
-            <div key={idx} className="aura-ai-section-heading">
-              <span className="aura-ai-heading-icon">
-                <Sparkles size={13} />
-              </span>
-              <span className="aura-ai-heading-title">{renderInlineContent(block.text)}</span>
-            </div>
+            <h3 key={idx} className="text-[15px] font-bold text-[#8c2b10] mt-3.5 mb-1.5 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-[#8c2b10] flex-shrink-0" />
+              <span>{renderInlineContent(block.text)}</span>
+            </h3>
           );
         }
 
@@ -943,21 +1007,24 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         // Warning / Dosh Card
         if (block.type === "warning") {
           return (
-            <div key={idx} className="aura-ai-warning-card">
-              <AlertTriangle size={15} className="aura-ai-warning-icon" />
-              <div>{renderInlineContent(block.text)}</div>
-            </div>
+            <p key={idx} className="my-2 text-[#991b1b] font-medium text-[13.5px] leading-relaxed flex items-start gap-1.5">
+              <AlertTriangle size={15} className="text-[#dc2626] flex-shrink-0 mt-0.5" />
+              <span>{renderInlineContent(block.text)}</span>
+            </p>
           );
         }
 
         // Key-Value Attribute Group
         if (block.type === "kv_group") {
           return (
-            <div key={idx} className="aura-ai-kv-card">
+            <div key={idx} className="my-2 space-y-1 text-[#2d211b]">
               {block.items.map((item, itemIdx) => (
-                <div key={itemIdx} className="aura-ai-kv-row">
-                  <span className="aura-ai-kv-key">{item.key}:</span>
-                  <span className="aura-ai-kv-val">{renderInlineContent(item.value)}</span>
+                <div key={itemIdx} className="text-[14px] leading-relaxed flex items-start gap-1.5">
+                  <span className="text-[#8c2b10] font-bold">✦</span>
+                  <div>
+                    <strong className="text-[#8c2b10] font-semibold">{item.key}:</strong>{" "}
+                    <span>{renderInlineContent(item.value)}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -967,17 +1034,13 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         // Lists
         if (block.type === "list") {
           return (
-            <div key={idx} className="aura-ai-list-wrap">
+            <div key={idx} className="my-2 space-y-1.5">
               {block.items.map((itemText, itemIdx) => (
-                <div key={itemIdx} className="aura-ai-list-item">
-                  <span className="aura-ai-list-bullet">
-                    {block.isNumbered ? (
-                      <span className="aura-ai-step-num">{itemIdx + 1}</span>
-                    ) : (
-                      <span className="aura-ai-dot">✦</span>
-                    )}
+                <div key={itemIdx} className="text-[14.5px] leading-relaxed flex items-start gap-2">
+                  <span className="text-[#8c2b10] font-bold flex-shrink-0 mt-0.5">
+                    {block.isNumbered ? `${itemIdx + 1}.` : "•"}
                   </span>
-                  <div className="aura-ai-list-body">
+                  <div className="flex-1 text-[#2d211b]">
                     {renderInlineContent(itemText)}
                   </div>
                 </div>
