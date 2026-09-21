@@ -17,19 +17,31 @@ import {
   Award,
   AlertTriangle,
   Copy,
-  Check
+  Check,
+  Grid,
+  Table as TableIcon,
+  Compass
 } from "lucide-react";
+import { VedicKundaliChart, RASHI_MAP } from "./VedicKundaliChart";
 
 /**
- * Universal Aura AI Message Renderer
+ * Universal Aura AI Message Renderer & Kundali Presentation Engine
  * 
  * Automatically cleans, parses, and formats AI & Customer messages into 
  * a pristine, modern, high-contrast spiritual Kundali & chat UI without
  * any raw markdown artifacts (**, *, -, ###, ```, |---|---|).
+ * 
+ * Features:
+ * 1. North Indian Kundali SVG chart rendering when birth/planetary data is available.
+ * 2. Mobile-responsive Planetary Cards grid replacing raw Markdown pipe tables on mobile.
+ * 3. View Switcher (Cards | Kundali Chart | Detailed Table) for all planetary reports.
+ * 4. 100% text fidelity (zero truncation, zero data loss, handles streaming gracefully).
+ * 5. Robust semantic column parser (Planet, House, Rashi, Status, Interpretation).
+ * 6. Zero horizontal overflow on mobile screens.
  */
 
-// Helper to clean raw artifacts & secure content while preserving all text
-function sanitizeText(raw) {
+// Helper to clean raw artifacts & secure content while preserving 100% of information
+export function sanitizeText(raw) {
   if (!raw || typeof raw !== "string") return "";
   let text = raw.trim();
 
@@ -84,7 +96,7 @@ function renderInlineKeywords(text) {
 }
 
 // Tokenize a line of text for inline formatting & keyword badges
-function renderInlineContent(text) {
+export function renderInlineContent(text) {
   if (!text) return null;
 
   try {
@@ -223,34 +235,37 @@ function renderInlineContent(text) {
 }
 
 // Map planet name to corresponding Lucide icon
-function getPlanetIcon(planetName = "") {
+export function getPlanetIcon(planetName = "") {
   const p = planetName.toLowerCase();
-  if (p.includes("सूर्य") || p.includes("sun")) return <Sun size={14} className="text-amber-600" />;
-  if (p.includes("चंद्र") || p.includes("moon")) return <Moon size={14} className="text-sky-600" />;
-  if (p.includes("मंगल") || p.includes("mars")) return <Flame size={14} className="text-red-600" />;
-  if (p.includes("बुध") || p.includes("mercury")) return <Sparkles size={14} className="text-emerald-600" />;
-  if (p.includes("गुरु") || p.includes("jupiter")) return <Award size={14} className="text-amber-700" />;
-  if (p.includes("शुक्र") || p.includes("venus")) return <Gem size={14} className="text-purple-600" />;
-  if (p.includes("शनि") || p.includes("saturn")) return <ShieldAlert size={14} className="text-indigo-700" />;
-  if (p.includes("राहु") || p.includes("rahu")) return <Sparkles size={14} className="text-amber-800" />;
-  if (p.includes("केतु") || p.includes("ketu")) return <Sparkles size={14} className="text-amber-900" />;
-  return <Sparkles size={14} className="text-amber-600" />;
+  if (p.includes("सूर्य") || p.includes("sun") || p.includes("surya")) return <Sun size={14} className="text-amber-600 flex-shrink-0" />;
+  if (p.includes("चंद्र") || p.includes("moon") || p.includes("chandra")) return <Moon size={14} className="text-sky-600 flex-shrink-0" />;
+  if (p.includes("मंगल") || p.includes("mars") || p.includes("mangal")) return <Flame size={14} className="text-red-600 flex-shrink-0" />;
+  if (p.includes("बुध") || p.includes("mercury") || p.includes("budha")) return <Sparkles size={14} className="text-emerald-600 flex-shrink-0" />;
+  if (p.includes("गुरु") || p.includes("jupiter") || p.includes("guru") || p.includes("brihaspati")) return <Award size={14} className="text-amber-700 flex-shrink-0" />;
+  if (p.includes("शुक्र") || p.includes("venus") || p.includes("shukra")) return <Gem size={14} className="text-purple-600 flex-shrink-0" />;
+  if (p.includes("शनि") || p.includes("saturn") || p.includes("shani")) return <ShieldAlert size={14} className="text-indigo-700 flex-shrink-0" />;
+  if (p.includes("राहु") || p.includes("rahu")) return <Sparkles size={14} className="text-amber-800 flex-shrink-0" />;
+  if (p.includes("केतु") || p.includes("ketu")) return <Sparkles size={14} className="text-amber-900 flex-shrink-0" />;
+  return <Sparkles size={14} className="text-amber-600 flex-shrink-0" />;
 }
 
 // Map status string to pill badge
-function renderStatusBadge(status = "") {
-  const s = status.trim();
+export function renderStatusBadge(status = "") {
+  const s = status.replace(/\*\*/g, "").trim();
   if (!s) return null;
-  if (s.includes("उच्च")) return <span className="aura-ai-status-badge aura-ai-status-exalted">✨ उच्च (Exalted)</span>;
-  if (s.includes("स्वगृही")) return <span className="aura-ai-status-badge aura-ai-status-own">🏠 स्वगृही (Own Sign)</span>;
-  if (s.includes("नीच")) return <span className="aura-ai-status-badge aura-ai-status-debilitated">⚠️ नीच (Debilitated)</span>;
-  if (s.includes("साम्य") || s.includes("मित्र")) return <span className="aura-ai-status-badge aura-ai-status-neutral">🔵 {s}</span>;
+  if (s.includes("उच्च") || /exalted/i.test(s)) return <span className="aura-ai-status-badge aura-ai-status-exalted">✨ उच्च (Exalted)</span>;
+  if (s.includes("स्वगृही") || /own/i.test(s)) return <span className="aura-ai-status-badge aura-ai-status-own">🏠 स्वगृही (Own)</span>;
+  if (s.includes("नीच") || /debilitated/i.test(s)) return <span className="aura-ai-status-badge aura-ai-status-debilitated">⚠️ नीच (Debilitated)</span>;
+  if (s.includes("साम्य") || s.includes("मित्र") || /neutral|friend/i.test(s)) return <span className="aura-ai-status-badge aura-ai-status-neutral">🔵 {s}</span>;
   return <span className="aura-ai-status-badge aura-ai-status-own">🔸 {s}</span>;
 }
 
 // Individual Planet Card component
-function PlanetCard({ planetName, house, rashi, status, interpretation }) {
+export function PlanetCard({ planetName = "", house = "", rashi = "", status = "", interpretation = "" }) {
   const cleanName = planetName.replace(/^\*{1,2}/, "").replace(/\*{1,2}$/, "").trim();
+  const cleanHouse = house.replace(/\*\*/g, "").trim();
+  const cleanRashi = rashi.replace(/\*\*/g, "").trim();
+
   return (
     <div className="aura-ai-planet-card">
       <div className="aura-ai-planet-header">
@@ -260,15 +275,118 @@ function PlanetCard({ planetName, house, rashi, status, interpretation }) {
         </div>
         {renderStatusBadge(status)}
       </div>
-      {(house || rashi) && (
+      {(cleanHouse || cleanRashi) && (
         <div className="aura-ai-planet-meta">
-          {house && <span className="aura-ai-planet-meta-item">भाव: {house}</span>}
-          {rashi && <span className="aura-ai-planet-meta-item">राशि: {rashi}</span>}
+          {cleanHouse && <span className="aura-ai-planet-meta-item">भाव: {cleanHouse}</span>}
+          {cleanRashi && <span className="aura-ai-planet-meta-item">राशि: {cleanRashi}</span>}
         </div>
       )}
       {interpretation && (
         <div className="aura-ai-planet-interp">
           {renderInlineContent(interpretation)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Interactive Multi-View Component: Cards vs Kundali Chart vs Table
+export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows = [], detectedLagna = 1 }) {
+  const [viewMode, setViewMode] = useState("cards"); // 'cards' | 'chart' | 'table'
+
+  return (
+    <div className="w-full my-3 bg-gradient-to-b from-[#FFFDF9] to-[#FAF5EE] border border-[#E5D5C5] rounded-2xl p-2.5 sm:p-3.5 shadow-sm overflow-hidden box-border">
+      {/* Top Controls Bar with View Switcher Tabs */}
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 mb-2.5 border-b border-[#EADCCF]">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-base text-amber-700 flex-shrink-0">🪐</span>
+          <div className="min-w-0">
+            <h4 className="text-xs font-bold text-[#5C1C0A] leading-tight truncate">ग्रह गोचर व भाव स्थिति</h4>
+            <p className="text-[10px] text-stone-600 font-medium">वैदिक कुण्डली विश्लेषण ({planets.length} ग्रह)</p>
+          </div>
+        </div>
+
+        {/* View Toggle Buttons */}
+        <div className="flex items-center bg-[#F3E8DC] p-0.5 rounded-lg border border-[#E5D5C5] flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewMode("cards")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
+              viewMode === "cards"
+                ? "bg-[#8C2B10] text-white shadow-xs"
+                : "text-[#78350F] hover:text-[#8C2B10]"
+            }`}
+          >
+            <Grid size={11} />
+            <span>कार्ड्स</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("chart")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
+              viewMode === "chart"
+                ? "bg-[#8C2B10] text-white shadow-xs"
+                : "text-[#78350F] hover:text-[#8C2B10]"
+            }`}
+          >
+            <span>🕉️</span>
+            <span>कुण्डली चक्र</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
+              viewMode === "table"
+                ? "bg-[#8C2B10] text-white shadow-xs"
+                : "text-[#78350F] hover:text-[#8C2B10]"
+            }`}
+          >
+            <TableIcon size={11} />
+            <span>तालिका</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content based on ViewMode */}
+      {viewMode === "cards" && (
+        <div className="aura-ai-planet-grid">
+          {planets.map((p, idx) => (
+            <PlanetCard key={idx} {...p} />
+          ))}
+        </div>
+      )}
+
+      {viewMode === "chart" && (
+        <VedicKundaliChart
+          lagnaRashiNumber={detectedLagna}
+          planets={planets}
+          title="लग्न कुण्डली (D1 Chart)"
+          subtitle="उत्तर भारतीय वैदिक चक्र"
+        />
+      )}
+
+      {viewMode === "table" && (
+        <div className="aura-ai-table-wrap">
+          <table className="aura-ai-table">
+            {headers.length > 0 && (
+              <thead>
+                <tr>
+                  {headers.map((h, hIdx) => (
+                    <th key={hIdx}>{h.replace(/\*\*/g, "")}</th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {rawRows.map((row, rIdx) => (
+                <tr key={rIdx}>
+                  {row.map((cell, cIdx) => (
+                    <td key={cIdx}>{renderInlineContent(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -325,7 +443,7 @@ function parseKeyValueLine(line) {
 
   if (
     rawKey.length > 0 && 
-    rawKey.length <= 35 && 
+    rawKey.length <= 40 && 
     !rawKey.includes("?") && 
     !rawKey.endsWith(".") &&
     !rawKey.endsWith("।")
@@ -333,6 +451,81 @@ function parseKeyValueLine(line) {
     return { key: rawKey, value: rawVal };
   }
   return null;
+}
+
+// Detect Lagna Rashi number from full text
+function detectLagnaRashiNumber(text = "") {
+  if (!text) return 1;
+  const lagnaMatch = text.match(/(?:जन्म\s*लग्न|लग्न\s*(?:राशि)?|Lagna|Ascendant)\s*[:|-]?\s*(\d{1,2}|मेष|वृषभ|मिथुन|कर्क|सिंह|कन्या|तुला|वृश्चिक|धनु|मकर|कुंभ|कुम्भ|मीन|Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces)/i);
+  if (lagnaMatch) {
+    const val = lagnaMatch[1].trim();
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num >= 1 && num <= 12) return num;
+    const rashiNames = [
+      ["mesh", "aries", "मेष"],
+      ["vrishabh", "taurus", "वृषभ"],
+      ["mithun", "gemini", "मिथुन"],
+      ["kark", "cancer", "कर्क"],
+      ["singh", "leo", "सिंह"],
+      ["kanya", "virgo", "कन्या"],
+      ["tula", "libra", "तुला"],
+      ["vrischika", "scorpio", "वृश्चिक"],
+      ["dhanu", "sagittarius", "धनु"],
+      ["makar", "capricorn", "मकर"],
+      ["kumbh", "aquarius", "कुंभ", "कुम्भ"],
+      ["meen", "pisces", "मीन"]
+    ];
+    const valLower = val.toLowerCase();
+    for (let idx = 0; idx < rashiNames.length; idx++) {
+      if (rashiNames[idx].some(name => valLower.includes(name))) {
+        return idx + 1;
+      }
+    }
+  }
+  return 1;
+}
+
+// Semantic column extraction from table row
+function parsePlanetaryRow(row = [], headers = []) {
+  let planetName = "";
+  let house = "";
+  let rashi = "";
+  let status = "";
+  let interpretation = "";
+
+  // 1. Try to use headers if available
+  const planetIdx = headers.findIndex(h => /ग्रह|planet|graha/i.test(h));
+  const houseIdx = headers.findIndex(h => /भाव|house|bhava/i.test(h));
+  const rashiIdx = headers.findIndex(h => /राशि|rashi|sign/i.test(h));
+  const statusIdx = headers.findIndex(h => /स्थिति|status|dignity|बलाबल/i.test(h));
+  const interpIdx = headers.findIndex(h => /फल|प्रभाव|उपाय|description|meaning|details/i.test(h));
+
+  if (planetIdx >= 0 && row[planetIdx]) planetName = row[planetIdx];
+  if (houseIdx >= 0 && row[houseIdx]) house = row[houseIdx];
+  if (rashiIdx >= 0 && row[rashiIdx]) rashi = row[rashiIdx];
+  if (statusIdx >= 0 && row[statusIdx]) status = row[statusIdx];
+  if (interpIdx >= 0 && row[interpIdx]) interpretation = row[interpIdx];
+
+  // 2. Fallback: inspect each cell by regex if not matched
+  row.forEach((cell, idx) => {
+    const c = cell.trim();
+    if (!planetName && /^(?:\*{0,2})(सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)(?:\*{0,2})/i.test(c)) {
+      planetName = c;
+    } else if (!house && /(\d+\s*(?:वां|वें|था|रा|st|nd|rd|th)?\s*भाव|भाव\s*\d+|\d+\s*(?:st|nd|rd|th)?\s*house|^[1-9]$|^1[0-2]$)/i.test(c)) {
+      house = c;
+    } else if (!rashi && /(सिंह|कन्या|तुला|वृश्चिक|धनु|मकर|कुंभ|कुम्भ|मीन|मेष|वृषभ|मिथुन|कर्क|Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces)/i.test(c)) {
+      rashi = c;
+    } else if (!status && /(उच्च|नीच|साम्य|स्वगृही|मित्र|शत्रु|Exalted|Debilitated|Neutral|Own Sign)/i.test(c)) {
+      status = c;
+    } else if (idx !== planetIdx && idx !== houseIdx && idx !== rashiIdx && idx !== statusIdx && !interpretation.includes(c)) {
+      interpretation += (interpretation ? " " : "") + c;
+    }
+  });
+
+  // If planetName is still empty, take 1st column
+  if (!planetName && row[0]) planetName = row[0];
+
+  return { planetName, house, rashi, status, interpretation };
 }
 
 // Check if a line looks like a title or section heading
@@ -442,12 +635,33 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
   // For AI message: structured, rich semantic Kundali layout
   const rawString = typeof actualText === "string" ? actualText : (actualText?.text || String(actualText));
   const sanitized = sanitizeText(rawString);
+  const detectedLagna = detectLagnaRashiNumber(sanitized);
 
   const lines = sanitized.split("\n");
   const blocks = [];
   let currentList = null;
   let currentKvGroup = null;
   let currentTable = null;
+  let pendingPlanetCards = [];
+
+  const flushPlanetCards = () => {
+    if (pendingPlanetCards.length > 0) {
+      if (pendingPlanetCards.length >= 3) {
+        blocks.push({
+          type: "planetary_report",
+          planets: pendingPlanetCards,
+          headers: ["ग्रह", "भाव", "राशि", "स्थिति", "फल"],
+          rawRows: pendingPlanetCards.map(p => [p.planetName, p.house, p.rashi, p.status, p.interpretation]),
+          detectedLagna
+        });
+      } else {
+        pendingPlanetCards.forEach(p => {
+          blocks.push({ type: "planet_card", planet: p });
+        });
+      }
+      pendingPlanetCards = [];
+    }
+  };
 
   const flushList = () => {
     if (currentList) {
@@ -465,26 +679,23 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
 
   const flushTable = () => {
     if (currentTable) {
-      // Process table into either Planetary Cards Grid or Responsive Table
       const headers = currentTable.headers || [];
       const rows = currentTable.rows || [];
 
       const isPlanetaryTable = 
-        headers.some(h => /ग्रह|भाव|राशि|स्थिति|फल|Planet|House|Rashi|Status/i.test(h)) ||
+        headers.some(h => /ग्रह|भाव|राशि|स्थिति|बलाबल|Planet|House|Rashi|Dignity|Status/i.test(h)) ||
         rows.some(r => r.some(c => /सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu/i.test(c)));
 
       if (isPlanetaryTable && rows.length > 0) {
-        // Map rows into structured Planet Cards
-        const planetItems = rows.map(r => {
-          return {
-            planetName: r[0] || "",
-            house: r[1] || "",
-            rashi: r[2] || "",
-            status: r[3] || "",
-            interpretation: r.slice(4).join(" ") || ""
-          };
+        // Map rows into structured Planet items using semantic parser
+        const planetItems = rows.map(r => parsePlanetaryRow(r, headers));
+        blocks.push({
+          type: "planetary_report",
+          planets: planetItems,
+          headers,
+          rawRows: rows,
+          detectedLagna
         });
-        blocks.push({ type: "planet_grid", planets: planetItems });
       } else {
         blocks.push({ type: "table", headers, rows });
       }
@@ -500,6 +711,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       flushList();
       flushKv();
       flushTable();
+      flushPlanetCards();
       continue;
     }
 
@@ -507,8 +719,9 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     if (trimmed.includes("|") && (trimmed.startsWith("|") || trimmed.endsWith("|") || trimmed.split("|").length >= 3)) {
       flushList();
       flushKv();
+      flushPlanetCards();
 
-      // Skip table separator line like "|---|---|---|"
+      // Skip markdown table separator line like "|---|---|---|"
       if (/^\|?\s*:?-+:?\s*\|/.test(trimmed)) {
         continue;
       }
@@ -518,10 +731,12 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         .map(c => c.trim())
         .filter((c, idx, arr) => !(idx === 0 && c === "") && !(idx === arr.length - 1 && c === ""));
 
-      if (!currentTable) {
-        currentTable = { headers: cells, rows: [] };
-      } else {
-        currentTable.rows.push(cells);
+      if (cells.length > 0) {
+        if (!currentTable) {
+          currentTable = { headers: cells, rows: [] };
+        } else {
+          currentTable.rows.push(cells);
+        }
       }
       continue;
     } else {
@@ -539,6 +754,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
+      flushPlanetCards();
       const cleanGreeting = trimmed
         .replace(/^\[GREETING\]/i, "")
         .replace(/\[\/GREETING\]$/i, "")
@@ -558,6 +774,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
+      flushPlanetCards();
       blocks.push({ type: "divider" });
       continue;
     }
@@ -566,6 +783,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     if (isHeadingLine(trimmed)) {
       flushList();
       flushKv();
+      flushPlanetCards();
       const headingClean = trimmed
         .replace(/^\[SECTION\]/i, "")
         .replace(/\[\/SECTION\]$/i, "")
@@ -591,6 +809,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
+      flushPlanetCards();
       blocks.push({ type: "mantra", text: trimmed });
       continue;
     }
@@ -604,6 +823,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     ) {
       flushList();
       flushKv();
+      flushPlanetCards();
       const cleanWarn = trimmed
         .replace(/^\[(IMPORTANT|WARNING)\]/i, "")
         .replace(/\[\/(IMPORTANT|WARNING)\]$/i, "")
@@ -612,8 +832,8 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       continue;
     }
 
-    // 7. Single Planet Line / Key-Value
-    const planetMatch = trimmed.match(/^(?:[-*•✦🕉▪▫▸►\d.)]\s*)?\*{0,2}(सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)(?:\s*[\(/][^)]*[\)])?\*{0,2}\s*:\s*(.+)$/i);
+    // 7. Single Planet Line / Bullet (e.g., "- सूर्य: प्रथम भाव में मेष राशि (उच्च)")
+    const planetMatch = trimmed.match(/^(?:[-*•✦🕉▪▫▸►\d.)]\s*)?\*{0,2}(सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)(?:\s*[\(/][^)]*[\)])?\*{0,2}\s*[:|-]\s*(.+)$/i);
     if (planetMatch) {
       flushList();
       flushKv();
@@ -628,17 +848,16 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       const houseMatch = rest.match(/(\d+\s*(?:वां|वें|था|रा|रां|st|nd|rd|th)?\s*भाव|भाव\s*\d+|\d+\s*(?:st|nd|rd|th)?\s*house)/i);
       if (houseMatch) house = houseMatch[1];
 
-      const rashiMatch = rest.match(/(सिंह|कन्या|तुला|वृश्चिक|धनु|मकर|कुंभ|मीन|मेष|वृषभ|मिथुन|कर्क)\s*(?:राशि)?/);
+      const rashiMatch = rest.match(/(सिंह|कन्या|तुला|वृश्चिक|धनु|मकर|कुंभ|कुम्भ|मीन|मेष|वृषभ|मिथुन|कर्क)\s*(?:राशि)?/);
       if (rashiMatch) rashi = rashiMatch[1];
 
       const statusMatch = rest.match(/(उच्च|नीच|साम्य|स्वगृही|मित्र|शत्रु|Exalted|Debilitated|Neutral|Own Sign)/i);
       if (statusMatch) status = statusMatch[1];
 
-      blocks.push({
-        type: "planet_card",
-        planet: { planetName: name, house, rashi, status, interpretation }
-      });
+      pendingPlanetCards.push({ planetName: name, house, rashi, status, interpretation });
       continue;
+    } else {
+      flushPlanetCards();
     }
 
     // 8. Key-Value attribute line
@@ -680,6 +899,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
   flushList();
   flushKv();
   flushTable();
+  flushPlanetCards();
 
   return (
     <div className={`aura-ai-msg-text-ai ${className}`}>
@@ -717,14 +937,16 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Planet Grid
-        if (block.type === "planet_grid") {
+        // Multi-View Planetary & Kundali Report (Cards + SVG Kundali Chart + Table)
+        if (block.type === "planetary_report") {
           return (
-            <div key={idx} className="aura-ai-planet-grid">
-              {block.planets.map((p, pIdx) => (
-                <PlanetCard key={pIdx} {...p} />
-              ))}
-            </div>
+            <ResponsivePlanetaryReport
+              key={idx}
+              planets={block.planets}
+              headers={block.headers}
+              rawRows={block.rawRows}
+              detectedLagna={block.detectedLagna || detectedLagna}
+            />
           );
         }
 
@@ -737,7 +959,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Responsive Table
+        // Non-Planetary Responsive Table
         if (block.type === "table") {
           return (
             <div key={idx} className="aura-ai-table-wrap">

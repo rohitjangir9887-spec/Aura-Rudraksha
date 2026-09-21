@@ -336,6 +336,7 @@ export function AuraAIFloating() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [errorOccurred, setErrorOccurred] = useState(false);
   const [lastUserQuery, setLastUserQuery] = useState("");
+  const [activePassCount, setActivePassCount] = useState(0);
   const timerRef = useRef(null);
   const turnSeqRef = useRef(0);
   const autoContinuationCountRef = useRef(0);
@@ -811,7 +812,16 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
-          autoContinuationCountRef.current = 0;
+
+          // Automated background continuation: If text is incomplete, automatically trigger continuation passes up to 10 times for big chats
+          if (isAuraResponseIncomplete(cleanText, mode) && autoContinuationCountRef.current < 10) {
+            autoContinuationCountRef.current = 1;
+            setTimeout(() => {
+              handleContinueChat(aiMsg, 1, 10);
+            }, 300);
+          } else {
+            autoContinuationCountRef.current = 0;
+          }
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -855,21 +865,16 @@ export function AuraAIFloating() {
     }
   };
 
-  const handleContinueChat = async (targetMsg, autoPassNumber = 0) => {
+  const handleContinueChat = async (targetMsg, autoPassNumber = 0, maxPasses = 10) => {
     if (!targetMsg) return;
     const baseText = targetMsg.text || "";
-    
-    // Guard: If response is already complete and user manually triggered, do not send duplicate continuation request
-    if (!isAuraResponseIncomplete(baseText, mode) && autoPassNumber === 0) {
-      emitToast("यह उत्तर पहले से ही पूर्ण है 🙏", "info");
-      return;
-    }
 
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। यदि उत्तर पहले ही पूर्ण हो चुका है, तो कुछ भी दोहराएं नहीं। (Please continue the rest of the answer seamlessly right from where it stopped without repeating any previous text).";
 
     auraAiClient.abortActiveStream();
     const currentTurnSeq = ++turnSeqRef.current;
     activeAiMsgIdRef.current = targetMsg.id;
+    setActivePassCount(autoPassNumber + 1);
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -877,7 +882,7 @@ export function AuraAIFloating() {
 
     setLastUserQuery(prompt);
     setErrorOccurred(false);
-    setStatusText(mode === "panditji" ? "🕉️ उत्तर का अगला भाग तैयार हो रहा है..." : "🔍 Analyzing continuation...");
+    setStatusText(mode === "panditji" ? `🕉️ उत्तर का अगला भाग तैयार हो रहा है (${autoPassNumber + 1}/${maxPasses})...` : `🔍 Analyzing continuation (${autoPassNumber + 1}/${maxPasses})...`);
     setElapsedTime(0);
     setLoading(true);
 
@@ -885,7 +890,7 @@ export function AuraAIFloating() {
       setElapsedTime((prev) => {
         const next = prev + 1;
         if (!streamInitialized) {
-          setStatusText(mode === "panditji" ? "🕉️ वैदिक गणना व विश्लेषण जारी है..." : "🔍 Completing response...");
+          setStatusText(mode === "panditji" ? `🕉️ वैदिक गणना व विश्लेषण जारी है (${autoPassNumber + 1}/${maxPasses})...` : `🔍 Completing response (${autoPassNumber + 1}/${maxPasses})...`);
         }
         return next;
       });
@@ -929,7 +934,7 @@ export function AuraAIFloating() {
             setLoading(false);
             setErrorOccurred(false);
           }
-          setStatusText(mode === "panditji" ? "वैदिक परामर्श पूरा लिखा जा रहा है..." : "Writing answer...");
+          setStatusText(mode === "panditji" ? `वैदिक परामर्श पूरा लिखा जा रहा है (${autoPassNumber + 1}/${maxPasses})...` : `Writing answer (${autoPassNumber + 1}/${maxPasses})...`);
           const merged = smartMergeContinuation(baseText, cleanAccumulated);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
@@ -964,6 +969,7 @@ export function AuraAIFloating() {
           }
           const cleanFinal = customerSafeAiText(finalData.text || "");
           const finalMerged = smartMergeContinuation(baseText, cleanFinal);
+          const hasNewContent = finalMerged.length > baseText.length + 10;
           const aiMsg = {
             ...targetMsg,
             id: aiMsgId,
@@ -989,15 +995,29 @@ export function AuraAIFloating() {
             return [...prev, aiMsg];
           });
           setLoading(false);
-          if (activeAiMsgIdRef.current === aiMsgId) {
-            activeAiMsgIdRef.current = null;
+
+          // Automated background continuation: Continue up to 10 passes for big chats if still incomplete
+          const nextPass = autoPassNumber + 1;
+          const shouldContinue = hasNewContent && isAuraResponseIncomplete(finalMerged, mode) && nextPass < maxPasses;
+
+          if (shouldContinue) {
+            autoContinuationCountRef.current = nextPass;
+            setTimeout(() => {
+              handleContinueChat(aiMsg, nextPass, maxPasses);
+            }, 300);
+          } else {
+            autoContinuationCountRef.current = 0;
+            setActivePassCount(0);
+            if (activeAiMsgIdRef.current === aiMsgId) {
+              activeAiMsgIdRef.current = null;
+            }
           }
-          autoContinuationCountRef.current = 0;
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Continue stream notice:", err);
           setLoading(false);
+          setActivePassCount(0);
           if (activeAiMsgIdRef.current === aiMsgId) {
             activeAiMsgIdRef.current = null;
           }
@@ -1006,13 +1026,14 @@ export function AuraAIFloating() {
             timerRef.current = null;
           }
           if (!streamInitialized && autoPassNumber === 0) {
-            emitToast("उत्तर पूरा करने में संपर्क त्रुटि, कृपया 'पूरा करें' बटन पर दोबारा क्लिक करें।", "info");
+            emitToast("उत्तर पूरा करने में संपर्क त्रुटि, कृपया 'शुरू करें' बटन पर दोबारा क्लिक करें।", "info");
           }
         }
       });
     } catch (err) {
       if (currentTurnSeq !== turnSeqRef.current) return;
       setLoading(false);
+      setActivePassCount(0);
       if (activeAiMsgIdRef.current === aiMsgId) {
         activeAiMsgIdRef.current = null;
       }
@@ -1958,8 +1979,42 @@ export function AuraAIFloating() {
                             )}
                           </div>
                           {m.sender === "ai" && m.text && (
-                            <div style={{ marginTop: "4px" }}>
+                            <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                               <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleContinueChat(m, 0, 10);
+                                }}
+                                disabled={loading && activeAiMsgIdRef.current === m.id}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  padding: "4px 10px",
+                                  borderRadius: "14px",
+                                  background: (loading && activeAiMsgIdRef.current === m.id)
+                                    ? "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)"
+                                    : "linear-gradient(135deg, #FFF7ED 0%, #FEF3C7 100%)",
+                                  color: "#8C2B10",
+                                  border: "1.5px solid #D97706",
+                                  cursor: (loading && activeAiMsgIdRef.current === m.id) ? "wait" : "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  boxShadow: "0 1px 4px rgba(217, 119, 6, 0.18)",
+                                  transition: "all 0.2s ease",
+                                  userSelect: "none"
+                                }}
+                                title="उत्तर को जहाँ से रुका है, वहाँ से आगे शुरू करें (ऑटोमैटिक 10 बार तक / Auto continue up to 10 passes)"
+                              >
+                                <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin text-amber-600" : "text-amber-700"} />
+                                <span>
+                                  {(loading && activeAiMsgIdRef.current === m.id)
+                                    ? `शुरू है (${activePassCount || 1}/10)...`
+                                    : "✨ शुरू करें (पूरा करें)"}
+                                </span>
+                              </button>
                             </div>
                           )}
 
@@ -2344,7 +2399,7 @@ export function AuraAIFloating() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleContinueChat(m, 0);
+                                      handleContinueChat(m, 0, 10);
                                     }}
                                     disabled={loading && activeAiMsgIdRef.current === m.id}
                                     style={{
@@ -2362,10 +2417,10 @@ export function AuraAIFloating() {
                                       boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
                                       transition: "all 0.15s ease"
                                     }}
-                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff)"
+                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff - 10 passes)"
                                   >
                                     <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? "पूरा किया जा रहा है..." : "✨ पूरा करें"}</span>
+                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ पूरा करें"}</span>
                                   </button>
                                 )}
 
