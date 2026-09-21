@@ -1445,3 +1445,68 @@ export function calculateAuthenticKundali(params = {}) {
   };
 }
 
+/**
+ * Determine Question Intent for Focused Astrological Analysis
+ */
+export function determineAstrologicalIntent(userQuery = "") {
+  if (!userQuery || typeof userQuery !== "string") return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+  const q = userQuery.toLowerCase().trim();
+
+  // Full Kundali triggers
+  if (/puri kundali|poori kundali|full kundali|complete reading|poori jankari|sampurna kundali|har har mahadev|sab batayein|sabhi grah|विस्तार से|पूरी कुंडली/i.test(q)) {
+    return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+  }
+
+  // Career
+  if (/career|job|naukri|business|paisa|vyapar|promotion|success|kaam|profession|d10|dashamsha|10th house|कैरियर|नौकरी|व्यापार|रोजगार|काम/i.test(q)) {
+    return { type: "career", label: "Career & Business Analysis", houses: [10, 1, 6, 2, 11], karakas: ["Sun", "Mars", "Saturn", "Mercury", "AmK"], dChart: "D10 Dashamsha" };
+  }
+
+  // Marriage & Relationships
+  if (/marriage|shaadi|shadi|vivah|love|relationship|husband|wife|spouse|partner|manglik|d9|navamsha|7th house|upapada|शादी|विवाह|पति|पत्नी|दंपति|प्रेम/i.test(q)) {
+    return { type: "marriage", label: "Marriage & Relationship Analysis", houses: [7, 2, 4, 8], karakas: ["Venus", "Jupiter", "DK"], dChart: "D9 Navamsha" };
+  }
+
+  // Wealth & Finance
+  if (/wealth|dhan|money|paisa|finance|debt|karza|riddhi|siddhi|11th house|2nd house|dhana yoga|lakshmi|धन|संपत्ति|कर्ज|रुपया|पैसा/i.test(q)) {
+    return { type: "finance", label: "Wealth & Finance Analysis", houses: [2, 11, 5, 9, 6], karakas: ["Jupiter", "Venus", "Mercury"], dChart: "D2 Hora" };
+  }
+
+  // Health
+  if (/health|roog|rog|illness|disease|hospital|bimari|swasthya|longevity|ayush|6th house|8th house|स्वास्थ्य|बीमारी|रोग|आयु|आरोग्य/i.test(q)) {
+    return { type: "health", label: "Health & Vitality Analysis", houses: [1, 6, 8, 12], karakas: ["Sun", "Moon", "Mars", "Saturn"], dChart: "D30 Trimshamsha" };
+  }
+
+  // Education
+  if (/study|padhai|education|exam|competitive|degree|school|college|5th house|4th house|पढ़ाई|शिक्षा|परीक्षा|विद्या/i.test(q)) {
+    return { type: "education", label: "Education & Intellect Analysis", houses: [4, 5, 9, 6], karakas: ["Mercury", "Jupiter"], dChart: "D24 Chaturvimshamsha" };
+  }
+
+  // Travel & Foreign
+  if (/foreign|abroad|travel|visa|pr|settlement|videsh|12th house|9th house|विदेश|यात्रा|वीजा|विदेश वास/i.test(q)) {
+    return { type: "travel", label: "Foreign Travel & Relocation Analysis", houses: [12, 9, 3, 7], karakas: ["Rahu", "Moon"], dChart: "D9 Navamsha" };
+  }
+
+  // Children / Progeny
+  if (/child|baby|bachha|santan|progeny|conception|5th house|d7|संतान|बच्चा|वंश/i.test(q)) {
+    return { type: "progeny", label: "Children & Lineage Analysis", houses: [5, 9, 2], karakas: ["Jupiter", "PK"], dChart: "D7 Saptamsha" };
+  }
+
+  // Property
+  if (/property|land|house|makaan|makan|car|gaadi|vehicle|4th house|मकान|जमीन|संपत्ति|वाहन|गाड़ी/i.test(q)) {
+    return { type: "property", label: "Property & Vehicles Analysis", houses: [4, 10, 2], karakas: ["Mars", "Venus", "Saturn"], dChart: "D4 & D16" };
+  }
+
+  // Spirituality
+  if (/spiritual|moksha|god|mantra|meditation|sadhana|guru|12th house|8th house|ak|अध्यात्म|मोक्ष|साधना|मंत्र|गुरु/i.test(q)) {
+    return { type: "spirituality", label: "Spiritual Sadhana & Moksha Analysis", houses: [12, 9, 8, 5], karakas: ["Ketu", "Jupiter", "AK"], dChart: "D20 Vimshamsha" };
+  }
+
+  // Dasha Timing
+  if (/dasha|mahadasha|antardasha|time|kab milega|kab hogi|subh samay|दशा|महादशा|अंतर्दशा|कब/i.test(q)) {
+    return { type: "dasha_timing", label: "Vimshottari Dasha & Time Window Analysis" };
+  }
+
+  return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+}
+

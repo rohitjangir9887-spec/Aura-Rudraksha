@@ -186,6 +186,12 @@ export async function retrieveRagContext(userQuery = "", topK = 4) {
     if (doc.docType === "policy" && (queryLower.includes("shipping") || queryLower.includes("return") || queryLower.includes("guarantee") || queryLower.includes("certificate") || queryLower.includes("delivery"))) {
       score += 40;
     }
+    if (doc.docType === "shastra" && (queryLower.includes("shastra") || queryLower.includes("bphs") || queryLower.includes("parashar") || queryLower.includes("jaimini") || queryLower.includes("jyotish") || queryLower.includes("dasha") || queryLower.includes("yoga") || queryLower.includes("purana"))) {
+      score += 50;
+    }
+    if (doc.docType === "astrology_domain" && (queryLower.includes("career") || queryLower.includes("marriage") || queryLower.includes("health") || queryLower.includes("wealth") || queryLower.includes("business") || queryLower.includes("education") || queryLower.includes("travel") || queryLower.includes("foreign") || queryLower.includes("progeny") || queryLower.includes("child") || queryLower.includes("property") || queryLower.includes("money"))) {
+      score += 60;
+    }
 
     return { doc, score };
   });

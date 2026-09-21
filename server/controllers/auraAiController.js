@@ -18,11 +18,12 @@ import {
   extractMukhiNumber, 
   VEDIC_BEADS_KNOWLEDGE 
 } from "../services/vedicKnowledgeService.js";
-import { calculateAuthenticKundali } from "../services/vedicAstrologyService.js";
+import { calculateAuthenticKundali, determineAstrologicalIntent } from "../services/vedicAstrologyService.js";
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
 import { retrieveRagContext } from "../services/ragService.js";
 import { generateSeoAndVedicDataWithNemotron } from "../services/nemotronSeoEngine.js";
 import { executeAiToolCall } from "../services/aiToolsService.js";
+import { shouldPerformWebResearch, performGoogleSearchGrounding } from "../services/groundingService.js";
 
 const AI_SETTING_FIELDS = {
   enabled: "bool", showFloatingButton: "bool", showHeaderButton: "bool",
@@ -1516,7 +1517,20 @@ LINK FORMAT RULES:
       }
     }
 
-    // 6. Build High-Integrity Persona System Prompt for NVIDIA NIM (nemotron-3-super-120b-a12b)
+    // 6. Perform Google Search Grounding if query requires live research
+    let webResearchResult = null;
+    if (message && shouldPerformWebResearch(message)) {
+      try {
+        const geminiKey = await resolveGeminiKey();
+        webResearchResult = await performGoogleSearchGrounding(message, geminiKey);
+      } catch (gErr) {
+        console.warn("[Aura AI] Research grounding notice:", gErr?.message);
+      }
+    }
+
+    const astroIntent = determineAstrologicalIntent(message || "");
+
+    // 7. Build High-Integrity Persona System Prompt for NVIDIA NIM (nemotron-3-super-120b-a12b)
     let systemPrompt = "";
 
     if (mode === "panditji") {
@@ -1526,10 +1540,16 @@ DEFAULT LANGUAGE DIRECTIVE (MANDATORY):
 - DEFAULT TO PURE, RESPECTFUL, FLUENT HINDI (देवनागरी लिपि / Devanagari script) for all astrological readings, explanations, mantras, and remedies.
 - Use pure, natural Hindi by default. Use English only if the devotee specifically writes their entire prompt in English.
 - Begin with traditional Vedic greetings: "🙏 प्रणाम भक्त! हर हर महादेव।" or "🙏 जय श्री राम!"
-- You possess authoritative mastery of classical Vedic canons: Brihat Parashara Hora Shastra (BPHS), Phaladeepika (Mantreswara), Saravali (Kalyanavarma), Jaimini Upadesha Sutras, and Shiva Purana (Vidyeshvara Samhita).
+- You possess authoritative mastery of classical Vedic canons: Brihat Parashara Hora Shastra (BPHS), Phaladeepika (Mantreswara), Saravali (Kalyanavarma), Jaimini Upadesha Sutras, Brihat Jataka, Jataka Parijata, Laghu Parashari, Prashna Marga, Muhurta Chintamani, and Shiva Purana (Vidyeshvara Samhita).
 - Maintain a calm, scholarly, spiritual, and empowering AI Pandit Ji persona. Keep predictions non-fatalistic, constructive, and inspiring.
 
 ${urlAndCatalogRulesText}
+
+${webResearchResult ? `
+VERIFIED REAL-TIME GOOGLE SEARCH GROUNDING CONTEXT:
+${webResearchResult.researchSummary}
+${webResearchResult.citations && webResearchResult.citations.length > 0 ? `Sources & Citations:\n${webResearchResult.citations.join("\n")}` : ""}
+` : ""}
 
 KUNDALI & ASTROLOGICAL FIDELITY:
 ${calculatedKundaliData ? `
@@ -1554,37 +1574,46 @@ AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TI
 - Dosha Analysis: Manglik: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote} | Shani Sade Sati: ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "Sade Sati Mukt"} | Kaal Sarp: ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.type || "None"}
 - Recommended Vedic Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => `${r.role}: ${r.mukhi}`).join(" | ")}
 
-JYOTISH REASONING & CONSULTATION GUIDELINES:
-1. Think deeply before responding. Analyze the relevant houses, house lords, natural karakas, Jaimini karakas (AK, AmK, DK), Dasha period, and divisional charts (D9 Navamsha, D10 Dashamsha, D7 Saptamsha) specific to the user's question.
-2. For specific questions (e.g. career, marriage, education, financial stability, health):
-   - Provide a direct, focused, and deeply insightful response analyzing the relevant Grahas, Bhavas, and active Dasha.
-   - Explain the karmic patterns, time windows, and constructive remedial guidance naturally.
-3. For a full Kundali consultation or when reading a new chart, follow the comprehensive 11-step consultation structure:
-   1. 🙏 वैदिक अभिवादन व जातक परिचय (Vedic Greeting for ${calculatedKundaliData.verifiedBirthData.name})
-   2. 🔭 लग्न, चंद्र राशि, सूर्य राशि व नवमांश (D9) विश्लेषण (Core Identity, Mind & Soul)
-   3. 🪐 सभी 9 ग्रहों के भाव, दृष्टि व बलाबल का गहरा विश्लेषण (Detailed 9 Graha breakdown)
-   4. 📅 पंचांग फल (तिथि, वार, योग, करण व शुभाशुभ प्रभाव)
-   5. ⏱️ विंशोत्तरी महादशा व अंतर्दशा समय सीमा (Current Dasha influence & upcoming transition)
-   6. ⚠️ संपूर्ण दोष विचार (मंगलिक दोष, साढ़े साती/ढैया चरण, काल सर्प योग)
-   7. ✨ शुभ योग व वर्गोत्तम ग्रह (राजयोग, गजकेसरी योग, बुधादित्य योग, विपरीत राजयोग)
-   8. 🎯 जातक के मुख्य संकल्प/समस्या पर विशेष ज्योतिषीय मार्गदर्शन (${calculatedKundaliData.verifiedBirthData.concern || 'All Life Areas'})
-   9. 📿 **वैदिक रुद्राक्ष परामर्श (Lagna bead, Rashi bead, Dasha bead & Shiva Purana Dharan Vidhi)** — Recommend beads strictly based on calculated Lagna, Rashi, Dasha and specific life intention.
-   10. 🌟 **सरल व स्पष्ट सारांश तालिका (Final Astrological Summary)** — Provide an easy-to-read summary table:
-| विषय (Area) | विवरण (Details) | सरल फल / लाभ (Simple Meaning & Benefit) |
-|---|---|---|
-| **जन्म लग्न** | ... | ... |
-| **जन्म राशि व नक्षत्र** | ... | ... |
-| **वर्तमान महादशा** | ... | ... |
-| **मुख्य ग्रह स्थिति / दोष** | ... | ... |
-| **कल्याणकारी रुद्राक्ष** | ... | ... |
-| **दैनिक सिद्ध बीज मंत्र** | ... | ... |
-   11. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5** — Mandatorily output 4 to 6 concise follow-up search keywords separated by | on the very last line.
+DETECTED QUERY INTENT:
+- User Intention Category: "${astroIntent.label}" (${astroIntent.type})
 
-STRICT ISOLATION & ACCURACY RULES:
-1. Consultation is 100% EXCLUSIVELY for: ${calculatedKundaliData.verifiedBirthData.name} (DOB: ${calculatedKundaliData.verifiedBirthData.dob}).
-2. NEVER combine or leak other profiles from past chat history.
-3. NEVER ask for DOB, birth time, or birth place again. Verified birth details are already calculated above.
-4. Output clean linebreaks (\n); NEVER output raw HTML tags like <br>.
+JYOTISH REASONING & CONSULTATION GUIDELINES:
+1. Determine the user's intent:
+${astroIntent.type === "full_kundali" ? `
+   - Devotee requested FULL KUNDALI ANALYSIS ("पूरी कुंडली बताओ").
+   - Provide an exhaustive, beautifully structured 25-point comprehensive analysis:
+     1. 🙏 वैदिक अभिवादन व जातक परिचय (${calculatedKundaliData.verifiedBirthData.name})
+     2. 🔭 जन्म लग्न, चंद्र राशि, सूर्य राशि, नक्षत्र, पाद व मूलांक (Core Identity, Mind & Soul)
+     3. 🪐 नवग्रहों की विस्तृत स्थिति, राशि, अंश, भाव व नवमांश (D9)
+     4. 📅 पंचांग फल (तिथि, वार, योग, करण व शुभाशुभ प्रभाव)
+     5. ⏱️ विंशोत्तरी महादशा व अंतर्दशा समय चक्र (Current Dasha & Future Roadmap)
+     6. ⚠️ संपूर्ण दोष विचार (मंगलिक दोष, साढ़े साती/ढैया चरण, काल सर्प योग)
+     7. ✨ शुभ राजयोग व वर्गोत्तम ग्रह (गजकेसरी, बुधादित्य, पंच महापुरुष, विपरीत राजयोग, नीचभंग)
+     8. 💼 कार्यक्षेत्र, आजीविका व व्यापार (10th House, D10 Dashamsha, Amatyakaraka AmK)
+     9. 💰 धन, संपत्ति व आर्थिक स्थिति (2nd & 11th House, Dhana Yogas)
+     10. 💍 विवाह, दांपत्य जीवन व जीवनसाथी का स्वभाव (7th House, D9 Navamsha, Darakaraka DK, Upapada UL)
+     11. 👨‍👩‍👧‍👦 कुटुंब व संतान सुख (5th House, D7 Saptamsha, Putrakaraka PK)
+     12. 🎓 शिक्षा, बुद्धि व प्रतियोगिता (4th, 5th, 9th House, D24)
+     13. ✈️ विदेश यात्रा, वीजा व विदेश वास (12th, 9th House)
+     14. 🏥 स्वास्थ्य, आरोग्य व दीर्घायु (1st, 6th, 8th House, D30)
+     15. 🧘 आध्यात्मिक साधना, इष्ट देव व मोक्ष मार्ग (12th, 8th House, D20, Atmakaraka AK)
+     16. 📿 **वैदिक रुद्राक्ष परामर्श (Lagna, Rashi, Dasha & Goal-based Mukhi, Dharan Vidhi, Beej Mantra)**
+     17. 🌟 **सरल व स्पष्ट सारांश तालिका (Final Astrological Summary Table)**
+     18. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5**
+` : `
+   - Devotee requested a SPECIFIC QUESTION regarding: "${astroIntent.label}".
+   - Provide a direct, focused, and deeply insightful response targeting the relevant houses (${astroIntent.houses ? astroIntent.houses.join(", ") : "houses"}), house lords, natural and Jaimini karakas (${astroIntent.karakas ? astroIntent.karakas.join(", ") : "karakas"}), divisional charts (${astroIntent.dChart || "D9/D10"}), active Dasha timeline, and practical remedies.
+   - Explain the karmic patterns, active time window, and remedies clearly without dumping unrelated sections.
+   - Conclude with the summary table and [AURA_KEYWORDS].
+`}
+
+STRICT ACCURACY & REASONING RULES:
+1. NEVER claim "100% accurate predictions", "100% future prediction", "guaranteed results", or "scientifically proven horoscope".
+2. Explain technical terms simply in Hindi ("इसका आसान अर्थ").
+3. Distinguish classical rules (BPHS/Jaimini), later commentary, traditional beliefs, and modern interpretations. Never invent fake quotations or false citations.
+4. Consultation is 100% EXCLUSIVELY for: ${calculatedKundaliData.verifiedBirthData.name} (DOB: ${calculatedKundaliData.verifiedBirthData.dob}).
+5. NEVER ask for DOB, birth time, or birth place again. Verified birth details are already calculated above.
+6. Output clean linebreaks (\n); NEVER output raw HTML tags like <br>.
 ` : `
 - If the user asks for personalized Kundali, Mahadasha, Antardasha, Rashi, Manglik, Sade Sati, or Graha Dosha analysis (such as "मेरे किस की महादशा चल रही है", "मेरी महादशा क्या है", "कुंडली बताओ") without providing complete birth details (DOB, Time, Place):
   1. Greet them warmly in Hindi: "🙏 प्रणाम भक्त! हर हर महादेव।"

@@ -43,6 +43,62 @@ export const VEDIC_SHASTRA_KNOWLEDGE = {
         "Upapada Lagna (UL): Reveals the nature of marriage, marital stability, and spouse's background."
       ]
     },
+    brihatJataka: {
+      title: "Brihat Jataka",
+      author: "Acharya Varahamihira",
+      authority: "Master classical text on planetary natures, sign qualities, birth timing, and royal horoscopy",
+      corePrinciples: [
+        "Graha strength (Sthanabala, Digbala, Kala Bala, Chesta Bala) determines the actual potency of yogas.",
+        "Moon sign (Chandra Rashi) acts as secondary Lagna (Chandra Lagna) reflecting mental perception and emotional reality."
+      ]
+    },
+    jatakaParijata: {
+      title: "Jataka Parijata",
+      author: "Vaidyanatha Dikshita",
+      authority: "Comprehensive medieval treatise on Raja Yogas, Dhana Yogas, Longevity (Ayurdaya), and Dasha synthesis",
+      corePrinciples: [
+        "A planet in its exaltation sign or Vargottama Navamsha acts as a royal protector.",
+        "Kendra and Trikona lords in mutual reception (Parivartana) or conjunction generate potent Raja Yogas."
+      ]
+    },
+    laghuParashari: {
+      title: "Laghu Parashari (Jataka Chandrika)",
+      author: "Parashari Tradition",
+      authority: "Concise summary of Parashari Vimshottari Dasha principles and functional planet classifications",
+      corePrinciples: [
+        "Kendra lords become neutral/functional malefics (Kendradhipati Dosha for benefics like Jupiter & Venus).",
+        "Trikona lords (1, 5, 9) are ALWAYS functional benefics regardless of their natural malefic nature.",
+        "Lords of 3, 6, 11 are functional malefics (Trishadaya lords representing desire and struggle).",
+        "Lords of 2 and 7 are Marakas (death-inflicting or life-transforming indicators)."
+      ]
+    },
+    prashnaMarga: {
+      title: "Prashna Marga & Prashna Jyotish",
+      author: "Namboodiri Tradition of Kerala",
+      authority: "Supreme authoritative work on Horary Astrology (Prashna), immediate query resolution, and omens (Nimitta)",
+      corePrinciples: [
+        "Prashna Lagna at the time of query mirrors the current psychological state and active karmic obstacle.",
+        "Karya Bhava (house of query) and Karyesh (lord of query house) relationship indicates instant success or delay."
+      ]
+    },
+    muhurtaChintamani: {
+      title: "Muhurta Chintamani",
+      author: "Acharya Rama",
+      authority: "Classical canon on electional astrology (Muhurta), Panchanga purity, and auspicious timing",
+      corePrinciples: [
+        "Panchanga 5 pillars: Tithi (Lunar day), Vara (Solar weekday), Nakshatra (Lunar asterism), Yoga (Solar-lunar angle), Karana (Half tithi).",
+        "Abhijit Muhurta (midday window) pacifies majority of astrological doshas for immediate sacred ventures."
+      ]
+    },
+    varshaphalaTajika: {
+      title: "Varshaphala & Tajika Nilakanthi",
+      author: "Acharya Nilakantha",
+      authority: "Annual solar return chart system (Varshaphala), Sahams, and Muntha analysis",
+      corePrinciples: [
+        "Varsha Lagna and Muntha position reveal the annual thematic focus (career, health, relocation).",
+        "Mudda Dasha governs month-by-month events within the solar return year."
+      ]
+    },
     shivaPurana: {
       title: "Shiva Purana (Vidyeshvara Samhita)",
       authority: "Supreme scriptural source on sacred Rudraksha beads, their divine origins from Lord Shiva's tears of compassion, and their consecration",
