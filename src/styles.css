@@ -991,13 +991,14 @@ body {
     height: 40px;
 }
 
-/* ELEGANT FLOATING RAISED HERO BANNER PHOTO */
+/* ELEGANT SUBTLE ROUNDED FLOATING HERO BANNER PHOTO */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > img:nth-of-type(1),
 div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2) > img:nth-of-type(1),
 div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > section:nth-of-type(1) > div:nth-of-type(1) > span > img,
 .hero-slide img,
 .hero.premium-slider img {
-    border-radius: 20px !important;
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.38), 0 8px 20px -6px rgba(0, 0, 0, 0.25) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 14px 32px -8px rgba(0, 0, 0, 0.32), 0 4px 12px -2px rgba(0, 0, 0, 0.18) !important;
     border: none !important;
     overflow: hidden !important;
     object-fit: cover !important;
@@ -1013,9 +1014,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
     height: auto !important;
     min-height: unset !important;
     background: transparent !important;
-    border-radius: 20px !important;
+    border-radius: 12px !important;
     border: none !important;
-    box-shadow: 0 22px 45px -12px rgba(0, 0, 0, 0.4), 0 10px 22px -8px rgba(0, 0, 0, 0.28) !important;
+    box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.2) !important;
     margin: 0 auto 16px !important;
     box-sizing: border-box;
 }

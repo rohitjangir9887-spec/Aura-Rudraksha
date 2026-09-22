@@ -236,6 +236,27 @@ export function createApp(options = {}) {
     });
   });
 
+  // Public categories endpoint
+  app.get("/api/categories", async (req, res) => {
+    try {
+      if (!isDbConnected()) {
+        try { await connectDB(); } catch (_) {}
+      }
+      const { Setting } = await import("./models/Setting.js");
+      const setting = await Setting.findOne().lean().catch(() => null);
+      const categories = setting?.shopCategories || [
+        { name: "Rudraksha Beads", path: "/shop?category=Rudraksha" },
+        { name: "Jaap Mala", path: "/shop?category=Mala" },
+        { name: "Siddha Mala & Combinations", path: "/shop?category=Combinations" },
+        { name: "Puja Samagri & Murti", path: "/shop?category=Puja" },
+        { name: "Sphatik & Gemstones", path: "/shop?category=Gemstones" }
+      ];
+      return res.json({ success: true, categories });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err?.message || "Internal server error" });
+    }
+  });
+
   // Middleware ensuring DB connection attempt before database-dependent queries
   const requireDb = async (req, res, next) => {
     if (!isDbConnected()) {
