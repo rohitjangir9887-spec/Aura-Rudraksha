@@ -375,21 +375,14 @@ export function ResponsivePlanetaryReport({
   showChart = true 
 }) {
   const hasPlanets = planets && planets.length > 0;
-  const displayHeaders = headers && headers.length > 0 ? headers : ["ग्रह", "भाव", "राशि", "स्थिति", "फलादेश / विवरण"];
 
-  // Construct table rows from rawRows or planets
-  const tableRows = rawRows && rawRows.length > 0
-    ? rawRows
-    : planets.map(p => [
-        p.planetName || "",
-        p.house || "",
-        p.rashi || "",
-        p.status || "",
-        p.interpretation || ""
-      ]);
+  // Construct items from planets or rawRows
+  const planetList = planets && planets.length > 0
+    ? planets
+    : rawRows.map(r => parsePlanetaryRow(r, headers));
 
   return (
-    <div className="w-full my-3 overflow-hidden box-border space-y-3">
+    <div className="w-full my-2 box-border space-y-3">
       {/* 1. Vedic Kundali Chart - Rendered ONLY ONCE per message if showChart is true */}
       {showChart && hasPlanets && (
         <div className="space-y-1.5">
@@ -409,32 +402,42 @@ export function ResponsivePlanetaryReport({
         </div>
       )}
 
-      {/* 2. Full Navagraha Table - Always rendered cleanly */}
-      {tableRows.length > 0 && (
-        <div className="space-y-1.5 my-2">
+      {/* 2. Full Navagraha Transit & House Position - Rendered as clean normal chat text lines */}
+      {planetList.length > 0 && (
+        <div className="space-y-2.5 my-2.5">
           <div className="flex items-center gap-1.5 pb-1 border-b border-[#ebdccb]">
-            <TableIcon size={14} className="text-[#8c2b10] flex-shrink-0" />
-            <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight">नवग्रह गोचर व भाव स्थिति तालिका</h4>
+            <Sparkles size={14} className="text-[#8c2b10] flex-shrink-0" />
+            <h4 className="text-[14px] font-bold text-[#5c1c0a] leading-tight">नवग्रह गोचर व भाव स्थिति</h4>
           </div>
-          <div className="aura-ai-table-wrap">
-            <table className="aura-ai-table">
-              <thead>
-                <tr>
-                  {displayHeaders.map((h, hIdx) => (
-                    <th key={hIdx}>{String(h).replace(/\*\*/g, "").trim()}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((row, rIdx) => (
-                  <tr key={rIdx}>
-                    {row.map((cell, cIdx) => (
-                      <td key={cIdx}>{renderInlineContent(String(cell || ""))}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="space-y-2.5 text-[13.5px] leading-relaxed text-[#2b1408]">
+            {planetList.map((p, idx) => {
+              const pName = (p.planetName || `ग्रह ${idx + 1}`).replace(/\*\*/g, "").trim();
+              const pHouse = (p.house || "").replace(/\*\*/g, "").trim();
+              const pRashi = (p.rashi || "").replace(/\*\*/g, "").trim();
+              const pStatus = (p.status || "").replace(/\*\*/g, "").trim();
+              const pInterp = (p.interpretation || "").replace(/\*\*/g, "").trim();
+
+              return (
+                <div key={idx} className="pb-2 border-b border-[#f3e8dc] last:border-b-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5 font-bold text-[#8c2b10]">
+                    {getPlanetIcon(pName)}
+                    <span className="text-[14px]">{pName}</span>
+                    {(pHouse || pRashi) && (
+                      <span className="text-[12px] font-semibold text-[#782218] bg-[#fef3c7] px-2 py-0.5 rounded-md border border-[#f59e0b]/30">
+                        {pHouse ? `${pHouse}` : ""}{pHouse && pRashi ? " | " : ""}{pRashi ? `${pRashi} राशि` : ""}
+                      </span>
+                    )}
+                    {renderStatusBadge(pStatus)}
+                  </div>
+                  {pInterp && (
+                    <div className="text-[13.5px] text-[#2b1408] pl-5 leading-normal">
+                      {renderInlineContent(pInterp)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -853,11 +856,11 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
     }
 
     // 8. Bullet or Numbered item
-    const isBullet = /^[-*•✦]\s+/.test(trimmed);
+    const isBullet = /^[-*+•✦📌🪐✨🔸🔹👉📍💡✔✓]\s+/.test(trimmed);
     const isNumber = /^\d+[.)]\s+/.test(trimmed);
 
     if (isBullet || isNumber) {
-      const itemText = trimmed.replace(/^[-*•✦\d.)]\s+/, "");
+      const itemText = trimmed.replace(/^[-*+•✦📌🪐✨🔸🔹👉📍💡✔✓\d.)]\s+/, "");
       if (!currentList || currentList.isNumbered !== isNumber) {
         flushList();
         currentList = { type: "list", isNumbered: isNumber, items: [] };

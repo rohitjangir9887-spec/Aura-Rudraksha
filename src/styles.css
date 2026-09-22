@@ -12476,9 +12476,11 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   padding: 8px 10px;
   border-bottom: 1px solid #F3E8DC;
   color: #2B1408;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  min-width: 110px;
 }
 
 .aura-ai-table tr:nth-child(even) td {
