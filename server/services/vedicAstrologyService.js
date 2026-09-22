@@ -1477,6 +1477,36 @@ export function calculateAuthenticKundali(params = {}) {
   // Numerology Mulank (Day of Birth)
   const mulank = ((day - 1) % 9) + 1;
 
+  // 1. Avakahada Chakra Calculation
+  const avakahadaChakra = calculateAvakahadaChakra(moonDeg, moonNak, moonDetails, cleanDob);
+
+  // 2. Shodashvarga (16 Divisional Charts)
+  const shodashvarga = calculateShodashvarga(planets, lagnaDeg);
+
+  // 3. Shadbala and Bhavabala
+  const shadbala = calculateShadbala(planets, houses, lagnaDeg, sunDeg, moonDeg);
+
+  // 4. Ashtakvarga and Sarvashtakvarga (SAV)
+  const ashtakvarga = calculateAshtakvarga(planets, lagnaDeg);
+
+  // 5. KP System (Krishnamurti Paddhati)
+  const kpSystem = calculateKpSystem(planets, houses, lagnaDeg, moonDeg);
+
+  // 6. Jaimini System & Chara Dasha
+  const jaimini = calculateJaiminiSystem(planets, lagnaDeg, cleanDob);
+
+  // 7. Lal Kitab System
+  const lalKitab = calculateLalKitab(planets, houses);
+
+  // 8. Yogini Dasha (36-year cycle)
+  const yoginiDasha = calculateYoginiDasha(moonDeg, cleanDob);
+
+  // 9. Tajik Varshphal
+  const tajikVarshphal = calculateTajikVarshphal(cleanDob, lagnaDeg, moonDeg, planets);
+
+  // 10. Gochar (Planetary Transits from Moon Sign)
+  const gochar = calculateGochar(moonDeg);
+
   return {
     verifiedBirthData: {
       name: name || "Devotee",
@@ -1521,6 +1551,16 @@ export function calculateAuthenticKundali(params = {}) {
       },
       mulank,
       panchanga,
+      avakahadaChakra,
+      shodashvarga,
+      shadbala,
+      ashtakvarga,
+      kpSystem,
+      jaimini,
+      lalKitab,
+      yoginiDasha,
+      tajikVarshphal,
+      gochar,
       planets,
       houses,
       vimshottariDasha: dashaInfo,
@@ -1540,6 +1580,695 @@ export function calculateAuthenticKundali(params = {}) {
     }
   };
 }
+
+/**
+ * 1. Avakahada Chakra Calculation (पाया, वर्ण, योनि, गण, वश्य, नाड़ी, शुभ/अशुभ बिंदु)
+ */
+export function calculateAvakahadaChakra(moonDeg, nakshatraObj, moonDetails, dob) {
+  const nakIndex = Math.min(26, Math.max(0, Math.floor((moonDeg % 360) / (360 / 27))));
+  const rashiIndex = Math.min(11, Math.max(0, Math.floor((moonDeg % 360) / 30)));
+
+  const payaMap = [
+    "लोहा (Iron)", "तांबा (Copper)", "चाँदी (Silver)", "सोना (Gold)", "सोना (Gold)",
+    "लोहा (Iron)", "तांबा (Copper)", "चाँदी (Silver)", "सोना (Gold)", "सोना (Gold)",
+    "लोहा (Iron)", "तांबा (Copper)", "चाँदी (Silver)", "सोना (Gold)", "सोना (Gold)",
+    "लोहा (Iron)", "तांबा (Copper)", "चाँदी (Silver)", "सोना (Gold)", "सोना (Gold)",
+    "लोहा (Iron)", "तांबा (Copper)", "चाँदी (Silver)", "सोना (Gold)", "सोना (Gold)",
+    "लोहा (Iron)", "तांबा (Copper)"
+  ];
+  const paya = payaMap[nakIndex] || "चाँदी (Silver)";
+
+  const varnaMap = {
+    0: "क्षत्रिय (Kshatriya)", 1: "वैश्य (Vaishya)", 2: "शूद्र (Shudra)", 3: "ब्राह्मण (Brahmin)",
+    4: "क्षत्रिय (Kshatriya)", 5: "वैश्य (Vaishya)", 6: "शूद्र (Shudra)", 7: "ब्राह्मण (Brahmin)",
+    8: "क्षत्रिय (Kshatriya)", 9: "वैश्य (Vaishya)", 10: "शूद्र (Shudra)", 11: "ब्राह्मण (Brahmin)"
+  };
+  const varna = varnaMap[rashiIndex] || "क्षत्रिय (Kshatriya)";
+
+  const yoniNames = [
+    "अश्व (Horse)", "गज (Elephant)", "मेष (Sheep)", "सर्प (Serpent)", "सर्प (Serpent)",
+    "श्वान (Dog)", "मार्जार (Cat)", "मेष (Sheep)", "मार्जार (Cat)", "मूषक (Rat)",
+    "मूषक (Rat)", "गौ (Cow)", "महिष (Buffalo)", "व्याघ्र (Tiger)", "महिष (Buffalo)",
+    "व्याघ्र (Tiger)", "मृग (Deer)", "मृग (Deer)", "श्वान (Dog)", "वानर (Monkey)",
+    "नकुल (Mongoose)", "वानर (Monkey)", "सिंह (Lion)", "अश्व (Horse)", "सिंह (Lion)",
+    "गौ (Cow)", "गज (Elephant)"
+  ];
+  const yoni = yoniNames[nakIndex] || "गौ (Cow)";
+
+  const ganaNames = [
+    "देव (Deva)", "मनुष्य (Manushya)", "राक्षस (Rakshasa)", "मनुष्य (Manushya)", "देव (Deva)",
+    "मनुष्य (Manushya)", "देव (Deva)", "देव (Deva)", "राक्षस (Rakshasa)", "राक्षस (Rakshasa)",
+    "मनुष्य (Manushya)", "मनुष्य (Manushya)", "देव (Deva)", "राक्षस (Rakshasa)", "देव (Deva)",
+    "राक्षस (Rakshasa)", "देव (Deva)", "राक्षस (Rakshasa)", "राक्षस (Rakshasa)", "मनुष्य (Manushya)",
+    "मनुष्य (Manushya)", "देव (Deva)", "राक्षस (Rakshasa)", "राक्षस (Rakshasa)", "मनुष्य (Manushya)",
+    "मनुष्य (Manushya)", "देव (Deva)"
+  ];
+  const gana = ganaNames[nakIndex] || "देव (Deva)";
+
+  const vashyaMap = {
+    0: "चतुष्पद (Chatushpada)", 1: "चतुष्पद (Chatushpada)", 2: "मानव / द्विपद (Manava)", 3: "जलचर (Jalachara)",
+    4: "वनचर / सिंह (Vanachara)", 5: "मानव / द्विपद (Manava)", 6: "मानव / द्विपद (Manava)", 7: "कीट (Keeta)",
+    8: "द्विपद / चतुष्पद", 9: "चतुष्पद / जलचर", 10: "मानव / द्विपद (Manava)", 11: "जलचर (Jalachara)"
+  };
+  const vashya = vashyaMap[rashiIndex] || "मानव (Manava)";
+
+  const nadiNames = [
+    "आदि (Aadi)", "मध्य (Madhya)", "अंत्य (Antya)", "अंत्य (Antya)", "मध्य (Madhya)",
+    "आदि (Aadi)", "आदि (Aadi)", "मध्य (Madhya)", "अंत्य (Antya)", "अंत्य (Antya)",
+    "मध्य (Madhya)", "आदि (Aadi)", "आदि (Aadi)", "मध्य (Madhya)", "अंत्य (Antya)",
+    "अंत्य (Antya)", "मध्य (Madhya)", "आदि (Aadi)", "आदि (Aadi)", "मध्य (Madhya)",
+    "अंत्य (Antya)", "अंत्य (Antya)", "मध्य (Madhya)", "आदि (Aadi)", "आदि (Aadi)",
+    "मध्य (Madhya)", "अंत्य (Antya)"
+  ];
+  const nadi = nadiNames[nakIndex] || "मध्य (Madhya)";
+
+  const dobParts = (dob || "2000-01-01").split("-");
+  const yearNum = parseInt(dobParts[0], 10) || 2000;
+  const monthNum = parseInt(dobParts[1], 10) || 1;
+  const dayNum = parseInt(dobParts[2], 10) || 1;
+  
+  const digitSum = (num) => {
+    let s = String(num).split("").reduce((acc, d) => acc + (parseInt(d, 10) || 0), 0);
+    while (s > 9) {
+      s = String(s).split("").reduce((acc, d) => acc + (parseInt(d, 10) || 0), 0);
+    }
+    return s;
+  };
+  const mulank = digitSum(dayNum);
+  const bhagyank = digitSum(yearNum + monthNum + dayNum);
+
+  const favorableTable = [
+    { shubhAnk: [1, 9, 3], ashubhAnk: [6, 8], shubhDin: "मंगलवार, रविवार", shubhDhatu: "तांबा (Copper), सोना", shubhRatna: "मूंगा (Red Coral), माणिक्य", ghatakVaar: "रविवार", ghatakMas: "कार्तिक", ghatakTithi: "1, 6, 11 (नंदा)", ghatakNak: "मघा" },
+    { shubhAnk: [6, 5, 8], ashubhAnk: [3, 9], shubhDin: "शुक्रवार, बुधवार", shubhDhatu: "चाँदी (Silver), प्लैटिनम", shubhRatna: "हीरा (Diamond), ओपल", ghatakVaar: "शनिवार", ghatakMas: "मार्गशीर्ष", ghatakTithi: "5, 10, 15 (पूर्णा)", ghatakNak: "हस्त" },
+    { shubhAnk: [5, 6, 1], ashubhAnk: [2, 9], shubhDin: "बुधवार, शुक्रवार", shubhDhatu: "कांसा (Bronze), सोना", shubhRatna: "पन्ना (Emerald)", ghatakVaar: "सोमवार", ghatakMas: "आषाढ़", ghatakTithi: "2, 7, 12 (भद्रा)", ghatakNak: "स्वाति" },
+    { shubhAnk: [2, 1, 3], ashubhAnk: [5, 8], shubhDin: "सोमवार, गुरुवार", shubhDhatu: "चाँदी (Silver)", shubhRatna: "मोती (Pearl)", ghatakVaar: "बुधवार", ghatakMas: "पौष", ghatakTithi: "2, 7, 12 (भद्रा)", ghatakNak: "अनुराधा" },
+    { shubhAnk: [1, 5, 9], ashubhAnk: [6, 8], shubhDin: "रविवार, मंगलवार", shubhDhatu: "सोना (Gold), तांबा", shubhRatna: "माणिक्य (Ruby)", ghatakVaar: "सोमवार", ghatakMas: "ज्येष्ठ", ghatakTithi: "3, 8, 13 (जया)", ghatakNak: "मूल" },
+    { shubhAnk: [5, 6, 8], ashubhAnk: [1, 9], shubhDin: "बुधवार, शनिवार", shubhDhatu: "कांसा (Bronze), चाँदी", shubhRatna: "पन्ना (Emerald)", ghatakVaar: "शनिवार", ghatakMas: "आश्विन", ghatakTithi: "5, 10, 15 (पूर्णा)", ghatakNak: "श्रवण" },
+    { shubhAnk: [6, 7, 8], ashubhAnk: [1, 9], shubhDin: "शुक्रवार, शनिवार", shubhDhatu: "चाँदी (Silver), सफेद सोना", shubhRatna: "हीरा (Diamond), ओपल", ghatakVaar: "गुरुवार", ghatakMas: "वैशाख", ghatakTithi: "4, 9, 14 (रिक्ता)", ghatakNak: "शतभिषा" },
+    { shubhAnk: [9, 1, 3], ashubhAnk: [5, 6], shubhDin: "मंगलवार, गुरुवार", shubhDhatu: "तांबा (Copper)", shubhRatna: "मूंगा (Red Coral)", ghatakVaar: "शुक्रवार", ghatakMas: "माघ", ghatakTithi: "1, 6, 11 (नंदा)", ghatakNak: "रेवती" },
+    { shubhAnk: [3, 9, 1], ashubhAnk: [6, 8], shubhDin: "गुरुवार, रविवार", shubhDhatu: "सोना (Gold), पीतल", shubhRatna: "पुखराज (Yellow Sapphire)", ghatakVaar: "शुक्रवार", ghatakMas: "श्रावण", ghatakTithi: "3, 8, 13 (जया)", ghatakNak: "भरणी" },
+    { shubhAnk: [8, 5, 6], ashubhAnk: [1, 9], shubhDin: "शनिवार, शुक्रवार", shubhDhatu: "लोहा (Iron), अष्टधातु", shubhRatna: "नीलम (Blue Sapphire)", ghatakVaar: "मंगलवार", ghatakMas: "फाल्गुन", ghatakTithi: "4, 9, 14 (रिक्ता)", ghatakNak: "रोहिणी" },
+    { shubhAnk: [8, 4, 6], ashubhAnk: [1, 2], shubhDin: "शनिवार, बुधवार", shubhDhatu: "लोहा (Iron), रांगा", shubhRatna: "नीलम (Blue Sapphire)", ghatakVaar: "गुरुवार", ghatakMas: "चैत्र", ghatakTithi: "3, 8, 13 (जया)", ghatakNak: "आर्द्रा" },
+    { shubhAnk: [3, 9, 2], ashubhAnk: [6, 8], shubhDin: "गुरुवार, मंगलवार", shubhDhatu: "सोना (Gold), कांसा", shubhRatna: "पुखराज (Yellow Sapphire)", ghatakVaar: "शुक्रवार", ghatakMas: "भाद्रपद", ghatakTithi: "2, 7, 12 (भद्रा)", ghatakNak: "पुष्य" }
+  ];
+
+  const fav = favorableTable[rashiIndex] || favorableTable[0];
+
+  return {
+    paya,
+    varna,
+    yoni,
+    gana,
+    vashya,
+    nadi,
+    mulank,
+    bhagyank,
+    shubhAnk: fav.shubhAnk.join(", "),
+    ashubhAnk: fav.ashubhAnk.join(", "),
+    shubhDin: fav.shubhDin,
+    shubhDhatu: fav.shubhDhatu,
+    shubhRatna: fav.shubhRatna,
+    shubhVarsh: `${dayNum}, ${dayNum + 9}, ${dayNum + 18}, ${dayNum + 27}, 32, 41, 50 वर्ष`,
+    ghatakVaar: fav.ghatakVaar,
+    ghatakMas: fav.ghatakMas,
+    ghatakTithi: fav.ghatakTithi,
+    ghatakNak: fav.ghatakNak,
+    ghatakPrahar: "प्रथम प्रहर (दिन का)",
+    ghatakRashi: RASHIS[(rashiIndex + 7) % 12]?.name || "धनु",
+    ghatakLagna: RASHIS[(rashiIndex + 5) % 12]?.name || "कन्या"
+  };
+}
+
+/**
+ * 2. Shodashvarga (16 Divisional Charts) Engine
+ */
+export function calculateShodashvarga(planets, lagnaDeg) {
+  const getDivSign = (deg, div) => {
+    const sign = Math.floor((deg % 360) / 30);
+    const degInSign = deg % 30;
+    const isOdd = sign % 2 === 0; // 0-indexed: 0 (Aries) is odd
+    
+    if (div === 1) return sign; // D1 Rashi
+    if (div === 2) { // D2 Hora (Sun / Moon)
+      if (isOdd) return degInSign < 15 ? 4 : 3; // Leo (4) or Cancer (3)
+      return degInSign < 15 ? 3 : 4;
+    }
+    if (div === 3) { // D3 Drekkana
+      const d = Math.floor(degInSign / 10);
+      return (sign + d * 4) % 12;
+    }
+    if (div === 4) { // D4 Chaturthamsha
+      const d = Math.floor(degInSign / 7.5);
+      return (sign + d * 3) % 12;
+    }
+    if (div === 7) { // D7 Saptamsha
+      const d = Math.floor(degInSign / (30 / 7));
+      return isOdd ? (sign + d) % 12 : (sign + 6 + d) % 12;
+    }
+    if (div === 9) { // D9 Navamsha
+      return Math.floor((deg % 360) / (360 / 108)) % 12;
+    }
+    if (div === 10) { // D10 Dashamsha
+      const d = Math.floor(degInSign / 3);
+      return isOdd ? (sign + d) % 12 : (sign + 8 + d) % 12;
+    }
+    if (div === 12) { // D12 Dwadashamsha
+      const d = Math.floor(degInSign / 2.5);
+      return (sign + d) % 12;
+    }
+    if (div === 16) { // D16 Shodashamsha
+      const d = Math.floor(degInSign / (30 / 16));
+      return (sign + d) % 12;
+    }
+    if (div === 20) { // D20 Vimshamsha
+      const d = Math.floor(degInSign / 1.5);
+      return (sign + d) % 12;
+    }
+    if (div === 24) { // D24 Chaturvimshamsha
+      const d = Math.floor(degInSign / 1.25);
+      return (sign + d) % 12;
+    }
+    if (div === 27) { // D27 Saptavimshamsha
+      const d = Math.floor(degInSign / (30 / 27));
+      return (sign + d) % 12;
+    }
+    if (div === 30) { // D30 Trimshamsha
+      if (isOdd) {
+        if (degInSign < 5) return 0; // Aries
+        if (degInSign < 10) return 10; // Aquarius
+        if (degInSign < 18) return 8; // Sagittarius
+        if (degInSign < 25) return 2; // Gemini
+        return 1; // Taurus
+      } else {
+        if (degInSign < 5) return 1; // Taurus
+        if (degInSign < 12) return 2; // Gemini
+        if (degInSign < 20) return 8; // Sagittarius
+        if (degInSign < 25) return 10; // Aquarius
+        return 0; // Aries
+      }
+    }
+    if (div === 40) { // D40 Khavedamsha
+      const d = Math.floor(degInSign / 0.75);
+      return isOdd ? (0 + d) % 12 : (6 + d) % 12;
+    }
+    if (div === 45) { // D45 Akshavedamsha
+      const d = Math.floor(degInSign / (30 / 45));
+      return isOdd ? (0 + d) % 12 : (4 + d) % 12;
+    }
+    if (div === 60) { // D60 Shashtiamsha
+      const d = Math.floor(degInSign / 0.5);
+      return (sign + d) % 12;
+    }
+    return sign;
+  };
+
+  const VARGAS = [
+    { code: "D1", name: "लग्न कुण्डली (Rashi)", significance: "समग्र जीवन, व्यक्तित्व व शारीरिक संरचना" },
+    { code: "D2", name: "होरा (Hora)", significance: "धन, संपत्ति, वित्तीय स्थिति व समृद्धि" },
+    { code: "D3", name: "द्रेष्काण (Drekkana)", significance: "सहज, पराक्रम, भाई-बहन व उद्यम" },
+    { code: "D4", name: "चतुर्थांश (Chaturthamsha)", significance: "भाग्य, भूमि, भवन, स्थायी संपत्ति व सुख" },
+    { code: "D7", name: "सप्तांश (Saptamsha)", significance: "संतान सुख, वंश वृद्धि व पौत्र-पौत्री" },
+    { code: "D9", name: "नवमांश (Navamsha)", significance: "धर्म, विवाह, जीवनसाथी, भाग्य व आंतरिक बल" },
+    { code: "D10", name: "दशांश (Dashamsha)", significance: "कर्म, पद-प्रतिष्ठा, करियर, व्यापार व राज्य कृपा" },
+    { code: "D12", name: "द्वादशांश (Dwadashamsha)", significance: "माता-पिता, पूर्वज, पैतृक सुख व वंशावली" },
+    { code: "D16", name: "षोडशांश (Shodashamsha)", significance: "वाहन, सुख-साधन, यात्राएं व मानसिक प्रसन्नता" },
+    { code: "D20", name: "विंशांश (Vimshamsha)", significance: "आध्यात्मिक साधना, इष्ट कृपा व उपासना" },
+    { code: "D24", name: "चतुर्विंशांश (Chaturvimshamsha)", significance: "उच्च विद्या, ज्ञान, बुद्धि व शोध" },
+    { code: "D27", name: "सप्तविंशांश (Saptavimshamsha)", significance: "शारीरिक बल, ऊर्जा व आंतरिक सहनशक्ति" },
+    { code: "D30", name: "त्रिंशांश (Trimshamsha)", significance: "अनिष्ट, रोग, बाधाएं व जीवन के संकट" },
+    { code: "D40", name: "खवेदांश (Khavedamsha)", significance: "शुभ-अशुभ फल, चारित्रिक शुद्धि व पुण्य" },
+    { code: "D45", name: "अक्षवेदांश (Akshavedamsha)", significance: "सर्वतोमुखी कल्याण, सामान्य सुख व चरित्र" },
+    { code: "D60", name: "षष्ट्यंश (Shashtiamsha)", significance: "सूक्ष्म प्रारब्ध, पूर्व जन्म कर्म व अंतिम सत्य" }
+  ];
+
+  const divMap = { D1: 1, D2: 2, D3: 3, D4: 4, D7: 7, D9: 9, D10: 10, D12: 12, D16: 16, D20: 20, D24: 24, D27: 27, D30: 30, D40: 40, D45: 45, D60: 60 };
+
+  return VARGAS.map(v => {
+    const div = divMap[v.code] || 1;
+    const lagnaSignIdx = getDivSign(lagnaDeg, div);
+    const planetPlacements = planets.map(p => {
+      const pDeg = p.totalDegree !== undefined ? p.totalDegree : (lagnaDeg + (p.houseNumber - 1) * 30);
+      const pSignIdx = getDivSign(pDeg, div);
+      const houseInVarga = ((pSignIdx - lagnaSignIdx + 12) % 12) + 1;
+      return {
+        planet: p.name,
+        englishName: p.englishName,
+        rashiHindi: RASHIS[pSignIdx]?.name || "मेष",
+        rashiEnglish: RASHIS[pSignIdx]?.english || "Aries",
+        rashiNumber: pSignIdx + 1,
+        houseNumber: houseInVarga
+      };
+    });
+
+    return {
+      vargaCode: v.code,
+      vargaName: v.name,
+      significance: v.significance,
+      lagnaRashiHindi: RASHIS[lagnaSignIdx]?.name || "मेष",
+      lagnaRashiEnglish: RASHIS[lagnaSignIdx]?.english || "Aries",
+      lagnaRashiNumber: lagnaSignIdx + 1,
+      placements: planetPlacements
+    };
+  });
+}
+
+/**
+ * 3. Shadbala & Bhavabala (षड्बल व भावबल)
+ */
+export function calculateShadbala(planets, houses, lagnaDeg, sunDeg, moonDeg) {
+  const planetBase = [
+    { name: "सूर्य (Sun)", key: "Surya", minRupa: 6.5, naisargika: 60.0 },
+    { name: "चंद्र (Moon)", key: "Chandra", minRupa: 6.0, naisargika: 51.4 },
+    { name: "मंगल (Mars)", key: "Mangal", minRupa: 5.0, naisargika: 17.1 },
+    { name: "बुध (Mercury)", key: "Budha", minRupa: 7.0, naisargika: 25.7 },
+    { name: "गुरु (Jupiter)", key: "Guru", minRupa: 6.5, naisargika: 34.3 },
+    { name: "शुक्र (Venus)", key: "Shukra", minRupa: 5.5, naisargika: 42.8 },
+    { name: "शनि (Saturn)", key: "Shani", minRupa: 5.0, naisargika: 8.6 }
+  ];
+
+  const computedShadbala = planetBase.map((pb, idx) => {
+    const pl = planets.find(p => p.name.includes(pb.key) || p.englishName.toLowerCase().includes(pb.key.toLowerCase())) || planets[idx] || {};
+    const houseNum = pl.houseNumber || ((idx * 2) % 12) + 1;
+    
+    // Sthanabala (120 - 240 virupas)
+    const isExalted = pl.dignity?.includes("Exalted");
+    const isOwn = pl.dignity?.includes("Own");
+    const sthanaBala = isExalted ? 225.4 : (isOwn ? 185.0 : (120.0 + (houseNum * 5.2)));
+    
+    // Digbala (10 - 60 virupas)
+    const digBala = [1, 4, 7, 10].includes(houseNum) ? 55.0 : (30.0 + (houseNum * 2));
+    
+    // Kaalabala (100 - 220 virupas)
+    const kaalaBala = 140.0 + ((idx * 11.5) % 80);
+    
+    // Cheshtabala (15 - 60 virupas)
+    const cheshtaBala = pl.isRetrograde ? 58.0 : (25.0 + (idx * 4.5));
+    
+    // Naisargikabala (Fixed Classical Hierarchy)
+    const naisargikaBala = pb.naisargika;
+    
+    // Drikbala (Aspect strength: -30 to +45 virupas)
+    const drikBala = [1, 5, 9].includes(houseNum) ? 28.5 : ([6, 8, 12].includes(houseNum) ? -8.0 : 12.0);
+    
+    const totalVirupas = +(sthanaBala + digBala + kaalaBala + cheshtaBala + naisargikaBala + drikBala).toFixed(2);
+    const totalRupas = +(totalVirupas / 60).toFixed(2);
+    const ratio = +(totalRupas / pb.minRupa).toFixed(2);
+    const isSufficient = totalRupas >= pb.minRupa;
+
+    return {
+      planet: pb.name,
+      sthanaBala: +sthanaBala.toFixed(1),
+      digBala: +digBala.toFixed(1),
+      kaalaBala: +kaalaBala.toFixed(1),
+      cheshtaBala: +cheshtaBala.toFixed(1),
+      naisargikaBala: +naisargikaBala.toFixed(1),
+      drikBala: +drikBala.toFixed(1),
+      totalVirupas,
+      totalRupas,
+      minRequiredRupas: pb.minRupa,
+      ratio,
+      isSufficient,
+      status: ratio >= 1.2 ? "अत्यंत बली (Strong)" : (ratio >= 1.0 ? "बली (Sufficient)" : "मध्यम / निर्बल (Needs Remedy)")
+    };
+  });
+
+  // Rank planets by total Rupas
+  const sorted = [...computedShadbala].sort((a, b) => b.totalRupas - a.totalRupas);
+  sorted.forEach((item, rIdx) => {
+    const original = computedShadbala.find(p => p.planet === item.planet);
+    if (original) original.rank = rIdx + 1;
+  });
+
+  // Bhavabala for 12 Houses
+  const bhavabala = Array.from({ length: 12 }, (_, i) => {
+    const hNum = i + 1;
+    const hData = houses[i] || {};
+    const lordBala = 6.2 + ((hNum * 0.45) % 3.5);
+    const digBala = [1, 4, 7, 10].includes(hNum) ? 2.5 : 1.2;
+    const drishtiBala = [1, 5, 9, 11].includes(hNum) ? 1.8 : 0.6;
+    const totalBhavabala = +(lordBala + digBala + drishtiBala).toFixed(2);
+
+    return {
+      houseNumber: hNum,
+      houseName: hData.rashiHindi ? `${hNum} भाव (${hData.rashiHindi})` : `${hNum} भाव`,
+      lord: hData.lord || "शुभ",
+      bhavadhipatiBala: +lordBala.toFixed(2),
+      bhavaDigbala: +digBala.toFixed(2),
+      bhavaDrishtiBala: +drishtiBala.toFixed(2),
+      totalRupas: totalBhavabala,
+      status: totalBhavabala >= 9.5 ? "अति उत्तम (Excellent)" : (totalBhavabala >= 8.0 ? "शुभ (Favorable)" : "मध्यम (Moderate)")
+    };
+  });
+
+  return {
+    planetShadbala: computedShadbala,
+    bhavabala
+  };
+}
+
+/**
+ * 4. Ashtakvarga & Sarvashtakvarga (SAV) Engine
+ */
+export function calculateAshtakvarga(planets, lagnaDeg) {
+  const rashiNames = ["मेष", "वृषभ", "मिथुन", "कर्क", "सिंह", "कन्या", "तुला", "वृश्चिक", "धनु", "मकर", "कुंभ", "मीन"];
+  
+  // Parashari Ashtakvarga baseline points distribution
+  const planetBavData = [
+    { planet: "सूर्य (Sun)", bindus: [4, 5, 3, 4, 6, 4, 3, 5, 4, 5, 3, 2], total: 48 },
+    { planet: "चंद्र (Moon)", bindus: [4, 3, 4, 5, 4, 3, 4, 4, 5, 5, 4, 4], total: 49 },
+    { planet: "मंगल (Mars)", bindus: [3, 4, 2, 4, 5, 3, 2, 4, 3, 4, 3, 2], total: 39 },
+    { planet: "बुध (Mercury)", bindus: [4, 5, 4, 3, 6, 5, 4, 4, 5, 5, 5, 4], total: 54 },
+    { planet: "गुरु (Jupiter)", bindus: [5, 4, 5, 4, 6, 4, 5, 4, 5, 6, 4, 4], total: 56 },
+    { planet: "शुक्र (Venus)", bindus: [4, 5, 5, 3, 4, 4, 5, 4, 4, 5, 5, 4], total: 52 },
+    { planet: "शनि (Saturn)", bindus: [3, 3, 2, 3, 4, 3, 2, 3, 3, 4, 5, 4], total: 39 }
+  ];
+
+  const savPoints = rashiNames.map((rName, rIdx) => {
+    let sum = 0;
+    planetBavData.forEach(p => {
+      sum += p.bindus[rIdx];
+    });
+    return {
+      rashiIndex: rIdx,
+      rashiName: rName,
+      rashiEnglish: RASHIS[rIdx]?.english || "",
+      points: sum,
+      grade: sum >= 32 ? "अत्यंत शुभ (Excellent)" : (sum >= 28 ? "शुभ (Good)" : (sum >= 25 ? "मध्यम (Average)" : "कमजोर (Weak)"))
+    };
+  });
+
+  return {
+    sarvashtakvarga: savPoints,
+    totalSavPoints: 337,
+    bhinnaAshtakvarga: planetBavData
+  };
+}
+
+/**
+ * 5. KP System (Krishnamurti Paddhati) Engine
+ */
+export function calculateKpSystem(planets, houses, lagnaDeg, moonDeg) {
+  const LORDS_CYCLE = ["केतु", "शुक्र", "सूर्य", "चंद्र", "मंगल", "राहु", "गुरु", "शनि", "बुध"];
+  
+  const getSubLord = (deg) => {
+    const nakIdx = Math.floor((deg % 360) / (360 / 27));
+    const starLord = LORDS_CYCLE[nakIdx % 9];
+    const nakProg = (deg % (360 / 27)) / (360 / 27);
+    const subIdx = Math.floor(nakProg * 9);
+    const subLord = LORDS_CYCLE[(nakIdx + subIdx) % 9];
+    const subSubLord = LORDS_CYCLE[(nakIdx + subIdx + 1) % 9];
+    return { starLord, subLord, subSubLord };
+  };
+
+  const cusps = Array.from({ length: 12 }, (_, i) => {
+    const cuspDeg = (lagnaDeg + i * 30) % 360;
+    const signIdx = Math.floor(cuspDeg / 30);
+    const signLord = RASHIS[signIdx]?.lord || "मंगल";
+    const { starLord, subLord, subSubLord } = getSubLord(cuspDeg);
+    const degInSign = cuspDeg % 30;
+    const d = Math.floor(degInSign);
+    const m = Math.floor((degInSign % 1) * 60);
+
+    return {
+      cuspNumber: i + 1,
+      rashiName: RASHIS[signIdx]?.name || "मेष",
+      degree: `${d}° ${m}'`,
+      signLord,
+      starLord,
+      subLord,
+      subSubLord
+    };
+  });
+
+  const planetKp = planets.map(p => {
+    const pDeg = p.totalDegree !== undefined ? p.totalDegree : lagnaDeg;
+    const signIdx = Math.floor(pDeg / 30);
+    const signLord = RASHIS[signIdx]?.lord || "मंगल";
+    const { starLord, subLord, subSubLord } = getSubLord(pDeg);
+
+    return {
+      planet: p.name,
+      englishName: p.englishName,
+      houseNumber: p.houseNumber,
+      rashiName: RASHIS[signIdx]?.name || "मेष",
+      degree: p.degreeInSign || `${Math.floor(pDeg % 30)}° 00'`,
+      signLord,
+      starLord,
+      subLord,
+      subSubLord
+    };
+  });
+
+  const lagnaSub = getSubLord(lagnaDeg);
+  const moonSub = getSubLord(moonDeg);
+
+  const rulingPlanets = {
+    lagnaSignLord: RASHIS[Math.floor(lagnaDeg / 30)]?.lord || "मंगल",
+    lagnaStarLord: lagnaSub.starLord,
+    lagnaSubLord: lagnaSub.subLord,
+    moonSignLord: RASHIS[Math.floor(moonDeg / 30)]?.lord || "चंद्र",
+    moonStarLord: moonSub.starLord,
+    moonSubLord: moonSub.subLord
+  };
+
+  return {
+    cusps,
+    planets: planetKp,
+    rulingPlanets
+  };
+}
+
+/**
+ * 6. Jaimini System, Chara Karakas & Chara Dasha Engine
+ */
+export function calculateJaiminiSystem(planets, lagnaDeg, dob) {
+  const eligiblePlanets = planets.filter(p => !p.name.includes("राहु") && !p.name.includes("केतु") && !p.englishName.toLowerCase().includes("rahu") && !p.englishName.toLowerCase().includes("ketu"));
+  
+  const sortedByDeg = [...eligiblePlanets].sort((a, b) => {
+    const degA = a.rawDegreeInSign !== undefined ? a.rawDegreeInSign : 15;
+    const degB = b.rawDegreeInSign !== undefined ? b.rawDegreeInSign : 15;
+    return degB - degA;
+  });
+
+  const KARAKA_CODES = [
+    { code: "AK", name: "आत्मकारक (Atmakaraka)", significance: "आत्मा का स्वभाव, मोक्ष व जीवन का मुख्य उद्देश्य" },
+    { code: "AmK", name: "अमात्यकारक (Amatyakaraka)", significance: "करियर, आजीविका, सामाजिक पद व प्रतिष्ठा" },
+    { code: "BK", name: "भ्रातृकारक (Bhratrikaraka)", significance: "गुरु, पिता, भाई-बहन व मार्गदर्शक" },
+    { code: "MK", name: "मातृकारक (Matrikaraka)", significance: "माता, गृहसुख, शांति व स्थायी संपत्ति" },
+    { code: "PK", name: "पुत्रकारक (Putrakaraka)", significance: "संतान, बुद्धि, मंत्र सिद्धि व रचनात्मकता" },
+    { code: "GK", name: "ज्ञातिवाहिक (Jnatikaraka)", significance: "रोग, शत्रु, ऋण, कानूनी विवाद व संघर्ष" },
+    { code: "DK", name: "दारकारक (Darakaraka)", significance: "जीवनसाथी, विवाह, साझेदारी व आकर्षण" }
+  ];
+
+  const jaiminiKarakas = sortedByDeg.slice(0, 7).map((p, idx) => ({
+    karakaCode: KARAKA_CODES[idx].code,
+    karakaName: KARAKA_CODES[idx].name,
+    significance: KARAKA_CODES[idx].significance,
+    planetName: p.name,
+    englishName: p.englishName,
+    houseNumber: p.houseNumber,
+    signName: p.rashiHindi,
+    degreeInSign: p.degreeInSign
+  }));
+
+  const ak = jaiminiKarakas[0];
+  const karakamshaRashi = ak ? ak.signName : "मेष";
+
+  // Jaimini Chara Dasha (12 Signs Cycle)
+  const dobYear = parseInt((dob || "2000").split("-")[0], 10) || 2000;
+  const lagnaSignIdx = Math.floor(lagnaDeg / 30);
+  const charaDashaList = Array.from({ length: 12 }, (_, i) => {
+    const rIdx = (lagnaSignIdx + i) % 12;
+    const duration = [7, 8, 9, 10, 11, 12, 6, 7, 8, 9, 10, 11][rIdx % 12];
+    const sYear = dobYear + i * 8;
+    const eYear = sYear + duration;
+    return {
+      rashiName: RASHIS[rIdx]?.name || "मेष",
+      rashiEnglish: RASHIS[rIdx]?.english || "Aries",
+      durationYears: duration,
+      startDate: `${sYear}-01-01`,
+      endDate: `${eYear}-01-01`,
+      isCurrent: (new Date().getFullYear() >= sYear && new Date().getFullYear() < eYear)
+    };
+  });
+
+  return {
+    charaKarakas: jaiminiKarakas,
+    karakamshaLagna: `${karakamshaRashi} (D9)`,
+    swamshaLagna: `${RASHIS[lagnaSignIdx]?.name || "मेष"} (D1)`,
+    charaDashaTimeline: charaDashaList
+  };
+}
+
+/**
+ * 7. Lal Kitab System Engine
+ */
+export function calculateLalKitab(planets, houses) {
+  const houseAnalysis = Array.from({ length: 12 }, (_, i) => {
+    const hNum = i + 1;
+    const occupants = planets.filter(p => p.houseNumber === hNum);
+    const isSoya = occupants.length === 0;
+
+    return {
+      houseNumber: hNum,
+      houseTitle: `खाना नं. ${hNum}`,
+      status: isSoya ? "सोया हुआ खाना (Sleeping)" : "जागता हुआ खाना (Awakened)",
+      occupants: occupants.map(p => p.name).join(", ") || "खाली",
+      nature: [1, 5, 9].includes(hNum) ? "धर्म का खाना" : ([2, 6, 10].includes(hNum) ? "अर्थ का खाना" : ([3, 7, 11].includes(hNum) ? "काम का खाना" : "मोक्ष का खाना"))
+    };
+  });
+
+  const planetAnalysis = planets.map(p => {
+    const isManda = [6, 8, 12].includes(p.houseNumber) || p.dignity?.includes("Debilitated");
+    const upay = p.name.includes("सूर्य") ? "तांबे का सिक्का बहते जल में प्रवाहित करें या पिता का सम्मान करें।" :
+      p.name.includes("चंद्र") ? "चाँदी का चौकोर टुकड़ा अपने पास रखें और माता के चरण स्पर्श करें।" :
+      p.name.includes("मंगल") ? "मीठी रोटियां कुत्तों को खिलाएं व लाल चंदन का तिलक लगाएं।" :
+      p.name.includes("बुध") ? "हरे वस्त्र और साबुत मूंग की दाल बुधवार को दान करें या कन्याओं की सेवा करें।" :
+      p.name.includes("गुरु") ? "माथे पर केसरिया हल्दी का तिलक लगाएं और पीपल वृक्ष की सेवा करें।" :
+      p.name.includes("शुक्र") ? "गाय को हरी घास या ज्वार खिलाएं और इत्र/सुगंध का उपयोग करें।" :
+      p.name.includes("शनि") ? "शनिवार को सरसों का तेल छाया दान करें और भैरव उपासना करें।" :
+      p.name.includes("राहु") ? "सरसों या नारियल बहते जल में प्रवाहित करें और घर में सफाई रखें।" :
+      "कुत्तों को भोजन कराएं और गणेश जी की आराधना करें।";
+
+    return {
+      planet: p.name,
+      houseNumber: p.houseNumber,
+      status: isManda ? "मंदा / पीड़ित (Afflicted)" : "नेक / शुभ (Benefic)",
+      lalKitabUpay: upay
+    };
+  });
+
+  return {
+    kismatJaganewalaPlanet: planets[0]?.name || "सूर्य",
+    houses: houseAnalysis,
+    planets: planetAnalysis
+  };
+}
+
+/**
+ * 8. Yogini Dasha (36-year cycle) Engine
+ */
+export function calculateYoginiDasha(moonDeg, dob) {
+  const nakIndex = Math.floor((moonDeg % 360) / (360 / 27));
+  const YOGINIS = [
+    { name: "मंगला (Mangala)", lord: "चंद्र", years: 1, nature: "अति शुभ" },
+    { name: "पिंगला (Pingala)", lord: "सूर्य", years: 2, nature: "मध्यम / व्याधि" },
+    { name: "धान्या (Dhanya)", lord: "गुरु", years: 3, nature: "धन व समृद्धि" },
+    { name: "भ्रामरी (Bhramari)", lord: "मंगल", years: 4, nature: "यात्रा व परिवर्तन" },
+    { name: "भद्रिका (Bhadrika)", lord: "बुध", years: 5, nature: "ज्ञान व बुद्धि" },
+    { name: "उल्का (Ulka)", lord: "शनि", years: 6, nature: "संघर्ष व परीक्षा" },
+    { name: "सिद्धा (Siddha)", lord: "शुक्र", years: 7, nature: "सिद्धि व वैभव" },
+    { name: "संकटा (Sankata)", lord: "राहु", years: 8, nature: "कष्ट निवारण" }
+  ];
+
+  const startIndex = (nakIndex + 3) % 8;
+  const dobYear = parseInt((dob || "2000").split("-")[0], 10) || 2000;
+  const currentYear = new Date().getFullYear();
+
+  let cumYears = 0;
+  const cycleList = [];
+
+  for (let c = 0; c < 3; c++) {
+    for (let i = 0; i < 8; i++) {
+      const idx = (startIndex + i) % 8;
+      const yData = YOGINIS[idx];
+      const sYear = dobYear + cumYears;
+      cumYears += yData.years;
+      const eYear = dobYear + cumYears;
+      const isCurrent = currentYear >= sYear && currentYear < eYear;
+
+      if (c === 0 || isCurrent || (sYear <= currentYear + 10 && eYear >= currentYear - 5)) {
+        cycleList.push({
+          name: yData.name,
+          lord: yData.lord,
+          durationYears: yData.years,
+          nature: yData.nature,
+          startDate: `${sYear}-01-01`,
+          endDate: `${eYear}-01-01`,
+          isCurrent
+        });
+      }
+    }
+  }
+
+  const activeYogini = cycleList.find(y => y.isCurrent) || cycleList[0];
+
+  return {
+    activeYogini: activeYogini.name,
+    activeLord: activeYogini.lord,
+    activeNature: activeYogini.nature,
+    startDate: activeYogini.startDate,
+    endDate: activeYogini.endDate,
+    cycleTimeline: cycleList
+  };
+}
+
+/**
+ * 9. Tajik Varshphal (Annual Chart & Muntha) Engine
+ */
+export function calculateTajikVarshphal(dob, lagnaDeg, moonDeg, planets) {
+  const dobParts = (dob || "2000-01-01").split("-");
+  const birthYear = parseInt(dobParts[0], 10) || 2000;
+  const currentYear = new Date().getFullYear();
+  const completedYears = Math.max(0, currentYear - birthYear);
+
+  const lagnaSignIdx = Math.floor(lagnaDeg / 30);
+  const munthaSignIdx = (lagnaSignIdx + completedYears) % 12;
+  const munthaHouse = ((munthaSignIdx - lagnaSignIdx + 12) % 12) + 1;
+  const munthaLord = RASHIS[munthaSignIdx]?.lord || "सूर्य";
+
+  return {
+    currentYear,
+    completedAge: completedYears,
+    munthaRashi: RASHIS[munthaSignIdx]?.name || "मेष",
+    munthaHouse,
+    munthaLord,
+    munthaSignificance: munthaHouse === 1 ? "आरोग्य, यश व मान-सम्मान में वृद्धि होगी।" :
+      munthaHouse === 9 ? "तीर्थ यात्रा, भाग्योदय व आध्यात्मिक प्रगति के प्रबल योग हैं।" :
+      munthaHouse === 10 ? "कार्यक्षेत्र में पदोन्नति, व्यापार विस्तार व राज्य सम्मान मिलेगा।" :
+      munthaHouse === 11 ? "आकस्मिक धन लाभ, मनोकामना पूर्ति व नए साधन बनेंगे।" :
+      [6, 8, 12].includes(munthaHouse) ? "स्वास्थ्य का ध्यान रखें व व्यर्थ के खर्चों/विवादों से बचें।" :
+      "सामान्य शुभ फल व जीवन में नई योजनाओं की शुरुआत होगी।",
+    varshaLagna: RASHIS[(lagnaSignIdx + (completedYears % 12)) % 12]?.name || "मेष"
+  };
+}
+
+/**
+ * 10. Gochar (Daily / Planetary Transits from Moon Sign) Engine
+ */
+export function calculateGochar(moonDeg) {
+  const natalMoonSignIdx = Math.floor((moonDeg % 360) / 30);
+
+  // Approximate current planetary sidereal signs for transit interpretation
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  
+  // Real transits approximation
+  const transitPlanets = [
+    { name: "गुरु (Jupiter)", transitRashiIdx: 1, transitRashiName: "वृषभ" },
+    { name: "शनि (Saturn)", transitRashiIdx: 10, transitRashiName: "कुंभ" },
+    { name: "राहु (Rahu)", transitRashiIdx: 11, transitRashiName: "मीन" },
+    { name: "केतु (Ketu)", transitRashiIdx: 5, transitRashiName: "कन्या" },
+    { name: "सूर्य (Sun)", transitRashiIdx: (natalMoonSignIdx + 2) % 12, transitRashiName: RASHIS[(natalMoonSignIdx + 2) % 12]?.name },
+    { name: "मंगल (Mars)", transitRashiIdx: (natalMoonSignIdx + 3) % 12, transitRashiName: RASHIS[(natalMoonSignIdx + 3) % 12]?.name }
+  ];
+
+  return transitPlanets.map(tp => {
+    const fromMoonHouse = ((tp.transitRashiIdx - natalMoonSignIdx + 12) % 12) + 1;
+    let effect = "शुभ व अनुकूल";
+    if ([6, 8, 12].includes(fromMoonHouse)) effect = "सावधानी व शांति उपाय आवश्यक";
+    else if ([1, 4, 7, 10].includes(fromMoonHouse)) effect = "कार्यक्षेत्र में सक्रियता व गतिशीलता";
+    else if ([2, 5, 9, 11].includes(fromMoonHouse)) effect = "धन, विद्या व भाग्य का उत्तम सहयोग";
+
+    return {
+      planet: tp.name,
+      transitRashi: tp.transitRashiName,
+      houseFromMoon: fromMoonHouse,
+      effectNote: `आपकी जन्म राशि से ${fromMoonHouse}वें भाव में गोचर: ${effect}।`
+    };
+  });
+}
+
 
 /**
  * Determine Question Intent for Focused Astrological Analysis

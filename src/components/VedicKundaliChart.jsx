@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, Info, ChevronDown, ChevronUp, Layers, User, Calendar, MapPin, Clock, Compass, Table, Award, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Sparkles, Info, ChevronDown, ChevronUp, Layers, User, Calendar, MapPin, Clock, Compass, Table, Award, ShieldAlert, CheckCircle2, BookOpen, BarChart3, ShieldCheck, Zap } from "lucide-react";
 
 /**
  * Authentic Vedic North Indian Kundali Chart & Complete Details Presentation
@@ -723,6 +723,320 @@ export function VedicKundaliDetails({ birthData, fullKundaliData }) {
           </div>
         );
       })()}
+
+      {/* 6. Avakahada Chakra (अवकहड़ा चक्र एवं शुभ/अशुभ बिंदु) */}
+      {astro.avakahadaChakra && (() => {
+        const ava = astro.avakahadaChakra;
+        return (
+          <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+            <div className="flex items-center gap-1.5 pb-1 border-b border-[#E0D0C0] font-bold text-[#8C2B10] text-[12.5px]">
+              <BookOpen size={14} className="text-[#8C2B10]" />
+              <span>अवकहड़ा चक्र एवं शुभ/घातक तत्व (Avakahada Chakra)</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">पाया:</span> <b className="text-[#8C2B10]">{ava.paya}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">वर्ण:</span> <b>{ava.varna}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">योनि:</span> <b>{ava.yoni}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">गण:</span> <b>{ava.gana}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">वश्य:</span> <b>{ava.vashya}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">नाड़ी:</span> <b className="text-[#B45309]">{ava.nadi}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">मूलांक:</span> <b>{ava.mulank}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">भाग्यांक:</span> <b>{ava.bhagyank}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">शुभ अंक:</span> <b className="text-emerald-700">{ava.shubhAnk}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">शुभ दिन:</span> <b>{ava.shubhDin}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">शुभ धातु:</span> <b>{ava.shubhDhatu}</b></div>
+              <div className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0]"><span className="text-[#7A685B]">शुभ रत्न:</span> <b>{ava.shubhRatna}</b></div>
+            </div>
+            {ava.ghatakVaar && (
+              <div className="p-2 bg-red-50/70 border border-red-200 rounded text-[10.5px] text-red-900 space-y-0.5">
+                <div className="font-bold text-red-800">घातक चक्र (सावधानी तत्व):</div>
+                <div>घातक वार: <b>{ava.ghatakVaar}</b> • घातक मास: <b>{ava.ghatakMas}</b> • घातक तिथि: <b>{ava.ghatakTithi}</b> • घातक नक्षत्र: <b>{ava.ghatakNak}</b></div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 7. Shodashvarga (16 Divisional Charts Explorer) */}
+      {Array.isArray(astro.shodashvarga) && astro.shodashvarga.length > 0 && (
+        <ShodashvargaExplorer shodashvarga={astro.shodashvarga} />
+      )}
+
+      {/* 8. Shadbala & Bhavabala (षड्बल व भावबल) */}
+      {astro.shadbala && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center justify-between pb-1 border-b border-[#E0D0C0]">
+            <div className="flex items-center gap-1.5 font-bold text-[#8C2B10] text-[12.5px]">
+              <BarChart3 size={14} className="text-[#8C2B10]" />
+              <span>सप्तग्रह षड्बल व भावबल (Shadbala & Strength)</span>
+            </div>
+            <span className="text-[10px] text-[#7A685B]">रूपा में मापदंड</span>
+          </div>
+
+          <div className="space-y-1.5">
+            {astro.shadbala.planetShadbala?.map((pl, pIdx) => (
+              <div key={pIdx} className="p-1.5 bg-[#FAF3E6]/80 border border-[#E0D0C0] rounded-lg text-[11px]">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-[#5C1C0A] flex items-center gap-1">
+                    <span>{getPlanetMeta(pl.planet).icon}</span>
+                    <span>{pl.planet}</span>
+                    <span className="text-[10px] font-normal text-amber-900">Rank #{pl.rank}</span>
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                    pl.isSufficient ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                  }`}>
+                    {pl.totalRupas} Rupa ({pl.status})
+                  </span>
+                </div>
+                <div className="mt-1 grid grid-cols-3 sm:grid-cols-6 gap-1 text-[9.5px] text-[#7A685B]">
+                  <div>स्थान: <b>{pl.sthanaBala}</b></div>
+                  <div>दिग्: <b>{pl.digBala}</b></div>
+                  <div>काल: <b>{pl.kaalaBala}</b></div>
+                  <div>चेष्टा: <b>{pl.cheshtaBala}</b></div>
+                  <div>नैसर्गिक: <b>{pl.naisargikaBala}</b></div>
+                  <div>दृग्: <b>{pl.drikBala}</b></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 9. Ashtakvarga & Sarvashtakvarga (SAV) */}
+      {astro.ashtakvarga && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center justify-between pb-1 border-b border-[#E0D0C0]">
+            <div className="flex items-center gap-1.5 font-bold text-[#8C2B10] text-[12.5px]">
+              <Table size={14} className="text-[#8C2B10]" />
+              <span>सर्वाष्टकवर्ग (Sarvashtakvarga - SAV Points)</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold">कुल 337 बिंदु</span>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 text-[11px]">
+            {astro.ashtakvarga.sarvashtakvarga?.map((sav, sIdx) => (
+              <div key={sIdx} className={`p-1.5 rounded border text-center ${
+                sav.points >= 30 ? "bg-emerald-50 border-emerald-300 text-emerald-900" :
+                sav.points >= 28 ? "bg-amber-50 border-amber-300 text-amber-900" : "bg-red-50 border-red-200 text-red-900"
+              }`}>
+                <div className="font-bold text-[11.5px]">{sav.rashiName}</div>
+                <div className="text-[13px] font-black">{sav.points} pts</div>
+                <div className="text-[9px] opacity-80">{sav.grade.split(" ")[0]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 10. KP System (Krishnamurti Paddhati) */}
+      {astro.kpSystem && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center gap-1.5 pb-1 border-b border-[#E0D0C0] font-bold text-[#8C2B10] text-[12.5px]">
+            <Zap size={14} className="text-[#B8860B]" />
+            <span>के.पी. प्रणाली भाव संधि व उप-स्वामी (KP Cusps & Sub-Lords)</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[10.5px]">
+              <thead className="bg-[#FAF3E6] text-[#8C2B10] font-bold border-b border-[#E0D0C0]">
+                <tr>
+                  <th className="p-1">भाव</th>
+                  <th className="p-1">राशि</th>
+                  <th className="p-1">अंश</th>
+                  <th className="p-1">राशि स्वामी</th>
+                  <th className="p-1">नक्षत्र स्वामी</th>
+                  <th className="p-1">उप-स्वामी (Sub)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E0D0C0]">
+                {astro.kpSystem.cusps?.map((c, cIdx) => (
+                  <tr key={cIdx} className="hover:bg-[#FAF3E6]/50">
+                    <td className="p-1 font-bold text-[#8C2B10]">{c.cuspNumber} भाव</td>
+                    <td className="p-1">{c.rashiName}</td>
+                    <td className="p-1">{c.degree}</td>
+                    <td className="p-1">{c.signLord}</td>
+                    <td className="p-1">{c.starLord}</td>
+                    <td className="p-1 font-bold text-[#B45309]">{c.subLord}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 11. Jaimini Karakas & Chara Dasha */}
+      {astro.jaimini && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center justify-between pb-1 border-b border-[#E0D0C0]">
+            <div className="flex items-center gap-1.5 font-bold text-[#8C2B10] text-[12.5px]">
+              <ShieldCheck size={14} className="text-[#8C2B10]" />
+              <span>जैमिनी चर कारक व चर दशा (Jaimini Chara Karakas)</span>
+            </div>
+            <span className="text-[10px] text-[#7A685B]">कारकांश: {astro.jaimini.karakamshaLagna}</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+            {astro.jaimini.charaKarakas?.map((jk, jIdx) => (
+              <div key={jIdx} className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0] flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-[#8C2B10]">{jk.karakaName}</div>
+                  <div className="text-[9.5px] text-[#7A685B]">{jk.significance}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-extrabold text-[#5C1C0A]">{jk.planetName}</div>
+                  <div className="text-[9.5px] text-amber-900">{jk.signName} ({jk.degreeInSign})</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 12. Lal Kitab System (लाल किताब खाना स्थिति एवं अचूक उपाय) */}
+      {astro.lalKitab && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center justify-between pb-1 border-b border-[#E0D0C0]">
+            <div className="flex items-center gap-1.5 font-bold text-[#8C2B10] text-[12.5px]">
+              <BookOpen size={14} className="text-[#8C2B10]" />
+              <span>लाल किताब विश्लेषण व उपाय (Lal Kitab Kundali)</span>
+            </div>
+            <span className="text-[10px] text-amber-900 font-semibold">किस्मत जगाने वाला ग्रह: {astro.lalKitab.kismatJaganewalaPlanet}</span>
+          </div>
+
+          <div className="space-y-1.5">
+            {astro.lalKitab.planets?.slice(0, 5).map((lp, lIdx) => (
+              <div key={lIdx} className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0] text-[10.5px]">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-[#8C2B10]">{lp.planet} (खाना नं. {lp.houseNumber})</span>
+                  <span className={`text-[9.5px] px-1.5 py-0.5 rounded ${
+                    lp.status.includes("नेक") ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                  }`}>
+                    {lp.status}
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[#5C1C0A]">
+                  <span className="font-semibold">लाल किताब उपाय:</span> {lp.lalKitabUpay}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 13. Yogini Dasha (36 Year Cycle) */}
+      {astro.yoginiDasha && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center justify-between pb-1 border-b border-[#E0D0C0]">
+            <div className="flex items-center gap-1.5 font-bold text-[#8C2B10] text-[12.5px]">
+              <Clock size={14} className="text-[#8C2B10]" />
+              <span>योगिनी दशा (Yogini Dasha - 36 Year Cycle)</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+              सक्रिय: {astro.yoginiDasha.activeYogini}
+            </span>
+          </div>
+          <div className="text-[11px] text-[#5C1C0A]">
+            वर्तमान में <b>{astro.yoginiDasha.activeYogini}</b> (स्वामी: {astro.yoginiDasha.activeLord}) सक्रिय है। फल: <b>{astro.yoginiDasha.activeNature}</b> ({astro.yoginiDasha.startDate} से {astro.yoginiDasha.endDate})।
+          </div>
+        </div>
+      )}
+
+      {/* 14. Tajik Varshphal & Muntha */}
+      {astro.tajikVarshphal && (
+        <div className="p-3 bg-[#FEF3C7]/40 border border-[#FCD34D] rounded-xl space-y-1.5 shadow-xs text-[11px]">
+          <div className="flex items-center justify-between pb-1 border-b border-[#FCD34D] font-bold text-[#78350F] text-[12.5px]">
+            <span>ताजिक वर्षफल व मुंथा विचार ({astro.tajikVarshphal.currentYear})</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FEF3C7] border border-[#FCD34D]">वर्षायु: {astro.tajikVarshphal.completedAge} वर्ष</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 text-[#78350F]">
+            <div>मुंथा राशि: <b>{astro.tajikVarshphal.munthaRashi}</b></div>
+            <div>मुंथा भाव: <b>{astro.tajikVarshphal.munthaHouse}वां भाव</b></div>
+            <div>मुंथा स्वामी: <b>{astro.tajikVarshphal.munthaLord}</b></div>
+            <div>वर्ष लग्न: <b>{astro.tajikVarshphal.varshaLagna}</b></div>
+          </div>
+          <div className="text-[10.5px] text-[#92400E] bg-white/70 p-1.5 rounded border border-[#FCD34D]/50">
+            <b>मुंथा प्रभाव:</b> {astro.tajikVarshphal.munthaSignificance}
+          </div>
+        </div>
+      )}
+
+      {/* 15. Daily Gochar Transit Analysis */}
+      {Array.isArray(astro.gochar) && astro.gochar.length > 0 && (
+        <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center gap-1.5 pb-1 border-b border-[#E0D0C0] font-bold text-[#8C2B10] text-[12.5px]">
+            <Compass size={14} className="text-[#8C2B10]" />
+            <span>दैनिक गोचर प्रभाव (Planetary Transits from Moon Sign)</span>
+          </div>
+          <div className="space-y-1 text-[10.5px]">
+            {astro.gochar.map((g, gIdx) => (
+              <div key={gIdx} className="p-1.5 bg-[#FAF3E6] rounded border border-[#E0D0C0] flex items-center justify-between">
+                <span className="font-bold text-[#8C2B10]">{g.planet} ({g.transitRashi} में)</span>
+                <span className="text-[#5C1C0A]">{g.effectNote}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+/**
+ * Shodashvarga Interactive Explorer Component
+ */
+function ShodashvargaExplorer({ shodashvarga = [] }) {
+  const [activeCode, setActiveCode] = useState("D9");
+  const currentVarga = shodashvarga.find(v => v.vargaCode === activeCode) || shodashvarga[0] || {};
+
+  return (
+    <div className="p-3 bg-[#FFFDF9] border border-[#E0D0C0] rounded-xl space-y-2 shadow-xs">
+      <div className="flex items-center justify-between pb-1 border-b border-[#E0D0C0]">
+        <div className="flex items-center gap-1.5 font-bold text-[#8C2B10] text-[12.5px]">
+          <Layers size={14} className="text-[#8C2B10]" />
+          <span>षोडशवर्ग (16 Divisional Charts Explorer)</span>
+        </div>
+        <select
+          value={activeCode}
+          onChange={(e) => setActiveCode(e.target.value)}
+          className="text-[11px] font-bold bg-[#FAF3E6] border border-[#C89B3C] text-[#8C2B10] rounded px-2 py-0.5"
+        >
+          {shodashvarga.map((v) => (
+            <option key={v.vargaCode} value={v.vargaCode}>
+              {v.vargaCode}: {v.vargaName}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="text-[10.5px] text-[#7A685B] italic">
+        <b>महत्व:</b> {currentVarga.significance} • <b>लग्न:</b> {currentVarga.lagnaRashiHindi}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[10.5px]">
+          <thead className="bg-[#FAF3E6] text-[#8C2B10] font-bold border-b border-[#E0D0C0]">
+            <tr>
+              <th className="p-1">ग्रह</th>
+              <th className="p-1">{currentVarga.vargaCode} राशि</th>
+              <th className="p-1">भाव स्थिति</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E0D0C0]">
+            {currentVarga.placements?.map((p, pIdx) => (
+              <tr key={pIdx} className="hover:bg-[#FAF3E6]/50">
+                <td className="p-1 font-bold text-[#5C1C0A] flex items-center gap-1">
+                  <span>{getPlanetMeta(p.planet).icon}</span>
+                  <span>{p.planet}</span>
+                </td>
+                <td className="p-1">{p.rashiHindi} ({p.rashiEnglish})</td>
+                <td className="p-1 font-semibold text-[#8C2B10]">{p.houseNumber} भाव</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+

@@ -211,6 +211,22 @@ export function normalizeKundali(k) {
     houses: astro.houses || k.houses || [],
     doshaSummary: astro.doshaSummary || k.doshaSummary || null,
 
+    // Classical Calculation Engines
+    avakahadaChakra: astro.avakahadaChakra || k.avakahadaChakra || null,
+    shodashvarga: astro.shodashvarga || k.shodashvarga || [],
+    shadbala: astro.shadbala || k.shadbala || null,
+    ashtakvarga: astro.ashtakvarga || k.ashtakvarga || null,
+    kpSystem: astro.kpSystem || k.kpSystem || null,
+    jaimini: astro.jaimini || k.jaimini || null,
+    lalKitab: astro.lalKitab || k.lalKitab || null,
+    yoginiDasha: astro.yoginiDasha || k.yoginiDasha || null,
+    tajikVarshphal: astro.tajikVarshphal || k.tajikVarshphal || null,
+    gochar: astro.gochar || k.gochar || [],
+    panchanga: astro.panchanga || k.panchanga || null,
+    yogas: astro.yogas || k.yogas || [],
+    jaiminiKarakas: astro.jaiminiKarakas || k.jaiminiKarakas || [],
+    badhakaMarakaInfo: astro.badhakaMarakaInfo || k.badhakaMarakaInfo || null,
+
     // Recommendations
     rudrakshaRecommendations: recs,
     recommendedMukhi: recs[0]?.mukhi || k.recommendedMukhi || "7 Mukhi Rudraksha",
