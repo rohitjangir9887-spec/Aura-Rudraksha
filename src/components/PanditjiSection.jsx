@@ -80,7 +80,8 @@ export function PanditjiSection() {
           beejMantra: astro.rudrakshaRecommendations?.[0]?.beejMantra || serverKundali.beejMantra || chandra.mantra || "Om Namah Shivaya",
           wearingDay: serverKundali.wearingDay || chandra.day || "सोमवार / शिव तिथि",
           matchedProduct: matchedProd,
-          astroReason: serverKundali.aiInterpretation || serverKundali.astroAnalysis || `आपकी जन्म कुंडली के प्रामाणिक वैदिक विश्लेषण अनुसार आपकी राशि ${chandra.rashiHindi || chandra.nameHindi || "वैदिक"} है।`
+          astroReason: serverKundali.aiInterpretation || serverKundali.astroAnalysis || `आपकी जन्म कुंडली के प्रामाणिक वैदिक विश्लेषण अनुसार आपकी राशि ${chandra.rashiHindi || chandra.nameHindi || "वैदिक"} है।`,
+          fullKundaliData: serverKundali
         });
         setIsCalculating(false);
         emitToast("पंडित जी द्वारा आपकी कुंडली का वैदिक विश्लेषण तैयार है!", "success");

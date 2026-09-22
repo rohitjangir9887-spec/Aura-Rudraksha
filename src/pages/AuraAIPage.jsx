@@ -1472,7 +1472,7 @@ export function AuraAIPage() {
                                   title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff - 10 passes)"
                                 >
                                   <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                  <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ पूरा करें"}</span>
+                                  <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ उत्तर आगे पूरा करें"}</span>
                                 </button>
                               )}
 

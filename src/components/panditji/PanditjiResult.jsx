@@ -4,6 +4,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { RefreshCw, ShoppingCart, Check, Sparkles, MessageCircle, ArrowRight } from "lucide-react";
+import { VedicKundaliChart } from "../VedicKundaliChart";
 
 export function PanditjiResult({
   result,
@@ -116,6 +117,21 @@ export function PanditjiResult({
           </b>
         </div>
       </div>
+
+      {/* Vedic Kundali Chart & Details Accordion */}
+      {result.fullKundaliData && (
+        <div style={{ marginBottom: 12 }}>
+          <VedicKundaliChart
+            lagnaRashiNumber={result.fullKundaliData.astronomicalKundali?.lagna?.rashiIndex || 1}
+            navamshaLagnaRashiNumber={result.fullKundaliData.astronomicalKundali?.lagna?.navamshaRashiIndex || result.fullKundaliData.astronomicalKundali?.lagna?.rashiIndex}
+            planets={result.fullKundaliData.astronomicalKundali?.planets || []}
+            title="आपकी वैदिक लग्न कुण्डली"
+            subtitle="उत्तर भारतीय वैदिक चक्र"
+            birthData={result.fullKundaliData.verifiedBirthData}
+            fullKundaliData={result.fullKundaliData}
+          />
+        </div>
+      )}
 
       {/* Core Recommendation Banner */}
       <div style={{

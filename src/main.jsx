@@ -79,14 +79,18 @@ if (typeof window !== "undefined") {
   }
 }
 
-createRoot(document.getElementById("root")).render(
-  <ErrorBoundary>
-    <BrowserRouter>
-      <ToastProvider>
-        <CartProvider>
-          <App />
-        </CartProvider>
-      </ToastProvider>
-    </BrowserRouter>
-  </ErrorBoundary>
-);
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  const root = createRoot(rootElement);
+  root.render(
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ToastProvider>
+          <CartProvider>
+            <App />
+          </CartProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  );
+}

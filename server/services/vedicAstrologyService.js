@@ -523,6 +523,81 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
   const antarStartDate = new Date(antarStartMs).toISOString().split("T")[0];
   const antarEndDate = new Date(antarEndMs).toISOString().split("T")[0];
 
+  // 3. Pratyantardasha (Level 3) within active Antardasha
+  const currentAntarIndex = VIMSHOTTARI_DASHA_ORDER.findIndex(p => p.planet === runningAntardasha.planet);
+  const antarSpanYears = (runningMahadasha.years * runningAntardasha.years) / 120;
+  let pratyantaraElapsed = 0;
+  let runningPratyantardasha = runningAntardasha;
+  const pratyantardashasTimeline = [];
+  let runningPratyantaraAcc = 0;
+
+  for (let j = 0; j < 9; j++) {
+    const pratIdx = (currentAntarIndex + j) % 9;
+    const pratPlanet = VIMSHOTTARI_DASHA_ORDER[pratIdx];
+    const pratSpanYears = (antarSpanYears * pratPlanet.years) / 120;
+    const thisPratStartMs = antarStartMs + (runningPratyantaraAcc * msPerYear);
+    const thisPratEndMs = thisPratStartMs + (pratSpanYears * msPerYear);
+    const isCurrent = targetTimeMs >= thisPratStartMs && targetTimeMs <= thisPratEndMs;
+
+    if (isCurrent || (j === 0 && targetTimeMs < thisPratStartMs)) {
+      runningPratyantardasha = pratPlanet;
+      pratyantaraElapsed = runningPratyantaraAcc;
+    }
+
+    pratyantardashasTimeline.push({
+      planet: pratPlanet.planet,
+      planetHindi: pratPlanet.planetHindi || pratPlanet.planet,
+      startDate: new Date(thisPratStartMs).toISOString().split("T")[0],
+      endDate: new Date(thisPratEndMs).toISOString().split("T")[0],
+      isCurrent: targetTimeMs >= thisPratStartMs && targetTimeMs <= thisPratEndMs
+    });
+
+    runningPratyantaraAcc += pratSpanYears;
+  }
+
+  const pratStartMs = antarStartMs + (pratyantaraElapsed * msPerYear);
+  const pratSpanYears = (antarSpanYears * runningPratyantardasha.years) / 120;
+  const pratEndMs = pratStartMs + (pratSpanYears * msPerYear);
+  const pratStartDate = new Date(pratStartMs).toISOString().split("T")[0];
+  const pratEndDate = new Date(pratEndMs).toISOString().split("T")[0];
+
+  // 4. Sookshma Dasha (Level 4) within active Pratyantardasha
+  const currentPratIndex = VIMSHOTTARI_DASHA_ORDER.findIndex(p => p.planet === runningPratyantardasha.planet);
+  let sookshmaElapsed = 0;
+  let runningSookshmaDasha = runningPratyantardasha;
+  const sookshmaDashasTimeline = [];
+  let runningSookshmaAcc = 0;
+
+  for (let k = 0; k < 9; k++) {
+    const sookIdx = (currentPratIndex + k) % 9;
+    const sookPlanet = VIMSHOTTARI_DASHA_ORDER[sookIdx];
+    const sookSpanYears = (pratSpanYears * sookPlanet.years) / 120;
+    const thisSookStartMs = pratStartMs + (runningSookshmaAcc * msPerYear);
+    const thisSookEndMs = thisSookStartMs + (sookSpanYears * msPerYear);
+    const isCurrent = targetTimeMs >= thisSookStartMs && targetTimeMs <= thisSookEndMs;
+
+    if (isCurrent || (k === 0 && targetTimeMs < thisSookStartMs)) {
+      runningSookshmaDasha = sookPlanet;
+      sookshmaElapsed = runningSookshmaAcc;
+    }
+
+    sookshmaDashasTimeline.push({
+      planet: sookPlanet.planet,
+      planetHindi: sookPlanet.planetHindi || sookPlanet.planet,
+      startDate: new Date(thisSookStartMs).toISOString().split("T")[0],
+      endDate: new Date(thisSookEndMs).toISOString().split("T")[0],
+      isCurrent: targetTimeMs >= thisSookStartMs && targetTimeMs <= thisSookEndMs
+    });
+
+    runningSookshmaAcc += sookSpanYears;
+  }
+
+  const sookStartMs = pratStartMs + (sookshmaElapsed * msPerYear);
+  const sookSpanYears = (pratSpanYears * runningSookshmaDasha.years) / 120;
+  const sookEndMs = sookStartMs + (sookSpanYears * msPerYear);
+  const sookStartDate = new Date(sookStartMs).toISOString().split("T")[0];
+  const sookEndDate = new Date(sookEndMs).toISOString().split("T")[0];
+
   // Next 3 Upcoming Mahadashas
   const upcomingMahadashas = [];
   let nextMahaStartMs = mahaEndMs;
@@ -540,18 +615,39 @@ export function calculateVimshottariDasha(moonDeg, birthDate, targetDate = new D
     nextMahaStartMs = nextMahaEndMs;
   }
 
+  const mahaHindi = runningMahadasha.planetHindi || runningMahadasha.planet;
+  const antarHindi = runningAntardasha.planetHindi || runningAntardasha.planet;
+  const pratHindi = runningPratyantardasha.planetHindi || runningPratyantardasha.planet;
+  const sookHindi = runningSookshmaDasha.planetHindi || runningSookshmaDasha.planet;
+
   return {
     birthDashaLord: initialDasha.planet,
     birthDashaBalance: `${balanceYears.toFixed(1)} years of ${initialDasha.planet} Dasha`,
     currentMahadasha: runningMahadasha.planet,
-    currentMahadashaHindi: runningMahadasha.planetHindi || runningMahadasha.planet,
+    currentMahadashaHindi: mahaHindi,
     mahadashaStartDate: mahaStartDate,
     mahadashaEndDate: mahaEndDate,
+
     currentAntardasha: runningAntardasha.planet,
-    currentAntardashaHindi: runningAntardasha.planetHindi || runningAntardasha.planet,
+    currentAntardashaHindi: antarHindi,
     antardashaStartDate: antarStartDate,
     antardashaEndDate: antarEndDate,
     antardashasTimeline,
+
+    currentPratyantardasha: runningPratyantardasha.planet,
+    currentPratyantardashaHindi: pratHindi,
+    pratyantardashaStartDate: pratStartDate,
+    pratyantardashaEndDate: pratEndDate,
+    pratyantardashasTimeline,
+
+    currentSookshmaDasha: runningSookshmaDasha.planet,
+    currentSookshmaDashaHindi: sookHindi,
+    sookshmaDashaStartDate: sookStartDate,
+    sookshmaDashaEndDate: sookEndDate,
+    sookshmaDashasTimeline,
+
+    dashaChainSummary: `${mahaHindi} → ${antarHindi} → ${pratHindi} → ${sookHindi}`,
+
     upcomingMahadashas,
     recommendedDashaRudraksha: runningMahadasha.rudraksha
   };

@@ -372,14 +372,15 @@ export function ResponsivePlanetaryReport({
   headers = [], 
   rawRows = [], 
   detectedLagna = 1,
-  showChart = true 
+  showChart = true,
+  birthData = null,
+  fullKundaliData = null
 }) {
-  const hasPlanets = planets && planets.length > 0;
-
-  // Construct items from planets or rawRows
   const planetList = planets && planets.length > 0
     ? planets
     : rawRows.map(r => parsePlanetaryRow(r, headers));
+
+  const hasPlanets = planetList && planetList.length > 0;
 
   return (
     <div className="w-full my-2 box-border space-y-3">
@@ -395,9 +396,11 @@ export function ResponsivePlanetaryReport({
           </div>
           <VedicKundaliChart
             lagnaRashiNumber={detectedLagna}
-            planets={planets}
+            planets={planetList}
             title="लग्न कुण्डली (D1 Chart)"
             subtitle="उत्तर भारतीय वैदिक चक्र"
+            birthData={birthData}
+            fullKundaliData={fullKundaliData}
           />
         </div>
       )}

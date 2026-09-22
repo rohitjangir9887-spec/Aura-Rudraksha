@@ -176,5 +176,22 @@
       </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Automatic failsafe: remove fallback loader if app is ready, or provide interactive refresh after timeout
+      setTimeout(function() {
+        var loader = document.getElementById("aura-initial-loader");
+        if (loader && !document.querySelector(".header") && !document.querySelector("#root > :not(#aura-initial-loader)")) {
+          var retryBtn = document.getElementById("aura-loader-retry");
+          if (!retryBtn) {
+            var btn = document.createElement("button");
+            btn.id = "aura-loader-retry";
+            btn.innerText = "✨ वेबसाइट लोड करें (Reload)";
+            btn.style.cssText = "margin-top:16px;padding:8px 18px;background:#8c2b10;color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(140,43,16,0.3);";
+            btn.onclick = function() { window.location.reload(); };
+            loader.appendChild(btn);
+          }
+        }
+      }, 5000);
+    </script>
   </body>
 </html>

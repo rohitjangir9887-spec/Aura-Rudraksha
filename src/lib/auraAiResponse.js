@@ -202,6 +202,9 @@ export function normalizeKundali(k) {
     vimshottariDasha: dasha,
     mahadashaHindi: dasha.currentMahadashaHindi || k.mahadashaHindi || "",
     antardashaHindi: dasha.currentAntardashaHindi || k.antardashaHindi || "",
+    pratyantardashaHindi: dasha.currentPratyantardashaHindi || k.pratyantardashaHindi || "",
+    sookshmaDashaHindi: dasha.currentSookshmaDashaHindi || k.sookshmaDashaHindi || "",
+    dashaChainSummary: dasha.dashaChainSummary || k.dashaChainSummary || "",
 
     // Planets & Houses
     planets: astro.planets || k.planets || [],
@@ -369,27 +372,38 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
   
-  if (trimmed.length < 50) return false;
+  if (trimmed.length < 30) return false;
 
-  // 1. Explicit terminal keywords section = complete
-  if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
-
-  // 2. Explicit terminal blessings / greetings closing = complete
-  if (/(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*नमः\s*शिवाय\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$|शुभकामनाएं\.?\s*$)/i.test(trimmed)) {
+  // 1. Explicit terminal blessings / greetings closing or keywords = complete
+  if (/(\*\*हर\s*हर\s*महादेव\*?\*?\s*$|हर\s*हर\s*महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*नमः\s*शिवाय\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$|शुभकामनाएं\.?\s*$|\[AURA_KEYWORDS\])/i.test(trimmed)) {
     return false;
   }
 
-  // 3. Unclosed code fences = incomplete
+  // 2. Unclosed code fences = incomplete
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
 
-  // 4. Unclosed markdown table row cut off mid-cell
+  // 3. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
+
+  // 4. Check explicit continuation/truncation signals
+  if (/(\.\.\.|…|\(जारी\.\.\.\)|\(to be continued\.\.\.\)|अधूरा उत्तर|आगे का उत्तर|अगला भाग)$/i.test(trimmed)) {
+    return true;
+  }
 
   // 5. Check true dangling connectors or open punctuation at end of string
   const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.|\(-)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  return false;
+  // 6. Check last non-whitespace character. If it ends with complete sentence punctuation or closing bracket/emoji, it is complete!
+  const lastChar = trimmed.slice(-1);
+  const completeEndPattern = /[।\.!\?\)\}\]>\|\n🙏🕉️✨🚩💯🏷️📦📿📞👍😊🌸🍀]/;
+
+  if (completeEndPattern.test(lastChar)) {
+    return false; // Complete response -> Do NOT show "आगे पूरा करें"
+  }
+
+  // If it ends without punctuation (mid-sentence/mid-word), it is incomplete!
+  return true;
 }
 
