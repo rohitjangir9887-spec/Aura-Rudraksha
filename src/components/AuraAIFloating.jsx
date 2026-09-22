@@ -822,20 +822,30 @@ export function AuraAIFloating() {
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream notice in floating assistant:", err);
-          if (!streamInitialized) {
-            setErrorOccurred(true);
-            const errMsg = {
-              id: "err_" + Date.now(),
+          setErrorOccurred(true);
+          const fallbackText = mode === "panditji"
+            ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
+            : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.";
+          
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === aiMsgId);
+            const existing = idx >= 0 ? prev[idx] : null;
+            const finalMsgText = (existing && existing.text && existing.text.trim()) ? existing.text : fallbackText;
+            const updatedMsg = {
+              id: aiMsgId,
               sender: "ai",
-              text: mode === "panditji"
-                ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
-                : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
+              text: finalMsgText,
               requiresHuman: true,
-              timestamp: new Date().toISOString()
+              timestamp: existing?.timestamp || new Date().toISOString()
             };
-            const updatedMsgs = auraChatStore.appendMessage(errMsg, mode);
-            setMessages(updatedMsgs);
-          }
+            auraChatStore.upsertMessage(updatedMsg, mode);
+            if (idx >= 0) {
+              const clone = [...prev];
+              clone[idx] = updatedMsg;
+              return clone;
+            }
+            return [...prev, updatedMsg];
+          });
           setLoading(false);
           if (timerRef.current) {
             clearInterval(timerRef.current);
@@ -845,26 +855,34 @@ export function AuraAIFloating() {
       });
     } catch (err) {
       if (currentTurnSeq !== turnSeqRef.current) return;
-      if (!streamInitialized) {
-        setErrorOccurred(true);
-      }
+      setErrorOccurred(true);
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      if (!streamInitialized) {
-        const errMsg = {
-          id: "err_" + Date.now(),
+      const fallbackText = mode === "panditji"
+        ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
+        : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.";
+      
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === aiMsgId);
+        const existing = idx >= 0 ? prev[idx] : null;
+        const finalMsgText = (existing && existing.text && existing.text.trim()) ? existing.text : fallbackText;
+        const updatedMsg = {
+          id: aiMsgId,
           sender: "ai",
-          text: mode === "panditji"
-            ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
-            : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
+          text: finalMsgText,
           requiresHuman: true,
-          timestamp: new Date().toISOString()
+          timestamp: existing?.timestamp || new Date().toISOString()
         };
-        const updatedMsgs = auraChatStore.appendMessage(errMsg, mode);
-        setMessages(updatedMsgs);
-      }
+        auraChatStore.upsertMessage(updatedMsg, mode);
+        if (idx >= 0) {
+          const clone = [...prev];
+          clone[idx] = updatedMsg;
+          return clone;
+        }
+        return [...prev, updatedMsg];
+      });
     } finally {
       if (currentTurnSeq === turnSeqRef.current) {
         setLoading(false);

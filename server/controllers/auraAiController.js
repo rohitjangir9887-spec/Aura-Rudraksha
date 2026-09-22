@@ -71,20 +71,11 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // Strict NVIDIA NIM Model Configuration
-export const PRIMARY_NIM_MODEL = (process.env.NEMOTRON_MODEL || process.env.NVIDIA_MODEL || "nvidia/nemotron-3-super-120b-a12b").trim();
+export const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 export const BACKUP_NIM_MODELS = [
-  process.env.NEMOTRON_MODEL,
-  process.env.NVIDIA_MODEL,
   "nvidia/nemotron-3-super-120b-a12b",
-  "nvidia/llama-3.1-nemotron-70b-instruct",
-  "meta/llama-3.3-70b-instruct",
-  "meta/llama-3.1-70b-instruct",
-  "meta/llama-3.1-8b-instruct",
-  "nvidia/nemotron-4-340b-instruct",
-  "mistralai/mistral-7b-instruct-v0.3",
-  "nemotron-3-super-120b-a12b",
-  "deepseek-ai/deepseek-r1"
-].filter(Boolean);
+  "nemotron-3-super-120b-a12b"
+];
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 let cachedNvidiaKey = "";
@@ -334,9 +325,9 @@ export function getGeminiClient(customKey = "") {
 export const GEMINI_TEXT_MODELS = [
   process.env.GEMINI_MODEL,
   'gemini-2.5-flash',
-  'gemini-flash-latest',
-  'gemini-2.5-flash-lite'
-].filter(Boolean);
+  'gemini-2.5-pro',
+  'gemini-flash-latest'
+].filter(m => Boolean(m) && !m.includes('lite') && !m.includes('1.5'));
 
 /**
  * Convert OpenAI/NIM formatted messages array to @google/genai Content array.
