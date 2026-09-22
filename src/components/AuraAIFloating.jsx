@@ -637,11 +637,6 @@ export function AuraAIFloating() {
     return null;
   }
 
-  // ONLY show on Home page
-  if (path !== "/") {
-    return null;
-  }
-
   if (!isOpen && !isFloatingVisible) {
     return null;
   }
@@ -829,6 +824,17 @@ export function AuraAIFloating() {
           console.warn("Stream notice in floating assistant:", err);
           if (!streamInitialized) {
             setErrorOccurred(true);
+            const errMsg = {
+              id: "err_" + Date.now(),
+              sender: "ai",
+              text: mode === "panditji"
+                ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
+                : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.",
+              requiresHuman: true,
+              timestamp: new Date().toISOString()
+            };
+            const updatedMsgs = auraChatStore.appendMessage(errMsg, mode);
+            setMessages(updatedMsgs);
           }
           setLoading(false);
           if (timerRef.current) {

@@ -115,8 +115,8 @@ function extractInternalRoute(rawUrl) {
     return clean;
   }
 
-  // Case 2: Starts with product/, shop/, categories/, cart/, checkout/, wishlist/, account/
-  if (/^(product|shop|categories|cart|checkout|wishlist|account)(\/|\?|$)/i.test(clean)) {
+  // Case 2: Starts with product/, shop/, categories/, cart/, checkout/, wishlist/, account/, zodiac/, panditji/
+  if (/^(product|shop|categories|cart|checkout|wishlist|account|zodiac|panditji)(\/|\?|$)/i.test(clean)) {
     return "/" + clean;
   }
 
@@ -138,7 +138,7 @@ function extractInternalRoute(rawUrl) {
       parsed.hostname.includes("127.0.0.1") ||
       parsed.hostname.includes("vercel.app");
 
-    const isAppPath = /^\/(product|shop|categories|cart|checkout|wishlist|account)(\/|\?|$)/i.test(pathname);
+    const isAppPath = /^\/(product|shop|categories|cart|checkout|wishlist|account|zodiac|panditji)(\/|\?|$)/i.test(pathname);
 
     if (isCurrentHost || isKnownDomain || isAppPath) {
       return (pathname + search) || "/";
@@ -153,8 +153,8 @@ export function renderInlineContent(text) {
   if (!text) return null;
 
   try {
-    // Split by inline tokens: [link](url), https?://..., domain links, relative /product/... paths, **bold**, `code`, *italic*
-    const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<)\]]+|(?:www\.)?(?:aurarudraksha\.bond|aurarudraksha\.com|aura-rudraksha\.vercel\.app)[^\s<)\]]*|\/(?:product|shop|categories|cart|checkout|wishlist|account)[^\s<)\]]*|\b(?:product|shop|categories|cart)\/[a-zA-Z0-9_-]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+    // Split by inline tokens: [link](url), https?://..., domain links, relative or bare /product/... paths, **bold**, `code`, *italic*
+    const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<)\]]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/[^\s<)\]]*|\/?(?:product|shop|categories|cart|checkout|wishlist|account|zodiac|panditji)\/[a-zA-Z0-9_-]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
     const parts = text.split(tokenRegex);
 
     return parts.map((part, idx) => {
@@ -363,52 +363,96 @@ export function PlanetCard({ planetName = "", house = "", rashi = "", status = "
   );
 }
 
-// Interactive Multi-View Component: Kundali Chart vs Table
+// Interactive Multi-View Component: Clean List vs Kundali Chart vs Table
 export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows = [], detectedLagna = 1 }) {
-  const [viewMode, setViewMode] = useState("table"); // 'table' | 'chart'
+  const [viewMode, setViewMode] = useState("list"); // 'list' | 'chart' | 'table'
 
   return (
-    <div className="w-full my-2.5 overflow-hidden box-border">
+    <div className="w-full my-3 overflow-hidden box-border">
       {/* Top Controls Bar with View Switcher Tabs */}
-      <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 mb-2 border-b border-[#EADCCF]">
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 mb-2.5 border-b border-[#ebdccb]">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-base text-amber-700 flex-shrink-0">🪐</span>
+          <span className="text-base text-[#8c2b10] flex-shrink-0">🕉️</span>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-[#5C1C0A] leading-tight truncate">ग्रह गोचर व भाव स्थिति</h4>
-            <p className="text-[10px] text-stone-600 font-medium">वैदिक कुण्डली विश्लेषण ({planets.length || rawRows.length} ग्रह)</p>
+            <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight truncate">ग्रह गोचर व भाव स्थिति</h4>
+            <p className="text-[11px] text-[#78350f] font-medium">वैदिक कुण्डली विश्लेषण ({planets.length || rawRows.length} ग्रह)</p>
           </div>
         </div>
 
         {/* View Toggle Buttons */}
-        <div className="flex items-center bg-[#F3E8DC] p-0.5 rounded-lg border border-[#E5D5C5] flex-shrink-0">
+        <div className="flex items-center bg-[#f3e8dc] p-0.5 rounded-lg border border-[#e5d5c5] flex-shrink-0">
           <button
             type="button"
-            onClick={() => setViewMode("table")}
+            onClick={() => setViewMode("list")}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
-              viewMode === "table"
-                ? "bg-[#8C2B10] text-white shadow-xs"
-                : "text-[#78350F] hover:text-[#8C2B10]"
+              viewMode === "list"
+                ? "bg-[#8c2b10] text-white shadow-xs"
+                : "text-[#78350f] hover:text-[#8c2b10]"
             }`}
           >
-            <TableIcon size={11} />
-            <span>तालिका</span>
+            <span>📜</span>
+            <span>सूची</span>
           </button>
           <button
             type="button"
             onClick={() => setViewMode("chart")}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
               viewMode === "chart"
-                ? "bg-[#8C2B10] text-white shadow-xs"
-                : "text-[#78350F] hover:text-[#8C2B10]"
+                ? "bg-[#8c2b10] text-white shadow-xs"
+                : "text-[#78350f] hover:text-[#8c2b10]"
             }`}
           >
-            <span>🕉️</span>
-            <span>कुण्डली चक्र</span>
+            <span>✨</span>
+            <span>चक्र</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
+              viewMode === "table"
+                ? "bg-[#8c2b10] text-white shadow-xs"
+                : "text-[#78350f] hover:text-[#8c2b10]"
+            }`}
+          >
+            <TableIcon size={11} />
+            <span>तालिका</span>
           </button>
         </div>
       </div>
 
       {/* Content based on ViewMode */}
+      {viewMode === "list" && (
+        <div className="space-y-2 py-1">
+          {planets.map((p, pIdx) => {
+            const cleanName = (p.planetName || "").replace(/\*/g, "").trim();
+            const house = (p.house || "").replace(/\*/g, "").trim();
+            const rashi = (p.rashi || "").replace(/\*/g, "").trim();
+            const status = (p.status || "").replace(/\*/g, "").trim();
+            const interp = (p.interpretation || "").replace(/\*/g, "").trim();
+
+            return (
+              <div key={pIdx} className="text-[14px] leading-relaxed border-b border-[#f3e8dc] pb-2 last:border-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {getPlanetIcon(cleanName)}
+                  <strong className="text-[#8c2b10] font-bold">{cleanName}</strong>
+                  {(house || rashi) && (
+                    <span className="text-[#6e2008] font-semibold text-[13px]">
+                      ({house}{rashi ? `, ${rashi}` : ""})
+                    </span>
+                  )}
+                  {status && renderStatusBadge(status)}
+                </div>
+                {interp && (
+                  <div className="mt-1 text-[#3b1b10] text-[13.5px] pl-5 leading-normal">
+                    {renderInlineContent(interp)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {viewMode === "chart" && (
         <VedicKundaliChart
           lagnaRashiNumber={detectedLagna}
@@ -586,49 +630,17 @@ function isHeadingLine(line) {
   // 1. Explicit markdown heading (#, ##, ###) or semantic tag [SECTION]
   if (/^#{1,6}\s+/.test(trimmed) || /^\[SECTION\]/i.test(trimmed)) return true;
 
-  // 2. Numbered / Symbolized section headers
+  // 2. Short standalone heading lines starting with emoji/symbols or explicit section titles
   if (
-    trimmed.length <= 85 &&
+    trimmed.length <= 60 &&
     !trimmed.includes("?") &&
-    (
-      /^#{1,6}\s*/.test(trimmed) ||
-      /^(?:\d+\.|\d+\))\s*\*{0,2}[^\n:]+\*{0,2}:?$/.test(trimmed) ||
-      trimmed.endsWith(":") ||
-      trimmed.endsWith("!")
-    ) &&
-    (
-      trimmed.includes("Kundali") ||
-      trimmed.includes("राशि") ||
-      trimmed.includes("ग्रह") ||
-      trimmed.includes("दोष") ||
-      trimmed.includes("महादशा") ||
-      trimmed.includes("नक्षत्र") ||
-      trimmed.includes("रुद्राक्ष") ||
-      trimmed.includes("उपाय") ||
-      trimmed.includes("मंत्र") ||
-      trimmed.includes("जाप") ||
-      trimmed.includes("दृष्टि") ||
-      trimmed.includes("विश्लेषण") ||
-      trimmed.includes("Rudraksha") ||
-      trimmed.includes("Offer") ||
-      trimmed.includes("Guarantee") ||
-      trimmed.startsWith("🙏") ||
-      trimmed.startsWith("✨") ||
-      trimmed.startsWith("🎁") ||
-      trimmed.startsWith("📿") ||
-      trimmed.startsWith("🕉")
-    )
-  ) {
-    return true;
-  }
-
-  // 3. Text wrapped entirely in **...**
-  if (
-    trimmed.startsWith("**") && 
-    trimmed.endsWith("**") && 
-    trimmed.length <= 75 && 
+    !trimmed.includes("।") &&
     !trimmed.includes(".") &&
-    !trimmed.includes("।")
+    (
+      /^[🕉✨🚩📿🙏🔮✦★📍💡]\s*/.test(trimmed) ||
+      /^(?:\d+\.|\d+\))\s*\*{0,2}(?:विश्लेषण|उपाय|मार्गदर्शन|फलादेश|कुंडली|राशि|दोष|रुद्राक्ष|मंत्र|महत्व)\*{0,2}:?$/i.test(trimmed) ||
+      /^\*{0,2}(?:वैदिक विश्लेषण|कुंडली विश्लेषण|ग्रह स्थिति|मुख्य निष्कर्ष|सुझाये गए रुद्राक्ष|विशेष उपाय|सिद्ध मंत्र)\*{0,2}:?$/i.test(trimmed)
+    )
   ) {
     return true;
   }

@@ -473,6 +473,15 @@ export function AuraAIPage() {
           console.warn("Stream error in full-page Aura AI:", err);
           if (!streamInitialized) {
             setErrorOccurred(true);
+            const errMsg = {
+              id: "err_" + Date.now(),
+              sender: "ai",
+              text: "Namaste 🙏 Server se connect karne mein samasya aayi. Hamare live catalog ke sabhi Rudraksha lab-tested aur energized hain. Kripya punah prayas karein.",
+              requiresHuman: true,
+              timestamp: new Date().toISOString()
+            };
+            const updatedMsgs = auraChatStore.appendMessage(errMsg, mode);
+            setMessages(updatedMsgs);
           }
           setLoading(false);
           if (timerRef.current) {
