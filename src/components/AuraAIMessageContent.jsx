@@ -363,65 +363,33 @@ export function PlanetCard({ planetName = "", house = "", rashi = "", status = "
   );
 }
 
-// Interactive Multi-View Component: Clean List vs Kundali Chart vs Table
+// Unified Planetary & Kundali Report Component rendered directly in Chat Flow (no option buttons)
 export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows = [], detectedLagna = 1 }) {
-  const [viewMode, setViewMode] = useState("list"); // 'list' | 'chart' | 'table'
+  const hasPlanets = planets && planets.length > 0;
 
   return (
-    <div className="w-full my-3 overflow-hidden box-border">
-      {/* Top Controls Bar with View Switcher Tabs */}
-      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 mb-2.5 border-b border-[#ebdccb]">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-base text-[#8c2b10] flex-shrink-0">🕉️</span>
-          <div className="min-w-0">
-            <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight truncate">ग्रह गोचर व भाव स्थिति</h4>
-            <p className="text-[11px] text-[#78350f] font-medium">वैदिक कुण्डली विश्लेषण ({planets.length || rawRows.length} ग्रह)</p>
-          </div>
-        </div>
-
-        {/* View Toggle Buttons */}
-        <div className="flex items-center bg-[#f3e8dc] p-0.5 rounded-lg border border-[#e5d5c5] flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
-              viewMode === "list"
-                ? "bg-[#8c2b10] text-white shadow-xs"
-                : "text-[#78350f] hover:text-[#8c2b10]"
-            }`}
-          >
-            <span>📜</span>
-            <span>सूची</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("chart")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
-              viewMode === "chart"
-                ? "bg-[#8c2b10] text-white shadow-xs"
-                : "text-[#78350f] hover:text-[#8c2b10]"
-            }`}
-          >
-            <span>✨</span>
-            <span>चक्र</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("table")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer select-none ${
-              viewMode === "table"
-                ? "bg-[#8c2b10] text-white shadow-xs"
-                : "text-[#78350f] hover:text-[#8c2b10]"
-            }`}
-          >
-            <TableIcon size={11} />
-            <span>तालिका</span>
-          </button>
+    <div className="w-full my-3 overflow-hidden box-border space-y-3">
+      {/* Header Title */}
+      <div className="flex items-center gap-1.5 pb-2 border-b border-[#ebdccb]">
+        <span className="text-base text-[#8c2b10] flex-shrink-0">🕉️</span>
+        <div className="min-w-0">
+          <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight">ग्रह गोचर व भाव स्थिति</h4>
+          <p className="text-[11px] text-[#78350f] font-medium">वैदिक कुण्डली विश्लेषण ({planets.length || rawRows.length} ग्रह)</p>
         </div>
       </div>
 
-      {/* Content based on ViewMode */}
-      {viewMode === "list" && (
+      {/* 1. Vedic Kundali Chart rendered directly inline */}
+      {hasPlanets && (
+        <VedicKundaliChart
+          lagnaRashiNumber={detectedLagna}
+          planets={planets}
+          title="लग्न कुण्डली (D1 Chart)"
+          subtitle="उत्तर भारतीय वैदिक चक्र"
+        />
+      )}
+
+      {/* 2. Planetary Table / List rendered directly inline below chart */}
+      {hasPlanets ? (
         <div className="space-y-2 py-1">
           {planets.map((p, pIdx) => {
             const cleanName = (p.planetName || "").replace(/\*/g, "").trim();
@@ -451,40 +419,31 @@ export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows 
             );
           })}
         </div>
-      )}
-
-      {viewMode === "chart" && (
-        <VedicKundaliChart
-          lagnaRashiNumber={detectedLagna}
-          planets={planets}
-          title="लग्न कुण्डली (D1 Chart)"
-          subtitle="उत्तर भारतीय वैदिक चक्र"
-        />
-      )}
-
-      {viewMode === "table" && (
-        <div className="aura-ai-table-wrap">
-          <table className="aura-ai-table">
-            {headers.length > 0 && (
-              <thead>
-                <tr>
-                  {headers.map((h, hIdx) => (
-                    <th key={hIdx}>{h.replace(/\*\*/g, "")}</th>
-                  ))}
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {rawRows.map((row, rIdx) => (
-                <tr key={rIdx}>
-                  {row.map((cell, cIdx) => (
-                    <td key={cIdx}>{renderInlineContent(cell)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      ) : (
+        rawRows.length > 0 && (
+          <div className="aura-ai-table-wrap">
+            <table className="aura-ai-table">
+              {headers.length > 0 && (
+                <thead>
+                  <tr>
+                    {headers.map((h, hIdx) => (
+                      <th key={hIdx}>{h.replace(/\*\*/g, "")}</th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {rawRows.map((row, rIdx) => (
+                  <tr key={rIdx}>
+                    {row.map((cell, cIdx) => (
+                      <td key={cIdx}>{renderInlineContent(cell)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
     </div>
   );

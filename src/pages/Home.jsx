@@ -244,7 +244,7 @@ export function Home() {
       aria-label="Aura Sacred Hero Banners"
       style={{ overflow: 'hidden', borderRadius: '12px', margin: '24px auto 16px', width: '100%' }}
     >
-      <div className="hero-slides" style={{ width: '100%', background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
+      <div className="hero-slides" style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => {
           const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
           const bannerWidth = isMobile ? 640 : 1200;
