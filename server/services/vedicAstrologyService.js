@@ -1461,9 +1461,19 @@ export function determineAstrologicalIntent(userQuery = "") {
     return { type: "greeting", label: "Devotee Greeting" };
   }
 
-  // Full Kundali triggers
-  if (/puri kundali|poori kundali|full kundali|complete reading|poori jankari|sampurna kundali|har har mahadev|sab batayein|sabhi grah|विस्तार से|पूरी कुंडली/i.test(q)) {
-    return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+  // Full Kundali triggers (any request for Kundali reading or comprehensive analysis)
+  if (
+    /puri kundali|poori kundali|full kundali|complete reading|poori jankari|sampurna kundali|har har mahadev|sab batayein|sabhi grah|विस्तार से|पूरी कुंडली|कुंडली|कुण्डली|kundali|kundli/i.test(q)
+  ) {
+    // If it's a specific narrow question without 'kundali' or 'batao'
+    if (
+      /career|job|naukri|shaadi|marriage|vivah|finance|health|videsh/i.test(q) &&
+      !/kundali|kundli|कुण्डली|कुंडली|puri|poori|full|complete|sampurna|sab|batao|bataiye|dekh|विश्लेषण/i.test(q)
+    ) {
+      // Allow specific classification
+    } else {
+      return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+    }
   }
 
   // Career

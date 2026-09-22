@@ -45,6 +45,9 @@ export function sanitizeText(raw) {
   if (!raw || typeof raw !== "string") return "";
   let text = raw.trim();
 
+  // Strip [AURA_KEYWORDS]: kw1 | kw2 | ... line from visible chat display
+  text = text.replace(/\[AURA_KEYWORDS\]:[^\n]*/gi, "").replace(/\[AURA_KEYWORDS\]/gi, "").trim();
+
   // Replace raw HTML linebreaks with standard newlines
   text = text.replace(/<br\s*\/?>/gi, "\n");
 
