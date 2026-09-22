@@ -363,87 +363,77 @@ export function PlanetCard({ planetName = "", house = "", rashi = "", status = "
   );
 }
 
-// Unified Planetary & Kundali Report Component rendered directly in Chat Flow (no option buttons)
-export function ResponsivePlanetaryReport({ planets = [], headers = [], rawRows = [], detectedLagna = 1 }) {
+// Unified Planetary & Kundali Report Component rendered directly in Chat Flow
+export function ResponsivePlanetaryReport({ 
+  planets = [], 
+  headers = [], 
+  rawRows = [], 
+  detectedLagna = 1,
+  showChart = true 
+}) {
   const hasPlanets = planets && planets.length > 0;
+  const displayHeaders = headers && headers.length > 0 ? headers : ["ग्रह", "भाव", "राशि", "स्थिति", "फलादेश / विवरण"];
+
+  // Construct table rows from rawRows or planets
+  const tableRows = rawRows && rawRows.length > 0
+    ? rawRows
+    : planets.map(p => [
+        p.planetName || "",
+        p.house || "",
+        p.rashi || "",
+        p.status || "",
+        p.interpretation || ""
+      ]);
 
   return (
     <div className="w-full my-3 overflow-hidden box-border space-y-3">
-      {/* Header Title */}
-      <div className="flex items-center gap-1.5 pb-2 border-b border-[#ebdccb]">
-        <span className="text-base text-[#8c2b10] flex-shrink-0">🕉️</span>
-        <div className="min-w-0">
-          <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight">ग्रह गोचर व भाव स्थिति</h4>
-          <p className="text-[11px] text-[#78350f] font-medium">वैदिक कुण्डली विश्लेषण ({planets.length || rawRows.length} ग्रह)</p>
+      {/* 1. Vedic Kundali Chart - Rendered ONLY ONCE per message if showChart is true */}
+      {showChart && hasPlanets && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 pb-1 border-b border-[#ebdccb]">
+            <span className="text-base text-[#8c2b10] flex-shrink-0">🕉️</span>
+            <div className="min-w-0">
+              <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight">वैदिक लग्न कुण्डली चक्र (D1 Chart)</h4>
+              <p className="text-[11px] text-[#78350f] font-medium">उत्तर भारतीय कुण्डली एवं नवग्रह स्थिति</p>
+            </div>
+          </div>
+          <VedicKundaliChart
+            lagnaRashiNumber={detectedLagna}
+            planets={planets}
+            title="लग्न कुण्डली (D1 Chart)"
+            subtitle="उत्तर भारतीय वैदिक चक्र"
+          />
         </div>
-      </div>
-
-      {/* 1. Vedic Kundali Chart rendered directly inline */}
-      {hasPlanets && (
-        <VedicKundaliChart
-          lagnaRashiNumber={detectedLagna}
-          planets={planets}
-          title="लग्न कुण्डली (D1 Chart)"
-          subtitle="उत्तर भारतीय वैदिक चक्र"
-        />
       )}
 
-      {/* 2. Planetary Table / List rendered directly inline below chart */}
-      {hasPlanets ? (
-        <div className="space-y-2 py-1">
-          {planets.map((p, pIdx) => {
-            const cleanName = (p.planetName || "").replace(/\*/g, "").trim();
-            const house = (p.house || "").replace(/\*/g, "").trim();
-            const rashi = (p.rashi || "").replace(/\*/g, "").trim();
-            const status = (p.status || "").replace(/\*/g, "").trim();
-            const interp = (p.interpretation || "").replace(/\*/g, "").trim();
-
-            return (
-              <div key={pIdx} className="text-[14px] leading-relaxed border-b border-[#f3e8dc] pb-2 last:border-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {getPlanetIcon(cleanName)}
-                  <strong className="text-[#8c2b10] font-bold">{cleanName}</strong>
-                  {(house || rashi) && (
-                    <span className="text-[#6e2008] font-semibold text-[13px]">
-                      ({house}{rashi ? `, ${rashi}` : ""})
-                    </span>
-                  )}
-                  {status && renderStatusBadge(status)}
-                </div>
-                {interp && (
-                  <div className="mt-1 text-[#3b1b10] text-[13.5px] pl-5 leading-normal">
-                    {renderInlineContent(interp)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        rawRows.length > 0 && (
+      {/* 2. Full Navagraha Table - Always rendered cleanly */}
+      {tableRows.length > 0 && (
+        <div className="space-y-1.5 my-2">
+          <div className="flex items-center gap-1.5 pb-1 border-b border-[#ebdccb]">
+            <TableIcon size={14} className="text-[#8c2b10] flex-shrink-0" />
+            <h4 className="text-[13px] font-bold text-[#5c1c0a] leading-tight">नवग्रह गोचर व भाव स्थिति तालिका</h4>
+          </div>
           <div className="aura-ai-table-wrap">
             <table className="aura-ai-table">
-              {headers.length > 0 && (
-                <thead>
-                  <tr>
-                    {headers.map((h, hIdx) => (
-                      <th key={hIdx}>{h.replace(/\*\*/g, "")}</th>
-                    ))}
-                  </tr>
-                </thead>
-              )}
+              <thead>
+                <tr>
+                  {displayHeaders.map((h, hIdx) => (
+                    <th key={hIdx}>{String(h).replace(/\*\*/g, "").trim()}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
-                {rawRows.map((row, rIdx) => (
+                {tableRows.map((row, rIdx) => (
                   <tr key={rIdx}>
                     {row.map((cell, cIdx) => (
-                      <td key={cIdx}>{renderInlineContent(cell)}</td>
+                      <td key={cIdx}>{renderInlineContent(String(cell || ""))}</td>
                     ))}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )
+        </div>
       )}
     </div>
   );
@@ -886,6 +876,8 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
   flushKv();
   flushTable();
 
+  let hasRenderedChart = false;
+
   return (
     <div className={`aura-ai-msg-text-ai ${className}`}>
       {blocks.map((block, idx) => {
@@ -916,8 +908,12 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Multi-View Planetary & Kundali Report (Cards + SVG Kundali Chart + Table)
+        // Multi-View Planetary & Kundali Report (SVG Kundali Chart + Full Table)
         if (block.type === "planetary_report") {
+          const shouldShowChart = !hasRenderedChart;
+          if (shouldShowChart) {
+            hasRenderedChart = true;
+          }
           return (
             <ResponsivePlanetaryReport
               key={idx}
@@ -925,6 +921,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
               headers={block.headers}
               rawRows={block.rawRows}
               detectedLagna={block.detectedLagna || detectedLagna}
+              showChart={shouldShowChart}
             />
           );
         }
