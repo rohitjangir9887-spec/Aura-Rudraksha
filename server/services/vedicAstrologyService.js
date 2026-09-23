@@ -82,6 +82,15 @@ export const CITIES_DATABASE = {
   "gurgaon": { lat: 28.4595, lon: 77.0266, tz: 5.5, state: "Haryana", country: "India" },
   "gurugram": { lat: 28.4595, lon: 77.0266, tz: 5.5, state: "Haryana", country: "India" },
   "jaipur": { lat: 26.9124, lon: 75.7873, tz: 5.5, state: "Rajasthan", country: "India" },
+  "sikar": { lat: 27.6094, lon: 75.1398, tz: 5.5, state: "Rajasthan", country: "India" },
+  "churu": { lat: 28.2900, lon: 74.9600, tz: 5.5, state: "Rajasthan", country: "India" },
+  "jhunjhunu": { lat: 28.1289, lon: 75.3995, tz: 5.5, state: "Rajasthan", country: "India" },
+  "alwar": { lat: 27.5530, lon: 76.6346, tz: 5.5, state: "Rajasthan", country: "India" },
+  "bhilwara": { lat: 25.3407, lon: 74.6313, tz: 5.5, state: "Rajasthan", country: "India" },
+  "pali": { lat: 25.7711, lon: 73.3234, tz: 5.5, state: "Rajasthan", country: "India" },
+  "sriganganagar": { lat: 29.9038, lon: 73.8772, tz: 5.5, state: "Rajasthan", country: "India" },
+  "hanumangarh": { lat: 29.5819, lon: 74.3294, tz: 5.5, state: "Rajasthan", country: "India" },
+  "bharatpur": { lat: 27.2152, lon: 77.5030, tz: 5.5, state: "Rajasthan", country: "India" },
   "jodhpur": { lat: 26.2389, lon: 73.0243, tz: 5.5, state: "Rajasthan", country: "India" },
   "udaipur": { lat: 24.5854, lon: 73.7125, tz: 5.5, state: "Rajasthan", country: "India" },
   "kota": { lat: 25.2138, lon: 75.8648, tz: 5.5, state: "Rajasthan", country: "India" },
@@ -1478,34 +1487,34 @@ export function calculateAuthenticKundali(params = {}) {
   const mulank = ((day - 1) % 9) + 1;
 
   // 1. Avakahada Chakra Calculation
-  const avakahadaChakra = calculateAvakahadaChakra(moonDeg, moonNak, moonDetails, cleanDob);
+  const avakahadaChakra = calculateAvakahadaChakra(moonSid, moonNak, moonDetails, cleanDob);
 
   // 2. Shodashvarga (16 Divisional Charts)
-  const shodashvarga = calculateShodashvarga(planets, lagnaDeg);
+  const shodashvarga = calculateShodashvarga(planets, lagnaSid);
 
   // 3. Shadbala and Bhavabala
-  const shadbala = calculateShadbala(planets, houses, lagnaDeg, sunDeg, moonDeg);
+  const shadbala = calculateShadbala(planets, houses, lagnaSid, sunSid, moonSid);
 
   // 4. Ashtakvarga and Sarvashtakvarga (SAV)
-  const ashtakvarga = calculateAshtakvarga(planets, lagnaDeg);
+  const ashtakvarga = calculateAshtakvarga(planets, lagnaSid);
 
   // 5. KP System (Krishnamurti Paddhati)
-  const kpSystem = calculateKpSystem(planets, houses, lagnaDeg, moonDeg);
+  const kpSystem = calculateKpSystem(planets, houses, lagnaSid, moonSid);
 
   // 6. Jaimini System & Chara Dasha
-  const jaimini = calculateJaiminiSystem(planets, lagnaDeg, cleanDob);
+  const jaimini = calculateJaiminiSystem(planets, lagnaSid, cleanDob);
 
   // 7. Lal Kitab System
   const lalKitab = calculateLalKitab(planets, houses);
 
   // 8. Yogini Dasha (36-year cycle)
-  const yoginiDasha = calculateYoginiDasha(moonDeg, cleanDob);
+  const yoginiDasha = calculateYoginiDasha(moonSid, cleanDob);
 
   // 9. Tajik Varshphal
-  const tajikVarshphal = calculateTajikVarshphal(cleanDob, lagnaDeg, moonDeg, planets);
+  const tajikVarshphal = calculateTajikVarshphal(cleanDob, lagnaSid, moonSid, planets);
 
   // 10. Gochar (Planetary Transits from Moon Sign)
-  const gochar = calculateGochar(moonDeg);
+  const gochar = calculateGochar(moonSid);
 
   return {
     verifiedBirthData: {
