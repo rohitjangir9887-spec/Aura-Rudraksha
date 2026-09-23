@@ -4,7 +4,6 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
 import { AuraAIFloating } from "./components/AuraAIFloating";
-import { FloatingKundliToggle } from "./components/FloatingKundliToggle";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AdminErrorBoundary } from "./components/admin/AdminErrorBoundary";
@@ -250,7 +249,6 @@ export function App() {
       >
         <AuraAIFloating />
       </ErrorBoundary>
-      <FloatingKundliToggle />
     </>
   );
 }

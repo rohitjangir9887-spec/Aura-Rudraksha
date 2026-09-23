@@ -18334,52 +18334,5 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   }
 }
 
-/* ---------------------------------------------------------------------------
-   AURA FLOATING KUNDLI TOGGLE & MODAL STYLES
-   --------------------------------------------------------------------------- */
-.aura-floating-kundli-btn-wrap {
-  position: fixed;
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-  right: 14px;
-  z-index: 10018;
-  display: inline-flex;
-  align-items: center;
-  touch-action: manipulation;
-  user-select: none;
-}
-
-@media (min-width: 1024px) {
-  .aura-floating-kundli-btn-wrap {
-    bottom: 24px;
-    right: 24px;
-  }
-}
-
-.aura-floating-kundli-btn:hover {
-  filter: brightness(1.08);
-  box-shadow: 0 6px 22px rgba(180, 83, 9, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.aura-floating-kundli-btn:active {
-  transform: scale(0.96);
-}
-
-.aura-kundli-modal-backdrop {
-  animation: auraKundliFadeIn 0.2s ease-out;
-}
-
-@keyframes auraKundliFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (max-width: 640px) {
-  .aura-kundli-modal-card {
-    border-radius: 14px !important;
-    max-height: 95vh !important;
-  }
-}
-
-
 
 
