@@ -2283,60 +2283,76 @@ export function calculateGochar(moonDeg) {
  * Determine Question Intent for Focused Astrological Analysis
  */
 export function determineAstrologicalIntent(userQuery = "") {
-  if (!userQuery || typeof userQuery !== "string") return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+  if (!userQuery || typeof userQuery !== "string") return { type: "specific_query", label: "Astrological Inquiry" };
   const q = userQuery.toLowerCase().trim();
 
-  // Greetings & Casual Hi (when user just greets without specific query)
+  // 1. Greetings & Casual Hi (when user just greets without asking a specific question)
   if (
     /^(hi|hii|hiii|hiiii|helo|hello|hey|namaste|namaskar|pranam|ram ram|radhe radhe|jai shree ram|har har mahadev|greetings)$/i.test(q) ||
     /^(नमस्ते|प्रणाम|नमस्कार|जय श्री राम|हर हर महादेव|राधे राधे|हेलो|हाय)$/i.test(q) ||
-    (q.length <= 25 && /^(hi|hii|hello|hey|namaste|pranam|namaskar|नमस्ते|प्रणाम|नमस्कार)\b/i.test(q) && !/kundali|dasha|rashi|graha|job|shaadi|future|batao|bataiye|dekh/i.test(q))
+    (q.length <= 25 && /^(hi|hii|hello|hey|namaste|pranam|namaskar|नमस्ते|प्रणाम|नमस्कार)\b/i.test(q) && !/kundali|dasha|rashi|graha|job|shaadi|future|batao|bataiye|dekh|kaisa|kab|kya|shani/i.test(q))
   ) {
     return { type: "greeting", label: "Devotee Greeting" };
   }
 
-  // Full Kundali triggers (any request for Kundali reading or comprehensive analysis)
-  if (
-    /puri kundali|poori kundali|full kundali|complete reading|poori jankari|sampurna kundali|har har mahadev|sab batayein|sabhi grah|विस्तार से|पूरी कुंडली|कुंडली|कुण्डली|kundali|kundli/i.test(q)
-  ) {
-    // If it's a specific narrow question without 'kundali' or 'batao'
-    if (
-      /career|job|naukri|shaadi|marriage|vivah|finance|health|videsh/i.test(q) &&
-      !/kundali|kundli|कुण्डली|कुंडली|puri|poori|full|complete|sampurna|sab|batao|bataiye|dekh|विश्लेषण/i.test(q)
-    ) {
-      // Allow specific classification
-    } else {
-      return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
-    }
+  // 2. EXPLICIT Full Kundali triggers ONLY (when user explicitly asks for the complete/entire horoscope reading)
+  const isExplicitFullRequest = (
+    /^(पूरी\s*कुंडली|संपूर्ण\s*कुंडली|विस्तृत\s*कुंडली|फुल\s*कुंडली|puri\s*kundali|poori\s*kundali|full\s*kundali|complete\s*kundli|complete\s*reading|sampurna\s*kundali)/i.test(q) ||
+    /(पूरी\s*कुंडली\s*(बताओ|दिखाओ|विश्लेषण|पढ़ो|बनाओ)|poori\s*kundali\s*batao|full\s*kundali\s*reading|complete\s*horoscope\s*analysis)/i.test(q)
+  );
+  if (isExplicitFullRequest && !/(career|job|naukri|shaadi|marriage|vivah|finance|health|videsh|rudraksha|रुद्राक्ष|शनि|राहु|दशा)/i.test(q)) {
+    return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
   }
 
-  // Career
-  if (/career|job|naukri|business|paisa|vyapar|promotion|success|kaam|profession|d10|dashamsha|10th house|कैरियर|नौकरी|व्यापार|रोजगार|काम/i.test(q)) {
+  // 3. Specific Astrological Topics:
+
+  // Rudraksha Consultation & Remedies
+  if (/rudraksha|rudraksh|mukhi|beej mantra|dharan|pehne|koun sa rudraksh|रुद्राक्ष|मुखी|बीज मंत्र|धारण विधि|पहनूं|पहनना/i.test(q)) {
+    return { type: "rudraksha", label: "Vedic Rudraksha Selection & Dharan Vidhi", houses: [1, 5, 9], karakas: ["Jupiter", "Sun", "Moon"] };
+  }
+
+  // Career & Business
+  if (/career|job|naukri|business|vyapar|promotion|success|kaam|profession|d10|dashamsha|sarkari|interview|कैरियर|नौकरी|व्यापार|रोजगार|काम|सरकारी नौकरी|पदोन्नति/i.test(q)) {
     return { type: "career", label: "Career & Business Analysis", houses: [10, 1, 6, 2, 11], karakas: ["Sun", "Mars", "Saturn", "Mercury", "AmK"], dChart: "D10 Dashamsha" };
   }
 
   // Marriage & Relationships
-  if (/marriage|shaadi|shadi|vivah|love|relationship|husband|wife|spouse|partner|manglik|d9|navamsha|7th house|upapada|शादी|विवाह|पति|पत्नी|दंपति|प्रेम/i.test(q)) {
+  if (/marriage|shaadi|shadi|vivah|love|relationship|husband|wife|spouse|partner|manglik|d9|navamsha|7th house|upapada|jeevansathi|rishta|शादी|विवाह|पति|पत्नी|दंपति|प्रेम|जीवनसाथी|रिश्ता/i.test(q)) {
     return { type: "marriage", label: "Marriage & Relationship Analysis", houses: [7, 2, 4, 8], karakas: ["Venus", "Jupiter", "DK"], dChart: "D9 Navamsha" };
   }
 
   // Wealth & Finance
-  if (/wealth|dhan|money|paisa|finance|debt|karza|riddhi|siddhi|11th house|2nd house|dhana yoga|lakshmi|धन|संपत्ति|कर्ज|रुपया|पैसा/i.test(q)) {
+  if (/wealth|dhan|money|paisa|finance|debt|karza|karz|loan|riddhi|siddhi|11th house|2nd house|dhana yoga|lakshmi|amiri|income|कमाई|धन|संपत्ति|कर्ज|रुपया|पैसा|आर्थिक/i.test(q)) {
     return { type: "finance", label: "Wealth & Finance Analysis", houses: [2, 11, 5, 9, 6], karakas: ["Jupiter", "Venus", "Mercury"], dChart: "D2 Hora" };
   }
 
-  // Health
-  if (/health|roog|rog|illness|disease|hospital|bimari|swasthya|longevity|ayush|6th house|8th house|स्वास्थ्य|बीमारी|रोग|आयु|आरोग्य/i.test(q)) {
+  // Graha Specific (e.g. Shani, Rahu, Ketu, Mangal, Surya, Chandra, Guru, Shukra, Budha)
+  if (/shani|sade sati|dhaiya|rahu|ketu|mangal|surya|chandra|budha|guru|brihaspati|shukra|शनि|साढ़े साती|ढैया|राहु|केतु|मंगल|सूर्य|चन्द्र|चंद्र|बुध|गुरु|बृहस्पति|शुक्र|ग्रह शांति/i.test(q)) {
+    return { type: "graha_specific", label: "Graha Gochar & Planetary Impact Analysis" };
+  }
+
+  // Dosha Analysis
+  if (/dosh|dosha|manglik|kaal sarp|pitra dosh|grahan dosh|chandal dosh|दोष|मांगलिक|काल सर्प|कालसर्प|पितृ दोष|ग्रहण दोष|चांडाल दोष/i.test(q)) {
+    return { type: "dosha", label: "Vedic Dosha & Shanti Analysis" };
+  }
+
+  // Dasha Timing & Current Mahadasha
+  if (/dasha|mahadasha|antardasha|pratyantar|kab milega|kab hogi|subh samay|samay|time|दशा|महादशा|अंतर्दशा|कब मिलेगा|कब होगी|शुभ समय|समय चक्र/i.test(q)) {
+    return { type: "dasha_timing", label: "Vimshottari Dasha & Time Window Analysis" };
+  }
+
+  // Health & Longevity
+  if (/health|roog|rog|illness|disease|hospital|bimari|swasthya|longevity|ayush|6th house|8th house|depression|stress|तनाव|स्वास्थ्य|बीमारी|रोग|आयु|आरोग्य/i.test(q)) {
     return { type: "health", label: "Health & Vitality Analysis", houses: [1, 6, 8, 12], karakas: ["Sun", "Moon", "Mars", "Saturn"], dChart: "D30 Trimshamsha" };
   }
 
-  // Education
-  if (/study|padhai|education|exam|competitive|degree|school|college|5th house|4th house|पढ़ाई|शिक्षा|परीक्षा|विद्या/i.test(q)) {
+  // Education & Exams
+  if (/study|padhai|education|exam|competitive|degree|school|college|5th house|4th house|ias|ips|upsc|neet|jee|पढ़ाई|शिक्षा|परीक्षा|विद्या|प्रतियोगिता/i.test(q)) {
     return { type: "education", label: "Education & Intellect Analysis", houses: [4, 5, 9, 6], karakas: ["Mercury", "Jupiter"], dChart: "D24 Chaturvimshamsha" };
   }
 
-  // Travel & Foreign
-  if (/foreign|abroad|travel|visa|pr|settlement|videsh|12th house|9th house|विदेश|यात्रा|वीजा|विदेश वास/i.test(q)) {
+  // Travel & Foreign Settlement
+  if (/foreign|abroad|travel|visa|pr|settlement|videsh|12th house|9th house|विदेश|यात्रा|वीजा|विदेश वास|विदेश यात्रा/i.test(q)) {
     return { type: "travel", label: "Foreign Travel & Relocation Analysis", houses: [12, 9, 3, 7], karakas: ["Rahu", "Moon"], dChart: "D9 Navamsha" };
   }
 
@@ -2345,21 +2361,16 @@ export function determineAstrologicalIntent(userQuery = "") {
     return { type: "progeny", label: "Children & Lineage Analysis", houses: [5, 9, 2], karakas: ["Jupiter", "PK"], dChart: "D7 Saptamsha" };
   }
 
-  // Property
-  if (/property|land|house|makaan|makan|car|gaadi|vehicle|4th house|मकान|जमीन|संपत्ति|वाहन|गाड़ी/i.test(q)) {
+  // Property & Vehicles
+  if (/property|land|house|makaan|makan|car|gaadi|vehicle|4th house|मकान|जमीन|संपत्ति|वाहन|गाड़ी|प्लॉट/i.test(q)) {
     return { type: "property", label: "Property & Vehicles Analysis", houses: [4, 10, 2], karakas: ["Mars", "Venus", "Saturn"], dChart: "D4 & D16" };
   }
 
-  // Spirituality
-  if (/spiritual|moksha|god|mantra|meditation|sadhana|guru|12th house|8th house|ak|अध्यात्म|मोक्ष|साधना|मंत्र|गुरु/i.test(q)) {
+  // Spirituality & Sadhana
+  if (/spiritual|moksha|god|mantra|meditation|sadhana|guru|12th house|8th house|ak|ishta|puja|अध्यात्म|मोक्ष|साधना|मंत्र|गुरु|इष्ट देव|पूजा/i.test(q)) {
     return { type: "spirituality", label: "Spiritual Sadhana & Moksha Analysis", houses: [12, 9, 8, 5], karakas: ["Ketu", "Jupiter", "AK"], dChart: "D20 Vimshamsha" };
   }
 
-  // Dasha Timing
-  if (/dasha|mahadasha|antardasha|time|kab milega|kab hogi|subh samay|दशा|महादशा|अंतर्दशा|कब/i.test(q)) {
-    return { type: "dasha_timing", label: "Vimshottari Dasha & Time Window Analysis" };
-  }
-
-  return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+  return { type: "specific_query", label: "Focused Astrological Guidance" };
 }
 
