@@ -647,6 +647,63 @@ export const VEDIC_BEADS_KNOWLEDGE = {
   }
 };
 
+export const SACRED_RUDRAKSHA_COMBINATIONS = {
+  saraswatiBandh: {
+    name: "Saraswati Vidya Bandh (सरस्वती विद्या बंध)",
+    beads: ["4 Mukhi (Brahma Intellect)", "6 Mukhi (Kartikeya Focus)"],
+    deity: "Goddess Saraswati & Lord Brahma",
+    targetGoal: "Education, Memory Retention, Competitive Exams, Speech & Focus",
+    shastraReference: "Shiva Purana Vidyeshvara Samhita - Knowledge & Buddhi Enhancement",
+    dharanVidhi: "Wednesday or Thursday morning, Ganga Jal purification, 108 Japa of 'Om Hreem Aim Namah'.",
+    productLink: "/shop?cat=education"
+  },
+  mahalakshmiDhanaBandh: {
+    name: "Mahalakshmi Dhana Bandh (महालक्ष्मी धन बंध)",
+    beads: ["7 Mukhi (Maa Lakshmi)", "8 Mukhi (Vighnaharta Ganesha)", "12 Mukhi (Surya Tejas)"],
+    deity: "Goddess Mahalakshmi, Ganesha & Lord Surya",
+    targetGoal: "Business Expansion, Continuous Cash Flow, Debt Relief & Fame",
+    shastraReference: "BPHS Dhana Yoga & Shiva Purana Chapter 25",
+    dharanVidhi: "Friday morning, Ganga Jal & raw cow milk wash, facing East/North, 108 Japa of 'Om Shreem Mahalakshmyai Namah'.",
+    productLink: "/shop?cat=wealth"
+  },
+  gauriShankarVivahBandh: {
+    name: "Gauri Shankar Vivah & Prem Bandh (गौरी शंकर विवाह एवं दांपत्य बंध)",
+    beads: ["2 Mukhi (Ardhanarishvara)", "Gauri Shankar Natural Conjoined"],
+    deity: "Lord Shiva & Mata Parvati",
+    targetGoal: "Early Marriage, Delay Removal, Partner Compatibility & Domestic Bliss",
+    shastraReference: "Padma Purana & Shiva Purana - Divine Marital Unity",
+    dharanVidhi: "Monday morning, Bilva patra offering, 108 Japa of 'Om Gauri Shankaraya Namah'.",
+    productLink: "/shop?cat=marriage"
+  },
+  shaniRahuRakshaBandh: {
+    name: "Navagraha & Shani-Rahu Raksha Bandh (शनि-राहु रक्षा कवच)",
+    beads: ["7 Mukhi (Shani Shanti)", "8 Mukhi (Rahu Pacification)", "10 Mukhi (Vishnu Universal Shield)"],
+    deity: "Lord Mahavishnu & Lord Ganesha",
+    targetGoal: "Shani Sade Sati / Dhaiya, Rahu Mahadasha, Nazar Dosh & Court/Enemy Protection",
+    shastraReference: "Saravali & Brihat Parashara Hora Shastra - Dusthana Pacification",
+    dharanVidhi: "Saturday morning, Mustard oil/Sandalwood offering, 108 Japa of 'Om Sham Shanaishcharaya Namah'.",
+    productLink: "/shop?cat=protection"
+  },
+  arogyaSwasthyaBandh: {
+    name: "Arogya Swasthya & Urja Bandh (आरोग्य एवं तेजस्विता बंध)",
+    beads: ["3 Mukhi (Agni Energy)", "5 Mukhi (Kalagni Rudra Calm)", "11 Mukhi (Hanuman Immunity & Strength)"],
+    deity: "Lord Agni, Shiva & Lord Hanuman",
+    targetGoal: "Physical Vitality, Stress Elimination, High Immunity & Fearlessness",
+    shastraReference: "Shiva Purana Vidyeshvara Samhita - Deha Arogya",
+    dharanVidhi: "Tuesday morning, Hanuman Chalisa recitation, 108 Japa of 'Om Namah Shivaya'.",
+    productLink: "/shop?cat=health"
+  },
+  sarvaSiddhaMala: {
+    name: "Sarva Siddha Maha Mala (सर्व सिद्ध महा माला 1-14 Mukhi + Gauri Shankar + Ganesh)",
+    beads: ["1 to 14 Mukhi Beads", "Gauri Shankar", "Ganesh Rudraksha"],
+    deity: "All 14 Divine Manifestations of Lord Shiva & Navagrahas",
+    targetGoal: "Supreme All-round Success, King-like Administrative Radiance, Spiritual Enlightenment & Total Shield",
+    shastraReference: "Supreme Vidyeshvara Samhita Scriptural Injunction for Kings & Spiritual Seekers",
+    dharanVidhi: "Mahashivratri or Shravan Monday grand Pran-Pratishtha Vedic Puja.",
+    productLink: "/shop"
+  }
+};
+
 /**
  * Hindi to English number normalization map
  */
