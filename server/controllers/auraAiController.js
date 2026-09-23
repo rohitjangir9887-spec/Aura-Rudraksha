@@ -695,38 +695,44 @@ function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, a
   
   if (mode === "panditji") {
     if (targetMukhi) {
-      replies.push(`${targetMukhi} Mukhi Benefits`, "Dharan Vidhi", "Astrological Matching", `Buy ${targetMukhi} Mukhi`);
-    } else if (msgLower.includes("dhan") || msgLower.includes("wealth") || msgLower.includes("karz") || msgLower.includes("loss")) {
-      replies.push("⚡ 7 Mukhi (Laxmi Kripa)", "💼 10 Mukhi Rudraksha", "📿 Siddh Mala", "🙏 Dharan Vidhi");
+      replies.push(`📿 ${targetMukhi} मुखी रुद्राक्ष के लाभ`, "🙏 संपूर्ण धारण विधि व मंत्र", "🪐 कुंडली अनुसार अनुकूलता", `🛍️ ${targetMukhi} मुखी खरीदें`);
+    } else if (msgLower.includes("dhan") || msgLower.includes("wealth") || msgLower.includes("karz") || msgLower.includes("loss") || msgLower.includes("vyapar") || msgLower.includes("business")) {
+      replies.push("⚡ 7 मुखी महालक्ष्मी रुद्राक्ष", "💼 10 मुखी नारायण रुद्राक्ष", "📿 महालक्ष्मी धन बंध", "🙏 संपूर्ण धारण विधि");
+    } else if (msgLower.includes("vivah") || msgLower.includes("shadi") || msgLower.includes("marriage") || msgLower.includes("delay") || msgLower.includes("rishta")) {
+      replies.push("❤️ गौरी शंकर विवाह बंध", "✨ 2 मुखी रुद्राक्ष लाभ", "💍 शीघ्र विवाह के ज्योतिष उपाय", "🙏 संपूर्ण धारण विधि");
+    } else if (msgLower.includes("dasha") || msgLower.includes("mahadasha") || msgLower.includes("guru") || msgLower.includes("shani") || msgLower.includes("kundli") || msgLower.includes("kundali")) {
+      replies.push("✨ मेरी जन्म कुंडली व महादशा देखें", "📿 महादशा अनुसार सिद्ध रुद्राक्ष", "🪐 नवग्रह शांति उपाय व मंत्र", "🌿 5 मुखी रुद्राक्ष के लाभ");
+    } else if (msgLower.includes("peace") || msgLower.includes("shanti") || msgLower.includes("stress") || msgLower.includes("health")) {
+      replies.push("🌿 5 मुखी पंचमुखी रुद्राक्ष", "📿 108 महामृत्युंजय माला", "🧘 मानसिक शांति व एकाग्रता", "🙏 संपूर्ण धारण विधि");
     } else {
-      replies.push("✨ Meri Kundali Dekhein", "📿 Best Rudraksha For Me", "🪐 Graha Dasha Remedies", "🕉️ 108 Jaap Vidhi");
+      replies.push("✨ मेरी जन्म कुंडली व महादशा देखें", "📿 मेरे लिए सबसे शुभ रुद्राक्ष कौन सा है?", "💰 धन, व्यापार व करियर में उन्नति के उपाय", "❤️ विवाह में देरी व दांपत्य सुख के उपाय");
     }
     return replies;
   }
 
   if (targetMukhi) {
     if (targetMukhi === "mala") {
-      replies.push("108 Mala Price", "Jaap Vidhi", "Buy 108 Mala", "Today's Offers");
+      replies.push("📿 108 दाना जप माला", "🙏 जप विधि व मंत्र", "🛍️ 108 माला ऑर्डर करें", "🎁 आज के स्पेशल ऑफर्स");
     } else if (targetMukhi === "gauri_shankar") {
-      replies.push("Gauri Shankar Price", "Vivah Labh", "Kaise Pehne", "Order Now");
+      replies.push("❤️ गौरी शंकर रुद्राक्ष", "✨ विवाह व दांपत्य लाभ", "🙏 धारण विधि", "🛍️ अभी ऑर्डर करें");
     } else {
-      replies.push(`${targetMukhi} Mukhi Price`, `${targetMukhi} Mukhi Benefits`, "Dharan Vidhi", `Buy ${targetMukhi} Mukhi`);
+      replies.push(`📿 ${targetMukhi} मुखी रुद्राक्ष`, `✨ ${targetMukhi} मुखी के लाभ`, "🙏 धारण विधि", `🛍️ ${targetMukhi} मुखी खरीदें`);
     }
   } else if (msgLower.includes("dhan") || msgLower.includes("wealth") || msgLower.includes("paisa") || msgLower.includes("lakshmi") || msgLower.includes("business")) {
-    replies.push("7 Mukhi Rudraksha", "7 Mukhi Price", "Kuber Benefits", "Today's Offers");
+    replies.push("⚡ 7 मुखी महालक्ष्मी रुद्राक्ष", "💰 कुबेर व व्यापार लाभ", "🎁 स्पेशल डिस्काउंट", "🙏 संपूर्ण धारण विधि");
   } else if (msgLower.includes("peace") || msgLower.includes("shanti") || msgLower.includes("stress") || msgLower.includes("bp") || msgLower.includes("health")) {
-    replies.push("5 Mukhi Rudraksha", "108 Jaap Mala", "5 Mukhi Price", "Kaise Pehne");
+    replies.push("🌿 5 मुखी पंचमुखी रुद्राक्ष", "📿 108 शिव जप माला", "✨ स्वास्थ्य व शांति लाभ", "🙏 धारण विधि");
   } else if (intent === "ORDER_TRACKING" || msgLower.includes("track") || msgLower.includes("order")) {
-    replies.push("Track My Order", "Order History", "Shipping Help", "Talk to Support");
+    replies.push("📦 मेरा ऑर्डर ट्रैक करें", "📜 ऑर्डर हिस्ट्री", "🚚 डिलीवरी सहायता", "📞 कस्टमर केयर");
   } else if (intent === "COUPON" || intent === "OFFER" || msgLower.includes("offer") || msgLower.includes("discount")) {
     if (activeCoupons && activeCoupons.length > 0) {
-      replies.push(...activeCoupons.slice(0, 2).map(c => `${c.code} Code`));
-      replies.push("Apply Coupon", "Best Sellers");
+      replies.push(...activeCoupons.slice(0, 2).map(c => `🎁 ${c.code} कूपन`));
+      replies.push("✨ बेस्ट सेलर रुद्राक्ष", "📿 108 जप माला");
     } else {
-      replies.push("View Offers", "Best Sellers", "Shop Rudraksha", "Free Kundali");
+      replies.push("🎁 आज के डिस्काउंट ऑफर्स", "✨ बेस्ट सेलर रुद्राक्ष", "📿 1 से 14 मुखी देखें", "✨ फ्री कुंडली विश्लेषण");
     }
   } else {
-    replies.push("✨ Find Rudraksha", "🎁 Today's Offers", "📦 Track Order", "🕉 Jaap Mala");
+    replies.push("📿 सिद्ध 1 से 14 मुखी रुद्राक्ष देखें", "✨ फ्री कुंडली व राशि अनुसार रुद्राक्ष", "🎁 आज के एक्टिव डिस्काउंट कूपन", "📦 मेरा ऑर्डर ट्रैक करें");
   }
   
   return Array.from(new Set(replies)).slice(0, 4);

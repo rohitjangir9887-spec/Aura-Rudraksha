@@ -606,7 +606,7 @@ function isHeadingLine(line) {
   return false;
 }
 
-export function AuraAIMessageContent({ text, content, sender = "ai", className = "" }) {
+export function AuraAIMessageContent({ text, content, sender = "ai", className = "", fullKundaliData = null, birthData = null }) {
   const actualText = text !== undefined && text !== null && text !== "" ? text : content;
 
   // Render glowing thinking badge if AI message text is empty during reasoning phase
@@ -702,11 +702,16 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
       const headers = currentTable.headers || [];
       const rows = currentTable.rows || [];
 
-      const isPlanetaryTable = 
-        headers.some(h => /ग्रह|भाव|राशि|स्थिति|बलाबल|Planet|House|Rashi|Dignity|Status/i.test(h)) ||
-        rows.some(r => r.some(c => /सूर्य|चंद्र|मंगल|बुध|गुरु|शुक्र|शनि|राहु|केतु|Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu/i.test(c)));
+      // A table is ONLY a full D1 Navagraha Kundali Chart if:
+      // 1) It has >= 7 planet rows (Navagrahas).
+      // 2) Headers contain Graha/Planet AND (Bhava/House OR Rashi/Sign).
+      const isFullPlanetaryKundaliTable = 
+        rows.length >= 7 &&
+        headers.some(h => /ग्रह|Planet/i.test(h)) &&
+        headers.some(h => /भाव|House|Bhava|स्थान/i.test(h)) &&
+        headers.some(h => /राशि|Rashi|Sign/i.test(h));
 
-      if (isPlanetaryTable && rows.length > 0) {
+      if (isFullPlanetaryKundaliTable) {
         // Map rows into structured Planet items using semantic parser
         const planetItems = rows.map(r => parsePlanetaryRow(r, headers));
         blocks.push({
@@ -717,6 +722,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           detectedLagna
         });
       } else {
+        // Render as standard responsive table in chat
         blocks.push({ type: "table", headers, rows });
       }
       currentTable = null;
@@ -931,6 +937,8 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
               rawRows={block.rawRows}
               detectedLagna={block.detectedLagna || detectedLagna}
               showChart={shouldShowChart}
+              fullKundaliData={fullKundaliData}
+              birthData={birthData}
             />
           );
         }
@@ -948,7 +956,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Non-Planetary Responsive Table
+        // Non-Planetary Responsive Table (Dasha, Rudraksha Recommendations, Vidhi, etc.)
         if (block.type === "table") {
           return (
             <div key={idx} className="aura-ai-table-wrap">
@@ -957,7 +965,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
                   <thead>
                     <tr>
                       {block.headers.map((h, hIdx) => (
-                        <th key={hIdx}>{h.replace(/\*\*/g, "")}</th>
+                        <th key={hIdx}>{renderInlineContent(h.replace(/\*\*/g, ""))}</th>
                       ))}
                     </tr>
                   </thead>

@@ -844,6 +844,38 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
     const combinedDesc = `${nameLower} ${highlightLower} ${tagsLower}`;
     const price = Number(prod.price) || 0;
 
+    // 1. Graha, Planetary & Mahadasha Exact Matches (Authoritative Parashari Mappings)
+    if (text.includes("guru") || text.includes("brihaspati") || text.includes("jupiter") || text.includes("गुरु") || text.includes("बृहस्पति")) {
+      if (nameLower.includes("5 mukhi") || nameLower.includes("paanch")) score += 120;
+    }
+    if (text.includes("chandra") || text.includes("moon") || text.includes("चंद्र")) {
+      if (nameLower.includes("2 mukhi") || nameLower.includes("do mukhi")) score += 120;
+    }
+    if (text.includes("surya") || text.includes("sun") || text.includes("सूर्य") || text.includes("aatambal") || text.includes("आत्मबल") || text.includes("tejas")) {
+      if (nameLower.includes("1 mukhi") || nameLower.includes("12 mukhi")) score += 110;
+    }
+    if (text.includes("mangal") || text.includes("mars") || text.includes("मंगल") || text.includes("manglik")) {
+      if (nameLower.includes("3 mukhi") || nameLower.includes("11 mukhi")) score += 110;
+    }
+    if (text.includes("budh") || text.includes("mercury") || text.includes("बुध")) {
+      if (nameLower.includes("4 mukhi") || nameLower.includes("char mukhi")) score += 110;
+    }
+    if (text.includes("shukra") || text.includes("venus") || text.includes("शुक्र")) {
+      if (nameLower.includes("6 mukhi") || nameLower.includes("13 mukhi")) score += 110;
+    }
+    if (text.includes("shani") || text.includes("saturn") || text.includes("शनि") || text.includes("sade sati") || text.includes("dhaiya") || text.includes("ढैया")) {
+      if (nameLower.includes("7 mukhi") || nameLower.includes("14 mukhi")) score += 110;
+    }
+    if (text.includes("rahu") || text.includes("राहु")) {
+      if (nameLower.includes("8 mukhi")) score += 110;
+    }
+    if (text.includes("ketu") || text.includes("केतु")) {
+      if (nameLower.includes("9 mukhi")) score += 110;
+    }
+    if (text.includes("gauri shankar") || text.includes("vivah") || text.includes("shadi") || text.includes("marriage") || text.includes("rishta") || text.includes("विवाह")) {
+      if (nameLower.includes("gauri shankar") || nameLower.includes("2 mukhi")) score += 110;
+    }
+
     // Rashi Matches
     if (text.includes("mesh") || text.includes("aries") || text.includes("vrischika") || text.includes("scorpio")) {
       if (nameLower.includes("11 mukhi") || nameLower.includes("3 mukhi")) score += 70;
@@ -889,7 +921,7 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
       if (nameLower.includes("mala") || combinedDesc.includes("108")) score += 95;
     }
 
-    if (text.includes("student") || text.includes("study") || text.includes("padhai") || text.includes("exam") || text.includes("focus") || text.includes("memory") || text.includes("ekagrata")) {
+    if (text.includes("student") || text.includes("study") || text.includes("padhai") || text.includes("exam") || text.includes("focus") || text.includes("memory") || text.includes("ekagrata") || text.includes("एकाग्रता")) {
       if (nameLower.includes("4 mukhi") || nameLower.includes("5 mukhi")) score += 85;
     }
 

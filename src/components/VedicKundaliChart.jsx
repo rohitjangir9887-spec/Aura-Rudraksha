@@ -97,14 +97,21 @@ export function VedicKundaliChart({
   const [chartMode, setChartMode] = useState("D1"); // "D1" or "D9"
   const [showFullDetails, setShowFullDetails] = useState(false);
 
+  // Resolve authoritative data from fullKundaliData if provided
+  const astroData = fullKundaliData?.astronomicalKundali || fullKundaliData;
+  const resolvedLagnaNum = astroData?.lagna?.rashiNumber || lagnaRashiNumber;
+  const resolvedD9LagnaNum = astroData?.lagna?.navamshaRashiNumber || navamshaLagnaRashiNumber;
+  const effectivePlanets = (Array.isArray(astroData?.planets) && astroData.planets.length > 0)
+    ? astroData.planets
+    : (Array.isArray(planets) ? planets : []);
+
   // Normalize D1 lagna
-  let safeD1Lagna = parseInt(lagnaRashiNumber, 10);
+  let safeD1Lagna = parseInt(resolvedLagnaNum, 10);
   if (isNaN(safeD1Lagna) || safeD1Lagna < 1 || safeD1Lagna > 12) safeD1Lagna = 1;
 
   // Normalize D9 lagna if available
-  let safeD9Lagna = parseInt(navamshaLagnaRashiNumber, 10);
+  let safeD9Lagna = parseInt(resolvedD9LagnaNum, 10);
   if (isNaN(safeD9Lagna) || safeD9Lagna < 1 || safeD9Lagna > 12) {
-    // Fallback: try to deduce from lagna navamsha or default to safeD1Lagna
     safeD9Lagna = safeD1Lagna;
   }
 
@@ -121,14 +128,17 @@ export function VedicKundaliChart({
   const housePlanets = {};
   for (let h = 1; h <= 12; h++) housePlanets[h] = [];
 
-  planets.forEach(p => {
+  effectivePlanets.forEach(p => {
     let targetHouse = null;
 
-    if (chartMode === "D9" && p.navamshaRashiHindi) {
-      // Calculate D9 house position based on Navamsha Rashi vs D9 Lagna
-      const d9RashiObj = RASHI_MAP.find(r => r.hindi === p.navamshaRashiHindi || r.eng === p.navamshaRashiEnglish);
-      if (d9RashiObj) {
-        targetHouse = ((d9RashiObj.num - safeD9Lagna + 12) % 12) + 1;
+    if (chartMode === "D9" && (p.navamshaRashiHindi || p.navamshaRashiEnglish || p.navamshaRashiNumber)) {
+      if (p.navamshaRashiNumber) {
+        targetHouse = ((p.navamshaRashiNumber - safeD9Lagna + 12) % 12) + 1;
+      } else {
+        const d9RashiObj = RASHI_MAP.find(r => r.hindi === p.navamshaRashiHindi || r.eng === p.navamshaRashiEnglish);
+        if (d9RashiObj) {
+          targetHouse = ((d9RashiObj.num - safeD9Lagna + 12) % 12) + 1;
+        }
       }
     }
 

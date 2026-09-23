@@ -27,16 +27,26 @@ try {
 const DEFAULT_INITIAL_MESSAGE_STANDARD = {
   id: "init_welcome_standard",
   sender: "ai",
-  text: "Namaste 🙏 Main Aura AI hoon — Aura Rudraksha ka personal shopping aur Vedic spiritual guide.\n\nAaj main aapki kis cheez mein madad karun?",
-  quickReplies: ["Find a Rudraksha", "Today's Offers", "Track Order", "Help Me Choose"],
+  text: "🙏 नमस्ते! मैं Aura AI हूँ — Aura Rudraksha का पर्सनल शॉपिंग व सर्टिफाइड रुद्राक्ष गाइड।\n\nआज मैं आपके लिए क्या खोजूँ?",
+  quickReplies: [
+    "📿 सिद्ध 1 से 14 मुखी रुद्राक्ष देखें",
+    "✨ फ्री कुंडली व राशि अनुसार रुद्राक्ष",
+    "🎁 आज के एक्टिव डिस्काउंट कूपन",
+    "📦 मेरा ऑर्डर ट्रैक करें"
+  ],
   timestamp: new Date().toISOString()
 };
 
 const DEFAULT_INITIAL_MESSAGE_PANDITJI = {
   id: "init_welcome_panditji",
   sender: "ai",
-  text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon — 35+ varshon ke anubhav ke sath aapka Vedic Jyotish, Rashi, Nakshatra aur Rudraksha Guide.\n\nAaj main aapki Rashi, Kundali ya Rudraksha dharan vidhi mein kis prakar sahayata karun?",
-  quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
+  text: "🙏 प्रणाम भक्त! हर हर महादेव।\n\nमैं AI पंडित जी (🕉️) हूँ — वैदिक ज्योतिष, जन्म कुंडली, ग्रह दशा, मुहूर्त व रुद्राक्ष परामर्श में आपका आध्यात्मिक मार्गदर्शक।\n\nआज मैं आपकी जन्म कुंडली, महादशा, विवाह/करियर योग या सिद्ध रुद्राक्ष धारण में किस प्रकार सहायता करूँ?",
+  quickReplies: [
+    "✨ मेरी जन्म कुंडली व महादशा देखें",
+    "📿 मेरे लिए सबसे शुभ रुद्राक्ष कौन सा है?",
+    "💰 धन, व्यापार व करियर में उन्नति के उपाय",
+    "❤️ विवाह में देरी व दांपत्य सुख के उपाय"
+  ],
   timestamp: new Date().toISOString()
 };
 
@@ -191,6 +201,10 @@ export const auraChatStore = {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // If only 1 message and it is the initial welcome message, refresh with latest text & quick replies
+          if (parsed.length === 1 && parsed[0]?.id?.startsWith("init_welcome")) {
+            return [this.getDefaultInitialMessage(mode)];
+          }
           return parsed;
         }
       }

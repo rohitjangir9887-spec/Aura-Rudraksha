@@ -1155,7 +1155,12 @@ export function AuraAIPage() {
                               <span>💭 विश्लेषण चल रहा है (Thinking...)...</span>
                             </div>
                           ) : (
-                            <AuraAIMessageContent text={customerSafeAiText(stripAuraKeywords(m.text))} sender={m.sender} />
+                            <AuraAIMessageContent 
+                              text={customerSafeAiText(stripAuraKeywords(m.text))} 
+                              sender={m.sender} 
+                              fullKundaliData={m.kundali}
+                              birthData={m.kundali?.verifiedBirthData}
+                            />
                           )}
                         </div>
                         {m.sender === "ai" && m.text && (
@@ -1391,12 +1396,10 @@ export function AuraAIPage() {
                         {/* AURA_KEYWORDS Interactive Suggested Search Chips */}
                         {m.sender === "ai" && (() => {
                           const parsedKws = parseAuraKeywords(m.text || "");
-                          const isLastAi = idx === messages.length - 1;
+                          const isLastAi = index === messages.length - 1;
                           let effectiveKws = parsedKws;
                           if (!effectiveKws.length && isLastAi && !loading) {
-                            if (Array.isArray(m.quickReplies) && m.quickReplies.length > 0) {
-                              effectiveKws = m.quickReplies.map(r => r.replace(/^[^\w\s\u0900-\u097F]+/, "").trim()).filter(Boolean);
-                            } else if (mode === "panditji") {
+                            if (mode === "panditji") {
                               effectiveKws = ["विवाह योग और विवाह का समय", "करियर और सरकारी नौकरी", "धन और आर्थिक स्थिति", "कल्याणकारी रुद्राक्ष व धारण विधि", "महादशा और अंतर्दशा", "स्वास्थ्य संबंधी ज्योतिषीय संकेत"];
                             } else {
                               effectiveKws = ["सिद्ध 1 से 14 मुखी रुद्राक्ष", "आज के एक्टिव डिस्काउंट कूपन", "ऑर्डर डिलीवरी व ट्रैकिंग", "100% X-Ray लैब सर्टिफिकेट", "हरिद्वार शिव पूजा व प्राण-प्रतिष्ठा"];
