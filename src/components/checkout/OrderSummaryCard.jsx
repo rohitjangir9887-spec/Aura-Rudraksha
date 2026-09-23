@@ -97,17 +97,15 @@ export function OrderSummaryCard({
 
   const count = cartItemCount || lines.reduce((acc, l) => acc + (l.qty || 1), 0);
   
-  // Shipping calculations
-  const standardShippingCost = 50;
-  const isFreeShipping = shippingFee === 0 && subtotal > 0;
-  const shippingSavings = isFreeShipping ? standardShippingCost : 0;
+  // Shipping calculations (0 / Free by default, or as configured by Admin)
+  const isFreeShipping = Number(shippingFee || 0) === 0;
 
-  // Dynamic Total Savings: Product MRP savings + Coupon discount + Shipping discount
-  const totalSavings = Math.max(0, (productSavings || 0) + (couponDiscount || 0) + shippingSavings);
+  // Dynamic Total Savings: Product MRP savings + Coupon discount
+  const totalSavings = Math.max(0, (productSavings || 0) + (couponDiscount || 0));
 
-  // Original theoretical total before any savings
+  // Original theoretical total before any savings (strictly aligns with Product Page MRP)
   const effectiveTotalMrp = totalMrp > subtotal ? totalMrp : subtotal;
-  const originalTotal = effectiveTotalMrp + standardShippingCost;
+  const originalTotal = effectiveTotalMrp + (Number(shippingFee) || 0);
 
   const handleManualApply = (e) => {
     if (e) e.preventDefault();

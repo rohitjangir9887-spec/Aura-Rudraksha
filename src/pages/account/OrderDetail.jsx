@@ -397,7 +397,13 @@ export function OrderDetail() {
           <button 
             type="button" 
             className="back-btn" 
-            onClick={() => navigate("/", { replace: true })} 
+            onClick={() => {
+              if (window.history && window.history.length > 2) {
+                navigate(-1);
+              } else {
+                navigate("/account/orders");
+              }
+            }} 
             style={{
               background: 'none', 
               border: 'none', 
@@ -411,7 +417,7 @@ export function OrderDetail() {
               padding: 0
             }}
           >
-            <ChevronLeft size={16}/> Back to Home
+            <ChevronLeft size={16}/> Back
           </button>
 
           <Link 

@@ -163,7 +163,7 @@ export function Checkout() {
     if (window.history && window.history.length > 1) {
       navigate(-1);
     } else {
-      navigate("/");
+      navigate("/cart");
     }
   };
 
@@ -778,6 +778,7 @@ export function Checkout() {
     const cleanPhone = phone.trim();
 
     const addressObj = {
+      id: currentForm.id || savedAddress?.id || null,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phone: cleanPhone,

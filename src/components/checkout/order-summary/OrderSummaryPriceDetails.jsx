@@ -70,23 +70,12 @@ export function OrderSummaryPriceDetails({
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             {isFreeShipping ? (
-              <>
-                <span
-                  style={{
-                    fontSize: "11.5px",
-                    color: "#8a7566",
-                    textDecoration: "line-through"
-                  }}
-                >
-                  ₹50
-                </span>
-                <span style={{ color: "#166534", fontWeight: "700", fontSize: "12.5px" }}>
-                  FREE
-                </span>
-              </>
+              <span style={{ color: "#166534", fontWeight: "700", fontSize: "12.5px" }}>
+                FREE
+              </span>
             ) : (
               <span style={{ color: "#4a3528", fontWeight: "600" }}>
-                {money(shippingFee || 50)}
+                {money(shippingFee)}
               </span>
             )}
           </div>

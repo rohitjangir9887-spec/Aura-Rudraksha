@@ -23,7 +23,7 @@ export function OrderSummaryShipping({ isFreeShipping }) {
     >
       <Truck size={14} color="#166534" strokeWidth={2} />
       <span>
-        <b>Free Shipping Unlocked!</b> You saved ₹50 on express delivery.
+        <b>Free Express Delivery!</b> Insured sacred temple packaging included.
       </span>
     </div>
   );

@@ -1960,13 +1960,25 @@ export const db = {
   saveAddress: async (address) => {
     const user = authClient.getUser();
     const cacheKey = db.getUserScopedKey("aura_addresses_cache");
-    const id = address.id || ("ADDR-" + Date.now());
+    if (!storeCache.addresses) storeCache.addresses = [];
+
+    // Deduplicate by content if no explicit id is provided
+    let id = address.id;
+    if (!id) {
+      const clean = str => String(str || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+      const match = storeCache.addresses.find(a => 
+        (clean(a.address) === clean(address.address) && clean(a.pincode) === clean(address.pincode)) ||
+        (clean(a.address) === clean(address.address) && clean(a.city) === clean(address.city))
+      );
+      if (match) id = match.id;
+    }
+    if (!id) id = "ADDR-" + Date.now();
+
     const finalAddr = { 
       ...address, 
       id, 
       isDefault: address.isDefault !== undefined ? address.isDefault : true 
     };
-    if (!storeCache.addresses) storeCache.addresses = [];
 
     if (finalAddr.isDefault) {
       storeCache.addresses.forEach(a => { a.isDefault = false; });

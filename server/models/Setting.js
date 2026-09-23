@@ -23,8 +23,8 @@ const settingSchema = new mongoose.Schema(
     imagekitUrlEndpoint: { type: String, default: "", trim: true },
     zodiacs: { type: Array, default: [] }, // Admin-managed zodiac guide content
     shopCategories: { type: Array, default: [] }, // Admin-managed shop categories
-    standardShippingFee: { type: Number, default: 50 }, // Default FREE shipping (₹0)
-    freeShippingThreshold: { type: Number, default: 499 }, // Default FREE shipping on all order amounts (₹0)
+    standardShippingFee: { type: Number, default: 0 }, // Default FREE shipping (₹0), admin can update from dashboard
+    freeShippingThreshold: { type: Number, default: 0 }, // Default FREE shipping threshold (₹0)
     enableProductShipping: { type: Boolean, default: true }, // Product-specific shipping rules toggle
     featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
     featuredProductEnabled: { type: Boolean, default: true },

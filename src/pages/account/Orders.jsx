@@ -303,7 +303,13 @@ export function Orders() {
           <button 
             type="button"
             className="back-btn" 
-            onClick={() => navigate("/", { replace: true })} 
+            onClick={() => {
+              if (window.history && window.history.length > 2) {
+                navigate(-1);
+              } else {
+                navigate("/account");
+              }
+            }} 
             style={{
               background: 'none', 
               border: 'none', 
@@ -317,7 +323,7 @@ export function Orders() {
               padding: '6px 0'
             }}
           >
-            <ChevronLeft size={16} /> Back to Home
+            <ChevronLeft size={16} /> Back
           </button>
 
           <Link

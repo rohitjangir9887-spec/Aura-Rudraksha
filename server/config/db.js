@@ -102,12 +102,12 @@ export async function getOrStartMemoryMongo() {
 }
 
 export function getMongoUri() {
-  const uri = (process.env.MONGODB_URI || "").trim();
+  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim();
   return isValidMongoUri(uri) ? uri : null;
 }
 
 export function getMaskedMongoUri() {
-  const uri = (process.env.MONGODB_URI || "").trim();
+  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim();
   if (!uri) {
     if (memoryServerInstance) return "mongodb://127.0.0.1:[MEMORY_SERVER]/aurarudraksha";
     return null;

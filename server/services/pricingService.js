@@ -290,8 +290,8 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   const productSavings = Math.max(0, totalMrp - subtotal);
 
   // 2. Authoritative Shipping Calculation (Dynamically fetched from Store Settings & Product Overrides)
-  let storeStandardShippingFee = 50;
-  let storeFreeShippingThreshold = 499;
+  let storeStandardShippingFee = 0;
+  let storeFreeShippingThreshold = 0;
   let enableProductShipping = true;
 
   if (isDbConnected()) {
@@ -307,8 +307,8 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       }
 
       if (dbSettings) {
-        storeStandardShippingFee = Number(dbSettings.standardShippingFee ?? 50);
-        storeFreeShippingThreshold = Number(dbSettings.freeShippingThreshold ?? 499);
+        storeStandardShippingFee = Number(dbSettings.standardShippingFee ?? 0);
+        storeFreeShippingThreshold = Number(dbSettings.freeShippingThreshold ?? 0);
         enableProductShipping = dbSettings.enableProductShipping !== false;
       }
     } catch (_) {}
@@ -326,15 +326,16 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   }
 
   // Base shipping fee determination:
-  // If freeShippingThreshold is 0, OR subtotal >= threshold, base store shipping is FREE (0).
-  // Otherwise base store shipping is storeStandardShippingFee.
-  const isBaseFreeShipping = true; // Disabled base store shipping as per request
-  const baseShippingFee = 0;
+  // If storeStandardShippingFee is 0, base store shipping is FREE (0).
+  // If freeShippingThreshold > 0 and subtotal >= threshold, base store shipping is FREE (0).
+  // Otherwise base store shipping is storeStandardShippingFee (as configured by admin).
+  const isBaseFreeShipping = (storeStandardShippingFee === 0) || (storeFreeShippingThreshold > 0 && subtotal >= storeFreeShippingThreshold);
+  const baseShippingFee = isBaseFreeShipping ? 0 : storeStandardShippingFee;
 
-  // Combined shipping (strictly product-based now)
-  const shipping = productShippingFees;
+  // Combined shipping
+  const shipping = baseShippingFee + productShippingFees;
   const isFreeShipping = (shipping === 0);
-  const shippingDiscount = 0;
+  const shippingDiscount = (isBaseFreeShipping && storeStandardShippingFee > 0) ? storeStandardShippingFee : 0;
 
   // 3. Authoritative Coupon Validation & Discount
   let appliedCoupon = null;

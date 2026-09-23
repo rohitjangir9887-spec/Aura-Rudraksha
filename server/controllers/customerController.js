@@ -151,17 +151,23 @@ export async function recordCustomerOrder({ authUserId, email, phone, name, addr
       if (cleanPhone && !existingCust.phone) {
         existingCust.phone = cleanPhone;
       }
-      if (address) existingCust.address = address;
       if (shippingAddress) {
         if (!Array.isArray(existingCust.addresses)) existingCust.addresses = [];
-        const exists = existingCust.addresses.some(a => 
-          a.address === shippingAddress.address && 
-          a.pincode === shippingAddress.pincode
+        const normShipping = normalizeAddressInput(shippingAddress);
+        const existingIdx = existingCust.addresses.findIndex(a => 
+          (shippingAddress.id && String(a.id) === String(shippingAddress.id)) ||
+          areAddressesEqual(a, normShipping)
         );
-        if (!exists) {
+        if (existingIdx !== -1) {
+          existingCust.addresses[existingIdx] = {
+            ...existingCust.addresses[existingIdx],
+            ...normShipping,
+            id: existingCust.addresses[existingIdx].id || ("ADDR-" + Date.now())
+          };
+        } else {
           existingCust.addresses.push({
             id: "ADDR-" + Date.now(),
-            ...shippingAddress,
+            ...normShipping,
             isDefault: existingCust.addresses.length === 0
           });
         }
@@ -519,6 +525,32 @@ export async function getAddresses(req, res, next) {
   } catch(err) { next(err); }
 }
 
+function areAddressesEqual(a, b) {
+  if (!a || !b) return false;
+  const clean = str => String(str || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const addrA = clean(a.address);
+  const addrB = clean(b.address);
+  const pinA = clean(a.pincode);
+  const pinB = clean(b.pincode);
+  const cityA = clean(a.city);
+  const cityB = clean(b.city);
+  const phoneA = clean(a.phone);
+  const phoneB = clean(b.phone);
+
+  if (!addrA || !addrB) return false;
+
+  // Exact address and pincode match
+  if (addrA === addrB && (pinA === pinB || !pinA || !pinB)) return true;
+
+  // Substring address match with same pincode
+  if (pinA && pinA === pinB && (addrA.includes(addrB) || addrB.includes(addrA))) return true;
+
+  // Same street, city, and phone
+  if (addrA === addrB && cityA === cityB && phoneA === phoneB) return true;
+
+  return false;
+}
+
 function normalizeAddressInput(input = {}) {
   const firstName = String(input.firstName || (input.name ? input.name.split(" ")[0] : "") || "").trim();
   const lastName = String(input.lastName || (input.name ? input.name.split(" ").slice(1).join(" ") : "") || "").trim();
@@ -573,13 +605,20 @@ export async function addAddress(req, res, next) {
     }
 
     const addrId = address.id || ("ADDR-" + crypto.randomBytes(4).toString("hex").toUpperCase());
-    const existingIdx = customer.addresses.findIndex(a => String(a.id) === String(addrId));
+    let existingIdx = -1;
+    if (address.id) {
+      existingIdx = customer.addresses.findIndex(a => String(a.id) === String(address.id));
+    }
+    if (existingIdx === -1) {
+      existingIdx = customer.addresses.findIndex(a => areAddressesEqual(a, normalized));
+    }
 
     if (existingIdx !== -1) {
+      const existingId = customer.addresses[existingIdx].id || addrId;
       customer.addresses[existingIdx] = {
         ...customer.addresses[existingIdx],
         ...normalized,
-        id: addrId
+        id: existingId
       };
       if (normalized.isDefault !== false) {
         customer.addresses.forEach((a, i) => { a.isDefault = (i === existingIdx); });

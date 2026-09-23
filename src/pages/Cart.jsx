@@ -43,8 +43,12 @@ export function Cart() {
     return () => unsub();
   }, []);
 
-  const handleGoBackHome = () => {
-    navigate("/");
+  const handleBack = () => {
+    if (window.history && window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate("/shop");
+    }
   };
 
   const { 
@@ -161,7 +165,7 @@ export function Cart() {
           <button 
             type="button"
             className="back-btn" 
-            onClick={handleGoBackHome}
+            onClick={handleBack}
             style={{
               display: "inline-flex",
               alignItems: "center",
