@@ -20,11 +20,17 @@ html, body {
 }
 
 /* 60-90 FPS Compositing & Render Acceleration */
-.header, .sticky-bar, .sticky-purchase-bar, .aura-floating-btn, .product-card, .aura-product-card {
+.header, .sticky-bar, .sticky-purchase-bar, .aura-floating-btn, .product-card, .aura-product-card, .admin-card, .admin-mobile-card, [class*="motion-"] {
   transform: translateZ(0);
   backface-visibility: hidden;
   perspective: 1000px;
-  will-change: transform;
+  will-change: transform, opacity;
+}
+
+/* Smooth motion transitions with fallbacks */
+*[data-projection-id] {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 /* Rendering containment for off-screen heavy sections to sustain high refresh rates (60-90+ FPS) */

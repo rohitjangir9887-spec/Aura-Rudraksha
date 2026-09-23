@@ -1596,7 +1596,7 @@ ${astroIntent.type === "greeting" ? `
      7. ⚠️ संपूर्ण दोष विचार (मांगलिक, साढ़े साती, काल सर्प)
      8. ✨ शुभ राजयोग व वर्गोत्तम ग्रह
      9. 💼 कार्यक्षेत्र, धन, विवाह, परिवार, स्वास्थ्य व आध्यात्मिक फल
-     10. 📿 **वैदिक रुद्राक्ष परामर्श (Lagna, Rashi, Dasha & Goal-based Mukhi, Dharan Vidhi, Beej Mantra)**
+     10. 📿 **वैदिक रुद्राक्ष परामर्श व धारण विधि (Lagna, Rashi, Dasha & Goal-based Mukhi, Dharan Vidhi, Beej Mantra, Store Link)**
      11. 🌟 **सरल व स्पष्ट सारांश तालिका (Final Summary Table)**
      12. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5**
 ` : `
@@ -1613,8 +1613,10 @@ ${astroIntent.type === "greeting" ? `
      3. 🎯 **सटीक व स्पष्ट फलादेश (Direct & Final Answer)**:
         - Give a direct, deep, crystal-clear answer to their exact question (e.g. कब होगा, कैसा रहेगा, क्या प्रभाव है, क्या सावधानी रखें) with exact Jyotish logic and timing.
      
-     4. 📿 **अचूक उपाय व कल्याणकारी रुद्राक्ष (Targeted Remedies & Consecrated Rudraksha)**:
-        - Recommend the exact consecrated Rudraksha bead, auspicious day to wear, and sacred Beej Mantra suited specifically for solving this problem and strengthening positive planets.
+     4. 📿 **अचूक उपाय, सिद्ध रुद्राक्ष व संपूर्ण धारण विधि (Targeted Remedies, Dharan Vidhi & Consecrated Rudraksha)**:
+        - Recommend the exact consecrated Rudraksha bead matching their problem, with direct link to the store catalog: e.g. [Product Name](/product/slug).
+        - Detail the complete **Dharan Vidhi**: Auspicious Day, Ganga Jal/Panchamrit purification, facing East/North, and sacred Beej Mantra (chanted 108 times).
+        - Highlight that all Aura Rudraksha beads are 100% authentic Nepali beads, X-Ray tested, and energised via Vedic Shiva Puja.
      
      5. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5** (4-5 relevant follow-up topic chips at the end).
 `}
