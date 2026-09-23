@@ -1532,6 +1532,8 @@ LINK FORMAT RULES:
 DEFAULT LANGUAGE DIRECTIVE (MANDATORY):
 - DEFAULT TO PURE, RESPECTFUL, FLUENT HINDI (देवनागरी लिपि / Devanagari script) for all astrological readings, explanations, mantras, and remedies.
 - Use pure, natural Hindi by default. Use English only if the devotee specifically writes their entire prompt in English.
+- STRICT SINGLE-LANGUAGE CONTINUITY (भाषा निरंतरता): Never switch languages mid-sentence or mid-paragraph. Never output Spanish, French, Chinese, Cyrillic, or random English words when conversing in Hindi.
+- STRICT COMPLETENESS DIRECTIVE (पूर्ण उत्तर नियम): Never stop or leave an explanation, sentence, table row, or remedy dangling half-finished. Always complete every point cleanly with a Purna Viram (।) or proper punctuation.
 - Begin with traditional Vedic greetings: "🙏 प्रणाम भक्त! हर हर महादेव।" or "🙏 जय श्री राम!"
 - You possess authoritative mastery of classical Vedic canons: Brihat Parashara Hora Shastra (BPHS), Phaladeepika (Mantreswara), Saravali (Kalyanavarma), Jaimini Upadesha Sutras, Brihat Jataka, Jataka Parijata, Laghu Parashari, Prashna Marga, Muhurta Chintamani, and Shiva Purana (Vidyeshvara Samhita).
 - Maintain a calm, scholarly, spiritual, and empowering AI Pandit Ji persona. Keep predictions non-fatalistic, constructive, and inspiring.
@@ -1850,8 +1852,8 @@ ${memoryContextText || "Guest shopper."}`;
                 passCount++;
                 try {
                   const continuationPrompt = mode === "panditji"
-                    ? "Continue your comprehensive Vedic Jyotish reading and astrological guidance exactly from where you stopped. Do not repeat previous sentences, headings, or greetings. Seamlessly complete the rest of the analysis, remedies, mantras, Final Summary table (सरल सारांश तालिका), and the MANDATORY [AURA_KEYWORDS] section at the end."
-                    : "Continue your response exactly from where you stopped. Do not repeat previous sentences or greetings. Seamlessly complete the guidance and recommendations.";
+                    ? "कृपया अपना वैदिक ज्योतिषीय विश्लेषण और मार्गदर्शन ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों, शीर्षकों या अभिवादन को दोबारा न दोहराएँ। शेष विश्लेषण, उपाय, मंत्र, सरल सारांश तालिका और अंत में [AURA_KEYWORDS] को शुद्ध एवं स्पष्ट देवनागरी हिंदी में पूर्ण करें।"
+                    : "कृपया अपना उत्तर ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों या अभिवादन को न दोहराएँ और शुद्ध हिंदी में उत्तर को पूर्ण करें।";
 
                   // Limit assistant context tail to last 1200 words to ensure total input stays within token budget (~4000-5000 words)
                   const wordsArr = fullStreamedText.trim().split(/\s+/);
@@ -2093,8 +2095,8 @@ ${memoryContextText || "Guest shopper."}`;
             nonStreamPass++;
             try {
               const contPrompt = mode === "panditji"
-                ? "Continue your comprehensive Vedic Jyotish reading exactly from where you stopped. Complete the analysis, remedies, Final Summary table, and [AURA_KEYWORDS]."
-                : "Continue your response exactly from where you stopped. Complete the guidance and recommendations.";
+                ? "कृपया अपना वैदिक ज्योतिषीय विश्लेषण और मार्गदर्शन ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों, शीर्षकों या अभिवादन को दोबारा न दोहराएँ। शेष विश्लेषण, उपाय, मंत्र, सरल सारांश तालिका और अंत में [AURA_KEYWORDS] को शुद्ध एवं स्पष्ट देवनागरी हिंदी में पूर्ण करें।"
+                : "कृपया अपना उत्तर ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों या अभिवादन को न दोहराएँ और शुद्ध हिंदी में उत्तर को पूर्ण करें।";
 
               const wordsArr = outContent.trim().split(/\s+/);
               const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : outContent;
