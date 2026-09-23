@@ -5,8 +5,9 @@ import {
   PackageSearch, Truck, CheckCircle2, Clock, 
   MapPin, ShieldCheck, ArrowRight, Flame, 
   Sparkles, Phone, MessageCircle, AlertCircle,
-  ExternalLink, Copy, CheckCheck
+  ExternalLink, Copy, CheckCheck, Award
 } from "lucide-react";
+import { SacredPujaCertificateModal } from "../components/SacredPujaCertificateModal";
 import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
 import { useSeo } from "../hooks/useSeo";
@@ -27,6 +28,7 @@ export function TrackOrder() {
   const [searched, setSearched] = useState(false);
   const [copiedAwb, setCopiedAwb] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [certModalOpen, setCertModalOpen] = useState(false);
 
   useEffect(() => {
     if (initialQuery) {
@@ -436,6 +438,83 @@ export function TrackOrder() {
                     </div>
                   </div>
                 )}
+
+                {/* Consecration & Authenticity Certificate */}
+                <div style={{
+                  background: "linear-gradient(135deg, #fbf7ed 0%, #f5ebd2 100%)",
+                  border: "1.5px solid #d4af37",
+                  borderRadius: "12px",
+                  padding: "16px 18px",
+                  marginTop: "20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "50%",
+                      background: "#d4af37",
+                      color: "#ffffff",
+                      display: "grid",
+                      placeItems: "center",
+                      flexShrink: 0
+                    }}>
+                      <Award size={20} />
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: "14px", color: "#2b170d", display: "block" }}>
+                        Vedic Prana-Pratishtha &amp; Lab Certificate
+                      </strong>
+                      <span style={{ fontSize: "12px", color: "#6e5d4e" }}>
+                        100% Nepali Origin &amp; Haridwar Gangajal Sanctified
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => setCertModalOpen(true)}
+                      style={{
+                        background: "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "8px 14px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px"
+                      }}
+                    >
+                      <Sparkles size={13} /> View Certificate
+                    </button>
+                    <Link
+                      to={`/verify-certificate?id=${orderResult.orderNumber || orderResult.id}`}
+                      style={{
+                        background: "#ffffff",
+                        border: "1px solid #d4af37",
+                        color: "#8c6b16",
+                        borderRadius: "6px",
+                        padding: "8px 12px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px"
+                      }}
+                    >
+                      Verify Online ↗
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -545,6 +624,13 @@ export function TrackOrder() {
 
         </div>
       </div>
+
+      {/* Sacred Consecration Certificate Modal */}
+      <SacredPujaCertificateModal
+        isOpen={certModalOpen}
+        onClose={() => setCertModalOpen(false)}
+        order={orderResult}
+      />
     </Shell>
   );
 }

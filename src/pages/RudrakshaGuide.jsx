@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useSeo } from "../hooks/useSeo";
 import { Shell } from "../components/Shell";
+import { DailyPanchangaWidget } from "../components/DailyPanchangaWidget";
 
 export default function RudrakshaGuide() {
   const location = useLocation();
@@ -148,6 +149,11 @@ export default function RudrakshaGuide() {
             {guide.description}
           </p>
         </header>
+
+        {/* Live Daily Vedic Panchanga Widget */}
+        <div className="mb-10">
+          <DailyPanchangaWidget />
+        </div>
 
         {/* Dynamic Content Sections */}
         {guide.type === "wear" && (

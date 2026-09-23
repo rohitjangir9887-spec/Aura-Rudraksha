@@ -16,6 +16,7 @@ import { RASHI_RECOMMENDATIONS } from "../data/seoCatalogData";
 import { useSeo } from "../hooks/useSeo";
 import { Shell } from "../components/Shell";
 import { triggerHaptic } from "../lib/haptics";
+import { DailyPanchangaWidget } from "../components/DailyPanchangaWidget";
 
 export default function RudrakshaCalculator() {
   const calculatorSchema = {
@@ -315,6 +316,11 @@ export default function RudrakshaCalculator() {
             </div>
           </section>
         )}
+
+        {/* Daily Vedic Panchanga & Auspicious Muhurta */}
+        <section className="my-2">
+          <DailyPanchangaWidget />
+        </section>
 
         {/* Universal Auspiciousness Notice */}
         <section className="bg-white border border-[#ebdccb] rounded-2xl p-6 sm:p-8 text-center shadow-xs">

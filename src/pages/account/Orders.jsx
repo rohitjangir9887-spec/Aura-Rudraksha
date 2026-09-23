@@ -9,10 +9,12 @@ import { authClient } from "../../lib/authClient";
 import { 
   ChevronLeft, Package, CreditCard, ChevronRight, 
   Search, Truck, LogIn, Clock, ArrowRight, RefreshCw, Loader2,
-  CheckCircle2, XCircle, RotateCcw, MessageCircle, AlertCircle, Star
+  CheckCircle2, XCircle, RotateCcw, MessageCircle, AlertCircle, Star,
+  Award
 } from "lucide-react";
 import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant";
 import { WriteReviewModal } from "../../components/reviews/WriteReviewModal";
+import { SacredPujaCertificateModal } from "../../components/SacredPujaCertificateModal";
 import { emitToast } from "../../context/ToastContext";
 
 
@@ -120,6 +122,7 @@ export function Orders() {
   const [trackInput, setTrackInput] = useState("");
   const [reviewModalProduct, setReviewModalProduct] = useState(null);
   const [reviewModalOrderId, setReviewModalOrderId] = useState("");
+  const [selectedCertificateOrder, setSelectedCertificateOrder] = useState(null);
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -918,6 +921,32 @@ export function Orders() {
                               </button>
                             )}
 
+                            {/* Vedic Lab Certificate Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCertificateOrder(o);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '8px 12px',
+                                background: '#FFFDF9',
+                                border: '1px solid #C89B3C',
+                                color: '#8C2B10',
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(200, 155, 60, 0.15)'
+                              }}
+                              title="View & Download Consecration Certificate"
+                            >
+                              <Award size={13} color="#8C2B10" /> Certificate
+                            </button>
+
                             {(() => {
                               const oNum = o.orderNumber || o.id;
                               const gTok = o.guestToken || "";
@@ -995,6 +1024,13 @@ export function Orders() {
           onSuccess={() => {
             db.fetchMyOrders(true).catch(() => {});
           }}
+        />
+
+        {/* Sacred Puja & Lab Consecration Certificate Modal */}
+        <SacredPujaCertificateModal
+          isOpen={Boolean(selectedCertificateOrder)}
+          onClose={() => setSelectedCertificateOrder(null)}
+          order={selectedCertificateOrder}
         />
         </div>
       </main>

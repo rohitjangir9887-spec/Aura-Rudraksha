@@ -36,6 +36,7 @@ const MobileDesignPage = lazy(() => import("./pages/MobileDesignPage").then(m =>
 const CategoryLanding = lazy(() => import("./pages/CategoryLanding"));
 const RudrakshaCalculator = lazy(() => import("./pages/RudrakshaCalculator"));
 const RudrakshaGuide = lazy(() => import("./pages/RudrakshaGuide"));
+const VerifyCertificate = lazy(() => import("./pages/VerifyCertificate").then(m => ({ default: m.VerifyCertificate })));
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
@@ -162,6 +163,8 @@ export function App() {
           <Route path="/rudraksha-benefits" element={<RudrakshaGuide />} />
           <Route path="/rudraksha-authenticity" element={<RudrakshaGuide />} />
           <Route path="/rudraksha-care" element={<RudrakshaGuide />} />
+          <Route path="/verify-certificate" element={<VerifyCertificate />} />
+          <Route path="/verify" element={<Navigate to="/verify-certificate" replace />} />
 
           {/* Customer Route Aliases for smooth navigation */}
           <Route path="/about-us" element={<Navigate to="/about" replace />} />

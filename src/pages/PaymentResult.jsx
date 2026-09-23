@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
-import { AlertCircle, ShieldCheck, RefreshCw, Loader2, Clock } from "lucide-react";
+import { AlertCircle, ShieldCheck, RefreshCw, Loader2, Clock, Award, Sparkles } from "lucide-react";
+import { SacredPujaCertificateModal } from "../components/SacredPujaCertificateModal";
 import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
@@ -36,6 +37,7 @@ export function PaymentResult() {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [rechecking, setRechecking] = useState(false);
+  const [certModalOpen, setCertModalOpen] = useState(false);
   const verifyAttempted = useRef(false);
 
   useEffect(() => {
@@ -259,9 +261,33 @@ export function PaymentResult() {
               <Link to={orderDetailLink} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
                 Go to My Order (View Order Details)
               </Link>
+              <button
+                type="button"
+                onClick={() => setCertModalOpen(true)}
+                className="outline-btn"
+                style={{
+                  padding: "12px 20px",
+                  fontSize: "14px",
+                  background: "#fdf8ee",
+                  border: "1.5px solid #d4af37",
+                  color: "#8c6b16",
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  cursor: "pointer"
+                }}
+              >
+                <Award size={15} /> View Consecration Certificate
+              </button>
             </div>
           </div>
         </main>
+        <SacredPujaCertificateModal
+          isOpen={certModalOpen}
+          onClose={() => setCertModalOpen(false)}
+          order={order}
+        />
       </Shell>
     );
   }

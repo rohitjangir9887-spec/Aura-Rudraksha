@@ -7,8 +7,9 @@ import {
   ChevronLeft, Check, Package, MapPin, CreditCard, RotateCcw, 
   X, Edit3, MessageCircle, AlertCircle, Truck, ExternalLink, 
   Copy, CheckCheck, Link2, Calendar, ShieldCheck, RefreshCw, Zap, Lock, Loader2, Star,
-  CheckCircle2, MessageSquare
+  CheckCircle2, MessageSquare, Award, Sparkles
 } from "lucide-react";
+import { SacredPujaCertificateModal } from "../../components/SacredPujaCertificateModal";
 import { OrderMessages } from "../../components/OrderMessages";
 import { Shell } from "../../components/Shell";
 import { db } from "../../lib/db";
@@ -82,6 +83,7 @@ export function OrderDetail() {
   const [editAddressForm, setEditAddressForm] = useState(() => order?.address || "");
   const [copiedAwb, setCopiedAwb] = useState(false);
   const [retryingPayment, setRetryingPayment] = useState(false);
+  const [certModalOpen, setCertModalOpen] = useState(false);
 
   const handlePayuRetry = async () => {
     const targetOrderId = order?.orderNumber || order?.id || order?._id || id;
@@ -971,6 +973,71 @@ export function OrderDetail() {
           </div>
         </div>
 
+        {/* Sacred Consecration Certificate Banner */}
+        <div style={{
+          background: "linear-gradient(135deg, #fbf7ed 0%, #f5ebd2 100%)",
+          border: "1.5px solid #d4af37",
+          borderRadius: 16,
+          padding: "20px 24px",
+          marginTop: 28,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 16,
+          boxShadow: "0 4px 16px rgba(184, 134, 11, 0.08)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "#d4af37",
+              color: "#ffffff",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              boxShadow: "0 3px 8px rgba(184, 134, 11, 0.3)"
+            }}>
+              <Award size={26} />
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#8c6b16", textTransform: "uppercase", letterSpacing: "1px" }}>
+                  ISO 9001:2015 &amp; Vedic Council Certified
+                </span>
+              </div>
+              <h3 style={{ margin: 0, fontFamily: "Cormorant Garamond, serif", fontSize: 20, color: "#2b170d", fontWeight: 700 }}>
+                Vedic Prana-Pratishtha &amp; Gemological Lab Certificate
+              </h3>
+              <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#6e5d4e" }}>
+                100% Nepali Origin X-Ray certified &amp; consecrated with Holy Ganga Jal Abhishekam.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCertModalOpen(true)}
+            style={{
+              background: "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 18px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 3px 10px rgba(165, 77, 43, 0.25)"
+            }}
+          >
+            <Sparkles size={14} /> View Consecration Certificate
+          </button>
+        </div>
+
         {/* Action Buttons */}
         <div style={{display: 'flex', gap: 12, marginTop: 30, flexWrap: 'wrap'}}   >
           <button 
@@ -1090,6 +1157,13 @@ export function OrderDetail() {
         onSuccess={() => {
           db.fetchMyOrders(true).catch(() => {});
         }}
+      />
+
+      {/* Sacred Consecration Certificate Modal */}
+      <SacredPujaCertificateModal
+        isOpen={certModalOpen}
+        onClose={() => setCertModalOpen(false)}
+        order={order}
       />
       
     </Shell>
