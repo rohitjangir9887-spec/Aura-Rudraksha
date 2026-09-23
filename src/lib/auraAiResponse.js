@@ -402,6 +402,11 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   // 3. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
+  // 3b. If in panditji mode, check if a 9-planet table was started (has Surya/Sun) but was cut off before finishing planets (missing Rahu/Ketu)
+  if (mode === "panditji" && (trimmed.includes("सूर्य") || trimmed.includes("Sun")) && !(trimmed.includes("राहु") || trimmed.includes("Rahu") || trimmed.includes("केतु") || trimmed.includes("Ketu"))) {
+    return true;
+  }
+
   // 4. Check explicit continuation/truncation signals
   if (/(\.\.\.|…|\(जारी\.\.\.\)|\(to be continued\.\.\.\)|अधूरा उत्तर|आगे का उत्तर|अगला भाग)$/i.test(trimmed)) {
     return true;

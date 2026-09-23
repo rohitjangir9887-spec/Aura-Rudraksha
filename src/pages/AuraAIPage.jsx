@@ -620,6 +620,7 @@ export function AuraAIPage() {
               orderInfo: partialData?.orderInfo || existing?.orderInfo || null,
               requiresHuman: Boolean(partialData?.requiresHuman || existing?.requiresHuman),
               quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : (existing?.quickReplies || []),
+              kundali: partialData?.kundali || existing?.kundali || targetMsg.kundali || null,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
             if (idx >= 0) {
@@ -649,6 +650,7 @@ export function AuraAIPage() {
             orderInfo: finalData.orderInfo || targetMsg.orderInfo || null,
             requiresHuman: finalData.requiresHuman || targetMsg.requiresHuman || false,
             quickReplies: (finalData.quickReplies && finalData.quickReplies.length > 0) ? finalData.quickReplies : (targetMsg.quickReplies || []),
+            kundali: finalData.kundali || targetMsg.kundali || null,
             timestamp: new Date().toISOString()
           };
           auraChatStore.upsertMessage(aiMsg, mode);

@@ -198,6 +198,11 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   // 4. Check unclosed markdown table row that got cut off mid-line
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
+  // 4b. If in panditji mode, check if a 9-planet table was started (has Surya/Sun) but was cut off before finishing planets (missing Rahu/Ketu)
+  if (mode === "panditji" && (trimmed.includes("सूर्य") || trimmed.includes("Sun")) && !(trimmed.includes("राहु") || trimmed.includes("Rahu") || trimmed.includes("केतु") || trimmed.includes("Ketu"))) {
+    return true;
+  }
+
   // 5. Check terminal punctuation or emojis
   const hasTerminalSignal = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
   if (hasTerminalSignal) return false;
