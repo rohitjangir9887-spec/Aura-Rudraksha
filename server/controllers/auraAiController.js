@@ -900,15 +900,27 @@ export async function calculateKundaliEndpoint(req, res, next) {
     }
 
     const recommendedProducts = [];
-    const targetMukhis = kundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => r.mukhiNumber);
+    const recs = kundaliData.astronomicalKundali?.rudrakshaRecommendations || [];
 
-    for (const mukhiNum of targetMukhis) {
-      const match = allProducts.find(p => {
+    for (const rec of recs) {
+      const mukhiStr = String(rec.mukhi || "").toLowerCase();
+      const mukhiNum = rec.mukhiNumber;
+
+      const matches = allProducts.filter(p => {
         const titleLower = (p.name || "").toLowerCase();
-        return titleLower.includes(`${mukhiNum} mukhi`) || titleLower.includes(`${mukhiNum}-mukhi`);
+        if (mukhiNum && (titleLower.includes(`${mukhiNum} mukhi`) || titleLower.includes(`${mukhiNum}-mukhi`))) return true;
+        if (mukhiStr.includes("gauri shankar") && titleLower.includes("gauri shankar")) return true;
+        if (mukhiStr.includes("ganesh") && titleLower.includes("ganesh")) return true;
+        if (mukhiStr.includes("garbh gauri") && titleLower.includes("garbh gauri")) return true;
+        if (mukhiStr.includes("108") && (titleLower.includes("108") || titleLower.includes("mala") || titleLower.includes("jaap"))) return true;
+        if (mukhiStr.includes("saraswati") && (titleLower.includes("saraswati") || titleLower.includes("vidya"))) return true;
+        return false;
       });
-      if (match && !recommendedProducts.some(rp => rp.id === String(match.id || match._id))) {
-        recommendedProducts.push(formatProductForResponse(match));
+
+      for (const m of matches) {
+        if (!recommendedProducts.some(rp => rp.id === String(m.id || m._id))) {
+          recommendedProducts.push(formatProductForResponse(m));
+        }
       }
     }
 
@@ -965,12 +977,14 @@ SOURCE PRIORITY (स्रोतों की सर्वोच्च प्र
 
 जातक का मुख्य प्रश्न / चिंता: ${concern} ${customConcern ? `("${customConcern}")` : ""}
 
-CHAT DISPLAY RULES — अत्यंत महत्वपूर्ण:
+CHAT DISPLAY & MOBILE-FRIENDLY FORMATTING RULES (CRITICAL):
 - पूरा उत्तर इसी चैट में दिखना चाहिए।
 - Read more, Show more, hidden accordion, collapsed sections या छिपे हुए टेक्स्ट का उपयोग न करें।
 - उपयोगकर्ता को दूसरी स्क्रीन पर भेजकर मुख्य जानकारी न छिपाएं।
-- headings, bullets, tables और छोटे paragraphs का उपयोग करें।
-- पहले Quick Answer, फिर विस्तृत विश्लेषण और अंत में Summary दें।
+- STRICT NO-HORIZONTAL-SCROLL-TABLE DIRECTIVE:
+  * कभी भी चौड़ी Markdown Pipe Tables (| col1 | col2 | col3 |) न बनाएं, क्योंकि मोबाइल स्क्रीन पर इसे पढ़ने के लिए साइड में स्क्रॉल करना पड़ता है।
+  * इसके स्थान पर सभी तुलनाओं, ग्रह फलादेश, दशा चक्र और सारांश को सुंदर, स्पष्ट एवं क्रमबद्ध BULLET POINTS और KEY-VALUE सूची में प्रस्तुत करें (उदा. • 🪐 **[ग्रह/विषय]:** [फलादेश व उपाय])।
+- पहले Quick Answer, फिर विस्तृत विश्लेषण और अंत में Key Points Summary दें।
 - बहुत लंबा उत्तर हो तो भी मुख्य निष्कर्ष चैट में पूरा दिखाएं।
 
 USER-ADAPTIVE BEHAVIOR & EVIDENCE RULES:
@@ -998,7 +1012,7 @@ RESPONSE FORMAT (10-STEP STRUCTURE):
 7. 🎯 **व्यावहारिक कार्य योजना (Practical Action Plan)**
 8. 📿 **कल्याणकारी उपाय, सिद्ध रुद्राक्ष व संपूर्ण धारण विधि (Sacred Consecrated Nepali Rudraksha, Dharan Vidhi & Beej Mantra)**
 9. ⏱️ **शुभ समय व दशा चक्र (Timing - Vimshottari Mahadasha, Antardasha & Gochar Roadmap)**
-10. 🌟 **अनिवार्य सारांश (Mandatory Astrological Summary Table & Key Points)**:
+10. 🌟 **अनिवार्य सारांश (Key Points & Takeaways - Bullet Points में)**:
    - 3 से 10 सबसे महत्वपूर्ण बिंदु
    - वर्तमान जीवन का मुख्य theme
    - सबसे बड़ा अवसर
@@ -1394,20 +1408,45 @@ export async function chatAuraAI(req, res, next) {
       : [];
 
     let matchedProducts = [];
-    if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
-      const foundProds = searchRelevantCatalogProducts(message || "", allStoreProds);
-      matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean);
-    }
-
-    // If we have calculated Kundali, match recommended beads to catalog
     if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
-      const recMukhis = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => r.mukhiNumber);
-      for (const mNum of recMukhis) {
-        const found = allStoreProds.find(p => (p.name || "").toLowerCase().includes(`${mNum} mukhi`));
-        if (found && !matchedProducts.some(mp => mp.id === String(found.id || found._id))) {
-          matchedProducts.push(formatProductForResponse(found));
+      const kundaliRecommendedProducts = [];
+      const recs = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations || [];
+
+      for (const rec of recs) {
+        const mukhiStr = String(rec.mukhi || "").toLowerCase();
+        const mukhiNum = rec.mukhiNumber;
+
+        const matches = allStoreProds.filter(p => {
+          const pNameLower = (p.name || "").toLowerCase();
+          if (mukhiNum && (pNameLower.includes(`${mukhiNum} mukhi`) || pNameLower.includes(`${mukhiNum}-mukhi`))) return true;
+          if (mukhiStr.includes("gauri shankar") && pNameLower.includes("gauri shankar")) return true;
+          if (mukhiStr.includes("ganesh") && pNameLower.includes("ganesh")) return true;
+          if (mukhiStr.includes("garbh gauri") && pNameLower.includes("garbh gauri")) return true;
+          if (mukhiStr.includes("108") && (pNameLower.includes("108") || pNameLower.includes("mala") || pNameLower.includes("jaap"))) return true;
+          if (mukhiStr.includes("saraswati") && (pNameLower.includes("saraswati") || pNameLower.includes("vidya"))) return true;
+          return false;
+        });
+
+        for (const m of matches) {
+          if (!kundaliRecommendedProducts.some(p => p.id === String(m.id || m._id))) {
+            kundaliRecommendedProducts.push(formatProductForResponse(m));
+          }
         }
       }
+
+      if (targetMukhi) {
+        const targetMatches = allStoreProds.filter(p => (p.name || "").toLowerCase().includes(`${targetMukhi} mukhi`));
+        for (const tm of targetMatches) {
+          if (!kundaliRecommendedProducts.some(p => p.id === String(tm.id || tm._id))) {
+            kundaliRecommendedProducts.unshift(formatProductForResponse(tm));
+          }
+        }
+      }
+
+      matchedProducts = kundaliRecommendedProducts.slice(0, 4);
+    } else if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
+      const foundProds = searchRelevantCatalogProducts(message || "", allStoreProds);
+      matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean).slice(0, 4);
     }
 
     const storeCatalogPromptSnippet = (allStoreProds || []).slice(0, 50).map(p => {
@@ -1625,12 +1664,14 @@ SOURCE PRIORITY (स्रोतों की सर्वोच्च प्र
 
 कभी भी जन्म समय, स्थान, ग्रह स्थिति, दशा या तारीख अपने मन से न बनाएं। Missing data होने पर साफ बताएं। विरोधाभास होने पर उसे छिपाएं नहीं।
 
-CHAT DISPLAY RULES — अत्यंत महत्वपूर्ण:
+CHAT DISPLAY & MOBILE-FRIENDLY FORMATTING RULES (CRITICAL):
 - पूरा उत्तर इसी चैट में दिखना चाहिए।
 - Read more, Show more, hidden accordion, collapsed sections या छिपे हुए टेक्स्ट का उपयोग न करें।
 - उपयोगकर्ता को दूसरी स्क्रीन पर भेजकर मुख्य जानकारी न छिपाएं।
-- headings, bullets, tables और छोटे paragraphs का उपयोग करें।
-- पहले Quick Answer, फिर विस्तृत विश्लेषण और अंत में Summary दें।
+- STRICT NO-HORIZONTAL-SCROLL-TABLE DIRECTIVE:
+  * कभी भी चौड़ी Markdown Pipe Tables (| col1 | col2 | col3 |) न बनाएं, क्योंकि मोबाइल स्क्रीन पर इसे पढ़ने के लिए साइड में स्क्रॉल करना पड़ता है।
+  * इसके स्थान पर सभी तुलनाओं, ग्रह फलादेश, दशा चक्र और सारांश को सुंदर, स्पष्ट एवं क्रमबद्ध BULLET POINTS और KEY-VALUE सूची में प्रस्तुत करें (उदा. • 🪐 **[ग्रह/विषय]:** [फलादेश व उपाय])।
+- पहले Quick Answer, फिर विस्तृत विश्लेषण और अंत में Key Points Summary दें।
 - बहुत लंबा उत्तर हो तो भी मुख्य निष्कर्ष चैट में पूरा दिखाएं।
 
 USER-ADAPTIVE BEHAVIOR:
@@ -1646,7 +1687,7 @@ LANGUAGE & SCRIPT MANDATE (CRITICAL):
 - STRICT SPACING & WORD INTEGRITY DIRECTIVE: शब्दों के बीच में कभी भी अनावश्यक स्पेस न दें और अक्षरों/मात्राओं को अलग न करें (उदा. 'रुद्राक्ष' लिखें, कभी भी 'रु द्रा क्ष' या 'रुद्र ाक्ष' न लिखें; 'महादशा' लिखें, कभी भी 'म हा द शा' न लिखें)।
 - Tone सम्मानजनक, शांत, सहानुभूतिपूर्ण, गैर-डरावना, आध्यात्मिक और स्पष्ट हो।
 - LANGUAGE CONTINUITY: यदि भक्त हिंदी में बात कर रहा है, तो बिना कारण बीच में अंग्रेज़ी में न बदलें; पूरा उत्तर हिंदी में ही दें। यदि भक्त केवल अंग्रेज़ी में पूछे, तभी अंग्रेज़ी में उत्तर दें।
-- STRICT COMPLETENESS DIRECTIVE: वाक्य, तालिका या उपाय बीच में अधूरा न छोड़ें; हमेशा पूर्ण विराम (।) के साथ समाप्त करें।
+- STRICT COMPLETENESS DIRECTIVE: वाक्य, सारांश या उपाय बीच में अधूरा न छोड़ें; हमेशा पूर्ण विराम (।) के साथ समाप्त करें।
 - वैदिक अभिवादन से शुरुआत करें: "🙏 प्रणाम भक्त! हर हर महादेव।" या "🙏 जय श्री राम!"
 - आप Brihat Parashara Hora Shastra (BPHS), Phaladeepika, Saravali, Jaimini Sutras, Brihat Jataka, Prashna Marga, Muhurta Chintamani एवं Shiva Purana (Vidyeshvara Samhita) के प्रकांड विद्वान हैं।
 
@@ -1701,7 +1742,7 @@ ${astroIntent.type === "greeting" ? `
    - DO NOT dump a massive Kundali reading or table. Keep it short, welcoming, and concise.
 ` : astroIntent.type === "full_kundali" ? `
    - Devotee EXPLICITLY requested FULL KUNDALI ANALYSIS ("पूरी कुंडली", "सब कुछ बताओ").
-   - उपलब्ध गणनाओं के आधार पर इन सभी Sections (A to N) को क्रमबद्ध व विस्तृत रूप में प्रस्तुत करें:
+   - उपलब्ध गणनाओं के आधार पर इन सभी Sections (A to N) को क्रमबद्ध व विस्तृत रूप में प्रस्तुत करें (बिना चौड़ी टेबल के, केवल स्पष्ट बुलेट पॉइंट्स में):
      A. **जन्म विवरण**: नाम, जन्म तारीख, समय, स्थान, अयनांश
      B. **मूल ज्योतिषीय पहचान**: लग्न (${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi}), लग्न स्वामी (${calculatedKundaliData.astronomicalKundali.lagna.lord}), चंद्र राशि (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi}), सूर्य राशि, नक्षत्र/चरण, मूलांक
      C. **नवग्रह स्थिति व फलादेश** (प्रत्येक ग्रह के लिए स्पष्ट Bullet Points: 📌 [ग्रह नाम], भाव, राशि, स्थिति, विस्तृत प्रभाव)
@@ -1716,7 +1757,7 @@ ${astroIntent.type === "greeting" ? `
      L. **षड्बल व अष्टकवर्ग बल**
      M. **लाल किताब व व्यावहारिक मार्गदर्शन**
      N. **कल्याणकारी उपाय व सिद्ध नेपाली रुद्राक्ष** (Lagna, Rashi व Dasha आधारित मुखी, प्राण-प्रतिष्ठा, धारण विधि, बीज मंत्र एवं स्टोर लिंक [Product Name](/product/slug))
-     10. 🌟 **अनिवार्य सारांश तालिका (Mandatory Summary Table & 3-10 Key Points)**
+     10. 🌟 **अनिवार्य सारांश (Key Points & Key Takeaways - Bullet Points में)**
      11. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5**
 ` : `
    - Devotee asked a SPECIFIC QUESTION regarding: "${astroIntent.label}" (User query: "${message || ''}").
@@ -1730,7 +1771,7 @@ ${astroIntent.type === "greeting" ? `
        * Rudraksha: Purpose, governing planet, authentic Nepali Mukhi option, Pran-Pratishtha, Dharan Vidhi, Beej Mantra, store link.
        * Health: General astrological tendencies only; never diagnose, advise consulting qualified doctors.
 
-     - Answer following this 10-Step Consultation Flow:
+     - Answer following this 10-Step Consultation Flow (केवल बुलेट पॉइंट्स में, बिना चौड़ी टेबल के):
        1. 🏷️ **शीर्षक** (Title with Vedic greeting: "🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name}! हर हर महादेव।**")
        2. ⚡ **Quick Answer** (Direct, clear, and encouraging answer to their specific question)
        3. 🔭 **कुंडली से आधार** (Cite specific houses ${astroIntent.houses ? astroIntent.houses.join(", ") : "relevant bhavas"}, planets, aspects, and active Mahadasha ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} / Antardasha ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi})
@@ -1740,7 +1781,7 @@ ${astroIntent.type === "greeting" ? `
        7. 🎯 **व्यावहारिक कार्य योजना (Practical Action Plan)**
        8. 📿 **कल्याणकारी उपाय, सिद्ध नेपाली रुद्राक्ष व संपूर्ण धारण विधि (Consecrated Nepali Rudraksha with Dharan Vidhi, Shiva Purana Beej Mantra & Store Link: [Product Name](/product/slug))**
        9. ⏱️ **शुभ समय व दशा गोचर (Timing & Dasha Transit Roadmap)**
-       10. 🌟 **अनिवार्य सारांश (Mandatory Summary Table / Key Points: Theme, Biggest Opportunity, Biggest Caution, Next Steps)**
+       10. 🌟 **अनिवार्य सारांश (Key Points: Theme, Biggest Opportunity, Biggest Caution, Next Steps - Bullet Points में)**
        11. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5** (4-5 relevant follow-up topic chips at the end).
 `}
 
@@ -2099,7 +2140,7 @@ ${memoryContextText || "Guest shopper."}`;
             const mahaEnd = vDasha?.mahadashaEndDate || "2036";
             const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "5 मुखी रुद्राक्ष";
 
-            fallbackText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n| विषय | विवरण | फल व उपाय |\n|---|---|---|\n| **वर्तमान महादशा** | ${currentMaha} | कर्म एवं आध्यात्मिक उन्नति |\n| **सक्रिय अंतर्दशा** | ${currentAntar} | कार्यक्षेत्र में नवीन अवसर |\n| **कल्याणकारी रुद्राक्ष** | ${recMukhi} | ग्रह शांति व सुरक्षा कवच |\n| **दैनिक बीज मंत्र** | ॐ नमः शिवाय | प्रतिदिन 108 बार जाप करें |\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
+            fallbackText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
           } else if (shouldPromptBirthForm) {
             fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी जन्म कुंडली और वर्तमान में चल रही **विंशोत्तरी महादशा व अंतर्दशा** की सटीक गणना हेतु आपकी **जन्म तिथि (Date of Birth)**, **जन्म समय (Time of Birth)** एवं **जन्म स्थान (Place of Birth)** की आवश्यकता है।\n\nवैदिक ज्योतिष (Brihat Parashara Hora Shastra) के अनुसार महादशा का निर्धारण जन्म कालीन चंद्र नक्षत्र से होता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें**, ताकि मैं तुरंत आपकी सटीक कुंडली व महादशा का पूर्ण विवरण और शुभ रुद्राक्ष उपाय बता सकूँ।`;
           } else {
@@ -2303,7 +2344,7 @@ ${memoryContextText || "Guest shopper."}`;
           const mahaEnd = vDasha?.mahadashaEndDate || "2036";
           const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "5 मुखी रुद्राक्ष";
 
-          aiResponseText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n| विषय | विवरण | फल व उपाय |\n|---|---|---|\n| **वर्तमान महादशा** | ${currentMaha} | कर्म एवं आध्यात्मिक उन्नति |\n| **सक्रिय अंतर्दशा** | ${currentAntar} | कार्यक्षेत्र में नवीन अवसर |\n| **कल्याणकारी रुद्राक्ष** | ${recMukhi} | ग्रह शांति व सुरक्षा कवच |\n| **दैनिक बीज मंत्र** | ॐ नमः शिवाय | प्रतिदिन 108 बार जाप करें |\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
+          aiResponseText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
         } else if (shouldPromptBirthForm) {
           aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी जन्म कुंडली और वर्तमान में चल रही **विंशोत्तरी महादशा व अंतर्दशा** की सटीक गणना हेतु आपकी **जन्म तिथि (Date of Birth)**, **जन्म समय (Time of Birth)** एवं **जन्म स्थान (Place of Birth)** की आवश्यकता है।\n\nवैदिक ज्योतिष (Brihat Parashara Hora Shastra) के अनुसार महादशा का निर्धारण जन्म कालीन चंद्र नक्षत्र से होता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें**, ताकि मैं तुरंत आपकी सटीक कुंडली व महादशा का पूर्ण विवरण और शुभ रुद्राक्ष उपाय बता सकूँ।`;
         } else {

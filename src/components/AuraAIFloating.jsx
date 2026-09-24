@@ -817,6 +817,16 @@ export function AuraAIFloating() {
           });
           setLoading(false);
 
+          // Automated background continuation: If the AI cuts off mid-sentence or mid-analysis, automatically continue
+          const shouldAutoContinue = isAuraResponseIncomplete(cleanText, mode);
+          if (shouldAutoContinue) {
+            autoContinuationCountRef.current = 1;
+            setTimeout(() => {
+              handleContinueChat(aiMsg, 1, 10);
+            }, 300);
+            return;
+          }
+
           autoContinuationCountRef.current = 0;
         },
         onError: (err) => {

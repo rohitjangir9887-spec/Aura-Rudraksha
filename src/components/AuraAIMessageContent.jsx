@@ -986,30 +986,34 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           );
         }
 
-        // Non-Planetary Responsive Table (Dasha, Rudraksha Recommendations, Vidhi, etc.)
+        // Non-Planetary Responsive Table -> Rendered as clean, mobile-friendly vertical structured card/list (NO horizontal scrolling)
         if (block.type === "table") {
           return (
-            <div key={idx} className="aura-ai-table-wrap">
-              <table className="aura-ai-table">
-                {block.headers.length > 0 && (
-                  <thead>
-                    <tr>
-                      {block.headers.map((h, hIdx) => (
-                        <th key={hIdx}>{renderInlineContent(h.replace(/\*\*/g, ""))}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                )}
-                <tbody>
-                  {block.rows.map((row, rIdx) => (
-                    <tr key={rIdx}>
-                      {row.map((cell, cIdx) => (
-                        <td key={cIdx}>{renderInlineContent(cell)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div key={idx} className="my-2.5 space-y-2 text-[#2b1408] w-full max-w-full overflow-hidden">
+              {block.rows.map((row, rIdx) => {
+                const titleCell = row[0] || "";
+                const otherCells = row.slice(1);
+                return (
+                  <div 
+                    key={rIdx} 
+                    className="p-2.5 rounded-lg border border-[#f0dfcc] bg-gradient-to-r from-[#fffdfa] to-[#fbf5eb] space-y-1 text-[13px] leading-relaxed shadow-xs w-full max-w-full box-border"
+                  >
+                    <div className="font-bold text-[#8c2b10] flex items-baseline gap-1.5 text-[13.5px]">
+                      <span className="text-[#d4af37] text-xs">✦</span>
+                      <span>{renderInlineContent(titleCell)}</span>
+                    </div>
+                    {otherCells.map((cell, cIdx) => {
+                      const headerLabel = block.headers[cIdx + 1] ? block.headers[cIdx + 1].replace(/\*\*/g, "").trim() : "";
+                      return (
+                        <div key={cIdx} className="text-[#3b1b08] pl-3 flex flex-wrap items-baseline gap-1">
+                          {headerLabel && <span className="text-[#8c2b10] font-semibold text-[12px] opacity-90">{headerLabel}:</span>}
+                          <span>{renderInlineContent(cell)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           );
         }
