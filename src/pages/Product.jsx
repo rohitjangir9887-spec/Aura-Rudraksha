@@ -27,7 +27,6 @@ import { ProductDeliveryChecker } from "../components/product/ProductDeliveryChe
 import { ProductPurchaseActions } from "../components/product/ProductPurchaseActions";
 import { ProductInfoTabs } from "../components/product/ProductInfoTabs";
 import { FrequentlyBoughtTogether } from "../components/product/FrequentlyBoughtTogether";
-import { MobileStickyPurchaseBar } from "../components/product/MobileStickyPurchaseBar";
 
 import "../components/product/ProductPage.css";
 import "../components/RichTextEditor.css";
@@ -92,10 +91,6 @@ export function Product() {
       }
     }
   }, [product?.sizes, selectedSize]);
-
-  // Sticky bar visibility tracking
-  const [showStickyBar, setShowStickyBar] = useState(false);
-  const ctaSectionRef = useRef(null);
 
   // Share dropdown state
   const [shareOpen, setShareOpen] = useState(false);
@@ -206,27 +201,6 @@ export function Product() {
       addRecentlyViewedProduct(product.id || product._id || product.slug);
     }
   }, [product?.id, product?._id, product?.slug]);
-
-  // Scroll observer for Mobile Sticky Purchase Bar
-  useEffect(() => {
-    let ticking = false;
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          if (ctaSectionRef.current) {
-            const rect = ctaSectionRef.current.getBoundingClientRect();
-            // Show sticky bar once user scrolls past the main buy buttons
-            setShowStickyBar(rect.bottom < 100);
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   const rawP = product;
 
@@ -342,7 +316,7 @@ export function Product() {
       }
     ];
 
-    if (realReviewsForRating.length > 0) {
+    if (realReviewsForRating.length > 0 && schemas.length > 0 && schemas[0]) {
       schemas[0].aggregateRating = {
         "@type": "AggregateRating",
         "ratingValue": averageRating,
@@ -770,7 +744,7 @@ export function Product() {
               />
 
               {/* Quantity Selector, CTA Action Buttons & Secure Payment Guarantee */}
-              <div ref={ctaSectionRef}>
+              <div>
                 <ProductPurchaseActions
                   product={p}
                   qty={qty}
@@ -950,17 +924,6 @@ export function Product() {
             </div>
           )}
         </div>
-
-        {/* 10. Mobile Sticky Purchase Bar (Always active on mobile screens) */}
-        <MobileStickyPurchaseBar
-          product={p}
-          qty={qty}
-          selectedVariant={selectedVariant}
-          selectedSize={selectedSize}
-          isVisible={showStickyBar}
-          onAddToCart={(pId, q) => add(pId, q)}
-          onBuyNow={handleBuyNow}
-        />
       </motion.div>
     </Shell>
   );

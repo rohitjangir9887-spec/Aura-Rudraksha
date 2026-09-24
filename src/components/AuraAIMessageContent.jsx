@@ -42,8 +42,9 @@ import { VedicKundaliChart, RASHI_MAP } from "./VedicKundaliChart";
 
 // Helper to clean raw artifacts & secure content while preserving 100% of information
 export function sanitizeText(raw) {
-  if (!raw || typeof raw !== "string") return "";
-  let text = raw.trim();
+  if (raw === null || raw === undefined) return "";
+  let text = typeof raw === "string" ? raw.trim() : String(raw).trim();
+  if (!text) return "";
 
   // Strip [AURA_KEYWORDS]: kw1 | kw2 | ... line from visible chat display
   text = text.replace(/\[AURA_KEYWORDS\]:[^\n]*/gi, "").replace(/\[AURA_KEYWORDS\]/gi, "").trim();
@@ -183,12 +184,14 @@ function extractInternalRoute(rawUrl) {
 
 // Tokenize a line of text for inline formatting, links & keyword badges
 export function renderInlineContent(text) {
-  if (!text) return null;
+  if (text === null || text === undefined || text === "") return null;
+  const str = typeof text === "string" ? text : String(text);
+  if (!str) return null;
 
   try {
     // Split by inline tokens: [link](url), https?://..., domain links, relative or bare /product/... paths, **bold**, `code`, *italic*
     const tokenRegex = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<)\]]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/[^\s<)\]]*|\/?(?:product|shop|categories|cart|checkout|wishlist|account|zodiac|panditji)\/[a-zA-Z0-9_-]+|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
-    const parts = text.split(tokenRegex);
+    const parts = str.split(tokenRegex);
 
     return parts.map((part, idx) => {
       if (!part) return null;
@@ -988,11 +991,14 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
 
         // Non-Planetary Responsive Table -> Rendered as clean, mobile-friendly vertical structured card/list (NO horizontal scrolling)
         if (block.type === "table") {
+          const rows = Array.isArray(block.rows) ? block.rows : [];
+          const headers = Array.isArray(block.headers) ? block.headers : [];
           return (
             <div key={idx} className="my-2.5 space-y-2 text-[#2b1408] w-full max-w-full overflow-hidden">
-              {block.rows.map((row, rIdx) => {
-                const titleCell = row[0] || "";
-                const otherCells = row.slice(1);
+              {rows.map((row, rIdx) => {
+                const rowCells = Array.isArray(row) ? row : [String(row || "")];
+                const titleCell = rowCells[0] || "";
+                const otherCells = rowCells.slice(1);
                 return (
                   <div 
                     key={rIdx} 
@@ -1003,7 +1009,10 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
                       <span>{renderInlineContent(titleCell)}</span>
                     </div>
                     {otherCells.map((cell, cIdx) => {
-                      const headerLabel = block.headers[cIdx + 1] ? block.headers[cIdx + 1].replace(/\*\*/g, "").trim() : "";
+                      const headerCell = headers[cIdx + 1];
+                      const headerLabel = typeof headerCell === "string" 
+                        ? headerCell.replace(/\*\*/g, "").trim() 
+                        : (headerCell ? String(headerCell) : "");
                       return (
                         <div key={cIdx} className="text-[#3b1b08] pl-3 flex flex-wrap items-baseline gap-1">
                           {headerLabel && <span className="text-[#8c2b10] font-semibold text-[12px] opacity-90">{headerLabel}:</span>}
@@ -1035,14 +1044,15 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
 
         // Key-Value Attribute Group
         if (block.type === "kv_group") {
+          const items = Array.isArray(block.items) ? block.items : [];
           return (
             <div key={idx} className="my-2 space-y-1 text-[#2d211b]">
-              {block.items.map((item, itemIdx) => (
+              {items.map((item, itemIdx) => (
                 <div key={itemIdx} className="text-[14px] leading-relaxed flex items-start gap-1.5">
                   <span className="text-[#8c2b10] font-bold">✦</span>
                   <div>
-                    <strong className="text-[#8c2b10] font-semibold">{item.key}:</strong>{" "}
-                    <span>{renderInlineContent(item.value)}</span>
+                    <strong className="text-[#8c2b10] font-semibold">{item?.key || ""}:</strong>{" "}
+                    <span>{renderInlineContent(item?.value || "")}</span>
                   </div>
                 </div>
               ))}
@@ -1052,9 +1062,10 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
 
         // Lists
         if (block.type === "list") {
+          const items = Array.isArray(block.items) ? block.items : [];
           return (
             <div key={idx} className="my-2 space-y-1.5">
-              {block.items.map((itemText, itemIdx) => (
+              {items.map((itemText, itemIdx) => (
                 <div key={itemIdx} className="text-[14.5px] leading-relaxed flex items-start gap-2">
                   <span className="text-[#8c2b10] font-bold flex-shrink-0 mt-0.5">
                     {block.isNumbered ? `${itemIdx + 1}.` : "•"}

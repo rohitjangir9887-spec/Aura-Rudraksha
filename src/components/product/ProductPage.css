@@ -2420,30 +2420,10 @@
   color: #ffffff;
 }
 
-/* Mobile Sticky Purchase Bar */
+/* Mobile Sticky Purchase Bar (Disabled to prevent intrusive popups over navigation) */
 #aura-mobile-sticky-purchase-bar,
 .aura-mobile-sticky-purchase-bar {
-  display: none;
-  position: fixed;
-  left: 0;
-  right: 0;
-  /* Above the mobile bottom navigation (68px) and respects safe area */
-  bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 9998 !important;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-top: 1px solid var(--aura-border-subtle);
-  box-shadow: 0 -4px 20px rgba(42, 22, 13, 0.14);
-  padding: 8px 12px;
-  box-sizing: border-box;
-}
-
-@media (max-width: 768px) {
-  #aura-mobile-sticky-purchase-bar,
-  .aura-mobile-sticky-purchase-bar {
-    display: block;
-  }
+  display: none !important;
 }
 
 .aura-sticky-inner {
