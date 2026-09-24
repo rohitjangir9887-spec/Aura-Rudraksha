@@ -1244,16 +1244,26 @@ export function AuraAIFloating() {
         }} 
       />
 
-      {/* 1. Floating Action Pill - Modern, compact, developer-grade Aura AI pill */}
+      {/* 1. Floating Action Pill - Modern, compact, floating animated Aura AI pill */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
           <motion.div
             id="aura-ai-floating-trigger"
             className="aura-ai-floating-btn-wrap"
-            initial={{ scale: 0.88, opacity: 0, y: 6 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.88, opacity: 0, y: 6 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ scale: 0.82, opacity: 0, y: 15 }}
+            animate={{ 
+              scale: 1, 
+              opacity: 1, 
+              y: [0, -6, 0]
+            }}
+            exit={{ scale: 0.82, opacity: 0, y: 15 }}
+            transition={{ 
+              opacity: { duration: 0.25, ease: "easeOut" },
+              scale: { duration: 0.25, ease: "easeOut" },
+              y: { repeat: Infinity, duration: 3.2, ease: "easeInOut" }
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.94 }}
           >
             <div className={`aura-ai-floating-pill-container ${timeTheme}`}>
               {/* Compact Quick Actions Menu */}
@@ -1261,10 +1271,10 @@ export function AuraAIFloating() {
                 {showQuickActions && (
                   <motion.div 
                     className="aura-ai-quick-actions"
-                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    initial={{ opacity: 0, y: 8, scale: 0.94 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    exit={{ opacity: 0, y: 8, scale: 0.94 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
                   >
                     <div className="aura-qa-header">
                       <span className="aura-qa-header-title">✦ Aura Assistant</span>
@@ -1300,7 +1310,7 @@ export function AuraAIFloating() {
                 )}
               </AnimatePresence>
             
-              {/* Refined Floating Pill Component with Living Light Aura */}
+              {/* Refined Floating Pill Component with Living Light Aura & Floating Animation */}
               <div 
                 className={`aura-ai-floating-pill ${pillState !== "default" ? `pill-state-${pillState}` : ""} ${showQuickActions ? "pill-qa-open" : ""}`}
                 role="region"
@@ -1405,7 +1415,7 @@ export function AuraAIFloating() {
         )}
       </AnimatePresence>
 
-      {/* 3. Aura AI Window - Floating Interactive Guide + Full Window Mode */}
+      {/* 3. Aura AI Window - Fluid Opening & Spring Animations */}
       <AnimatePresence mode="wait">
         {isOpen && (
           <React.Fragment key="aura-ai-window-portal">
@@ -1430,18 +1440,18 @@ export function AuraAIFloating() {
               className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}
               initial={{ 
                 opacity: 0, 
-                scale: isFullWindow ? 0.95 : 0.88, 
-                y: isFullWindow ? 15 : 30,
-                transformOrigin: isFullWindow ? "center center" : "bottom right" 
+                scale: isFullWindow ? 0.94 : 0.82, 
+                y: isFullWindow ? 20 : 35,
+                transformOrigin: isFullWindow ? "center center" : "bottom left" 
               }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ 
                 opacity: 0, 
-                scale: isFullWindow ? 0.95 : 0.86, 
-                y: isFullWindow ? 15 : 25,
-                transition: { duration: 0.22, ease: [0.32, 0, 0.67, 0] }
+                scale: isFullWindow ? 0.94 : 0.82, 
+                y: isFullWindow ? 20 : 25,
+                transition: { duration: 0.2, ease: [0.32, 0, 0.67, 0] }
               }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ type: "spring", damping: 25, stiffness: 320, mass: 0.85 }}
             >
               <motion.div
                 id="aura-ai-floating-panel"
@@ -1574,145 +1584,211 @@ export function AuraAIFloating() {
                 )}
               </AnimatePresence>
 
-              {/* Mode Selector Pill Bar */}
-              <div className="aura-ai-mode-bar">
+              {/* Mode Selector Pill Bar with Smooth Sliding Animated Indicator */}
+              <div className="aura-ai-mode-bar" style={{ position: "relative" }}>
                 <button
-                  onClick={() => setMode("standard")}
+                  onClick={() => {
+                    triggerHaptic("light");
+                    setMode("standard");
+                  }}
                   className={`aura-ai-mode-btn ${mode === "standard" ? "active" : ""}`}
                   type="button"
+                  style={{ position: "relative" }}
                 >
-                  <Sparkles size={11} /> ⚡ Quick AI
+                  {mode === "standard" && (
+                    <motion.div
+                      layoutId="activeAuraModeIndicator"
+                      className="aura-ai-mode-active-pill"
+                      transition={{ type: "spring", stiffness: 480, damping: 32 }}
+                    />
+                  )}
+                  <span style={{ position: "relative", zIndex: 2, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <Sparkles size={11} /> ⚡ Quick AI
+                  </span>
                 </button>
                 <button
-                  onClick={() => setMode("panditji")}
+                  onClick={() => {
+                    triggerHaptic("light");
+                    setMode("panditji");
+                  }}
                   className={`aura-ai-mode-btn ${mode === "panditji" ? "active" : ""}`}
                   type="button"
+                  style={{ position: "relative" }}
                 >
-                  <span>🕉️</span> AI Panditji
+                  {mode === "panditji" && (
+                    <motion.div
+                      layoutId="activeAuraModeIndicator"
+                      className="aura-ai-mode-active-pill"
+                      transition={{ type: "spring", stiffness: 480, damping: 32 }}
+                    />
+                  )}
+                  <span style={{ position: "relative", zIndex: 2, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <span>🕉️</span> AI Panditji
+                  </span>
                 </button>
               </div>
 
-              {/* Quick AI & Vedic Suggestion Strip with dynamic keywords */}
+              {/* Quick AI & Vedic Suggestion Strip with dynamic keywords & option transition animations */}
               <div className="aura-ai-nav-strip">
-                {mode === "panditji" ? (
-                  <>
-                    <button 
-                      type="button"
-                      onClick={handleNewChat} 
-                      className="aura-ai-strip-btn"
-                      title="New Chat / Nayi Baat-cheet"
-                      style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b", fontWeight: 700 }}
+                <AnimatePresence mode="wait">
+                  {mode === "panditji" ? (
+                    <motion.div 
+                      key="strip-panditji"
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 6 }}
+                      transition={{ duration: 0.2 }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
                     >
-                      <RotateCcw size={10.5} />
-                      <span>🔄 New Chat</span>
-                    </button>
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleNewChat} 
+                        className="aura-ai-strip-btn"
+                        title="New Chat / Nayi Baat-cheet"
+                        style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b", fontWeight: 700 }}
+                      >
+                        <RotateCcw size={10.5} />
+                        <span>🔄 New Chat</span>
+                      </motion.button>
 
-                    <button 
-                      onClick={() => setShowBirthForm((prev) => !prev)} 
-                      className={`aura-ai-strip-btn ${showBirthForm ? "active" : ""}`}
-                      style={{ background: "#fef3c7", color: "#78350f", border: "1.5px solid #f59e0b", fontWeight: 700 }}
-                    >
-                      📋 {showBirthForm ? "✕ बंद करें" : "📋 Kundli Form"}
-                    </button>
+                      <motion.button 
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowBirthForm((prev) => !prev)} 
+                        className={`aura-ai-strip-btn ${showBirthForm ? "active" : ""}`}
+                        style={{ background: "#fef3c7", color: "#78350f", border: "1.5px solid #f59e0b", fontWeight: 700 }}
+                      >
+                        📋 {showBirthForm ? "✕ बंद करें" : "📋 Kundli Form"}
+                      </motion.button>
 
-                    <button 
-                      type="button"
-                      onClick={() => setShowSavedKundaliModal(true)} 
-                      className="aura-ai-strip-btn"
-                      title="Saved Kundali Profiles"
-                      style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowSavedKundaliModal(true)} 
+                        className="aura-ai-strip-btn"
+                        title="Saved Kundali Profiles"
+                        style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
+                      >
+                        <Bookmark size={11} />
+                        <span>💾 Saved Kundalis</span>
+                      </motion.button>
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowChatHistoryModal(true)} 
+                        className="aura-ai-strip-btn"
+                        title="View Past Consultations"
+                      >
+                        <History size={11} />
+                        <span>📜 History</span>
+                      </motion.button>
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          fetchNotes();
+                          setShowNotepad(true);
+                        }}
+                        className="aura-ai-strip-btn"
+                        title="Spiritual Notes"
+                      >
+                        <Notebook size={11} />
+                        <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
+                      </motion.button>
+                      {dynamicSuggestions.map((sug, idx) => (
+                        <motion.button 
+                          key={idx}
+                          whileHover={{ scale: 1.05, y: -1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleSend(sug.query)} 
+                          className="aura-ai-strip-btn"
+                        >
+                          {sug.label}
+                        </motion.button>
+                      ))}
+                    </motion.div>
+                  ) : (
+                    <motion.div 
+                      key="strip-standard"
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 6 }}
+                      transition={{ duration: 0.2 }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
                     >
-                      <Bookmark size={11} />
-                      <span>💾 Saved Kundalis</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setShowChatHistoryModal(true)} 
-                      className="aura-ai-strip-btn"
-                      title="View Past Consultations"
-                    >
-                      <History size={11} />
-                      <span>📜 History</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        fetchNotes();
-                        setShowNotepad(true);
-                      }}
-                      className="aura-ai-strip-btn"
-                      title="Spiritual Notes"
-                    >
-                      <Notebook size={11} />
-                      <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
-                    </button>
-                    {dynamicSuggestions.map((sug, idx) => (
-                      <button 
-                        key={idx}
-                        onClick={() => handleSend(sug.query)} 
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleNewChat} 
+                        className="aura-ai-strip-btn"
+                        title="New Chat / Nayi Baat-cheet"
+                        style={{ background: "#fdf3e3", color: "#8c2b10", border: "1px solid #d4af37", fontWeight: 700 }}
+                      >
+                        <RotateCcw size={10.5} />
+                        <span>🔄 New Chat</span>
+                      </motion.button>
+
+                      <motion.button 
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleSend("📦 Track my recent order status")} 
                         className="aura-ai-strip-btn"
                       >
-                        {sug.label}
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <button 
-                      type="button"
-                      onClick={handleNewChat} 
-                      className="aura-ai-strip-btn"
-                      title="New Chat / Nayi Baat-cheet"
-                      style={{ background: "#fdf3e3", color: "#8c2b10", border: "1px solid #d4af37", fontWeight: 700 }}
-                    >
-                      <RotateCcw size={10.5} />
-                      <span>🔄 New Chat</span>
-                    </button>
-
-                    <button 
-                      onClick={() => handleSend("📦 Track my recent order status")} 
-                      className="aura-ai-strip-btn"
-                    >
-                      📦 Track Order
-                    </button>
-                    <button 
-                      onClick={() => handleSend("🎁 Aaj ke active discount coupon codes batao")} 
-                      className="aura-ai-strip-btn"
-                    >
-                      🎁 Today's Offers
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setShowChatHistoryModal(true)} 
-                      className="aura-ai-strip-btn"
-                      title="View Past Consultations"
-                    >
-                      <History size={11} />
-                      <span>📜 History</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        fetchNotes();
-                        setShowNotepad(true);
-                      }}
-                      className="aura-ai-strip-btn"
-                      title="Saved Notes"
-                    >
-                      <Notebook size={11} />
-                      <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
-                    </button>
-                    {dynamicSuggestions.map((sug, idx) => (
-                      <button 
-                        key={idx}
-                        onClick={() => handleSend(sug.query)} 
+                        📦 Track Order
+                      </motion.button>
+                      <motion.button 
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleSend("🎁 Aaj ke active discount coupon codes batao")} 
                         className="aura-ai-strip-btn"
                       >
-                        {sug.label}
-                      </button>
-                    ))}
-                  </>
-                )}
+                        🎁 Today's Offers
+                      </motion.button>
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowChatHistoryModal(true)} 
+                        className="aura-ai-strip-btn"
+                        title="View Past Consultations"
+                      >
+                        <History size={11} />
+                        <span>📜 History</span>
+                      </motion.button>
+                      <motion.button 
+                        type="button"
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          fetchNotes();
+                          setShowNotepad(true);
+                        }}
+                        className="aura-ai-strip-btn"
+                        title="Saved Notes"
+                      >
+                        <Notebook size={11} />
+                        <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
+                      </motion.button>
+                      {dynamicSuggestions.map((sug, idx) => (
+                        <motion.button 
+                          key={idx}
+                          whileHover={{ scale: 1.05, y: -1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleSend(sug.query)} 
+                          className="aura-ai-strip-btn"
+                        >
+                          {sug.label}
+                        </motion.button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <button 
                   type="button" 
                   onClick={() => setIsFullWindow((prev) => !prev)} 
@@ -2350,13 +2426,15 @@ export function AuraAIFloating() {
                             </div>
                           )}
 
-                          {/* Quick Reply Chips */}
+                          {/* Quick Reply Chips with Spring Transitions */}
                           {index === messages.length - 1 && m.quickReplies && m.quickReplies.length > 0 && (
                             <div className="aura-ai-quick-chips">
                               {m.quickReplies.map((q, qi) => (
-                                <button
+                                <motion.button
                                   key={qi}
                                   type="button"
+                                  whileHover={{ scale: 1.05, y: -1 }}
+                                  whileTap={{ scale: 0.95 }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleSend(q);
@@ -2364,12 +2442,12 @@ export function AuraAIFloating() {
                                   className="aura-ai-chip-btn"
                                 >
                                   {q}
-                                </button>
+                                </motion.button>
                               ))}
                             </div>
                           )}
 
-                          {/* AURA_KEYWORDS Interactive Suggested Search Chips */}
+                          {/* AURA_KEYWORDS Interactive Suggested Search Chips with animated transitions */}
                           {m.sender === "ai" && (() => {
                             const parsedKws = parseAuraKeywords(m.text || "");
                             const isLastAi = index === messages.length - 1;
@@ -2389,9 +2467,11 @@ export function AuraAIFloating() {
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                                   {effectiveKws.map((kw, ki) => (
-                                    <button
+                                    <motion.button
                                       key={ki}
                                       type="button"
+                                      whileHover={{ scale: 1.05, y: -1 }}
+                                      whileTap={{ scale: 0.95 }}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleSend(kw);
@@ -2405,14 +2485,11 @@ export function AuraAIFloating() {
                                         fontWeight: 600,
                                         color: "#6b2a0c",
                                         cursor: "pointer",
-                                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                                        transition: "all 0.2s ease"
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)"
                                       }}
-                                      onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.borderColor = "#8c2b10"; }}
-                                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = "#D4AF37"; }}
                                     >
                                       🔎 {kw}
-                                    </button>
+                                    </motion.button>
                                   ))}
                                 </div>
                               </div>

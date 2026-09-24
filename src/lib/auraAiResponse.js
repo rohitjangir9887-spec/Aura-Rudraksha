@@ -73,6 +73,44 @@ export function stripThinkingAndReasoning(raw) {
   return lines.join("\n").trim();
 }
 
+export function cleanDevanagariAndForeignCharacters(text) {
+  if (!text || typeof text !== "string") return "";
+  let cleaned = text;
+
+  // 1. Remove unintended Chinese (Hanzi / CJK), Japanese (Hiragana/Katakana), Korean (Hangul), and fullwidth artifacts
+  cleaned = cleaned.replace(/[\u4e00-\u9fff\u3400-\u4dbf\u2e80-\u2fd5\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af\uff01-\uffee]/g, "");
+
+  // 2. Fix disconnected spaces before Devanagari matras, viramas (halant), nukta, anusvara, visarga
+  // e.g. "क ा" -> "का", "र ु" -> "रु", "क ् ष" -> "क्ष"
+  cleaned = cleaned.replace(/([\u0900-\u097F])\s+([\u093E-\u094D\u0962\u0963\u093C\u0901-\u0903])/g, "$1$2");
+  cleaned = cleaned.replace(/([\u0900-\u097F]\u094D)\s+([\u0900-\u097F])/g, "$1$2");
+
+  // 3. Repair common accidentally split Hindi / Vedic words
+  cleaned = cleaned.replace(/रु\s+द्रा\s+क्ष/g, "रुद्राक्ष");
+  cleaned = cleaned.replace(/रुद्र\s+ाक्ष/g, "रुद्राक्ष");
+  cleaned = cleaned.replace(/ने\s+पा\s+ली/g, "नेपाली");
+  cleaned = cleaned.replace(/कुं\s+ड\s+ली/g, "कुंडली");
+  cleaned = cleaned.replace(/कं\s+ुडली/g, "कुंडली");
+  cleaned = cleaned.replace(/कुण्ड\s+ली/g, "कुण्डली");
+  cleaned = cleaned.replace(/महा\s+दशा/g, "महादशा");
+  cleaned = cleaned.replace(/म\s+हा\s+द\s+शा/g, "महादशा");
+  cleaned = cleaned.replace(/अं\s+तर्दशा/g, "अंतर्दशा");
+  cleaned = cleaned.replace(/अंतर\s+दशा/g, "अंतर्दशा");
+  cleaned = cleaned.replace(/प्र\s+त्यंतर\s+दशा/g, "प्रत्यंतर्दशा");
+  cleaned = cleaned.replace(/प्र\s+णाम/g, "प्रणाम");
+  cleaned = cleaned.replace(/ज्यो\s+तिष/g, "ज्योतिष");
+  cleaned = cleaned.replace(/क\s+ल्याण\s+कारी/g, "कल्याणकारी");
+  cleaned = cleaned.replace(/विं\s+शोत्तरी/g, "विंशोत्तरी");
+  cleaned = cleaned.replace(/प्रा\s+ण\s*-\s*प्रति\s+ष्ठा/g, "प्राण-प्रतिष्ठा");
+  cleaned = cleaned.replace(/धार\s+ण/g, "धारण");
+  cleaned = cleaned.replace(/वि\s+धि/g, "विधि");
+
+  // 4. Collapse accidental multiple spaces (preserve single spaces and newlines)
+  cleaned = cleaned.replace(/[ \t]{2,}/g, " ");
+
+  return cleaned;
+}
+
 export function sanitizeCustomerText(raw) {
   if (typeof raw !== "string") return "";
   let text = stripThinkingAndReasoning(raw);
@@ -104,6 +142,9 @@ export function sanitizeCustomerText(raw) {
       if (parsed.message) return sanitizeCustomerText(String(parsed.message));
     }
   }
+
+  // 4. Clean Chinese characters and repair Devanagari word spacing
+  text = cleanDevanagariAndForeignCharacters(text);
 
   return text.trim();
 }

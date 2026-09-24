@@ -451,6 +451,37 @@ function cleanServerAiText(raw) {
   text = text.replace(/GEMINI_API_[A-Z0-9_]+/gi, "");
   text = text.replace(/NVIDIA_API_[A-Z0-9_]+/gi, "");
   text = text.replace(/^#{1,6}\s+/gm, "");
+
+  // Remove unintended Chinese (Hanzi / CJK), Japanese (Hiragana/Katakana), Korean (Hangul), and fullwidth artifacts
+  text = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf\u2e80-\u2fd5\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af\uff01-\uffee]/g, "");
+
+  // Fix disconnected spaces before Devanagari matras, viramas (halant), nukta, anusvara, visarga
+  text = text.replace(/([\u0900-\u097F])\s+([\u093E-\u094D\u0962\u0963\u093C\u0901-\u0903])/g, "$1$2");
+  text = text.replace(/([\u0900-\u097F]\u094D)\s+([\u0900-\u097F])/g, "$1$2");
+
+  // Repair common accidentally split Hindi / Vedic words
+  text = text.replace(/रु\s+द्रा\s+क्ष/g, "रुद्राक्ष");
+  text = text.replace(/रुद्र\s+ाक्ष/g, "रुद्राक्ष");
+  text = text.replace(/ने\s+पा\s+ली/g, "नेपाली");
+  text = text.replace(/कुं\s+ड\s+ली/g, "कुंडली");
+  text = text.replace(/कं\s+ुडली/g, "कुंडली");
+  text = text.replace(/कुण्ड\s+ली/g, "कुण्डली");
+  text = text.replace(/महा\s+दशा/g, "महादशा");
+  text = text.replace(/म\s+हा\s+द\s+शा/g, "महादशा");
+  text = text.replace(/अं\s+तर्दशा/g, "अंतर्दशा");
+  text = text.replace(/अंतर\s+दशा/g, "अंतर्दशा");
+  text = text.replace(/प्र\s+त्यंतर\s+दशा/g, "प्रत्यंतर्दशा");
+  text = text.replace(/प्र\s+णाम/g, "प्रणाम");
+  text = text.replace(/ज्यो\s+तिष/g, "ज्योतिष");
+  text = text.replace(/क\s+ल्याण\s+कारी/g, "कल्याणकारी");
+  text = text.replace(/विं\s+शोत्तरी/g, "विंशोत्तरी");
+  text = text.replace(/प्रा\s+ण\s*-\s*प्रति\s+ष्ठा/g, "प्राण-प्रतिष्ठा");
+  text = text.replace(/धार\s+ण/g, "धारण");
+  text = text.replace(/वि\s+धि/g, "विधि");
+
+  // Collapse multiple spaces (preserve single spaces and newlines)
+  text = text.replace(/[ \t]{2,}/g, " ");
+
   return text.trim();
 }
 
@@ -1609,11 +1640,12 @@ USER-ADAPTIVE BEHAVIOR:
 - हर बार सभी sections जबरदस्ती न लिखें, लेकिन संबंधित जरूरी तथ्य न छोड़ें।
 - उपयोगकर्ता के प्रश्न, उपलब्ध डेटा और विषय की गंभीरता के अनुसार स्वयं तय करें कि कितना विस्तार चाहिए।
 
-LANGUAGE & TONE:
-- Default शुद्ध एवं सरल देवनागरी हिंदी रखें और आवश्यकतानुसार English technical terms कोष्ठक में दें:
-  उदा. "सप्तम भाव (7th House – Marriage & Partnership)"
+LANGUAGE & SCRIPT MANDATE (CRITICAL):
+- Default भाषा शुद्ध, सरल, प्रामाणिक एवं प्रवाहमयी देवनागरी हिंदी रखें और आवश्यकतानुसार English technical terms कोष्ठक में दें (उदा. "सप्तम भाव (7th House – Marriage & Partnership)")।
+- STRICT PROHIBITION ON CHINESE / FOREIGN CHARACTERS: उत्तर में कभी भी चीनी (Chinese / 汉字 / 中文), जापानी, कोरियाई या अन्य विदेशी अक्षरों का उपयोग कतई न करें। केवल देवनागरी हिंदी और सामान्य अंग्रेज़ी का ही प्रयोग करें।
+- STRICT SPACING & WORD INTEGRITY DIRECTIVE: शब्दों के बीच में कभी भी अनावश्यक स्पेस न दें और अक्षरों/मात्राओं को अलग न करें (उदा. 'रुद्राक्ष' लिखें, कभी भी 'रु द्रा क्ष' या 'रुद्र ाक्ष' न लिखें; 'महादशा' लिखें, कभी भी 'म हा द शा' न लिखें)।
 - Tone सम्मानजनक, शांत, सहानुभूतिपूर्ण, गैर-डरावना, आध्यात्मिक और स्पष्ट हो।
-- STRICT SINGLE-LANGUAGE CONTINUITY: भाषा में अचानक विदेशी भाषाओं के शब्द न मिलाएं।
+- LANGUAGE CONTINUITY: यदि भक्त हिंदी में बात कर रहा है, तो बिना कारण बीच में अंग्रेज़ी में न बदलें; पूरा उत्तर हिंदी में ही दें। यदि भक्त केवल अंग्रेज़ी में पूछे, तभी अंग्रेज़ी में उत्तर दें।
 - STRICT COMPLETENESS DIRECTIVE: वाक्य, तालिका या उपाय बीच में अधूरा न छोड़ें; हमेशा पूर्ण विराम (।) के साथ समाप्त करें।
 - वैदिक अभिवादन से शुरुआत करें: "🙏 प्रणाम भक्त! हर हर महादेव।" या "🙏 जय श्री राम!"
 - आप Brihat Parashara Hora Shastra (BPHS), Phaladeepika, Saravali, Jaimini Sutras, Brihat Jataka, Prashna Marga, Muhurta Chintamani एवं Shiva Purana (Vidyeshvara Samhita) के प्रकांड विद्वान हैं।
@@ -1776,6 +1808,8 @@ CORE MISSION:
 - Provide accurate product information, stock status, active coupon discounts, and order support.
 - Maintain a polite, spiritual, helpful, and conversion-oriented tone.
 - DEFAULT LANGUAGE: Reply in clear, warm, fluent Hindi (देवनागरी / Devanagari script) by default (e.g., "नमस्ते! ऑरा रुद्राक्ष में आपका स्वागत है।"). Use English only if the customer strictly prompts in English.
+- STRICT PROHIBITION ON CHINESE / FOREIGN CHARACTERS: NEVER output Chinese (中文/汉字), Japanese, Korean, Cyrillic, or any foreign characters. Use only Devanagari Hindi or English.
+- STRICT SPACING & WORD INTEGRITY DIRECTIVE: Do not split words or add random spaces between syllables/letters (e.g. write "रुद्राक्ष" NEVER "रु द्रा क्ष").
 
 ${urlAndCatalogRulesText}
 

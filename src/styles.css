@@ -10787,7 +10787,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  animation: none;
+  animation: auraFloatingBob 3.4s ease-in-out infinite;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -11641,6 +11641,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: transparent;
   color: #735c49;
   cursor: pointer;
+  position: relative;
   transition: all 0.18s ease;
 }
 
@@ -11650,10 +11651,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-mode-btn.active {
-  background: linear-gradient(135deg, #3b1b08 0%, #240c03 100%);
   color: #fff9ed;
-  border-color: rgba(212, 175, 55, 0.4);
-  box-shadow: 0 1px 4px rgba(40, 16, 4, 0.18);
+}
+
+.aura-ai-mode-active-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #3b1b08 0%, #240c03 100%);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  box-shadow: 0 2px 6px rgba(40, 16, 4, 0.22);
+  z-index: 1;
 }
 
 .aura-ai-mode-bar-page {

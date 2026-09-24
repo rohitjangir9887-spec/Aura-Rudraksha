@@ -65,6 +65,36 @@ export function sanitizeText(raw) {
   text = text.replace(/GEMINI_API_[A-Z_]+/gi, "");
   text = text.replace(/NVIDIA_API_[A-Z_]+/gi, "");
 
+  // Remove unintended Chinese (Hanzi / CJK), Japanese, Korean, and fullwidth artifacts
+  text = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf\u2e80-\u2fd5\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af\uff01-\uffee]/g, "");
+
+  // Fix disconnected spaces before Devanagari matras, viramas (halant), nukta, anusvara, visarga
+  text = text.replace(/([\u0900-\u097F])\s+([\u093E-\u094D\u0962\u0963\u093C\u0901-\u0903])/g, "$1$2");
+  text = text.replace(/([\u0900-\u097F]\u094D)\s+([\u0900-\u097F])/g, "$1$2");
+
+  // Repair common accidentally split Hindi / Vedic words
+  text = text.replace(/रु\s+द्रा\s+क्ष/g, "रुद्राक्ष");
+  text = text.replace(/रुद्र\s+ाक्ष/g, "रुद्राक्ष");
+  text = text.replace(/ने\s+पा\s+ली/g, "नेपाली");
+  text = text.replace(/कुं\s+ड\s+ली/g, "कुंडली");
+  text = text.replace(/कं\s+ुडली/g, "कुंडली");
+  text = text.replace(/कुण्ड\s+ली/g, "कुण्डली");
+  text = text.replace(/महा\s+दशा/g, "महादशा");
+  text = text.replace(/म\s+हा\s+द\s+शा/g, "महादशा");
+  text = text.replace(/अं\s+तर्दशा/g, "अंतर्दशा");
+  text = text.replace(/अंतर\s+दशा/g, "अंतर्दशा");
+  text = text.replace(/प्र\s+त्यंतर\s+दशा/g, "प्रत्यंतर्दशा");
+  text = text.replace(/प्र\s+णाम/g, "प्रणाम");
+  text = text.replace(/ज्यो\s+तिष/g, "ज्योतिष");
+  text = text.replace(/क\s+ल्याण\s+कारी/g, "कल्याणकारी");
+  text = text.replace(/विं\s+शोत्तरी/g, "विंशोत्तरी");
+  text = text.replace(/प्रा\s+ण\s*-\s*प्रति\s+ष्ठा/g, "प्राण-प्रतिष्ठा");
+  text = text.replace(/धार\s+ण/g, "धारण");
+  text = text.replace(/वि\s+धि/g, "विधि");
+
+  // Collapse accidental multiple spaces
+  text = text.replace(/[ \t]{2,}/g, " ");
+
   return text;
 }
 
