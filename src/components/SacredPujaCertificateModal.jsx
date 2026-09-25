@@ -49,6 +49,7 @@ export function SacredPujaCertificateModal({ isOpen, onClose, order = null, prod
   };
 
   const handleShareWhatsApp = () => {
+    const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://aurarudraksha.bond";
     const text = `🕉️ *Vedic Prana-Pratishtha & Lab Certificate — Aura Rudraksha*\n\n` +
       `📜 *Certificate ID:* ${certCode}\n` +
       `👤 *Devotee:* ${customerName}\n` +
@@ -56,7 +57,7 @@ export function SacredPujaCertificateModal({ isOpen, onClose, order = null, prod
       `🗓️ *Consecration Date:* ${consecrationDate}\n` +
       `🌊 *Consecration:* Haridwar Holy Ganga Jal Abhishekam & Vedic Shiva Puja\n` +
       `🛡️ *Lab Verification:* 100% Nepali Origin & High-Resolution X-Ray Tested\n\n` +
-      `🔗 *Verify Live Online:* https://aurarudraksha.bond/verify-certificate?id=${certCode}`;
+      `🔗 *Verify Live Online:* ${origin}/verify-certificate?id=${certCode}`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");

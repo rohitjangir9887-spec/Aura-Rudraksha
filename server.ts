@@ -21,6 +21,43 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+
+    // Intercept HTML navigation requests and crawlers (WhatsApp, Facebook, Googlebot)
+    // so dynamic SEO, Schema.org JSON-LD, and OpenGraph preview tags are fully rendered
+    app.use(async (req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      if (
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/@") ||
+        req.path.startsWith("/src/") ||
+        req.path.startsWith("/node_modules/")
+      ) {
+        return next();
+      }
+      if (/\.(js|jsx|ts|tsx|mjs|cjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|json|txt|xml|map)$/i.test(req.path)) {
+        return next();
+      }
+
+      const acceptsHtml = req.headers.accept && req.headers.accept.includes("text/html");
+      const userAgent = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /bot|crawl|spider|facebookexternalhit|whatsapp|telegram|twitter|slack|linkedin|bing|google/i.test(userAgent);
+
+      if (acceptsHtml || isBot) {
+        try {
+          const rawTemplate = await fs.promises.readFile(path.join(process.cwd(), "index.html"), "utf-8");
+          const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
+          const finalHtml = await injectSeoIntoHtml(transformedHtml, req.path, req);
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          return res.status(200).send(finalHtml);
+        } catch (err) {
+          console.warn("[Dev SEO Injection Notice]:", err?.message || err);
+          return next();
+        }
+      }
+      next();
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");

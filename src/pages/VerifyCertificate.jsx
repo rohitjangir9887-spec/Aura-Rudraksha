@@ -107,13 +107,14 @@ export function VerifyCertificate() {
 
   const handleShareWhatsApp = () => {
     if (!certData) return;
+    const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://aurarudraksha.bond";
     const text = `🕉️ *Vedic Prana-Pratishtha & Lab Certificate — Aura Rudraksha*\n\n` +
       `📜 *Certificate ID:* ${certData.certId}\n` +
       `📿 *Sanctified Bead:* ${certData.itemName}\n` +
       `🛡️ *Origin:* ${certData.origin}\n` +
       `🔬 *X-Ray Test:* ${certData.xrayResult}\n` +
       `🌊 *Consecration:* ${certData.consecration}\n\n` +
-      `🔗 *Verify Live Online:* https://aurarudraksha.bond/verify-certificate?id=${certData.certId}`;
+      `🔗 *Verify Live Online:* ${origin}/verify-certificate?id=${certData.certId}`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
