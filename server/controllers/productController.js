@@ -221,41 +221,71 @@ export async function getProducts(req, res, next) {
 export async function getProductById(req, res, next) {
   try {
     const { id } = req.params;
-    const cleanId = String(id).trim();
+    let cleanId = String(id || "").trim();
+    try {
+      cleanId = decodeURIComponent(cleanId);
+    } catch (_) {}
+
+    const cleanTarget = cleanId.toLowerCase();
+    const strippedTarget = cleanTarget.replace(/^(product-card-|product-)/, "");
+    const slugTarget = cleanTarget.replace(/^\/+|\/+$/g, "");
 
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
 
     if (!isDbConnected()) {
-      const cleanTarget = cleanId.toLowerCase();
-      const product = (inMemoryStore.products || []).find(p => 
-        String(p.id).toLowerCase() === cleanTarget || 
-        String(p.slug || "").toLowerCase() === cleanTarget
-      );
+      const product = (inMemoryStore.products || []).find(p => {
+        if (!p) return false;
+        const xId = String(p.id || "").toLowerCase();
+        const xSlug = String(p.slug || "").toLowerCase();
+        const xName = String(p.name || "").toLowerCase();
+        const xSlugName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        return (
+          xId === cleanTarget || xId === strippedTarget ||
+          xSlug === cleanTarget || xSlug === slugTarget || xSlug === strippedTarget ||
+          xSlugName === cleanTarget || xSlugName === slugTarget ||
+          (xSlug && (xSlug.includes(cleanTarget) || cleanTarget.includes(xSlug)))
+        );
+      });
       if (product) {
         return res.json({ success: true, data: toPublicProductDTO(product), isFallback: true });
       }
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[0-9a-fA-F]{24}$/.test(strippedTarget);
+    const mongoIdToUse = /^[0-9a-fA-F]{24}$/.test(cleanId) ? cleanId : strippedTarget;
+
+    const escapeForRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     let product = await Product.findOne({
       $or: [
         { id: cleanId },
+        { id: strippedTarget },
         { slug: cleanId },
-        ...(isMongoId ? [{ _id: cleanId }] : [])
+        { slug: slugTarget },
+        { slug: strippedTarget },
+        { slug: { $regex: new RegExp(`^${escapeForRegex(slugTarget)}$`, "i") } },
+        ...(isMongoId ? [{ _id: mongoIdToUse }] : [])
       ]
     }).lean();
 
     if (!product) {
-      // Secondary exact match in MongoDB by slugified name
+      // Secondary search in MongoDB by slugified name, partial slug, or number
       const allProds = await Product.find().lean();
-      const cleanTarget = cleanId.toLowerCase();
       product = allProds.find(p => {
         if (!p) return false;
+        const pId = String(p.id || "").toLowerCase();
         const pSlug = String(p.slug || "").toLowerCase();
         const pName = String(p.name || "").toLowerCase();
         const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-        return pSlug === cleanTarget || pSlugifiedName === cleanTarget;
+
+        if (pId === cleanTarget || pId === strippedTarget) return true;
+        if (pSlug === cleanTarget || pSlug === slugTarget || pSlug === strippedTarget) return true;
+        if (pSlugifiedName === cleanTarget || pSlugifiedName === slugTarget || pSlugifiedName === strippedTarget) return true;
+        if (pSlug && (pSlug.includes(slugTarget) || slugTarget.includes(pSlug))) return true;
+        if (pSlugifiedName && (pSlugifiedName.includes(slugTarget) || slugTarget.includes(pSlugifiedName))) return true;
+        if (pName && (pName.includes(cleanTarget) || cleanTarget.includes(pName))) return true;
+        return false;
       });
     }
 

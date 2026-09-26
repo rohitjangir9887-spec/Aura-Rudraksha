@@ -528,6 +528,13 @@ export function AuraAIFloating() {
       e.preventDefault();
       e.stopPropagation();
     }
+    // Explicitly blur textarea and active element so mobile virtual keyboard instantly dismisses
+    if (textareaRef.current) {
+      try { textareaRef.current.blur(); } catch (_) {}
+    }
+    if (typeof document !== "undefined" && document.activeElement && typeof document.activeElement.blur === "function") {
+      try { document.activeElement.blur(); } catch (_) {}
+    }
     setIsOpenState(false);
     auraChatStore.setFloatingOpen(false);
     setIsFullWindow(false);
@@ -1330,20 +1337,6 @@ export function AuraAIFloating() {
 
   return (
     <>
-      {/* Safe viewport bounds overlay: strictly protects bottom navigation icons (Home, Shop, Cart, Orders, Account) */}
-      <div 
-        ref={dragAreaRef} 
-        style={{ 
-          position: "fixed", 
-          top: 10, 
-          left: 10, 
-          right: 10, 
-          bottom: "calc(78px + env(safe-area-inset-bottom, 0px))", 
-          pointerEvents: "none", 
-          zIndex: -1 
-        }} 
-      />
-
       {/* 1. Floating Action Pill - Modern, compact, floating animated Aura AI pill */}
       <AnimatePresence>
         {!isOpen && !isDismissed && (
@@ -1516,46 +1509,44 @@ export function AuraAIFloating() {
       </AnimatePresence>
 
       {/* 3. Aura AI Window - Fluid Opening & Spring Animations */}
-      <AnimatePresence>
+      <AnimatePresence onExitComplete={unlockScreenAndTouch}>
+        {isOpen && isFullWindow && (
+          <motion.div
+            key="aura-ai-backdrop-overlay"
+            className="aura-ai-floating-backdrop aura-ai-backdrop-full"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeInOut" }}
+            style={{ pointerEvents: "auto" }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsFullWindow(false);
+                unlockScreenAndTouch();
+              }
+            }}
+          />
+        )}
         {isOpen && (
-          <React.Fragment key="aura-ai-window-portal">
-            {/* Backdrop overlay - rendered ONLY for full-window mode to focus conversation */}
-            {isFullWindow && (
-              <motion.div
-                key="aura-ai-backdrop-overlay"
-                className="aura-ai-floating-backdrop aura-ai-backdrop-full"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18, ease: "easeInOut" }}
-                style={{ pointerEvents: "auto" }}
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) {
-                    setIsFullWindow(false);
-                    unlockScreenAndTouch();
-                  }
-                }}
-              />
-            )}
-            <motion.div
-              key={isFullWindow ? "aura-ai-full-container" : "aura-ai-compact-container"}
-              className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}
-              initial={{ 
-                opacity: 0, 
-                scale: isFullWindow ? 0.94 : 0.82, 
-                y: isFullWindow ? 20 : 35,
-                transformOrigin: isFullWindow ? "center center" : "bottom left" 
-              }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ 
-                opacity: 0, 
-                scale: isFullWindow ? 0.94 : 0.82, 
-                y: isFullWindow ? 20 : 25,
-                transition: { duration: 0.15, ease: [0.32, 0, 0.67, 0] }
-              }}
-              transition={{ type: "spring", damping: 25, stiffness: 320, mass: 0.85 }}
-              style={{ pointerEvents: "none" }}
-            >
+          <motion.div
+            key={isFullWindow ? "aura-ai-full-container" : "aura-ai-compact-container"}
+            className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}
+            initial={{ 
+              opacity: 0, 
+              scale: isFullWindow ? 0.94 : 0.82, 
+              y: isFullWindow ? 20 : 35,
+              transformOrigin: isFullWindow ? "center center" : "bottom left" 
+            }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ 
+              opacity: 0, 
+              scale: isFullWindow ? 0.94 : 0.82, 
+              y: isFullWindow ? 20 : 25,
+              transition: { duration: 0.15, ease: [0.32, 0, 0.67, 0] }
+            }}
+            transition={{ type: "spring", damping: 25, stiffness: 320, mass: 0.85 }}
+            style={{ pointerEvents: "none" }}
+          >
               <motion.div
                 id="aura-ai-floating-panel"
                 className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
@@ -2907,7 +2898,6 @@ export function AuraAIFloating() {
               </div>
             </motion.div>
           </motion.div>
-          </React.Fragment>
         )}
       </AnimatePresence>
 

@@ -120,7 +120,13 @@ export function Product() {
     if (!isSilent) setLoading(true);
 
     try {
-      const found = await db.getProductAsync(id);
+      let found = await db.getProductAsync(id);
+      if (!found) {
+        // Fallback: Refresh full product catalog in cache and re-query
+        await db.getProductsAsync(true);
+        found = db.getProduct(id);
+      }
+
       const isDraft = found && (
         found.status === 'Draft' || 
         found.status === 'draft' || 
