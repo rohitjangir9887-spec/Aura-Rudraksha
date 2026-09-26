@@ -15,7 +15,12 @@ import {
   generateProductKeywords,
   getUserNotesEndpoint,
   setUserNoteEndpoint,
-  deleteUserNoteEndpoint
+  deleteUserNoteEndpoint,
+  getAdminAllAiChats,
+  getAdminAiChatTranscript,
+  deleteAdminAiChat,
+  clearAdminAiChats,
+  getAdminMongoDbCheck
 } from "../controllers/auraAiController.js";
 import { optionalAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -41,5 +46,12 @@ router.put("/settings", requireAdmin, updateAuraAISettings);
 router.get("/analytics", requireAdmin, getAuraAIAnalytics);
 router.get("/admin-intelligence", requireAdmin, getAdminAiIntelligence);
 router.post("/admin-intelligence", requireAdmin, getAdminAiIntelligence);
+
+// Admin: Comprehensive AI Bot All Chats & MongoDB Status Endpoints
+router.get("/admin/all-chats", requireAdmin, getAdminAllAiChats);
+router.get("/admin/chats/:id", requireAdmin, getAdminAiChatTranscript);
+router.delete("/admin/chats/:id", requireAdmin, deleteAdminAiChat);
+router.delete("/admin/chats-clear", requireAdmin, clearAdminAiChats);
+router.get("/admin/db-health", requireAdmin, getAdminMongoDbCheck);
 
 export default router;

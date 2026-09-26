@@ -49,7 +49,7 @@ export function MobileFlowControlBar({ currentScreen, setCurrentScreen, viewMode
           </div>
         </div>
 
-        {/* Center: 5 Screen Switcher Tabs */}
+        {/* Center: Screen Switcher Tabs */}
         <div
           style={{
             display: "flex",
@@ -58,9 +58,33 @@ export function MobileFlowControlBar({ currentScreen, setCurrentScreen, viewMode
             background: "rgba(255,255,255,0.08)",
             padding: "4px",
             borderRadius: "10px",
-            border: "1px solid rgba(223, 199, 175, 0.2)"
+            border: "1px solid rgba(223, 199, 175, 0.2)",
+            flexWrap: "wrap"
           }}
         >
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode("single");
+              setCurrentScreen(0);
+            }}
+            style={{
+              padding: "5px 10px",
+              borderRadius: "6px",
+              border: currentScreen === 0 && viewMode === "single" ? "1px solid #D4AF37" : "1px solid rgba(212, 175, 55, 0.4)",
+              background: currentScreen === 0 && viewMode === "single" ? "#D4AF37" : "rgba(212, 175, 55, 0.15)",
+              color: currentScreen === 0 && viewMode === "single" ? "#2A140A" : "#D4AF37",
+              fontSize: "11px",
+              fontWeight: "800",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px"
+            }}
+          >
+            <span>✨ 2026 Redesign</span>
+          </button>
+
           {[1, 2, 3, 4, 5].map((num) => {
             const isCurrent = currentScreen === num && viewMode === "single";
             return (
@@ -109,7 +133,7 @@ export function MobileFlowControlBar({ currentScreen, setCurrentScreen, viewMode
             }}
           >
             <Layers size={12} />
-            <span>All 5 Screens Walkthrough</span>
+            <span>All Screens</span>
           </button>
         </div>
 

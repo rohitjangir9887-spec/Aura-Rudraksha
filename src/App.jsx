@@ -41,6 +41,7 @@ const VerifyCertificate = lazy(() => import("./pages/VerifyCertificate").then(m 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
 const AdminAI = lazy(() => import("./pages/admin/AdminAI").then(m => ({ default: m.AdminAI })));
+const AdminAIChats = lazy(() => import("./pages/admin/AdminAIChats").then(m => ({ default: m.AdminAIChats })));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts").then(m => ({ default: m.AdminProducts })));
 const AdminOrders = lazy(() => import("./pages/admin/AdminOrders").then(m => ({ default: m.AdminOrders })));
 const AdminCustomers = lazy(() => import("./pages/admin/AdminCustomers").then(m => ({ default: m.AdminCustomers })));
@@ -197,6 +198,7 @@ export function App() {
           >
             <Route index element={<Admin />} />
             <Route path="ai" element={<AdminAI />} />
+            <Route path="ai-chats" element={<AdminAIChats />} />
             <Route path="products" element={<AdminProducts />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="customers" element={<AdminCustomers />} />

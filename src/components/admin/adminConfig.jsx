@@ -11,12 +11,14 @@ import {
   Headphones,
   Settings,
   Star,
-  Sparkles
+  Sparkles,
+  Bot
 } from "lucide-react";
 import { ADMIN_BASE_PATH } from "../../lib/routes";
 
 export const getMenuItems = (counts = {}) => [
   { path: ADMIN_BASE_PATH, icon: <LayoutDashboard size={20} />, label: "Dashboard" },
+  { path: `${ADMIN_BASE_PATH}/ai-chats`, icon: <Bot size={20} />, label: "AI Bot All Chats (Logs & IPs)" },
   { path: `${ADMIN_BASE_PATH}/ai`, icon: <Sparkles size={20} />, label: "AURA AI — Admin Agent" },
   { path: `${ADMIN_BASE_PATH}/products`, icon: <Boxes size={20} />, label: "Products" },
   { path: `${ADMIN_BASE_PATH}/categories`, icon: <Tag size={20} />, label: "Categories" },

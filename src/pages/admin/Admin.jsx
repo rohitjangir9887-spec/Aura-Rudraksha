@@ -19,7 +19,7 @@ import {
   ShoppingBag, DollarSign, Users, Boxes, Clock, Eye, Plus, Megaphone,
   TicketPercent, ChevronRight, TrendingUp, Sparkles, RefreshCw, CheckCircle2,
   MessageSquare, Database, WifiOff, Cloud, HardDrive, Video, Image as ImageIcon,
-  LogOut, ShieldCheck, AlertCircle
+  LogOut, ShieldCheck, AlertCircle, Bot
 } from "lucide-react";
 
 export function Admin() {
@@ -465,6 +465,7 @@ export function Admin() {
   const connected = dbStatus === "connected";
 
   const quickActions = [
+    { title: "AI Bot All Chats", path: "/admin/ai-chats", icon: <Bot size={18} />, bg: "#fef3c7", color: "#92400e" },
     { title: "Add Product", path: "/admin/products?add=1", icon: <Plus size={18} />, bg: "#fdf0e8", color: "#a54d2b" },
     { title: "Orders", path: "/admin/orders", icon: <ShoppingBag size={18} />, bg: "#eef7f2", color: "#1d9450" },
     { title: "Home Banners", path: "/admin/banners", icon: <Megaphone size={18} />, bg: "#f0f4ff", color: "#2563eb" },

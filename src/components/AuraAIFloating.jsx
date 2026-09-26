@@ -1562,6 +1562,33 @@ export function AuraAIFloating() {
                 onPointerDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
+              {/* iOS Style Top Grabber Bar Handle (iPhone bottom sheet / dynamic window effect) */}
+              {!isFullWindow && (
+                <div 
+                  className="aura-ai-ios-grabber-wrap"
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    paddingTop: "6px",
+                    paddingBottom: "3px",
+                    touchAction: "none",
+                    cursor: "grab",
+                    background: mode === "panditji" ? "linear-gradient(180deg, #3d1605 0%, #2f1003 100%)" : "linear-gradient(180deg, #2a1307 0%, #1c0b03 100%)",
+                    borderTopLeftRadius: "inherit",
+                    borderTopRightRadius: "inherit"
+                  }}
+                  onPointerDown={(e) => {
+                    if (!e.target.closest("button") && !e.target.closest("a") && !e.target.closest("input")) {
+                      dragControls.start(e, { snapToCursor: false });
+                    }
+                  }}
+                >
+                  <div className="aura-ai-ios-grabber" />
+                </div>
+              )}
+
               {/* Header - Drag Handle Area (when compact) */}
               <div 
                 className={`aura-ai-header ${!isFullWindow ? "aura-ai-header-draggable" : ""} ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}

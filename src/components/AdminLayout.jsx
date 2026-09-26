@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles } from "lucide-react";
+import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAdminAuth } from "../hooks/useAdminAuth";
@@ -85,6 +85,25 @@ export function AdminLayout({ children }) {
 
         <div className="mobile-header-actions">
           <Link
+            to="/admin/ai-chats"
+            className="mobile-store-icon"
+            title="AI Bot All Chats & User Logs"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "12px",
+              fontWeight: "700",
+              color: "#92400e",
+              background: "#fef3c7",
+              padding: "6px 9px",
+              borderRadius: "6px",
+              border: "1px solid #fde68a"
+            }}
+          >
+            <Bot size={15} /> Chats
+          </Link>
+          <Link
             to="/admin/ai"
             className="mobile-store-icon"
             title="AURA AI - Admin Agent"
@@ -96,12 +115,12 @@ export function AdminLayout({ children }) {
               fontWeight: "700",
               color: "#a84118",
               background: "#fff1f2",
-              padding: "6px 10px",
+              padding: "6px 9px",
               borderRadius: "6px",
               border: "1px solid #fecdd3"
             }}
           >
-            <Sparkles size={16} /> AI
+            <Sparkles size={15} /> Agent
           </Link>
           <Link
             to="/"
@@ -115,12 +134,12 @@ export function AdminLayout({ children }) {
               fontWeight: "600",
               color: "#7a320c",
               background: "#fdf5ef",
-              padding: "6px 10px",
+              padding: "6px 9px",
               borderRadius: "6px",
               border: "1px solid #e8dac9"
             }}
           >
-            <Store size={16} /> Home
+            <Store size={15} /> Home
           </Link>
           <button
             onClick={handleLogout}
@@ -176,6 +195,19 @@ export function AdminLayout({ children }) {
           <div className="page-title">{pageTitle}</div>
           <div className="admin-user-info">
             <Link 
+              to="/admin/ai-chats" 
+              className="view-store-pill" 
+              style={{
+                background: "#fef3c7", 
+                color: "#92400e", 
+                borderColor: "#fde68a",
+                fontWeight: "700"
+              }}
+              title="AI Bot All Chats & User Logs"
+            >
+              <Bot size={14} /> AI Chats & Logs
+            </Link>
+            <Link 
               to="/admin/ai" 
               className="view-store-pill" 
               style={{
@@ -186,7 +218,7 @@ export function AdminLayout({ children }) {
               }}
               title="AURA AI - Admin Agent"
             >
-              <Sparkles size={14} /> Aura AI
+              <Sparkles size={14} /> Aura AI Agent
             </Link>
             <Link to="/" className="view-store-pill" target="_blank">
               <Store size={14} /> Store Preview

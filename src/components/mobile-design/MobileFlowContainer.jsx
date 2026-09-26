@@ -9,6 +9,7 @@ import {
   Eye
 } from "lucide-react";
 import { MobileFlowControlBar } from "./MobileFlowControlBar";
+import { Screen0MobileRedesignMaster } from "./Screen0MobileRedesignMaster";
 import { Screen1MobileCart } from "./Screen1MobileCart";
 import { Screen2MobileCheckout } from "./Screen2MobileCheckout";
 import { Screen3MobilePaymentMethod } from "./Screen3MobilePaymentMethod";
@@ -20,17 +21,21 @@ import { emitToast } from "../../context/ToastContext";
 /**
  * MobileFlowContainer
  * 
- * Master container hosting the 5 high-fidelity mobile designs:
- * - Interactive single-screen smartphone simulator (390 x 844 px)
- * - Viewport Switcher for Screen 1, Screen 2, Screen 3, Screen 4, Screen 5
- * - Side-by-Side 5-Screen Walkthrough Grid View
+ * Master container hosting the 6 high-fidelity mobile designs:
+ * - Screen 0: 2026 Redesigned Mobile Master UI (Header, Hero, Panditji, Kundli, Bottom Nav)
+ * - Screen 1: Product / Cart
+ * - Screen 2: Checkout & Address
+ * - Screen 3: Payment Method
+ * - Screen 4: UPI Payment
+ * - Screen 5: Payment Success
  */
 export function MobileFlowContainer() {
-  const [currentScreen, setCurrentScreen] = useState(1);
+  const [currentScreen, setCurrentScreen] = useState(0);
   const [viewMode, setViewMode] = useState("single"); // "single" | "all_screens"
   const [showMenuAlert, setShowMenuAlert] = useState(false);
 
   const screensMeta = [
+    { id: 0, title: "2026 Redesign — Master App UI", subtitle: "New Header, Logo, Hero, AI Panditji, Kundli & Bottom Dock" },
     { id: 1, title: "Screen 1 — Product / Cart", subtitle: "Product card, badges, Vedic info, sticky bar" },
     { id: 2, title: "Screen 2 — Checkout & Address", subtitle: "Shipping card, review card, accordion summary" },
     { id: 3, title: "Screen 3 — Payment Method", subtitle: "PayU powered UPI, Cards, Net Banking, Wallets" },
@@ -48,6 +53,17 @@ export function MobileFlowContainer() {
 
   const renderActiveScreen = (screenNumber = currentScreen) => {
     switch (screenNumber) {
+      case 0:
+        return (
+          <Screen0MobileRedesignMaster
+            onNavigateTab={(tab) => {
+              if (tab === "cart") setCurrentScreen(1);
+            }}
+            onOpenAuraAi={handleOpenAuraAi}
+            onOpenMenu={() => setShowMenuAlert(true)}
+            onOpenSearch={() => emitToast("Search rudraksha collections", "info")}
+          />
+        );
       case 1:
         return (
           <Screen1MobileCart
@@ -82,9 +98,9 @@ export function MobileFlowContainer() {
         return (
           <Screen5MobilePaymentSuccess
             onViewOrder={() => emitToast("Navigating to detailed order tracking page #AUR-88942", "info")}
-            onContinueShopping={() => setCurrentScreen(1)}
+            onContinueShopping={() => setCurrentScreen(0)}
             onTabChange={(tab) => {
-              if (tab === "home" || tab === "shop") setCurrentScreen(1);
+              if (tab === "home" || tab === "shop") setCurrentScreen(0);
             }}
           />
         );

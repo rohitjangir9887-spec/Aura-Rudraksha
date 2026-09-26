@@ -10919,29 +10919,37 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   position: relative;
   display: inline-flex;
   align-items: center;
-  background: linear-gradient(135deg, rgba(28, 11, 3, 0.96) 0%, rgba(53, 22, 7, 0.94) 48%, rgba(21, 8, 2, 0.98) 100%);
+  background: linear-gradient(135deg, rgba(32, 14, 5, 0.94) 0%, rgba(58, 25, 8, 0.92) 50%, rgba(24, 10, 3, 0.96) 100%);
   color: #fffdf9;
-  border: 1.2px solid rgba(245, 158, 11, 0.65);
+  border: 1.2px solid rgba(212, 175, 55, 0.7);
   border-radius: 999px;
-  padding: 3px 6px 3px 8px;
-  min-height: 36px;
-  box-shadow: 0 4px 16px rgba(25, 10, 3, 0.42), 0 0 14px rgba(212, 175, 55, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.18);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+  padding: 4px 8px 4px 10px;
+  min-height: 38px;
+  box-shadow: 
+    0 8px 24px -4px rgba(35, 14, 5, 0.45), 
+    0 0 16px rgba(212, 175, 55, 0.28), 
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.25);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
   font-family: inherit;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  animation: auraFloatingBob 3.4s ease-in-out infinite;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  animation: auraIphoneDynamicIslandBob 3.6s ease-in-out infinite;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+@keyframes auraIphoneDynamicIslandBob {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-3px) scale(1.015); box-shadow: 0 12px 28px -4px rgba(35, 14, 5, 0.52), 0 0 22px rgba(212, 175, 55, 0.38), inset 0 1px 2px rgba(255, 255, 255, 0.35); }
 }
 
 .aura-ai-floating-pill:hover {
   animation-play-state: paused;
-  transform: translateY(-2px) scale(1.02);
+  transform: translateY(-3px) scale(1.03);
   border-color: #fde68a;
-  box-shadow: 0 6px 22px rgba(25, 10, 3, 0.52), 0 0 18px rgba(212, 175, 55, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.28);
+  box-shadow: 0 12px 30px rgba(25, 10, 3, 0.55), 0 0 24px rgba(212, 175, 55, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.35);
 }
 
 .aura-ai-floating-main-btn {
@@ -10952,7 +10960,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border: none;
   color: #fffdf9;
   cursor: pointer;
-  padding: 1px 2px 1px 0;
+  padding: 1px 3px 1px 0;
   font-family: inherit;
   touch-action: manipulation;
 }
@@ -11253,45 +11261,73 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   }
 }
 
-/* Base Panel Styles for Desktop & Mobile */
+/* iOS Style Top Grabber Handle */
+.aura-ai-ios-grabber-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 0 3px;
+  touch-action: none;
+}
+
+.aura-ai-ios-grabber {
+  width: 38px;
+  height: 4.5px;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.55);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease;
+}
+
+.aura-ai-ios-grabber-wrap:hover .aura-ai-ios-grabber,
+.aura-ai-ios-grabber-wrap:active .aura-ai-ios-grabber {
+  width: 46px;
+  background: rgba(253, 230, 138, 0.85);
+}
+
+/* Base Panel Styles for Desktop & Mobile - iPhone Frosted Glass */
 .aura-ai-panel {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 253, 249, 0.96);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(212, 175, 55, 0.38);
+  background: rgba(255, 253, 249, 0.95);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1.2px solid rgba(212, 175, 55, 0.45);
   overflow: hidden;
   box-sizing: border-box;
   transform-origin: bottom left;
+  border-radius: 26px;
 }
 
 @media (min-width: 1024px) {
   .aura-ai-panel {
     transform-origin: bottom left;
+    border-radius: 28px;
   }
 }
 
 .aura-ai-panel-compact {
-  width: min(360px, calc(100vw - 20px));
-  max-width: min(380px, calc(100vw - 20px));
-  height: min(520px, 72svh);
-  max-height: 72svh;
-  border-radius: 18px;
+  width: min(370px, calc(100vw - 20px));
+  max-width: min(390px, calc(100vw - 20px));
+  height: min(540px, 74svh);
+  max-height: 74svh;
+  border-radius: 26px;
   box-shadow: 
-    0 10px 30px rgba(43, 20, 8, 0.18),
-    0 2px 8px rgba(43, 20, 8, 0.08),
-    0 0 18px rgba(212, 175, 55, 0.14),
-    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+    0 16px 44px -6px rgba(35, 14, 5, 0.28),
+    0 4px 16px rgba(35, 14, 5, 0.12),
+    0 0 24px rgba(212, 175, 55, 0.2),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
 }
 
 @media (min-width: 1024px) {
   .aura-ai-panel-compact {
-    width: 380px;
-    max-width: 420px;
-    height: 560px;
-    max-height: 76vh;
+    width: 390px;
+    max-width: 430px;
+    height: 580px;
+    max-height: 78vh;
+    border-radius: 28px;
   }
 }
 
@@ -11337,57 +11373,58 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     z-index: 10010;
   }
 
-  /* Compact width for comfortable viewing on mobile */
+  /* Compact width for comfortable viewing on mobile - iPhone Floating Card style */
   .aura-ai-panel-compact {
-    width: min(360px, calc(100vw - 20px));
-    max-width: min(380px, calc(100vw - 20px));
-    height: min(520px, 72svh);
-    max-height: 72svh;
+    width: min(370px, calc(100vw - 16px));
+    max-width: min(390px, calc(100vw - 16px));
+    height: min(540px, 75svh);
+    max-height: 75svh;
     margin: 0;
-    border-radius: 18px;
-    background: rgba(255, 253, 249, 0.98);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(212, 175, 55, 0.42);
+    border-radius: 26px;
+    background: rgba(255, 253, 249, 0.96);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    border: 1.2px solid rgba(212, 175, 55, 0.45);
     box-shadow: 
-      0 10px 28px rgba(43, 20, 8, 0.2),
-      0 2px 8px rgba(43, 20, 8, 0.08),
-      0 0 18px rgba(212, 175, 55, 0.15),
-      inset 0 1px 1px rgba(255, 255, 255, 0.95);
+      0 16px 40px -6px rgba(43, 20, 8, 0.3),
+      0 4px 14px rgba(43, 20, 8, 0.12),
+      0 0 20px rgba(212, 175, 55, 0.22),
+      inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
     transform-origin: bottom left !important;
   }
 
   .aura-ai-header {
-    height: 48px;
-    min-height: 48px;
-    padding: 0 10px;
+    height: 50px;
+    min-height: 50px;
+    padding: 0 12px;
     box-sizing: border-box;
   }
 
   .aura-ai-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
   }
 
   .aura-ai-title {
-    font-size: 12px;
-    gap: 4px;
+    font-size: 13px;
+    gap: 5px;
   }
 
   .aura-ai-badge {
-    font-size: 8px;
-    padding: 1px 4px;
+    font-size: 8.5px;
+    padding: 1.5px 5px;
+    border-radius: 6px;
   }
 
   .aura-ai-status {
-    font-size: 9px;
+    font-size: 9.5px;
   }
 
   .aura-ai-btn-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
   }
 
   .aura-ai-nav-strip {

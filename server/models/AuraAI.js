@@ -49,10 +49,19 @@ const auraAIConversationSchema = new mongoose.Schema(
     guestSessionId: { type: String, default: "", index: true },
     ipHash: { type: String, default: "" },
     hashedIp: { type: String, default: "" },
-    userEmail: { type: String, default: "" },
+    userIp: { type: String, default: "", index: true },
+    ipAddress: { type: String, default: "", index: true },
+    userAgent: { type: String, default: "" },
+    deviceInfo: { type: String, default: "" },
+    platform: { type: String, default: "" },
+    country: { type: String, default: "" },
+    city: { type: String, default: "" },
+    source: { type: String, default: "floating_bot" }, // 'floating_bot' | 'panditji_floating' | 'aura_ai_page' | 'kundli_analyzer'
+    userEmail: { type: String, default: "", index: true },
     userName: { type: String, default: "Devotee" },
+    userPhone: { type: String, default: "" },
     title: { type: String, default: "Rudraksha Consultation" },
-    mode: { type: String, default: "standard" }, // 'standard' | 'panditji'
+    mode: { type: String, default: "standard", index: true }, // 'standard' | 'panditji'
     messages: [auraAIMessageSchema],
     productsDiscussed: { type: [String], default: [] },
     productsRecommended: { type: [String], default: [] },
