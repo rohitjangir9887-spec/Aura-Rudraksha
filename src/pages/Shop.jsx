@@ -113,7 +113,10 @@ export function Shop() {
     if (combined.includes("gauri")) return "gauri";
     if (combined.includes("mukhi") || combined.includes("bead")) return "mukhi";
     if (combined.includes("puja") || combined.includes("samagri")) return "puja";
+    if (combined.includes("idol") || combined.includes("statue") || combined.includes("god")) return "idol";
+    if (combined.includes("yantra")) return "yantra";
     if (combined.includes("offer")) return "offers";
+    if (categoryParam && categoryParam !== "all") return categoryParam;
     return "all";
   });
 
@@ -279,23 +282,46 @@ export function Shop() {
       });
     } else if (chip === "puja") {
       next = next.filter(p => /puja|samagri|camphor|kapoor|dhoop|agarbatti|hawan|chandan|ghee|diya/i.test(p?.name || "") || (p?.category && /puja|samagri|essential/i.test(p.category)));
+    } else if (chip === "idol") {
+      next = next.filter(p => {
+        const name = (p?.name || "").toLowerCase();
+        const cat = (p?.category || "").toLowerCase();
+        const subCat = (p?.subCategory || "").toLowerCase();
+        return cat.includes("idol") || cat.includes("god") || cat.includes("statue") || cat.includes("murti") || subCat.includes("idol") || name.includes("idol") || name.includes("statue") || name.includes("murti");
+      });
+    } else if (chip === "yantra") {
+      next = next.filter(p => {
+        const name = (p?.name || "").toLowerCase();
+        const cat = (p?.category || "").toLowerCase();
+        const subCat = (p?.subCategory || "").toLowerCase();
+        return cat.includes("yantra") || subCat.includes("yantra") || name.includes("yantra");
+      });
     } else if (chip === "offers") {
       next = next.filter(p => 
         (p?.discountPercent && p.discountPercent > 0) || 
         (p?.mrp && p.mrp > p.price) ||
         p?.customOffer?.enabled
       );
+    } else if (chip && chip !== "all") {
+      next = next.filter(p => {
+        const name = (p?.name || "").toLowerCase();
+        const cat = (p?.category || "").toLowerCase();
+        const subCat = (p?.subCategory || "").toLowerCase();
+        const target = chip.toLowerCase().trim();
+        return cat.includes(target) || subCat.includes(target) || name.includes(target);
+      });
     } else if (categoryParam && categoryParam !== "all") {
       next = next.filter(p => {
         const name = (p?.name || "").toLowerCase();
         const cat = (p?.category || "").toLowerCase();
         const subCat = (p?.subCategory || "").toLowerCase();
-        if (categoryParam.includes("mala") || categoryParam.includes("kantha")) {
+        const target = categoryParam.toLowerCase().trim();
+        if (target.includes("mala") || target.includes("kantha")) {
           const isSingleBead = (/^\d+\s*mukhi/i.test(name) || /^original\s*\d+\s*mukhi/i.test(name)) && !name.includes("mala") && !name.includes("kantha") && !name.includes("bracelet") && !name.includes("108");
           if (isSingleBead) return false;
           return cat.includes("mala") || cat.includes("kantha") || subCat.includes("mala") || name.includes("mala") || name.includes("kantha") || name.includes("108");
         }
-        return cat.includes(categoryParam) || subCat.includes(categoryParam) || name.includes(categoryParam);
+        return cat.includes(target) || subCat.includes(target) || name.includes(target);
       });
     }
 

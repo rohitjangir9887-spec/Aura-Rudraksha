@@ -158,7 +158,19 @@ export default function CategoryLanding() {
       if (lowerSlug === "ganesh-rudraksha") {
         return normName.includes("ganesh") || normDesc.includes("ganesh");
       }
-      return false;
+      if (lowerSlug.includes("puja") || lowerSlug.includes("samagri") || lowerSlug.includes("dhoop") || lowerSlug.includes("kapoor") || lowerSlug.includes("camphor")) {
+        return cat.includes("puja") || cat.includes("samagri") || normName.includes("kapoor") || normName.includes("camphor") || normName.includes("dhoop") || normName.includes("agarbatti") || normName.includes("hawan") || normName.includes("chandan") || normName.includes("ghee");
+      }
+      if (lowerSlug.includes("idol") || lowerSlug.includes("statue") || lowerSlug.includes("murti") || lowerSlug.includes("god")) {
+        return cat.includes("idol") || cat.includes("god") || cat.includes("statue") || normName.includes("idol") || normName.includes("statue") || normName.includes("murti");
+      }
+      if (lowerSlug.includes("yantra")) {
+        return cat.includes("yantra") || normName.includes("yantra");
+      }
+
+      // Dynamic fallback for any custom category created in Admin Dashboard
+      const cleanSlugStr = lowerSlug.replace(/-/g, " ").trim();
+      return cat.includes(cleanSlugStr) || normName.includes(cleanSlugStr) || normDesc.includes(cleanSlugStr);
     });
   }, [products, slug]);
 
