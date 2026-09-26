@@ -73,6 +73,7 @@ export const routes = {
   adminCustomers: () => `${ADMIN_BASE_PATH}/customers`,
   adminReviews: () => `${ADMIN_BASE_PATH}/reviews`,
   adminBanners: () => `${ADMIN_BASE_PATH}/banners`,
+  adminHomeProducts: () => `${ADMIN_BASE_PATH}/banners/home-products`,
   adminHero: () => `${ADMIN_BASE_PATH}/banners/hero`,
   adminPromotions: () => `${ADMIN_BASE_PATH}/banners/promotions`,
   adminCategories: () => `${ADMIN_BASE_PATH}/categories`,
