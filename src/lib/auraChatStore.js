@@ -156,7 +156,7 @@ export const auraChatStore = {
       const raw = localStorage.getItem(`aura_ai_birth_details_${uid}`);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.dob && parsed.birthTime && parsed.birthPlace) {
+        if (parsed && parsed.dob && (parsed.birthTime || parsed.time) && (parsed.birthPlace || parsed.place)) {
           return parsed;
         }
       }
@@ -165,12 +165,122 @@ export const auraChatStore = {
   },
 
   saveVerifiedBirthDetails(details) {
-    if (!details || !details.dob || !details.birthTime || !details.birthPlace) return;
+    if (!details || !details.dob) return;
     try {
       const uid = this.getCurrentUserUid();
-      localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(details));
-      window.dispatchEvent(new CustomEvent("aura_ai_birth_details_updated", { detail: { uid, details } }));
-    } catch (_) {}
+      const normalized = {
+        name: details.name || "Devotee",
+        dob: details.dob,
+        birthTime: details.birthTime || details.time || "12:00",
+        birthPlace: details.birthPlace || details.place || "",
+        concern: details.concern || "all",
+        relation: details.relation || "Self",
+        savedAt: details.savedAt || new Date().toISOString()
+      };
+      
+      // 1. Save as active birth details
+      localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(normalized));
+      
+      // 2. Automatically save into persistent Saved Kundalis collection
+      const kundaliKey = `aura_ai_saved_kundalis_${uid}`;
+      let savedKundalis = [];
+      try {
+        const rawK = localStorage.getItem(kundaliKey);
+        if (rawK) savedKundalis = JSON.parse(rawK);
+      } catch (_) {}
+      
+      // Check if profile with same name and dob already exists
+      const existingIdx = savedKundalis.findIndex(
+        (k) => (k.name || "").trim().toLowerCase() === (normalized.name || "").trim().toLowerCase() && k.dob === normalized.dob
+      );
+      
+      if (existingIdx >= 0) {
+        savedKundalis[existingIdx] = {
+          ...savedKundalis[existingIdx],
+          ...normalized,
+          id: savedKundalis[existingIdx].id || "prof_" + Date.now(),
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        savedKundalis.unshift({
+          id: "prof_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+          ...normalized,
+          time: normalized.birthTime,
+          place: normalized.birthPlace,
+          savedAt: new Date().toISOString()
+        });
+      }
+      
+      // Keep up to 30 saved kundalis
+      localStorage.setItem(kundaliKey, JSON.stringify(savedKundalis.slice(0, 30)));
+
+      window.dispatchEvent(new CustomEvent("aura_ai_birth_details_updated", { detail: { uid, details: normalized } }));
+      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: { uid, kundalis: savedKundalis } }));
+    } catch (e) {
+      console.warn("Could not auto-save birth details:", e);
+    }
+  },
+
+  // Automatically save current chat conversation to user's saved session history
+  saveSessionToHistory(mode = "standard", overrideMsgs = null, overrideConvId = null) {
+    try {
+      const uid = this.getCurrentUserUid();
+      const convId = overrideConvId || this.getConversationId();
+      const currentMsgs = overrideMsgs || this.getMessages(mode);
+
+      // Only archive if there is at least one meaningful interaction beyond default greeting
+      const userMsgs = (currentMsgs || []).filter(
+        (m) => m.sender === "user" || (m.sender === "ai" && !m.id?.startsWith("init_welcome") && !m.id?.startsWith("init_panditji") && !m.id?.startsWith("init_standard"))
+      );
+
+      if (!userMsgs || userMsgs.length === 0) {
+        return false;
+      }
+
+      const storageKey = `aura_ai_saved_sessions_${mode}_${uid}`;
+      let list = [];
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) list = JSON.parse(raw);
+      } catch (_) {}
+
+      // Find first user question or AI topic for a meaningful session title
+      const firstUserMsg = (currentMsgs || []).find((m) => m.sender === "user")?.text || "";
+      let title = firstUserMsg.trim().replace(/\n+/g, " ");
+      if (title.length > 55) {
+        title = title.slice(0, 52) + "...";
+      }
+      if (!title) {
+        title = mode === "panditji" ? "🕉️ वैदिक ज्योतिष व कुंडली परामर्श" : "📿 सिद्ध रुद्राक्ष परामर्श";
+      }
+
+      const activeBirth = this.getVerifiedBirthDetails();
+      const sessionData = {
+        id: convId,
+        title,
+        timestamp: new Date().toISOString(),
+        messageCount: currentMsgs.length,
+        messages: currentMsgs,
+        birthDetails: activeBirth,
+        mode
+      };
+
+      const existingIndex = list.findIndex((s) => s.id === convId);
+      if (existingIndex >= 0) {
+        list[existingIndex] = sessionData;
+      } else {
+        list.unshift(sessionData);
+      }
+
+      // Cap at 40 archived sessions
+      const trimmedList = list.slice(0, 40);
+      localStorage.setItem(storageKey, JSON.stringify(trimmedList));
+      window.dispatchEvent(new CustomEvent("aura_ai_history_updated", { detail: { mode, uid, count: trimmedList.length } }));
+      return true;
+    } catch (e) {
+      console.warn("Could not auto-save chat session to history:", e);
+      return false;
+    }
   },
 
   getStorageKey(mode = "standard") {
@@ -290,14 +400,18 @@ export const auraChatStore = {
     return updated;
   },
 
-  // Start a new clean chat session for active mode
+  // Start a new clean chat session for active mode (automatically archiving the previous conversation first)
   startNewSession(mode = "standard", options = {}) {
     const uid = this.getCurrentUserUid();
+    
+    // 1. Automatically save current active conversation into session history before starting new chat
+    this.saveSessionToHistory(mode);
+
     const newConvId = "conv_" + (uid !== "guest" ? "u_" : "g_") + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
     this.setConversationId(newConvId);
 
-    // Clear active birth details so new consultation starts 100% fresh for new person
-    if (options.clearBirthDetails !== false) {
+    // Only clear active birth details if user explicitly asks for a full reset
+    if (options.clearBirthDetails === true) {
       this.clearActiveBirthDetails();
     }
 

@@ -16,6 +16,7 @@ import {
   Check, 
   ChevronRight, 
   ChevronDown,
+  ChevronLeft,
   Package, 
   ShieldCheck, 
   GripVertical,
@@ -422,7 +423,14 @@ export function AuraAIFloating() {
       setIsOpenState(false);
       auraChatStore.setFloatingOpen(false);
       setIsFullWindow(false);
+      setShowChatHistoryModal(false);
+      setShowSavedKundaliModal(false);
+      setShowNotepad(false);
       setOrderModalProduct(null);
+      // Ensure screen is 100% unlocked on page transitions
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      document.body.style.pointerEvents = "";
     }
   }, [location.pathname]);
   const messagesEndRef = useRef(null);
@@ -432,7 +440,7 @@ export function AuraAIFloating() {
   const undoTimerRef = useRef(null);
   const dragAreaRef = useRef(null);
 
-  // Auto-close AI assistant and remove background modal/overlay on page navigation
+  // Auto-close AI assistant and remove background modal/overlay on URL changes
   const prevLocationRef = useRef(location.pathname + location.search);
   useEffect(() => {
     const currentLocation = location.pathname + location.search;
@@ -441,11 +449,56 @@ export function AuraAIFloating() {
       setIsOpenState(false);
       auraChatStore.setFloatingOpen(false);
       setIsFullWindow(false);
+      setShowChatHistoryModal(false);
+      setShowSavedKundaliModal(false);
+      setShowNotepad(false);
       setOrderModalProduct(null);
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      document.body.style.pointerEvents = "";
     }
   }, [location.pathname, location.search]);
 
-  // Lock body scroll only when full-window modal is open
+  // Handle hardware Back button, browser back, and swipe gestures smoothly
+  useEffect(() => {
+    if (isOpen) {
+      // Push history state so back button closes the chat rather than navigating away / breaking page
+      try {
+        if (!window.history.state || !window.history.state.auraAiOpen) {
+          window.history.pushState({ ...window.history.state, auraAiOpen: true }, "");
+        }
+      } catch (_) {}
+
+      const handlePopState = () => {
+        setIsOpenState(false);
+        auraChatStore.setFloatingOpen(false);
+        setIsFullWindow(false);
+        setShowChatHistoryModal(false);
+        setShowSavedKundaliModal(false);
+        setShowNotepad(false);
+        setShowBirthForm(false);
+        setOrderModalProduct(null);
+        // Completely unlock touch and scroll on back button press
+        document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
+        document.body.style.pointerEvents = "";
+      };
+
+      window.addEventListener("popstate", handlePopState);
+      return () => {
+        window.removeEventListener("popstate", handlePopState);
+        document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
+        document.body.style.pointerEvents = "";
+      };
+    } else {
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      document.body.style.pointerEvents = "";
+    }
+  }, [isOpen]);
+
+  // Lock body scroll only when full-window modal is active
   useEffect(() => {
     if (isOpen && isFullWindow) {
       const originalOverflow = document.body.style.overflow;
@@ -453,11 +506,37 @@ export function AuraAIFloating() {
       document.body.style.overflow = "hidden";
       document.documentElement.style.overflow = "hidden";
       return () => {
-        document.body.style.overflow = originalOverflow;
-        document.documentElement.style.overflow = originalDocOverflow;
+        document.body.style.overflow = originalOverflow || "";
+        document.documentElement.style.overflow = originalDocOverflow || "";
       };
     }
   }, [isOpen, isFullWindow]);
+
+  // Dedicated clean close handler that also pops state if active
+  const handleCloseChat = useCallback((e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setIsOpenState(false);
+    auraChatStore.setFloatingOpen(false);
+    setIsFullWindow(false);
+    setShowChatHistoryModal(false);
+    setShowSavedKundaliModal(false);
+    setShowNotepad(false);
+    setShowBirthForm(false);
+    setOrderModalProduct(null);
+
+    try {
+      if (window.history.state && window.history.state.auraAiOpen) {
+        window.history.back();
+      }
+    } catch (_) {}
+
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+    document.body.style.pointerEvents = "";
+  }, []);
 
   // Load server settings
   useEffect(() => {
@@ -1497,6 +1576,33 @@ export function AuraAIFloating() {
                   className="aura-ai-header-left" 
                   style={{ touchAction: "none" }}
                 >
+                  {/* Dedicated Back to Website Button */}
+                  <button
+                    type="button"
+                    onClick={handleCloseChat}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="aura-ai-btn-icon aura-ai-header-back-btn"
+                    title="वापस वेबसाइट पर जाएं (Back to website)"
+                    aria-label="Back to website"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "2px",
+                      padding: "4px 7px",
+                      background: "rgba(255,255,255,0.7)",
+                      border: "1px solid rgba(212,175,55,0.4)",
+                      borderRadius: "7px",
+                      color: "#5c2b09",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      marginRight: "4px"
+                    }}
+                  >
+                    <ChevronLeft size={14} strokeWidth={2.5} />
+                    <span>वापस</span>
+                  </button>
+
                   {!isFullWindow && (
                     <div className="aura-ai-panel-drag-cue" title="Drag window to move anywhere on screen" style={{ touchAction: "none" }}>
                       <GripVertical size={11} />
@@ -1524,6 +1630,40 @@ export function AuraAIFloating() {
                 </div>
 
                 <div className="aura-ai-header-actions">
+                  {/* Chat History Button */}
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowChatHistoryModal(true);
+                    }} 
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="aura-ai-btn-icon"
+                    title="पुरानी चैट व इतिहास (Chat History)"
+                    aria-label="Chat History"
+                  >
+                    <History size={13} />
+                  </button>
+
+                  {/* Saved Kundalis Button (in Panditji mode) */}
+                  {mode === "panditji" && (
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowSavedKundaliModal(true);
+                      }} 
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="aura-ai-btn-icon"
+                      title="सुरक्षित कुंडलियां (Saved Kundalis)"
+                      aria-label="Saved Kundalis"
+                    >
+                      <Bookmark size={13} />
+                    </button>
+                  )}
+
                   {/* Full Window / Maximize Toggle */}
                   <button 
                     type="button"
@@ -1540,7 +1680,7 @@ export function AuraAIFloating() {
                     {isFullWindow ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                   </button>
 
-                  {/* New Chat Button - positioned right next to the Close icon */}
+                  {/* New Chat Button */}
                   <button 
                     type="button"
                     onClick={(e) => {
@@ -1550,7 +1690,7 @@ export function AuraAIFloating() {
                     }} 
                     onPointerDown={(e) => e.stopPropagation()}
                     className={`aura-ai-btn-icon aura-ai-btn-newchat ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                    title="New Chat / Nayi Baat-cheet (Purani chat safe rahegi)"
+                    title="New Chat (पुरानी चैट ऑटोमैटिक सुरक्षित रहेगी)"
                     aria-label="New Chat"
                     disabled={isRefreshing}
                   >
@@ -1560,21 +1700,9 @@ export function AuraAIFloating() {
                   {/* Close Chat Button */}
                   <button 
                     type="button"
-                    onClick={(e) => {
-                      if (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }
-                      setIsOpen(false);
-                    }} 
+                    onClick={handleCloseChat} 
                     onPointerDown={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => {
-                      if (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }
-                      setIsOpen(false);
-                    }}
+                    onTouchEnd={handleCloseChat}
                     className="aura-ai-btn-icon aura-ai-btn-close" 
                     title="Close / Band karein"
                     aria-label="Close Chat"
