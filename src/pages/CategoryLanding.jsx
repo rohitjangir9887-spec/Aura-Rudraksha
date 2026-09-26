@@ -144,8 +144,10 @@ export default function CategoryLanding() {
       if (lowerSlug === "indonesian") {
         return (p.origin || "").toLowerCase().includes("indonesia") || (p.origin || "").toLowerCase().includes("java") || p.hasIndonesianVariant;
       }
-      if (lowerSlug === "mala") {
-        return cat.includes("mala") || normName.includes("mala") || normName.includes("kantha");
+      if (lowerSlug === "mala" || lowerSlug === "malas" || lowerSlug === "sacred-malas" || lowerSlug === "japa-mala") {
+        const isSingleBead = (/^\d+\s*mukhi/i.test(normName) || /^original\s*\d+\s*mukhi/i.test(normName)) && !normName.includes("mala") && !normName.includes("kantha") && !normName.includes("108");
+        if (isSingleBead) return false;
+        return cat.includes("mala") || cat.includes("kantha") || normName.includes("mala") || normName.includes("kantha") || normName.includes("108");
       }
       if (lowerSlug === "bracelets") {
         return cat.includes("bracelet") || normName.includes("bracelet") || normName.includes("wrist");

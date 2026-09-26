@@ -110,15 +110,15 @@ export function AuraAIFloating() {
   // Universal Touch & Screen Unlocker: Guarantees main UI and product clicks work 100% with zero touch lock
   const unlockScreenAndTouch = useCallback(() => {
     if (typeof document !== "undefined") {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.pointerEvents = "";
-      document.body.style.touchAction = "";
-      document.documentElement.style.overflow = "";
-      document.documentElement.style.pointerEvents = "";
-      document.documentElement.style.touchAction = "";
+      if (document.body.style.overflow) document.body.style.overflow = "";
+      if (document.body.style.position) document.body.style.position = "";
+      if (document.body.style.pointerEvents) document.body.style.pointerEvents = "";
+      if (document.body.style.touchAction) document.body.style.touchAction = "";
+      if (document.documentElement.style.overflow) document.documentElement.style.overflow = "";
+      if (document.documentElement.style.pointerEvents) document.documentElement.style.pointerEvents = "";
+      if (document.documentElement.style.touchAction) document.documentElement.style.touchAction = "";
       const rootEl = document.getElementById("root");
-      if (rootEl) {
+      if (rootEl && rootEl.style.pointerEvents) {
         rootEl.style.pointerEvents = "";
       }
     }
@@ -128,36 +128,19 @@ export function AuraAIFloating() {
   useEffect(() => {
     if (loading) {
       setPillState("thinking");
-      if (!isOpen || !isFullWindow) {
-        unlockScreenAndTouch();
-      }
     } else if (pillState === "thinking") {
       setPillState("ready");
-      unlockScreenAndTouch();
       const readyTimer = setTimeout(() => {
         setPillState("default");
       }, 3000);
       return () => clearTimeout(readyTimer);
     }
-  }, [loading, isOpen, isFullWindow, unlockScreenAndTouch]);
+  }, [loading, pillState]);
 
-  // Global passive listener to prevent any accidental touch locks when chat is minimized or running in background
+  // Cleanly unlock screen styles whenever chat closes or mode changes
   useEffect(() => {
     if (!isOpen || !isFullWindow) {
       unlockScreenAndTouch();
-      const handleGlobalTouch = (e) => {
-        // If target is outside the AI floating panel/modal, ensure touch is fully unlocked
-        const panelEl = document.getElementById("aura-ai-floating-panel");
-        if (!panelEl || !panelEl.contains(e.target)) {
-          unlockScreenAndTouch();
-        }
-      };
-      window.addEventListener("touchstart", handleGlobalTouch, { passive: true });
-      window.addEventListener("pointerdown", handleGlobalTouch, { passive: true });
-      return () => {
-        window.removeEventListener("touchstart", handleGlobalTouch);
-        window.removeEventListener("pointerdown", handleGlobalTouch);
-      };
     }
   }, [isOpen, isFullWindow, unlockScreenAndTouch]);
 
@@ -2480,7 +2463,15 @@ export function AuraAIFloating() {
 
                                   return (
                                     <div key={pId} className="aura-ai-prod-card-row">
-                                      <div className="aura-ai-prod-img-wrap">
+                                      <Link
+                                        to={getProductRoute(p)}
+                                        onClick={() => {
+                                          setIsOpen(false);
+                                          setIsFullWindow(false);
+                                          unlockScreenAndTouch();
+                                        }}
+                                        className="aura-ai-prod-img-wrap block cursor-pointer"
+                                      >
                                         <img
                                           src={realImg}
                                           alt={pName}
@@ -2494,9 +2485,20 @@ export function AuraAIFloating() {
                                             {discountPercent}%
                                           </span>
                                         )}
-                                      </div>
+                                      </Link>
                                       <div className="aura-ai-prod-info">
-                                        <h4 className="aura-ai-prod-name" title={pName}>{pName}</h4>
+                                        <Link
+                                          to={getProductRoute(p)}
+                                          onClick={() => {
+                                            setIsOpen(false);
+                                            setIsFullWindow(false);
+                                            unlockScreenAndTouch();
+                                          }}
+                                          className="aura-ai-prod-name hover:underline cursor-pointer block"
+                                          title={pName}
+                                        >
+                                          {pName}
+                                        </Link>
                                         <div className="aura-ai-prod-meta">
                                           <span className="aura-ai-prod-price">₹{priceNum.toLocaleString('en-IN')}</span>
                                           {discountPercent > 0 && (
@@ -2512,7 +2514,11 @@ export function AuraAIFloating() {
                                         <div className="aura-ai-prod-actions">
                                           <Link
                                             to={getProductRoute(p)}
-                                            onClick={() => setIsOpen(false)}
+                                            onClick={() => {
+                                              setIsOpen(false);
+                                              setIsFullWindow(false);
+                                              unlockScreenAndTouch();
+                                            }}
                                             className="aura-ai-prod-btn-view"
                                           >
                                             <Eye size={10} /> View

@@ -96,16 +96,26 @@ export function Shop() {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState("featured");
-  const [chip, setChip] = useState("all");
   const [priceRange, setPriceRange] = useState("all");
   const [openFaq, setOpenFaq] = useState(0);
   const { add } = useCart();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const q = (params.get("q") || "").toLowerCase().trim();
-  const categoryParam = (params.get("category") || "").toLowerCase().trim();
+  const categoryParam = (params.get("category") || params.get("cat") || "").toLowerCase().trim();
+  const chipParam = (params.get("chip") || "").toLowerCase().trim();
   const isOfferQuery = params.get("offer") === "1";
   const isWishlistQuery = params.get("wishlist") === "1";
+
+  const [chip, setChip] = useState(() => {
+    const combined = (chipParam || categoryParam).toLowerCase().trim();
+    if (combined.includes("mala") || combined.includes("kantha") || combined.includes("string") || combined.includes("japa")) return "mala";
+    if (combined.includes("gauri")) return "gauri";
+    if (combined.includes("mukhi") || combined.includes("bead")) return "mukhi";
+    if (combined.includes("puja") || combined.includes("samagri")) return "puja";
+    if (combined.includes("offer")) return "offers";
+    return "all";
+  });
 
   const shopSchema = {
     "@context": "https://schema.org",
@@ -224,9 +234,15 @@ export function Shop() {
     products.forEach(p => {
       const name = (p?.name || "").toLowerCase();
       const cat = (p?.category || "").toLowerCase();
-      if (/mukhi/i.test(name) || /mukhi|rudraksha/i.test(cat)) counts.mukhi++;
+      const subCat = (p?.subCategory || "").toLowerCase();
+      const isSingleBead = (/^\d+\s*mukhi/i.test(name) || /^original\s*\d+\s*mukhi/i.test(name)) && !name.includes("mala") && !name.includes("kantha") && !name.includes("bracelet") && !name.includes("108");
+      const isMalaOrBracelet = cat.includes("mala") || cat.includes("bracelet") || subCat.includes("mala") || subCat.includes("bracelet") || name.includes("mala") || name.includes("kantha") || name.includes("bracelet") || name.includes("wristlet") || name.includes("japa") || name.includes("108");
+
+      if (isSingleBead) counts.mukhi++;
+      else if (/mukhi/i.test(name) || /mukhi|rudraksha/i.test(cat)) counts.mukhi++;
+
       if (/gauri/i.test(name) || /gauri/i.test(cat)) counts.gauri++;
-      if (/mala|bracelet/i.test(name) || /mala|bracelet/i.test(cat)) counts.mala++;
+      if (isMalaOrBracelet && !isSingleBead) counts.mala++;
       if (/puja|samagri|camphor|kapoor|dhoop|agarbatti|hawan|chandan|ghee|diya/i.test(name) || /puja|samagri|essential/i.test(cat)) counts.puja++;
       if ((p?.discountPercent && p.discountPercent > 0) || (p?.mrp && p.mrp > p.price) || p?.customOffer?.enabled) {
         counts.offers++;
@@ -238,26 +254,49 @@ export function Shop() {
   // Filtered and Sorted list
   const list = useMemo(() => {
     let next = [...products];
-    if (categoryParam) {
-      next = next.filter(p => 
-        (p?.category && p.category.toLowerCase().includes(categoryParam)) ||
-        (p?.subCategory && p.subCategory.toLowerCase().includes(categoryParam)) ||
-        (p?.name && p.name.toLowerCase().includes(categoryParam))
-      );
-    }
-    if (q) {
-      next = searchAndRankProducts(next, q);
-    }
-    if (chip === "mukhi") next = next.filter(p => /mukhi/i.test(p?.name || "") || (p?.mukhi && p.mukhi.trim().length > 0) || (p?.category && /mukhi|rudraksha/i.test(p.category)));
-    if (chip === "gauri") next = next.filter(p => /gauri/i.test(p?.name || "") || (p?.mukhi && /gauri/i.test(p.mukhi)) || (p?.category && /gauri/i.test(p.category)));
-    if (chip === "mala") next = next.filter(p => /mala|bracelet/i.test(p?.name || "") || (p?.subCategory && /mala|bracelet/i.test(p.subCategory)) || (p?.category && /mala|bracelet/i.test(p.category)));
-    if (chip === "puja") next = next.filter(p => /puja|samagri|camphor|kapoor|dhoop|agarbatti|hawan|chandan|ghee|diya/i.test(p?.name || "") || (p?.category && /puja|samagri|essential/i.test(p.category)));
-    if (chip === "offers") {
+
+    // If chip is active (or matched from category param), let chip take priority over loose text matching
+    if (chip === "mukhi") {
+      next = next.filter(p => {
+        const name = (p?.name || "").toLowerCase();
+        const cat = (p?.category || "").toLowerCase();
+        const subCat = (p?.subCategory || "").toLowerCase();
+        const isPureMala = (cat.includes("mala") || subCat.includes("mala") || name.includes("japa mala") || name.includes("108")) && !(/^\d+\s*mukhi/i.test(name) && !name.includes("japa mala"));
+        if (isPureMala) return false;
+        return /mukhi/i.test(name) || (p?.mukhi && p.mukhi.trim().length > 0) || /mukhi|rudraksha/i.test(cat);
+      });
+    } else if (chip === "gauri") {
+      next = next.filter(p => /gauri/i.test(p?.name || "") || (p?.mukhi && /gauri/i.test(p.mukhi)) || (p?.category && /gauri/i.test(p.category)));
+    } else if (chip === "mala") {
+      next = next.filter(p => {
+        const name = (p?.name || "").toLowerCase();
+        const cat = (p?.category || "").toLowerCase();
+        const subCat = (p?.subCategory || "").toLowerCase();
+        const isSingleBead = (/^\d+\s*mukhi/i.test(name) || /^original\s*\d+\s*mukhi/i.test(name)) && !name.includes("mala") && !name.includes("kantha") && !name.includes("bracelet") && !name.includes("108");
+        const isMalaOrBracelet = cat.includes("mala") || cat.includes("bracelet") || subCat.includes("mala") || subCat.includes("bracelet") || name.includes("mala") || name.includes("kantha") || name.includes("bracelet") || name.includes("wristlet") || name.includes("japa") || name.includes("108");
+        if (isSingleBead) return false;
+        return isMalaOrBracelet;
+      });
+    } else if (chip === "puja") {
+      next = next.filter(p => /puja|samagri|camphor|kapoor|dhoop|agarbatti|hawan|chandan|ghee|diya/i.test(p?.name || "") || (p?.category && /puja|samagri|essential/i.test(p.category)));
+    } else if (chip === "offers") {
       next = next.filter(p => 
         (p?.discountPercent && p.discountPercent > 0) || 
         (p?.mrp && p.mrp > p.price) ||
         p?.customOffer?.enabled
       );
+    } else if (categoryParam && categoryParam !== "all") {
+      next = next.filter(p => {
+        const name = (p?.name || "").toLowerCase();
+        const cat = (p?.category || "").toLowerCase();
+        const subCat = (p?.subCategory || "").toLowerCase();
+        if (categoryParam.includes("mala") || categoryParam.includes("kantha")) {
+          const isSingleBead = (/^\d+\s*mukhi/i.test(name) || /^original\s*\d+\s*mukhi/i.test(name)) && !name.includes("mala") && !name.includes("kantha") && !name.includes("bracelet") && !name.includes("108");
+          if (isSingleBead) return false;
+          return cat.includes("mala") || cat.includes("kantha") || subCat.includes("mala") || name.includes("mala") || name.includes("kantha") || name.includes("108");
+        }
+        return cat.includes(categoryParam) || subCat.includes(categoryParam) || name.includes(categoryParam);
+      });
     }
 
     // Filter by specific price range categories
