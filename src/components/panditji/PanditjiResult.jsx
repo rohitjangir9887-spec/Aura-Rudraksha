@@ -142,8 +142,8 @@ export function PanditjiResult({
         marginBottom: 12,
         border: '1px solid #D4AF37'
       }}>
-        <div style={{ fontSize: '10px', color: '#FFE082', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 2 }}>
-          ★ पंडित जी द्वारा अनुशंसित सर्वोत्तम रुद्राक्ष:
+        <div style={{ fontSize: '11px', color: '#FFE082', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 3 }}>
+          ★ आपकी Kundali के अनुसार मुख्य Rudraksha:
         </div>
         <div style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', marginBottom: 4, wordBreak: 'break-word' }}>
           {result.recommendedMukhi}

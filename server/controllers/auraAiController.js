@@ -720,21 +720,29 @@ function detectUserIntent(msg) {
   return intents[0];
 }
 
-function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, activeCoupons = [] }) {
+function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, activeCoupons = [], calculatedKundaliData = null }) {
   const msgLower = (userMessage || "").toLowerCase();
   const replies = [];
   
+  // 1. If Kundali is calculated, ALL suggestions MUST center around the exact Canonical Primary Mukhi!
+  if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
+    const primaryRec = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations?.[0];
+    const canonicalMukhi = primaryRec?.mukhi || "मुख्य रुद्राक्ष";
+    const lagna = calculatedKundaliData.astronomicalKundali.lagna?.rashiHindi || "जन्म लग्न";
+    const dasha = calculatedKundaliData.astronomicalKundali.vimshottariDasha?.currentMahadashaHindi || "महादशा";
+
+    replies.push(
+      `📿 ${canonicalMukhi} धारण विधि व बीज मंत्र`,
+      `🪐 ${lagna} लग्न अनुसार ${canonicalMukhi} लाभ`,
+      `🛍️ सिद्ध ${canonicalMukhi} स्टोर में देखें`,
+      `✨ ${dasha} महादशा व ग्रह गोचर उपाय`
+    );
+    return replies;
+  }
+
   if (mode === "panditji") {
     if (targetMukhi) {
       replies.push(`📿 ${targetMukhi} मुखी रुद्राक्ष के लाभ`, "🙏 संपूर्ण धारण विधि व मंत्र", "🪐 कुंडली अनुसार अनुकूलता", `🛍️ ${targetMukhi} मुखी खरीदें`);
-    } else if (msgLower.includes("dhan") || msgLower.includes("wealth") || msgLower.includes("karz") || msgLower.includes("loss") || msgLower.includes("vyapar") || msgLower.includes("business")) {
-      replies.push("⚡ 7 मुखी महालक्ष्मी रुद्राक्ष", "💼 10 मुखी नारायण रुद्राक्ष", "📿 महालक्ष्मी धन बंध", "🙏 संपूर्ण धारण विधि");
-    } else if (msgLower.includes("vivah") || msgLower.includes("shadi") || msgLower.includes("marriage") || msgLower.includes("delay") || msgLower.includes("rishta")) {
-      replies.push("❤️ गौरी शंकर विवाह बंध", "✨ 2 मुखी रुद्राक्ष लाभ", "💍 शीघ्र विवाह के ज्योतिष उपाय", "🙏 संपूर्ण धारण विधि");
-    } else if (msgLower.includes("dasha") || msgLower.includes("mahadasha") || msgLower.includes("guru") || msgLower.includes("shani") || msgLower.includes("kundli") || msgLower.includes("kundali")) {
-      replies.push("✨ मेरी जन्म कुंडली व महादशा देखें", "📿 महादशा अनुसार सिद्ध रुद्राक्ष", "🪐 नवग्रह शांति उपाय व मंत्र", "🌿 5 मुखी रुद्राक्ष के लाभ");
-    } else if (msgLower.includes("peace") || msgLower.includes("shanti") || msgLower.includes("stress") || msgLower.includes("health")) {
-      replies.push("🌿 5 मुखी पंचमुखी रुद्राक्ष", "📿 108 महामृत्युंजय माला", "🧘 मानसिक शांति व एकाग्रता", "🙏 संपूर्ण धारण विधि");
     } else {
       replies.push("✨ मेरी जन्म कुंडली व महादशा देखें", "📿 मेरे लिए सबसे शुभ रुद्राक्ष कौन सा है?", "💰 धन, व्यापार व करियर में उन्नति के उपाय", "❤️ विवाह में देरी व दांपत्य सुख के उपाय");
     }
@@ -1108,32 +1116,25 @@ export async function calculateKundaliEndpoint(req, res, next) {
     }
 
     const recommendedProducts = [];
-    const recs = kundaliData.astronomicalKundali?.rudrakshaRecommendations || [];
+    const primaryRec = kundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0];
+    const primaryMukhiNum = primaryRec?.mukhiNumber;
+    const primaryMukhiStr = String(primaryRec?.mukhi || "").toLowerCase();
 
-    for (const rec of recs) {
-      const mukhiStr = String(rec.mukhi || "").toLowerCase();
-      const mukhiNum = rec.mukhiNumber;
+    // STRICT CANONICAL PRIMARY FILTER: Only show products matching the customer's exact Canonical Primary Mukhi
+    const matches = allProducts.filter(p => {
+      const titleLower = (p.name || "").toLowerCase();
+      if (primaryMukhiNum && (titleLower.includes(`${primaryMukhiNum} mukhi`) || titleLower.includes(`${primaryMukhiNum}-mukhi`))) return true;
+      if (primaryMukhiStr.includes("gauri shankar") && titleLower.includes("gauri shankar")) return true;
+      if (primaryMukhiStr.includes("ganesh") && titleLower.includes("ganesh")) return true;
+      if (primaryMukhiStr.includes("garbh gauri") && titleLower.includes("garbh gauri")) return true;
+      if (primaryMukhiStr.includes("108") && (titleLower.includes("108") || titleLower.includes("mala") || titleLower.includes("jaap"))) return true;
+      return false;
+    });
 
-      const matches = allProducts.filter(p => {
-        const titleLower = (p.name || "").toLowerCase();
-        if (mukhiNum && (titleLower.includes(`${mukhiNum} mukhi`) || titleLower.includes(`${mukhiNum}-mukhi`))) return true;
-        if (mukhiStr.includes("gauri shankar") && titleLower.includes("gauri shankar")) return true;
-        if (mukhiStr.includes("ganesh") && titleLower.includes("ganesh")) return true;
-        if (mukhiStr.includes("garbh gauri") && titleLower.includes("garbh gauri")) return true;
-        if (mukhiStr.includes("108") && (titleLower.includes("108") || titleLower.includes("mala") || titleLower.includes("jaap"))) return true;
-        if (mukhiStr.includes("saraswati") && (titleLower.includes("saraswati") || titleLower.includes("vidya"))) return true;
-        return false;
-      });
-
-      for (const m of matches) {
-        if (!recommendedProducts.some(rp => rp.id === String(m.id || m._id))) {
-          recommendedProducts.push(formatProductForResponse(m));
-        }
+    for (const m of matches) {
+      if (!recommendedProducts.some(rp => rp.id === String(m.id || m._id))) {
+        recommendedProducts.push(formatProductForResponse(m));
       }
-    }
-
-    if (recommendedProducts.length === 0 && allProducts.length > 0) {
-      recommendedProducts.push(formatProductForResponse(allProducts[0]));
     }
 
     // 3. Generate Vedic Interpretation prioritizing NVIDIA NIM (nemotron-3-super-120b-a12b)
@@ -1618,40 +1619,28 @@ export async function chatAuraAI(req, res, next) {
     let matchedProducts = [];
     if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
       const kundaliRecommendedProducts = [];
-      const recs = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations || [];
+      const primaryRec = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations?.[0];
+      const primaryMukhiNum = primaryRec?.mukhiNumber;
+      const primaryMukhiStr = String(primaryRec?.mukhi || "").toLowerCase();
 
-      for (const rec of recs) {
-        const mukhiStr = String(rec.mukhi || "").toLowerCase();
-        const mukhiNum = rec.mukhiNumber;
+      // STRICT CANONICAL PRIMARY FILTER: Products must strictly match the Kundali's Primary Mukhi
+      const primaryMatches = allStoreProds.filter(p => {
+        const pNameLower = (p.name || "").toLowerCase();
+        if (primaryMukhiNum && (pNameLower.includes(`${primaryMukhiNum} mukhi`) || pNameLower.includes(`${primaryMukhiNum}-mukhi`))) return true;
+        if (primaryMukhiStr.includes("gauri shankar") && pNameLower.includes("gauri shankar")) return true;
+        if (primaryMukhiStr.includes("ganesh") && pNameLower.includes("ganesh")) return true;
+        if (primaryMukhiStr.includes("garbh gauri") && pNameLower.includes("garbh gauri")) return true;
+        if (primaryMukhiStr.includes("108") && (pNameLower.includes("108") || pNameLower.includes("mala") || pNameLower.includes("jaap"))) return true;
+        return false;
+      });
 
-        const matches = allStoreProds.filter(p => {
-          const pNameLower = (p.name || "").toLowerCase();
-          if (mukhiNum && (pNameLower.includes(`${mukhiNum} mukhi`) || pNameLower.includes(`${mukhiNum}-mukhi`))) return true;
-          if (mukhiStr.includes("gauri shankar") && pNameLower.includes("gauri shankar")) return true;
-          if (mukhiStr.includes("ganesh") && pNameLower.includes("ganesh")) return true;
-          if (mukhiStr.includes("garbh gauri") && pNameLower.includes("garbh gauri")) return true;
-          if (mukhiStr.includes("108") && (pNameLower.includes("108") || pNameLower.includes("mala") || pNameLower.includes("jaap"))) return true;
-          if (mukhiStr.includes("saraswati") && (pNameLower.includes("saraswati") || pNameLower.includes("vidya"))) return true;
-          return false;
-        });
-
-        for (const m of matches) {
-          if (!kundaliRecommendedProducts.some(p => p.id === String(m.id || m._id))) {
-            kundaliRecommendedProducts.push(formatProductForResponse(m));
-          }
+      for (const m of primaryMatches) {
+        if (!kundaliRecommendedProducts.some(p => p.id === String(m.id || m._id))) {
+          kundaliRecommendedProducts.push(formatProductForResponse(m));
         }
       }
 
-      if (targetMukhi) {
-        const targetMatches = allStoreProds.filter(p => (p.name || "").toLowerCase().includes(`${targetMukhi} mukhi`));
-        for (const tm of targetMatches) {
-          if (!kundaliRecommendedProducts.some(p => p.id === String(tm.id || tm._id))) {
-            kundaliRecommendedProducts.unshift(formatProductForResponse(tm));
-          }
-        }
-      }
-
-      matchedProducts = kundaliRecommendedProducts.slice(0, 4);
+      matchedProducts = kundaliRecommendedProducts.slice(0, 3);
     } else if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
       const foundProds = searchRelevantCatalogProducts(message || "", allStoreProds);
       matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean).slice(0, 4);
@@ -1932,6 +1921,12 @@ AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TI
 - Classical & Parashari Yogas: ${calculatedKundaliData.astronomicalKundali.yogas && calculatedKundaliData.astronomicalKundali.yogas.length > 0 ? calculatedKundaliData.astronomicalKundali.yogas.map(y => `${y.name} [${y.category || 'Yoga'}]: ${y.description}`).join(" | ") : "Standard planetary alignments."}
 - Dosha Analysis: Manglik: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote} | Shani Sade Sati: ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "Sade Sati Mukt"} | Kaal Sarp: ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.type || "None"}
 - Recommended Vedic Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => `${r.role}: ${r.mukhi}`).join(" | ")}
+- CANONICAL PRIMARY RUDRAKSHA MANDATE (ABS-INVARIANT):
+  * The devotee's CANONICAL PRIMARY RUDRAKSHA for this Kundali is strictly: **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}**.
+  * ONE KUNDALI = ONE CANONICAL PRIMARY RUDRAKSHA.
+  * Same DOB + Exact Time + Birth Place MUST ALWAYS yield this exact same PRIMARY Rudraksha.
+  * NEVER change, guess, or invent a different PRIMARY Rudraksha when the devotee asks about Business, Career, Study, Saturday, Finance, Marriage, or opens a New Chat.
+  * Question concerns (e.g. business, study, Saturday) provide ONLY complementary secondary explanation. They MUST NOT displace or alter the PRIMARY Rudraksha.
 
 DETECTED QUERY INTENT:
 - User Intention Category: "${astroIntent.label}" (${astroIntent.type})
@@ -1966,7 +1961,7 @@ ${astroIntent.type === "greeting" ? `
      M. **लाल किताब व व्यावहारिक मार्गदर्शन**
      N. **कल्याणकारी उपाय व सिद्ध नेपाली रुद्राक्ष** (Lagna, Rashi व Dasha आधारित मुखी, प्राण-प्रतिष्ठा, धारण विधि, बीज मंत्र एवं स्टोर लिंक [Product Name](/product/slug))
      10. 🌟 **अनिवार्य सारांश (Key Points & Key Takeaways - Bullet Points में)**
-     11. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5**
+     11. 🔤 **[AURA_KEYWORDS]: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} धारण विधि | ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} लाभ | विंशोत्तरी महादशा उपाय | आज का शुभ मुहूर्त**
 ` : `
    - Devotee asked a SPECIFIC QUESTION regarding: "${astroIntent.label}" (User query: "${message || ''}").
    - **CRITICAL DIRECTIVE (DO NOT RE-DUMP ENTIRE KUNDALI)**:
@@ -1987,10 +1982,10 @@ ${astroIntent.type === "greeting" ? `
        5. ✨ **शुभ अवसर व संभावनाएं (Opportunities & Strengths)**
        6. ⚠️ **सावधानियां व चुनौतियां (Cautions & Challenges)**
        7. 🎯 **व्यावहारिक कार्य योजना (Practical Action Plan)**
-       8. 📿 **कल्याणकारी उपाय, सिद्ध नेपाली रुद्राक्ष व संपूर्ण धारण विधि (Consecrated Nepali Rudraksha with Dharan Vidhi, Shiva Purana Beej Mantra & Store Link: [Product Name](/product/slug))**
+       8. 📿 **कल्याणकारी उपाय, सिद्ध नेपाली रुद्राक्ष व संपूर्ण धारण विधि (The primary bead MUST strictly be the Canonical Primary Rudraksha: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}, with Dharan Vidhi, Shiva Purana Beej Mantra & Store Link: [Product Name](/product/slug))**
        9. ⏱️ **शुभ समय व दशा गोचर (Timing & Dasha Transit Roadmap)**
        10. 🌟 **अनिवार्य सारांश (Key Points: Theme, Biggest Opportunity, Biggest Caution, Next Steps - Bullet Points में)**
-       11. 🔤 **[AURA_KEYWORDS]: keyword1 | keyword2 | keyword3 | keyword4 | keyword5** (4-5 relevant follow-up topic chips at the end).
+       11. 🔤 **[AURA_KEYWORDS]: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} धारण विधि | ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} लाभ | विंशोत्तरी महादशा उपाय | आज का शुभ मुहूर्त**
 `}
 
 STRICT ACCURACY, EVIDENCE & REASONING RULES:
@@ -2129,7 +2124,8 @@ ${memoryContextText || "Guest shopper."}`;
       intent,
       targetMukhi,
       mode,
-      activeCoupons
+      activeCoupons,
+      calculatedKundaliData
     });
 
     // 7. Handle SSE Streaming Request
@@ -2346,7 +2342,7 @@ ${memoryContextText || "Guest shopper."}`;
             const currentAntar = vDasha?.currentAntardashaHindi || "बुध (Mercury)";
             const mahaStart = vDasha?.mahadashaStartDate || "2020";
             const mahaEnd = vDasha?.mahadashaEndDate || "2036";
-            const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "5 मुखी रुद्राक्ष";
+            const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "प्रामाणिक मुख्य रुद्राक्ष";
 
             fallbackText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
           } else if (shouldPromptBirthForm) {
@@ -2550,7 +2546,7 @@ ${memoryContextText || "Guest shopper."}`;
           const currentAntar = vDasha?.currentAntardashaHindi || "बुध (Mercury)";
           const mahaStart = vDasha?.mahadashaStartDate || "2020";
           const mahaEnd = vDasha?.mahadashaEndDate || "2036";
-          const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "5 मुखी रुद्राक्ष";
+          const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "प्रामाणिक मुख्य रुद्राक्ष";
 
           aiResponseText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
         } else if (shouldPromptBirthForm) {

@@ -270,7 +270,7 @@ export function normalizeKundali(k) {
 
     // Recommendations
     rudrakshaRecommendations: recs,
-    recommendedMukhi: recs[0]?.mukhi || k.recommendedMukhi || "7 Mukhi Rudraksha",
+    recommendedMukhi: recs[0]?.mukhi || k.recommendedMukhi || null,
     beejMantra: recs[0]?.beejMantra || k.beejMantra || "Om Namah Shivaya",
     wearingDay: k.wearingDay || "सोमवार / शिव तिथि",
     aiInterpretation: k.aiInterpretation || ""

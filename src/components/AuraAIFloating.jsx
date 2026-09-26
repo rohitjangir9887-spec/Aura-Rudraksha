@@ -392,8 +392,18 @@ export function AuraAIFloating() {
   const dynamicSuggestions = useMemo(() => {
     const lastAiMsg = [...messages].reverse().find(m => m.sender === "bot" || m.role === "assistant" || m.sender === "ai");
     const lastText = (lastAiMsg?.text || "").toLowerCase();
+    const kundali = lastAiMsg?.kundali;
+    const primaryMukhi = kundali?.rudrakshaRecommendations?.[0]?.mukhi || kundali?.recommendedMukhi;
 
     if (mode === "panditji") {
+      if (primaryMukhi) {
+        return [
+          { label: `📿 ${primaryMukhi} धारण विधि`, query: `कृपया ${primaryMukhi} की संपूर्ण वैदिक धारण विधि व बीज मंत्र बताएं` },
+          { label: `🪐 ${primaryMukhi} लाभ`, query: `मेरी जन्म कुंडली अनुसार ${primaryMukhi} के प्रमुख लाभ क्या हैं?` },
+          { label: `✨ महादशा उपाय`, query: `मेरी वर्तमान महादशा और ग्रह शांति के उपाय बताएं` },
+          { label: `🛍️ ${primaryMukhi} देखें`, query: `सिद्ध ${primaryMukhi} स्टोर में दिखाएं` }
+        ];
+      }
       const list = [];
       if (lastText.includes("mukhi") || lastText.includes("rudraksha") || lastText.includes("रुद्राक्ष") || lastText.includes("धारण")) {
         list.push({ label: "🕉️ शुद्ध धारण विधि", query: "रुद्राक्ष को शुद्ध और धारण करने की वैदिक विधि बताएं" });
@@ -2398,32 +2408,39 @@ export function AuraAIFloating() {
                               )}
 
                               {/* Rudraksha Recommendations */}
-                              {((Array.isArray(m.kundali.rudrakshaRecommendations) && m.kundali.rudrakshaRecommendations.length > 0) || m.kundali.recommendedMukhi) && (
-                                <div className="aura-ai-kundali-rec">
-                                  <div className="aura-ai-rec-label">★ अनुशंसित सिद्ध रुद्राक्ष (Recommended Consecrated Beads):</div>
-                                  {Array.isArray(m.kundali.rudrakshaRecommendations) && m.kundali.rudrakshaRecommendations.length > 0 ? (
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "4px" }}>
-                                      {m.kundali.rudrakshaRecommendations.map((rec, rIdx) => (
-                                        <div key={rIdx} style={{ fontSize: "11.5px", color: "#7d3318", fontWeight: 600 }}>
-                                          • <b>{rec.role || "रुद्राक्ष"}:</b> {rec.mukhi} {rec.beejMantra ? `(मंत्र: ${rec.beejMantra})` : ""}
-                                        </div>
-                                      ))}
+                              {((Array.isArray(m.kundali.rudrakshaRecommendations) && m.kundali.rudrakshaRecommendations.length > 0) || m.kundali.recommendedMukhi) && (() => {
+                                const primaryMukhi = m.kundali.rudrakshaRecommendations?.[0]?.mukhi || m.kundali.recommendedMukhi;
+                                const primaryMantra = m.kundali.rudrakshaRecommendations?.[0]?.beejMantra || m.kundali.beejMantra;
+                                const secondaryRecs = Array.isArray(m.kundali.rudrakshaRecommendations) ? m.kundali.rudrakshaRecommendations.slice(1) : [];
+
+                                return (
+                                  <div className="aura-ai-kundali-rec">
+                                    <div className="aura-ai-rec-header" style={{ fontSize: "12.5px", fontWeight: 700, color: "#92400e", marginBottom: "4px" }}>
+                                      ★ आपकी Kundali के अनुसार मुख्य Rudraksha: <span style={{ color: "#78350f" }}>{primaryMukhi}</span>
                                     </div>
-                                  ) : (
-                                    <div className="aura-ai-rec-mukhi">{m.kundali.recommendedMukhi}</div>
-                                  )}
-                                  {m.kundali.beejMantra && (!Array.isArray(m.kundali.rudrakshaRecommendations) || m.kundali.rudrakshaRecommendations.length === 0) && (
-                                    <div className="aura-ai-rec-mantra">
-                                      📿 बीज मंत्र: <b>{m.kundali.beejMantra}</b>
-                                    </div>
-                                  )}
-                                  {m.kundali.wearingDay && (
-                                    <div className="aura-ai-rec-day" style={{ marginTop: "3px" }}>
-                                      🗓️ धारण वार: <b>{m.kundali.wearingDay}</b>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                                    {primaryMantra && (
+                                      <div className="aura-ai-rec-mantra" style={{ fontSize: "11.5px", color: "#5c2a0c" }}>
+                                        📿 मुख्य बीज मंत्र: <b>{primaryMantra}</b>
+                                      </div>
+                                    )}
+                                    {m.kundali.wearingDay && (
+                                      <div className="aura-ai-rec-day" style={{ marginTop: "2px", fontSize: "11px", color: "#6b2a0c" }}>
+                                        🗓️ धारण वार: <b>{m.kundali.wearingDay}</b>
+                                      </div>
+                                    )}
+                                    {secondaryRecs.length > 0 && (
+                                      <div style={{ marginTop: "6px", paddingTop: "5px", borderTop: "1px dashed rgba(212, 175, 55, 0.3)" }}>
+                                        <div style={{ fontSize: "10.5px", fontWeight: 600, color: "#8a6014" }}>पूरक मार्गदर्शन (Complementary Guidance):</div>
+                                        {secondaryRecs.map((rec, rIdx) => (
+                                          <div key={rIdx} style={{ fontSize: "11px", color: "#7d3318" }}>
+                                            • <b>{rec.role || "विशेष प्रयोजन"}:</b> {rec.mukhi}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
 
@@ -2622,10 +2639,18 @@ export function AuraAIFloating() {
                             const isLastAi = index === messages.length - 1;
                             let effectiveKws = parsedKws;
                             if (!effectiveKws.length && isLastAi && !loading) {
-                              if (mode === "panditji") {
-                                effectiveKws = ["विवाह योग और विवाह का समय", "करियर और सरकारी नौकरी", "धन और आर्थिक स्थिति", "कल्याणकारी रुद्राक्ष व धारण विधि", "महादशा और अंतर्दशा", "स्वास्थ्य संबंधी ज्योतिषीय संकेत"];
+                              const canonicalMukhi = m.kundali?.rudrakshaRecommendations?.[0]?.mukhi || m.kundali?.recommendedMukhi;
+                              if (canonicalMukhi) {
+                                effectiveKws = [
+                                  `📿 ${canonicalMukhi} धारण विधि व बीज मंत्र`,
+                                  `🪐 कुंडली अनुसार ${canonicalMukhi} लाभ`,
+                                  `🛍️ सिद्ध ${canonicalMukhi} स्टोर में देखें`,
+                                  `✨ विंशोत्तरी महादशा व ग्रह उपाय`
+                                ];
+                              } else if (mode === "panditji") {
+                                effectiveKws = ["विवाह योग और विवाह का समय", "करियर और सरकारी नौकरी", "धन और आर्थिक स्थिति", "महादशा और अंतर्दशा"];
                               } else {
-                                effectiveKws = ["सिद्ध 1 से 14 मुखी रुद्राक्ष", "आज के एक्टिव डिस्काउंट कूपन", "ऑर्डर डिलीवरी व ट्रैकिंग", "100% X-Ray लैब सर्टिफिकेट", "हरिद्वार शिव पूजा व प्राण-प्रतिष्ठा"];
+                                effectiveKws = ["सिद्ध 1 से 14 मुखी रुद्राक्ष", "आज के एक्टिव डिस्काउंट कूपन", "ऑर्डर डिलीवरी व ट्रैकिंग", "100% X-Ray लैब सर्टिफिकेट"];
                               }
                             }
                             if (!effectiveKws.length) return null;

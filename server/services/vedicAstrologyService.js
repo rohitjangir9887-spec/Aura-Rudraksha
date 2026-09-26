@@ -1003,6 +1003,119 @@ function getLagnaBenefics(lagnaRashiIndex) {
 }
 
 /**
+ * Canonical Primary Function: ONE KUNDALI = ONE CANONICAL PRIMARY RUDRAKSHA.
+ * Personalized PRIMARY Rudraksha comes EXCLUSIVELY from this function based on Lagna Lord (लग्नेश).
+ * Business, Career, Study, Finance, Marriage, Saturday or any question changing does NOT change this Primary Mukhi.
+ */
+export function getCanonicalPrimaryRudraksha(kundaliInput) {
+  if (!kundaliInput) {
+    return {
+      role: "Canonical Primary Life Rudraksha (इष्ट व लग्न अधिपति)",
+      mukhi: "5 Mukhi Rudraksha",
+      mukhiNumber: 5,
+      beejMantra: "ॐ ह्रीं नमः",
+      significance: "सर्वजन कल्याण एवं पंच महाभूत संतुलन हेतु प्राकृतिक 5 मुखी रुद्राक्ष।",
+      isCanonicalPrimary: true
+    };
+  }
+
+  const astro = kundaliInput.astronomicalKundali || kundaliInput;
+  
+  let lagnaRashiName = astro.lagna?.rashiHindi || astro.lagna?.rashiName || astro.lagnaRashiHindi || astro.lagnaRashi || astro.lagna || "";
+  if (!lagnaRashiName && typeof astro.lagna === "string") {
+    lagnaRashiName = astro.lagna;
+  }
+
+  const LAGNA_CANONICAL_PRIMARY_MAP = {
+    "Mesh": { mukhi: "3 Mukhi Rudraksha", mukhiNumber: 3, beejMantra: "ॐ क्लीं नमः", lord: "Mangal Dev (Mars)", significance: "आपकी जन्म कुंडली का लग्न मेष (Mesh) है, जिसके स्वामी मंगल देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 3 मुखी (3 Mukhi) है जो आत्मबल, ऊर्जा और मंगल दोष निवारण प्रदान करता है।" },
+    "Aries": { mukhi: "3 Mukhi Rudraksha", mukhiNumber: 3, beejMantra: "ॐ क्लीं नमः", lord: "Mangal Dev (Mars)", significance: "आपकी जन्म कुंडली का लग्न मेष (Mesh) है, जिसके स्वामी मंगल देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 3 मुखी (3 Mukhi) है जो आत्मबल, ऊर्जा और मंगल दोष निवारण प्रदान करता है।" },
+    "मेष": { mukhi: "3 Mukhi Rudraksha", mukhiNumber: 3, beejMantra: "ॐ क्लीं नमः", lord: "Mangal Dev (Mars)", significance: "आपकी जन्म कुंडली का लग्न मेष (Mesh) है, जिसके स्वामी मंगल देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 3 मुखी (3 Mukhi) है जो आत्मबल, ऊर्जा और मंगल दोष निवारण प्रदान करता है।" },
+
+    "Vrishabh": { mukhi: "6 Mukhi Rudraksha", mukhiNumber: 6, beejMantra: "ॐ ह्रीं हुं नमः", lord: "Shukra Dev (Venus)", significance: "आपकी जन्म कुंडली का लग्न वृषभ (Vrishabh) है, जिसके स्वामी शुक्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 6 मुखी (6 Mukhi) है जो ज्ञान, आकर्षण, बुद्धि और शुक्र की कृपा प्रदान करता है।" },
+    "Taurus": { mukhi: "6 Mukhi Rudraksha", mukhiNumber: 6, beejMantra: "ॐ ह्रीं हुं नमः", lord: "Shukra Dev (Venus)", significance: "आपकी जन्म कुंडली का लग्न वृषभ (Vrishabh) है, जिसके स्वामी शुक्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 6 मुखी (6 Mukhi) है जो ज्ञान, आकर्षण, बुद्धि और शुक्र की कृपा प्रदान करता है।" },
+    "वृषभ": { mukhi: "6 Mukhi Rudraksha", mukhiNumber: 6, beejMantra: "ॐ ह्रीं हुं नमः", lord: "Shukra Dev (Venus)", significance: "आपकी जन्म कुंडली का लग्न वृषभ (Vrishabh) है, जिसके स्वामी शुक्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 6 मुखी (6 Mukhi) है जो ज्ञान, आकर्षण, बुद्धि और शुक्र की कृपा प्रदान करता है।" },
+
+    "Mithun": { mukhi: "4 Mukhi Rudraksha", mukhiNumber: 4, beejMantra: "ॐ ह्रीं नमः", lord: "Budha Dev (Mercury)", significance: "आपकी जन्म कुंडली का लग्न मिथुन (Mithun) है, जिसके स्वामी बुध देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 4 मुखी (4 Mukhi) है जो वाक्-सिद्धि, कुशाग्र बुद्धि, व्यापारिक विवेक और वाणी बल प्रदान करता है।" },
+    "Gemini": { mukhi: "4 Mukhi Rudraksha", mukhiNumber: 4, beejMantra: "ॐ ह्रीं नमः", lord: "Budha Dev (Mercury)", significance: "आपकी जन्म कुंडली का लग्न मिथुन (Mithun) है, जिसके स्वामी बुध देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 4 मुखी (4 Mukhi) है जो वाक्-सिद्धि, कुशाग्र बुद्धि, व्यापारिक विवेक और वाणी बल प्रदान करता है।" },
+    "मिथुन": { mukhi: "4 Mukhi Rudraksha", mukhiNumber: 4, beejMantra: "ॐ ह्रीं नमः", lord: "Budha Dev (Mercury)", significance: "आपकी जन्म कुंडली का लग्न मिथुन (Mithun) है, जिसके स्वामी बुध देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 4 मुखी (4 Mukhi) है जो वाक्-सिद्धि, कुशाग्र बुद्धि, व्यापारिक विवेक और वाणी बल प्रदान करता है।" },
+
+    "Kark": { mukhi: "2 Mukhi Rudraksha", mukhiNumber: 2, beejMantra: "ॐ नमः", lord: "Chandra Dev (Moon)", significance: "आपकी जन्म कुंडली का लग्न कर्क (Kark) है, जिसके स्वामी चंद्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 2 मुखी (2 Mukhi) है जो मानसिक शांति, अर्धनारीश्वर कृपा और भावनात्मक संतुलन प्रदान करता है।" },
+    "Cancer": { mukhi: "2 Mukhi Rudraksha", mukhiNumber: 2, beejMantra: "ॐ नमः", lord: "Chandra Dev (Moon)", significance: "आपकी जन्म कुंडली का लग्न कर्क (Kark) है, जिसके स्वामी चंद्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 2 मुखी (2 Mukhi) है जो मानसिक शांति, अर्धनारीश्वर कृपा और भावनात्मक संतुलन प्रदान करता है।" },
+    "कर्क": { mukhi: "2 Mukhi Rudraksha", mukhiNumber: 2, beejMantra: "ॐ नमः", lord: "Chandra Dev (Moon)", significance: "आपकी जन्म कुंडली का लग्न कर्क (Kark) है, जिसके स्वामी चंद्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 2 मुखी (2 Mukhi) है जो मानसिक शांति, अर्धनारीश्वर कृपा और भावनात्मक संतुलन प्रदान करता है।" },
+
+    "Singh": { mukhi: "1 Mukhi Rudraksha", mukhiNumber: 1, beejMantra: "ॐ ह्रीं नमः", lord: "Surya Dev (Sun)", significance: "आपकी जन्म कुंडली का लग्न सिंह (Singh) है, जिसके स्वामी सूर्य देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 1 मुखी (1 Mukhi / 12 Mukhi) है जो नेतृत्व, राजकीय सम्मान, आत्मबल और सूर्य तेज प्रदान करता है।" },
+    "Leo": { mukhi: "1 Mukhi Rudraksha", mukhiNumber: 1, beejMantra: "ॐ ह्रीं नमः", lord: "Surya Dev (Sun)", significance: "आपकी जन्म कुंडली का लग्न सिंह (Singh) है, जिसके स्वामी सूर्य देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 1 मुखी (1 Mukhi / 12 Mukhi) है जो नेतृत्व, राजकीय सम्मान, आत्मबल और सूर्य तेज प्रदान करता है।" },
+    "सिंह": { mukhi: "1 Mukhi Rudraksha", mukhiNumber: 1, beejMantra: "ॐ ह्रीं नमः", lord: "Surya Dev (Sun)", significance: "आपकी जन्म कुंडली का लग्न सिंह (Singh) है, जिसके स्वामी सूर्य देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 1 मुखी (1 Mukhi / 12 Mukhi) है जो नेतृत्व, राजकीय सम्मान, आत्मबल और सूर्य तेज प्रदान करता है।" },
+
+    "Kanya": { mukhi: "4 Mukhi Rudraksha", mukhiNumber: 4, beejMantra: "ॐ ह्रीं नमः", lord: "Budha Dev (Mercury)", significance: "आपकी जन्म कुंडली का लग्न कन्या (Kanya) है, जिसके स्वामी बुध देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 4 मुखी (4 Mukhi) है जो बौद्धिक स्पष्टता, विश्लेषणात्मक क्षमता और बुद्ध कृपा प्रदान करता है।" },
+    "Virgo": { mukhi: "4 Mukhi Rudraksha", mukhiNumber: 4, beejMantra: "ॐ ह्रीं नमः", lord: "Budha Dev (Mercury)", significance: "आपकी जन्म कुंडली का लग्न कन्या (Kanya) है, जिसके स्वामी बुध देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 4 मुखी (4 Mukhi) है जो बौद्धिक स्पष्टता, विश्लेषणात्मक क्षमता और बुद्ध कृपा प्रदान करता है।" },
+    "कन्या": { mukhi: "4 Mukhi Rudraksha", mukhiNumber: 4, beejMantra: "ॐ ह्रीं नमः", lord: "Budha Dev (Mercury)", significance: "आपकी जन्म कुंडली का लग्न कन्या (Kanya) है, जिसके स्वामी बुध देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 4 मुखी (4 Mukhi) है जो बौद्धिक स्पष्टता, विश्लेषणात्मक क्षमता और बुद्ध कृपा प्रदान करता है।" },
+
+    "Tula": { mukhi: "6 Mukhi Rudraksha", mukhiNumber: 6, beejMantra: "ॐ ह्रीं हुं नमः", lord: "Shukra Dev (Venus)", significance: "आपकी जन्म कुंडली का लग्न तुला (Tula) है, जिसके स्वामी शुक्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 6 मुखी (6 Mukhi) है जो जीवन में सौन्दर्य, सामंजस्य, कला और शुक्र की कृपा प्रदान करता है।" },
+    "Libra": { mukhi: "6 Mukhi Rudraksha", mukhiNumber: 6, beejMantra: "ॐ ह्रीं हुं नमः", lord: "Shukra Dev (Venus)", significance: "आपकी जन्म कुंडली का लग्न तुला (Tula) है, जिसके स्वामी शुक्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 6 मुखी (6 Mukhi) है जो जीवन में सौन्दर्य, सामंजस्य, कला और शुक्र की कृपा प्रदान करता है।" },
+    "तुला": { mukhi: "6 Mukhi Rudraksha", mukhiNumber: 6, beejMantra: "ॐ ह्रीं हुं नमः", lord: "Shukra Dev (Venus)", significance: "आपकी जन्म कुंडली का लग्न तुला (Tula) है, जिसके स्वामी शुक्र देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 6 मुखी (6 Mukhi) है जो जीवन में सौन्दर्य, सामंजस्य, कला और शुक्र की कृपा प्रदान करता है।" },
+
+    "Vrischika": { mukhi: "3 Mukhi Rudraksha", mukhiNumber: 3, beejMantra: "ॐ क्लीं नमः", lord: "Mangal Dev (Mars)", significance: "आपकी जन्म कुंडली का लग्न वृश्चिक (Vrischika) है, जिसके स्वामी मंगल देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 3 मुखी (3 Mukhi) है जो बाधा मुक्ति, प्रचंड ऊर्जा और मंगल कृपा प्रदान करता है।" },
+    "Scorpio": { mukhi: "3 Mukhi Rudraksha", mukhiNumber: 3, beejMantra: "ॐ क्लीं नमः", lord: "Mangal Dev (Mars)", significance: "आपकी जन्म कुंडली का लग्न वृश्चिक (Vrischika) है, जिसके स्वामी मंगल देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 3 मुखी (3 Mukhi) है जो बाधा मुक्ति, प्रचंड ऊर्जा और मंगल कृपा प्रदान करता है।" },
+    "वृश्चिक": { mukhi: "3 Mukhi Rudraksha", mukhiNumber: 3, beejMantra: "ॐ क्लीं नमः", lord: "Mangal Dev (Mars)", significance: "आपकी जन्म कुंडली का लग्न वृश्चिक (Vrischika) है, जिसके स्वामी मंगल देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 3 मुखी (3 Mukhi) है जो बाधा मुक्ति, प्रचंड ऊर्जा और मंगल कृपा प्रदान करता है।" },
+
+    "Dhanu": { mukhi: "5 Mukhi Rudraksha", mukhiNumber: 5, beejMantra: "ॐ ह्रीं नमः", lord: "Guru Brihaspati (Jupiter)", significance: "आपकी जन्म कुंडली का लग्न धनु (Dhanu) है, जिसके स्वामी गुरु बृहस्पति हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 5 मुखी (5 Mukhi) है जो धर्म, उच्च ज्ञान, सुख-समृद्धि और गुरु कृपा प्रदान करता है।" },
+    "Sagittarius": { mukhi: "5 Mukhi Rudraksha", mukhiNumber: 5, beejMantra: "ॐ ह्रीं नमः", lord: "Guru Brihaspati (Jupiter)", significance: "आपकी जन्म कुंडली का लग्न धनु (Dhanu) है, जिसके स्वामी गुरु बृहस्पति हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 5 मुखी (5 Mukhi) है जो धर्म, उच्च ज्ञान, सुख-समृद्धि और गुरु कृपा प्रदान करता है।" },
+    "धनु": { mukhi: "5 Mukhi Rudraksha", mukhiNumber: 5, beejMantra: "ॐ ह्रीं नमः", lord: "Guru Brihaspati (Jupiter)", significance: "आपकी जन्म कुंडली का लग्न धनु (Dhanu) है, जिसके स्वामी गुरु बृहस्पति हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 5 मुखी (5 Mukhi) है जो धर्म, उच्च ज्ञान, सुख-समृद्धि और गुरु कृपा प्रदान करता है।" },
+
+    "Makar": { mukhi: "7 Mukhi Rudraksha", mukhiNumber: 7, beejMantra: "ॐ हुं नमः", lord: "Shani Dev (Saturn)", significance: "आपकी जन्म कुंडली का लग्न मकर (Makar) है, जिसके स्वामी शनि देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 7 मुखी (7 Mukhi) है जो महालक्ष्मी कृपा, शनि दोष शमन और दीर्घकालिक सफलता प्रदान करता है।" },
+    "Capricorn": { mukhi: "7 Mukhi Rudraksha", mukhiNumber: 7, beejMantra: "ॐ हुं नमः", lord: "Shani Dev (Saturn)", significance: "आपकी जन्म कुंडली का लग्न मकर (Makar) है, जिसके स्वामी शनि देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 7 मुखी (7 Mukhi) है जो महालक्ष्मी कृपा, शनि दोष शमन और दीर्घकालिक सफलता प्रदान करता है।" },
+    "मकर": { mukhi: "7 Mukhi Rudraksha", mukhiNumber: 7, beejMantra: "ॐ हुं नमः", lord: "Shani Dev (Saturn)", significance: "आपकी जन्म कुंडली का लग्न मकर (Makar) है, जिसके स्वामी शनि देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 7 मुखी (7 Mukhi) है जो महालक्ष्मी कृपा, शनि दोष शमन और दीर्घकालिक सफलता प्रदान करता है।" },
+
+    "Kumbh": { mukhi: "7 Mukhi Rudraksha", mukhiNumber: 7, beejMantra: "ॐ हुं नमः", lord: "Shani Dev (Saturn)", significance: "आपकी जन्म कुंडली का लग्न कुंभ (Kumbh) है, जिसके स्वामी शनि देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 7 मुखी (7 Mukhi) है जो महालक्ष्मी कृपा, आर्थिक स्थिरता और शनि देव की छत्रछाया प्रदान करता है।" },
+    "Aquarius": { mukhi: "7 Mukhi Rudraksha", mukhiNumber: 7, beejMantra: "ॐ हुं नमः", lord: "Shani Dev (Saturn)", significance: "आपकी जन्म कुंडली का लग्न कुंभ (Kumbh) है, जिसके स्वामी शनि देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 7 मुखी (7 Mukhi) है जो महालक्ष्मी कृपा, आर्थिक स्थिरता और शनि देव की छत्रछाया प्रदान करता है।" },
+    "कुंभ": { mukhi: "7 Mukhi Rudraksha", mukhiNumber: 7, beejMantra: "ॐ हुं नमः", lord: "Shani Dev (Saturn)", significance: "आपकी जन्म कुंडली का लग्न कुंभ (Kumbh) है, जिसके स्वामी शनि देव हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 7 मुखी (7 Mukhi) है जो महालक्ष्मी कृपा, आर्थिक स्थिरता और शनि देव की छत्रछाया प्रदान करता है।" },
+
+    "Meen": { mukhi: "5 Mukhi Rudraksha", mukhiNumber: 5, beejMantra: "ॐ ह्रीं नमः", lord: "Guru Brihaspati (Jupiter)", significance: "आपकी जन्म कुंडली का लग्न मीन (Meen) है, जिसके स्वामी गुरु बृहस्पति हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 5 मुखी (5 Mukhi) है जो आध्यात्मिक चेतना, सात्विक ज्ञान और गुरु देव का आशीर्वाद प्रदान करता है।" },
+    "Pisces": { mukhi: "5 Mukhi Rudraksha", mukhiNumber: 5, beejMantra: "ॐ ह्रीं नमः", lord: "Guru Brihaspati (Jupiter)", significance: "आपकी जन्म कुंडली का लग्न मीन (Meen) है, जिसके स्वामी गुरु बृहस्पति हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 5 मुखी (5 Mukhi) है जो आध्यात्मिक चेतना, सात्विक ज्ञान और गुरु देव का आशीर्वाद प्रदान करता है।" },
+    "मीन": { mukhi: "5 Mukhi Rudraksha", mukhiNumber: 5, beejMantra: "ॐ ह्रीं नमः", lord: "Guru Brihaspati (Jupiter)", significance: "आपकी जन्म कुंडली का लग्न मीन (Meen) है, जिसके स्वामी गुरु बृहस्पति हैं। आपके जीवन का स्थायी PRIMARY रुद्राक्ष 5 मुखी (5 Mukhi) है जो आध्यात्मिक चेतना, सात्विक ज्ञान और गुरु देव का आशीर्वाद प्रदान करता है।" }
+  };
+
+  let matched = LAGNA_CANONICAL_PRIMARY_MAP[lagnaRashiName];
+
+  if (!matched && lagnaRashiName) {
+    for (const [kKey, val] of Object.entries(LAGNA_CANONICAL_PRIMARY_MAP)) {
+      if (lagnaRashiName.toLowerCase().includes(kKey.toLowerCase())) {
+        matched = val;
+        break;
+      }
+    }
+  }
+
+  if (!matched) {
+    const chandraName = astro.chandraRashi?.rashiName || astro.chandraRashi?.rashiHindi || astro.rashiHindi || "";
+    if (chandraName && LAGNA_CANONICAL_PRIMARY_MAP[chandraName]) {
+      matched = LAGNA_CANONICAL_PRIMARY_MAP[chandraName];
+    }
+  }
+
+  if (matched) {
+    return {
+      role: "Canonical Primary Life Rudraksha (इष्ट व लग्न अधिपति)",
+      mukhi: matched.mukhi,
+      mukhiNumber: matched.mukhiNumber,
+      beejMantra: matched.beejMantra,
+      significance: matched.significance,
+      isCanonicalPrimary: true
+    };
+  }
+
+  return {
+    role: "Canonical Primary Life Rudraksha (इष्ट व लग्न अधिपति)",
+    mukhi: "5 Mukhi Rudraksha",
+    mukhiNumber: 5,
+    beejMantra: "ॐ ह्रीं नमः",
+    significance: "आपकी जन्म कुंडली के अनुसार 5 मुखी रुद्राक्ष आपका स्थायी प्राथमिक (PRIMARY) रुद्राक्ष है।",
+    isCanonicalPrimary: true
+  };
+}
+
+/**
  * 12 Classical Types of Kaal Sarp Dosha Determination
  */
 function getKaalSarpType(rahuHouse, ketuHouse, planets) {
@@ -1286,149 +1399,60 @@ export function calculateAuthenticKundali(params = {}) {
   // Badhaka & Maraka Analysis
   const badhakaMarakaInfo = getBadhakaAndMaraka(lagnaRashiIndex, houses);
 
+  // Manglik Dosha Analysis
+  const mars = planets.find(p => p.key === "Mars") || {};
+  const marsHouse = mars.houseNumber || 1;
+  const isManglikPosition = [1, 4, 7, 8, 12].includes(marsHouse);
+  const isMarsInOwnOrExalted = mars.dignity?.includes("Exalted") || mars.dignity?.includes("Own");
+  const isManglik = isManglikPosition && !isMarsInOwnOrExalted;
+
+  // Sade Sati & Kaal Sarp
+  const saturn = planets.find(p => p.key === "Saturn") || {};
+  const saturnSidDeg = saturn.totalDegree || 0;
+  const sadeSatiInfo = getSadeSatiStatus(moonDetails.rashiIndex, saturnSidDeg);
+
+  const rahu = planets.find(p => p.key === "Rahu") || {};
+  const ketu = planets.find(p => p.key === "Ketu") || {};
+  const kaalSarpInfo = getKaalSarpType(rahu.houseNumber || 1, ketu.houseNumber || 7, planets);
+
+  // Yogas
+  const yogas = [];
+  const jup = planets.find(p => p.key === "Jupiter");
+  const moon = planets.find(p => p.key === "Moon");
+  if (jup && moon) {
+    const diff = ((jup.houseNumber - moon.houseNumber + 12) % 12) + 1;
+    if ([1, 4, 7, 10].includes(diff)) {
+      yogas.push({ name: "Gajakesari Yoga", category: "Raja Yoga", description: "Guru-Chandra Kendra sthiti: Yash, vidya aur samman prapti." });
+    }
+  }
+
   // Vimshottari Dasha
   const dashaInfo = calculateVimshottariDasha(moonSid, birthDateObj, new Date());
 
   // Lagna Analysis & Yogakaraka
   const lagnaBeneficInfo = getLagnaBenefics(lagnaRashiIndex);
 
-  // Astrological Dosha checks
-  const marsPlanet = planets.find(p => p.englishName === "Mars");
-  const marsHouse = marsPlanet?.houseNumber || 1;
-  const isManglikPosition = [1, 4, 7, 8, 12].includes(marsHouse);
-  
-  // Parashari Manglik cancellation checks:
-  // Mars in own sign (Aries/Scorpio) or exalted (Capricorn), or Jupiter aspect
-  const marsDignity = marsPlanet?.dignity || "";
-  const isMarsInOwnOrExalted = marsDignity.includes("Own") || marsDignity.includes("Exalted");
-  const isManglik = isManglikPosition && !isMarsInOwnOrExalted;
-
-  // Kaal Sarp Dosha Check
-  const rahuHouse = planets.find(p => p.englishName === "Rahu")?.houseNumber || 1;
-  const ketuHouse = planets.find(p => p.englishName === "Ketu")?.houseNumber || 7;
-  const kaalSarpInfo = getKaalSarpType(rahuHouse, ketuHouse, planets);
-
-  // Sade Sati Status
-  const sadeSatiInfo = getSadeSatiStatus(moonDetails.rashiIndex, satSid);
-
-  // Classical & Parashari Yogas Analysis
-  const yogas = [];
-  const jupPlanet = planets.find(p => p.englishName === "Jupiter");
-  const moonPlanet = planets.find(p => p.englishName === "Moon");
-  const sunPlanet = planets.find(p => p.englishName === "Sun");
-  const mercPlanet = planets.find(p => p.englishName === "Mercury");
-  const satPlanet = planets.find(p => p.englishName === "Saturn");
-  const venPlanet = planets.find(p => p.englishName === "Venus");
-
-  // 1. Gajakesari Yoga
-  if (jupPlanet && moonPlanet) {
-    const jupMoonDiff = Math.abs(jupPlanet.houseNumber - moonPlanet.houseNumber);
-    if ([0, 3, 6, 9].includes(jupMoonDiff)) {
-      yogas.push({ name: "Gajakesari Yoga (गजकेसरी योग)", category: "Auspicious Raja Yoga", description: "Jupiter in Kendra (1st, 4th, 7th, 10th) from Moon. Bestows wisdom, high social respect, lasting prosperity, and divine protection." });
-    }
-  }
-
-  // 2. Budhaditya Yoga
-  if (sunPlanet && mercPlanet && sunPlanet.houseNumber === mercPlanet.houseNumber) {
-    const isMercCombust = mercPlanet.isCombust;
-    yogas.push({ 
-      name: "Budhaditya Yoga (बुधादित्य योग)", 
-      category: "Intellectual Raja Yoga", 
-      description: isMercCombust 
-        ? "Sun and Mercury conjunction in House " + sunPlanet.houseNumber + ". Bestows sharp intellect, commercial acumen, and analytical prowess." 
-        : "Pure uncombust Sun-Mercury conjunction in House " + sunPlanet.houseNumber + ". Bestows extraordinary intelligence, administrative success, eloquence, and sharp judgment." 
-    });
-  }
-
-  // 3. Pancha Mahapurusha Yogas (Kendra + Own/Exalted)
-  const kendraHouses = [1, 4, 7, 10];
-  if (marsPlanet && kendraHouses.includes(marsPlanet.houseNumber) && (marsPlanet.dignity.includes("Exalted") || marsPlanet.dignity.includes("Own"))) {
-    yogas.push({ name: "Ruchaka Mahapurusha Yoga (रुचक महापुरुष योग)", category: "Pancha Mahapurusha", description: "Mars in Kendra in Own/Exalted sign. Bestows immense physical courage, leadership, high administrative/military rank, and land authority." });
-  }
-  if (mercPlanet && kendraHouses.includes(mercPlanet.houseNumber) && (mercPlanet.dignity.includes("Exalted") || mercPlanet.dignity.includes("Own"))) {
-    yogas.push({ name: "Bhadra Mahapurusha Yoga (भद्र महापुरुष योग)", category: "Pancha Mahapurusha", description: "Mercury in Kendra in Gemini/Virgo. Bestows profound intellectual genius, scholarly eloquence, longevity, and high commercial mastery." });
-  }
-  if (jupPlanet && kendraHouses.includes(jupPlanet.houseNumber) && (jupPlanet.dignity.includes("Exalted") || jupPlanet.dignity.includes("Own"))) {
-    yogas.push({ name: "Hamsa Mahapurusha Yoga (हंस महापुरुष योग)", category: "Pancha Mahapurusha", description: "Jupiter in Kendra in Cancer/Sagittarius/Pisces. Bestows righteousness, supreme spiritual wisdom, high respect from rulers, and noble character." });
-  }
-  if (venPlanet && kendraHouses.includes(venPlanet.houseNumber) && (venPlanet.dignity.includes("Exalted") || venPlanet.dignity.includes("Own"))) {
-    yogas.push({ name: "Malavya Mahapurusha Yoga (मालव्य महापुरुष योग)", category: "Pancha Mahapurusha", description: "Venus in Kendra in Taurus/Libra/Pisces. Bestows magnetic charisma, artistic elegance, luxurious conveyances, marital bliss, and wealth." });
-  }
-  if (satPlanet && kendraHouses.includes(satPlanet.houseNumber) && (satPlanet.dignity.includes("Exalted") || satPlanet.dignity.includes("Own"))) {
-    yogas.push({ name: "Sasa Mahapurusha Yoga (शश महापुरुष योग)", category: "Pancha Mahapurusha", description: "Saturn in Kendra in Capricorn/Aquarius/Libra. Bestows steadfast perseverance, mass leadership, strategic patience, authority over land and institutions." });
-  }
-
-  // 4. Vipreet Raja Yogas (Harsha, Sarala, Vimala)
-  const house6Lord = houses[5]?.lord;
-  const house8Lord = houses[7]?.lord;
-  const house12Lord = houses[11]?.lord;
-
-  const house6LordPlanet = planets.find(p => p.name.includes(house6Lord) || p.englishName.includes(house6Lord));
-  const house8LordPlanet = planets.find(p => p.name.includes(house8Lord) || p.englishName.includes(house8Lord));
-  const house12LordPlanet = planets.find(p => p.name.includes(house12Lord) || p.englishName.includes(house12Lord));
-
-  if (house6LordPlanet && [6, 8, 12].includes(house6LordPlanet.houseNumber)) {
-    yogas.push({ name: "Harsha Vipreet Raja Yoga (हर्ष विपरीत राजयोग)", category: "Vipreet Raja Yoga", description: "6th Lord placed in Trik House (6th, 8th, or 12th). Grants victory over enemies, resilience against illness, and rise after initial struggle." });
-  }
-  if (house8LordPlanet && [6, 8, 12].includes(house8LordPlanet.houseNumber)) {
-    yogas.push({ name: "Sarala Vipreet Raja Yoga (सरल विपरीत राजयोग)", category: "Vipreet Raja Yoga", description: "8th Lord placed in Trik House (6th, 8th, or 12th). Bestows fearlessness, unexpected windfalls, deep longevity, and triumph over adversities." });
-  }
-  if (house12LordPlanet && [6, 8, 12].includes(house12LordPlanet.houseNumber)) {
-    yogas.push({ name: "Vimala Vipreet Raja Yoga (विमल विपरीत राजयोग)", category: "Vipreet Raja Yoga", description: "12th Lord placed in Trik House (6th, 8th, or 12th). Bestows noble character, financial independence, spiritual inclination, and freedom from heavy debts." });
-  }
-
-  // 5. Chandra-Mangal Yoga (Wealth from Enterprise)
-  if (moonPlanet && marsPlanet && moonPlanet.houseNumber === marsPlanet.houseNumber) {
-    yogas.push({ name: "Chandra-Mangal Yoga (चंद्र-मंगल धन योग)", category: "Dhana Yoga", description: "Moon and Mars conjunction. Bestows energetic business acumen, financial enterprise, real estate accumulation, and strong earning capability." });
-  }
-
-  // 6. Neecha Bhanga Raja Yoga (NBRY) check
-  planets.filter(p => p.dignity.includes("Debilitated")).forEach(debPlanet => {
-    // Check if dispositor is in Kendra from Lagna or Moon
-    const debSignIdx = debPlanet.rawDegreeInSign !== undefined ? Math.floor(debPlanet.totalDegree / 30) : 0;
-    const dispositorLordName = RASHIS[debSignIdx]?.lord;
-    const dispositorPlanet = planets.find(p => p.name.includes(dispositorLordName) || p.englishName.includes(dispositorLordName));
-    
-    let isDispositorInKendra = false;
-    if (dispositorPlanet) {
-      const fromLagna = kendraHouses.includes(dispositorPlanet.houseNumber);
-      const fromMoon = moonPlanet ? kendraHouses.includes(((dispositorPlanet.houseNumber - moonPlanet.houseNumber + 12) % 12) + 1) : false;
-      isDispositorInKendra = fromLagna || fromMoon;
-    }
-
-    const isDebInKendra = kendraHouses.includes(debPlanet.houseNumber);
-    const isExaltedInD9 = debPlanet.navamshaRashiHindi && debPlanet.navamshaRashiHindi.includes(RASHIS[debSignIdx]?.name);
-
-    if (isDispositorInKendra || isDebInKendra || isExaltedInD9) {
-      yogas.push({
-        name: `Neecha Bhanga Raja Yoga for ${debPlanet.name} (नीचभंग राजयोग)`,
-        category: "Neecha Bhanga",
-        description: `${debPlanet.name} debilitated in D1 parantu Parashari NBRY rules se dosha cancel hokar powerful Raja Yoga mein transform ho gaya hai. Shuruaati sangharsh ke baad apratim safalta milegi.`
-      });
+  // CANONICAL PRIMARY RUDRAKSHA: ONE KUNDALI = ONE CANONICAL PRIMARY RUDRAKSHA
+  // Derived strictly from Lagna Lord (लग्नेश) and constant across all concerns, questions, and dates.
+  const canonicalPrimary = getCanonicalPrimaryRudraksha({
+    astronomicalKundali: {
+      lagna: lagnaDetails,
+      chandraRashi: moonDetails,
+      lagnaBeneficInfo
     }
   });
 
-  // 7. Vargottama Yoga
-  const vargottamaPlanets = planets.filter(p => p.isVargottama);
-  if (vargottamaPlanets.length > 0) {
-    yogas.push({
-      name: `Vargottama Graha Yoga (${vargottamaPlanets.map(p => p.name).join(", ")})`,
-      category: "Varga Strength",
-      description: "Planets occupying identical signs in D1 (Rashi) and D9 (Navamsha). Imparts steadfast strength, pure natural karakatwa, and auspicious longevity."
-    });
-  }
-
-  // Rudraksha recommendations tailored from Lagna + Rashi + Dasha + Concern
+  // Rudraksha recommendations: Entry 0 is ALWAYS the Immutable Canonical Primary Rudraksha
   const rudrakshaRecommendations = [];
 
-  // 1. Lagna Rudraksha (Vitality & Protection)
-  const lagnaRudrakshaMukhi = lagnaBeneficInfo.primeMukhi;
+  // 1. Canonical Primary Life Rudraksha (Lagna Lord)
   rudrakshaRecommendations.push({
-    role: "Lagna Lord Rudraksha (लग्न अधिपति)",
-    significance: `Aapke Lagna (${lagnaDetails.rashiName} / ${lagnaDetails.rashiEnglish}) ke swami ${lagnaBeneficInfo.lagnesh} hain. Yeh sharir, aatmavishwas aur aura shuddhi ke liye param aavashyak hai.`,
-    mukhi: `${lagnaRudrakshaMukhi} Mukhi Rudraksha`,
-    mukhiNumber: lagnaRudrakshaMukhi,
-    beejMantra: lagnaRudrakshaMukhi === 1 ? "Om Hreem Namah" : (lagnaRudrakshaMukhi === 5 ? "Om Hreem Namah" : "Om Namah Shivaya")
+    role: "Canonical Primary Life Rudraksha (इष्ट व लग्न अधिपति)",
+    significance: canonicalPrimary.significance,
+    mukhi: canonicalPrimary.mukhi,
+    mukhiNumber: canonicalPrimary.mukhiNumber,
+    beejMantra: canonicalPrimary.beejMantra,
+    isCanonicalPrimary: true
   });
 
   // 2. Rashi Rudraksha (Mind & Harmony)
@@ -1442,7 +1466,8 @@ export function calculateAuthenticKundali(params = {}) {
     role: "Chandra Rashi Rudraksha (चंद्र राशि अधिपति)",
     significance: `Aapki Janma Rashi ${moonDetails.rashiName} (${moonDetails.rashiEnglish}) hai, jiske Swami ${moonDetails.lord} hain. Yeh man ki shanti, emotional balance aur decision making ke liye labhkari hai.`,
     mukhi: `${rashiMukhi} Mukhi Rudraksha`,
-    mukhiNumber: rashiMukhi
+    mukhiNumber: rashiMukhi,
+    isCanonicalPrimary: false
   });
 
   // 3. Current Dasha Rudraksha
@@ -1450,37 +1475,39 @@ export function calculateAuthenticKundali(params = {}) {
     role: `Current Dasha Rudraksha (${dashaInfo.currentMahadasha} Mahadasha)`,
     significance: `Aapke jeevan mein vartaman mein ${dashaInfo.currentMahadashaHindi} ki Mahadasha chal rahi hai. Is grah ke shubh prabhav ko badhane hetu ${dashaInfo.recommendedDashaRudraksha} anukul hai.`,
     mukhi: dashaInfo.recommendedDashaRudraksha,
-    mukhiNumber: parseInt(dashaInfo.recommendedDashaRudraksha, 10) || 5
+    mukhiNumber: parseInt(dashaInfo.recommendedDashaRudraksha, 10) || 5,
+    isCanonicalPrimary: false
   });
 
-  // 4. Concern-Specific Rudraksha Recommendation (17 Life Areas + All + Custom)
+  // 4. Concern / Life Goal Complementary Focus (Explanation only - NEVER overrides Primary Mukhi)
   const concernMap = {
-    "all": { mukhi: "1 Mukhi / 5 Mukhi / 108 Jaap Mala / Siddha Mala", role: "Complete Life Guidance (संपूर्ण जीवन संरक्षण व सिद्धि)", significance: "समस्त 16 जीवन क्षेत्रों (करियर, स्वास्थ्य, धन, विवाह, संतान व मोक्ष) की समग्र उन्नति व सुरक्षा हेतु।" },
-    "career": { mukhi: "7 Mukhi / 10 Mukhi / 14 Mukhi", role: "Career & Leadership (करियर व आजीविका)", significance: "Lord Shiva & Lakshmi blessing for profession, stable growth, authority & promotion." },
-    "business": { mukhi: "7 Mukhi / 8 Mukhi / 12 Mukhi", role: "Business & Trade (व्यापार व व्यवसाय वृद्धि)", significance: "Vighnaharta Ganesha & Mahalakshmi grace for business expansion and cash flow." },
-    "education": { mukhi: "4 Mukhi / 5 Mukhi / Saraswati Bandh", role: "Education & Intellect (विद्या व एकाग्रता)", significance: "Lord Brahma & Devi Saraswati blessings for memory, concentration & exam success." },
-    "marriage": { mukhi: "2 Mukhi / Gauri Shankar", role: "Marriage & Harmony (विवाह व दांपत्य सुख)", significance: "Ardhanarishvara blessing to remove delays in marriage and bless couples with lifelong unity." },
-    "love": { mukhi: "2 Mukhi / 6 Mukhi / 13 Mukhi", role: "Love & Attraction (प्रेम संबंध व आकर्षण)", significance: "Kamadeva & Kartikeya grace for sincere relationships, magnetism and mutual respect." },
-    "family": { mukhi: "2 Mukhi / 3 Mukhi / Gauri Shankar", role: "Family Peace (पारिवारिक शांति)", significance: "Harmonizes relations with parents, spouse and relatives, eliminates domestic discord." },
-    "health": { mukhi: "3 Mukhi / 5 Mukhi / 11 Mukhi", role: "Health & Longevity (आरोग्य व दीर्घायु)", significance: "Lord Agni & Hanuman blessing for vitality, digestion, immunity and chronic illness protection." },
-    "finance": { mukhi: "7 Mukhi / 13 Mukhi / 21 Mukhi", role: "Wealth & Debt Relief (धन समृद्धि व ऋण मुक्ति)", significance: "Mahalakshmi & Kubera grace for debt clearance, wealth retention and abundance." },
-    "children": { mukhi: "Garbh Gauri / 5 Mukhi / 9 Mukhi", role: "Children & Progeny (संतान सुख व कल्याण)", significance: "Devi Parvati & Ganesha blessings for progeny happiness, child protection and intelligence." },
-    "property": { mukhi: "3 Mukhi / 10 Mukhi / 14 Mukhi", role: "Property & Assets (भूमि, भवन व वाहन योग)", significance: "Lord Vishnu & Mangal dev blessings for real estate gains and dispute clearance." },
-    "spiritual": { mukhi: "1 Mukhi / 14 Mukhi / 108 Jaap Mala", role: "Spiritual Upliftment (आध्यात्मिक उन्नति व साधना)", significance: "Supreme Shiva consciousness for deep meditation, Kundalini awakening and peace." },
-    "foreign_travel": { mukhi: "8 Mukhi / 12 Mukhi", role: "Foreign Travel & Visa (विदेश यात्रा व विदेश योग)", significance: "Removes foreign settlement hurdles, visa delays and overseas career friction." },
-    "legal": { mukhi: "8 Mukhi / 10 Mukhi / 11 Mukhi", role: "Legal Victory (कोर्ट-कचहरी व कानूनी विजय)", significance: "Lord Hanuman & Yamraj protection against false allegations, lawsuits and enemies." },
-    "shani_dosha": { mukhi: "7 Mukhi / 14 Mukhi / 11 Mukhi", role: "Dosha & Shani Shanti (शनि साढ़े साती व ग्रह दोष)", significance: "Lord Shani & Rudra blessing to pacify Sade Sati, Dhaiya, Rahu/Ketu & Kaal Sarp afflictions." },
-    "peace": { mukhi: "2 Mukhi / 5 Mukhi", role: "Mental Peace (मानसिक शांति व तनाव मुक्ति)", significance: "Calms overthinking, anxiety, removes Chandra afflictions and brings serene focus." },
-    "general": { mukhi: "5 Mukhi / 7 Mukhi / 108 Jaap Mala", role: "General Auspiciousness (सर्वकल्याण व रक्षा)", significance: "Universal Kalagni Rudra protection for everyday well-being, luck and positivity." },
-    "custom": { mukhi: "1 Mukhi / 5 Mukhi / 11 Mukhi", role: "Special Purpose (विशेष संकल्प)", significance: customConcern ? `Devotee's custom concern: "${customConcern}".` : "Tailored Vedic solution for personal intention." }
+    "all": { mukhi: "1 Mukhi / 5 Mukhi / 108 Jaap Mala", role: "Complete Life Guidance (संपूर्ण जीवन संरक्षण)", significance: "समस्त जीवन क्षेत्रों की समग्र उन्नति हेतु पूरक मार्गदर्शन।" },
+    "career": { mukhi: "7 Mukhi / 10 Mukhi / 14 Mukhi", role: "Career & Leadership (करियर व आजीविका पूरक)", significance: "करियर और व्यावसायिक उन्नति हेतु पूरक मार्गदर्शन।" },
+    "business": { mukhi: "7 Mukhi / 8 Mukhi / 12 Mukhi", role: "Business & Trade (व्यापार व व्यवसाय पूरक)", significance: "व्यापार विस्तार व नकदी प्रवाह हेतु पूरक मार्गदर्शन।" },
+    "education": { mukhi: "4 Mukhi / 5 Mukhi", role: "Education & Intellect (विद्या व एकाग्रता पूरक)", significance: "विद्या, स्मरण शक्ति व परीक्षा सफलता हेतु पूरक मार्गदर्शन।" },
+    "marriage": { mukhi: "2 Mukhi / Gauri Shankar", role: "Marriage & Harmony (विवाह व दांपत्य पूरक)", significance: "विवाह व संबंधों में सामंजस्य हेतु पूरक मार्गदर्शन।" },
+    "love": { mukhi: "2 Mukhi / 6 Mukhi / 13 Mukhi", role: "Love & Attraction (प्रेम संबंध पूरक)", significance: "आपसी आकर्षण व प्रेम में सामंजस्य हेतु पूरक मार्गदर्शन।" },
+    "family": { mukhi: "2 Mukhi / 3 Mukhi", role: "Family Peace (पारिवारिक शांति पूरक)", significance: "पारिवारिक शांति व सुख हेतु पूरक मार्गदर्शन।" },
+    "health": { mukhi: "3 Mukhi / 5 Mukhi / 11 Mukhi", role: "Health & Vitality (आरोग्य पूरक)", significance: "स्वास्थ्य, ऊर्जा व इम्युनिटी हेतु पूरक मार्गदर्शन।" },
+    "finance": { mukhi: "7 Mukhi / 13 Mukhi", role: "Wealth & Debt Relief (धन समृद्धि पूरक)", significance: "आर्थिक स्थिरता व समृद्धि हेतु पूरक मार्गदर्शन।" },
+    "children": { mukhi: "Garbh Gauri / 5 Mukhi", role: "Children & Progeny (संतान सुख पूरक)", significance: "संतान सुख व संतान कल्याण हेतु पूरक मार्गदर्शन।" },
+    "property": { mukhi: "3 Mukhi / 10 Mukhi", role: "Property & Assets (भूमि भवन पूरक)", significance: "भूमि, मकान व स्थायी संपत्ति हेतु पूरक मार्गदर्शन।" },
+    "spiritual": { mukhi: "1 Mukhi / 14 Mukhi / 108 Jaap Mala", role: "Spiritual Upliftment (आध्यात्मिक उन्नति पूरक)", significance: "साधना व मानसिक ध्यान हेतु पूरक मार्गदर्शन।" },
+    "foreign_travel": { mukhi: "8 Mukhi / 12 Mukhi", role: "Foreign Travel & Visa (विदेश योग पूरक)", significance: "विदेश यात्रा व विदेश योग हेतु पूरक मार्गदर्शन।" },
+    "legal": { mukhi: "8 Mukhi / 10 Mukhi / 11 Mukhi", role: "Legal Victory (कानूनी विजय पूरक)", significance: "कानूनी अड़चनों के निवारण हेतु पूरक मार्गदर्शन।" },
+    "shani_dosha": { mukhi: "7 Mukhi / 14 Mukhi / 11 Mukhi", role: "Dosha & Shani Shanti (शनि व ग्रह शांति पूरक)", significance: "ग्रह शांति व ग्रह दोष निवारण हेतु पूरक मार्गदर्शन।" },
+    "peace": { mukhi: "2 Mukhi / 5 Mukhi", role: "Mental Peace (मानसिक शांति पूरक)", significance: "मानसिक शांति व तनाव मुक्ति हेतु पूरक मार्गदर्शन।" },
+    "general": { mukhi: "5 Mukhi / 7 Mukhi", role: "General Auspiciousness (सर्वकल्याण पूरक)", significance: "सामान्य कल्याण हेतु पूरक मार्गदर्शन।" },
+    "custom": { mukhi: "1 Mukhi / 5 Mukhi / 11 Mukhi", role: "Special Purpose (विशेष संकल्प पूरक)", significance: customConcern ? `Devotee's custom concern: "${customConcern}".` : "Tailored solution for personal intention." }
   };
 
   const selectedConcern = concernMap[concern] || concernMap["all"];
   rudrakshaRecommendations.push({
-    role: `Primary Life Goal (${selectedConcern.role})`,
-    significance: selectedConcern.significance,
+    role: `Complementary Goal Focus (${selectedConcern.role})`,
+    significance: `${selectedConcern.significance} (Note: Your PRIMARY Rudraksha remains ${canonicalPrimary.mukhi}).`,
     mukhi: selectedConcern.mukhi,
-    mukhiNumber: parseInt(selectedConcern.mukhi, 10) || 5
+    mukhiNumber: parseInt(selectedConcern.mukhi, 10) || canonicalPrimary.mukhiNumber,
+    isCanonicalPrimary: false
   });
 
   // Numerology Mulank (Day of Birth)

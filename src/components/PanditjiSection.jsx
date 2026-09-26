@@ -76,7 +76,7 @@ export function PanditjiSection() {
           birthPlace: birth.birthPlace || birthPlace.trim(),
           birthTime: birth.birthTime || birthTime || "12:00",
           concernObj: CONCERN_OPTIONS.find(c => c.id === concern),
-          recommendedMukhi: astro.rudrakshaRecommendations?.[0]?.mukhi || serverKundali.recommendedRudraksha?.mukhi || "7 Mukhi Rudraksha",
+          recommendedMukhi: astro.rudrakshaRecommendations?.[0]?.mukhi || serverKundali.recommendedRudraksha?.mukhi || null,
           beejMantra: astro.rudrakshaRecommendations?.[0]?.beejMantra || serverKundali.beejMantra || chandra.mantra || "Om Namah Shivaya",
           wearingDay: serverKundali.wearingDay || chandra.day || "सोमवार / शिव तिथि",
           matchedProduct: matchedProd,

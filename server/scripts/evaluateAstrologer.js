@@ -1,4 +1,4 @@
-import { calculateAuthenticKundali, determineAstrologicalIntent } from "../services/vedicAstrologyService.js";
+import { calculateAuthenticKundali, determineAstrologicalIntent, getCanonicalPrimaryRudraksha } from "../services/vedicAstrologyService.js";
 import { shouldPerformWebResearch } from "../services/groundingService.js";
 import { VEDIC_SHASTRA_KNOWLEDGE } from "../services/vedicKnowledgeService.js";
 
@@ -75,6 +75,41 @@ async function runEvaluationSuite() {
   assert(VEDIC_SHASTRA_KNOWLEDGE.classicalCanons.brihatJataka !== undefined, "Brihat Jataka canon present");
   assert(VEDIC_SHASTRA_KNOWLEDGE.classicalCanons.prashnaMarga !== undefined, "Prashna Marga canon present");
   assert(VEDIC_SHASTRA_KNOWLEDGE.lifeDomainMatrices.careerAndLeadership !== undefined, "Career domain matrix present");
+
+  // TEST 5: Canonical Primary Rudraksha Invariance Across Questions & Concerns
+  console.log("\n--- TEST SET 5: Canonical Primary Rudraksha Invariance ---");
+  const baseDetails = {
+    name: "Test Devotee",
+    dob: "1992-10-24",
+    birthTime: "14:15",
+    birthPlace: "Jaipur"
+  };
+
+  const businessKundali = calculateAuthenticKundali({ ...baseDetails, concern: "business" });
+  const studyKundali = calculateAuthenticKundali({ ...baseDetails, concern: "education" });
+  const financeKundali = calculateAuthenticKundali({ ...baseDetails, concern: "finance" });
+  const saturdayKundali = calculateAuthenticKundali({ ...baseDetails, concern: "shani_dosha" });
+  const newChatKundali = calculateAuthenticKundali({ ...baseDetails, concern: "all" });
+
+  const primaryBusiness = businessKundali.astronomicalKundali.rudrakshaRecommendations[0].mukhi;
+  const primaryStudy = studyKundali.astronomicalKundali.rudrakshaRecommendations[0].mukhi;
+  const primaryFinance = financeKundali.astronomicalKundali.rudrakshaRecommendations[0].mukhi;
+  const primarySaturday = saturdayKundali.astronomicalKundali.rudrakshaRecommendations[0].mukhi;
+  const primaryNewChat = newChatKundali.astronomicalKundali.rudrakshaRecommendations[0].mukhi;
+
+  const canonicalDirect = getCanonicalPrimaryRudraksha(businessKundali);
+
+  console.log(`  -> Calculated Primary Mukhi for Business: ${primaryBusiness}`);
+  console.log(`  -> Calculated Primary Mukhi for Study: ${primaryStudy}`);
+  console.log(`  -> Calculated Primary Mukhi for Finance: ${primaryFinance}`);
+  console.log(`  -> Calculated Primary Mukhi for Saturday/Shani: ${primarySaturday}`);
+  console.log(`  -> Calculated Primary Mukhi for New Chat: ${primaryNewChat}`);
+
+  assert(primaryBusiness === canonicalDirect.mukhi, "Business concern returns exact Canonical Primary Mukhi");
+  assert(primaryStudy === primaryBusiness, "Study concern returns SAME Primary Mukhi as Business");
+  assert(primaryFinance === primaryBusiness, "Finance concern returns SAME Primary Mukhi as Business");
+  assert(primarySaturday === primaryBusiness, "Saturday concern returns SAME Primary Mukhi as Business");
+  assert(primaryNewChat === primaryBusiness, "New Chat returns SAME Primary Mukhi as Business");
 
   console.log("\n==================================================");
   console.log(`SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests/totalTests)*100)}%)`);
