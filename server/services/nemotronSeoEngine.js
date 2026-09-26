@@ -246,9 +246,10 @@ export function filterAndRankKeywords(candidates = [], mainCore = "") {
  * Generate Natural Knowledge Base Keywords (Fallback Engine)
  */
 export function generateNaturalKeywordsFromKnowledge(cleanName, category = "Rudraksha", productInput = {}) {
-  const mukhiNum = extractMukhiNumber(cleanName) || extractMukhiNumber(productInput.mukhi);
+  const kind = classifyProductKind(cleanName, category);
+  const mukhiNum = kind === "rudraksha" ? (extractMukhiNumber(cleanName) || extractMukhiNumber(productInput.mukhi)) : null;
   const beadKnowledge = mukhiNum && VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)] ? VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)] : null;
-  const origin = (productInput.origin || "Nepal").trim();
+  const origin = (productInput.origin || (kind === "rudraksha" ? "Nepal" : "India")).trim();
 
   const { mainCore, coreTerms } = extractCoreHeadTerms(cleanName, category, mukhiNum);
   const candidateQueries = [];
@@ -256,42 +257,68 @@ export function generateNaturalKeywordsFromKnowledge(cleanName, category = "Rudr
   // Core terms
   coreTerms.forEach(ct => candidateQueries.push(ct));
 
-  // Commercial / Buy
-  candidateQueries.push(`buy ${mainCore}`);
-  candidateQueries.push(`buy ${mainCore} online`);
-  candidateQueries.push(`original ${mainCore}`);
-  candidateQueries.push(`genuine ${mainCore}`);
-  if (origin) candidateQueries.push(`${origin.toLowerCase()} ${mainCore}`);
+  if (kind === "puja") {
+    candidateQueries.push(`buy ${mainCore}`);
+    candidateQueries.push(`buy ${mainCore} online`);
+    candidateQueries.push(`pure ${mainCore}`);
+    candidateQueries.push(`organic ${mainCore}`);
+    candidateQueries.push(`${mainCore} for home temple`);
+    candidateQueries.push(`${mainCore} price`);
+    candidateQueries.push(`${mainCore} price in india`);
+    candidateQueries.push(`${mainCore} for daily aarti`);
+    candidateQueries.push(`chemical free ${mainCore}`);
+    candidateQueries.push(`best ${mainCore} for puja`);
+  } else if (kind === "mala") {
+    candidateQueries.push(`buy ${mainCore}`);
+    candidateQueries.push(`buy ${mainCore} online`);
+    candidateQueries.push(`original ${mainCore}`);
+    candidateQueries.push(`${mainCore} 108 beads`);
+    candidateQueries.push(`${mainCore} for meditation`);
+    candidateQueries.push(`${mainCore} japa string`);
+    candidateQueries.push(`${mainCore} price`);
+    candidateQueries.push(`${mainCore} ke fayde`);
+    candidateQueries.push(`consecrated ${mainCore}`);
+  } else if (kind === "bracelet") {
+    candidateQueries.push(`buy ${mainCore}`);
+    candidateQueries.push(`buy ${mainCore} online`);
+    candidateQueries.push(`original ${mainCore}`);
+    candidateQueries.push(`${mainCore} for wrist`);
+    candidateQueries.push(`${mainCore} price`);
+    candidateQueries.push(`${mainCore} for daily wear`);
+  } else if (kind === "yantra") {
+    candidateQueries.push(`buy ${mainCore}`);
+    candidateQueries.push(`buy ${mainCore} online`);
+    candidateQueries.push(`brass ${mainCore}`);
+    candidateQueries.push(`copper ${mainCore}`);
+    candidateQueries.push(`${mainCore} for home temple`);
+    candidateQueries.push(`${mainCore} vastu direction`);
+    candidateQueries.push(`${mainCore} price`);
+  } else {
+    // Rudraksha default
+    candidateQueries.push(`buy ${mainCore}`);
+    candidateQueries.push(`buy ${mainCore} online`);
+    candidateQueries.push(`original ${mainCore}`);
+    candidateQueries.push(`genuine ${mainCore}`);
+    if (origin) candidateQueries.push(`${origin.toLowerCase()} ${mainCore}`);
+    candidateQueries.push(`${mainCore} price`);
+    candidateQueries.push(`${mainCore} price in india`);
+    candidateQueries.push(`original ${mainCore} price`);
+    candidateQueries.push(`${mainCore} benefits`);
+    candidateQueries.push(`${mainCore} ke fayde`);
+    candidateQueries.push(`${mainCore} mantra`);
+    candidateQueries.push(`${mainCore} kis rashi ke liye`);
+    candidateQueries.push(`${mainCore} asli kaise pehchane`);
+    candidateQueries.push(`how to identify original ${mainCore}`);
+    candidateQueries.push(`${mainCore} kaise pehne`);
+    candidateQueries.push(`${mainCore} dharan vidhi`);
+    candidateQueries.push(`${mainCore} lab certified`);
 
-  // Price
-  candidateQueries.push(`${mainCore} price`);
-  candidateQueries.push(`${mainCore} price in india`);
-  candidateQueries.push(`original ${mainCore} price`);
-
-  // Informational / Benefits
-  candidateQueries.push(`${mainCore} benefits`);
-  candidateQueries.push(`${mainCore} ke fayde`);
-  candidateQueries.push(`${mainCore} mantra`);
-  candidateQueries.push(`${mainCore} kis rashi ke liye`);
-
-  // Authenticity
-  candidateQueries.push(`${mainCore} asli kaise pehchane`);
-  candidateQueries.push(`how to identify original ${mainCore}`);
-
-  // Wearing & Care
-  candidateQueries.push(`${mainCore} kaise pehne`);
-  candidateQueries.push(`${mainCore} dharan vidhi`);
-
-  // Certification & Origin
-  candidateQueries.push(`${mainCore} lab certified`);
-  if (origin) candidateQueries.push(`original ${origin.toLowerCase()} ${mainCore}`);
-
-  // Add knowledge base keywords if available
-  if (beadKnowledge && Array.isArray(beadKnowledge.keywords)) {
-    beadKnowledge.keywords.forEach(k => {
-      const kw = String(k).toLowerCase().trim();
-      if (kw && !kw.includes("|")) candidateQueries.push(kw);
-    });
+    if (beadKnowledge && Array.isArray(beadKnowledge.keywords)) {
+      beadKnowledge.keywords.forEach(k => {
+        const kw = String(k).toLowerCase().trim();
+        if (kw && !kw.includes("|")) candidateQueries.push(kw);
+      });
+    }
   }
 
   return filterAndRankKeywords(candidateQueries, mainCore);
@@ -1092,21 +1119,31 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
     k => (typeof k === "string" ? k.trim() : (k?.keyword || k?.term || k?.text || k?.value || "").trim())
   ).filter(Boolean);
 
+  const kind = classifyProductKind(cleanName, category);
+  const isPuja = kind === "puja";
+  const isMala = kind === "mala";
+  const isYantra = kind === "yantra";
+  const isRudraksha = kind === "rudraksha";
+
   const flatTags = Array.from(
     new Set([
-      category || "Rudraksha",
+      category || (isPuja ? "Puja Samagri" : isMala ? "Mala" : isYantra ? "Yantra & Idol" : "Rudraksha"),
       aiOutputParsed.vedicAstrology?.subCategory,
-      aiOutputParsed.vedicAstrology?.mukhi,
-      aiOutputParsed.vedicAstrology?.origin || origin || "Nepal",
+      isRudraksha ? aiOutputParsed.vedicAstrology?.mukhi : null,
+      isRudraksha ? (aiOutputParsed.vedicAstrology?.origin || origin || "Nepal") : "India",
       "Authentic",
-      "Lab Certified",
+      isPuja ? "Organic & Pure" : isRudraksha ? "Lab Certified" : "Handcrafted",
       "Prana Pratishtha"
     ])
   ).filter(Boolean);
 
   const flatHighlight = beadKnowledge?.primaryBenefits
     ? sanitizeMedicalAndHealthClaims(beadKnowledge.primaryBenefits.slice(0, 110)) + "..."
-    : `100% Consecrated • Authentic ${origin} Bead • Certified`;
+    : isPuja
+    ? "100% Pure & Organic • Chemical-Free • Consecrated for Home Temple"
+    : isMala
+    ? "108 Sacred Beads • Hand-Knotted • Consecrated for Meditation & Japa"
+    : `100% Consecrated • Authentic ${origin} Quality`;
 
   return {
     success: true,

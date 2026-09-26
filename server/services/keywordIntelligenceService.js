@@ -57,65 +57,103 @@ export const MASTER_KEYWORD_TAXONOMY = {
  */
 export function generateProductSeoMetadata(product = {}) {
   const name = String(product.name || "").trim();
-  const rawMukhi = product.mukhi || extractMukhiNumber(name);
-  const mukhi = rawMukhi && /^\d+$/.test(String(rawMukhi)) ? String(rawMukhi) : null;
-  const origin = (product.origin || "Nepal").trim();
   const category = (product.category || "Rudraksha").trim();
+  const nameLower = name.toLowerCase();
+  const catLower = category.toLowerCase();
+
+  const isPuja = catLower.includes("puja") || catLower.includes("samagri") || nameLower.includes("kapoor") || nameLower.includes("camphor") || nameLower.includes("dhoop") || nameLower.includes("agarbatti") || nameLower.includes("chandan") || nameLower.includes("ghee") || nameLower.includes("diya") || nameLower.includes("incense") || nameLower.includes("attar") || nameLower.includes("hawan");
+  const isMala = catLower.includes("mala") || nameLower.includes("mala") || nameLower.includes("kantha") || nameLower.includes("japa") || nameLower.includes("108");
+  const isBracelet = catLower.includes("bracelet") || nameLower.includes("bracelet") || nameLower.includes("wristlet");
+  const isYantra = catLower.includes("yantra") || catLower.includes("idol") || nameLower.includes("yantra") || nameLower.includes("idol") || nameLower.includes("statue");
+  const isRudraksha = !isPuja && !isYantra && (catLower.includes("rudraksha") || /mukhi/i.test(name) || /gauri/i.test(name) || /ganesh/i.test(name));
+
+  const rawMukhi = product.mukhi || extractMukhiNumber(name);
+  const mukhi = isRudraksha && rawMukhi && /^\d+$/.test(String(rawMukhi)) ? String(rawMukhi) : null;
+  const origin = (product.origin || (isRudraksha ? "Nepal" : "India")).trim();
 
   const beadData = mukhi && VEDIC_BEADS_KNOWLEDGE[mukhi] ? VEDIC_BEADS_KNOWLEDGE[mukhi] : null;
-  const deity = product.deity || beadData?.deity || (/gauri/i.test(name) ? "Shiva & Parvati" : /ganesh/i.test(name) ? "Lord Ganesha" : "Lord Shiva");
+  const deity = product.deity || beadData?.deity || (/gauri/i.test(name) ? "Shiva & Parvati" : /ganesh/i.test(name) ? "Lord Ganesha" : isPuja ? "All Deities (Universal Puja)" : "Lord Shiva");
   const planet = product.rulingPlanet || beadData?.planet || "Navagraha";
 
   let metaTitle = product.metaTitle || "";
   if (!metaTitle) {
     if (mukhi) {
-      metaTitle = `${mukhi} Mukhi Rudraksha (${origin}) — Lab Certified | Aura Rudraksha`;
-    } else if (/gauri\s*shankar/i.test(name)) {
-      metaTitle = `Original Gauri Shankar Rudraksha (${origin}) | Aura Rudraksha`;
-    } else if (/ganesh/i.test(name)) {
-      metaTitle = `Authentic Ganesh Rudraksha (${origin}) | Aura Rudraksha`;
-    } else if (category.toLowerCase().includes("mala")) {
-      metaTitle = `${name} | Aura Rudraksha`;
+      metaTitle = `${mukhi} Mukhi Rudraksha (${origin}) — Lab Certified | Aura Store`;
+    } else if (isPuja) {
+      metaTitle = `Pure ${name} — Organic & Chemical Free | Aura Puja Store`;
+    } else if (isMala) {
+      metaTitle = `Authentic 108 Bead ${name} | Aura Store`;
+    } else if (isYantra) {
+      metaTitle = `Consecrated ${name} | Auspicious Vastu & Puja`;
     } else {
-      metaTitle = `${name} — Authentic Lab Certified | Aura Rudraksha`;
+      metaTitle = `${name} — Authentic Consecrated | Aura Store`;
     }
   }
 
   let metaDescription = product.metaDescription || "";
   if (!metaDescription) {
     if (mukhi && beadData) {
-      metaDescription = `Buy authentic ${mukhi} Mukhi Rudraksha bead from ${origin}. Traditional Vedic significance, lab certificate, and insured India shipping.`;
+      metaDescription = `Buy authentic ${mukhi} Mukhi Rudraksha bead from ${origin}. Traditional Vedic significance, lab certificate, and insured shipping.`;
+    } else if (isPuja) {
+      metaDescription = `Buy pure, organic ${name} online for daily home temple, aarti, and hawan. 100% natural, chemical-free and sacred consecrated quality.`;
+    } else if (isMala) {
+      metaDescription = `Buy genuine ${name} online. Pre-energized 108 bead Japa & dhyana string for meditation, mantra chanting, and protective aura.`;
     } else {
-      metaDescription = `Buy genuine ${name} with laboratory authenticity certificate. Consecrated with traditional Vedic rituals at Aura Rudraksha.`;
+      metaDescription = `Buy genuine ${name} online. Pre-energized with traditional Vedic mantras for home temple, peace, and spiritual positivity.`;
     }
   }
 
-  const primaryAlt = `${name} - ${origin} Origin Lab Certified Rudraksha`;
+  const primaryAlt = isPuja 
+    ? `${name} - Pure Organic Home Temple Puja Samagri`
+    : isMala 
+    ? `${name} - Consecrated 108 Japa & Wearing String`
+    : `${name} - ${origin} Origin Consecrated Item`;
+
   const galleryAlts = [
-    `${name} front view showing natural mukhi lines and texture`,
-    `${name} authenticity certificate and laboratory verification`,
-    `${name} scale measurement and natural bead contours`
+    `${name} front view showing natural texture and purity`,
+    `${name} authentic packaging and store verification`,
+    `${name} scale measurement and natural details`
   ];
 
   const keywordSet = new Set();
-  if (mukhi && MASTER_KEYWORD_TAXONOMY.mukhiKeywords[mukhi]) {
-    MASTER_KEYWORD_TAXONOMY.mukhiKeywords[mukhi].forEach(k => keywordSet.add(k));
-  } else if (/gauri\s*shankar/i.test(name)) {
-    MASTER_KEYWORD_TAXONOMY.mukhiKeywords["gauri-shankar"].forEach(k => keywordSet.add(k));
-  } else if (/ganesh/i.test(name)) {
-    MASTER_KEYWORD_TAXONOMY.mukhiKeywords["ganesh"].forEach(k => keywordSet.add(k));
+  keywordSet.add(name.toLowerCase());
+
+  if (isPuja) {
+    keywordSet.add(`buy ${name.toLowerCase()} online`);
+    keywordSet.add(`pure ${name.toLowerCase()}`);
+    keywordSet.add("organic puja samagri");
+    keywordSet.add("home temple aarti essential");
+    keywordSet.add("chemical free dhoop agarbatti");
+    keywordSet.add("Aura Store");
+  } else if (isMala) {
+    keywordSet.add(`buy ${name.toLowerCase()} online`);
+    keywordSet.add("108 bead japa mala");
+    keywordSet.add("authentic japa mala for meditation");
+    keywordSet.add("consecrated chanting string");
+    keywordSet.add("Aura Store");
+  } else if (isYantra) {
+    keywordSet.add(`buy ${name.toLowerCase()} online`);
+    keywordSet.add("consecrated brass idol");
+    keywordSet.add("vastu yantra for home");
+    keywordSet.add("Aura Store");
+  } else if (isRudraksha) {
+    if (mukhi && MASTER_KEYWORD_TAXONOMY.mukhiKeywords[mukhi]) {
+      MASTER_KEYWORD_TAXONOMY.mukhiKeywords[mukhi].forEach(k => keywordSet.add(k));
+    } else if (/gauri\s*shankar/i.test(name)) {
+      MASTER_KEYWORD_TAXONOMY.mukhiKeywords["gauri-shankar"].forEach(k => keywordSet.add(k));
+    } else if (/ganesh/i.test(name)) {
+      MASTER_KEYWORD_TAXONOMY.mukhiKeywords["ganesh"].forEach(k => keywordSet.add(k));
+    }
+    keywordSet.add(`original ${origin.toLowerCase()} rudraksha`);
+    keywordSet.add("lab certified rudraksha");
+    keywordSet.add("Aura Rudraksha");
+  } else {
+    keywordSet.add(`buy ${name.toLowerCase()} online`);
+    keywordSet.add("consecrated spiritual items");
+    keywordSet.add("Aura Store");
   }
 
-  if (category.toLowerCase().includes("mala")) {
-    keywordSet.add("108 rudraksha japa mala");
-    keywordSet.add("rudraksha mala");
-  }
-
-  keywordSet.add(`original ${origin.toLowerCase()} rudraksha`);
-  keywordSet.add("lab certified rudraksha");
-  keywordSet.add("Aura Rudraksha");
-
-  const naturalKeywords = Array.from(keywordSet).slice(0, 8);
+  const naturalKeywords = Array.from(keywordSet).slice(0, 10);
 
   return {
     metaTitle: metaTitle.slice(0, 65),
@@ -126,10 +164,10 @@ export function generateProductSeoMetadata(product = {}) {
     searchKeywords: naturalKeywords,
     tags: [
       category,
-      origin,
-      mukhi ? `${mukhi} Mukhi` : "Sacred Bead",
-      "Lab Certified",
-      "Vedic Consecrated"
+      isPuja ? "Puja Samagri" : isMala ? "Mala" : isYantra ? "Yantra & Idol" : origin,
+      mukhi ? `${mukhi} Mukhi` : "Sacred Item",
+      "Consecrated",
+      "Aura Store"
     ],
     deity,
     rulingPlanet: planet
