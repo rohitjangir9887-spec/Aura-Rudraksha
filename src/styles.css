@@ -19,24 +19,11 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 60-90 FPS Compositing & Render Acceleration */
-.header, .sticky-bar, .sticky-purchase-bar, .aura-floating-btn, .product-card, .aura-product-card, .admin-card, .admin-mobile-card, [class*="motion-"] {
+/* Optimized Lightweight Compositing & Render Acceleration */
+.header, .sticky-bar, .sticky-purchase-bar, .aura-floating-btn {
   transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  perspective: 1000px;
-  will-change: transform, opacity;
-}
-
-/* Smooth motion transitions with fallbacks */
-*[data-projection-id] {
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
-}
-
-/* Rendering containment for off-screen heavy sections to sustain high refresh rates (60-90+ FPS) */
-.section, .why-aura-section, .panditji-section, .editorial-section, .product-reviews-section, .footer {
-  content-visibility: auto;
-  contain-intrinsic-size: 0 500px;
 }
 
 /* Universal Fast-Touch Engine & Zero Click Lag */
@@ -102,9 +89,9 @@ button, input, textarea, select { font: inherit; }
 }
 .header {
   height: 64px !important;
-  background: rgba(255, 253, 249, 0.94) !important;
-  backdrop-filter: blur(14px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
+  background: rgba(255, 253, 249, 0.96) !important;
+  backdrop-filter: blur(8px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(140%) !important;
   border-bottom: 1px solid rgba(212, 175, 55, 0.22) !important;
   box-shadow: 0 2px 12px rgba(45, 20, 8, 0.03) !important;
   display: flex !important;
@@ -114,6 +101,8 @@ button, input, textarea, select { font: inherit; }
   position: sticky !important;
   top: 0 !important;
   z-index: 20 !important;
+  transform: translateZ(0);
+  will-change: auto;
 }
 .brand {
   font-family: "Cormorant Garamond", Georgia, serif;
@@ -2667,6 +2656,8 @@ html { scroll-behavior: smooth; }
   margin-top: 16px;
   border-top: 1px solid rgba(198, 126, 73, 0.25);
   font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 420px;
 }
 
 .aura-trust-strip {
@@ -10850,6 +10841,12 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   inset: 0;
   background: radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.25), transparent 70%);
   pointer-events: none;
+  animation: auraPillGlowPulse 3s ease-in-out infinite;
+}
+
+@keyframes auraPillGlowPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.98); }
+  50% { opacity: 0.75; transform: scale(1.02); }
 }
 
 .aura-ai-pill-icon-box {
@@ -10857,6 +10854,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   align-items: center;
   justify-content: center;
   color: #d4af37;
+  animation: auraPillIconWiggle 4s ease-in-out infinite;
+}
+
+@keyframes auraPillIconWiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  33% { transform: rotate(8deg) scale(1.08); }
+  66% { transform: rotate(-8deg) scale(1.08); }
 }
 
 .aura-ai-sparkle-icon {
@@ -10925,31 +10929,27 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border-radius: 999px;
   padding: 4px 8px 4px 10px;
   min-height: 38px;
-  box-shadow: 
-    0 8px 24px -4px rgba(35, 14, 5, 0.45), 
-    0 0 16px rgba(212, 175, 55, 0.28), 
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.25);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  box-shadow: 0 6px 20px -2px rgba(35, 14, 5, 0.42), 0 0 12px rgba(212, 175, 55, 0.22);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
   font-family: inherit;
-  will-change: transform;
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  animation: auraIphoneDynamicIslandBob 3.6s ease-in-out infinite;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  animation: auraIphoneDynamicIslandBob 4s ease-in-out infinite;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 @keyframes auraIphoneDynamicIslandBob {
-  0%, 100% { transform: translateY(0px) scale(1); }
-  50% { transform: translateY(-3px) scale(1.015); box-shadow: 0 12px 28px -4px rgba(35, 14, 5, 0.52), 0 0 22px rgba(212, 175, 55, 0.38), inset 0 1px 2px rgba(255, 255, 255, 0.35); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -2.5px, 0); }
 }
 
 .aura-ai-floating-pill:hover {
   animation-play-state: paused;
-  transform: translateY(-3px) scale(1.03);
+  transform: translate3d(0, -3px, 0) scale(1.02);
   border-color: #fde68a;
-  box-shadow: 0 12px 30px rgba(25, 10, 3, 0.55), 0 0 24px rgba(212, 175, 55, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 24px rgba(25, 10, 3, 0.5), 0 0 18px rgba(212, 175, 55, 0.35);
 }
 
 .aura-ai-floating-main-btn {
@@ -11291,14 +11291,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 253, 249, 0.95);
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  background: rgba(255, 253, 249, 0.97);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
   border: 1.2px solid rgba(212, 175, 55, 0.45);
   overflow: hidden;
   box-sizing: border-box;
   transform-origin: bottom left;
   border-radius: 26px;
+  transform: translateZ(0);
 }
 
 @media (min-width: 1024px) {
@@ -11381,9 +11382,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     max-height: 75svh;
     margin: 0;
     border-radius: 26px;
-    background: rgba(255, 253, 249, 0.96);
-    backdrop-filter: blur(28px) saturate(200%);
-    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    background: rgba(255, 253, 249, 0.97);
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
     border: 1.2px solid rgba(212, 175, 55, 0.45);
     box-shadow: 
       0 16px 40px -6px rgba(43, 20, 8, 0.3),

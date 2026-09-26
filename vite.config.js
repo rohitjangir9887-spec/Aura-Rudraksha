@@ -46,6 +46,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("node_modules/lucide-react")) {
             return "lucide";
           }
+          if (id.includes("node_modules/canvas-confetti") || id.includes("node_modules/qrcode")) {
+            return "ui-utils";
+          }
         }
       },
       onwarn(warning, defaultHandler) {

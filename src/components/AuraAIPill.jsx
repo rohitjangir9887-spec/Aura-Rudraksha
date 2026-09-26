@@ -1,10 +1,9 @@
-import React from "react";
+import React, { memo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
 import { auraChatStore } from "../lib/auraChatStore";
 
-export function AuraAIPill({ className = "" }) {
+export const AuraAIPill = memo(function AuraAIPill({ className = "" }) {
   const location = useLocation();
   const isDedicatedAiPage = location.pathname === "/aura-ai";
 
@@ -38,34 +37,12 @@ export function AuraAIPill({ className = "" }) {
       onTouchStart={handlePreload}
       style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
     >
-      <motion.span
-        className="aura-ai-pill-glow"
-        animate={{
-          opacity: [0.35, 0.75, 0.35],
-          scale: [0.98, 1.02, 0.98]
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: 3,
-          ease: "easeInOut"
-        }}
-      />
-      <motion.div
-        className="aura-ai-pill-icon-box"
-        animate={{
-          rotate: [0, 8, -8, 0],
-          scale: [1, 1.1, 1]
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: 4,
-          ease: "easeInOut"
-        }}
-      >
+      <span className="aura-ai-pill-glow" style={{ willChange: "opacity, transform" }} />
+      <div className="aura-ai-pill-icon-box" style={{ willChange: "transform" }}>
         <Sparkles size={14} className="aura-ai-sparkle-icon" />
-      </motion.div>
+      </div>
       <span className="aura-ai-pill-text">Aura AI</span>
       <span className="aura-ai-live-dot" />
     </Link>
   );
-}
+});

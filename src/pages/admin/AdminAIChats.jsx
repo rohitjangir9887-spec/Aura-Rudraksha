@@ -77,16 +77,24 @@ export function AdminAIChats() {
   const fetchChats = useCallback(async (showToastNotice = false) => {
     try {
       setLoading(true);
-      const token = await authClient.getToken();
+      const token = await authClient.getToken(false, true);
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      } else if (typeof localStorage !== "undefined") {
+        const stored = localStorage.getItem("user_token") || localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token");
+        if (stored) headers["Authorization"] = `Bearer ${stored}`;
+      }
+
       const res = await fetch(`${API_BASE}/admin/all-chats?search=${encodeURIComponent(searchQuery)}&mode=${selectedFilter === "panditji" ? "panditji" : selectedFilter === "standard" ? "standard" : "all"}&userType=${selectedFilter === "guest" ? "guest" : selectedFilter === "registered" ? "registered" : "all"}&limit=100`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Server returned ${res.status}`);
       }
 
       const data = await res.json();
@@ -98,7 +106,9 @@ export function AdminAIChats() {
       }
     } catch (err) {
       console.error("Failed to fetch admin AI chats:", err);
-      emitToast("AI चैट्स लोड करने में समस्या आई", "error");
+      if (showToastNotice) {
+        emitToast("AI चैट्स लोड करने में समस्या आई: " + (err?.message || "नेटवर्क एरर"), "error");
+      }
     } finally {
       setLoading(false);
     }
@@ -112,12 +122,19 @@ export function AdminAIChats() {
   const checkMongoDbHealth = async () => {
     try {
       setTestingDb(true);
-      const token = await authClient.getToken();
+      const token = await authClient.getToken(false, true);
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      } else if (typeof localStorage !== "undefined") {
+        const stored = localStorage.getItem("user_token") || localStorage.getItem("aura_admin_token");
+        if (stored) headers["Authorization"] = `Bearer ${stored}`;
+      }
+
       const res = await fetch(`${API_BASE}/admin/db-health`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers
       });
       const data = await res.json();
       if (data.success) {
@@ -131,15 +148,29 @@ export function AdminAIChats() {
         emitToast(
           data.connected 
             ? `MongoDB Atlas Live (${data.pingTimeMs || 1}ms ping, ${data.totalSavedChats} chats saved)` 
-            : "MongoDB in-memory mode active", 
+            : "MongoDB in-memory fallback active (All chats captured)", 
           data.connected ? "success" : "info"
         );
       }
     } catch (err) {
-      emitToast("MongoDB कनेक्शन चेक करने में त्रुटि", "error");
+      emitToast("MongoDB कनेक्शन चेक करने में त्रुटि: " + (err?.message || ""), "error");
     } finally {
       setTestingDb(false);
     }
+  };
+
+  const getAdminHeaders = async () => {
+    const token = await authClient.getToken(false, true);
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    } else if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem("user_token") || localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token");
+      if (stored) headers["Authorization"] = `Bearer ${stored}`;
+    }
+    return headers;
   };
 
   // Open Transcript Detail
@@ -147,12 +178,9 @@ export function AdminAIChats() {
     try {
       setActiveChatId(id);
       setLoadingDetail(true);
-      const token = await authClient.getToken();
+      const headers = await getAdminHeaders();
       const res = await fetch(`${API_BASE}/admin/chats/${id}`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers
       });
       const data = await res.json();
       if (data.success && data.chat) {
@@ -171,13 +199,10 @@ export function AdminAIChats() {
   const handleDeleteChat = async () => {
     if (!deleteTargetId) return;
     try {
-      const token = await authClient.getToken();
+      const headers = await getAdminHeaders();
       const res = await fetch(`${API_BASE}/admin/chats/${deleteTargetId}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers
       });
       const data = await res.json();
       if (data.success) {
@@ -198,13 +223,10 @@ export function AdminAIChats() {
   // Clear All Chats
   const handleClearAllChats = async () => {
     try {
-      const token = await authClient.getToken();
+      const headers = await getAdminHeaders();
       const res = await fetch(`${API_BASE}/admin/chats-clear`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        headers
       });
       const data = await res.json();
       if (data.success) {
