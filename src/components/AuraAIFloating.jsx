@@ -120,14 +120,38 @@ export function AuraAIFloating() {
     }
   }, [loading]);
 
-  // Listen for link navigation events from AI messages to close drawer smoothly
+  // Universal Touch & Screen Unlocker: Guarantees main UI and product clicks work 100% with zero touch lock
+  const unlockScreenAndTouch = useCallback(() => {
+    if (typeof document !== "undefined") {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.pointerEvents = "";
+      document.body.style.touchAction = "";
+      document.documentElement.style.overflow = "";
+      document.documentElement.style.pointerEvents = "";
+      document.documentElement.style.touchAction = "";
+      const rootEl = document.getElementById("root");
+      if (rootEl) {
+        rootEl.style.pointerEvents = "";
+      }
+    }
+  }, []);
+
+  // Listen for link navigation events from AI messages to close drawer smoothly & unlock touch
   useEffect(() => {
     const handleNavigate = () => {
       setIsOpen(false);
+      setIsFullWindow(false);
+      setShowChatHistoryModal(false);
+      setShowSavedKundaliModal(false);
+      setShowNotepad(false);
+      setShowBirthForm(false);
+      setOrderModalProduct(null);
+      unlockScreenAndTouch();
     };
     window.addEventListener("aura-ai-navigate", handleNavigate);
     return () => window.removeEventListener("aura-ai-navigate", handleNavigate);
-  }, [setIsOpen]);
+  }, [setIsOpen, unlockScreenAndTouch]);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
   const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
@@ -426,13 +450,11 @@ export function AuraAIFloating() {
       setShowChatHistoryModal(false);
       setShowSavedKundaliModal(false);
       setShowNotepad(false);
+      setShowBirthForm(false);
       setOrderModalProduct(null);
-      // Ensure screen is 100% unlocked on page transitions
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.pointerEvents = "";
+      unlockScreenAndTouch();
     }
-  }, [location.pathname]);
+  }, [location.pathname, unlockScreenAndTouch]);
   const messagesEndRef = useRef(null);
   const isDraggingBtnRef = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
@@ -452,12 +474,11 @@ export function AuraAIFloating() {
       setShowChatHistoryModal(false);
       setShowSavedKundaliModal(false);
       setShowNotepad(false);
+      setShowBirthForm(false);
       setOrderModalProduct(null);
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.pointerEvents = "";
+      unlockScreenAndTouch();
     }
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, unlockScreenAndTouch]);
 
   // Handle hardware Back button, browser back, and swipe gestures smoothly
   useEffect(() => {
@@ -478,41 +499,20 @@ export function AuraAIFloating() {
         setShowNotepad(false);
         setShowBirthForm(false);
         setOrderModalProduct(null);
-        // Completely unlock touch and scroll on back button press
-        document.body.style.overflow = "";
-        document.documentElement.style.overflow = "";
-        document.body.style.pointerEvents = "";
+        unlockScreenAndTouch();
       };
 
       window.addEventListener("popstate", handlePopState);
       return () => {
         window.removeEventListener("popstate", handlePopState);
-        document.body.style.overflow = "";
-        document.documentElement.style.overflow = "";
-        document.body.style.pointerEvents = "";
+        unlockScreenAndTouch();
       };
     } else {
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.pointerEvents = "";
+      unlockScreenAndTouch();
     }
-  }, [isOpen]);
+  }, [isOpen, unlockScreenAndTouch]);
 
-  // Lock body scroll only when full-window modal is active
-  useEffect(() => {
-    if (isOpen && isFullWindow) {
-      const originalOverflow = document.body.style.overflow;
-      const originalDocOverflow = document.documentElement.style.overflow;
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalOverflow || "";
-        document.documentElement.style.overflow = originalDocOverflow || "";
-      };
-    }
-  }, [isOpen, isFullWindow]);
-
-  // Dedicated clean close handler that also pops state if active
+  // Dedicated clean close handler
   const handleCloseChat = useCallback((e) => {
     if (e) {
       e.preventDefault();
@@ -526,17 +526,8 @@ export function AuraAIFloating() {
     setShowNotepad(false);
     setShowBirthForm(false);
     setOrderModalProduct(null);
-
-    try {
-      if (window.history.state && window.history.state.auraAiOpen) {
-        window.history.back();
-      }
-    } catch (_) {}
-
-    document.body.style.overflow = "";
-    document.documentElement.style.overflow = "";
-    document.body.style.pointerEvents = "";
-  }, []);
+    unlockScreenAndTouch();
+  }, [unlockScreenAndTouch]);
 
   // Load server settings
   useEffect(() => {
@@ -820,29 +811,39 @@ export function AuraAIFloating() {
             }
           }
           setStatusText(mode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
+          
+          const liveMsg = {
+            id: aiMsgId,
+            sender: "ai",
+            text: cleanText,
+            products: (partialData?.products && partialData.products.length > 0) ? partialData.products : [],
+            coupons: (partialData?.coupons && partialData.coupons.length > 0) ? partialData.coupons : [],
+            orderInfo: partialData?.orderInfo || null,
+            requiresHuman: Boolean(partialData?.requiresHuman),
+            quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : [],
+            kundali: partialData?.kundali || null,
+            timestamp: new Date().toISOString()
+          };
+
+          // Save live stream chunk to store so user can close and reopen anytime without losing progress
+          auraChatStore.upsertMessage(liveMsg, mode);
+
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             const existing = idx >= 0 ? prev[idx] : null;
-            const liveMsg = {
+            const updatedMsg = {
               ...(existing || {}),
-              id: aiMsgId,
-              sender: "ai",
-              text: cleanText,
+              ...liveMsg,
               products: (partialData?.products && partialData.products.length > 0) ? partialData.products : (existing?.products || []),
               coupons: (partialData?.coupons && partialData.coupons.length > 0) ? partialData.coupons : (existing?.coupons || []),
-              orderInfo: partialData?.orderInfo || existing?.orderInfo || null,
-              requiresHuman: Boolean(partialData?.requiresHuman || existing?.requiresHuman),
-              quickReplies: (partialData?.quickReplies && partialData.quickReplies.length > 0) ? partialData.quickReplies : (existing?.quickReplies || []),
-              kundali: partialData?.kundali || existing?.kundali || null,
-              timestamp: existing?.timestamp || new Date().toISOString()
             };
             if (idx >= 0) {
               const clone = [...prev];
-              clone[idx] = liveMsg;
+              clone[idx] = updatedMsg;
               return clone;
             }
-            return [...prev, liveMsg];
+            return [...prev, updatedMsg];
           });
         },
         onDone: (finalData) => {
@@ -1505,10 +1506,10 @@ export function AuraAIFloating() {
       </AnimatePresence>
 
       {/* 3. Aura AI Window - Fluid Opening & Spring Animations */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {isOpen && (
           <React.Fragment key="aura-ai-window-portal">
-            {/* Backdrop overlay - rendered for full-window mode to focus conversation */}
+            {/* Backdrop overlay - rendered ONLY for full-window mode to focus conversation */}
             {isFullWindow && (
               <motion.div
                 key="aura-ai-backdrop-overlay"
@@ -1516,10 +1517,12 @@ export function AuraAIFloating() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.25, ease: "easeInOut" }}
+                transition={{ duration: 0.18, ease: "easeInOut" }}
+                style={{ pointerEvents: "auto" }}
                 onClick={(e) => {
                   if (e.target === e.currentTarget) {
                     setIsFullWindow(false);
+                    unlockScreenAndTouch();
                   }
                 }}
               />
@@ -1538,9 +1541,10 @@ export function AuraAIFloating() {
                 opacity: 0, 
                 scale: isFullWindow ? 0.94 : 0.82, 
                 y: isFullWindow ? 20 : 25,
-                transition: { duration: 0.2, ease: [0.32, 0, 0.67, 0] }
+                transition: { duration: 0.15, ease: [0.32, 0, 0.67, 0] }
               }}
               transition={{ type: "spring", damping: 25, stiffness: 320, mass: 0.85 }}
+              style={{ pointerEvents: "none" }}
             >
               <motion.div
                 id="aura-ai-floating-panel"
@@ -1557,7 +1561,7 @@ export function AuraAIFloating() {
                   bottom: 0
                 }}
                 whileDrag={{ cursor: "grabbing" }}
-                style={{ transformOrigin: isFullWindow ? "center center" : "bottom right", willChange: "transform, width, height" }}
+                style={{ transformOrigin: isFullWindow ? "center center" : "bottom right", willChange: "transform, width, height", pointerEvents: "auto" }}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
