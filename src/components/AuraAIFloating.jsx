@@ -107,19 +107,6 @@ export function AuraAIFloating() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Keep pill state in sync with assistant thinking & answer ready states
-  useEffect(() => {
-    if (loading) {
-      setPillState("thinking");
-    } else if (pillState === "thinking") {
-      setPillState("ready");
-      const readyTimer = setTimeout(() => {
-        setPillState("default");
-      }, 3000);
-      return () => clearTimeout(readyTimer);
-    }
-  }, [loading]);
-
   // Universal Touch & Screen Unlocker: Guarantees main UI and product clicks work 100% with zero touch lock
   const unlockScreenAndTouch = useCallback(() => {
     if (typeof document !== "undefined") {
@@ -136,6 +123,43 @@ export function AuraAIFloating() {
       }
     }
   }, []);
+
+  // Keep pill state in sync with assistant thinking & answer ready states
+  useEffect(() => {
+    if (loading) {
+      setPillState("thinking");
+      if (!isOpen || !isFullWindow) {
+        unlockScreenAndTouch();
+      }
+    } else if (pillState === "thinking") {
+      setPillState("ready");
+      unlockScreenAndTouch();
+      const readyTimer = setTimeout(() => {
+        setPillState("default");
+      }, 3000);
+      return () => clearTimeout(readyTimer);
+    }
+  }, [loading, isOpen, isFullWindow, unlockScreenAndTouch]);
+
+  // Global passive listener to prevent any accidental touch locks when chat is minimized or running in background
+  useEffect(() => {
+    if (!isOpen || !isFullWindow) {
+      unlockScreenAndTouch();
+      const handleGlobalTouch = (e) => {
+        // If target is outside the AI floating panel/modal, ensure touch is fully unlocked
+        const panelEl = document.getElementById("aura-ai-floating-panel");
+        if (!panelEl || !panelEl.contains(e.target)) {
+          unlockScreenAndTouch();
+        }
+      };
+      window.addEventListener("touchstart", handleGlobalTouch, { passive: true });
+      window.addEventListener("pointerdown", handleGlobalTouch, { passive: true });
+      return () => {
+        window.removeEventListener("touchstart", handleGlobalTouch);
+        window.removeEventListener("pointerdown", handleGlobalTouch);
+      };
+    }
+  }, [isOpen, isFullWindow, unlockScreenAndTouch]);
 
   // Listen for link navigation events from AI messages to close drawer smoothly & unlock touch
   useEffect(() => {
@@ -2442,7 +2466,7 @@ export function AuraAIFloating() {
                                 <Sparkles size={12} /> Recommended for you:
                               </div>
                               <div className="aura-ai-prods-list">
-                                {m.products.filter(p => p && typeof p === "object").slice(0, 4).map((p, pIdx) => {
+                                {m.products.filter(p => p && typeof p === "object").slice(0, 3).map((p, pIdx) => {
                                   const pId = p.id || p._id || p.slug || `prod-${pIdx}`;
                                   const isAdded = addedItems[pId];
                                   const priceNum = Math.max(0, safePrice(p.price, 0));
