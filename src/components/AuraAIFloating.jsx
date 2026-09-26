@@ -2442,7 +2442,7 @@ export function AuraAIFloating() {
                                 <Sparkles size={12} /> Recommended for you:
                               </div>
                               <div className="aura-ai-prods-list">
-                                {m.products.filter(p => p && typeof p === "object").slice(0, 3).map((p, pIdx) => {
+                                {m.products.filter(p => p && typeof p === "object").slice(0, 4).map((p, pIdx) => {
                                   const pId = p.id || p._id || p.slug || `prod-${pIdx}`;
                                   const isAdded = addedItems[pId];
                                   const priceNum = Math.max(0, safePrice(p.price, 0));

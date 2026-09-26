@@ -1619,28 +1619,52 @@ export async function chatAuraAI(req, res, next) {
     let matchedProducts = [];
     if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
       const kundaliRecommendedProducts = [];
-      const primaryRec = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations?.[0];
-      const primaryMukhiNum = primaryRec?.mukhiNumber;
-      const primaryMukhiStr = String(primaryRec?.mukhi || "").toLowerCase();
+      const recs = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations || [];
 
-      // STRICT CANONICAL PRIMARY FILTER: Products must strictly match the Kundali's Primary Mukhi
-      const primaryMatches = allStoreProds.filter(p => {
-        const pNameLower = (p.name || "").toLowerCase();
-        if (primaryMukhiNum && (pNameLower.includes(`${primaryMukhiNum} mukhi`) || pNameLower.includes(`${primaryMukhiNum}-mukhi`))) return true;
-        if (primaryMukhiStr.includes("gauri shankar") && pNameLower.includes("gauri shankar")) return true;
-        if (primaryMukhiStr.includes("ganesh") && pNameLower.includes("ganesh")) return true;
-        if (primaryMukhiStr.includes("garbh gauri") && pNameLower.includes("garbh gauri")) return true;
-        if (primaryMukhiStr.includes("108") && (pNameLower.includes("108") || pNameLower.includes("mala") || pNameLower.includes("jaap"))) return true;
-        return false;
-      });
+      // Find products for all 1-3 Kundali recommendations (Primary Life, Chandra Rashi, Current Dasha)
+      for (const rec of recs) {
+        if (!rec || !rec.mukhi) continue;
+        const mukhiNum = rec.mukhiNumber || parseInt(rec.mukhi, 10);
+        const mukhiStr = String(rec.mukhi).toLowerCase();
 
-      for (const m of primaryMatches) {
-        if (!kundaliRecommendedProducts.some(p => p.id === String(m.id || m._id))) {
-          kundaliRecommendedProducts.push(formatProductForResponse(m));
+        const match = allStoreProds.find(p => {
+          if (!p) return false;
+          const pId = String(p.id || p._id || "");
+          if (kundaliRecommendedProducts.some(kp => kp.id === pId)) return false;
+          const pNameLower = (p.name || "").toLowerCase();
+
+          if (mukhiNum && (pNameLower.includes(`${mukhiNum} mukhi`) || pNameLower.includes(`${mukhiNum}-mukhi`))) return true;
+          if (mukhiStr.includes("gauri shankar") && pNameLower.includes("gauri shankar")) return true;
+          if (mukhiStr.includes("ganesh") && pNameLower.includes("ganesh")) return true;
+          if (mukhiStr.includes("garbh gauri") && pNameLower.includes("garbh gauri")) return true;
+          if (mukhiStr.includes("108") && (pNameLower.includes("108") || pNameLower.includes("mala") || pNameLower.includes("jaap"))) return true;
+          return false;
+        });
+
+        if (match) {
+          kundaliRecommendedProducts.push(formatProductForResponse(match));
         }
       }
 
-      matchedProducts = kundaliRecommendedProducts.slice(0, 3);
+      // If fewer than 3 products found, add other matching certified store items for these 1-3 beads
+      if (kundaliRecommendedProducts.length < 3) {
+        for (const rec of recs) {
+          const mukhiNum = rec?.mukhiNumber || parseInt(rec?.mukhi, 10);
+          if (!mukhiNum) continue;
+          const additionalMatches = allStoreProds.filter(p => {
+            const pId = String(p.id || p._id || "");
+            if (kundaliRecommendedProducts.some(kp => kp.id === pId)) return false;
+            const pNameLower = (p.name || "").toLowerCase();
+            return pNameLower.includes(`${mukhiNum} mukhi`) || pNameLower.includes(`${mukhiNum}-mukhi`);
+          });
+          for (const m of additionalMatches) {
+            if (kundaliRecommendedProducts.length >= 3) break;
+            kundaliRecommendedProducts.push(formatProductForResponse(m));
+          }
+        }
+      }
+
+      matchedProducts = kundaliRecommendedProducts.slice(0, 4);
     } else if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
       const foundProds = searchRelevantCatalogProducts(message || "", allStoreProds);
       matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean).slice(0, 4);
@@ -1920,13 +1944,15 @@ AUTHORITATIVE CALCULATED SIDEREAL KUNDALI DATA (VERIFIED - DO NOT ASK FOR DOB/TI
 - Houses (Bhavas) & Aspects: ${calculatedKundaliData.astronomicalKundali.houses.map(h => `H${h.houseNumber} (${h.rashiHindi}, Lord ${h.lord}): Occ: [${h.occupants.join(", ")}], Aspects: [${(h.aspects || []).join(", ") || 'None'}]`).join(" | ")}
 - Classical & Parashari Yogas: ${calculatedKundaliData.astronomicalKundali.yogas && calculatedKundaliData.astronomicalKundali.yogas.length > 0 ? calculatedKundaliData.astronomicalKundali.yogas.map(y => `${y.name} [${y.category || 'Yoga'}]: ${y.description}`).join(" | ") : "Standard planetary alignments."}
 - Dosha Analysis: Manglik: ${calculatedKundaliData.astronomicalKundali.doshaSummary.manglikNote} | Shani Sade Sati: ${calculatedKundaliData.astronomicalKundali.doshaSummary.sadeSati?.phase || "Sade Sati Mukt"} | Kaal Sarp: ${calculatedKundaliData.astronomicalKundali.doshaSummary.kaalSarp?.type || "None"}
-- Recommended Vedic Beads: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => `${r.role}: ${r.mukhi}`).join(" | ")}
-- CANONICAL PRIMARY RUDRAKSHA MANDATE (ABS-INVARIANT):
-  * The devotee's CANONICAL PRIMARY RUDRAKSHA for this Kundali is strictly: **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}**.
-  * ONE KUNDALI = ONE CANONICAL PRIMARY RUDRAKSHA.
-  * Same DOB + Exact Time + Birth Place MUST ALWAYS yield this exact same PRIMARY Rudraksha.
-  * NEVER change, guess, or invent a different PRIMARY Rudraksha when the devotee asks about Business, Career, Study, Saturday, Finance, Marriage, or opens a New Chat.
-  * Question concerns (e.g. business, study, Saturday) provide ONLY complementary secondary explanation. They MUST NOT displace or alter the PRIMARY Rudraksha.
+- Recommended Vedic Beads (1 to 3 Beads): ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations.map(r => `${r.role}: ${r.mukhi}`).join(" | ")}
+- CANONICAL KUNDALI RUDRAKSHA MANDATE (100% DETERMINISTIC & INVARIANT):
+  * 1. मुख्य जीवन रुद्राक्ष (Primary Life Mukhi / Lagna Lord): **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}**
+  * 2. चंद्र राशि रुद्राक्ष (Chandra Rashi Mukhi / Moon Sign): **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[1]?.mukhi || calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}**
+  * 3. वर्तमान महादशा रुद्राक्ष (Current Mahadasha Mukhi): **${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[2]?.mukhi || calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}**
+  * ONE KUNDALI = EXACT SAME 1-3 RUDRAKSHAS ALWAYS.
+  * Same DOB (${calculatedKundaliData.verifiedBirthData.dob}) + Exact Time (${calculatedKundaliData.verifiedBirthData.birthTime}) + Place (${calculatedKundaliData.verifiedBirthData.birthPlace}) MUST ALWAYS yield these exact same 1 to 3 beads in every chat and new chat.
+  * NEVER change, guess, or invent different beads when the devotee asks about Business, Career, Study, Saturday, Finance, Marriage, or opens a New Chat.
+  * In the Upay/Remedy section, explain all 1 to 3 beads clearly with their respective store links: [Product Name](/product/slug).
 
 DETECTED QUERY INTENT:
 - User Intention Category: "${astroIntent.label}" (${astroIntent.type})
@@ -1982,7 +2008,7 @@ ${astroIntent.type === "greeting" ? `
        5. ✨ **शुभ अवसर व संभावनाएं (Opportunities & Strengths)**
        6. ⚠️ **सावधानियां व चुनौतियां (Cautions & Challenges)**
        7. 🎯 **व्यावहारिक कार्य योजना (Practical Action Plan)**
-       8. 📿 **कल्याणकारी उपाय, सिद्ध नेपाली रुद्राक्ष व संपूर्ण धारण विधि (The primary bead MUST strictly be the Canonical Primary Rudraksha: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}, with Dharan Vidhi, Shiva Purana Beej Mantra & Store Link: [Product Name](/product/slug))**
+       8. 📿 **कल्याणकारी उपाय, सिद्ध नेपाली रुद्राक्ष व संपूर्ण धारण विधि (Detail all 1 to 3 recommended beads: 1. मुख्य जीवन रुद्राक्ष ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}, 2. चंद्र राशि रुद्राक्ष ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[1]?.mukhi || ''}, 3. वर्तमान महादशा रुद्राक्ष ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[2]?.mukhi || ''}, with Dharan Vidhi, Shiva Purana Beej Mantra & Store Link: [Product Name](/product/slug))**
        9. ⏱️ **शुभ समय व दशा गोचर (Timing & Dasha Transit Roadmap)**
        10. 🌟 **अनिवार्य सारांश (Key Points: Theme, Biggest Opportunity, Biggest Caution, Next Steps - Bullet Points में)**
        11. 🔤 **[AURA_KEYWORDS]: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} धारण विधि | ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} लाभ | विंशोत्तरी महादशा उपाय | आज का शुभ मुहूर्त**
