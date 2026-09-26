@@ -696,11 +696,26 @@ export function Product() {
               <h1 className="aura-pdp-title">{p.name}</h1>
 
               {/* Short Spiritual Summary / Highlight */}
-              {p.highlight && (
-                <p className="aura-pdp-spiritual-summary">
-                  {p.highlight}
-                </p>
-              )}
+              {(() => {
+                const isRudraksha = isRudrakshaProduct(p);
+                let text = p.highlight || "";
+                if (!isRudraksha && text) {
+                  text = text
+                    .replace(/Authentic\s*Nepal\s*Bead/gi, "Authentic Consecrated Quality")
+                    .replace(/Nepal\s*Bead/gi, "Devotional Item")
+                    .replace(/Natural\s*Seed/gi, "Devotional Item");
+                }
+                if (!text) {
+                  text = isRudraksha 
+                    ? "100% Consecrated • Authentic Nepal Bead • Certified"
+                    : `100% Consecrated • Pure & Authentic ${p.category || 'Devotional Item'} • Sanctified`;
+                }
+                return (
+                  <p className="aura-pdp-spiritual-summary">
+                    {text}
+                  </p>
+                );
+              })()}
 
               {/* Rating & SKU Bar */}
               <div className="aura-pdp-meta-row">

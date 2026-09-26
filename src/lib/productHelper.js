@@ -7,59 +7,50 @@
  */
 export function isRudrakshaProduct(product) {
   if (!product) return false;
-  if (product.isRudraksha === false || product.productType === "puja_samagri" || product.productType === "general") {
+
+  const cat = (product.category || "").toLowerCase().trim();
+  const name = (product.name || "").toLowerCase().trim();
+  const type = (product.productType || "").toLowerCase().trim();
+
+  // 1. Explicit non-rudraksha indicators in Category, Name, or ProductType
+  const isNonRudrakshaCategoryOrName = 
+    cat.includes("idol") || cat.includes("god") || cat.includes("statue") || cat.includes("murti") ||
+    cat.includes("puja") || cat.includes("samagri") || cat.includes("hawan") || cat.includes("agarbatti") ||
+    cat.includes("dhoop") || cat.includes("camphor") || cat.includes("kapoor") || cat.includes("diya") ||
+    cat.includes("chandan") || cat.includes("essential") || cat.includes("book") || cat.includes("brass") ||
+    cat.includes("yantra") || cat.includes("copper") ||
+    name.includes("idol") || name.includes("statue") || name.includes("murti") || name.includes("camphor") ||
+    name.includes("kapoor") || name.includes("dhoop") || name.includes("agarbatti") || name.includes("incense") ||
+    name.includes("hawan") || name.includes("ganga jal") || name.includes("yantra") || name.includes("puja thali") ||
+    name.includes("cow ghee") || name.includes("chandan") || name.includes("brass") ||
+    ["puja_samagri", "general", "idol", "god_idol", "yantra"].includes(type);
+
+  // If title or category indicates a non-rudraksha item and does NOT contain "rudraksha" or "mukhi", return FALSE immediately
+  if (isNonRudrakshaCategoryOrName && !name.includes("rudraksha") && !name.includes("mukhi")) {
     return false;
   }
-  if (product.isRudraksha === true || product.productType === "rudraksha") {
+
+  // 2. Explicit flag on product object
+  if (product.isRudraksha === false) {
+    return false;
+  }
+
+  // 3. Positive Rudraksha markers
+  if (
+    name.includes("rudraksha") ||
+    name.includes("mukhi") ||
+    name.includes("gauri shankar") ||
+    name.includes("ganesh rudraksha") ||
+    cat.includes("rudraksha") ||
+    cat.includes("mukhi") ||
+    type === "rudraksha" ||
+    product.isRudraksha === true
+  ) {
     return true;
   }
 
-  const cat = (product.category || "").toLowerCase();
-  const name = (product.name || "").toLowerCase();
-
-  // If explicit non-rudraksha categories
-  if (
-    cat.includes("puja") ||
-    cat.includes("samagri") ||
-    cat.includes("hawan") ||
-    cat.includes("agarbatti") ||
-    cat.includes("dhoop") ||
-    cat.includes("camphor") ||
-    cat.includes("kapoor") ||
-    cat.includes("diya") ||
-    cat.includes("chandan") ||
-    cat.includes("essential") ||
-    cat.includes("idol") ||
-    cat.includes("murti") ||
-    cat.includes("book") ||
-    cat.includes("brass")
-  ) {
-    // If name doesn't contain mukhi/rudraksha, it's not a rudraksha
-    if (!name.includes("rudraksha") && !name.includes("mukhi")) {
-      return false;
-    }
-  }
-
-  // If title indicates Puja Samagri or general accessories
-  if (
-    name.includes("bhimseni camphor") ||
-    name.includes("camphor") ||
-    name.includes("kapoor") ||
-    name.includes("dhoop") ||
-    name.includes("agarbatti") ||
-    name.includes("incense") ||
-    name.includes("hawan samagri") ||
-    name.includes("ganga jal") ||
-    name.includes("puja thali") ||
-    name.includes("cow ghee") ||
-    name.includes("chandan tika") ||
-    name.includes("kesar chandan")
-  ) {
-    return false;
-  }
-
-  // Default to Rudraksha if name has mukhi or category is Rudraksha/Mala/Bracelet
-  return true;
+  // Default to false for non-rudraksha items
+  return false;
 }
 
 /**

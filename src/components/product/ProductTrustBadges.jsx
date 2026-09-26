@@ -9,15 +9,21 @@ export function ProductTrustBadges({ product }) {
   if (!product) return null;
 
   const isRudraksha = isRudrakshaProduct(product);
-  const originText = product.origin || (isRudraksha ? "Nepali Origin" : "Holy Kashi / Haridwar");
+  const catLower = (product.category || "").toLowerCase();
+  const nameLower = (product.name || "").toLowerCase();
+  const isIdolOrYantra = catLower.includes("idol") || catLower.includes("god") || catLower.includes("statue") || catLower.includes("murti") || catLower.includes("yantra") || nameLower.includes("idol") || nameLower.includes("statue") || nameLower.includes("yantra");
+
+  const originText = product.origin && !product.origin.toLowerCase().includes("nepal")
+    ? product.origin 
+    : (isRudraksha ? "Nepali Origin" : isIdolOrYantra ? "Consecrated Idol" : "Holy Kashi / Haridwar");
 
   if (!isRudraksha) {
     return (
       <>
         <div className="aura-product-trust-chips-row">
           <div className="aura-trust-chip">
-            <Leaf size={12} className="chip-icon green" />
-            <span>100% Pure &amp; Natural</span>
+            <Sparkles size={12} className="chip-icon gold" />
+            <span>{isIdolOrYantra ? "100% Divine Craft" : "100% Pure & Natural"}</span>
           </div>
 
           <div 
@@ -36,8 +42,8 @@ export function ProductTrustBadges({ product }) {
           </div>
 
           <div className="aura-trust-chip">
-            <Sparkles size={12} className="chip-icon copper" />
-            <span>Chemical-Free &amp; Sattvic</span>
+            <Award size={12} className="chip-icon copper" />
+            <span>{isIdolOrYantra ? "Handcrafted Quality" : "Chemical-Free & Sattvic"}</span>
           </div>
         </div>
 

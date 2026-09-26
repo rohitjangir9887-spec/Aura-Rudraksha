@@ -215,6 +215,16 @@ export function AdminProducts() {
         const detectedCategory = payload.classification?.category || data.category || "";
         const productType = payload.classification?.productType || data.productType || "";
 
+        const catName = detectedCategory || prev.category || "Rudraksha";
+        const catLower = catName.toLowerCase();
+        const calculatedType = catLower.includes("idol") || catLower.includes("god") || catLower.includes("statue") || catLower.includes("murti")
+          ? "idol"
+          : catLower.includes("puja") || catLower.includes("samagri") || catLower.includes("hawan")
+          ? "puja_samagri"
+          : catLower.includes("yantra")
+          ? "yantra"
+          : productType || prev.productType || "Rudraksha";
+
         setEditing(prev => {
           if (!prev) return prev;
           const currentKw = normalizeKeywordItems(prev.keywords);
@@ -227,8 +237,8 @@ export function AdminProducts() {
           return {
             ...prev,
             description: data.description || payload.seo?.seoDescription || prev.description,
-            category: detectedCategory || prev.category || "Rudraksha",
-            productType: productType || prev.productType || "Rudraksha",
+            category: catName,
+            productType: calculatedType,
             subCategory: subCategory || prev.subCategory || "",
             mukhi: mukhi || prev.mukhi || "",
             rulingPlanet: rulingPlanet || prev.rulingPlanet || "",
