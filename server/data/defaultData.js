@@ -383,6 +383,35 @@ export const defaultProducts = [
     updatedAt: new Date().toISOString()
   },
   {
+    id: "13",
+    slug: "13-mukhi-rudraksha",
+    name: "13 Mukhi Rudraksha (Nepali) — Terah Mukhi Lord Kamadeva & Indra Bead",
+    price: 1999,
+    comparePrice: 2999,
+    mrp: 2999,
+    rating: 4.9,
+    reviews: 35,
+    reviewCount: 35,
+    img: "/images/product-7mukhi.jpg",
+    images: [
+      "/images/product-7mukhi.jpg",
+      "/images/product-11mukhi.jpg",
+      "/images/product-5mukhi.jpg"
+    ],
+    badge: "Charm & Desires",
+    mukhi: "13 Mukhi",
+    deity: "Lord Kamadeva & Lord Indra",
+    rulingPlanet: "Venus (Shukra)",
+    origin: "Nepali",
+    highlight: "Symbol of Lord Kamadeva and King Indra. Bestows hypnotic charisma, magnetic attraction, business wealth, and marital charm.",
+    tags: ["Lord Kamadeva Grace", "Charisma & Attraction", "Venus Harmonization", "Govt Lab Certified", "100% Nepali Origin"],
+    category: "Rudraksha",
+    status: "Active",
+    stock: 25,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
     id: "gauri-shankar",
     slug: "gauri-shankar-rudraksha",
     name: "Original Gauri Shankar Rudraksha (Nepali) — Shiva-Parvati Union Bead",

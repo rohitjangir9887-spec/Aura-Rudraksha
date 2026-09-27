@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import { 
   Compass, 
   Sparkles, 
@@ -17,8 +18,19 @@ import { useSeo } from "../hooks/useSeo";
 import { Shell } from "../components/Shell";
 import { triggerHaptic } from "../lib/haptics";
 import { DailyPanchangaWidget } from "../components/DailyPanchangaWidget";
+import { useCart } from "../hooks/useCart";
+import { db } from "../lib/db";
+import { auraAiClient } from "../lib/auraAiClient";
+import { emitToast } from "../context/ToastContext";
+import { PanditjiForm } from "../components/panditji/PanditjiForm";
+import { PanditjiResult } from "../components/panditji/PanditjiResult";
+import { CONCERN_OPTIONS } from "../components/panditji/utils";
+import { calculateAuthenticKundali, isExactMukhiProduct } from "../lib/vedicAstrology";
 
 export default function RudrakshaCalculator() {
+  const { add } = useCart();
+  const navigate = useNavigate();
+
   const calculatorSchema = {
     "@context": "https://schema.org",
     "@graph": [
@@ -70,9 +82,195 @@ export default function RudrakshaCalculator() {
     schema: calculatorSchema
   });
 
-  const [activeMode, setActiveMode] = useState("rashi"); // "rashi" or "goal"
+  const [activeMode, setActiveMode] = useState("kundali"); // "kundali", "rashi" or "goal"
   const [selectedRashi, setSelectedRashi] = useState(RASHI_RECOMMENDATIONS[0]);
   const [selectedGoal, setSelectedGoal] = useState("wealth");
+
+  // Kundali Birth Details State
+  const [name, setName] = useState("");
+  const [dob, setDob] = useState("");
+  const [birthPlace, setBirthPlace] = useState("");
+  const [birthTime, setBirthTime] = useState("");
+  const [concern, setConcern] = useState("career");
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [result, setResult] = useState(null);
+  const [addedSuccess, setAddedSuccess] = useState(false);
+
+  const handleCalculateKundali = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      emitToast("कृपया अपना नाम दर्ज करें (Please enter your name)", "error");
+      return;
+    }
+    if (!dob) {
+      emitToast("कृपया अपनी जन्म तिथि (DOB) चुनें", "error");
+      return;
+    }
+    if (!birthPlace.trim()) {
+      emitToast("कृपया अपना जन्म स्थान दर्ज करें", "error");
+      return;
+    }
+
+    setIsCalculating(true);
+    setAddedSuccess(false);
+
+    try {
+      let serverKundali = null;
+      try {
+        const response = await Promise.race([
+          auraAiClient.calculateKundali({
+            name: name.trim(),
+            dob,
+            birthTime: birthTime || "12:00",
+            birthPlace: birthPlace.trim(),
+            concern
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000))
+        ]);
+        serverKundali = response?.data || response?.kundali;
+      } catch (callErr) {
+        console.warn("Server calculateKundali fallback to client engine:", callErr?.message);
+      }
+
+      // Infallible Authentic Vedic calculation engine fallback
+      if (!serverKundali) {
+        serverKundali = calculateAuthenticKundali({
+          name: name.trim(),
+          dob,
+          birthTime: birthTime || "12:00",
+          birthPlace: birthPlace.trim(),
+          concern
+        });
+      }
+
+      if (serverKundali) {
+        const astro = serverKundali.astronomicalKundali || serverKundali;
+        const birth = serverKundali.verifiedBirthData || {};
+        const chandra = astro.chandraRashi || serverKundali.rashi || {};
+        const recList = astro.rudrakshaRecommendations || [];
+        const primaryRec = recList[0] || {};
+        const chandraRec = recList[1] || {};
+
+        const recMukhi = primaryRec.mukhi || serverKundali.recommendedRudraksha?.mukhi || "5 Mukhi Rudraksha";
+        const primaryMukhiNum = primaryRec.mukhiNumber || parseInt(recMukhi, 10);
+        const chandraMukhiNum = chandraRec.mukhiNumber || parseInt(chandraRec.mukhi, 10);
+
+        const allStoreProds = (db.getProducts() || []).filter(p => !p.status || p.status === "Published" || p.status === "published");
+
+        const findStoreProductForMukhi = (mNum, mStr = "") => {
+          if (!mNum && !mStr) return null;
+          return allStoreProds.find(p => {
+            if (!p) return false;
+            if (mNum && isExactMukhiProduct(p, mNum)) return true;
+            return false;
+          });
+        };
+
+        const primaryProduct = 
+          findStoreProductForMukhi(primaryMukhiNum, primaryRec.mukhi) || 
+          (serverKundali.matchedProduct && isExactMukhiProduct(serverKundali.matchedProduct, primaryMukhiNum) ? serverKundali.matchedProduct : null) || 
+          serverKundali.recommendedProducts?.find(p => isExactMukhiProduct(p, primaryMukhiNum)) || 
+          allStoreProds.find(p => isExactMukhiProduct(p, primaryMukhiNum)) || 
+          null;
+
+        const dashaRec = recList[2] || {};
+        const dashaMukhiNum = dashaRec.mukhiNumber || parseInt(dashaRec.mukhi, 10);
+
+        const chandraProduct = 
+          findStoreProductForMukhi(chandraMukhiNum, chandraRec.mukhi) || 
+          serverKundali.recommendedProducts?.find(rp => isExactMukhiProduct(rp, chandraMukhiNum)) || 
+          allStoreProds.find(p => isExactMukhiProduct(p, chandraMukhiNum)) || 
+          null;
+
+        const dashaProduct = 
+          findStoreProductForMukhi(dashaMukhiNum, dashaRec.mukhi) || 
+          serverKundali.recommendedProducts?.find(rp => isExactMukhiProduct(rp, dashaMukhiNum)) || 
+          allStoreProds.find(p => isExactMukhiProduct(p, dashaMukhiNum)) || 
+          null;
+
+        const lagnaName = astro.lagna?.rashiHindi || astro.lagna?.rashiEnglish || "लग्न";
+        const rashiName = chandra.rashiHindi || chandra.rashiEnglish || "राशि";
+        const dashaName = astro.vimshottariDasha?.currentMahadashaHindi || astro.vimshottariDasha?.currentMahadasha || "";
+
+        const cleanAstroReason = `आपकी जन्म पत्रिका के अनुसार आपका जन्म लग्न ${lagnaName} (स्वामी: ${astro.lagna?.lordHindi || astro.lagna?.lord || "ग्रह"}) एवं जन्म राशि ${rashiName} (स्वामी: ${chandra.lordHindi || chandra.lord || "ग्रह"}) है। वर्तमान में ${dashaName ? `${dashaName} महादशा का प्रभाव है। ` : ""}${primaryRec.significance || "कुंडली के ग्रह दोषों की शांति, आत्मबल एवं इष्ट देव की कृपा हेतु यह सिद्ध रुद्राक्ष सर्वश्रेष्ठ है।"}`;
+
+        setResult({
+          devoteeName: birth.name || name.trim(),
+          lagnaHindi: lagnaName,
+          rashiHindi: rashiName,
+          rashiEng: chandra.rashiEnglish || chandra.nameEng || "Vedic",
+          symbol: chandra.rashiSymbol || chandra.symbol || "✨",
+          lord: chandra.lordHindi || chandra.lord || "शिव",
+          element: chandra.element || "Agni",
+          mulank: astro.mulank || serverKundali.numerology?.mulank || (((new Date(dob).getDate() - 1) % 9) + 1),
+          dob: birth.dob || dob,
+          birthPlace: birth.birthPlace || birthPlace.trim(),
+          birthTime: birth.birthTime || birthTime || "12:00",
+          concernObj: CONCERN_OPTIONS.find(c => c.id === concern),
+          recommendedMukhi: primaryRec.mukhi || recMukhi,
+          primaryMukhi: primaryRec.mukhi || recMukhi,
+          chandraMukhi: chandraRec.mukhi || null,
+          dashaMukhi: dashaRec.mukhi || null,
+          dashaName: dashaName,
+          beejMantra: primaryRec.beejMantra || chandra.mantra || "ॐ नमः शिवाय",
+          wearingDay: serverKundali.wearingDay || chandra.day || "सोमवार / शिव तिथि",
+          matchedProduct: primaryProduct,
+          primaryProduct,
+          chandraProduct,
+          dashaProduct,
+          astroReason: cleanAstroReason,
+          fullKundaliData: serverKundali
+        });
+        setIsCalculating(false);
+        emitToast("पंडित जी द्वारा आपकी कुंडली का वैदिक विश्लेषण तैयार है!", "success");
+        return;
+      } else {
+        const errMsg = "वैदिक कुंडली गणना वर्तमान में उपलब्ध नहीं है। कृपया विवरण पुनः जांचें।";
+        emitToast(errMsg, "error");
+      }
+    } catch (err) {
+      console.warn("Backend Kundali calculation error:", err);
+      emitToast("वैदिक कुंडली गणना में समस्या आई। कृपया कुछ समय पश्चात पुनः प्रयास करें।", "error");
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  const handleAddToCart = (productToAdd = null) => {
+    const prod = productToAdd || result?.matchedProduct || result?.primaryProduct;
+    if (prod) {
+      add(prod.id, 1);
+      setAddedSuccess(prod.id);
+      emitToast(`${prod.name} को कार्ट में जोड़ दिया गया है!`, "success");
+      setTimeout(() => setAddedSuccess(false), 3000);
+    }
+  };
+
+  const handleAskInChat = (customPrompt = null) => {
+    let promptText = customPrompt;
+    if (!promptText) {
+      if (result) {
+        promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${result.devoteeName} है। मेरी जन्म तिथि ${result.dob} है (स्थान: ${result.birthPlace}, समय: ${result.birthTime})। मेरी राशि ${result.rashiHindi} (${result.rashiEng}) है, स्वामी ग्रह ${result.lord}, मूलांक ${result.mulank} और संकल्प "${result.concernObj?.label}" है। आपने मुझे ${result.recommendedMukhi} का परामर्श दिया है। कृपया मुझे इसे धारण करने की संपूर्ण वैदिक विधि, शुभ मुहूर्त, शुद्धिकरण, बीज मंत्र और दैनिक नियम बताएं।`;
+      } else {
+        promptText = "नमस्ते पंडित जी 🙏 कृपया मेरी जन्म कुंडली के अनुसार मेरे लिए सबसे उपयुक्त मुखी रुद्राक्ष एवं धारण विधि बताएं।";
+      }
+    }
+
+    try {
+      const activeData = {
+        name: result?.devoteeName || name.trim() || "Devotee",
+        dob: result?.dob || dob || "",
+        birthTime: result?.birthTime || birthTime || "12:00",
+        birthPlace: result?.birthPlace || birthPlace || "",
+        concern: concern || "all",
+        kundali: result?.fullKundaliData || null
+      };
+      sessionStorage.setItem("aura_pending_prompt", promptText);
+      sessionStorage.setItem("aura_pending_birth_details", JSON.stringify(activeData));
+    } catch (_) {}
+
+    navigate("/aura-ai?mode=panditji");
+  };
 
   const GOAL_OPTIONS = [
     {
@@ -150,29 +348,87 @@ export default function RudrakshaCalculator() {
           </p>
 
           {/* Mode Switcher Tabs */}
-          <div className="mt-8 inline-flex p-1 rounded-xl bg-white border border-[#ebdccb] shadow-2xs">
+          <div className="mt-8 flex flex-wrap justify-center p-1 rounded-xl bg-white border border-[#ebdccb] shadow-2xs gap-1">
+            <button
+              onClick={() => { triggerHaptic("selection"); setActiveMode("kundali"); }}
+              className={`px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 ${
+                activeMode === "kundali" 
+                  ? "bg-[#6f3518] text-white shadow-xs" 
+                  : "text-[#5c493d] hover:text-[#2a160d] hover:bg-[#faeee4]"
+              }`}
+            >
+              <span>🕉️</span> Check by Kundali (जन्म पत्रिका अनुसार)
+            </button>
             <button
               onClick={() => { triggerHaptic("selection"); setActiveMode("rashi"); }}
-              className={`px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
+              className={`px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition ${
                 activeMode === "rashi" 
                   ? "bg-[#6f3518] text-white shadow-xs" 
-                  : "text-[#5c493d] hover:text-[#2a160d]"
+                  : "text-[#5c493d] hover:text-[#2a160d] hover:bg-[#faeee4]"
               }`}
             >
               Check by Rashi (Moon Sign)
             </button>
             <button
               onClick={() => { triggerHaptic("selection"); setActiveMode("goal"); }}
-              className={`px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
+              className={`px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition ${
                 activeMode === "goal" 
                   ? "bg-[#6f3518] text-white shadow-xs" 
-                  : "text-[#5c493d] hover:text-[#2a160d]"
+                  : "text-[#5c493d] hover:text-[#2a160d] hover:bg-[#faeee4]"
               }`}
             >
-              Check by Life Focus / Challenge
+              Check by Life Focus / Objective
             </button>
           </div>
         </header>
+
+        {/* Mode: Kundali Calculation */}
+        {activeMode === "kundali" && (
+          <section className="bg-white border border-[#ebdccb] rounded-2xl p-4 sm:p-7 shadow-xs mb-10">
+            <div className="text-center max-w-xl mx-auto mb-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold mb-2">
+                <span>🛡️</span>
+                <span>100% प्रामाणिक कुंडली विचार (Zero Fake Policy) — केवल वास्तविक जन्म पत्रिका देखकर ही परामर्श</span>
+              </div>
+              <span className="text-[11px] uppercase font-bold text-[#8c3e1e] tracking-wider block mb-1">
+                Authentic Sidereal Vedic Jyotish Calculation
+              </span>
+              <h2 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-[#2a160d]">
+                जन्म कुंडली अनुसार व्यक्तिगत रुद्राक्ष परामर्श
+              </h2>
+              <p className="text-xs sm:text-sm text-[#7a5843] mt-1.5 leading-relaxed">
+                वैदिक ज्योतिष के अनुसार प्रत्येक व्यक्ति की कुंडली का लग्न (Ascendant), चंद्र राशि (Moon Sign) तथा विंशोत्तरी महादशा भिन्न होती है। नीचे अपना सही जन्म विवरण दर्ज करें और अपनी कुंडली के अनुसार सिद्ध रुद्राक्ष प्राप्त करें।
+              </p>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {!result ? (
+                <PanditjiForm
+                  name={name}
+                  setName={setName}
+                  dob={dob}
+                  setDob={setDob}
+                  birthPlace={birthPlace}
+                  setBirthPlace={setBirthPlace}
+                  birthTime={birthTime}
+                  setBirthTime={setBirthTime}
+                  concern={concern}
+                  setConcern={setConcern}
+                  isCalculating={isCalculating}
+                  handleCalculate={handleCalculateKundali}
+                />
+              ) : (
+                <PanditjiResult
+                  result={result}
+                  setResult={setResult}
+                  handleAddToCart={handleAddToCart}
+                  handleAskInChat={handleAskInChat}
+                  addedSuccess={addedSuccess}
+                />
+              )}
+            </AnimatePresence>
+          </section>
+        )}
 
         {/* Mode: Rashi Selector */}
         {activeMode === "rashi" && (

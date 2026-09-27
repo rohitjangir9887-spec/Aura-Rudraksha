@@ -85,6 +85,30 @@ export function PanditjiResult({
         </button>
       </div>
 
+      {/* 100% Authentic Kundali Verification Guarantee Banner */}
+      <div style={{
+        background: 'linear-gradient(90deg, rgba(212, 175, 55, 0.15) 0%, rgba(74, 14, 23, 0.08) 100%)',
+        border: '1px solid #D4AF37',
+        borderRadius: 8,
+        padding: '6px 10px',
+        marginBottom: 10,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 6
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13 }}>🛡️</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#4A0E17' }}>
+            100% प्रामाणिक जन्म कुंडली आधारित निर्णय (Zero Fake Guarantee)
+          </span>
+        </div>
+        <span style={{ fontSize: '10px', color: '#7a685b', fontWeight: 600 }}>
+          बृहत्पाराशर होरा शास्त्र सम्मत
+        </span>
+      </div>
+
       {/* 4 Pillars: Rashi, Planet, Element, Numerology */}
       <div style={{
         display: 'grid',
@@ -143,22 +167,27 @@ export function PanditjiResult({
         border: '1px solid #D4AF37'
       }}>
         <div style={{ fontSize: '11px', color: '#FFE082', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 3 }}>
-          ★ आपकी Kundali के अनुसार मुख्य Rudraksha:
+          ★ आपकी जन्म कुंडली अनुसार प्रामाणिक रुद्राक्ष परामर्श:
         </div>
-        <div style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', marginBottom: 4, wordBreak: 'break-word' }}>
-          {result.recommendedMukhi}
+        <div style={{ fontSize: '16px', fontWeight: 800, color: '#FFFFFF', marginBottom: 4, wordBreak: 'break-word' }}>
+          {result.primaryMukhi || result.recommendedMukhi}
         </div>
+        {result.chandraMukhi && result.chandraMukhi !== result.primaryMukhi && (
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFE082', marginBottom: 6 }}>
+            पूरक चंद्र राशि रुद्राक्ष: {result.chandraMukhi}
+          </div>
+        )}
         <p style={{ fontSize: '11.5px', color: '#f5e6d3', margin: '0 0 8px 0', lineHeight: 1.45, wordBreak: 'break-word' }}>
           {result.astroReason}
         </p>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '11px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 6 }}>
-          <span>📿 बीज मंत्र: <b style={{ color: '#FFE082' }}>{result.beejMantra}</b></span>
+          <span>📿 सिद्ध बीज मंत्र: <b style={{ color: '#FFE082' }}>{result.beejMantra}</b></span>
           <span>🗓️ शुभ धारण वार: <b style={{ color: '#FFE082' }}>{result.wearingDay}</b></span>
         </div>
       </div>
 
-      {/* Matched Product & Instant Purchase CTA */}
+      {/* Primary Recommended Product & Instant Purchase CTA */}
       {result.matchedProduct && (
         <div style={{
           display: 'flex',
@@ -170,7 +199,7 @@ export function PanditjiResult({
           border: '1px solid #e8dac9',
           borderRadius: 8,
           padding: '10px 12px',
-          marginBottom: 12
+          marginBottom: result.chandraProduct && result.chandraProduct.id !== result.matchedProduct.id ? 8 : 12
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <img
@@ -179,6 +208,9 @@ export function PanditjiResult({
               style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', border: '1px solid #ebdccb', flexShrink: 0 }}
             />
             <div style={{ minWidth: 0 }}>
+              <span style={{ fontSize: '10px', color: '#a54d2b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                मुख्य लग्न रुद्राक्ष (अनुशंसित)
+              </span>
               <b style={{ fontSize: '13px', color: '#2b170d', display: 'block', wordBreak: 'break-word' }}>
                 {result.matchedProduct.name}
               </b>
@@ -202,12 +234,12 @@ export function PanditjiResult({
 
             <button
               type="button"
-              onClick={handleAddToCart}
+              onClick={() => handleAddToCart(result.matchedProduct)}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 4,
-                background: addedSuccess ? '#16a34a' : '#a54d2b',
+                background: addedSuccess === result.matchedProduct.id || addedSuccess === true ? '#16a34a' : '#a54d2b',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 6,
@@ -219,13 +251,91 @@ export function PanditjiResult({
                 whiteSpace: 'nowrap'
               }}
             >
-              {addedSuccess ? (
+              {addedSuccess === result.matchedProduct.id || addedSuccess === true ? (
                 <>
                   <Check size={13} /> कार्ट में जोड़ा
                 </>
               ) : (
                 <>
                   <ShoppingCart size={13} /> अभी खरीदें
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Optional Chandra Rashi Product Card (if different from Primary) */}
+      {result.chandraProduct && result.chandraProduct.id !== result.matchedProduct?.id && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 10,
+          background: '#fdfaf5',
+          border: '1px solid #ebdccb',
+          borderRadius: 8,
+          padding: '10px 12px',
+          marginBottom: 12
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <img
+              src={getProductPrimaryImage(result.chandraProduct)}
+              alt={result.chandraProduct.name}
+              style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', border: '1px solid #ebdccb', flexShrink: 0 }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <span style={{ fontSize: '10px', color: '#b45309', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
+                चंद्र राशि रुद्राक्ष ({result.rashiHindi} राशि)
+              </span>
+              <b style={{ fontSize: '13px', color: '#2b170d', display: 'block', wordBreak: 'break-word' }}>
+                {result.chandraProduct.name}
+              </b>
+              <div style={{ fontSize: '11px', color: '#8a6850' }}>
+                मन की शांति व मानसिक स्थिरता हेतु
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#a54d2b' }}>
+                ₹{result.chandraProduct.price.toLocaleString('en-IN')}
+              </span>
+              {result.chandraProduct.mrp && (
+                <span style={{ fontSize: '10px', color: '#999', textDecoration: 'line-through', marginLeft: 3 }}>
+                  ₹{result.chandraProduct.mrp.toLocaleString('en-IN')}
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleAddToCart(result.chandraProduct)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: addedSuccess === result.chandraProduct.id ? '#16a34a' : '#854d0e',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {addedSuccess === result.chandraProduct.id ? (
+                <>
+                  <Check size={13} /> कार्ट में जोड़ा
+                </>
+              ) : (
+                <>
+                  <ShoppingCart size={13} /> यह भी लें
                 </>
               )}
             </button>

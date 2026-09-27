@@ -20,6 +20,8 @@ import {
   SACRED_RUDRAKSHA_COMBINATIONS
 } from "../services/vedicKnowledgeService.js";
 import { calculateAuthenticKundali, determineAstrologicalIntent } from "../services/vedicAstrologyService.js";
+import { defaultProducts } from "../data/defaultData.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
 import { retrieveRagContext } from "../services/ragService.js";
 import { generateSeoAndVedicDataWithNemotron } from "../services/nemotronSeoEngine.js";
@@ -364,6 +366,30 @@ export function convertNimMessagesToGemini(nimMessages = []) {
 }
 
 
+// Strict exact Mukhi product matcher to prevent 1 Mukhi matching 11 Mukhi or 4 Mukhi matching 14 Mukhi
+export function isExactMukhiProduct(p, targetMukhiNum) {
+  if (!p || !targetMukhiNum) return false;
+  const num = parseInt(targetMukhiNum, 10);
+  if (!num) return false;
+
+  if (p.mukhi !== undefined && p.mukhi !== null) {
+    const pMukhiNum = parseInt(String(p.mukhi).replace(/\D/g, ""), 10);
+    if (pMukhiNum === num) return true;
+  }
+
+  const name = String(p.name || "").toLowerCase();
+  const slug = String(p.slug || "").toLowerCase();
+
+  const strictRegex = new RegExp(`(?:^|[^0-9])${num}\\s*[-]?\\s*mukhi(?:[^0-9]|$)`, "i");
+  if (strictRegex.test(name) || strictRegex.test(slug)) return true;
+
+  if (slug === `${num}-mukhi` || slug === `${num}-mukhi-rudraksha` || slug.startsWith(`${num}-mukhi-`)) {
+    return true;
+  }
+
+  return false;
+}
+
 // Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
   if (!p) return null;
@@ -594,23 +620,27 @@ export function extractBirthDetailsFromText(rawText) {
 
   // 2. Birth Time patterns
   let birthTime = null;
-  const labeledTimeMatch = text.match(/(?:time|samay|समय|जन्म\s*समय)[\s:=-]+(\d{1,2}):(\d{2})(?:\s*(am|pm|बजे))?/i);
+  const labeledTimeMatch = text.match(/(?:time|samay|समय|जन्म\s*समय)[\s:=-]+(\d{1,2})[:.](\d{2})(?:\s*(am|pm|बजे|hrs?))?/i);
   if (labeledTimeMatch) {
     let hh = parseInt(labeledTimeMatch[1], 10);
     const mm = String(labeledTimeMatch[2]).padStart(2, "0");
     const ampm = (labeledTimeMatch[3] || "").toLowerCase();
-    if (ampm === "pm" && hh < 12) hh += 12;
-    if (ampm === "am" && hh === 12) hh = 0;
-    birthTime = `${String(hh).padStart(2, "0")}:${mm}`;
+    if ((ampm === "pm" || /शाम|रात|dopahar|noon/i.test(text)) && hh < 12) hh += 12;
+    if ((ampm === "am" || /सुबह|pratah|morning/i.test(text)) && hh === 12) hh = 0;
+    if (hh >= 0 && hh <= 23 && parseInt(mm, 10) >= 0 && parseInt(mm, 10) <= 59) {
+      birthTime = `${String(hh).padStart(2, "0")}:${mm}`;
+    }
   } else {
-    const genericTimeMatch = text.match(/\b(\d{1,2}):(\d{2})(?:\s*(am|pm))\b/i);
+    const genericTimeMatch = text.match(/\b(\d{1,2})[:.](\d{2})(?:\s*(am|pm|बजे|hrs?))\b/i) || text.match(/(?:at|ko|बजे|samay|समय)\s*(\d{1,2})[:.](\d{2})\b/i);
     if (genericTimeMatch) {
       let hh = parseInt(genericTimeMatch[1], 10);
       const mm = String(genericTimeMatch[2]).padStart(2, "0");
       const ampm = (genericTimeMatch[3] || "").toLowerCase();
-      if (ampm === "pm" && hh < 12) hh += 12;
-      if (ampm === "am" && hh === 12) hh = 0;
-      birthTime = `${String(hh).padStart(2, "0")}:${mm}`;
+      if ((ampm === "pm" || /शाम|रात|dopahar|noon/i.test(text)) && hh < 12) hh += 12;
+      if ((ampm === "am" || /सुबह|pratah|morning/i.test(text)) && hh === 12) hh = 0;
+      if (hh >= 0 && hh <= 23 && parseInt(mm, 10) >= 0 && parseInt(mm, 10) <= 59) {
+        birthTime = `${String(hh).padStart(2, "0")}:${mm}`;
+      }
     }
   }
 
@@ -624,11 +654,36 @@ export function extractBirthDetailsFromText(rawText) {
     }
   }
 
+  // Fallback: Check for known Indian cities in message
+  if (!birthPlace) {
+    const lower = text.toLowerCase();
+    const commonCities = [
+      "jaipur", "delhi", "new delhi", "noida", "gurgaon", "gurugram", "mumbai", "kolkata", "bangalore", 
+      "bengaluru", "chennai", "hyderabad", "pune", "ahmedabad", "surat", "lucknow", "kanpur", "indore", 
+      "bhopal", "patna", "vadodara", "nagpur", "ghaziabad", "varanasi", "kashi", "agra", "meerut", 
+      "nashik", "faridabad", "rajkot", "jodhpur", "kota", "bikaner", "ajmer", "udaipur", "sikar", 
+      "alwar", "chandigarh", "ludhiana", "amritsar", "jalandhar", "haridwar", "rishikesh", "dehradun", 
+      "mathura", "vrindavan", "ayodhya", "prayagraj", "allahabad", "gwalior", "jabalpur", "raipur", 
+      "ranchi", "jamshedpur", "dhanbad", "bhubaneswar", "cuttack", "guwahati", "siliguri", "kochi", 
+      "thiruvananthapuram", "mysore", "coimbatore", "madurai", "vijayawada", "visakhapatnam", "tirupati"
+    ];
+    for (const city of commonCities) {
+      const cityRegex = new RegExp(`\\b${city}\\b`, "i");
+      if (cityRegex.test(lower)) {
+        birthPlace = city.charAt(0).toUpperCase() + city.slice(1);
+        break;
+      }
+    }
+  }
+
   // 4. Name patterns
   let name = null;
-  const labeledNameMatch = text.match(/(?:name|devotee|naam|नाम|मेरा\s*नाम|mera\s*naam)[\s:=-]+([a-zA-Z\u0900-\u097F\s]+?)(?=[•\n,;.]|$|है)/i);
+  const labeledNameMatch = text.match(/(?:name|devotee|naam|नाम|मेरा\s*नाम|mera\s*naam)[\s:=-]+([a-zA-Z\u0900-\u097F\s]+?)(?=[•\n,;.]|$|है|ji|जी)/i);
   if (labeledNameMatch) {
-    const rawName = labeledNameMatch[1].trim().replace(/^is\s+/i, "").replace(/^hai\s+/i, "");
+    let rawName = labeledNameMatch[1].trim()
+      .replace(/^(is|hai|hain|ki|ka)\s+/i, "")
+      .replace(/\s+(is|hai|hain|ji|जी|ki|ka)$/i, "")
+      .trim();
     if (rawName && rawName.length >= 2) {
       name = rawName;
     }
@@ -731,17 +786,28 @@ function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, a
     const lagna = calculatedKundaliData.astronomicalKundali.lagna?.rashiHindi || "जन्म लग्न";
     const dasha = calculatedKundaliData.astronomicalKundali.vimshottariDasha?.currentMahadashaHindi || "महादशा";
 
-    replies.push(
-      `📿 ${canonicalMukhi} धारण विधि व बीज मंत्र`,
-      `🪐 ${lagna} लग्न अनुसार ${canonicalMukhi} लाभ`,
-      `🛍️ सिद्ध ${canonicalMukhi} स्टोर में देखें`,
-      `✨ ${dasha} महादशा व ग्रह गोचर उपाय`
-    );
+    if (/(fake|fack|sach|pramanik|kundali|trend|train|farzi|सत्य|प्रमाण)/i.test(msgLower)) {
+      replies.push(
+        `🪐 ${canonicalMukhi} (लग्न स्वामी प्रमाण)`,
+        `🌙 चंद्र राशि रुद्राक्ष`,
+        `⏳ ${dasha} महादशा उपाय`,
+        `🔭 संपूर्ण कुंडली चक्र`
+      );
+    } else {
+      replies.push(
+        `📿 ${canonicalMukhi} धारण विधि व बीज मंत्र`,
+        `🪐 ${lagna} लग्न अनुसार ${canonicalMukhi} लाभ`,
+        `🛍️ सिद्ध ${canonicalMukhi} स्टोर में देखें`,
+        `✨ ${dasha} महादशा व ग्रह गोचर उपाय`
+      );
+    }
     return replies;
   }
 
   if (mode === "panditji") {
-    if (targetMukhi) {
+    if (/(fake|fack|sach|pramanik|kundali|trend|train|farzi|सत्य|प्रमाण)/i.test(msgLower)) {
+      replies.push("📝 जन्म विवरण दर्ज करें", "🕉️ शुद्ध वैदिक पद्धति", "📿 लग्न अनुसार रुद्राक्ष नियम", "✨ 1 से 14 मुखी महत्व");
+    } else if (targetMukhi) {
       replies.push(`📿 ${targetMukhi} मुखी रुद्राक्ष के लाभ`, "🙏 संपूर्ण धारण विधि व मंत्र", "🪐 कुंडली अनुसार अनुकूलता", `🛍️ ${targetMukhi} मुखी खरीदें`);
     } else {
       replies.push("✨ मेरी जन्म कुंडली व महादशा देखें", "📿 मेरे लिए सबसे शुभ रुद्राक्ष कौन सा है?", "💰 धन, व्यापार व करियर में उन्नति के उपाय", "❤️ विवाह में देरी व दांपत्य सुख के उपाय");
@@ -1114,28 +1180,54 @@ export async function calculateKundaliEndpoint(req, res, next) {
         allProducts = [];
       }
     }
+    if (!allProducts || allProducts.length === 0) {
+      allProducts = inMemoryStore.products?.length > 0 ? inMemoryStore.products : (defaultProducts || []);
+    }
 
     const recommendedProducts = [];
-    const primaryRec = kundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0];
-    const primaryMukhiNum = primaryRec?.mukhiNumber;
-    const primaryMukhiStr = String(primaryRec?.mukhi || "").toLowerCase();
+    const recs = kundaliData.astronomicalKundali?.rudrakshaRecommendations || [];
+    const primaryRec = recs[0];
+    const chandraRec = recs[1];
+    const dashaRec = recs[2];
 
-    // STRICT CANONICAL PRIMARY FILTER: Only show products matching the customer's exact Canonical Primary Mukhi
-    const matches = allProducts.filter(p => {
-      const titleLower = (p.name || "").toLowerCase();
-      if (primaryMukhiNum && (titleLower.includes(`${primaryMukhiNum} mukhi`) || titleLower.includes(`${primaryMukhiNum}-mukhi`))) return true;
-      if (primaryMukhiStr.includes("gauri shankar") && titleLower.includes("gauri shankar")) return true;
-      if (primaryMukhiStr.includes("ganesh") && titleLower.includes("ganesh")) return true;
-      if (primaryMukhiStr.includes("garbh gauri") && titleLower.includes("garbh gauri")) return true;
-      if (primaryMukhiStr.includes("108") && (titleLower.includes("108") || titleLower.includes("mala") || titleLower.includes("jaap"))) return true;
-      return false;
-    });
+    const findMatchingProductsForRec = (recItem) => {
+      if (!recItem) return [];
+      const mukhiNum = recItem.mukhiNumber || parseInt(recItem.mukhi, 10);
+      const mukhiStr = String(recItem.mukhi || "").toLowerCase();
 
-    for (const m of matches) {
-      if (!recommendedProducts.some(rp => rp.id === String(m.id || m._id))) {
-        recommendedProducts.push(formatProductForResponse(m));
+      return allProducts.filter(p => {
+        if (!p) return false;
+        if (mukhiNum && isExactMukhiProduct(p, mukhiNum)) return true;
+
+        const titleLower = (p.name || "").toLowerCase();
+        const slugLower = (p.slug || "").toLowerCase();
+
+        if (mukhiStr.includes("gauri shankar") && (titleLower.includes("gauri shankar") || slugLower.includes("gauri-shankar"))) return true;
+        if (mukhiStr.includes("ganesh") && (titleLower.includes("ganesh") || slugLower.includes("ganesh"))) return true;
+        if (mukhiStr.includes("garbh gauri") && (titleLower.includes("garbh gauri") || slugLower.includes("garbh-gauri"))) return true;
+        if (mukhiStr.includes("108") && (titleLower.includes("108") || titleLower.includes("mala") || titleLower.includes("jaap"))) return true;
+        return false;
+      });
+    };
+
+    // Match products for Primary Life Mukhi, Chandra Rashi Mukhi, and Dasha Mukhi
+    for (const recItem of [primaryRec, chandraRec, dashaRec]) {
+      if (!recItem) continue;
+      const matched = findMatchingProductsForRec(recItem);
+      for (const m of matched) {
+        const mId = String(m.id || m._id);
+        if (!recommendedProducts.some(rp => rp.id === mId)) {
+          recommendedProducts.push(formatProductForResponse(m));
+        }
       }
     }
+
+    const primaryMukhiNum = primaryRec?.mukhiNumber || parseInt(primaryRec?.mukhi, 10);
+    const exactPrimaryProduct = primaryMukhiNum ? allProducts.find(p => isExactMukhiProduct(p, primaryMukhiNum)) : null;
+
+    const matchedProduct = (exactPrimaryProduct ? formatProductForResponse(exactPrimaryProduct) : null) || 
+      recommendedProducts[0] || 
+      (allProducts[0] ? formatProductForResponse(allProducts[0]) : null);
 
     // 3. Generate Vedic Interpretation prioritizing NVIDIA NIM (nemotron-3-super-120b-a12b)
     let aiInterpretation = "";
@@ -1280,7 +1372,8 @@ SAFETY:
     }
 
     if (!aiInterpretation.trim()) {
-      aiInterpretation = `🙏 **जय श्री राम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक खगोलीय विश्लेषण के अनुसार, आपका जन्म **${kundaliData.astronomicalKundali.lagna.rashiHindi} लग्न** एवं **${kundaliData.astronomicalKundali.chandraRashi.rashiHindi} राशि** में हुआ है। आपका जन्म नक्षत्र **${kundaliData.astronomicalKundali.chandraRashi.nakshatra}** (पद ${kundaliData.astronomicalKundali.chandraRashi.pada}) है।\n\nवर्तमान में आप पर **${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} महादशा** का प्रभाव है। आपके लग्न एवं राशि के स्वामी की अनुकूलता तथा आपके संकल्प की सिद्धि हेतु प्राण-प्रतिष्ठित **${kundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** धारण करना आपके लिए अत्यंत कल्याणकारी रहेगा।\n\n[AURA_KEYWORDS]: रुद्राक्ष धारण विधि | 5 मुखी रुद्राक्ष | जन्म राशि रुद्राक्ष | महादशा उपाय | आज का शुभ मुहूर्त`;
+      const recMukhiName = kundaliData.astronomicalKundali.rudrakshaRecommendations[0]?.mukhi || "सिद्ध रुद्राक्ष";
+      aiInterpretation = `🙏 **जय श्री राम! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक खगोलीय विश्लेषण के अनुसार, आपका जन्म **${kundaliData.astronomicalKundali.lagna.rashiHindi} लग्न** एवं **${kundaliData.astronomicalKundali.chandraRashi.rashiHindi} राशि** में हुआ है। आपका जन्म नक्षत्र **${kundaliData.astronomicalKundali.chandraRashi.nakshatra}** (पद ${kundaliData.astronomicalKundali.chandraRashi.pada}) है।\n\nवर्तमान में आप पर **${kundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi} महादशा** का प्रभाव है। आपके लग्न एवं राशि के स्वामी की अनुकूलता तथा आपके संकल्प की सिद्धि हेतु प्राण-प्रतिष्ठित **${recMukhiName}** धारण करना आपके लिए अत्यंत कल्याणकारी रहेगा।\n\n[AURA_KEYWORDS]: रुद्राक्ष धारण विधि | ${recMukhiName} | जन्म राशि रुद्राक्ष | महादशा उपाय | आज का शुभ मुहूर्त`;
     }
 
 
@@ -1289,6 +1382,7 @@ SAFETY:
       data: {
         ...kundaliData,
         aiInterpretation: cleanServerAiText(aiInterpretation),
+        matchedProduct,
         recommendedProducts
       }
     });
@@ -1427,7 +1521,7 @@ export async function chatAuraAI(req, res, next) {
 
     const extractedFromMsg = extractBirthDetailsFromText(message);
     const passedBirthDetails = (birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace) ? birthDetails : null;
-    const incomingBirthDetails = passedBirthDetails || extractedFromMsg;
+    const incomingBirthDetails = extractedFromMsg || passedBirthDetails;
     const existingVerifiedBirthDetails = existingConvDoc?.verifiedBirthDetails || null;
 
     const isContinuation = Boolean(req.body?.isContinuation) || 
@@ -1437,13 +1531,13 @@ export async function chatAuraAI(req, res, next) {
     let activeBirthDetails = null;
 
     if (incomingBirthDetails) {
-      const isDifferentFromExisting = !existingVerifiedBirthDetails ||
+      const isDifferentFromExisting = Boolean(extractedFromMsg) || !existingVerifiedBirthDetails ||
         existingVerifiedBirthDetails.dob !== incomingBirthDetails.dob ||
         existingVerifiedBirthDetails.birthTime !== incomingBirthDetails.birthTime ||
         existingVerifiedBirthDetails.birthPlace !== incomingBirthDetails.birthPlace ||
         (incomingBirthDetails.name && existingVerifiedBirthDetails.name && incomingBirthDetails.name.toLowerCase() !== existingVerifiedBirthDetails.name.toLowerCase());
 
-      hasNewBirthDetails = !isContinuation && (Boolean(req.body?.reset) || (isDifferentFromExisting && (!existingConvDoc || (existingConvDoc.messages && existingConvDoc.messages.length > 0))));
+      hasNewBirthDetails = !isContinuation && (Boolean(req.body?.reset) || Boolean(extractedFromMsg) || (isDifferentFromExisting && (!existingConvDoc || (existingConvDoc.messages && existingConvDoc.messages.length > 0))));
       activeBirthDetails = {
         dob: incomingBirthDetails.dob,
         birthTime: incomingBirthDetails.birthTime,
@@ -1632,11 +1726,12 @@ export async function chatAuraAI(req, res, next) {
           const pId = String(p.id || p._id || "");
           if (kundaliRecommendedProducts.some(kp => kp.id === pId)) return false;
           const pNameLower = (p.name || "").toLowerCase();
+          const pSlugLower = (p.slug || "").toLowerCase();
 
-          if (mukhiNum && (pNameLower.includes(`${mukhiNum} mukhi`) || pNameLower.includes(`${mukhiNum}-mukhi`))) return true;
-          if (mukhiStr.includes("gauri shankar") && pNameLower.includes("gauri shankar")) return true;
-          if (mukhiStr.includes("ganesh") && pNameLower.includes("ganesh")) return true;
-          if (mukhiStr.includes("garbh gauri") && pNameLower.includes("garbh gauri")) return true;
+          if (mukhiNum && isExactMukhiProduct(p, mukhiNum)) return true;
+          if (mukhiStr.includes("gauri shankar") && (pNameLower.includes("gauri shankar") || pSlugLower.includes("gauri-shankar"))) return true;
+          if (mukhiStr.includes("ganesh") && (pNameLower.includes("ganesh") || pSlugLower.includes("ganesh"))) return true;
+          if (mukhiStr.includes("garbh gauri") && (pNameLower.includes("garbh gauri") || pSlugLower.includes("garbh-gauri"))) return true;
           if (mukhiStr.includes("108") && (pNameLower.includes("108") || pNameLower.includes("mala") || pNameLower.includes("jaap"))) return true;
           return false;
         });
@@ -1654,8 +1749,7 @@ export async function chatAuraAI(req, res, next) {
           const additionalMatches = allStoreProds.filter(p => {
             const pId = String(p.id || p._id || "");
             if (kundaliRecommendedProducts.some(kp => kp.id === pId)) return false;
-            const pNameLower = (p.name || "").toLowerCase();
-            return pNameLower.includes(`${mukhiNum} mukhi`) || pNameLower.includes(`${mukhiNum}-mukhi`);
+            return isExactMukhiProduct(p, mukhiNum);
           });
           for (const m of additionalMatches) {
             if (kundaliRecommendedProducts.length >= 3) break;
@@ -1988,6 +2082,27 @@ ${astroIntent.type === "greeting" ? `
      N. **कल्याणकारी उपाय व सिद्ध नेपाली रुद्राक्ष** (Lagna, Rashi व Dasha आधारित मुखी, प्राण-प्रतिष्ठा, धारण विधि, बीज मंत्र एवं स्टोर लिंक [Product Name](/product/slug))
      10. 🌟 **अनिवार्य सारांश (Key Points & Key Takeaways - Bullet Points में)**
      11. 🔤 **[AURA_KEYWORDS]: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} धारण विधि | ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} लाभ | विंशोत्तरी महादशा उपाय | आज का शुभ मुहूर्त**
+` : astroIntent.type === "authenticity_verification" ? `
+   - Devotee EXPLICITLY DEMANDED 100% AUTHENTICITY, questioned fake readings, or said "Fake na bataye, kundali dekh kar hi bataye, isko train karo" ("${message || ''}").
+   - **CRITICAL ANTI-FAKE DIRECTIVE (नो फेक — शत-प्रतिशत प्रामाणिक कुंडली विचार)**:
+     * Affirm the devotee's concern immediately with deep respect:
+       "🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**
+       
+       आपकी बात शत-प्रतिशत सत्य एवं सराहनीय है। ऑरा रुद्राक्ष (Aura Rudraksha) पर हम किसी भी प्रकार का कोई फर्जी (Fake), काल्पनिक या अंदाजे पर आधारित रुद्राक्ष या फलादेश कतई नहीं बताते। हमारा संपूर्ण सिस्टम Brihat Parashara Hora Shastra (BPHS), Lahiri Sidereal Ephemeris एवं शिव पुराण के अटल वैदिक नियमों पर प्रशिक्षित (Trained) है।"
+     * **आपकी जन्म कुंडली के प्रत्यक्ष खगोलीय व शास्त्रीय प्रमाण (Mathematically Proven):**
+       1. 🪐 **आपका शुद्ध जन्म लग्न (Sidereal Lagna):** **${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})** (${calculatedKundaliData.astronomicalKundali.lagna.degree}) — लग्न स्वामी: **${calculatedKundaliData.astronomicalKundali.lagna.lord}** | तत्व: ${calculatedKundaliData.astronomicalKundali.lagna.element}
+          - 💡 **कुंडली प्रमाण:** लग्न प्रथम भाव है जो देह, आत्मबल, आरोग्य और संपूर्ण जीवन ऊर्जा का आधार है। लग्न अधिपति के अनुसार आपका **मुख्य जीवन रुद्राक्ष (Primary Life Mukhi): ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** निर्धारित हुआ है।
+       2. 🌙 **आपकी जन्म चंद्र राशि (Moon Sign):** **${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})** (${calculatedKundaliData.astronomicalKundali.chandraRashi.degree}) — नक्षत्र: **${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})** | राशि स्वामी: **${calculatedKundaliData.astronomicalKundali.chandraRashi.lord}**
+          - 💡 **कुंडली प्रमाण:** चंद्र मन का कारक है ("चन्द्रमा मनसो जातः")। मानसिक शांति, भावनात्मक संतुलन और सुख-शांति हेतु आपका **चंद्र राशि रुद्राक्ष: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[1]?.mukhi || calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** निर्धारित हुआ है।
+       3. ⏳ **आपकी वर्तमान सक्रिय विंशोत्तरी महादशा:** **${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi}** (${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaStartDate || 'प्रारंभ'} से ${calculatedKundaliData.astronomicalKundali.vimshottariDasha.mahadashaEndDate || 'समाप्ति'}) | अंतर्दशा: **${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi}**
+          - 💡 **कुंडली प्रमाण:** वर्तमान समय चक्र जिस ग्रह के प्रभाव में है, उस ग्रह की शांति, अनुकूलता और विघ्न निवारण हेतु आपका **महादशा रुद्राक्ष: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[2]?.mukhi || calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}** निर्धारित हुआ है।
+     * **शास्त्रीय प्रमाण (Brihat Parashara Hora Shastra & Shiva Purana):**
+       - यह गणना आपके सटीक जन्म समय (${calculatedKundaliData.verifiedBirthData.birthTime}) और स्थान (${calculatedKundaliData.verifiedBirthData.birthPlace}) से देशांतर-अक्षांश (Latitude/Longitude) निकालकर की गई है।
+       - किसी अन्य व्यक्ति का जन्म समय अलग होने पर उसका लग्न और रुद्राक्ष पूर्णतः भिन्न होगा।
+     * **सिद्ध नेपाली रुद्राक्ष व संपूर्ण धारण विधि:**
+       - तीनों अनुशंसित रुद्राक्षों का विवरण दें (1. मुख्य: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi}, 2. चंद्र: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[1]?.mukhi || ''}, 3. महादशा: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[2]?.mukhi || ''}) उनके सटीक स्टोर लिंक के साथ: [Product Name](/product/slug), शिव बीज मंत्र एवं गंगाजल-कच्चे दूध से अभिषेक विधि।
+     * 🌟 **अनिवार्य सारांश (Key Points: 100% प्रामाणिक वैदिक निष्कर्ष - Bullet Points में)**
+     * 🔤 **[AURA_KEYWORDS]: ${calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations[0].mukhi} | प्रामाणिक वैदिक कुंडली | विंशोत्तरी महादशा | शिव पुराण धारण विधि**
 ` : `
    - Devotee asked a SPECIFIC QUESTION regarding: "${astroIntent.label}" (User query: "${message || ''}").
    - **CRITICAL DIRECTIVE (DO NOT RE-DUMP ENTIRE KUNDALI)**:
@@ -2027,11 +2142,21 @@ STRICT ACCURACY, EVIDENCE & REASONING RULES:
      - 📌 **[ग्रह नाम]** (भाव placement, राशि, स्थिति: **उच्च** / **नीच** / **स्वगृही** / **मित्र/शत्रु राशि**):
        - 💡 **विस्तृत प्रभाव व फल:** (व्यक्तिगत जीवन, स्वभाव, स्वास्थ्य, करियर, धन व संबंधों पर इसका क्या प्रभाव पड़ेगा, इसे स्पष्ट समझाएँ।)
 ` : `
-- If the user asks for personalized Kundali, Mahadasha, Antardasha, Rashi, Manglik, Sade Sati, or Graha Dosha analysis (such as "मेरे किस की महादशा चल रही है", "मेरी महादशा क्या है", "कुंडली बताओ") without providing complete birth details (DOB, Time, Place):
-  1. Greet them warmly in Hindi: "🙏 प्रणाम भक्त! हर हर महादेव।"
-  2. Clearly explain: "आपकी वर्तमान विंशोत्तरी महादशा एवं जन्म कुंडली की सटीक वैदिक गणना के लिए आपकी सही जन्म तिथि (DOB), जन्म समय (Time) तथा जन्म स्थान (City) की आवश्यकता है।"
-  3. Encourage them: "कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें, ताकि मैं तुरंत आपकी महादशा, ग्रह गोचर और शुभ रुद्राक्ष उपाय बता सकूँ।"
-  4. Do not fabricate positions without data.
+- ANTI-FAKE & AUTHENTIC KUNDALI MANDATE (CRITICAL):
+  - If the user asks about authenticity, says "fake na bataye", "fack na btaye", "kundali dekh kar hi bataye", "trend karo", "train karo", "sach batao", OR asks for personalized Kundali, Mahadasha, Antardasha, Rashi, Manglik, Sade Sati, or Graha Dosha analysis without providing complete birth details (DOB, Time, Place):
+    1. Greet them warmly and respectfully in pure Hindi: "🙏 **प्रणाम भक्त! हर हर महादेव।**"
+    2. Wholeheartedly affirm their demand for authentic Kundali analysis:
+       "आपकी यह बात बिल्कुल शत-प्रतिशत सत्य एवं सराहनीय है। बिना जन्म कुंडली देखे किसी को भी कोई भी रुद्राक्ष या फलादेश बताना अनुचित और फर्जी (Fake) है।"
+    3. Clearly state our Vedic policy:
+       "ऑरा रुद्राक्ष (Aura Rudraksha) पर हम किसी भी जातक को कोई सामान्य, मनगढ़ंत या फर्जी (Fake) रुद्राक्ष कभी नहीं थोपते। हमारा संपूर्ण सिस्टम महर्षि पाराशर (Brihat Parashara Hora Shastra) एवं शिव पुराण के अटल वैदिक नियमों पर पूर्णतः प्रशिक्षित है। प्रत्येक व्यक्ति का रुद्राक्ष उसकी जन्म तिथि, सटीक जन्म समय और जन्म स्थान से बनने वाले शुद्ध खगोलीय लग्न (Ascendant), चंद्र राशि और सक्रिय विंशोत्तरी महादशा देखकर ही तय किया जाता है।"
+    4. Prompt them clearly to enter their birth details:
+       "👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें या चैट में लिखें:**
+       • **जन्म तिथि (Date of Birth)** — उदा. 15-08-1995
+       • **जन्म समय (Birth Time)** — उदा. 10:30 AM
+       • **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान
+       
+       जैसे ही आप अपना विवरण देंगे, मैं तुरंत आपकी संपूर्ण प्रामाणिक वैदिक कुंडली बनाकर लग्न स्वामी, चंद्र राशि और वर्तमान महादशा के अनुसार वही सिद्ध नेपाली रुद्राक्ष बताऊँगा जो सीधे आपकी कुंडली से प्रमाणित होगा।"
+    5. STRICTLY PROHIBITED: Do not guess, fabricate, or assign random mukhis or generic predictions without verified birth data.
 `}
 
 SACRED RUDRAKSHA COMBINATION THERAPY (VEDIC BANDHS):
@@ -2369,10 +2494,21 @@ ${memoryContextText || "Guest shopper."}`;
             const mahaStart = vDasha?.mahadashaStartDate || "2020";
             const mahaEnd = vDasha?.mahadashaEndDate || "2036";
             const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "प्रामाणिक मुख्य रुद्राक्ष";
+            const chandraMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[1]?.mukhi || recMukhi;
+            const dashaMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[2]?.mukhi || recMukhi;
 
-            fallbackText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
-          } else if (shouldPromptBirthForm) {
-            fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी जन्म कुंडली और वर्तमान में चल रही **विंशोत्तरी महादशा व अंतर्दशा** की सटीक गणना हेतु आपकी **जन्म तिथि (Date of Birth)**, **जन्म समय (Time of Birth)** एवं **जन्म स्थान (Place of Birth)** की आवश्यकता है।\n\nवैदिक ज्योतिष (Brihat Parashara Hora Shastra) के अनुसार महादशा का निर्धारण जन्म कालीन चंद्र नक्षत्र से होता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें**, ताकि मैं तुरंत आपकी सटीक कुंडली व महादशा का पूर्ण विवरण और शुभ रुद्राक्ष उपाय बता सकूँ।`;
+            if (astroIntent.type === "authenticity_verification") {
+              const lagnaName = calculatedKundaliData.astronomicalKundali.lagna.rashiHindi;
+              const lagnaLord = calculatedKundaliData.astronomicalKundali.lagna.lord;
+              const rashiName = calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi;
+              const rashiLord = calculatedKundaliData.astronomicalKundali.chandraRashi.lord;
+
+              fallbackText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी यह बात शत-प्रतिशत सत्य एवं सराहनीय है। ऑरा रुद्राक्ष पर हम किसी भी प्रकार का कोई फर्जी (Fake), काल्पनिक या अंदाजे पर आधारित रुद्राक्ष या फलादेश कतई नहीं बताते। हमारा संपूर्ण विश्लेषण Brihat Parashara Hora Shastra (BPHS) और Lahiri Sidereal Ephemeris के खगोलीय नियमों पर सिद्ध है।\n\n**आपकी जन्म कुंडली के प्रत्यक्ष खगोलीय व शास्त्रीय प्रमाण:**\n\n1. 🪐 **आपका शुद्ध जन्म लग्न:** **${lagnaName}** (अंश: ${calculatedKundaliData.astronomicalKundali.lagna.degree} | स्वामी: **${lagnaLord}**)\n   - 💡 **कुंडली प्रमाण:** लग्न प्रथम भाव है जो देह, आरोग्य और आत्मबल का आधार है। लग्न स्वामी के अनुसार आपका **मुख्य जीवन रुद्राक्ष (Primary Mukhi): ${recMukhi}** निर्धारित हुआ है।\n\n2. 🌙 **आपकी जन्म चंद्र राशि:** **${rashiName}** (स्वामी: **${rashiLord}**)\n   - 💡 **कुंडली प्रमाण:** चंद्र मन का स्वामी है। मानसिक शांति व एकाग्रता हेतु आपका **चंद्र राशि रुद्राक्ष: ${chandraMukhi}** निर्धारित हुआ है।\n\n3. ⏳ **आपकी वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक | अंतर्दशा: **${currentAntar}**)\n   - 💡 **कुंडली प्रमाण:** वर्तमान समय चक्र के अनुकूलन व विघ्न निवारण हेतु आपका **महादशा रुद्राक्ष: ${dashaMukhi}** निर्धारित हुआ है।\n\n**कल्याणकारी उपाय व सिद्ध नेपाली रुद्राक्ष:**\n• **मुख्य जीवन रुद्राक्ष:** ${recMukhi}\n• **चंद्र राशि रुद्राक्ष:** ${chandraMukhi}\n• **महादशा रुद्राक्ष:** ${dashaMukhi}\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय\n\n[AURA_KEYWORDS]: प्रामाणिक कुंडली | ${recMukhi} | लग्न स्वामी रुद्राक्ष | विंशोत्तरी महादशा`;
+            } else {
+              fallbackText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
+            }
+          } else if (astroIntent.type === "authenticity_verification" || shouldPromptBirthForm) {
+            fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी यह बात शत-प्रतिशत सत्य एवं सराहनीय है — **बिना जन्म कुंडली देखे किसी को भी कोई भी रुद्राक्ष या फलादेश बताना अनुचित और फर्जी (Fake) है।**\n\nऑरा रुद्राक्ष पर हम किसी भी जातक को कोई सामान्य, मनगढ़ंत या फर्जी रुद्राक्ष कभी नहीं थोपते। वैदिक ज्योतिष (महर्षि पाराशर के बृहत्पाराशर होरा शास्त्र एवं शिव पुराण) का सर्वोच्च नियम है कि प्रत्येक व्यक्ति का रुद्राक्ष उसकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** और **जन्म स्थान (Place)** से बनने वाले शुद्ध खगोलीय लग्न, चंद्र राशि और सक्रिय विंशोत्तरी महादशा देखकर ही तय किया जाता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें या चैट में लिखें:**\n• **जन्म तिथि (Date of Birth)** — उदा. 15-08-1995\n• **जन्म समय (Birth Time)** — उदा. 10:30 AM\n• **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान\n\nजैसे ही आप अपना विवरण देंगे, मैं तुरंत आपकी संपूर्ण प्रामाणिक वैदिक कुंडली बनाकर लग्न स्वामी, चंद्र राशि और वर्तमान महादशा के अनुसार वही सिद्ध नेपाली रुद्राक्ष बताऊँगा जो सीधे आपकी कुंडली से प्रमाणित होगा।`;
           } else {
             fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nमैं AI पंडित जी हूँ — Aura Rudraksha का प्रामाणिक वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।\n\nआप अपनी जन्म कुंडली विश्लेषण, वर्तमान महादशा, साढ़े साती, मांगलिक विचार या राशि अनुसार कल्याणकारी रुद्राक्ष के विषय में पूछ सकते हैं। आज मैं आपकी क्या सेवा करूँ?`;
           }
@@ -2573,10 +2709,21 @@ ${memoryContextText || "Guest shopper."}`;
           const mahaStart = vDasha?.mahadashaStartDate || "2020";
           const mahaEnd = vDasha?.mahadashaEndDate || "2036";
           const recMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[0]?.mukhi || "प्रामाणिक मुख्य रुद्राक्ष";
+          const chandraMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[1]?.mukhi || recMukhi;
+          const dashaMukhi = calculatedKundaliData.astronomicalKundali?.rudrakshaRecommendations?.[2]?.mukhi || recMukhi;
 
-          aiResponseText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
-        } else if (shouldPromptBirthForm) {
-          aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी जन्म कुंडली और वर्तमान में चल रही **विंशोत्तरी महादशा व अंतर्दशा** की सटीक गणना हेतु आपकी **जन्म तिथि (Date of Birth)**, **जन्म समय (Time of Birth)** एवं **जन्म स्थान (Place of Birth)** की आवश्यकता है।\n\nवैदिक ज्योतिष (Brihat Parashara Hora Shastra) के अनुसार महादशा का निर्धारण जन्म कालीन चंद्र नक्षत्र से होता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें**, ताकि मैं तुरंत आपकी सटीक कुंडली व महादशा का पूर्ण विवरण और शुभ रुद्राक्ष उपाय बता सकूँ।`;
+          if (astroIntent.type === "authenticity_verification") {
+            const lagnaName = calculatedKundaliData.astronomicalKundali.lagna.rashiHindi;
+            const lagnaLord = calculatedKundaliData.astronomicalKundali.lagna.lord;
+            const rashiName = calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi;
+            const rashiLord = calculatedKundaliData.astronomicalKundali.chandraRashi.lord;
+
+            aiResponseText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी यह बात शत-प्रतिशत सत्य एवं सराहनीय है। ऑरा रुद्राक्ष पर हम किसी भी प्रकार का कोई फर्जी (Fake), काल्पनिक या अंदाजे पर आधारित रुद्राक्ष या फलादेश कतई नहीं बताते। हमारा संपूर्ण विश्लेषण Brihat Parashara Hora Shastra (BPHS) और Lahiri Sidereal Ephemeris के खगोलीय नियमों पर सिद्ध है।\n\n**आपकी जन्म कुंडली के प्रत्यक्ष खगोलीय व शास्त्रीय प्रमाण:**\n\n1. 🪐 **आपका शुद्ध जन्म लग्न:** **${lagnaName}** (अंश: ${calculatedKundaliData.astronomicalKundali.lagna.degree} | स्वामी: **${lagnaLord}**)\n   - 💡 **कुंडली प्रमाण:** लग्न प्रथम भाव है जो देह, आरोग्य और आत्मबल का आधार है। लग्न स्वामी के अनुसार आपका **मुख्य जीवन रुद्राक्ष (Primary Mukhi): ${recMukhi}** निर्धारित हुआ है।\n\n2. 🌙 **आपकी जन्म चंद्र राशि:** **${rashiName}** (स्वामी: **${rashiLord}**)\n   - 💡 **कुंडली प्रमाण:** चंद्र मन का स्वामी है। मानसिक शांति व एकाग्रता हेतु आपका **चंद्र राशि रुद्राक्ष: ${chandraMukhi}** निर्धारित हुआ है।\n\n3. ⏳ **आपकी वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक | अंतर्दशा: **${currentAntar}**)\n   - 💡 **कुंडली प्रमाण:** वर्तमान समय चक्र के अनुकूलन व विघ्न निवारण हेतु आपका **महादशा रुद्राक्ष: ${dashaMukhi}** निर्धारित हुआ है।\n\n**कल्याणकारी उपाय व सिद्ध नेपाली रुद्राक्ष:**\n• **मुख्य जीवन रुद्राक्ष:** ${recMukhi}\n• **चंद्र राशि रुद्राक्ष:** ${chandraMukhi}\n• **महादशा रुद्राक्ष:** ${dashaMukhi}\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय\n\n[AURA_KEYWORDS]: प्रामाणिक कुंडली | ${recMukhi} | लग्न स्वामी रुद्राक्ष | विंशोत्तरी महादशा`;
+          } else {
+            aiResponseText = `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}** (${mahaStart} से ${mahaEnd} तक प्रभावी)\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (${calculatedKundaliData.astronomicalKundali.lagna.rashiEnglish})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiEnglish})\n- **जन्म नक्षत्र:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.nakshatra} (चरण ${calculatedKundaliData.astronomicalKundali.chandraRashi.pada})\n\n**दशा फल व ज्योतिषीय मार्गदर्शन:**\nवर्तमान ${currentMaha} की महादशा में आत्मबल, एकाग्रता, भाग्य वृद्धि एवं मानसिक शांति के लिए **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी सिद्ध होगा।\n\n**वैदिक दशा सारांश व उपाय:**\n• **वर्तमान महादशा:** ${currentMaha} (कर्म एवं आध्यात्मिक उन्नति)\n• **सक्रिय अंतर्दशा:** ${currentAntar} (कार्यक्षेत्र में नवीन अवसर)\n• **कल्याणकारी रुद्राक्ष:** ${recMukhi} (ग्रह शांति व सुरक्षा कवच)\n• **दैनिक बीज मंत्र:** ॐ नमः शिवाय (प्रतिदिन 108 बार जाप करें)\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा | आज का शुभ मुहूर्त`;
+          }
+        } else if (astroIntent.type === "authenticity_verification" || shouldPromptBirthForm) {
+          aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी यह बात शत-प्रतिशत सत्य एवं सराहनीय है — **बिना जन्म कुंडली देखे किसी को भी कोई भी रुद्राक्ष या फलादेश बताना अनुचित और फर्जी (Fake) है।**\n\nऑरा रुद्राक्ष पर हम किसी भी जातक को कोई सामान्य, मनगढ़ंत या फर्जी रुद्राक्ष कभी नहीं थोपते। वैदिक ज्योतिष (महर्षि पाराशर के बृहत्पाराशर होरा शास्त्र एवं शिव पुराण) का सर्वोच्च नियम है कि प्रत्येक व्यक्ति का रुद्राक्ष उसकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** और **जन्म स्थान (Place)** से बनने वाले शुद्ध खगोलीय लग्न, चंद्र राशि और सक्रिय विंशोत्तरी महादशा देखकर ही तय किया जाता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें या चैट में लिखें:**\n• **जन्म तिथि (Date of Birth)** — उदा. 15-08-1995\n• **जन्म समय (Birth Time)** — उदा. 10:30 AM\n• **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान\n\nजैसे ही आप अपना विवरण देंगे, मैं तुरंत आपकी संपूर्ण प्रामाणिक वैदिक कुंडली बनाकर लग्न स्वामी, चंद्र राशि और वर्तमान महादशा के अनुसार वही सिद्ध नेपाली रुद्राक्ष बताऊँगा जो सीधे आपकी कुंडली से प्रमाणित होगा।`;
         } else {
           aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nमैं AI पंडित जी हूँ — Aura Rudraksha का प्रामाणिक वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।\n\nआप अपनी जन्म कुंडली विश्लेषण, वर्तमान महादशा, साढ़े साती, मांगलिक विचार या राशि अनुसार कल्याणकारी रुद्राक्ष के विषय में पूछ सकते हैं। आज मैं आपकी क्या सेवा करूँ?`;
         }
