@@ -52,9 +52,10 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots")) {
       return;
     }
-    if (productId) {
+    const targetRoute = p?.slug || productId;
+    if (targetRoute) {
       if (db.cacheProduct) db.cacheProduct(p);
-      navigate(`/product/${productId}`, { state: { product: p } });
+      navigate(`/product/${targetRoute}`, { state: { product: p } });
     }
   };
 
@@ -217,7 +218,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           {/* Title */}
           <h3 className="aura-card-title">
             <Link 
-              to={getProductRoute({id: productId})}
+              to={getProductRoute(p)}
               onClick={(e) => e.stopPropagation()}
               style={{ color: "inherit", textDecoration: "none" }}
             >

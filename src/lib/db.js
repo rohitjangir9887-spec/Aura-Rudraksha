@@ -540,7 +540,7 @@ const storeCache = {
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
-const CATALOG_CACHE_VERSION = "2026-09-16-v3"; // Versioned cache key to immediately bust obsolete/demo data on updates
+const CATALOG_CACHE_VERSION = "2026-09-27-v2"; // Versioned cache key to immediately bust obsolete/demo data on updates
 
 let isInitialized = false;
 let isHydrated = false;
@@ -1157,73 +1157,44 @@ export const db = {
     try {
       raw = decodeURIComponent(raw);
     } catch (_) {}
-    const target = raw.toLowerCase().trim();
+    const target = raw.toLowerCase();
     const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
-    const strippedTarget = slugTarget
-      .replace(/^(product-card-|product-)/, "")
-      .replace(/^premium-|^original-|^buy-|^authentic-/, "")
-      .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
 
-    // 1. Strict exact match on id, _id, or slug in memory storeCache
+    // 1. Strict exact match on id or _id in memory storeCache
     let p = storeCache.products.find(x => {
       if (!x) return false;
       const xId = String(x.id || "").toLowerCase();
       const xMongoId = String(x._id || "").toLowerCase();
-      const xSlug = String(x.slug || "").toLowerCase();
 
-      if (xId === target || xId === slugTarget || xId === cleanId || xId === strippedTarget) return true;
-      if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId || xMongoId === strippedTarget)) return true;
-      if (xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId || xSlug === strippedTarget)) return true;
+      if (xId === target || xId === slugTarget || xId === cleanId) return true;
+      if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId)) return true;
+      if (!isNaN(target) && Number(x.id) === Number(target)) return true;
+      if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
       return false;
     });
 
-    // 2. Strict Numeric ID Match (e.g. id "1" or 1)
+    // 2. Secondary exact match on slug in memory storeCache
     if (!p) {
-      const numTarget = parseInt(cleanId || strippedTarget || target, 10);
-      if (!isNaN(numTarget)) {
-        p = storeCache.products.find(x => {
-          if (!x) return false;
-          const xIdNum = parseInt(x.id, 10);
-          return !isNaN(xIdNum) && xIdNum === numTarget;
-        });
-      }
+      p = storeCache.products.find(x => {
+        if (!x) return false;
+        const xSlug = String(x.slug || "").toLowerCase();
+        return xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId);
+      });
     }
 
-    // 3. Strict Mukhi Number Match (e.g. "1-mukhi", "1 mukhi", "1")
-    if (!p) {
-      const mukhiMatch = target.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
-                         strippedTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
-                         target.match(/\b([1-9]|1[0-9]|20|21)\b/);
-      if (mukhiMatch && mukhiMatch[1]) {
-        const mNum = parseInt(mukhiMatch[1], 10);
-        p = storeCache.products.find(x => {
-          if (!x) return false;
-          const xIdNum = parseInt(x.id, 10);
-          if (!isNaN(xIdNum) && xIdNum === mNum) return true;
-
-          const xMukhi = String(x.mukhi || "").toLowerCase();
-          const xMukhiNum = parseInt(xMukhi.replace(/\D/g, ""), 10);
-          if (!isNaN(xMukhiNum) && xMukhiNum === mNum) return true;
-
-          const xSlug = String(x.slug || "").toLowerCase();
-          const xName = String(x.name || "").toLowerCase();
-          const exactRegex = new RegExp(`(^|[^0-9])${mNum}(\\s*-?\\s*mukhi|[^0-9]|$)`, "i");
-          if (exactRegex.test(xSlug) || exactRegex.test(xName)) return true;
-
-          return false;
-        });
-      }
-    }
-
-    // 4. Secondary fallback search in storeCache by exact slugified name
+    // 2. Secondary fallback search in storeCache by slugified name or fuzzy match
     if (!p) {
       p = storeCache.products.find(x => {
         if (!x) return false;
         const xName = String(x.name || "").toLowerCase();
         const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        const xSlug = String(x.slug || "").toLowerCase();
 
-        if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId || xSlugifiedName === strippedTarget)) return true;
+        if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId)) return true;
+        if (xSlug && slugTarget.length >= 2 && (xSlug.includes(slugTarget) || slugTarget.includes(xSlug))) return true;
+        if (xSlugifiedName && slugTarget.length >= 2 && (xSlugifiedName.includes(slugTarget) || slugTarget.includes(xSlugifiedName))) return true;
+        if (xName && target.length >= 2 && (xName.includes(target) || target.includes(xName))) return true;
         return false;
       });
     }

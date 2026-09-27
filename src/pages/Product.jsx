@@ -138,15 +138,14 @@ export function Product() {
       const validProduct = (isDraft && !isAdmin) ? null : found;
 
       if (validProduct) {
-        setProduct(prev => prev ? { ...prev, ...validProduct } : validProduct);
+        setProduct(validProduct);
         setReviews(db.getReviews(validProduct.id || validProduct._id));
         if (validProduct.variants && validProduct.variants.length > 0) {
-          setSelectedVariant(prev => {
-            if (prev) return prev;
-            const firstV = validProduct.variants[0];
-            return typeof firstV === "string" ? firstV : (firstV.name || firstV.label || "");
-          });
+          const firstV = validProduct.variants[0];
+          setSelectedVariant(typeof firstV === "string" ? firstV : (firstV.name || firstV.label || ""));
         }
+      } else {
+        setProduct(null);
       }
 
       setLoading(false);
@@ -163,10 +162,10 @@ export function Product() {
 
   // Immediate load & state synchronization on product ID change
   useEffect(() => {
-    // Synchronously populate product from cache if available (0ms response)
+    // Reset and synchronously populate product from cache if available (0ms response)
     const syncProduct = initialProduct || db.getProduct(id);
+    setProduct(syncProduct || null);
     if (syncProduct) {
-      setProduct(syncProduct);
       setReviews(db.getReviews(syncProduct.id || syncProduct._id));
       setLoading(false);
       if (syncProduct.variants && syncProduct.variants.length > 0) {
