@@ -626,40 +626,87 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
   const target = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
   const cleanId = target.replace(/^(product-card-|product-)/, "");
 
+  // Clean prefixes and marketing suffixes
+  const stripped = target
+    .replace(/^premium-|^original-|^buy-|^authentic-/, "")
+    .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
+
   // 1. Direct exact match on id, _id, or slug
   let match = catalog.find(p => p && (
     String(p.id).toLowerCase() === target ||
     String(p.id).toLowerCase() === cleanId ||
+    String(p.id).toLowerCase() === stripped ||
     String(p._id || "").toLowerCase() === target ||
-    (p.slug && String(p.slug).toLowerCase() === target)
+    String(p._id || "").toLowerCase() === stripped ||
+    (p.slug && String(p.slug).toLowerCase() === target) ||
+    (p.slug && String(p.slug).toLowerCase() === stripped)
   ));
   if (match) return match;
 
-  // 2. Slugified name match (e.g. "5-mukhi-rudraksha" or "original-14-mukhi-rudraksha")
-  match = catalog.find(p => {
-    if (!p || !p.name) return false;
-    const slugName = String(p.name).toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    return slugName === target || slugName.startsWith(target) || target.startsWith(slugName);
-  });
-  if (match) return match;
-
-  // 3. Mukhi number extraction (e.g. "5-mukhi", "5-mukhi-rudraksha" -> "5")
-  const numMatch = target.match(/^(\d+)(?:-mukhi|$)/i) || target.match(/(\d+)-mukhi/i);
-  if (numMatch && numMatch[1]) {
-    const mukhiNum = numMatch[1];
-    match = catalog.find(p => String(p.id) === mukhiNum || (p.slug && p.slug.includes(mukhiNum)));
+  // 2. Exact Mukhi number matching (prevents "1 Mukhi" matching "14 Mukhi")
+  const mukhiMatch = target.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || stripped.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || target.match(/\b([1-9]|1[0-9]|20|21)\b/);
+  if (mukhiMatch && mukhiMatch[1]) {
+    const mNum = parseInt(mukhiMatch[1], 10);
+    // Find item whose mukhi is EXACTLY mNum
+    match = catalog.find(p => {
+      if (!p) return false;
+      const pId = String(p.id || "");
+      const pMukhi = String(p.mukhi || "").toLowerCase();
+      const pSlug = String(p.slug || "").toLowerCase();
+      const pName = String(p.name || "").toLowerCase();
+      
+      const exactMukhiRegex = new RegExp(`(^|[^0-9])${mNum}(\\s*-?\\s*mukhi|$)`, "i");
+      
+      if (pId === String(mNum) || pId === `p${mNum}`) return true;
+      if (pMukhi === `${mNum} mukhi` || pMukhi === String(mNum)) return true;
+      if (exactMukhiRegex.test(pSlug) || exactMukhiRegex.test(pName)) return true;
+      return false;
+    });
     if (match) return match;
   }
 
-  // 4. Keyword match for mala or special items
-  if (target.includes("mala")) {
-    match = catalog.find(p => String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala")));
+  // 3. Special Formations (Gauri Shankar, Ganesh, Hanuman, Camphor, Mala, Bracelet, etc.)
+  if (target.includes("gauri") || stripped.includes("gauri")) {
+    match = catalog.find(p => /gauri/i.test(p.name || "") || /gauri/i.test(p.slug || ""));
+    if (match) return match;
+  }
+  if (target.includes("ganesh") || stripped.includes("ganesh")) {
+    match = catalog.find(p => /ganesh/i.test(p.name || "") || /ganesh/i.test(p.slug || ""));
+    if (match) return match;
+  }
+  if (target.includes("hanuman") || stripped.includes("hanuman")) {
+    match = catalog.find(p => /hanuman/i.test(p.name || "") || /hanuman/i.test(p.slug || ""));
+    if (match) return match;
+  }
+  if (target.includes("camphor") || target.includes("kapoor")) {
+    match = catalog.find(p => /camphor|kapoor/i.test(p.name || "") || /camphor|kapoor/i.test(p.slug || ""));
+    if (match) return match;
+  }
+  if (target.includes("mala") || target.includes("kantha")) {
+    match = catalog.find(p => /mala|kantha/i.test(p.name || "") || /mala|kantha/i.test(p.slug || ""));
+    if (match) return match;
+  }
+  if (target.includes("bracelet") || target.includes("wrist")) {
+    match = catalog.find(p => /bracelet|wrist/i.test(p.name || "") || /bracelet|wrist/i.test(p.slug || ""));
     if (match) return match;
   }
 
-  return null;
+  // 4. Word Token Match
+  const words = stripped
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !["authentic", "certified", "aura", "rudraksha", "online", "product", "item"].includes(w));
+
+  if (words.length > 0) {
+    match = catalog.find(p => {
+      const pText = `${p.name || ""} ${p.slug || ""} ${p.highlight || ""}`.toLowerCase();
+      return words.every(w => pText.includes(w));
+    });
+    if (match) return match;
+  }
+
+  return catalog[0] || null;
 }
 
 /**
