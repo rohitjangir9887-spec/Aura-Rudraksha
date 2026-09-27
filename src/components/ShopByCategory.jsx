@@ -12,7 +12,7 @@ const DEFAULT_CATEGORIES = [
     desc: "Authentic Nepal beads",
     image: "/images/product-5mukhi.jpg",
     fallback: "/images/product-5mukhi.jpg",
-    link: "/shop?q=Rudraksha"
+    link: "/shop?category=Rudraksha"
   },
   {
     id: "malas",
@@ -20,7 +20,7 @@ const DEFAULT_CATEGORIES = [
     desc: "108+1 Japa malas",
     image: "/images/product-mala.jpg",
     fallback: "/images/product-mala.jpg",
-    link: "/shop?q=Mala"
+    link: "/shop?category=Malas"
   },
   {
     id: "puja-samagri",
@@ -28,7 +28,7 @@ const DEFAULT_CATEGORIES = [
     desc: "Sacred ritual essentials",
     image: "/images/product-7mukhi.jpg",
     fallback: "/images/product-7mukhi.jpg",
-    link: "/shop?q=Puja"
+    link: "/shop?category=Puja%20Samagri"
   },
   {
     id: "bracelets",
@@ -36,23 +36,23 @@ const DEFAULT_CATEGORIES = [
     desc: "Energized wristbands",
     image: "/images/product-1mukhi.jpg",
     fallback: "/images/product-1mukhi.jpg",
-    link: "/shop?q=Bracelet"
+    link: "/shop?category=Bracelets"
   },
   {
-    id: "crystals",
-    name: "Crystals",
-    desc: "Natural healing stones",
+    id: "god-idols",
+    name: "God Idols",
+    desc: "Consecrated idols & statues",
     image: "/images/product-11mukhi.jpg",
     fallback: "/images/product-11mukhi.jpg",
-    link: "/shop?q=Crystal"
+    link: "/shop?category=God%20Idols"
   },
   {
-    id: "spiritual-essentials",
-    name: "Spiritual Essentials",
-    desc: "Vedic divine accessories",
+    id: "yantra",
+    name: "Yantras & Idols",
+    desc: "Pure copper & brass yantras",
     image: "/images/placeholder.svg",
     fallback: "/images/placeholder.svg",
-    link: "/shop?q=Spiritual"
+    link: "/shop?category=Yantra"
   }
 ];
 
@@ -62,25 +62,35 @@ function getResolvedCategories() {
   const allProducts = db.getProducts() || [];
 
   return rawCategories.map(cat => {
-    // If admin set a custom image, keep it
-    if (cat.customImage || (cat.image && !cat.image.includes("images.unsplash.com") && !cat.image.includes("/images/product-"))) {
-      return cat;
+    const catName = cat.name || cat.id || "Category";
+    // Ensure clean category parameter link
+    let cleanLink = cat.link;
+    if (!cleanLink || cleanLink === "#" || cleanLink.includes("?q=")) {
+      cleanLink = `/shop?category=${encodeURIComponent(catName)}`;
     }
+
     // Lookup matching product in DB to show live image updated from Admin Dashboard
-    const catKeyword = (cat.name || cat.id || "").toLowerCase();
+    const catKeyword = catName.toLowerCase().replace(/s$/, "");
     const matchedProd = allProducts.find(p => {
       const pCat = (p.category || "").toLowerCase();
+      const pSub = (p.subCategory || "").toLowerCase();
       const pName = (p.name || "").toLowerCase();
-      return pCat.includes(catKeyword) || pName.includes(catKeyword);
+      return pCat.includes(catKeyword) || pSub.includes(catKeyword) || pName.includes(catKeyword);
     });
 
+    let liveImg = cat.customImage || cat.image;
     if (matchedProd) {
       const prodImg = (Array.isArray(matchedProd.images) && matchedProd.images[0]) ? matchedProd.images[0] : (matchedProd.image || "");
       if (prodImg && !prodImg.includes("placeholder.svg")) {
-        return { ...cat, image: prodImg };
+        liveImg = prodImg;
       }
     }
-    return cat;
+
+    return {
+      ...cat,
+      link: cleanLink,
+      image: liveImg || cat.fallback || "/images/placeholder.svg"
+    };
   });
 }
 

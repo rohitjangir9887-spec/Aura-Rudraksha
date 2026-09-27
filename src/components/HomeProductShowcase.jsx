@@ -11,7 +11,7 @@ import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
 import { db, isPublicProduct } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
-import { sortProductsByHomeOrder } from "../lib/productHelper";
+import { sortProductsByHomeOrder, isRudrakshaProduct } from "../lib/productHelper";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 
 // Authentic Devotee Avatars
@@ -306,17 +306,44 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
   }, [homeProducts]);
 
   const mukhiProducts = useMemo(() => {
-    return homeProducts.filter(p => 
-      (p.category?.toLowerCase() === "rudraksha" || !p.category) &&
-      !p.name?.toLowerCase().includes("mala")
-    );
+    return homeProducts.filter(p => {
+      const isRud = isRudrakshaProduct(p);
+      const name = (p.name || "").toLowerCase();
+      const cat = (p.category || "").toLowerCase();
+      return isRud && !name.includes("mala") && !cat.includes("mala");
+    });
   }, [homeProducts]);
 
   const malaProducts = useMemo(() => {
-    return homeProducts.filter(p => 
-      p.category?.toLowerCase() === "mala" || 
-      p.name?.toLowerCase().includes("mala")
-    );
+    return homeProducts.filter(p => {
+      const name = (p.name || "").toLowerCase();
+      const cat = (p.category || "").toLowerCase();
+      return cat.includes("mala") || cat.includes("bracelet") || name.includes("mala") || name.includes("kantha") || name.includes("bracelet");
+    });
+  }, [homeProducts]);
+
+  const pujaProducts = useMemo(() => {
+    return homeProducts.filter(p => {
+      const name = (p.name || "").toLowerCase();
+      const cat = (p.category || "").toLowerCase();
+      return cat.includes("puja") || cat.includes("samagri") || name.includes("kapoor") || name.includes("camphor") || name.includes("dhoop") || name.includes("agarbatti") || name.includes("chandan");
+    });
+  }, [homeProducts]);
+
+  const idolProducts = useMemo(() => {
+    return homeProducts.filter(p => {
+      const name = (p.name || "").toLowerCase();
+      const cat = (p.category || "").toLowerCase();
+      return cat.includes("idol") || cat.includes("god") || cat.includes("statue") || cat.includes("murti") || name.includes("idol") || name.includes("statue") || name.includes("murti");
+    });
+  }, [homeProducts]);
+
+  const yantraProducts = useMemo(() => {
+    return homeProducts.filter(p => {
+      const name = (p.name || "").toLowerCase();
+      const cat = (p.category || "").toLowerCase();
+      return cat.includes("yantra") || name.includes("yantra");
+    });
   }, [homeProducts]);
 
   // Determine displayed items based on selected tab
@@ -324,15 +351,21 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
     if (activeTab === "popular" && popularProducts.length > 0) return popularProducts;
     if (activeTab === "mukhi" && mukhiProducts.length > 0) return mukhiProducts;
     if (activeTab === "mala" && malaProducts.length > 0) return malaProducts;
+    if (activeTab === "puja" && pujaProducts.length > 0) return pujaProducts;
+    if (activeTab === "idol" && idolProducts.length > 0) return idolProducts;
+    if (activeTab === "yantra" && yantraProducts.length > 0) return yantraProducts;
     return homeProducts;
-  }, [activeTab, homeProducts, popularProducts, mukhiProducts, malaProducts]);
+  }, [activeTab, homeProducts, popularProducts, mukhiProducts, malaProducts, pujaProducts, idolProducts, yantraProducts]);
 
-  // Tabs configured with specific icons matching the reference image exactly
+  // Tabs configured dynamically matching available product categories
   const tabs = [
     { id: "all", label: "All Divine Picks", count: homeProducts.length, icon: Sparkles },
     ...(popularProducts.length > 0 ? [{ id: "popular", label: "Popular & Bestsellers", count: popularProducts.length, icon: Flame }] : []),
     ...(mukhiProducts.length > 0 ? [{ id: "mukhi", label: "Mukti Rudraksha", count: mukhiProducts.length, icon: LotusIcon }] : []),
     ...(malaProducts.length > 0 ? [{ id: "mala", label: "Sacred Malas", count: malaProducts.length, icon: MalaBeadsIcon }] : []),
+    ...(pujaProducts.length > 0 ? [{ id: "puja", label: "Puja Samagri", count: pujaProducts.length, icon: Sparkles }] : []),
+    ...(idolProducts.length > 0 ? [{ id: "idol", label: "God Idols", count: idolProducts.length, icon: Sparkles }] : []),
+    ...(yantraProducts.length > 0 ? [{ id: "yantra", label: "Yantras", count: yantraProducts.length, icon: Sparkles }] : []),
   ];
 
   return (
