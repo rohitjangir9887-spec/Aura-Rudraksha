@@ -674,14 +674,11 @@ export async function findProductForSeo(idOrSlug) {
   const clean = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
   const cleanId = clean.replace(/^(product-card-|product-)/, "");
 
-  // Strip trailing marketing/SEO text appended to product links
+  // Strip leading/trailing marketing terms (e.g. premium-, original-, buy-, -authentic-lab-certified...)
   const strippedSlug = clean
-    .replace(/-authentic-lab-certified-aura-rudraksha$/i, "")
-    .replace(/-lab-certified-aura-rudraksha$/i, "")
-    .replace(/-aura-rudraksha$/i, "")
-    .replace(/-lab-certified$/i, "")
-    .replace(/-authentic-lab-certified$/i, "")
-    .replace(/-authentic$/i, "");
+    .replace(/^(product-card-|product-)/, "")
+    .replace(/^premium-|^original-|^buy-|^authentic-/, "")
+    .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
 
   if (!isDbConnected()) {
     try {
@@ -708,8 +705,10 @@ export async function findProductForSeo(idOrSlug) {
 
       if (product) return product;
 
-      // Strategy 2: Mukhi number extraction (e.g. "premium-1-mukhi...", "1-mukhi", "5-mukhi")
-      const mukhiMatch = clean.match(/(\d+)\s*-?\s*mukhi/i) || strippedSlug.match(/(\d+)\s*-?\s*mukhi/i);
+      // Strategy 2: Exact Mukhi number extraction (e.g. "premium-1-mukhi...", "1-mukhi", "5-mukhi")
+      const mukhiMatch = clean.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
+                         strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
+                         clean.match(/\b([1-9]|1[0-9]|20|21)\b/);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
         product = await Product.findOne({
@@ -720,7 +719,8 @@ export async function findProductForSeo(idOrSlug) {
             { mukhi: `${mNum} MUKHI` },
             { id: String(mNum) },
             { id: `p${mNum}` },
-            { name: { $regex: new RegExp(`\\b${mNum}\\s*mukhi`, "i") } }
+            { name: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } },
+            { slug: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } }
           ]
         }).lean();
 
@@ -728,15 +728,15 @@ export async function findProductForSeo(idOrSlug) {
       }
 
       // Strategy 3: Special formations (Gauri Shankar, Ganesh, Siddha Mala, Hanuman Idol, Camphor, etc.)
-      if (clean.includes("gauri-shankar") || clean.includes("gaurishankar")) {
-        product = await Product.findOne({ name: { $regex: /gauri\s*shankar/i } }).lean();
+      if (clean.includes("gauri") || strippedSlug.includes("gauri")) {
+        product = await Product.findOne({ name: { $regex: /gauri/i } }).lean();
         if (product) return product;
       }
-      if (clean.includes("ganesh")) {
+      if (clean.includes("ganesh") || strippedSlug.includes("ganesh")) {
         product = await Product.findOne({ name: { $regex: /ganesh/i } }).lean();
         if (product) return product;
       }
-      if (clean.includes("hanuman")) {
+      if (clean.includes("hanuman") || strippedSlug.includes("hanuman")) {
         product = await Product.findOne({ name: { $regex: /hanuman/i } }).lean();
         if (product) return product;
       }
@@ -753,7 +753,7 @@ export async function findProductForSeo(idOrSlug) {
       const words = strippedSlug
         .replace(/[-_]+/g, " ")
         .split(/\s+/)
-        .filter(w => w.length >= 2 && !["authentic", "certified", "aura", "lab", "online", "buy", "product"].includes(w));
+        .filter(w => w.length >= 3 && !["authentic", "certified", "aura", "lab", "online", "buy", "product"].includes(w));
       
       if (words.length > 0) {
         const pattern = words.slice(0, 3).join(".*");
@@ -763,17 +763,13 @@ export async function findProductForSeo(idOrSlug) {
         if (product) return product;
       }
 
-      // Strategy 5: Any active product as fallback
-      product = await Product.findOne({ status: { $ne: "Draft" } }).lean();
-      if (product) return product;
-
     } catch (err) {
       console.warn("[SEO] Notice in findProductForSeo DB query:", err?.message || err);
     }
   }
 
   // Fallback to seed catalog if database query yields no match
-  return matchProductFromCatalog(defaultProducts, clean) || defaultProducts[0];
+  return matchProductFromCatalog(defaultProducts, clean) || matchProductFromCatalog(defaultProducts, strippedSlug) || defaultProducts[0];
 }
 
 /**

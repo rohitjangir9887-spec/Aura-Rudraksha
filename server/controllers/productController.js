@@ -227,8 +227,11 @@ export async function getProductById(req, res, next) {
     } catch (_) {}
 
     const cleanTarget = cleanId.toLowerCase();
-    const strippedTarget = cleanTarget.replace(/^(product-card-|product-)/, "");
     const slugTarget = cleanTarget.replace(/^\/+|\/+$/g, "");
+    const strippedTarget = slugTarget
+      .replace(/^(product-card-|product-)/, "")
+      .replace(/^premium-|^original-|^buy-|^authentic-/, "")
+      .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
 
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
 
@@ -242,8 +245,7 @@ export async function getProductById(req, res, next) {
         return (
           xId === cleanTarget || xId === strippedTarget ||
           xSlug === cleanTarget || xSlug === slugTarget || xSlug === strippedTarget ||
-          xSlugName === cleanTarget || xSlugName === slugTarget ||
-          (xSlug && (xSlug.includes(cleanTarget) || cleanTarget.includes(xSlug)))
+          xSlugName === cleanTarget || xSlugName === slugTarget || xSlugName === strippedTarget
         );
       });
       if (product) {
@@ -265,12 +267,33 @@ export async function getProductById(req, res, next) {
         { slug: slugTarget },
         { slug: strippedTarget },
         { slug: { $regex: new RegExp(`^${escapeForRegex(slugTarget)}$`, "i") } },
+        { slug: { $regex: new RegExp(`^${escapeForRegex(strippedTarget)}$`, "i") } },
         ...(isMongoId ? [{ _id: mongoIdToUse }] : [])
       ]
     }).lean();
 
     if (!product) {
-      // Secondary search in MongoDB by slugified name, partial slug, or number
+      // Secondary search in MongoDB by mukhi number or exact slugified name
+      const mukhiMatch = cleanTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
+                         strippedTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
+                         cleanTarget.match(/\b([1-9]|1[0-9]|20|21)\b/);
+      if (mukhiMatch && mukhiMatch[1]) {
+        const mNum = parseInt(mukhiMatch[1], 10);
+        product = await Product.findOne({
+          $or: [
+            { mukhi: mNum },
+            { mukhi: String(mNum) },
+            { mukhi: `${mNum} Mukhi` },
+            { id: String(mNum) },
+            { id: `p${mNum}` },
+            { name: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } },
+            { slug: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } }
+          ]
+        }).lean();
+      }
+    }
+
+    if (!product) {
       const allProds = await Product.find().lean();
       product = allProds.find(p => {
         if (!p) return false;
@@ -282,9 +305,6 @@ export async function getProductById(req, res, next) {
         if (pId === cleanTarget || pId === strippedTarget) return true;
         if (pSlug === cleanTarget || pSlug === slugTarget || pSlug === strippedTarget) return true;
         if (pSlugifiedName === cleanTarget || pSlugifiedName === slugTarget || pSlugifiedName === strippedTarget) return true;
-        if (pSlug && (pSlug.includes(slugTarget) || slugTarget.includes(pSlug))) return true;
-        if (pSlugifiedName && (pSlugifiedName.includes(slugTarget) || slugTarget.includes(pSlugifiedName))) return true;
-        if (pName && (pName.includes(cleanTarget) || cleanTarget.includes(pName))) return true;
         return false;
       });
     }
