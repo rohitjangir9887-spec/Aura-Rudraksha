@@ -123,7 +123,7 @@ export function Product() {
       let found = await db.getProductAsync(id);
       if (!found) {
         // Fallback: Refresh full product catalog in cache and re-query
-        await db.getProductsAsync(true);
+        await db.fetchProducts(true);
         found = db.getProduct(id);
       }
 
@@ -144,7 +144,7 @@ export function Product() {
           const firstV = validProduct.variants[0];
           setSelectedVariant(typeof firstV === "string" ? firstV : (firstV.name || firstV.label || ""));
         }
-      } else {
+      } else if (!existing) {
         setProduct(null);
       }
 
@@ -164,8 +164,8 @@ export function Product() {
   useEffect(() => {
     // Reset and synchronously populate product from cache if available (0ms response)
     const syncProduct = initialProduct || db.getProduct(id);
-    setProduct(syncProduct || null);
     if (syncProduct) {
+      setProduct(syncProduct);
       setReviews(db.getReviews(syncProduct.id || syncProduct._id));
       setLoading(false);
       if (syncProduct.variants && syncProduct.variants.length > 0) {
@@ -194,8 +194,14 @@ export function Product() {
     // Load fresh data silently if we already have the product in cache
     loadData(true);
 
-    const unsub = onStoreUpdate(() => {
-      loadData(true);
+    const unsub = onStoreUpdate((type, payload) => {
+      // Only reload if this specific product was modified in admin
+      if (type === "product:saved" || type === "product:updated") {
+        const targetId = String(id || "").toLowerCase();
+        if (payload && (String(payload.id || "").toLowerCase() === targetId || String(payload._id || "").toLowerCase() === targetId || String(payload.slug || "").toLowerCase() === targetId)) {
+          loadData(true);
+        }
+      }
     });
 
     return () => unsub();

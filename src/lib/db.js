@@ -1283,6 +1283,10 @@ export const db = {
     return await revalidateProducts(force);
   },
 
+  getProductsAsync: async (force = false) => {
+    return await revalidateProducts(force);
+  },
+
   isPublicProduct: (p) => {
     return isPublicProduct(p);
   },
