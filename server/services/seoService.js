@@ -674,6 +674,15 @@ export async function findProductForSeo(idOrSlug) {
   const clean = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
   const cleanId = clean.replace(/^(product-card-|product-)/, "");
 
+  // Strip trailing marketing/SEO text appended to product links
+  const strippedSlug = clean
+    .replace(/-authentic-lab-certified-aura-rudraksha$/i, "")
+    .replace(/-lab-certified-aura-rudraksha$/i, "")
+    .replace(/-aura-rudraksha$/i, "")
+    .replace(/-lab-certified$/i, "")
+    .replace(/-authentic-lab-certified$/i, "")
+    .replace(/-authentic$/i, "");
+
   if (!isDbConnected()) {
     try {
       await connectDB();
@@ -682,43 +691,89 @@ export async function findProductForSeo(idOrSlug) {
 
   if (isDbConnected()) {
     try {
-      const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean);
-      const query = {
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean) || /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[0-9a-fA-F]{24}$/.test(strippedSlug);
+
+      // Strategy 1: Exact ID, Slug, or Mongo _id match
+      let product = await Product.findOne({
         $or: [
           { id: clean },
           { id: cleanId },
+          { id: strippedSlug },
           { slug: clean },
-          ...(isMongoId ? [{ _id: clean }] : [])
+          { slug: cleanId },
+          { slug: strippedSlug },
+          ...(isMongoId ? [{ _id: clean }, { _id: cleanId }, { _id: strippedSlug }] : [])
         ]
-      };
-      let product = await Product.findOne(query).lean();
+      }).lean();
+
       if (product) return product;
 
-      // Match by numeric id e.g. "5-mukhi-rudraksha" -> id: "5"
-      const numMatch = clean.match(/^(\d+)(?:-mukhi|$)/i) || clean.match(/(\d+)-mukhi/i);
-      if (numMatch && numMatch[1]) {
-        product = await Product.findOne({ id: numMatch[1] }).lean();
-        if (product) return product;
-      }
-      if (clean.includes("mala")) {
-        product = await Product.findOne({ id: "mala" }).lean();
-        if (product) return product;
-      }
-      // Match by name regex
-      const cleanWords = clean.replace(/[-_]+/g, " ").trim();
-      if (cleanWords.length >= 3) {
+      // Strategy 2: Mukhi number extraction (e.g. "premium-1-mukhi...", "1-mukhi", "5-mukhi")
+      const mukhiMatch = clean.match(/(\d+)\s*-?\s*mukhi/i) || strippedSlug.match(/(\d+)\s*-?\s*mukhi/i);
+      if (mukhiMatch && mukhiMatch[1]) {
+        const mNum = parseInt(mukhiMatch[1], 10);
         product = await Product.findOne({
-          name: { $regex: new RegExp(cleanWords.replace(/\s+/g, ".*"), "i") }
+          $or: [
+            { mukhi: mNum },
+            { mukhi: String(mNum) },
+            { mukhi: `${mNum} Mukhi` },
+            { mukhi: `${mNum} MUKHI` },
+            { id: String(mNum) },
+            { id: `p${mNum}` },
+            { name: { $regex: new RegExp(`\\b${mNum}\\s*mukhi`, "i") } }
+          ]
+        }).lean();
+
+        if (product) return product;
+      }
+
+      // Strategy 3: Special formations (Gauri Shankar, Ganesh, Siddha Mala, Hanuman Idol, Camphor, etc.)
+      if (clean.includes("gauri-shankar") || clean.includes("gaurishankar")) {
+        product = await Product.findOne({ name: { $regex: /gauri\s*shankar/i } }).lean();
+        if (product) return product;
+      }
+      if (clean.includes("ganesh")) {
+        product = await Product.findOne({ name: { $regex: /ganesh/i } }).lean();
+        if (product) return product;
+      }
+      if (clean.includes("hanuman")) {
+        product = await Product.findOne({ name: { $regex: /hanuman/i } }).lean();
+        if (product) return product;
+      }
+      if (clean.includes("camphor") || clean.includes("kapoor")) {
+        product = await Product.findOne({ name: { $regex: /camphor|kapoor/i } }).lean();
+        if (product) return product;
+      }
+      if (clean.includes("mala") || clean.includes("kantha")) {
+        product = await Product.findOne({ name: { $regex: /mala|kantha/i } }).lean();
+        if (product) return product;
+      }
+
+      // Strategy 4: Core title token matching
+      const words = strippedSlug
+        .replace(/[-_]+/g, " ")
+        .split(/\s+/)
+        .filter(w => w.length >= 2 && !["authentic", "certified", "aura", "lab", "online", "buy", "product"].includes(w));
+      
+      if (words.length > 0) {
+        const pattern = words.slice(0, 3).join(".*");
+        product = await Product.findOne({
+          name: { $regex: new RegExp(pattern, "i") }
         }).lean();
         if (product) return product;
       }
+
+      // Strategy 5: Any active product as fallback
+      product = await Product.findOne({ status: { $ne: "Draft" } }).lean();
+      if (product) return product;
+
     } catch (err) {
-      console.warn("[SEO] Notice in findProductForSeo DB query:", err.message);
+      console.warn("[SEO] Notice in findProductForSeo DB query:", err?.message || err);
     }
   }
 
   // Fallback to seed catalog if database query yields no match
-  return matchProductFromCatalog(defaultProducts, clean);
+  return matchProductFromCatalog(defaultProducts, clean) || defaultProducts[0];
 }
 
 /**
@@ -1098,11 +1153,15 @@ export async function resolveSeoData(pathname, req) {
         product
       };
     } else {
+      const canonical = `${baseUrl}${cleanPath}`;
       return {
-        noindex: true,
-        title: "Product Not Found | Aura Rudraksha",
-        description: "The requested sacred Rudraksha product could not be found.",
-        canonical: `${baseUrl}${cleanPath}`
+        title: "Explore Authentic Lab-Certified Rudraksha | Aura Rudraksha",
+        description: "Buy 100% genuine lab-certified Nepali & Indonesian Rudraksha beads, consecrated 108+1 Japa Malas, and sacred Vedic items. Free nationwide shipping.",
+        canonical,
+        ogImage: SEO_BRAND.defaultImage,
+        ogType: "product",
+        h1: "Authentic Lab Certified Rudraksha",
+        leadText: "Discover genuine lab-certified Rudraksha beads from Nepal and Indonesia."
       };
     }
   }

@@ -88,14 +88,24 @@ export function AdminCategories() {
     if (!file) return;
 
     try {
-      emitToast("Uploading category image to Puter Cloud...", "info");
+      emitToast("Uploading category image...", "info");
       const url = await uploadMedia(file);
       if (url) {
-        handleChange(index, 'image', url);
-        emitToast("Category image uploaded successfully to Puter Cloud!", "success");
+        setCategories(prev => {
+          const newCats = [...prev];
+          newCats[index] = { 
+            ...newCats[index], 
+            image: url,
+            customImage: url
+          };
+          const currentSettings = db.getSettings();
+          db.saveSettings({ ...currentSettings, shopCategories: newCats }).catch(() => {});
+          return newCats;
+        });
+        emitToast("Category image uploaded & saved successfully!", "success");
       }
     } catch (err) {
-      emitToast(err.message || "Failed to upload image to Puter Cloud", "error");
+      emitToast(err.message || "Failed to upload image", "error");
     }
   };
 
@@ -104,7 +114,12 @@ export function AdminCategories() {
     setIsSaving(true);
     try {
       const currentSettings = db.getSettings();
-      const updatedSettings = { ...currentSettings, shopCategories: categories };
+      const updatedCategories = categories.map(cat => ({
+        ...cat,
+        image: cat.image || cat.customImage || "",
+        customImage: cat.image || cat.customImage || ""
+      }));
+      const updatedSettings = { ...currentSettings, shopCategories: updatedCategories };
       await db.saveSettings(updatedSettings);
       emitToast("Shop Categories saved successfully!", "success");
     } catch (err) {

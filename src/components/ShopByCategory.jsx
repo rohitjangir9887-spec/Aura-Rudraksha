@@ -78,8 +78,14 @@ function getResolvedCategories() {
       return pCat.includes(catKeyword) || pSub.includes(catKeyword) || pName.includes(catKeyword);
     });
 
-    let liveImg = cat.customImage || cat.image;
-    if (matchedProd) {
+    // Prioritize custom uploaded image from Admin Dashboard if provided and not placeholder
+    const customImg = cat.customImage || cat.image;
+    const hasCustomImg = customImg && !customImg.includes("placeholder.svg");
+
+    let liveImg = hasCustomImg ? customImg : "";
+
+    // If no custom uploaded image set, fallback to first matching product image from DB
+    if (!liveImg && matchedProd) {
       const prodImg = (Array.isArray(matchedProd.images) && matchedProd.images[0]) ? matchedProd.images[0] : (matchedProd.image || "");
       if (prodImg && !prodImg.includes("placeholder.svg")) {
         liveImg = prodImg;
