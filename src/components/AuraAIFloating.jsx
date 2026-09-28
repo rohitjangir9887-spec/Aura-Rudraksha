@@ -496,13 +496,6 @@ export function AuraAIFloating() {
   // Handle hardware Back button, browser back, and swipe gestures smoothly
   useEffect(() => {
     if (isOpen) {
-      // Push history state so back button closes the chat rather than navigating away / breaking page
-      try {
-        if (!window.history.state || !window.history.state.auraAiOpen) {
-          window.history.pushState({ ...window.history.state, auraAiOpen: true }, "");
-        }
-      } catch (_) {}
-
       const handlePopState = () => {
         setIsOpenState(false);
         auraChatStore.setFloatingOpen(false);
@@ -546,13 +539,6 @@ export function AuraAIFloating() {
     setShowBirthForm(false);
     setOrderModalProduct(null);
     unlockScreenAndTouch();
-
-    // Cleanly pop history state if pushed for this session
-    try {
-      if (typeof window !== "undefined" && window.history.state && window.history.state.auraAiOpen) {
-        window.history.back();
-      }
-    } catch (_) {}
   }, [unlockScreenAndTouch]);
 
   // When chat window is open, touching anywhere outside the window on the website closes it and guarantees full website interactivity

@@ -20,7 +20,8 @@ export function Home() {
   const [hero, setHero] = useState(0);
   const [isLoading, setIsLoading] = useState(() => {
     try {
-      return typeof db?.isBackendSynced === "function" ? !db.isBackendSynced() : false;
+      const prods = db.getProducts().filter(isPublicProduct);
+      return prods.length === 0;
     } catch {
       return false;
     }
@@ -30,7 +31,8 @@ export function Home() {
   const [banners, setBanners] = useState(() => db.getBanners() || []);
   const [products, setProducts] = useState(() => {
     try {
-      return db.getProducts().filter(isPublicProduct);
+      const list = db.getProducts().filter(isPublicProduct);
+      return list.length > 0 ? list : [];
     } catch {
       return [];
     }

@@ -5,6 +5,7 @@ import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
 import { normalizeKeywordItems } from "./keywordUtils.js";
 import { resolveCartProduct } from "./productResolver.js";
+import { defaultProducts } from "./defaultProducts.js";
 
 // Safe localStorage wrapper to prevent QuotaExceededError or security exceptions from halting execution
 export function safeLocalStorageSet(key, value) {
@@ -403,9 +404,9 @@ export function isPublicProduct(p) {
   return true;
 }
 
-// Live MongoDB Data Store Cache with initial empty catalog for UI rendering (hydrated via API/localStorage)
+// Live MongoDB Data Store Cache with initial catalog for instant UI rendering (hydrated via API/localStorage)
 const storeCache = {
-  products: [],
+  products: Array.isArray(defaultProducts) ? [...defaultProducts] : [],
   orders: [],
   customers: [],
   coupons: [],
@@ -614,6 +615,9 @@ export function loadCacheFromLocalStorage() {
         const deletedIds = getDeletedProductIds();
         storeCache.products = parsed.filter(p => p && !deletedIds.has(String(p.id)) && !deletedIds.has(String(p._id)) && !deletedIds.has(String(p.slug)));
       }
+    }
+    if (!storeCache.products || storeCache.products.length === 0) {
+      storeCache.products = Array.isArray(defaultProducts) ? [...defaultProducts] : [];
     }
     const cachedBanners = localStorage.getItem("aura_banners_cache");
     if (cachedBanners) {

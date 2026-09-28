@@ -197,6 +197,9 @@ export async function getProducts(req, res, next) {
     }
 
     const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
+    if (Array.isArray(products) && products.length > 0 && !isAdmin && !req.query.status && !req.query.category) {
+      inMemoryStore.products = products;
+    }
     const productsWithUpdatedSales = await applyDailySalesIncrement(products);
     const sanitizedProducts = toPublicProductDTO(productsWithUpdatedSales);
 
@@ -207,7 +210,17 @@ export async function getProducts(req, res, next) {
 
     return res.json({ success: true, data: sanitizedProducts, count: sanitizedProducts.length });
   } catch (err) {
-    console.warn("Error in getProducts:", err.message);
+    console.warn("Notice in getProducts:", err.message);
+    const fallbackList = (inMemoryStore.products && inMemoryStore.products.length > 0) ? inMemoryStore.products : [];
+    if (fallbackList.length > 0) {
+      const publicFallback = toPublicProductDTO(fallbackList);
+      return res.json({
+        success: true,
+        data: publicFallback,
+        count: publicFallback.length,
+        isFallback: true
+      });
+    }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(503).json({
       success: false,

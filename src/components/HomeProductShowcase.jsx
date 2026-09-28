@@ -13,6 +13,7 @@ import { db, isPublicProduct } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
 import { sortProductsByHomeOrder, isRudrakshaProduct } from "../lib/productHelper";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
+import { defaultProducts } from "../lib/defaultProducts";
 
 // Authentic Devotee Avatars
 const DEVOTEE_AVATARS = [
@@ -257,6 +258,7 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
         new CustomEvent("aura_ai_trigger_chat", {
           detail: {
             mode: "panditji",
+            fullWindow: false,
             prompt: "प्रणाम पंडित जी! मुझे अपनी राशि एवं ग्रह शांति हेतु उचित रुद्राक्ष के बारे में मार्गदर्शन चाहिए।"
           }
         })
@@ -265,10 +267,21 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
     } catch (_) {}
   };
 
+  // Guaranteed safe products list: instantly renders default/cached products without any blank delay
+  const safeProducts = useMemo(() => {
+    if (Array.isArray(products) && products.length > 0) return products;
+    try {
+      const fromDb = db.getProducts();
+      if (Array.isArray(fromDb) && fromDb.length > 0) return fromDb;
+    } catch (_) {}
+    return Array.isArray(defaultProducts) ? defaultProducts : [];
+  }, [products]);
+
   // Filter products that admin explicitly enabled for Home Page Showcase
   const homeProducts = useMemo(() => {
+    const list = safeProducts;
     if (overrideLayout) {
-      return products.filter(p => p && isPublicProduct(p));
+      return list.filter(p => p && isPublicProduct(p));
     }
     const settings = db.getSettings();
     if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
@@ -276,22 +289,23 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
       const orderedProducts = [];
       const addedIds = new Set();
       for (const id of liveOrder) {
-        const prod = products.find(p => String(p.id || p._id) === String(id) || String(p.slug) === String(id));
+        const prod = list.find(p => String(p.id || p._id) === String(id) || String(p.slug) === String(id));
         if (prod && isPublicProduct(prod) && prod.showOnHome !== false) {
           orderedProducts.push(prod);
           addedIds.add(String(prod.id || prod._id));
         }
       }
       const remaining = sortProductsByHomeOrder(
-        products.filter(p => p && p.showOnHome !== false && isPublicProduct(p) && !addedIds.has(String(p.id || p._id)))
+        list.filter(p => p && p.showOnHome !== false && isPublicProduct(p) && !addedIds.has(String(p.id || p._id)))
       );
-      return [...orderedProducts, ...remaining];
+      const combined = [...orderedProducts, ...remaining];
+      if (combined.length > 0) return combined;
     }
     
     // Fallback if no layout is set
-    const activeHomeProds = products.filter(p => p.showOnHome !== false && isPublicProduct(p));
-    return sortProductsByHomeOrder(activeHomeProds);
-  }, [products, overrideLayout]);
+    const activeHomeProds = list.filter(p => p.showOnHome !== false && isPublicProduct(p));
+    return sortProductsByHomeOrder(activeHomeProds.length > 0 ? activeHomeProds : list);
+  }, [safeProducts, overrideLayout]);
 
   // Compute sub-filters for easy user discovery
   const popularProducts = useMemo(() => {

@@ -95,17 +95,21 @@ if (!global.__mongoose_listeners_attached) {
     scheduleBackgroundReconnect(3000);
   });
 
-  // Background keep-alive & watchdog: pings when connected, automatically triggers reconnect if connection ever drops
+  // Background keep-alive & watchdog: pings every 12s on the active database using standard wire ping
+  // which prevents cloud firewalls, NAT routers, and Atlas idle timeouts from dropping sockets.
   setInterval(() => {
     if (mongoose?.connection?.readyState === 1 && mongoose?.connection?.db) {
-      mongoose.connection.db.admin().ping().catch((err) => {
-        console.warn("⚠️ [MongoDB] Keep-alive ping failed:", err?.message);
+      mongoose.connection.db.command({ ping: 1 }).catch((err) => {
+        console.warn("⚠️ [MongoDB] Keep-alive ping notice:", err?.message);
+        if (mongoose.connection.readyState === 0) {
+          connectDB().catch(() => {});
+        }
       });
     } else if (mongoose?.connection?.readyState === 0) {
       // Proactively recover disconnected socket before user requests arrive
       connectDB().catch(() => {});
     }
-  }, 20000);
+  }, 12000);
 }
 
 export function isValidMongoUri(rawUri) {
@@ -313,9 +317,9 @@ export async function getDbDiagnostics() {
   if (isConnected && mongoose.connection?.db) {
     try {
       const start = Date.now();
-      const adminDb = mongoose.connection.db.admin();
-      await adminDb.ping();
+      await mongoose.connection.db.command({ ping: 1 });
       pingMs = Date.now() - start;
+      const adminDb = mongoose.connection.db.admin();
       const serverInfo = await adminDb.serverInfo().catch(() => null);
       if (serverInfo?.version) serverVersion = serverInfo.version;
       const cols = await mongoose.connection.db.listCollections().toArray().catch(() => []);

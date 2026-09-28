@@ -198,7 +198,7 @@ export function PanditjiSection() {
     }
     
     // Dispatch event to open floating chat in Panditji mode and auto-send prompt
-    window.dispatchEvent(new CustomEvent("aura_ai_trigger_chat", { detail: { prompt: promptText, mode: "panditji" } }));
+    window.dispatchEvent(new CustomEvent("aura_ai_trigger_chat", { detail: { prompt: promptText, mode: "panditji", fullWindow: false } }));
 
     // Fallback if floating button is present
     const floatBtn = document.getElementById("aura-ai-floating-toggle");
