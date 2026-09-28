@@ -18,8 +18,10 @@ export function AdminCoupons() {
 
   useEffect(() => {
     load();
-    const unsub = onStoreUpdate(() => {
+    const unsub = onStoreUpdate((event, data) => {
       setCoupons(db.getCoupons() || []);
+      const currentStatus = db.getDbStatus ? db.getDbStatus() : "connected";
+      if (currentStatus === "connected") setDbStatus("connected");
     });
     return () => unsub();
   }, []);
@@ -39,7 +41,8 @@ export function AdminCoupons() {
       setDbStatus("connected");
     } catch (e) {
       console.warn("Failed fetching fresh coupons from MongoDB:", e);
-      setDbStatus("offline");
+      const current = db.getDbStatus ? db.getDbStatus() : "unknown";
+      setDbStatus(current === "disconnected" ? "offline" : "connected");
     }
     setCoupons(db.getCoupons() || []);
     setLoading(false);

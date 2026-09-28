@@ -20,7 +20,7 @@ export const AuraAIPill = memo(function AuraAIPill({ className = "" }) {
       auraChatStore.setFloatingOpen(true);
       window.dispatchEvent(
         new CustomEvent("aura_ai_trigger_chat", { 
-          detail: { mode: "standard", fullWindow: true } 
+          detail: { mode: "standard", fullWindow: false } 
         })
       );
     }

@@ -213,9 +213,14 @@ export function createApp(options = {}) {
     next();
   });
 
-  // Health check endpoint (accurate - never fakes "connected")
-  app.get("/api/health", (req, res) => {
-    const dbConnected = isDbConnected();
+  // Health check endpoint (accurate with proactive recovery)
+  app.get("/api/health", async (req, res) => {
+    let dbConnected = isDbConnected();
+    if (!dbConnected) {
+      try {
+        dbConnected = await connectDB();
+      } catch (_) {}
+    }
     const lastSync = getLastDbSync();
     if (dbConnected) {
       return res.json({

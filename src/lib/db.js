@@ -550,6 +550,43 @@ let hydrationPromise = new Promise((resolve) => {
   hydrationResolver = resolve;
 });
 
+let consecutiveDbFailures = 0;
+let healthCheckRecoveryTimer = null;
+
+export function setStoreDbStatus(status) {
+  if (status === "connected") {
+    consecutiveDbFailures = 0;
+    if (healthCheckRecoveryTimer) {
+      clearInterval(healthCheckRecoveryTimer);
+      healthCheckRecoveryTimer = null;
+    }
+  } else if (status === "disconnected") {
+    consecutiveDbFailures++;
+    // Require 2 consecutive failures before declaring database disconnected
+    // so temporary network latency or single request timeouts do not trigger false alarms
+    if (consecutiveDbFailures < 2) {
+      return;
+    }
+    // Start periodic background check to automatically restore status as soon as server/DB is back up
+    if (!healthCheckRecoveryTimer && typeof window !== "undefined") {
+      healthCheckRecoveryTimer = setInterval(async () => {
+        try {
+          const res = await apiRequest("/health");
+          if (res?.database === "connected") {
+            setStoreDbStatus("connected");
+          }
+        } catch (_) {}
+      }, 5000);
+    }
+  }
+
+  if (storeCache.dbStatus !== status) {
+    storeCache.dbStatus = status;
+    emitStoreUpdate("db:status", status);
+    emitStoreUpdate("home:synced", { dbStatus: status, timestamp: Date.now() });
+  }
+}
+
 export function isBackendSynced() {
   return hasFetchedFreshData;
 }
@@ -664,7 +701,7 @@ export async function revalidateProducts(force = false) {
       const url = shouldForce ? `/products?_t=${now}` : "/products";
       const res = await apiRequest(url, shouldForce ? { noCache: true } : {});
       if (res?.success && Array.isArray(res.data)) {
-        storeCache.dbStatus = "connected";
+        setStoreDbStatus("connected");
         hasFetchedFreshData = true;
         const deletedProductIds = getDeletedProductIds();
         const normalized = res.data
@@ -691,7 +728,7 @@ export async function revalidateProducts(force = false) {
 
         emitStoreUpdate("products:synced", storeCache.products);
       } else if (res?.status === 503 || res?.error === "Database unavailable") {
-        storeCache.dbStatus = "disconnected";
+        setStoreDbStatus("disconnected");
       }
     } catch (e) {
       console.warn("Product revalidation background error:", e);
@@ -853,11 +890,12 @@ export async function fetchHomeData(force = false) {
       hasFetchedFreshData = true;
       safeLocalStorageSet("aura_last_fetch_time", String(Date.now()));
       isHydrated = true;
+      setStoreDbStatus("connected");
       if (hydrationResolver) hydrationResolver(true);
 
       emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
     } catch (err) {
-      storeCache.dbStatus = "disconnected";
+      setStoreDbStatus("disconnected");
       isHydrated = true;
       if (hydrationResolver) hydrationResolver(true);
       console.warn("Error inside background home data hydration:", err.message);

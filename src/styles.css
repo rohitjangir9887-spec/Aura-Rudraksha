@@ -17624,6 +17624,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 
 
+@keyframes aura-pill-gentle-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
 /* --- Premium Aura Rudraksha AI Floating Pill Refinement --- */
 .aura-ai-floating-btn-wrap {
   position: fixed;
@@ -17637,6 +17646,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   user-select: none;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  animation: aura-pill-gentle-bob 3.2s ease-in-out infinite;
 }
 
 @media (min-width: 1024px) {

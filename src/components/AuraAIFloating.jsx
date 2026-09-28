@@ -37,7 +37,7 @@ import {
   Copy,
   Share2
 } from "lucide-react";
-import { motion, AnimatePresence, useDragControls } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
 import { parseAuraAiPayload, customerSafeAiText, isAuraResponseIncomplete, smartMergeContinuation } from "../lib/auraAiResponse";
 import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/auraChatStore";
@@ -473,11 +473,7 @@ export function AuraAIFloating() {
     }
   }, [location.pathname, unlockScreenAndTouch]);
   const messagesEndRef = useRef(null);
-  const isDraggingBtnRef = useRef(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  const dragControls = useDragControls();
   const undoTimerRef = useRef(null);
-  const dragAreaRef = useRef(null);
 
   // Auto-close AI assistant and remove background modal/overlay on URL changes
   const prevLocationRef = useRef(location.pathname + location.search);
@@ -531,8 +527,7 @@ export function AuraAIFloating() {
 
   // Dedicated clean close handler
   const handleCloseChat = useCallback((e) => {
-    if (e) {
-      e.preventDefault();
+    if (e && typeof e.stopPropagation === "function") {
       e.stopPropagation();
     }
     // Explicitly blur textarea and active element so mobile virtual keyboard instantly dismisses
@@ -551,7 +546,43 @@ export function AuraAIFloating() {
     setShowBirthForm(false);
     setOrderModalProduct(null);
     unlockScreenAndTouch();
+
+    // Cleanly pop history state if pushed for this session
+    try {
+      if (typeof window !== "undefined" && window.history.state && window.history.state.auraAiOpen) {
+        window.history.back();
+      }
+    } catch (_) {}
   }, [unlockScreenAndTouch]);
+
+  // When chat window is open, touching anywhere outside the window on the website closes it and guarantees full website interactivity
+  useEffect(() => {
+    if (!isOpen) {
+      unlockScreenAndTouch();
+      return;
+    }
+
+    const handleOutsideInteraction = (e) => {
+      // Don't close if user is clicking inside the chat panel, modals, or the open trigger
+      const panel = document.getElementById("aura-ai-floating-panel");
+      const trigger = document.getElementById("aura-ai-floating-trigger");
+      const headerPill = document.getElementById("aura-ai-header-pill");
+
+      if (panel && panel.contains(e.target)) return;
+      if (trigger && trigger.contains(e.target)) return;
+      if (headerPill && headerPill.contains(e.target)) return;
+      if (e.target && typeof e.target.closest === "function" && (e.target.closest(".aura-ai-modal") || e.target.closest("[role='dialog']"))) return;
+
+      // User touched the website outside the chat window: close chat cleanly and ensure website touch is 100% unlocked
+      handleCloseChat();
+    };
+
+    document.addEventListener("pointerdown", handleOutsideInteraction, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideInteraction);
+      unlockScreenAndTouch();
+    };
+  }, [isOpen, handleCloseChat, unlockScreenAndTouch]);
 
   // Load server settings
   useEffect(() => {
@@ -1350,18 +1381,10 @@ export function AuraAIFloating() {
           <motion.div
             id="aura-ai-floating-trigger"
             className="aura-ai-floating-btn-wrap"
-            initial={{ scale: 0.82, opacity: 0, y: 15 }}
-            animate={{ 
-              scale: 1, 
-              opacity: 1, 
-              y: [0, -6, 0]
-            }}
-            exit={{ scale: 0.82, opacity: 0, y: 15 }}
-            transition={{ 
-              opacity: { duration: 0.25, ease: "easeOut" },
-              scale: { duration: 0.25, ease: "easeOut" },
-              y: { repeat: Infinity, duration: 3.2, ease: "easeInOut" }
-            }}
+            initial={{ scale: 0.82, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.82, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.94 }}
           >
@@ -1525,18 +1548,17 @@ export function AuraAIFloating() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeInOut" }}
-            style={{ pointerEvents: "auto" }}
+            style={{ pointerEvents: "auto", cursor: "pointer" }}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
-                setIsFullWindow(false);
-                unlockScreenAndTouch();
+                handleCloseChat(e);
               }
             }}
           />
         )}
         {isOpen && (
           <motion.div
-            key={isFullWindow ? "aura-ai-full-container" : "aura-ai-compact-container"}
+            key="aura-ai-floating-window-container"
             className={`aura-ai-floating-container ${isFullWindow ? "aura-ai-floating-container-full" : ""}`}
             initial={{ 
               opacity: 0, 
@@ -1557,24 +1579,10 @@ export function AuraAIFloating() {
               <motion.div
                 id="aura-ai-floating-panel"
                 className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
-                drag={!isFullWindow}
-                dragControls={dragControls}
-                dragListener={false}
-                dragMomentum={false}
-                dragElastic={0.05}
-                dragConstraints={{
-                  left: -Math.max(100, window.innerWidth - 300),
-                  right: Math.max(100, window.innerWidth - 300),
-                  top: -Math.max(100, window.innerHeight - 400),
-                  bottom: 0
-                }}
-                whileDrag={{ cursor: "grabbing" }}
                 style={{ transformOrigin: isFullWindow ? "center center" : "bottom right", willChange: "transform, width, height", pointerEvents: "auto" }}
                 onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
               >
-              {/* iOS Style Top Grabber Bar Handle (iPhone bottom sheet / dynamic window effect) */}
+              {/* iOS Style Top Grabber Bar Handle (visual handle) */}
               {!isFullWindow && (
                 <div 
                   className="aura-ai-ios-grabber-wrap"
@@ -1585,41 +1593,25 @@ export function AuraAIFloating() {
                     alignItems: "center",
                     paddingTop: "6px",
                     paddingBottom: "3px",
-                    touchAction: "none",
-                    cursor: "grab",
                     background: mode === "panditji" ? "linear-gradient(180deg, #3d1605 0%, #2f1003 100%)" : "linear-gradient(180deg, #2a1307 0%, #1c0b03 100%)",
                     borderTopLeftRadius: "inherit",
                     borderTopRightRadius: "inherit"
-                  }}
-                  onPointerDown={(e) => {
-                    if (!e.target.closest("button") && !e.target.closest("a") && !e.target.closest("input")) {
-                      dragControls.start(e, { snapToCursor: false });
-                    }
                   }}
                 >
                   <div className="aura-ai-ios-grabber" />
                 </div>
               )}
 
-              {/* Header - Drag Handle Area (when compact) */}
+              {/* Header */}
               <div 
                 className={`aura-ai-header ${!isFullWindow ? "aura-ai-header-draggable" : ""} ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}
-                style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
-                onPointerDown={(e) => {
-                  if (!isFullWindow && !e.target.closest("button") && !e.target.closest("a") && !e.target.closest("textarea") && !e.target.closest("input")) {
-                    dragControls.start(e, { snapToCursor: false });
-                  }
-                }}
+                style={{ userSelect: "none", WebkitUserSelect: "none" }}
               >
-                <div 
-                  className="aura-ai-header-left" 
-                  style={{ touchAction: "none" }}
-                >
+                <div className="aura-ai-header-left">
                   {/* Dedicated Back to Website Button */}
                   <button
                     type="button"
                     onClick={handleCloseChat}
-                    onPointerDown={(e) => e.stopPropagation()}
                     className="aura-ai-btn-icon aura-ai-header-back-btn"
                     title="वापस वेबसाइट पर जाएं (Back to website)"
                     aria-label="Back to website"
@@ -1643,8 +1635,8 @@ export function AuraAIFloating() {
                   </button>
 
                   {!isFullWindow && (
-                    <div className="aura-ai-panel-drag-cue" title="Drag window to move anywhere on screen" style={{ touchAction: "none" }}>
-                      <GripVertical size={11} />
+                    <div className="aura-ai-panel-drag-cue" title="Aura Assistant">
+                      <Sparkles size={11} />
                     </div>
                   )}
                   <div className={`aura-ai-avatar ${mode === "panditji" ? "aura-ai-avatar-panditji" : ""}`}>
@@ -1740,8 +1732,6 @@ export function AuraAIFloating() {
                   <button 
                     type="button"
                     onClick={handleCloseChat} 
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onTouchEnd={handleCloseChat}
                     className="aura-ai-btn-icon aura-ai-btn-close" 
                     title="Close / Band karein"
                     aria-label="Close Chat"
