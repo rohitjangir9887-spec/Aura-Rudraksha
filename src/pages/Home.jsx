@@ -140,7 +140,9 @@ export function Home() {
     }).sort((a, b) => (a.order || 0) - (b.order || 0));
 
     setOffers(allOffers);
-    setIsLoading(false);
+    if (freshProducts.length > 0) {
+      setIsLoading(false);
+    }
   };
 
   const loadHomeData = async () => {

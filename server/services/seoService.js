@@ -897,6 +897,7 @@ export async function generateMerchantFeedXml(req) {
     }
 
     xml += `      <g:brand>${escapeXml(SEO_BRAND.name)}</g:brand>\n`;
+    xml += `      <g:checkout_link_template>${escapeXml(`${baseUrl}/checkout?productId=${itemId}`)}</g:checkout_link_template>\n`;
     xml += `      <g:google_product_category>505374</g:google_product_category>\n`;
     xml += `      <g:product_type>Religious &amp; Ceremonial &gt; Religious Items &gt; Rudraksha Beads</g:product_type>\n`;
     xml += `      <g:identifier_exists>no</g:identifier_exists>\n`;
@@ -920,30 +921,33 @@ export async function generateMerchantFeedXml(req) {
  */
 export function generateRobotsTxt(req) {
   const baseUrl = getSiteBaseUrl(req);
-  return `User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /admin/
-Disallow: /account
-Disallow: /account/
-Disallow: /checkout
-Disallow: /checkout/
-Disallow: /cart
-Disallow: /cart/
-Disallow: /orders
-Disallow: /orders/
-Disallow: /payment
-Disallow: /payment/
-Disallow: /login
-Disallow: /register
-Disallow: /profile
-Disallow: /wishlist
-Disallow: /customer
-Disallow: /customer/
-Disallow: /api/
-
-Sitemap: ${baseUrl}/sitemap.xml
-`;
+  const lines = [
+    "User-agent: *",
+    "Allow: /",
+    "Disallow: /admin",
+    "Disallow: /admin/",
+    "Disallow: /account",
+    "Disallow: /account/",
+    "Disallow: /checkout",
+    "Disallow: /checkout/",
+    "Disallow: /cart",
+    "Disallow: /cart/",
+    "Disallow: /orders",
+    "Disallow: /orders/",
+    "Disallow: /payment",
+    "Disallow: /payment/",
+    "Disallow: /login",
+    "Disallow: /register",
+    "Disallow: /profile",
+    "Disallow: /wishlist",
+    "Disallow: /customer",
+    "Disallow: /customer/",
+    "Disallow: /api/",
+    "",
+    `Sitemap: ${baseUrl}/sitemap.xml`,
+    ""
+  ];
+  return lines.join("\n");
 }
 
 /**

@@ -404,9 +404,9 @@ export function isPublicProduct(p) {
   return true;
 }
 
-// Live MongoDB Data Store Cache with initial catalog for instant UI rendering (hydrated via API/localStorage)
+// Live MongoDB Data Store Cache (hydrated via API and persistent localStorage)
 const storeCache = {
-  products: Array.isArray(defaultProducts) ? [...defaultProducts] : [],
+  products: [],
   orders: [],
   customers: [],
   coupons: [],
@@ -615,9 +615,6 @@ export function loadCacheFromLocalStorage() {
         const deletedIds = getDeletedProductIds();
         storeCache.products = parsed.filter(p => p && !deletedIds.has(String(p.id)) && !deletedIds.has(String(p._id)) && !deletedIds.has(String(p.slug)));
       }
-    }
-    if (!storeCache.products || storeCache.products.length === 0) {
-      storeCache.products = Array.isArray(defaultProducts) ? [...defaultProducts] : [];
     }
     const cachedBanners = localStorage.getItem("aura_banners_cache");
     if (cachedBanners) {
@@ -1473,6 +1470,7 @@ export const db = {
     } catch (_) {}
 
     emitStoreUpdate("product:saved", normalizedSaved);
+    emitStoreUpdate("products:synced", storeCache.products);
     revalidateProducts(true).catch(() => {});
     fetchHomeData(true).catch(() => {}); // Force background sync across app
     return normalizedSaved;

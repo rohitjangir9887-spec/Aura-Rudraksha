@@ -93,8 +93,21 @@ const MUKHI_GUIDE = [
 ];
 
 export function Shop() {
-  const [products, setProducts] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [products, setProducts] = useState(() => {
+    try {
+      return db.getProducts().filter(isPublicProduct);
+    } catch {
+      return [];
+    }
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = typeof localStorage !== "undefined" && localStorage.getItem("aura_products_cache");
+      return !cached;
+    } catch {
+      return true;
+    }
+  });
   const [filter, setFilter] = useState("featured");
   const [priceRange, setPriceRange] = useState("all");
   const [openFaq, setOpenFaq] = useState(0);
@@ -171,17 +184,21 @@ export function Shop() {
   });
 
   const updateProductsState = () => {
-    setProducts(db.getProducts().filter(isPublicProduct));
-    setIsLoading(false);
+    const freshProducts = db.getProducts().filter(isPublicProduct);
+    setProducts(freshProducts);
+    if (freshProducts.length > 0) {
+      setIsLoading(false);
+    }
   };
 
   const loadProducts = async () => {
-    // 1. Display cached products while fetching fresh catalog from MongoDB
+    // 1. Display cached products if available
     updateProductsState();
 
-    // 2. Revalidate products with force=true right away
+    // 2. Revalidate products with force=true right away from MongoDB
     db.revalidateProducts(true).then(() => {
       updateProductsState();
+      setIsLoading(false);
     }).catch(() => {
       setIsLoading(false);
     });

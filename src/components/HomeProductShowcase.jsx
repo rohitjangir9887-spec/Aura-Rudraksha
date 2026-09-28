@@ -267,21 +267,11 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
     } catch (_) {}
   };
 
-  // Guaranteed safe products list: instantly renders default/cached products without any blank delay
-  const safeProducts = useMemo(() => {
-    if (Array.isArray(products) && products.length > 0) return products;
-    try {
-      const fromDb = db.getProducts();
-      if (Array.isArray(fromDb) && fromDb.length > 0) return fromDb;
-    } catch (_) {}
-    return Array.isArray(defaultProducts) ? defaultProducts : [];
-  }, [products]);
-
   // Filter products that admin explicitly enabled for Home Page Showcase
   const homeProducts = useMemo(() => {
-    const list = safeProducts;
+    const list = Array.isArray(products) ? products.filter(p => p && isPublicProduct(p)) : [];
     if (overrideLayout) {
-      return list.filter(p => p && isPublicProduct(p));
+      return list;
     }
     const settings = db.getSettings();
     if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
@@ -305,7 +295,7 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
     // Fallback if no layout is set
     const activeHomeProds = list.filter(p => p.showOnHome !== false && isPublicProduct(p));
     return sortProductsByHomeOrder(activeHomeProds.length > 0 ? activeHomeProds : list);
-  }, [safeProducts, overrideLayout]);
+  }, [products, overrideLayout]);
 
   // Compute sub-filters for easy user discovery
   const popularProducts = useMemo(() => {
@@ -845,8 +835,8 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
 
       {/* Product Grid */}
       <div className="product-grid swipeable">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+        {(isLoading || (!products || products.length === 0)) ? (
+          Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
         ) : displayedProducts.length === 0 ? (
           <div style={{ 
             gridColumn: '1 / -1', 

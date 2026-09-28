@@ -452,6 +452,12 @@ export async function createProduct(req, res, next) {
       { $set: productPayload },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+    if (created && inMemoryStore.products && Array.isArray(inMemoryStore.products)) {
+      const freshDoc = created.toObject ? created.toObject() : created;
+      const exIdx = inMemoryStore.products.findIndex(p => String(p.id) === cleanId || (created._id && String(p._id) === String(created._id)) || (created.slug && String(p.slug) === String(created.slug)));
+      if (exIdx >= 0) inMemoryStore.products[exIdx] = freshDoc;
+      else inMemoryStore.products.unshift(freshDoc);
+    }
     invalidateRagCache();
     invalidateProductCache();
 
@@ -569,6 +575,12 @@ export async function updateProduct(req, res, next) {
     if (!updated) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+    if (updated && inMemoryStore.products && Array.isArray(inMemoryStore.products)) {
+      const freshDoc = updated.toObject ? updated.toObject() : updated;
+      const exIdx = inMemoryStore.products.findIndex(p => String(p.id) === cleanId || (updated._id && String(p._id) === String(updated._id)) || (updated.slug && String(p.slug) === String(updated.slug)));
+      if (exIdx >= 0) inMemoryStore.products[exIdx] = freshDoc;
+      else inMemoryStore.products.unshift(freshDoc);
+    }
     invalidateRagCache();
     invalidateProductCache();
 
@@ -684,6 +696,10 @@ export async function deleteProduct(req, res, next) {
       if (target) {
         deleted = await Product.findByIdAndDelete(target._id);
       }
+    }
+
+    if (inMemoryStore.products && Array.isArray(inMemoryStore.products)) {
+      inMemoryStore.products = inMemoryStore.products.filter(p => String(p.id) !== cleanId && String(p._id) !== cleanId && String(p.slug) !== cleanSlug);
     }
 
     invalidateRagCache();
