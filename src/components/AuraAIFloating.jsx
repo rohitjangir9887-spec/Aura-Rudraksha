@@ -836,14 +836,23 @@ export function AuraAIFloating() {
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
       const notesContext = notesList.map(n => `${n.memoryKey}: ${n.memoryValue}`).join("; ");
-      const effectiveBirthDetails = customBirthDetails || (mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null);
+      const effectiveBirthDetails = customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null;
+      const isAstroQuery = (
+        mode === "panditji" ||
+        Boolean(effectiveBirthDetails) ||
+        /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
+      );
+      const targetMode = isAstroQuery ? "panditji" : mode;
+      if (isAstroQuery && mode !== "panditji") {
+        setMode("panditji");
+      }
 
       await auraAiClient.sendMessageStream({
         message: textToSend || "",
         conversationId,
         userEmail,
         userName,
-        mode,
+        mode: targetMode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
         birthDetails: effectiveBirthDetails,
@@ -2447,6 +2456,52 @@ export function AuraAIFloating() {
                                   </div>
                                 );
                               })()}
+
+                              {/* Interactive Direct Kundali Inquiry Actions */}
+                              <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed rgba(212, 175, 55, 0.4)" }}>
+                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#8c2b10", marginBottom: "6px", display: "flex", alignItems: "center", gap: "5px" }}>
+                                  <Sparkles size={11} className="text-amber-600" />
+                                  <span>✨ इस कुंडली से सीधे पूछें (Ask from this Kundali):</span>
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                  {[
+                                    { label: "💼 कैरियर व नौकरी", query: "मेरी कुंडली के अनुसार कैरियर, नौकरी व पदोन्नति का समय कैसा रहेगा?" },
+                                    { label: "💍 विवाह योग व दांपत्य", query: "मेरी कुंडली के अनुसार विवाह योग व जीवनसाथी का विचार बताएं।" },
+                                    { label: "🪐 महादशा व ग्रह दोष", query: "मेरी कुंडली में वर्तमान विंशोत्तरी महादशा, साढ़े साती व ग्रह दोष निवारण के उपाय बताएं।" },
+                                    { label: "💰 धन लाभ व व्यापार", query: "मेरी कुंडली के अनुसार धन योग, आर्थिक स्थिति व व्यापार में वृद्धि के उपाय बताएं।" },
+                                    { label: "📿 रुद्राक्ष संपूर्ण धारण विधि", query: "मेरी कुंडली के लिए अनुशंसित रुद्राक्ष को सिद्ध करने और धारण करने की संपूर्ण विधि व मंत्र बताएं।" }
+                                  ].map((chip, cIdx) => (
+                                    <button
+                                      key={cIdx}
+                                      type="button"
+                                      onClick={() => {
+                                        const bData = m.kundali.verifiedBirthData || {
+                                          dob: m.kundali.dob,
+                                          birthTime: m.kundali.birthTime,
+                                          birthPlace: m.kundali.birthPlace,
+                                          name: m.kundali.devoteeName || m.kundali.name || "Devotee",
+                                          concern: m.kundali.concern || "career"
+                                        };
+                                        handleSend(chip.query, bData);
+                                      }}
+                                      style={{
+                                        fontSize: "11px",
+                                        fontWeight: 600,
+                                        padding: "4px 8px",
+                                        borderRadius: "12px",
+                                        background: "#FFFBEB",
+                                        border: "1px solid #F59E0B",
+                                        color: "#78350F",
+                                        cursor: "pointer",
+                                        transition: "all 0.15s ease",
+                                        boxShadow: "0 1px 3px rgba(245, 158, 11, 0.1)"
+                                      }}
+                                    >
+                                      {chip.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           )}
 
@@ -3080,6 +3135,16 @@ export function AuraAIFloating() {
           const birthPlace = prof.birthPlace || prof.place || "";
           const concern = prof.concern || "all";
 
+          const profileData = {
+            name: devoteeName,
+            dob,
+            place: birthPlace,
+            birthPlace,
+            time: birthTime,
+            birthTime,
+            concern
+          };
+
           setBirthForm({
             name: devoteeName,
             dob,
@@ -3088,16 +3153,13 @@ export function AuraAIFloating() {
             concern
           });
           setShowBirthForm(false);
+          setMode("panditji");
+          setActiveBirthDetails(profileData);
+          auraChatStore.saveVerifiedBirthDetails(profileData);
 
           // Auto-send kundali calculation request for this profile
           const query = `🙏 श्री ${devoteeName} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`;
-          handleSend(query, {
-            name: devoteeName,
-            dob,
-            birthTime,
-            birthPlace,
-            concern
-          });
+          handleSend(query, profileData);
         }}
       />
     </>

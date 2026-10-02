@@ -41,7 +41,11 @@ export function ScrollToTop() {
     }
 
     // Immediate instant reset
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    } catch (_) {
+      try { window.scrollTo(0, 0); } catch (__) {}
+    }
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
   }, [pathname, hash]);

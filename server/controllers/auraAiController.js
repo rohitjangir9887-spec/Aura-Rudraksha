@@ -332,10 +332,11 @@ export function getGeminiClient(customKey = "") {
 // Resilient Gemini text models fallback list in order of preference
 export const GEMINI_TEXT_MODELS = [
   process.env.GEMINI_MODEL,
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
+  'gemini-3.1-flash-lite',
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
   'gemini-flash-latest'
-].filter(m => Boolean(m) && !m.includes('lite') && !m.includes('1.5'));
+].filter(Boolean);
 
 /**
  * Convert OpenAI/NIM formatted messages array to @google/genai Content array.
@@ -1519,8 +1520,25 @@ export async function chatAuraAI(req, res, next) {
       } catch (_) {}
     }
 
+    if (!existingConvDoc) {
+      const memConv = inMemoryAiConversations.get(targetConversationId);
+      if (memConv) {
+        existingConvDoc = memConv;
+      }
+    }
+
     const extractedFromMsg = extractBirthDetailsFromText(message);
-    const passedBirthDetails = (birthDetails && birthDetails.dob && birthDetails.birthTime && birthDetails.birthPlace) ? birthDetails : null;
+    let passedBirthDetails = null;
+    if (birthDetails && typeof birthDetails === "object" && birthDetails.dob) {
+      passedBirthDetails = {
+        dob: String(birthDetails.dob).trim(),
+        birthTime: String(birthDetails.birthTime || birthDetails.time || "12:00").trim(),
+        birthPlace: String(birthDetails.birthPlace || birthDetails.place || "India").trim(),
+        name: String(birthDetails.name || birthDetails.devoteeName || verifiedName || "Devotee").trim(),
+        gender: String(birthDetails.gender || "").trim(),
+        concern: String(birthDetails.concern || "career").trim()
+      };
+    }
     const incomingBirthDetails = extractedFromMsg || passedBirthDetails;
     const existingVerifiedBirthDetails = existingConvDoc?.verifiedBirthDetails || null;
 
@@ -1563,14 +1581,23 @@ export async function chatAuraAI(req, res, next) {
       } catch (kErr) {
         console.warn("[Aura AI] Kundali calculation warning:", kErr?.message);
       }
-    } else {
-      const isAstrologySpecificQuery = (
-        intent === "KUNDALI" ||
-        /kundli|kundali|horoscope|rashi|dasha|mahadasha|antardasha|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|दोष|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|भविष्य|विवाह योग|करियर योग|भाग्य|लग्न|किस की महादशा/i.test(message || "")
-      );
-      if (mode === "panditji" || isAstrologySpecificQuery) {
-        shouldPromptBirthForm = true;
-      }
+    }
+
+    // Auto-promote mode to "panditji" whenever astrological, Kundali, or birth details are involved
+    let effectiveMode = mode;
+    const isAstrologySpecificQuery = (
+      mode === "panditji" ||
+      intent === "KUNDALI" ||
+      Boolean(activeBirthDetails) ||
+      Boolean(incomingBirthDetails) ||
+      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(message || "")
+    );
+    if (isAstrologySpecificQuery) {
+      effectiveMode = "panditji";
+    }
+
+    if (!activeBirthDetails && (effectiveMode === "panditji" || isAstrologySpecificQuery)) {
+      shouldPromptBirthForm = true;
     }
 
     // 4. Fetch Live Catalog Products, Active Coupons & Admin Deals/Promotions
@@ -1811,7 +1838,7 @@ LINK FORMAT RULES:
 - Use relative markdown links: [Product Name](/product/slug) or [Shop All](/shop).`;
 
     // 5. Retrieve Live RAG Knowledge Documents & Memories
-    const ragDocs = await retrieveRagContext(message || (mode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 3);
+    const ragDocs = await retrieveRagContext(message || (effectiveMode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 3);
     const ragContextText = ragDocs.map(d => `[${d.title}]: ${d.content}`).join("\n\n");
 
     const userMemories = await getUserMemories({ userId: effectiveUserId, guestSessionId: effectiveGuestSessionId });
@@ -1822,7 +1849,7 @@ LINK FORMAT RULES:
       (message || "").toLowerCase().includes("track") || 
       (message || "").toLowerCase().includes("order");
 
-    if (isOrderInquiry && mode !== "panditji") {
+    if (isOrderInquiry && effectiveMode !== "panditji") {
       if (!userIsAuthenticated || effectiveUserId === "guest") {
         const guestOrderText = "🙏 Apne order ki sthiti janne ke liye kripya pehle apne account mein Login karein ya seedhe hamare [Track Order](/track-order) page par jakar apna Order ID daalein.";
         const guestPayload = {
@@ -1958,7 +1985,7 @@ LINK FORMAT RULES:
     // 7. Build High-Integrity Persona System Prompt for NVIDIA NIM (nemotron-3-super-120b-a12b)
     let systemPrompt = "";
 
-    if (mode === "panditji") {
+    if (effectiveMode === "panditji") {
       systemPrompt = `आप मेरी वेबसाइट (Aura Rudraksha - https://aurarudraksha.bond) के लिए एक अत्यंत बुद्धिमान, विनम्र, स्पष्ट, प्रामाणिक और विस्तृत "AI Vedic Astrologer / AI Panditji" (🕉️) की तरह कार्य करेंगे।
 
 AI मॉडल: NVIDIA Nemotron-3-Super-120B-A12B
@@ -2274,7 +2301,7 @@ ${memoryContextText || "Guest shopper."}`;
       userMessage: message || "",
       intent,
       targetMukhi,
-      mode,
+      mode: effectiveMode,
       activeCoupons,
       calculatedKundaliData
     });
@@ -2319,7 +2346,7 @@ ${memoryContextText || "Guest shopper."}`;
 
       res.write(`data: ${JSON.stringify({
         type: "status",
-        message: mode === "panditji" ? "🕉️ जन्म लग्न व ग्रह गोचर गणना हो रही है..." : "🔍 प्रामाणिक स्टोर कैटलॉग व रुद्राक्ष खोज रहे हैं..."
+        message: effectiveMode === "panditji" ? "🕉️ जन्म लग्न व ग्रह गोचर गणना हो रही है..." : "🔍 प्रामाणिक स्टोर कैटलॉग व रुद्राक्ष खोज रहे हैं..."
       })}\n\n`);
       res.flush?.();
 
@@ -2369,10 +2396,10 @@ ${memoryContextText || "Guest shopper."}`;
               // Automatic Multi-Turn Continuation (up to 10 passes) if response hit token limits or was truncated
               let passCount = 0;
               const MAX_CONTINUATION_PASSES = 10;
-              while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason, mode)) {
+              while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason, effectiveMode)) {
                 passCount++;
                 try {
-                  const continuationPrompt = mode === "panditji"
+                  const continuationPrompt = effectiveMode === "panditji"
                     ? "कृपया अपना वैदिक ज्योतिषीय विश्लेषण और मार्गदर्शन ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों, शीर्षकों या अभिवादन को दोबारा न दोहराएँ। शेष विश्लेषण, उपाय, मंत्र, सरल सारांश तालिका और अंत में [AURA_KEYWORDS] को शुद्ध एवं स्पष्ट देवनागरी हिंदी में पूर्ण करें।"
                     : "कृपया अपना उत्तर ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों या अभिवादन को न दोहराएँ और शुद्ध हिंदी में उत्तर को पूर्ण करें।";
 
@@ -2486,7 +2513,7 @@ ${memoryContextText || "Guest shopper."}`;
       // If streaming could not produce output, generate fallback
       if (!streamSucceeded && !clientDisconnected) {
         let fallbackText = "";
-        if (mode === "panditji") {
+        if (effectiveMode === "panditji") {
           if (calculatedKundaliData) {
             const vDasha = calculatedKundaliData.astronomicalKundali?.vimshottariDasha;
             const currentMaha = vDasha?.currentMahadashaHindi || "बृहस्पति (गुरु)";
@@ -2623,10 +2650,10 @@ ${memoryContextText || "Guest shopper."}`;
           // Automatic Multi-Turn Continuation (up to 10 passes) if truncated
           let nonStreamPass = 0;
           const MAX_NONSTREAM_PASSES = 10;
-          while (nonStreamPass < MAX_NONSTREAM_PASSES && isTextIncomplete(outContent, finishReason)) {
+          while (nonStreamPass < MAX_NONSTREAM_PASSES && isTextIncomplete(outContent, finishReason, effectiveMode)) {
             nonStreamPass++;
             try {
-              const contPrompt = mode === "panditji"
+              const contPrompt = effectiveMode === "panditji"
                 ? "कृपया अपना वैदिक ज्योतिषीय विश्लेषण और मार्गदर्शन ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों, शीर्षकों या अभिवादन को दोबारा न दोहराएँ। शेष विश्लेषण, उपाय, मंत्र, सरल सारांश तालिका और अंत में [AURA_KEYWORDS] को शुद्ध एवं स्पष्ट देवनागरी हिंदी में पूर्ण करें।"
                 : "कृपया अपना उत्तर ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों या अभिवादन को न दोहराएँ और शुद्ध हिंदी में उत्तर को पूर्ण करें।";
 
@@ -2701,7 +2728,7 @@ ${memoryContextText || "Guest shopper."}`;
 
     // Deterministic Vedic / Store Fallback if AI models are momentarily disconnected
     if (!generatedSuccessfully || !aiResponseText.trim()) {
-      if (mode === "panditji") {
+      if (effectiveMode === "panditji") {
         if (calculatedKundaliData) {
           const vDasha = calculatedKundaliData.astronomicalKundali?.vimshottariDasha;
           const currentMaha = vDasha?.currentMahadashaHindi || "बृहस्पति (गुरु)";

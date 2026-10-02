@@ -346,7 +346,8 @@ export function parseAuraAiPayload(raw) {
     quickReplies,
     orderInfo: raw.orderInfo || null,
     conversationId: raw.conversationId,
-    kundali: rawKundali ? normalizeKundali(rawKundali) : null
+    kundali: rawKundali ? normalizeKundali(rawKundali) : null,
+    showBirthForm: Boolean(raw.showBirthForm || raw.data?.showBirthForm)
   };
 }
 

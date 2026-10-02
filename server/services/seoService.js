@@ -1341,8 +1341,11 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   }
 
   // 3. Pre-render Crawlable Semantic HTML inside <div id="root"></div> for non-JS search crawlers
-  // When React mounts, hydrate or render will replace this cleanly.
-  if (seo.h1 && !seo.noindex) {
+  // When React mounts in a real user browser, <div id="root"></div> remains clean so React mounts with 0ms stall.
+  const userAgent = (req?.headers?.["user-agent"] || "").toLowerCase();
+  const isBot = /bot|crawl|spider|facebookexternalhit|whatsapp|telegram|twitter|slack|linkedin|bing|google/i.test(userAgent);
+
+  if (isBot && seo.h1 && !seo.noindex) {
     let crawlableHtml = `<div id="root">\n  <main style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:960px;margin:30px auto;padding:0 24px;color:#1a100b;line-height:1.6;">\n`;
     
     // Breadcrumbs nav
@@ -1443,7 +1446,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     if (result.includes('<div id="root"></div>')) {
       result = result.replace('<div id="root"></div>', crawlableHtml);
     } else {
-      result = result.replace(/<div\s+id=["']root["']>[\s\S]*?<\/div>\s*<\/div>/i, crawlableHtml);
+      result = result.replace(/<div\s+id=["']root["']>[\s\S]*?<\/div>/i, crawlableHtml);
     }
   }
 
@@ -1491,7 +1494,7 @@ let cachedTemplate = "";
  * Load HTML template from filesystem (dist/index.html or index.html) with embedded fallback
  */
 export function getHtmlTemplate() {
-  if (cachedTemplate) return cachedTemplate;
+  if (cachedTemplate && !cachedTemplate.includes("aura-initial-loader")) return cachedTemplate;
 
   const candidatePaths = [
     path.join(process.cwd(), "dist", "index.html"),
@@ -1540,29 +1543,7 @@ export function getHtmlTemplate() {
     <title>Aura Rudraksha — 100% Authentic Nepal &amp; Indonesian Rudraksha | Lab Certified</title>
   </head>
   <body>
-    <div id="root">
-      <div id="aura-initial-loader" style="position:fixed;inset:0;background:#fdfbf7;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;user-select:none;-webkit-user-select:none;">
-        <div style="position:relative;width:80px;height:80px;display:flex;align-items:center;justify-content:center;">
-          <div style="position:absolute;inset:0;border-radius:50%;border:2px solid #edd9c7;border-top-color:#a54d2b;border-right-color:#c2410c;animation:auraInitSpin 0.9s cubic-bezier(0.4,0,0.2,1) infinite;"></div>
-          <div style="position:absolute;inset:6px;border-radius:50%;border:1px dashed #d97706;opacity:0.4;animation:auraInitSpinRev 3s linear infinite;"></div>
-          <div style="width:50px;height:50px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #c2410c 0%, #7c2d12 100%);box-shadow:0 4px 18px rgba(165,77,43,0.35);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:24px;font-weight:700;line-height:1;">
-            ॐ
-          </div>
-        </div>
-        <div style="margin-top:22px;text-align:center;">
-          <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;color:#2b170d;letter-spacing:1.5px;">
-            AURA RUDRAKSHA
-          </div>
-          <div style="margin-top:6px;font-size:12px;color:#78685c;letter-spacing:0.8px;">
-            Authentic Consecrated Beads
-          </div>
-        </div>
-        <style>
-          @keyframes auraInitSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          @keyframes auraInitSpinRev { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
-        </style>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>`;

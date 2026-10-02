@@ -54,7 +54,14 @@ export function AuraAIPage() {
     canonical: "https://aurarudraksha.bond/aura-ai"
   });
 
-  const [mode, setMode] = useState("standard"); // "standard" | "panditji"
+  const [mode, setMode] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlMode = params.get("mode");
+      if (urlMode === "panditji" || urlMode === "standard") return urlMode;
+    } catch (_) {}
+    return "standard";
+  }); // "standard" | "panditji"
   // Shared persistent chat history per mode
   const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
   const [input, setInput] = useState("");
@@ -130,6 +137,30 @@ export function AuraAIPage() {
   const turnSeqRef = useRef(0);
   const autoContinuationCountRef = useRef(0);
   const activeAiMsgIdRef = useRef(null);
+
+  // Check for pending prompts and birth details (e.g. from RudrakshaCalculator)
+  useEffect(() => {
+    try {
+      const pendingPrompt = sessionStorage.getItem("aura_pending_prompt");
+      const pendingDetailsRaw = sessionStorage.getItem("aura_pending_birth_details");
+      if (pendingPrompt) {
+        sessionStorage.removeItem("aura_pending_prompt");
+        let parsedDetails = null;
+        if (pendingDetailsRaw) {
+          sessionStorage.removeItem("aura_pending_birth_details");
+          try { parsedDetails = JSON.parse(pendingDetailsRaw); } catch (_) {}
+        }
+        if (parsedDetails) {
+          setMode("panditji");
+          setActiveBirthDetails(parsedDetails);
+          auraChatStore.saveVerifiedBirthDetails(parsedDetails);
+        }
+        setTimeout(() => {
+          handleSend(pendingPrompt, parsedDetails);
+        }, 150);
+      }
+    } catch (_) {}
+  }, []);
 
   // Update messages when switching mode (e.g. standard vs panditji)
   useEffect(() => {
@@ -360,17 +391,26 @@ export function AuraAIPage() {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
-      const verifiedDetails = customBirthDetails || (mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null);
+      const effectiveBirthDetails = customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null;
+      const isAstroQuery = (
+        mode === "panditji" ||
+        Boolean(effectiveBirthDetails) ||
+        /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
+      );
+      const targetMode = isAstroQuery ? "panditji" : mode;
+      if (isAstroQuery && mode !== "panditji") {
+        setMode("panditji");
+      }
 
       await auraAiClient.sendMessageStream({
         message: textToSend,
         conversationId,
         userEmail,
         userName,
-        mode,
+        mode: targetMode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
-        birthDetails: verifiedDetails,
+        birthDetails: effectiveBirthDetails,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -1810,14 +1850,13 @@ export function AuraAIPage() {
           const birthTime = profile.birthTime || profile.time || "12:00";
           const birthPlace = profile.birthPlace || profile.place || "";
           const concern = profile.concern || "all";
+          const profileData = { name, dob, birthTime, birthPlace, concern };
 
-          handleSend(`नमस्ते पंडित जी, कृपया ${name} (जन्म: ${dob}, समय: ${birthTime}, स्थान: ${birthPlace}) की जन्म पत्रिका का विस्तृत वैदिक विश्लेषण करें।`, {
-            name,
-            dob,
-            birthTime,
-            birthPlace,
-            concern
-          });
+          setMode("panditji");
+          setActiveBirthDetails(profileData);
+          auraChatStore.saveVerifiedBirthDetails(profileData);
+
+          handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, profileData);
         }}
         onSelectProfile={(profile) => {
           setShowSavedKundaliModal(false);
@@ -1826,14 +1865,13 @@ export function AuraAIPage() {
           const birthTime = profile.birthTime || profile.time || "12:00";
           const birthPlace = profile.birthPlace || profile.place || "";
           const concern = profile.concern || "all";
+          const profileData = { name, dob, birthTime, birthPlace, concern };
 
-          handleSend(`नमस्ते पंडित जी, कृपया ${name} (जन्म: ${dob}, समय: ${birthTime}, स्थान: ${birthPlace}) की जन्म पत्रिका का विस्तृत वैदिक विश्लेषण करें।`, {
-            name,
-            dob,
-            birthTime,
-            birthPlace,
-            concern
-          });
+          setMode("panditji");
+          setActiveBirthDetails(profileData);
+          auraChatStore.saveVerifiedBirthDetails(profileData);
+
+          handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, profileData);
         }}
       />
     </Shell>
