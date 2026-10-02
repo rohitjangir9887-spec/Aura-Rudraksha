@@ -335,21 +335,31 @@ export function AuraAIChatOrderModal({
       {isOpen && (
         <motion.div 
           key="order-modal-backdrop"
-          className="aura-ai-order-modal-backdrop" 
+          id="aura-ai-chat-order-modal-overlay"
+          className="aura-ai-order-modal-backdrop aura-ai-modal" 
+          role="dialog"
+          aria-modal="true"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) {
+              e.stopPropagation();
+            }
+          }}
         >
           <motion.div 
             key="order-modal-card"
-            className="aura-ai-order-modal-card"
+            id="aura-ai-chat-order-modal-card"
+            className="aura-ai-order-modal-card aura-ai-modal"
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
           {/* Header */}
           <div className="aura-ai-order-modal-header">

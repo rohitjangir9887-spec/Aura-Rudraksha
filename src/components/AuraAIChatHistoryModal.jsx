@@ -78,24 +78,34 @@ export function AuraAIChatHistoryModal({ isOpen, onClose, onSelectSession, curre
       {isOpen && (
         <motion.div 
           key="chat-history-modal-overlay"
+          id="aura-ai-chat-history-modal-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm aura-ai-modal"
+          role="dialog"
+          aria-modal="true"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
+          }}
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) {
+              e.stopPropagation();
+            }
           }}
         >
           <motion.div
             key="chat-history-modal-dialog"
+            id="aura-ai-chat-history-modal"
             initial={{ opacity: 0, scale: 0.93, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.93, y: 12 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="w-full max-w-md bg-[#fdfaf5] border border-[#dfcfbc] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="w-full max-w-md bg-[#fdfaf5] border border-[#dfcfbc] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] aura-ai-modal"
             style={{ boxShadow: "0 8px 36px rgba(74, 14, 23, 0.25)" }}
             onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#8c2b10] to-[#5c1c0a] text-white">

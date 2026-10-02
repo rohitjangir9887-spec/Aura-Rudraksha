@@ -549,6 +549,11 @@ export function AuraAIFloating() {
     }
 
     const handleOutsideInteraction = (e) => {
+      // Don't close chat if any sub-modal or active overlay form is open
+      if (showSavedKundaliModal || showChatHistoryModal || orderModalProduct || showNotepad) {
+        return;
+      }
+
       // Don't close if user is clicking inside the chat panel, modals, or the open trigger
       const panel = document.getElementById("aura-ai-floating-panel");
       const trigger = document.getElementById("aura-ai-floating-trigger");
@@ -557,7 +562,19 @@ export function AuraAIFloating() {
       if (panel && panel.contains(e.target)) return;
       if (trigger && trigger.contains(e.target)) return;
       if (headerPill && headerPill.contains(e.target)) return;
-      if (e.target && typeof e.target.closest === "function" && (e.target.closest(".aura-ai-modal") || e.target.closest("[role='dialog']"))) return;
+      if (e.target && typeof e.target.closest === "function" && (
+        e.target.closest(".aura-ai-modal") || 
+        e.target.closest("[role='dialog']") ||
+        e.target.closest("#aura-ai-saved-kundali-modal") ||
+        e.target.closest("#aura-ai-saved-kundali-modal-overlay") ||
+        e.target.closest("#aura-ai-chat-history-modal") ||
+        e.target.closest("#aura-ai-chat-history-modal-overlay") ||
+        e.target.closest(".aura-ai-order-modal-backdrop") ||
+        e.target.closest("#aura-ai-chat-order-modal-overlay") ||
+        e.target.closest("#aura-ai-floating-panel")
+      )) {
+        return;
+      }
 
       // User touched the website outside the chat window: close chat cleanly and ensure website touch is 100% unlocked
       handleCloseChat();
@@ -1820,7 +1837,12 @@ export function AuraAIFloating() {
                         type="button"
                         whileHover={{ scale: 1.05, y: -1 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowSavedKundaliModal(true)} 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowSavedKundaliModal(true);
+                        }} 
+                        onPointerDown={(e) => e.stopPropagation()}
                         className="aura-ai-strip-btn"
                         title="Saved Kundali Profiles"
                         style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
@@ -1832,7 +1854,12 @@ export function AuraAIFloating() {
                         type="button"
                         whileHover={{ scale: 1.05, y: -1 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowChatHistoryModal(true)} 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowChatHistoryModal(true);
+                        }} 
+                        onPointerDown={(e) => e.stopPropagation()}
                         className="aura-ai-strip-btn"
                         title="View Past Consultations"
                       >
