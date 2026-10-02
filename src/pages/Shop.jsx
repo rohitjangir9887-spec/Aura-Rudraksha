@@ -114,7 +114,8 @@ export function Shop() {
   const { add } = useCart();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const q = (params.get("q") || "").toLowerCase().trim();
+  const rawQ = params.get("q") || params.get("search") || params.get("query") || params.get("searchQuery") || "";
+  const q = rawQ.toLowerCase().trim();
   const categoryParam = (params.get("category") || params.get("cat") || "").toLowerCase().trim();
   const chipParam = (params.get("chip") || "").toLowerCase().trim();
   const isOfferQuery = params.get("offer") === "1";
@@ -353,6 +354,11 @@ export function Shop() {
       next = next.filter(p => (Number(p.price) || 0) > 10000);
     }
 
+    // Filter and Rank by search query if present
+    if (q) {
+      next = searchAndRankProducts(next, q);
+    }
+
     if (filter === "price-low") {
       next.sort((a,b) => (Number(a.price) || 0) - (Number(b.price) || 0));
     } else if (filter === "price-high") {
@@ -361,7 +367,7 @@ export function Shop() {
       next.sort((a,b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
     } else if (filter === "popular") {
       next.sort((a,b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
-    } else {
+    } else if (!q) {
       // Default: respect admin displayOrder / sortOrder followed by Mukhi / category ordering
       next = sortProductsByCatalogOrder(next);
     }
@@ -396,9 +402,31 @@ export function Shop() {
             animate={{ opacity: 1, y: 0 }}
           >
             <h1>Shop Catalog</h1>
-            <p>
+            <p style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               {q ? (
-                <>Showing authentic beads matching <b style={{ color: "#2b170d" }}>"{q}"</b> ({list.length})</>
+                <>
+                  <span>Showing authentic beads matching <b style={{ color: "#2b170d" }}>"{q}"</b> ({list.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => { setChip("all"); navigate("/shop"); }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      background: "#f4ebe2",
+                      color: "#7a320c",
+                      border: "1px solid #dcc8b8",
+                      borderRadius: "14px",
+                      padding: "2px 8px",
+                      fontSize: "11.5px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      lineHeight: "1.3"
+                    }}
+                  >
+                    <span>✕ Clear Search</span>
+                  </button>
+                </>
               ) : (
                 "Discover our full collection of authentic, energized beads."
               )}

@@ -4,12 +4,12 @@ import { extractKeywordString } from "./keywordUtils.js";
  * Aura Rudraksha Advanced Search & Keyword Matching Engine
  * 
  * Supports:
+ * - Precise Mukhi number targeting (e.g. "5 mukhi" returns ONLY 5 Mukhi products)
  * - Tokenized multi-word matching
  * - Hindi Devanagari & Hinglish transliteration matching (e.g., "5 mukhi", "panch mukhi", "पंचमुखी", "rudraksh")
  * - Keywords array & Tags array searching
  * - Astrological attributes matching (Mukhi, Planet, Deity, Origin, Zodiac)
  * - Category & Subcategory matching
- * - Fuzzy / partial substring scoring
  */
 
 // Common Hindi/Hinglish numeric and spiritual transliteration mapping
@@ -52,57 +52,77 @@ export function normalizeSearchString(str) {
 }
 
 /**
+ * Extract Mukhi number string (e.g. "5", "7", "1", "14") from text if present
+ */
+export function extractMukhiNumber(text) {
+  if (!text) return null;
+  const s = normalizeSearchString(text);
+
+  if (/gauri\s*shankar/i.test(s)) return "gauri-shankar";
+  if (/garbh\s*gauri/i.test(s)) return "garbh-gauri";
+  if (/ganesh|ganesha/i.test(s)) return "ganesh";
+  if (/trijuti/i.test(s)) return "trijuti";
+
+  // Explicit digit with mukhi/mukha/face e.g. "5 mukhi", "5mukhi", "5-mukhi"
+  const mukhiRegex = /\b([1-9]|1[0-9]|2[0-1])\s*(mukhi|mukha|face|muki)\b/i;
+  const mMatch = s.match(mukhiRegex);
+  if (mMatch && mMatch[1]) {
+    return String(parseInt(mMatch[1], 10));
+  }
+
+  // Standalone digits 1 to 21 when user searches e.g. "5" or "7"
+  const digitRegex = /\b([1-9]|1[0-9]|2[0-1])\b/;
+  const dMatch = s.match(digitRegex);
+  if (dMatch && dMatch[1]) {
+    return String(parseInt(dMatch[1], 10));
+  }
+
+  // Hindi/Hinglish words
+  if (/\b(panch|pancha|five|पांच|पंच)\b/i.test(s)) return "5";
+  if (/\b(saat|sat|sapta|seven|सात|सप्त)\b/i.test(s)) return "7";
+  if (/\b(eka?|one|पहला|एक)\b/i.test(s) && !/siddha|sek/i.test(s)) return "1";
+  if (/\b(do|dvi|two|दो)\b/i.test(s)) return "2";
+  if (/\b(teen|tri|three|तीन)\b/i.test(s)) return "3";
+  if (/\b(chaar|chatur|four|चार)\b/i.test(s)) return "4";
+  if (/\b(cheh|shat|six|छह)\b/i.test(s)) return "6";
+  if (/\b(aath|asht|eight|आठ|अष्ट)\b/i.test(s)) return "8";
+  if (/\b(nau|nava|nine|नौ|नव)\b/i.test(s)) return "9";
+  if (/\b(das|dash|ten|दस|दश)\b/i.test(s)) return "10";
+  if (/\b(gyarah|ekadash|eleven|ग्यारह)\b/i.test(s)) return "11";
+  if (/\b(barah|dwadash|twelve|बारह)\b/i.test(s)) return "12";
+  if (/\b(terah|trayodash|thirteen|तेरह)\b/i.test(s)) return "13";
+  if (/\b(chaudah|chaturdash|fourteen|चौदह)\b/i.test(s)) return "14";
+
+  return null;
+}
+
+/**
  * Build searchable text bag from a product object
  */
 export function buildProductSearchCorpus(product) {
   if (!product) return "";
   const parts = [];
 
-  // Core Identity
-  if (product.name) {
-    parts.push(product.name);
-    // Handle spacing variations like "5 Mukhi" -> "5mukhi"
-    parts.push(product.name.replace(/\s+/g, ""));
-  }
-  if (product.slug) {
-    parts.push(product.slug.replace(/-/g, " "));
-    parts.push(product.slug.replace(/-/g, ""));
-  }
-  if (product.category) {
-    parts.push(product.category);
-    parts.push(product.category.replace(/\s+/g, ""));
-  }
-  if (product.subCategory) {
-    parts.push(product.subCategory);
-    parts.push(product.subCategory.replace(/\s+/g, ""));
-  }
+  if (product.name) parts.push(product.name, product.name.replace(/\s+/g, ""));
+  if (product.slug) parts.push(product.slug.replace(/-/g, " "));
+  if (product.category) parts.push(product.category);
+  if (product.subCategory) parts.push(product.subCategory);
 
-  // Search Keywords array
   if (Array.isArray(product.keywords)) {
-    const kws = product.keywords.map(extractKeywordString).filter(Boolean);
-    parts.push(kws.join(" "));
-    parts.push(kws.map(k => k.replace(/\s+/g, "")).join(" "));
-  } else if (typeof product.keywords === "string") {
-    parts.push(product.keywords);
+    parts.push(product.keywords.map(extractKeywordString).filter(Boolean).join(" "));
   } else if (product.keywords) {
     parts.push(extractKeywordString(product.keywords));
   }
 
   if (Array.isArray(product.searchKeywords)) {
-    const skws = product.searchKeywords.map(extractKeywordString).filter(Boolean);
-    parts.push(skws.join(" "));
-    parts.push(skws.map(k => k.replace(/\s+/g, "")).join(" "));
+    parts.push(product.searchKeywords.map(extractKeywordString).filter(Boolean).join(" "));
   }
 
-  // Tags array
   if (Array.isArray(product.tags)) {
-    const tg = product.tags.map(extractKeywordString).filter(Boolean);
-    parts.push(tg.join(" "));
-    parts.push(tg.map(t => t.replace(/\s+/g, "")).join(" "));
+    parts.push(product.tags.map(extractKeywordString).filter(Boolean).join(" "));
   }
 
-  // Astrological & Vedic attributes
-  if (product.mukhi) parts.push(product.mukhi, `${product.mukhi.replace(/\s+/g, "")}`);
+  if (product.mukhi) parts.push(product.mukhi);
   if (product.origin) parts.push(product.origin);
   if (product.rulingPlanet) parts.push(product.rulingPlanet);
   if (product.deity) parts.push(product.deity);
@@ -110,12 +130,6 @@ export function buildProductSearchCorpus(product) {
   if (product.highlight) parts.push(product.highlight);
   if (product.homeBadge) parts.push(product.homeBadge);
   if (product.badge) parts.push(product.badge);
-
-  // Description preview (clean HTML)
-  if (product.description) {
-    const cleanDesc = product.description.replace(/<[^>]*>/g, " ").slice(0, 500);
-    parts.push(cleanDesc);
-  }
 
   return normalizeSearchString(parts.join(" "));
 }
@@ -126,43 +140,107 @@ export function buildProductSearchCorpus(product) {
  */
 export function matchProductQuery(product, rawQuery) {
   if (!product) return 0;
-  if (!rawQuery || !rawQuery.trim()) return 1; // All match if empty query
+  if (!rawQuery || !rawQuery.trim()) return 100; // All match if empty query
 
   const cleanQ = normalizeSearchString(rawQuery);
-  if (!cleanQ) return 1;
+  if (!cleanQ) return 100;
 
-  const corpus = buildProductSearchCorpus(product);
   const nameClean = normalizeSearchString(product.name || "");
-  const keywordsClean = Array.isArray(product.keywords) ? product.keywords.map(k => normalizeSearchString(extractKeywordString(k))).filter(Boolean) : [];
-  const tagsClean = Array.isArray(product.tags) ? product.tags.map(t => normalizeSearchString(extractKeywordString(t))).filter(Boolean) : [];
+  const categoryClean = normalizeSearchString(product.category || "");
+  const subCategoryClean = normalizeSearchString(product.subCategory || "");
+  const mukhiClean = normalizeSearchString(product.mukhi || "");
+  const slugClean = normalizeSearchString((product.slug || "").replace(/-/g, " "));
+
+  const keywordsClean = Array.isArray(product.keywords) 
+    ? product.keywords.map(k => normalizeSearchString(extractKeywordString(k))).filter(Boolean) 
+    : [];
+  const searchKeywordsClean = Array.isArray(product.searchKeywords) 
+    ? product.searchKeywords.map(k => normalizeSearchString(extractKeywordString(k))).filter(Boolean) 
+    : [];
+  const tagsClean = Array.isArray(product.tags) 
+    ? product.tags.map(t => normalizeSearchString(extractKeywordString(t))).filter(Boolean) 
+    : [];
+
+  const originClean = normalizeSearchString(product.origin || "");
+  const planetClean = normalizeSearchString(product.rulingPlanet || "");
+  const deityClean = normalizeSearchString(product.deity || "");
+  const zodiacClean = normalizeSearchString(Array.isArray(product.zodiac) ? product.zodiac.join(" ") : product.zodiac || "");
+
+  // Extract explicit Mukhi intentions
+  const queryMukhi = extractMukhiNumber(cleanQ);
+  const prodMukhi = extractMukhiNumber(mukhiClean) || extractMukhiNumber(nameClean);
+
+  // If query explicitly asks for a specific Mukhi (e.g. "5 mukhi" or "5")
+  // and product is explicitly a DIFFERENT Mukhi (e.g. "7 mukhi"), then fail match!
+  if (queryMukhi && prodMukhi && queryMukhi !== prodMukhi) {
+    return 0;
+  }
+
+  // Check special cases like "gauri shankar"
+  if (/gauri\s*shankar/i.test(cleanQ)) {
+    if (/gauri\s*shankar/i.test(nameClean) || /gauri\s*shankar/i.test(mukhiClean) || /gauri\s*shankar/i.test(categoryClean)) {
+      return 100;
+    }
+    return 0;
+  }
 
   // Exact phrase match (Highest Priority)
   if (nameClean.includes(cleanQ)) return 100;
+  if (slugClean.includes(cleanQ)) return 95;
+  if (mukhiClean && mukhiClean.includes(cleanQ)) return 90;
   if (keywordsClean.some(k => k === cleanQ || k.includes(cleanQ))) return 85;
-  if (tagsClean.some(t => t === cleanQ || t.includes(cleanQ))) return 75;
-  if (corpus.includes(cleanQ)) return 60;
+  if (searchKeywordsClean.some(sk => sk === cleanQ || sk.includes(cleanQ))) return 85;
+  if (tagsClean.some(t => t === cleanQ || t.includes(cleanQ))) return 80;
+  if (categoryClean.includes(cleanQ) || subCategoryClean.includes(cleanQ)) return 75;
+  if (deityClean.includes(cleanQ) || planetClean.includes(cleanQ) || zodiacClean.includes(cleanQ) || originClean.includes(cleanQ)) return 70;
+
+  // Build key attributes corpus (EXCLUDING long generic descriptions and price numbers)
+  const coreCorpusParts = [
+    nameClean,
+    slugClean,
+    categoryClean,
+    subCategoryClean,
+    mukhiClean,
+    keywordsClean.join(" "),
+    searchKeywordsClean.join(" "),
+    tagsClean.join(" "),
+    deityClean,
+    planetClean,
+    zodiacClean,
+    originClean,
+    product.highlight || "",
+    product.homeBadge || "",
+    product.badge || ""
+  ];
+  const coreCorpus = normalizeSearchString(coreCorpusParts.join(" "));
+
+  if (coreCorpus.includes(cleanQ)) return 60;
 
   // Tokenized Search (All or majority tokens match)
   const tokens = cleanQ.split(" ").filter(t => t.length > 0);
-  if (tokens.length === 0) return 1;
+  if (tokens.length === 0) return 100;
 
   let matchedTokens = 0;
   let bonusScore = 0;
 
   for (const token of tokens) {
-    // Check direct substring
-    if (corpus.includes(token)) {
+    // Ignore extremely common 1-2 letter noise unless numeric
+    if (token.length < 2 && !/^\d+$/.test(token)) {
+      matchedTokens++;
+      continue;
+    }
+
+    if (coreCorpus.includes(token)) {
       matchedTokens++;
       if (nameClean.includes(token)) bonusScore += 10;
       continue;
     }
 
-    // Check phonetic / Hindi number synonyms (e.g. user typed "panch" and product has "5")
+    // Synonym check (e.g. panch -> 5)
     let synonymMatched = false;
     for (const [num, synonyms] of Object.entries(HINDI_NUMBER_SYNONYMS)) {
       if (synonyms.includes(token)) {
-        // Check if corpus contains any other synonym of this number
-        if (synonyms.some(syn => corpus.includes(syn))) {
+        if (synonyms.some(syn => coreCorpus.includes(syn))) {
           matchedTokens++;
           bonusScore += 8;
           synonymMatched = true;
@@ -171,23 +249,31 @@ export function matchProductQuery(product, rawQuery) {
       }
     }
 
-    // Check common typo variations (e.g. "rudraksh" vs "rudraksha")
+    // Typo variation (e.g. rudraksh -> rudraksha)
     if (!synonymMatched && (token.startsWith("rudraksh") || token.startsWith("rudrax"))) {
-      if (corpus.includes("rudraksha") || corpus.includes("rudraksh")) {
+      if (coreCorpus.includes("rudraksha") || coreCorpus.includes("rudraksh")) {
         matchedTokens++;
         bonusScore += 5;
       }
     }
   }
 
-  // If all tokens matched, high score!
+  // All tokens matched core identity
   if (matchedTokens === tokens.length) {
     return 50 + bonusScore;
   }
 
-  // If at least 70% of tokens matched for multi-word queries
-  if (tokens.length >= 2 && matchedTokens >= Math.ceil(tokens.length * 0.65)) {
+  // Majority token match for multi-word search (>= 75%)
+  if (tokens.length >= 2 && matchedTokens >= Math.ceil(tokens.length * 0.75)) {
     return 25 + bonusScore;
+  }
+
+  // Last resort: check clean description ONLY if query is at least 3 chars and no Mukhi mismatch
+  if (product.description && cleanQ.length >= 3) {
+    const cleanDesc = normalizeSearchString(product.description.replace(/<[^>]*>/g, " ").slice(0, 300));
+    if (cleanDesc.includes(cleanQ)) {
+      return 20;
+    }
   }
 
   return 0;
