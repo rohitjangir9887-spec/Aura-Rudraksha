@@ -984,7 +984,6 @@ export function AuraAIFloating() {
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream notice in floating assistant:", err);
-          setErrorOccurred(true);
           const fallbackText = mode === "panditji"
             ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
             : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.";
@@ -992,12 +991,16 @@ export function AuraAIFloating() {
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             const existing = idx >= 0 ? prev[idx] : null;
-            const finalMsgText = (existing && existing.text && existing.text.trim()) ? existing.text : fallbackText;
+            const hasStreamedText = Boolean(existing && existing.text && existing.text.trim().length > 0);
+            if (!hasStreamedText) {
+              setErrorOccurred(true);
+            }
+            const finalMsgText = hasStreamedText ? existing.text : fallbackText;
             const updatedMsg = {
               id: aiMsgId,
               sender: "ai",
               text: finalMsgText,
-              requiresHuman: true,
+              requiresHuman: !hasStreamedText,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
             auraChatStore.upsertMessage(updatedMsg, mode);

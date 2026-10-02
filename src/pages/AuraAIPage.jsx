@@ -511,18 +511,21 @@ export function AuraAIPage() {
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream error in full-page Aura AI:", err);
-          setErrorOccurred(true);
           const fallbackText = "Namaste 🙏 Server se connect karne mein samasya aayi. Hamare live catalog ke sabhi Rudraksha lab-tested aur energized hain. Kripya punah prayas karein.";
           
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === aiMsgId);
             const existing = idx >= 0 ? prev[idx] : null;
-            const finalMsgText = (existing && existing.text && existing.text.trim()) ? existing.text : fallbackText;
+            const hasStreamedText = Boolean(existing && existing.text && existing.text.trim().length > 0);
+            if (!hasStreamedText) {
+              setErrorOccurred(true);
+            }
+            const finalMsgText = hasStreamedText ? existing.text : fallbackText;
             const updatedMsg = {
               id: aiMsgId,
               sender: "ai",
               text: finalMsgText,
-              requiresHuman: true,
+              requiresHuman: !hasStreamedText,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
             auraChatStore.upsertMessage(updatedMsg, mode);
