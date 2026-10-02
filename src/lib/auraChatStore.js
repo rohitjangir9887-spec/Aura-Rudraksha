@@ -19,6 +19,14 @@ let isFloatingDismissedSession = false;
 let isFloatingOpenState = false;
 let currentActiveMode = "standard";
 
+// High performance in-memory message cache & debounced disk sync to prevent touch freezing during streaming
+const _messagesCache = {
+  standard: null,
+  panditji: null
+};
+let _saveDebounceTimer = null;
+const _pendingSaveModes = new Set();
+
 // Clear any old permanent localStorage flag on load
 try {
   localStorage.removeItem("aura_ai_floating_dismissed");
@@ -168,8 +176,20 @@ export const auraChatStore = {
     if (!details || !details.dob) return;
     try {
       const uid = this.getCurrentUserUid();
+      const current = this.getVerifiedBirthDetails();
+      // Skip redundant storage writes and event spam if details are identical
+      if (
+        current &&
+        current.dob === details.dob &&
+        (current.birthTime || current.time) === (details.birthTime || details.time) &&
+        (current.birthPlace || current.place) === (details.birthPlace || details.place) &&
+        (current.name || "") === (details.name || details.devoteeName || "")
+      ) {
+        return;
+      }
+
       const normalized = {
-        name: details.name || "Devotee",
+        name: details.name || details.devoteeName || "Devotee",
         dob: details.dob,
         birthTime: details.birthTime || details.time || "12:00",
         birthPlace: details.birthPlace || details.place || "",
@@ -303,8 +323,11 @@ export const auraChatStore = {
     }
   },
 
-  // Get messages for active mode
+  // Get messages for active mode (in-memory cached for zero touch lag)
   getMessages(mode = "standard") {
+    if (_messagesCache[mode] && Array.isArray(_messagesCache[mode]) && _messagesCache[mode].length > 0) {
+      return _messagesCache[mode];
+    }
     try {
       const key = this.getStorageKey(mode);
       const raw = localStorage.getItem(key);
@@ -313,24 +336,55 @@ export const auraChatStore = {
         if (Array.isArray(parsed) && parsed.length > 0) {
           // If only 1 message and it is the initial welcome message, refresh with latest text & quick replies
           if (parsed.length === 1 && parsed[0]?.id?.startsWith("init_welcome")) {
-            return [this.getDefaultInitialMessage(mode)];
+            const defMsg = [this.getDefaultInitialMessage(mode)];
+            _messagesCache[mode] = defMsg;
+            return defMsg;
           }
+          _messagesCache[mode] = parsed;
           return parsed;
         }
       }
     } catch (e) {
       console.warn("Error reading Aura AI chats from localStorage:", e);
     }
-    return [this.getDefaultInitialMessage(mode)];
+    const fallback = [this.getDefaultInitialMessage(mode)];
+    _messagesCache[mode] = fallback;
+    return fallback;
   },
 
-  // Save messages for active mode and broadcast to all components/tabs
-  saveMessages(messages, mode = "standard") {
+  // Save messages for active mode and broadcast to all components/tabs with debounced disk I/O
+  saveMessages(messages, mode = "standard", forceSync = false) {
     try {
       if (!Array.isArray(messages) || messages.length === 0) return;
-      const key = this.getStorageKey(mode);
-      localStorage.setItem(key, JSON.stringify(messages));
-      window.dispatchEvent(new CustomEvent("aura_ai_chat_sync", { detail: { messages, mode } }));
+      _messagesCache[mode] = messages;
+
+      const doSave = (targetMode) => {
+        const msgs = _messagesCache[targetMode];
+        if (!msgs) return;
+        const key = this.getStorageKey(targetMode);
+        localStorage.setItem(key, JSON.stringify(msgs));
+        window.dispatchEvent(new CustomEvent("aura_ai_chat_sync", { detail: { messages: msgs, mode: targetMode } }));
+      };
+
+      if (forceSync) {
+        if (_saveDebounceTimer) {
+          clearTimeout(_saveDebounceTimer);
+          _saveDebounceTimer = null;
+        }
+        _pendingSaveModes.delete(mode);
+        doSave(mode);
+        return;
+      }
+
+      // High-frequency stream chunks: debounce storage writes to prevent UI and touch freezing
+      _pendingSaveModes.add(mode);
+      if (!_saveDebounceTimer) {
+        _saveDebounceTimer = setTimeout(() => {
+          _saveDebounceTimer = null;
+          _pendingSaveModes.forEach((m) => doSave(m));
+          _pendingSaveModes.clear();
+        }, 300);
+      }
     } catch (e) {
       console.warn("Error saving Aura AI chats:", e);
     }
@@ -386,7 +440,7 @@ export const auraChatStore = {
   },
 
   // Upsert or replace message by ID
-  upsertMessage(msg, mode = "standard") {
+  upsertMessage(msg, mode = "standard", forceSync = false) {
     const current = this.getMessages(mode);
     const idx = current.findIndex((m) => m.id === msg.id);
     let updated;
@@ -396,7 +450,8 @@ export const auraChatStore = {
     } else {
       updated = [...current, msg];
     }
-    this.saveMessages(updated, mode);
+    _messagesCache[mode] = updated;
+    this.saveMessages(updated, mode, forceSync);
     return updated;
   },
 

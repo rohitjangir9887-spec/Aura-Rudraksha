@@ -541,7 +541,7 @@ export function AuraAIFloating() {
     unlockScreenAndTouch();
   }, [unlockScreenAndTouch]);
 
-  // When chat window is open, touching anywhere outside the window on the website closes it and guarantees full website interactivity
+  // When chat window is open in full-window modal, clicking outside the window on the website closes it
   useEffect(() => {
     if (!isOpen) {
       unlockScreenAndTouch();
@@ -549,6 +549,11 @@ export function AuraAIFloating() {
     }
 
     const handleOutsideInteraction = (e) => {
+      // In compact corner mode, let user touch, scroll, and browse the website freely without interrupting their touch
+      if (!isFullWindow) {
+        return;
+      }
+
       // Don't close chat if any sub-modal or active overlay form is open
       if (showSavedKundaliModal || showChatHistoryModal || orderModalProduct || showNotepad) {
         return;
@@ -576,16 +581,16 @@ export function AuraAIFloating() {
         return;
       }
 
-      // User touched the website outside the chat window: close chat cleanly and ensure website touch is 100% unlocked
+      // User touched the backdrop in full-window mode: close chat cleanly and ensure website touch is 100% unlocked
       handleCloseChat();
     };
 
-    document.addEventListener("pointerdown", handleOutsideInteraction, { passive: true });
+    document.addEventListener("click", handleOutsideInteraction, { passive: true });
     return () => {
-      document.removeEventListener("pointerdown", handleOutsideInteraction);
+      document.removeEventListener("click", handleOutsideInteraction);
       unlockScreenAndTouch();
     };
-  }, [isOpen, handleCloseChat, unlockScreenAndTouch]);
+  }, [isOpen, isFullWindow, handleCloseChat, unlockScreenAndTouch, showSavedKundaliModal, showChatHistoryModal, orderModalProduct, showNotepad]);
 
   // Load server settings
   useEffect(() => {
@@ -863,7 +868,7 @@ export function AuraAIFloating() {
               name: partialData.kundali.devoteeName || partialData.kundali.name || "Devotee",
               concern: partialData.kundali.concern || "career"
             };
-            if (verified && verified.dob) {
+            if (verified && verified.dob && (!activeBirthDetails || activeBirthDetails.dob !== verified.dob)) {
               auraChatStore.saveVerifiedBirthDetails(verified);
               setActiveBirthDetails(verified);
             }
@@ -883,8 +888,8 @@ export function AuraAIFloating() {
             timestamp: new Date().toISOString()
           };
 
-          // Save live stream chunk to store so user can close and reopen anytime without losing progress
-          auraChatStore.upsertMessage(liveMsg, mode);
+          // Save live stream chunk to in-memory store with debounced disk persistence
+          auraChatStore.upsertMessage(liveMsg, mode, false);
 
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
@@ -942,7 +947,7 @@ export function AuraAIFloating() {
             kundali: finalData.kundali || null,
             timestamp: new Date().toISOString()
           };
-          auraChatStore.upsertMessage(aiMsg, mode);
+          auraChatStore.upsertMessage(aiMsg, mode, true);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -1156,7 +1161,7 @@ export function AuraAIFloating() {
             kundali: finalData.kundali || targetMsg.kundali || null,
             timestamp: new Date().toISOString()
           };
-          auraChatStore.upsertMessage(aiMsg, mode);
+          auraChatStore.upsertMessage(aiMsg, mode, true);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
