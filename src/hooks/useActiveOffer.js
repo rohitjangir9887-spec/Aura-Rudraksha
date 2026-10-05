@@ -241,7 +241,7 @@ export function useActiveOffer(product = null, options = {}) {
     (offer.status === "Active" || offer.status === "active")
   );
 
-  const hasExpiry = Boolean(offer?.expiryDate || offer?.expiresAt || offer?.expiry);
+  const hasExpiry = offer?.timerEnabled !== false && Boolean(offer?.expiryDate || offer?.expiresAt || offer?.expiry);
   const isExpired = hasExpiry ? timeLeft.isExpired : false;
 
   // Check product applicability if product is provided

@@ -372,6 +372,29 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
         </div>
       )}
 
+      {diagnostics?.isIpWhitelistError && (
+        <div style={{
+          background: "#fffbeb",
+          border: "1.5px solid #f59e0b",
+          borderRadius: "10px",
+          padding: "12px 16px",
+          color: "#92400e",
+          fontSize: "13px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "14px" }}>
+            <AlertTriangle size={18} style={{ color: "#d97706" }} />
+            <span>MongoDB Atlas IP Whitelist Required</span>
+          </div>
+          <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.5" }}>
+            Your MongoDB Atlas cluster could not be reached because this server's IP address is not whitelisted. 
+            To resolve: Go to <strong>MongoDB Atlas &gt; Security &gt; Network Access &gt; Add IP Address</strong> and add <code>0.0.0.0/0</code> (Allow Access from Anywhere).
+          </p>
+        </div>
+      )}
+
       {/* Metrics Grid */}
       <div style={{
         display: "grid",

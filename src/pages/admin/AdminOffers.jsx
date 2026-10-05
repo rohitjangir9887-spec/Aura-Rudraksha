@@ -78,10 +78,10 @@ export function AdminOffers() {
   const handleInstantToggle = async (field, val, label = "Offer setting") => {
     let updated = { ...activeOffer, [field]: val };
     // If enabling hero/timer/site offer, ensure valid future expiry
-    if (val === true && (field === "heroEnabled" || field === "enabled")) {
+    if (val === true && (field === "heroEnabled" || field === "enabled" || field === "topStripEnabled")) {
       const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
       if (!expTime || expTime <= Date.now()) {
-        const freshExpiry = new Date(Date.now() + 3 * 24 * 3600000).toISOString();
+        const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
         updated.expiresAt = freshExpiry;
         updated.expiry = freshExpiry;
       }
@@ -104,7 +104,7 @@ export function AdminOffers() {
     if (newEnabled) {
       const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
       if (!expTime || expTime <= Date.now()) {
-        const freshExpiry = new Date(Date.now() + 3 * 24 * 3600000).toISOString();
+        const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
         updated.expiresAt = freshExpiry;
         updated.expiry = freshExpiry;
       }
@@ -124,7 +124,7 @@ export function AdminOffers() {
     if (newEnabled) {
       const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
       if (!expTime || expTime <= Date.now()) {
-        const freshExpiry = new Date(Date.now() + 3 * 24 * 3600000).toISOString();
+        const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
         updated.expiresAt = freshExpiry;
         updated.expiry = freshExpiry;
       }
@@ -149,39 +149,20 @@ export function AdminOffers() {
           offerToSave.title = `Flat ${val}% OFF`;
         }
       }
-      if (offerToSave.status === "Active" && offerToSave.enabled !== false) {
+      if (offerToSave.status === "Active" || offerToSave.enabled === true) {
+        offerToSave.enabled = true;
+        offerToSave.status = "Active";
         const expTime = offerToSave.expiresAt ? new Date(offerToSave.expiresAt).getTime() : 0;
         if (!expTime || expTime <= Date.now()) {
-          const freshExpiry = new Date(Date.now() + 3 * 24 * 3600000).toISOString();
+          const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
           offerToSave.expiresAt = freshExpiry;
           offerToSave.expiry = freshExpiry;
-          setActiveOffer(offerToSave);
         }
+      } else {
+        offerToSave.enabled = false;
       }
+      setActiveOffer(offerToSave);
       await db.saveActiveOffer(offerToSave);
-      
-      // Also sync to top promos for seamless backward compatibility
-      try {
-        const currentPromos = db.getTopPromos();
-        if (currentPromos && currentPromos.length > 0) {
-          await db.saveTopPromo({
-            ...currentPromos[0],
-            offerText: offerToSave.title,
-            optionalMessage: offerToSave.subtitle,
-            couponCode: offerToSave.couponCode,
-            enablePromo: offerToSave.enabled && offerToSave.status === "Active",
-            status: offerToSave.status,
-            expiry: offerToSave.expiresAt,
-            startDate: offerToSave.startDate,
-            enableCountdown: offerToSave.timerEnabled,
-            bgColor: offerToSave.backgroundColor,
-            textColor: offerToSave.textColor,
-            accentColor: offerToSave.accentColor,
-            couponBorderColor: offerToSave.accentColor
-          });
-        }
-      } catch (_) {}
-
       emitToast("Central Live Offer updated & saved to database!", "success");
     } catch (err) {
       emitToast(err.message || "Failed to save offer to database", "error");

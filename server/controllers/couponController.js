@@ -314,19 +314,19 @@ export async function createCoupon(req, res, next) {
         { upsert: true, returnDocument: "after" }
       ).catch(() => {});
 
-      await ActiveOffer.updateMany(
-        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
-        { $set: { couponCode: cleanCode, status: "Active", title: offerTitle, discountValue: resolvedDiscount } }
-      ).catch(() => {});
+      if (cleanCode) {
+        await ActiveOffer.updateMany(
+          { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+          { $set: { couponCode: cleanCode, title: offerTitle, discountValue: resolvedDiscount } }
+        ).catch(() => {});
+      }
     } else {
-      await Offer.updateMany(
-        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
-        { $set: { status: "Inactive" } }
-      ).catch(() => {});
-      await ActiveOffer.updateMany(
-        { $or: [{ couponCode: cleanCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
-        { $set: { status: "Inactive", enabled: false } }
-      ).catch(() => {});
+      if (cleanCode || oldCode) {
+        await Offer.updateMany(
+          { $or: [...(cleanCode ? [{ couponCode: cleanCode }] : []), ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+          { $set: { status: "Inactive" } }
+        ).catch(() => {});
+      }
     }
 
     if (oldCode && oldCode !== cleanCode) {
@@ -445,19 +445,19 @@ export async function updateCoupon(req, res, next) {
         { upsert: true, returnDocument: "after" }
       ).catch(() => {});
 
-      await ActiveOffer.updateMany(
-        { $or: [{ couponCode: newCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
-        { $set: { couponCode: newCode, status: "Active", title: offerTitle, discountValue: discountVal } }
-      ).catch(() => {});
+      if (newCode) {
+        await ActiveOffer.updateMany(
+          { $or: [{ couponCode: newCode }, ...(oldCode ? [{ couponCode: oldCode }] : [])] },
+          { $set: { couponCode: newCode, title: offerTitle, discountValue: discountVal } }
+        ).catch(() => {});
+      }
     } else {
-      await Offer.updateMany(
-        { $or: [{ couponCode: oldCode }, { couponCode: newCode }] },
-        { $set: { status: "Inactive" } }
-      ).catch(() => {});
-      await ActiveOffer.updateMany(
-        { $or: [{ couponCode: oldCode }, { couponCode: newCode }] },
-        { $set: { status: "Inactive", enabled: false } }
-      ).catch(() => {});
+      if (oldCode || newCode) {
+        await Offer.updateMany(
+          { $or: [...(oldCode ? [{ couponCode: oldCode }] : []), ...(newCode ? [{ couponCode: newCode }] : [])] },
+          { $set: { status: "Inactive" } }
+        ).catch(() => {});
+      }
     }
 
     if (newCode && oldCode && newCode !== oldCode) {
@@ -533,17 +533,13 @@ export async function deleteCoupon(req, res, next) {
       await Offer.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
       await Promotion.deleteMany({ $or: offerDeleteConditions }).catch(() => {});
 
-      // 4. Deactivate ActiveOffer if it referenced this deleted coupon
-      await ActiveOffer.updateMany(
-        {
-          $or: [
-            { couponCode: { $regex: `^${targetCode}$`, $options: "i" } },
-            { id: targetId },
-            { id: cleanId }
-          ]
-        },
-        { $set: { enabled: false, status: "Inactive", couponCode: "" } }
-      ).catch(() => {});
+      // 4. Detach couponCode from ActiveOffer if it referenced this deleted coupon (do NOT turn off the live offer system)
+      if (targetCode && targetCode.trim()) {
+        await ActiveOffer.updateMany(
+          { couponCode: { $regex: `^${targetCode.trim()}$`, $options: "i" } },
+          { $set: { couponCode: "" } }
+        ).catch(() => {});
+      }
     }
 
     await logAuditEvent({

@@ -66,15 +66,29 @@ export async function saveActiveOffer(req, res, next) {
       resolvedTitle = `Flat ${discountVal}% OFF`;
     }
 
+    // Accurately determine enabled & status flags
+    const isExplicitlyEnabled = req.body.enabled === true || req.body.enablePromo === true || req.body.status === "Active";
+    const isExplicitlyDisabled = req.body.enabled === false || req.body.enablePromo === false || req.body.status === "Inactive" || req.body.status === "Disabled";
+    const enabled = isExplicitlyEnabled ? true : (isExplicitlyDisabled ? false : (data.enabled !== false));
+    const status = enabled ? "Active" : (data.status || "Inactive");
+
+    let expiry = data.expiresAt || data.expiry;
+    if (enabled && (!expiry || new Date(expiry).getTime() <= Date.now())) {
+      expiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
+    }
+
     const payload = {
+      ...(inMemoryStore.activeOffer || defaultActiveOffer),
       ...data,
       id: "OFFER-CENTRAL-1",
+      enabled,
+      status,
       title: resolvedTitle,
       discountValue: discountVal,
-      expiry: data.expiresAt || data.expiry,
-      expiresAt: data.expiresAt || data.expiry,
-      startDate: data.startAt || data.startDate,
-      startAt: data.startAt || data.startDate
+      expiry,
+      expiresAt: expiry,
+      startDate: data.startAt || data.startDate || new Date().toISOString(),
+      startAt: data.startAt || data.startDate || new Date().toISOString()
     };
 
     inMemoryStore.activeOffer = payload;

@@ -217,22 +217,13 @@ export async function getProducts(req, res, next) {
     return res.json({ success: true, data: sanitizedProducts, count: sanitizedProducts.length });
   } catch (err) {
     console.warn("Notice in getProducts:", err.message);
-    const fallbackList = (inMemoryStore.products && inMemoryStore.products.length > 0) ? inMemoryStore.products : [];
-    if (fallbackList.length > 0) {
-      const publicFallback = toPublicProductDTO(fallbackList);
-      return res.json({
-        success: true,
-        data: publicFallback,
-        count: publicFallback.length,
-        isFallback: true
-      });
-    }
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    return res.status(503).json({
-      success: false,
-      databaseUnavailable: true,
-      error: "Database unavailable",
-      message: "Database is temporarily unavailable."
+    const fallbackList = (inMemoryStore.products && inMemoryStore.products.length > 0) ? inMemoryStore.products : (defaultProducts || []);
+    const publicFallback = toPublicProductDTO(fallbackList);
+    return res.json({
+      success: true,
+      data: publicFallback,
+      count: publicFallback.length,
+      isFallback: true
     });
   }
 }

@@ -2633,10 +2633,21 @@ export const db = {
     ];
   },
   saveTopPromo: async (p) => {
-    return await db.saveActiveOffer(p);
+    if (!p) return storeCache.activeOffer;
+    const isPromoActive = p.enablePromo !== undefined ? Boolean(p.enablePromo) : (p.enabled !== undefined ? Boolean(p.enabled) : true);
+    return await db.saveActiveOffer({
+      ...storeCache.activeOffer,
+      ...p,
+      enabled: isPromoActive,
+      status: isPromoActive ? "Active" : "Inactive"
+    });
   },
-  deleteTopPromo: async (id) => {
-    return await db.saveActiveOffer({ enabled: false, status: "Inactive" });
+  deleteTopPromo: async () => {
+    return await db.saveActiveOffer({
+      ...storeCache.activeOffer,
+      enabled: false,
+      status: "Inactive"
+    });
   },
 
   // COUPONS & CART CALCULATION (server-authoritative pricing with robust local fallback)
@@ -3057,12 +3068,10 @@ export const db = {
       localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
     } catch (_) {}
 
-    // If active offer was using this coupon code, deactivate and clear it
-    if (storeCache.activeOffer && String(storeCache.activeOffer.couponCode || "").toUpperCase() === targetCode) {
+    // If active offer was using this coupon code, detach the code without disabling the offer
+    if (targetCode && storeCache.activeOffer && String(storeCache.activeOffer.couponCode || "").toUpperCase() === targetCode) {
       storeCache.activeOffer = {
         ...storeCache.activeOffer,
-        enabled: false,
-        status: "Inactive",
         couponCode: ""
       };
       try {

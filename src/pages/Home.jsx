@@ -14,6 +14,7 @@ import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
+import { HomeHeroOffer } from "../components/HomeHeroOffer";
 import { useSeo } from "../hooks/useSeo";
 
 export function Home() {
@@ -259,6 +260,7 @@ export function Home() {
     </section>
 
     <AuraTrustFeatureBar />
+    <HomeHeroOffer />
 
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <motion.div

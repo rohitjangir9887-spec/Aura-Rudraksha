@@ -118,9 +118,7 @@ class InMemoryStore {
       (!existing || String(o.couponCode || "").toUpperCase() !== String(existing.code || "").toUpperCase())
     );
 
-    if (this.activeOffer && (String(this.activeOffer.couponCode || "").toUpperCase() === cleanUpper || (existing && String(this.activeOffer.couponCode || "").toUpperCase() === String(existing.code || "").toUpperCase()))) {
-      this.activeOffer.enabled = false;
-      this.activeOffer.status = "Inactive";
+    if (cleanUpper && this.activeOffer && (String(this.activeOffer.couponCode || "").toUpperCase() === cleanUpper || (existing?.code && String(this.activeOffer.couponCode || "").toUpperCase() === String(existing.code || "").toUpperCase()))) {
       this.activeOffer.couponCode = "";
     }
   }

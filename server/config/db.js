@@ -209,15 +209,17 @@ export async function connectDB() {
   }
 
   if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
-    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || (isVercelServerless ? 4000 : 15000);
+    // Fast fail on connection: never hang requests for 15s or 150s. Cap to 5000ms.
+    const configuredTimeout = Number(process.env.MONGO_TIMEOUT_MS);
+    const timeoutVal = configuredTimeout > 0 ? Math.min(configuredTimeout, 6000) : (isVercelServerless ? 3500 : 5000);
     
-    // High-resilience options: generous timeouts, large pool, continuous keep-alive
+    // High-resilience options: fast serverSelectionTimeout, large pool, continuous keep-alive
     const opts = {
       serverSelectionTimeoutMS: timeoutVal,
       connectTimeoutMS: timeoutVal,
-      socketTimeoutMS: isVercelServerless ? 8000 : 45000,
-      maxIdleTimeMS: isVercelServerless ? 10000 : 120000,
-      maxPoolSize: isVercelServerless ? 2 : 25,
+      socketTimeoutMS: isVercelServerless ? 6000 : 15000,
+      maxIdleTimeMS: isVercelServerless ? 10000 : 60000,
+      maxPoolSize: isVercelServerless ? 2 : 20,
       minPoolSize: 0,
       heartbeatFrequencyMS: 10000,
       family: 4, // IPv4 preference prevents DNS resolution delays on cloud networks
@@ -228,7 +230,7 @@ export async function connectDB() {
     };
 
     const doConnect = async () => {
-      const maxAttempts = isVercelServerless ? 1 : (configuredUri ? 3 : 2);
+      const maxAttempts = isVercelServerless ? 1 : 2;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const mongooseInstance = await mongoose.connect(targetUri, opts);
@@ -236,6 +238,7 @@ export async function connectDB() {
           cached.conn = mongooseInstance;
           cached.lastConnected = new Date().toISOString();
           cached.lastFailedAttempt = null;
+          cached.isIpWhitelistError = false;
 
           if (!global.__db_init_triggered) {
             global.__db_init_triggered = true;
@@ -246,16 +249,24 @@ export async function connectDB() {
           return mongooseInstance;
         } catch (err) {
           cached.lastFailedAttempt = Date.now();
+          const isIpWhitelist = err?.name === "MongooseServerSelectionError" || 
+                                err?.name === "MongoNetworkTimeoutError" || 
+                                String(err?.message || "").toLowerCase().includes("whitelist") ||
+                                String(err?.message || "").toLowerCase().includes("timed out");
+          if (isIpWhitelist) {
+            cached.isIpWhitelistError = true;
+            console.warn("⚠️ [MongoDB Atlas IP Whitelist Warning]: Atlas cluster unreachable. If using MongoDB Atlas, make sure 0.0.0.0/0 is added to IP Whitelist in Atlas Security -> Network Access.");
+          }
           const isLastAttempt = attempt >= maxAttempts;
           if (!isLastAttempt) {
-            console.warn(`⚠️ [MongoDB] Connection attempt ${attempt}/${maxAttempts} notice: ${err?.message || err}. Retrying in ${attempt * 800}ms...`);
-            await new Promise(r => setTimeout(r, attempt * 800));
+            console.warn(`⚠️ [MongoDB] Connection attempt ${attempt}/${maxAttempts} notice: ${err?.message || err}. Retrying in 500ms...`);
+            await new Promise(r => setTimeout(r, 500));
           } else {
-            // Only fall back to memory server if NO user-configured MONGODB_URI was provided
-            if (!configuredUri && !isVercelServerless) {
-              const memUri = await getOrStartMemoryMongo();
+            // If primary targetUri failed and memory server is supported, fallback to memory mongo
+            if (!isVercelServerless) {
+              const memUri = await getOrStartMemoryMongo().catch(() => null);
               if (memUri && targetUri !== memUri) {
-                console.log("⚡ [MongoDB] Activated local resilient MongoDB engine fallback.");
+                console.log("⚡ [MongoDB] Activated local resilient MongoDB engine fallback to keep store online.");
                 targetUri = memUri;
                 try {
                   const memInstance = await mongoose.connect(targetUri, opts);
@@ -359,6 +370,7 @@ export async function getDbDiagnostics() {
     uriConfigured,
     uriScheme,
     maskedUri: getMaskedMongoUri(),
+    isIpWhitelistError: Boolean(cached?.isIpWhitelistError),
     lastErrors: getDbErrorLogs(5),
     totalErrorsLogged: (cached?.errorLogs || []).length,
     environment: process.env.NODE_ENV || "development",
