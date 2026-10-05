@@ -500,6 +500,71 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
     }
   }
 
+  // Automatic Store-wide Live Offer application (if no coupon is manually applied)
+  if (!appliedCoupon) {
+    try {
+      let liveOffer = null;
+      if (isDbConnected()) {
+        liveOffer = await ActiveOffer.findOne({ id: "OFFER-CENTRAL-1", status: "Active", enabled: { $ne: false } }).lean().catch(() => null);
+      }
+      if (!liveOffer && inMemoryStore.activeOffer?.status === "Active" && inMemoryStore.activeOffer?.enabled !== false) {
+        liveOffer = inMemoryStore.activeOffer;
+      }
+      if (liveOffer) {
+        const isNeverExpire = liveOffer.neverExpires === true || liveOffer.timerEnabled === false;
+        const expiryDate = liveOffer.expiry || liveOffer.expiresAt || null;
+        const isExpired = !isNeverExpire && expiryDate && (new Date(expiryDate) < new Date());
+        
+        if (!isExpired) {
+          const isPct = liveOffer.discountType === "percentage";
+          const discountVal = Number(liveOffer.discountValue || 0);
+          
+          if (discountVal > 0) {
+            const tType = liveOffer.targetType || "all";
+            const selProds = liveOffer.applicableProducts || liveOffer.selectedProducts || [];
+            const excProds = liveOffer.excludedProducts || [];
+            let eligibleSubtotal = 0;
+
+            for (const item of validatedItems) {
+              let eligible = true;
+              if (tType === "selected" && selProds.length > 0) {
+                eligible = selProds.includes(item.productId);
+              } else if (tType === "excluded" && excProds.length > 0) {
+                eligible = !excProds.includes(item.productId);
+              }
+              if (eligible) eligibleSubtotal += item.itemTotal;
+            }
+
+            if (eligibleSubtotal > 0) {
+              if (isPct) {
+                couponDiscount = Math.min(eligibleSubtotal, Math.round((eligibleSubtotal * discountVal) / 100));
+              } else {
+                couponDiscount = Math.min(eligibleSubtotal, discountVal);
+              }
+
+              couponStatus = "APPLIED";
+              appliedCoupon = {
+                id: liveOffer.id || "OFFER-CENTRAL-1",
+                code: liveOffer.couponCode || "LIVE-OFFER",
+                status: "APPLIED",
+                valid: true,
+                discount: discountVal,
+                discountAmount: couponDiscount,
+                type: isPct ? "percentage" : "fixed",
+                minOrder: 0,
+                isAutomatic: true,
+                description: liveOffer.title || "Live Store Offer",
+                reason: `Automatic discount applied: ${liveOffer.title || "Central Live Offer"}`
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Live offer automatic application notice:", e.message);
+    }
+  }
+
   // 4. Final Totals
   const finalTotal = Math.max(0, subtotal - couponDiscount + shipping);
   const totalSavings = productSavings + couponDiscount + shippingDiscount;

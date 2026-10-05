@@ -33,6 +33,8 @@ const activeOfferSchema = new mongoose.Schema(
     popupDelay: { type: Number, default: 10 },
     scrollTrigger: { type: Number, default: 400 },
     animationStyle: { type: String, default: "fade" },
+    neverExpires: { type: Boolean, default: false },
+    autoApply: { type: Boolean, default: true },
     targetType: { type: String, enum: ["all", "selected", "excluded", "category", "subcategory"], default: "all" },
     selectedProducts: { type: [String], default: [] },
     excludedProducts: { type: [String], default: [] },

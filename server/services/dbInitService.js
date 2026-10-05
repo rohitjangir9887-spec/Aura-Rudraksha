@@ -127,7 +127,7 @@ export async function ensureDatabaseInitialized() {
     try {
       const mockCodes = ["AURA10", "AURA20", "SHRAWAN200", "SHIV10"];
       await Coupon.deleteMany({ code: { $in: mockCodes } });
-      await ActiveOffer.updateMany({ couponCode: { $in: mockCodes } }, { $set: { couponCode: "", enabled: false } });
+      await ActiveOffer.updateMany({ couponCode: { $in: mockCodes } }, { $set: { couponCode: "" } });
       await Promotion.deleteMany({ code: { $in: mockCodes } });
       await Offer.updateMany({ couponCode: { $in: mockCodes } }, { $set: { couponCode: "" } });
       console.log("🧹 [DB Init] Successfully cleaned legacy mock coupons from database.");

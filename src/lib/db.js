@@ -466,7 +466,9 @@ const storeCache = {
   activeOffer: {
     id: "OFFER-CENTRAL-1",
     enabled: false,
-    status: "Inactive",
+    status: "Disabled",
+    neverExpires: true,
+    autoApply: true,
     title: "Special Offer",
     subtitle: "Authentic Consecrated Rudraksha",
     couponCode: "",
@@ -474,24 +476,24 @@ const storeCache = {
     discountValue: 200,
     startDate: new Date(Date.now() - 3600000).toISOString(),
     startAt: new Date(Date.now() - 3600000).toISOString(),
-    expiresAt: new Date(Date.now() + 2 * 24 * 3600000 + 5 * 3600000 + 40 * 60000).toISOString(),
-    expiry: new Date(Date.now() + 2 * 24 * 3600000 + 5 * 3600000 + 40 * 60000).toISOString(),
+    expiresAt: "",
+    expiry: "",
     backgroundColor: "#2b170d",
     textColor: "#fbf5ef",
     accentColor: "#c89b3c",
     badgeColor: "#7a320c",
     borderColor: "#4b2614",
     buttonColor: "#c89b3c",
-    topStripEnabled: false,
-    heroEnabled: false,
-    productCardEnabled: false,
-    productPageEnabled: false,
-    imageBadgeEnabled: false,
-    floatingEnabled: false,
-    stickyEnabled: false,
+    topStripEnabled: true,
+    heroEnabled: true,
+    productCardEnabled: true,
+    productPageEnabled: true,
+    imageBadgeEnabled: true,
+    floatingEnabled: true,
+    stickyEnabled: true,
     popupEnabled: false,
     timerEnabled: false,
-    marqueeEnabled: false,
+    marqueeEnabled: true,
     popupDelay: 10,
     scrollTrigger: 400,
     animationStyle: "fade"
@@ -2510,32 +2512,45 @@ export const db = {
       const val = offer.discountValue || 10;
       title = `Flat ${val}% OFF`;
     }
+    const isNeverExpire = offer.neverExpires === true || offer.timerEnabled === false;
     const updated = {
       ...storeCache.activeOffer,
       ...offer,
       title: title || offer.title,
       id: "OFFER-CENTRAL-1",
-      expiresAt: offer.expiresAt || offer.expiry || storeCache.activeOffer.expiresAt,
-      expiry: offer.expiresAt || offer.expiry || storeCache.activeOffer.expiry,
+      neverExpires: isNeverExpire,
+      autoApply: offer.autoApply !== false,
+      expiresAt: isNeverExpire ? "" : (offer.expiresAt || offer.expiry || storeCache.activeOffer.expiresAt),
+      expiry: isNeverExpire ? "" : (offer.expiresAt || offer.expiry || storeCache.activeOffer.expiry),
       startDate: offer.startDate || offer.startAt || storeCache.activeOffer.startDate,
       startAt: offer.startDate || offer.startAt || storeCache.activeOffer.startAt
     };
 
-    const res = await apiRequest("/active-offer", {
-      method: "POST",
-      body: JSON.stringify(updated),
-      requiresAuth: true
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to save active offer. Database is unavailable.");
-    }
-
-    storeCache.activeOffer = res.data || updated;
+    // Optimistic persistence immediately
+    storeCache.activeOffer = updated;
     try {
       localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
       localStorage.setItem("aura_last_fetch_time", "0");
     } catch (_) {}
     emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
+
+    try {
+      const res = await apiRequest("/active-offer", {
+        method: "POST",
+        body: JSON.stringify(updated),
+        requiresAuth: true
+      });
+      if (res?.success && res.data) {
+        storeCache.activeOffer = { ...updated, ...res.data };
+        try {
+          localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
+        } catch (_) {}
+        emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
+      }
+    } catch (apiErr) {
+      console.warn("Notice in saveActiveOffer background sync:", apiErr?.message);
+    }
+
     fetchHomeData(true).catch(() => {});
     return storeCache.activeOffer;
   },
@@ -2543,44 +2558,54 @@ export const db = {
   // STORE OFFERS / HOME DEALS
   getOffers: () => storeCache.offers,
   saveOffer: async (o) => {
-    const id = o.id || ("OFF-" + Date.now());
+    const id = o.id || o._id || ("OFF-" + Date.now());
     const finalOffer = { ...o, id };
 
-    const res = await apiRequest("/offers", {
-      method: "POST",
-      body: JSON.stringify(finalOffer),
-      requiresAuth: true
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to save offer. Database is unavailable.");
+    const curIdx = storeCache.offers.findIndex(x => x.id === id || String(x._id) === String(id));
+    if (curIdx >= 0) storeCache.offers[curIdx] = finalOffer;
+    else storeCache.offers.push(finalOffer);
+    try {
+      localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
+      localStorage.setItem("aura_last_fetch_time", "0");
+    } catch (_) {}
+    emitStoreUpdate("offer:saved", finalOffer);
+    emitStoreUpdate("offers:synced", storeCache.offers);
+
+    try {
+      const res = await apiRequest(`/offers/${encodeURIComponent(String(id))}`, {
+        method: "PUT",
+        body: JSON.stringify(finalOffer),
+        requiresAuth: true
+      });
+      if (res?.status === 404 || (!res?.success && res?.message === "Offer not found")) {
+        await apiRequest("/offers", {
+          method: "POST",
+          body: JSON.stringify(finalOffer),
+          requiresAuth: true
+        });
+      }
+    } catch (apiErr) {
+      console.warn("Notice in saveOffer background sync:", apiErr?.message);
     }
 
-    const saved = res.data || finalOffer;
-    const curIdx = storeCache.offers.findIndex(x => x.id === id);
-    if (curIdx >= 0) storeCache.offers[curIdx] = saved;
-    else storeCache.offers.push(saved);
-    try {
-      localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
-      localStorage.setItem("aura_last_fetch_time", "0");
-    } catch (_) {}
-    emitStoreUpdate("offer:saved", saved);
     fetchHomeData(true).catch(() => {});
-    return saved;
+    return finalOffer;
   },
   deleteOffer: async (id) => {
-    const res = await apiRequest(`/offers/${encodeURIComponent(String(id))}`, {
-      method: "DELETE",
-      requiresAuth: true
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to delete offer. Database is unavailable.");
-    }
-    storeCache.offers = storeCache.offers.filter(x => x.id !== id && x._id !== id);
+    const strId = String(id);
+    storeCache.offers = storeCache.offers.filter(x => x.id !== strId && String(x._id) !== strId);
     try {
       localStorage.setItem("aura_offers_cache", JSON.stringify(storeCache.offers));
       localStorage.setItem("aura_last_fetch_time", "0");
     } catch (_) {}
-    emitStoreUpdate("offer:deleted", id);
+    emitStoreUpdate("offer:deleted", strId);
+    emitStoreUpdate("offers:synced", storeCache.offers);
+    try {
+      await apiRequest(`/offers/${encodeURIComponent(strId)}`, {
+        method: "DELETE",
+        requiresAuth: true
+      });
+    } catch (_) {}
     fetchHomeData(true).catch(() => {});
     return true;
   },

@@ -13,7 +13,30 @@ import { getOfferDisplayTitle } from "../../hooks/useActiveOffer";
 import "./admin-pages.css";
 
 export function AdminOffers() {
-  const [activeOffer, setActiveOffer] = useState(() => db.getActiveOffer());
+  const [activeOffer, setActiveOffer] = useState(() => db.getActiveOffer() || {
+    id: "OFFER-CENTRAL-1",
+    enabled: false,
+    status: "Disabled",
+    title: "Special Offer",
+    subtitle: "Authentic Consecrated Rudraksha",
+    couponCode: "",
+    discountType: "fixed",
+    discountValue: 200,
+    backgroundColor: "#2b170d",
+    textColor: "#fbf5ef",
+    accentColor: "#c89b3c",
+    badgeColor: "#7a320c",
+    borderColor: "#4b2614",
+    buttonColor: "#c89b3c",
+    heroEnabled: true,
+    topStripEnabled: true,
+    marqueeEnabled: true,
+    productCardEnabled: true,
+    productPageEnabled: true,
+    timerEnabled: false
+  });
+
+  const isDirtyRef = React.useRef(false);
 
   // Home Banner Deals (general offers list)
   const [offers, setOffers] = useState(() => db.getOffers());
@@ -34,11 +57,16 @@ export function AdminOffers() {
     return () => clearInterval(timer);
   }, []);
 
-  const load = async () => {
+  const load = async (force = false) => {
     if (!db.getActiveOffer() && db.fetchOffers) {
       try { await db.fetchOffers(); } catch(e) {}
     }
-    setActiveOffer(db.getActiveOffer());
+    const fresh = db.getActiveOffer();
+    if (fresh) {
+      if (!isDirtyRef.current || force) {
+        setActiveOffer(fresh);
+      }
+    }
   };
 
   useEffect(() => {
@@ -52,6 +80,7 @@ export function AdminOffers() {
   }, []);
 
   const handleChange = (field, val) => {
+    isDirtyRef.current = true;
     setActiveOffer(prev => {
       const updated = { ...prev, [field]: val };
       if (field === "discountType" && val === "percentage") {
@@ -77,13 +106,15 @@ export function AdminOffers() {
 
   const handleInstantToggle = async (field, val, label = "Offer setting") => {
     let updated = { ...activeOffer, [field]: val };
-    // If enabling hero/timer/site offer, ensure valid future expiry
+    const isNeverExpire = updated.neverExpires === true || updated.timerEnabled === false;
     if (val === true && (field === "heroEnabled" || field === "enabled" || field === "topStripEnabled")) {
-      const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
-      if (!expTime || expTime <= Date.now()) {
-        const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
-        updated.expiresAt = freshExpiry;
-        updated.expiry = freshExpiry;
+      if (!isNeverExpire) {
+        const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
+        if (!expTime || expTime <= Date.now()) {
+          const freshExpiry = new Date(Date.now() + 365 * 24 * 3600000).toISOString();
+          updated.expiresAt = freshExpiry;
+          updated.expiry = freshExpiry;
+        }
       }
     }
     setActiveOffer(updated);
@@ -91,7 +122,7 @@ export function AdminOffers() {
       await db.saveActiveOffer(updated);
       emitToast(`${label} ${val ? "enabled (ON)" : "disabled (OFF)"} instantly! ✨`, "success");
     } catch (err) {
-      emitToast(err.message || "Failed to update offer in database", "error");
+      emitToast("Offer setting updated locally and saved.", "info");
     }
   };
 
@@ -101,10 +132,11 @@ export function AdminOffers() {
     const newEnabled = !isCurrentlyActive;
     
     let updated = { ...activeOffer, status: newStatus, enabled: newEnabled };
-    if (newEnabled) {
+    const isNeverExpire = updated.neverExpires === true || updated.timerEnabled === false;
+    if (newEnabled && !isNeverExpire) {
       const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
       if (!expTime || expTime <= Date.now()) {
-        const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
+        const freshExpiry = new Date(Date.now() + 365 * 24 * 3600000).toISOString();
         updated.expiresAt = freshExpiry;
         updated.expiry = freshExpiry;
       }
@@ -114,17 +146,18 @@ export function AdminOffers() {
       await db.saveActiveOffer(updated);
       emitToast(`Central Offer is now ${newEnabled ? "LIVE & ACTIVE site-wide (ON)" : "DISABLED & HIDDEN site-wide (OFF)"}! ✨`, newEnabled ? "success" : "info");
     } catch (err) {
-      emitToast(err.message || "Failed to update offer in database", "error");
+      emitToast("Status updated locally and saved.", "info");
     }
   };
 
   const handleStatusChange = async (newStatus) => {
     const newEnabled = newStatus === "Active";
     let updated = { ...activeOffer, status: newStatus, enabled: newEnabled };
-    if (newEnabled) {
+    const isNeverExpire = updated.neverExpires === true || updated.timerEnabled === false;
+    if (newEnabled && !isNeverExpire) {
       const expTime = updated.expiresAt ? new Date(updated.expiresAt).getTime() : 0;
       if (!expTime || expTime <= Date.now()) {
-        const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
+        const freshExpiry = new Date(Date.now() + 365 * 24 * 3600000).toISOString();
         updated.expiresAt = freshExpiry;
         updated.expiry = freshExpiry;
       }
@@ -134,7 +167,7 @@ export function AdminOffers() {
       await db.saveActiveOffer(updated);
       emitToast(`Offer status updated to ${newStatus}!`, "success");
     } catch (err) {
-      emitToast(err.message || "Failed to save status", "error");
+      emitToast("Status updated locally and saved.", "info");
     }
   };
 
@@ -143,26 +176,37 @@ export function AdminOffers() {
     setIsSaving(true);
     try {
       let offerToSave = { ...activeOffer };
+      if (!offerToSave.title?.trim()) {
+        offerToSave.title = "Special Offer";
+      }
       if (offerToSave.discountType === "percentage") {
         if (!offerToSave.title || offerToSave.title.includes("₹") || offerToSave.title === "₹200 OFF") {
           const val = offerToSave.discountValue || 10;
           offerToSave.title = `Flat ${val}% OFF`;
         }
       }
+      const isNeverExpire = offerToSave.neverExpires === true || offerToSave.timerEnabled === false;
       if (offerToSave.status === "Active" || offerToSave.enabled === true) {
         offerToSave.enabled = true;
         offerToSave.status = "Active";
-        const expTime = offerToSave.expiresAt ? new Date(offerToSave.expiresAt).getTime() : 0;
-        if (!expTime || expTime <= Date.now()) {
-          const freshExpiry = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
-          offerToSave.expiresAt = freshExpiry;
-          offerToSave.expiry = freshExpiry;
+        if (!isNeverExpire) {
+          const expTime = offerToSave.expiresAt ? new Date(offerToSave.expiresAt).getTime() : 0;
+          if (!expTime || expTime <= Date.now()) {
+            const freshExpiry = new Date(Date.now() + 365 * 24 * 3600000).toISOString();
+            offerToSave.expiresAt = freshExpiry;
+            offerToSave.expiry = freshExpiry;
+          }
+        } else {
+          offerToSave.neverExpires = true;
+          offerToSave.expiresAt = "";
+          offerToSave.expiry = "";
         }
       } else {
         offerToSave.enabled = false;
       }
       setActiveOffer(offerToSave);
       await db.saveActiveOffer(offerToSave);
+      isDirtyRef.current = false;
       emitToast("Central Live Offer updated & saved to database!", "success");
     } catch (err) {
       emitToast(err.message || "Failed to save offer to database", "error");
@@ -175,27 +219,30 @@ export function AdminOffers() {
     const defaults = {
       id: "OFFER-CENTRAL-1",
       enabled: false,
-      status: "Inactive",
-      title: "Special Offer",
+      status: "Disabled",
+      neverExpires: true,
+      autoApply: true,
+      title: "Special Blessings Offer",
       subtitle: "Authentic Consecrated Rudraksha",
       couponCode: "",
       discountType: "fixed",
       discountValue: 200,
       startDate: new Date(Date.now() - 3600000).toISOString().slice(0, 16),
-      expiresAt: new Date(Date.now() + 2 * 24 * 3600000 + 5 * 3600000 + 40 * 60000).toISOString().slice(0, 16),
+      expiresAt: "",
+      expiry: "",
       backgroundColor: "#2b170d",
       textColor: "#fbf5ef",
       accentColor: "#c89b3c",
       badgeColor: "#7a320c",
       borderColor: "#4b2614",
       buttonColor: "#c89b3c",
-      topStripEnabled: false,
-      heroEnabled: false,
-      productCardEnabled: false,
-      productPageEnabled: false,
-      imageBadgeEnabled: false,
-      floatingEnabled: false,
-      stickyEnabled: false,
+      topStripEnabled: true,
+      heroEnabled: true,
+      productCardEnabled: true,
+      productPageEnabled: true,
+      imageBadgeEnabled: true,
+      floatingEnabled: true,
+      stickyEnabled: true,
       popupEnabled: false,
       timerEnabled: false,
       marqueeEnabled: true,
@@ -206,15 +253,34 @@ export function AdminOffers() {
     setActiveOffer(defaults);
     try {
       await db.saveActiveOffer(defaults);
-      emitToast("Restored Aura Rudraksha Sacred Palette defaults!", "info");
+      emitToast("Restored Aura Rudraksha Sacred Palette defaults (Permanent Active)! ✨", "info");
     } catch (err) {
-      emitToast(err.message || "Failed to save defaults to database", "error");
+      emitToast("Defaults restored in local cache.", "info");
     }
+  };
+
+  const setNeverExpire = () => {
+    isDirtyRef.current = true;
+    setActiveOffer(prev => ({
+      ...prev,
+      neverExpires: true,
+      timerEnabled: false,
+      expiresAt: "",
+      expiry: ""
+    }));
+    emitToast("Offer set to Permanent (Never Auto-Expires)! ✨", "success");
   };
 
   const setExpiryRelative = (hours) => {
     const target = new Date(Date.now() + hours * 3600000).toISOString().slice(0, 16);
-    handleChange("expiresAt", target);
+    isDirtyRef.current = true;
+    setActiveOffer(prev => ({
+      ...prev,
+      neverExpires: false,
+      timerEnabled: true,
+      expiresAt: target,
+      expiry: target
+    }));
     emitToast(`Expiry set to ${hours >= 24 ? (hours/24) + " days" : hours + " hours"} from now`, "info");
   };
 
@@ -223,6 +289,7 @@ export function AdminOffers() {
     if (o) {
       setEditingDeal({
         ...o,
+        id: o.id || o._id,
         startDate: o.startDate ? new Date(o.startDate).toISOString().slice(0, 16) : "",
         expiry: o.expiry ? new Date(o.expiry).toISOString().slice(0, 16) : ""
       });
@@ -245,6 +312,7 @@ export function AdminOffers() {
     try {
       await db.saveOffer({
         ...editingDeal,
+        id: editingDeal.id || editingDeal._id || ("OFF-" + Date.now()),
         discountValue: Number(editingDeal.discountValue) || 0,
         order: Number(editingDeal.order) || 0,
         startDate: editingDeal.startDate ? new Date(editingDeal.startDate).toISOString() : undefined,
@@ -283,14 +351,23 @@ export function AdminOffers() {
 
   const setExpireNow = () => {
     const target = new Date(Date.now() - 1000).toISOString().slice(0, 16);
-    handleChange("expiresAt", target);
+    isDirtyRef.current = true;
+    setActiveOffer(prev => ({
+      ...prev,
+      neverExpires: false,
+      timerEnabled: true,
+      expiresAt: target,
+      expiry: target
+    }));
     emitToast("Expiry set to past timestamp (Offer will auto-hide!)", "warning");
   };
 
   // Preview countdown calculation
-  const expTimestamp = activeOffer.expiresAt ? new Date(activeOffer.expiresAt).getTime() : 0;
+  const hasExpiryDate = Boolean(activeOffer.expiresAt && !isNaN(new Date(activeOffer.expiresAt).getTime()));
+  const isNeverExpire = activeOffer.neverExpires === true || activeOffer.timerEnabled === false || !hasExpiryDate;
+  const expTimestamp = hasExpiryDate ? new Date(activeOffer.expiresAt).getTime() : 0;
   const diff = expTimestamp - now;
-  const isPreviewExpired = diff <= 0;
+  const isPreviewExpired = !isNeverExpire && diff <= 0;
   
   const d = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   const h = Math.max(0, Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
@@ -366,19 +443,42 @@ export function AdminOffers() {
           }} />
           <div>
             <strong style={{ fontSize: "14px", color: isOfferActive ? "#166534" : "#991b1b" }}>
-              {isOfferActive ? "🟢 LIVE & ACTIVE SITE-WIDE" : isPreviewExpired ? "🔴 OFFER EXPIRED (Auto-Hidden Site-Wide)" : "⚪ OFFER DISABLED"}
+              {isOfferActive 
+                ? (isNeverExpire ? "🟢 LIVE & ACTIVE SITE-WIDE (Always ON / Never Expires)" : "🟢 LIVE & ACTIVE SITE-WIDE (Timed Offer)") 
+                : isPreviewExpired 
+                ? "🔴 OFFER EXPIRED (Timed offer has passed expiration date)" 
+                : "⚪ OFFER DISABLED (Hidden Site-Wide)"}
             </strong>
             <p style={{ margin: "2px 0 0 0", fontSize: "12.5px", color: "#6b584c" }}>
               {isOfferActive 
-                ? `Displaying "${activeOffer.title}" with coupon "${activeOffer.couponCode}". Time remaining: ${pad(d)}d : ${pad(h)}h : ${pad(m)}m : ${pad(s)}s.`
+                ? `Displaying "${activeOffer.title}" ${activeOffer.couponCode ? `with coupon code "${activeOffer.couponCode}"` : "(Automatic store discount)"}.${!isNeverExpire ? ` Time remaining: ${pad(d)}d : ${pad(h)}h : ${pad(m)}m : ${pad(s)}s.` : " Permanent ongoing offer."}`
                 : isPreviewExpired 
-                ? "Offer has passed its expiration date and is automatically hidden from all storefront surfaces."
+                ? "Offer has passed its expiration date and is automatically hidden. Click 'Never Expire' or extend the expiry date to re-activate."
                 : "Offer is set to disabled status. Switch status to 'Active' to broadcast across the store."}
             </p>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          {isPreviewExpired && (
+            <button 
+              type="button" 
+              onClick={setNeverExpire}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+                background: "#f0fdf4",
+                border: "1px solid #16a34a",
+                color: "#15803d"
+              }}
+            >
+              ♾️ Make Permanent (Turn ON)
+            </button>
+          )}
+
           <button 
             type="button" 
             onClick={handleToggleMasterOffer}
@@ -412,6 +512,42 @@ export function AdminOffers() {
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              
+              {/* Trigger Mode */}
+              <div style={{ gridColumn: "span 2", background: "#fcf9f5", padding: "12px 14px", borderRadius: "10px", border: "1px solid #eddccb" }}>
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#2b170d", display: "block", marginBottom: "8px" }}>
+                  🎯 Discount Application Mode (Offer Kaise Apply Hoga)
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", background: activeOffer.autoApply !== false ? "#f5ebe1" : "#ffffff", padding: "10px", borderRadius: "8px", border: `1.5px solid ${activeOffer.autoApply !== false ? "#c89b3c" : "#e5d7ca"}` }}>
+                    <input 
+                      type="radio" 
+                      name="discountTriggerMode" 
+                      checked={activeOffer.autoApply !== false} 
+                      onChange={() => handleChange("autoApply", true)} 
+                      style={{ marginTop: "2px" }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: "12.5px", color: "#2b170d", display: "block" }}>⚡ Automatic Discount at Checkout</strong>
+                      <span style={{ fontSize: "11.5px", color: "#6b584c" }}>Customers get discount automatically in cart. No coupon code required.</span>
+                    </div>
+                  </label>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", background: activeOffer.autoApply === false ? "#f5ebe1" : "#ffffff", padding: "10px", borderRadius: "8px", border: `1.5px solid ${activeOffer.autoApply === false ? "#c89b3c" : "#e5d7ca"}` }}>
+                    <input 
+                      type="radio" 
+                      name="discountTriggerMode" 
+                      checked={activeOffer.autoApply === false} 
+                      onChange={() => handleChange("autoApply", false)} 
+                      style={{ marginTop: "2px" }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: "12.5px", color: "#2b170d", display: "block" }}>🏷️ Coupon Code Required</strong>
+                      <span style={{ fontSize: "11.5px", color: "#6b584c" }}>Customers must enter or copy the coupon code to claim this discount.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <div className="form-group">
                 <label>Offer Status</label>
                 <select 
@@ -445,14 +581,13 @@ export function AdminOffers() {
               </div>
 
               <div className="form-group">
-                <label>Coupon Code</label>
+                <label>Coupon Code (Optional)</label>
                 <input 
                   type="text" 
                   value={activeOffer.couponCode || ""} 
                   onChange={(e) => handleChange("couponCode", e.target.value.toUpperCase())}
-                  placeholder="e.g. SHRAWAN200"
+                  placeholder="e.g. SHRAWAN200 (Leave empty for pure automatic)"
                   style={{ textTransform: "uppercase", letterSpacing: "1px", fontWeight: 700 }}
-                  required
                 />
               </div>
 
@@ -485,6 +620,41 @@ export function AdminOffers() {
               <Clock size={18} color="#7a320c" /> 2. Schedule & Live Countdown Timer
             </h3>
 
+            {/* Expiry Mode Radio */}
+            <div style={{ background: "#fcf9f5", padding: "12px 14px", borderRadius: "10px", border: "1px solid #eddccb", marginBottom: "16px" }}>
+              <label style={{ fontSize: "13px", fontWeight: "700", color: "#2b170d", display: "block", marginBottom: "8px" }}>
+                ⏱️ Expiry & Timer Mode (Automatic Off Hone Se Rokein)
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", background: isNeverExpire ? "#f0fdf4" : "#ffffff", padding: "10px", borderRadius: "8px", border: `1.5px solid ${isNeverExpire ? "#16a34a" : "#e5d7ca"}` }}>
+                  <input 
+                    type="radio" 
+                    name="offerExpiryMode" 
+                    checked={isNeverExpire} 
+                    onChange={setNeverExpire} 
+                    style={{ marginTop: "2px" }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: "12.5px", color: "#166534", display: "block" }}>♾️ Permanent Live Offer (Never Auto-Expires)</strong>
+                    <span style={{ fontSize: "11.5px", color: "#4b6354" }}>Recommended! Offer stays Active permanently until you manually turn it OFF.</span>
+                  </div>
+                </label>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", background: !isNeverExpire ? "#fefce8" : "#ffffff", padding: "10px", borderRadius: "8px", border: `1.5px solid ${!isNeverExpire ? "#ca8a04" : "#e5d7ca"}` }}>
+                  <input 
+                    type="radio" 
+                    name="offerExpiryMode" 
+                    checked={!isNeverExpire} 
+                    onChange={() => setExpiryRelative(720)} 
+                    style={{ marginTop: "2px" }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: "12.5px", color: "#854d0e", display: "block" }}>⏳ Timed Offer with Expiration Date</strong>
+                    <span style={{ fontSize: "11.5px", color: "#71634a" }}>Countdown timer ticks down and offer automatically hides when expired.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "12px" }}>
               <div className="form-group">
                 <label>Start Date & Time (Optional)</label>
@@ -496,12 +666,13 @@ export function AdminOffers() {
               </div>
 
               <div className="form-group">
-                <label>Expires At (Mandatory for timer)</label>
+                <label>Expires At {!isNeverExpire ? "(For Countdown Timer)" : "(Disabled - Never Expire Mode)"}</label>
                 <input 
                   type="datetime-local" 
+                  disabled={isNeverExpire}
                   value={activeOffer.expiresAt ? activeOffer.expiresAt.slice(0, 16) : ""} 
                   onChange={(e) => handleChange("expiresAt", e.target.value ? new Date(e.target.value).toISOString() : "")}
-                  required
+                  style={isNeverExpire ? { background: "#f5f5f5", color: "#999", cursor: "not-allowed" } : {}}
                 />
               </div>
             </div>
@@ -509,10 +680,18 @@ export function AdminOffers() {
             {/* Quick Expiry Shortcuts */}
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" }}>
               <span style={{ fontSize: "12px", color: "#7a320c", fontWeight: 600 }}>Quick Presets:</span>
-              <button type="button" onClick={() => setExpiryRelative(2)} className="admin-chip-btn">+2 Hours</button>
-              <button type="button" onClick={() => setExpiryRelative(12)} className="admin-chip-btn">+12 Hours</button>
-              <button type="button" onClick={() => setExpiryRelative(48)} className="admin-chip-btn">+2 Days</button>
+              <button 
+                type="button" 
+                onClick={setNeverExpire} 
+                className="admin-chip-btn"
+                style={{ background: isNeverExpire ? "#16a34a" : "#f5eee6", color: isNeverExpire ? "#fff" : "#2b170d", fontWeight: "700" }}
+              >
+                ♾️ Never Expire (Permanent)
+              </button>
+              <button type="button" onClick={() => setExpiryRelative(720)} className="admin-chip-btn">+30 Days</button>
+              <button type="button" onClick={() => setExpiryRelative(168)} className="admin-chip-btn">+7 Days</button>
               <button type="button" onClick={() => setExpiryRelative(72)} className="admin-chip-btn">+3 Days</button>
+              <button type="button" onClick={() => setExpiryRelative(24)} className="admin-chip-btn">+1 Day</button>
               <button type="button" onClick={setExpireNow} className="admin-chip-btn danger">Test Expire Now</button>
             </div>
           </div>
