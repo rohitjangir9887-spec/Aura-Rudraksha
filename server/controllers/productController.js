@@ -141,12 +141,18 @@ export function invalidateProductCache() {
 export async function getProducts(req, res, next) {
   try {
     const isAdmin = await checkIsAdmin(req);
+    const isNoCache = Boolean(
+      req.query._t || 
+      req.query.nocache || 
+      req.headers["cache-control"]?.includes("no-cache") || 
+      req.headers["pragma"]?.includes("no-cache")
+    );
 
-    if (isAdmin) {
+    if (isAdmin || isNoCache) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
     } else {
       res.setHeader("Cache-Control", "no-cache, must-revalidate");
-      // Fast path: serve cached public products if valid (5s TTL for fresh data guarantee)
+      // Fast path: serve cached public products if valid (3s TTL for near real-time updates)
       if (publicProductsCache && Date.now() < publicProductsCacheExpiry && !req.query.status && !req.query.category) {
         return res.json({ success: true, data: publicProductsCache, count: publicProductsCache.length });
       }
@@ -203,9 +209,9 @@ export async function getProducts(req, res, next) {
     const productsWithUpdatedSales = await applyDailySalesIncrement(products);
     const sanitizedProducts = toPublicProductDTO(productsWithUpdatedSales);
 
-    if (!isAdmin && !req.query.status && !req.query.category) {
+    if (!isAdmin && !isNoCache && !req.query.status && !req.query.category) {
       publicProductsCache = sanitizedProducts;
-      publicProductsCacheExpiry = Date.now() + 60000;
+      publicProductsCacheExpiry = Date.now() + 3000;
     }
 
     return res.json({ success: true, data: sanitizedProducts, count: sanitizedProducts.length });
@@ -553,9 +559,13 @@ export async function updateProduct(req, res, next) {
 
     const cleanId = String(id).trim();
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+    const numericIdFilter = /^\d+$/.test(cleanId) ? [{ id: Number(cleanId) }] : [];
+    updatePayload.updatedAt = new Date().toISOString();
+
     const oldProduct = await Product.findOne({
       $or: [
         { id: cleanId },
+        ...numericIdFilter,
         { slug: cleanId },
         ...(isMongoId ? [{ _id: cleanId }] : [])
       ]
@@ -565,6 +575,7 @@ export async function updateProduct(req, res, next) {
       {
         $or: [
           { id: cleanId },
+          ...numericIdFilter,
           { slug: cleanId },
           ...(isMongoId ? [{ _id: cleanId }] : [])
         ]

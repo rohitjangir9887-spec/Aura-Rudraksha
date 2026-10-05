@@ -25,6 +25,7 @@ router.route("/increment-daily-sales")
 router.route("/:id")
   .get(optionalAuth, getProductById)
   .put(requireAdmin, updateProduct)
+  .patch(requireAdmin, updateProduct)
   .delete(requireAdmin, deleteProduct);
 
 export default router;

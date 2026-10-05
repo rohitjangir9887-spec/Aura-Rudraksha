@@ -89,16 +89,22 @@ export function AdminProducts() {
   }, [searchTerm, selectedCategory, homeFilter, products]);
 
   const load = async (force = false) => {
-    if (force || (db.getProducts() || []).length === 0) {
-      setLoading(true);
-      try {
-        await db.revalidateProducts(true);
-      } catch (e) {}
+    const initialList = db.getProducts() || [];
+    if (initialList.length > 0) {
+      setProducts(initialList);
+      setFilteredProducts(initialList);
     }
-    const list = db.getProducts() || [];
-    setProducts(list);
-    setFilteredProducts(list);
-    setLoading(false);
+    try {
+      if (initialList.length === 0) setLoading(true);
+      await db.revalidateProducts(true);
+      const freshList = db.getProducts() || [];
+      setProducts(freshList);
+      setFilteredProducts(freshList);
+    } catch (e) {
+      console.warn("Notice loading fresh products:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleToggleStatus = async (p, e) => {
@@ -114,7 +120,7 @@ export function AdminProducts() {
         status: nextStatus
       });
       emitToast(nextStatus === "Published" ? `✅ "${p.name}" is now Published to store` : `📝 "${p.name}" moved to Drafts (Admin only)`, "success");
-      load();
+      load(true);
     } catch (err) {
       emitToast("Failed to update product status", "error");
     }
@@ -129,7 +135,7 @@ export function AdminProducts() {
     try {
       await db.toggleProductHomeShowcase(p.id, nextVal);
       emitToast(nextVal ? `⭐ "${p.name}" added to Home Showcase!` : `"${p.name}" hidden from Home Showcase`, "success");
-      load();
+      load(true);
     } catch (err) {
       emitToast("Failed to update Home Showcase status", "error");
     }
@@ -141,7 +147,7 @@ export function AdminProducts() {
       await db.deleteProduct(deleteId);
       emitToast("Product deleted successfully", "success");
       setDeleteId(null);
-      load();
+      load(true);
     } catch (err) {
       emitToast(err.message || "Failed to delete product from database", "error");
     }
@@ -975,7 +981,7 @@ export function AdminProducts() {
       await db.saveProduct(finalProduct);
       emitToast(editing.id ? "Product updated successfully" : "Product added successfully", "success");
       setEditing(null);
-      load();
+      load(true);
     } catch (err) {
       setFormError(err.message || "Failed to save product. Database is unavailable.");
       emitToast(err.message || "Failed to save product to database", "error");

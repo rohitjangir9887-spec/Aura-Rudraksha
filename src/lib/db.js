@@ -130,7 +130,10 @@ export const emitStoreUpdate = (type, payload) => {
 
 export const onStoreUpdate = (callback) => {
   if (typeof window === "undefined") return () => {};
-  const handler = (event) => callback(event.detail || {});
+  const handler = (event) => {
+    const detail = event.detail || {};
+    callback(detail, detail.payload, detail.type);
+  };
   window.addEventListener("aura:store-updated", handler);
   return () => {
     window.removeEventListener("aura:store-updated", handler);
@@ -679,16 +682,27 @@ export function loadCacheFromLocalStorage() {
   }
 }
 
-const PRODUCT_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds window for fresh product updates
+const PRODUCT_FRESHNESS_LIMIT = 5 * 1000; // 5 seconds window for fresh product updates
 let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
 let inFlightProductsPromise = null;
+
+export function invalidateLocalProductCache() {
+  lastProductFetchTime = 0;
+  hasFetchedFreshData = false;
+  inFlightProductsPromise = null;
+  try {
+    localStorage.setItem("aura_last_product_fetch_time", "0");
+  } catch (_) {}
+}
 
 export async function revalidateProducts(force = false) {
   if (typeof window === "undefined") return storeCache.products;
 
   const shouldForce = force || !hasFetchedFreshData;
 
-  if (!shouldForce && inFlightProductsPromise) {
+  if (shouldForce) {
+    lastProductFetchTime = 0;
+  } else if (inFlightProductsPromise) {
     return inFlightProductsPromise;
   }
 
@@ -1395,13 +1409,15 @@ export const db = {
 
     let res = await apiRequest(endpoint, {
       method,
-      body: JSON.stringify(finalProduct)
+      body: JSON.stringify(finalProduct),
+      requiresAuth: true
     });
 
     if (!res?.success && isExisting) {
       res = await apiRequest("/products", {
         method: "POST",
-        body: JSON.stringify(finalProduct)
+        body: JSON.stringify(finalProduct),
+        requiresAuth: true
       });
     }
 
@@ -1462,6 +1478,7 @@ export const db = {
       storeCache.products.unshift(normalizedSaved);
     }
 
+    lastProductFetchTime = 0;
     try {
       localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       localStorage.setItem("aura_cache_hydrated", "true");
@@ -1474,6 +1491,13 @@ export const db = {
     revalidateProducts(true).catch(() => {});
     fetchHomeData(true).catch(() => {}); // Force background sync across app
     return normalizedSaved;
+  },
+
+  updateProduct: async (id, updates) => {
+    const strId = String(id);
+    const existing = db.getProduct(strId) || {};
+    const merged = { ...existing, ...updates, id: strId };
+    return await db.saveProduct(merged);
   },
 
   searchProducts: (query, options = {}) => {
@@ -1524,6 +1548,7 @@ export const db = {
       (!existingP || (String(p.id) !== String(existingP.id) && String(p._id) !== String(existingP._id)))
     );
 
+    lastProductFetchTime = 0;
     try {
       localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       localStorage.setItem("aura_cache_hydrated", "true");

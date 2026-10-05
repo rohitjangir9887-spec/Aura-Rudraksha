@@ -194,11 +194,12 @@ export function Product() {
     // Load fresh data silently if we already have the product in cache
     loadData(true);
 
-    const unsub = onStoreUpdate((type, payload) => {
-      // Only reload if this specific product was modified in admin
-      if (type === "product:saved" || type === "product:updated") {
+    const unsub = onStoreUpdate((eventOrType, maybePayload) => {
+      const type = typeof eventOrType === "string" ? eventOrType : (eventOrType?.type || "");
+      const payload = maybePayload !== undefined ? maybePayload : eventOrType?.payload;
+      if (type === "product:saved" || type === "product:updated" || type === "products:synced" || type === "product:synced") {
         const targetId = String(id || "").toLowerCase();
-        if (payload && (String(payload.id || "").toLowerCase() === targetId || String(payload._id || "").toLowerCase() === targetId || String(payload.slug || "").toLowerCase() === targetId)) {
+        if (type === "products:synced" || (payload && (String(payload.id || "").toLowerCase() === targetId || String(payload._id || "").toLowerCase() === targetId || String(payload.slug || "").toLowerCase() === targetId))) {
           loadData(true);
         }
       }

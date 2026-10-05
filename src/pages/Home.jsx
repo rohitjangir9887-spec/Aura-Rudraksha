@@ -72,34 +72,7 @@ export function Home() {
 
   const updateLocalState = () => {
     const freshProducts = db.getProducts().filter(isPublicProduct);
-    setProducts((prev) => {
-      if (prev && prev.length === freshProducts.length) {
-        let isSame = true;
-        for (let i = 0; i < prev.length; i++) {
-          const a = prev[i];
-          const b = freshProducts[i];
-          if (
-            !b ||
-            a.id !== b.id ||
-            a.name !== b.name ||
-            a.price !== b.price ||
-            a.salesCount !== b.salesCount ||
-            a.totalSold !== b.totalSold ||
-            a.stock !== b.stock ||
-            a.badge !== b.badge ||
-            a.status !== b.status ||
-            a.image !== b.image ||
-            (Array.isArray(a.images) ? a.images[0] : a.images) !== (Array.isArray(b.images) ? b.images[0] : b.images) ||
-            a.updatedAt !== b.updatedAt
-          ) {
-            isSame = false;
-            break;
-          }
-        }
-        if (isSame) return prev;
-      }
-      return freshProducts;
-    });
+    setProducts(freshProducts);
 
     const cachedBanners = db.getBanners();
     if (cachedBanners && cachedBanners.length > 0) {
