@@ -3,10 +3,10 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Keep buffering queries during reconnects with a generous 30s window so temporary
-// network blips or Atlas replica set handshakes do not drop user requests.
-mongoose.set("bufferCommands", true);
-mongoose.set("bufferTimeoutMS", 30000);
+const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+// Disable buffering commands during disconnects to prevent 30-second request hangs
+mongoose.set("bufferCommands", false);
 
 let cached = global.mongoose;
 if (!cached) {
@@ -95,21 +95,23 @@ if (!global.__mongoose_listeners_attached) {
     scheduleBackgroundReconnect(3000);
   });
 
-  // Background keep-alive & watchdog: pings every 12s on the active database using standard wire ping
-  // which prevents cloud firewalls, NAT routers, and Atlas idle timeouts from dropping sockets.
-  setInterval(() => {
-    if (mongoose?.connection?.readyState === 1 && mongoose?.connection?.db) {
-      mongoose.connection.db.command({ ping: 1 }).catch((err) => {
-        console.warn("⚠️ [MongoDB] Keep-alive ping notice:", err?.message);
-        if (mongoose.connection.readyState === 0) {
-          connectDB().catch(() => {});
-        }
-      });
-    } else if (mongoose?.connection?.readyState === 0) {
-      // Proactively recover disconnected socket before user requests arrive
-      connectDB().catch(() => {});
-    }
-  }, 12000);
+  // Background keep-alive & watchdog: pings every 15s on long-running instances
+  // Disabled on serverless (Vercel/AWS Lambda) to prevent socket freezes and lingering timers
+  if (!isVercelServerless) {
+    setInterval(() => {
+      if (mongoose?.connection?.readyState === 1 && mongoose?.connection?.db) {
+        mongoose.connection.db.command({ ping: 1 }).catch((err) => {
+          console.warn("⚠️ [MongoDB] Keep-alive ping notice:", err?.message);
+          if (mongoose.connection.readyState === 0) {
+            connectDB().catch(() => {});
+          }
+        });
+      } else if (mongoose?.connection?.readyState === 0) {
+        // Proactively recover disconnected socket before user requests arrive
+        connectDB().catch(() => {});
+      }
+    }, 15000);
+  }
 }
 
 export function isValidMongoUri(rawUri) {
@@ -199,24 +201,24 @@ export async function connectDB() {
     }
   }
 
-  // Throttle rapid failed bursts to 1s without locking out requests for 10s
+  // Throttle rapid failed bursts to prevent hanging consecutive serverless requests
   const now = Date.now();
-  if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (now - cached.lastFailedAttempt < 1200)) {
+  const failureCooldown = isVercelServerless ? 15000 : 5000;
+  if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (now - cached.lastFailedAttempt < failureCooldown)) {
     return false;
   }
 
   if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
-    const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || (isVercelServerless ? 8000 : 20000);
+    const timeoutVal = Number(process.env.MONGO_TIMEOUT_MS) || (isVercelServerless ? 4000 : 15000);
     
     // High-resilience options: generous timeouts, large pool, continuous keep-alive
     const opts = {
       serverSelectionTimeoutMS: timeoutVal,
       connectTimeoutMS: timeoutVal,
-      socketTimeoutMS: 45000,
-      maxIdleTimeMS: 120000, // 2 minutes idle socket retention
-      maxPoolSize: isVercelServerless ? 5 : 25,
-      minPoolSize: isVercelServerless ? 0 : 2,
+      socketTimeoutMS: isVercelServerless ? 8000 : 45000,
+      maxIdleTimeMS: isVercelServerless ? 10000 : 120000,
+      maxPoolSize: isVercelServerless ? 2 : 25,
+      minPoolSize: 0,
       heartbeatFrequencyMS: 10000,
       family: 4, // IPv4 preference prevents DNS resolution delays on cloud networks
       retryWrites: true,
@@ -278,7 +280,12 @@ export async function connectDB() {
         cached.lastFailedAttempt = Date.now();
         recordConnectionError(error, "connect:handshake_failed");
         console.warn("⚠️ [MongoDB] Connection handshake notice:", error.message);
-        scheduleBackgroundReconnect(3000);
+        if (error.message?.includes("whitelist") || error.name === "MongooseServerSelectionError" || error.name === "MongoNetworkTimeoutError") {
+          console.warn("🔒 [MongoDB Atlas Reminder]: Please whitelist 0.0.0.0/0 (Allow from anywhere) in MongoDB Atlas -> Security -> Network Access -> Add IP Address to allow connections from cloud hosting / Vercel.");
+        }
+        if (!isVercelServerless) {
+          scheduleBackgroundReconnect(5000);
+        }
         throw error;
       })
       .finally(() => {
@@ -298,7 +305,7 @@ export async function connectDB() {
 }
 
 export function isDbConnected() {
-  return Boolean(mongoose && mongoose.connection && (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2));
+  return Boolean(mongoose && mongoose.connection && mongoose.connection.readyState === 1);
 }
 
 export function getLastDbSync() {
