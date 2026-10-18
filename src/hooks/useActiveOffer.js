@@ -178,7 +178,21 @@ export function useActiveOffer(product = null, options = {}) {
 
     setOffer(prev => {
       if (prev === resolvedOffer) return prev;
-      if (prev && resolvedOffer && prev.id === resolvedOffer.id && prev.updatedAt === resolvedOffer.updatedAt && prev.title === resolvedOffer.title) {
+      if (
+        prev &&
+        resolvedOffer &&
+        prev.id === resolvedOffer.id &&
+        prev.updatedAt === resolvedOffer.updatedAt &&
+        prev.title === resolvedOffer.title &&
+        prev.status === resolvedOffer.status &&
+        prev.enabled === resolvedOffer.enabled &&
+        prev.autoApply === resolvedOffer.autoApply &&
+        prev.discountValue === resolvedOffer.discountValue &&
+        prev.discountType === resolvedOffer.discountType &&
+        prev.couponCode === resolvedOffer.couponCode &&
+        prev.neverExpires === resolvedOffer.neverExpires &&
+        prev.timerEnabled === resolvedOffer.timerEnabled
+      ) {
         return prev;
       }
       return resolvedOffer;

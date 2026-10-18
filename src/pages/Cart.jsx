@@ -34,7 +34,7 @@ export function Cart() {
 
   const loadProducts = () => {
     setProducts(db.getProducts());
-    setAvailableCoupons(db.getCoupons().filter(c => c.status === "Active"));
+    setAvailableCoupons(db.getCoupons().filter(c => c && c.status === "Active" && c.showOnCart !== false));
   };
 
   useEffect(() => {

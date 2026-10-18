@@ -79,7 +79,7 @@ export function OrderSummaryCard({
   const featuredOffers = useMemo(() => {
     if (Array.isArray(availableCoupons) && availableCoupons.length > 0) {
       return availableCoupons
-        .filter(c => c && c.code && c.status !== "Expired" && c.status !== "Inactive" && c.status !== "Disabled")
+        .filter(c => c && c.code && c.status !== "Expired" && c.status !== "Inactive" && c.status !== "Disabled" && c.showOnCart !== false)
         .slice(0, 3)
         .map(c => ({
           code: c.code,

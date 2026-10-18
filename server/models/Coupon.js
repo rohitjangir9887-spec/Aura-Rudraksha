@@ -20,6 +20,7 @@ const couponSchema = new mongoose.Schema(
     maxDiscount: { type: Number, default: 0 },
     perCustomerLimit: { type: Number, default: 0 },
     showOnHome: { type: Boolean, default: false },
+    showOnCart: { type: Boolean, default: true },
     description: { type: String, default: "" }
   },
   {

@@ -58,7 +58,8 @@ export function AdminCoupons() {
     setEditing({
       ...coupon,
       _originalCode: coupon.code,
-      showOnHome: Boolean(coupon.showOnHome || isLinkedToOffer)
+      showOnHome: Boolean(coupon.showOnHome || isLinkedToOffer),
+      showOnCart: coupon.showOnCart !== false
     });
     setErrorMsg("");
   };
@@ -97,7 +98,8 @@ export function AdminCoupons() {
       excludedProducts: editing.excludedProducts || [],
       expiry: editing.expiry || null,
       status: editing.status || "Active",
-      showOnHome: Boolean(editing.showOnHome)
+      showOnHome: Boolean(editing.showOnHome),
+      showOnCart: editing.showOnCart !== false
     };
 
     try {
@@ -356,6 +358,23 @@ export function AdminCoupons() {
             </small>
           </div>
 
+          <div className="admin-form-group" style={{ background: '#fdfbf7', padding: '14px', borderRadius: '10px', border: '1px solid #e8e0d8', marginTop: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+              <input 
+                type="checkbox" 
+                checked={editing.showOnCart !== false} 
+                onChange={e => setEditing({ ...editing, showOnCart: e.target.checked })} 
+                style={{ width: 18, height: 18, accentColor: '#a54d2b' }}
+              />
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#2b170d' }}>
+                Show this coupon on Cart Page (Shopping Bag) for all customers
+              </span>
+            </label>
+            <small style={{ color: '#806f62', display: 'block', marginTop: '4px', marginLeft: '28px', fontSize: '12px' }}>
+              ON (Default): Cart page me "Available Offers" me sabhi customers ko ye coupon show hoga. OFF: Cart page par hide ho jayega, customer ko code manually type karke hi apply karna hoga.
+            </small>
+          </div>
+
           <div className="admin-form-actions">
             <button type="button" className="admin-btn secondary" onClick={() => setEditing(null)}>Cancel</button>
             <button type="submit" className="admin-btn"><Check size={16} /> Save Coupon</button>
@@ -408,7 +427,7 @@ export function AdminCoupons() {
             <RefreshCw size={15} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} /> 
             {loading ? "Syncing..." : "Refresh"}
           </button>
-          <button className="admin-btn" onClick={() => setEditing({ code: '', discount: 10, type: 'percentage', limit: '', minAmount: '', maxDiscount: '', targetType: 'all', selectedProducts: [], excludedProducts: [], expiry: '', status: 'Active', showOnHome: false })}>
+          <button className="admin-btn" onClick={() => setEditing({ code: '', discount: 10, type: 'percentage', limit: '', minAmount: '', maxDiscount: '', targetType: 'all', selectedProducts: [], excludedProducts: [], expiry: '', status: 'Active', showOnHome: false, showOnCart: true })}>
             <Plus size={16}/> Add Coupon
           </button>
         </div>
@@ -430,6 +449,7 @@ export function AdminCoupons() {
                 <th>Usage</th>
                 <th>Expiry</th>
                 <th>Status</th>
+                <th>Cart Page</th>
                 <th>Home Banner</th>
                 <th>Actions</th>
               </tr>
@@ -450,6 +470,13 @@ export function AdminCoupons() {
                     <td><small>{c.expiry ? new Date(c.expiry).toLocaleDateString() : "—"}</small></td>
                     <td>
                       <span className={`admin-badge ${st === 'Active' ? 'success' : st === 'Expired' ? 'error' : 'warning'}`}>{st}</span>
+                    </td>
+                    <td>
+                      {c.showOnCart !== false ? (
+                        <span className="admin-badge success" style={{ fontSize: '11px' }}>Visible (All)</span>
+                      ) : (
+                        <span className="admin-badge warning" style={{ fontSize: '11px' }}>Hidden (Manual)</span>
+                      )}
                     </td>
                     <td>{c.showOnHome ? <span className="admin-badge info">Synced</span> : "—"}</td>
                     <td>
@@ -489,11 +516,16 @@ export function AdminCoupons() {
                 </span>
               </div>
 
-              {c.showOnHome && (
-                <div style={{ marginTop: '8px', fontSize: '11px', color: '#166534', background: '#e5f6ea', padding: '4px 8px', borderRadius: '4px', fontWeight: '600' }}>
-                  ✓ Synced to Home Promotional Banner
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                <span style={{ fontSize: '11px', color: c.showOnCart !== false ? '#166534' : '#92400e', background: c.showOnCart !== false ? '#eef9f2' : '#fef3c7', padding: '3px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                  {c.showOnCart !== false ? '✓ Cart: Visible to All' : '🔒 Cart: Hidden (Code required)'}
+                </span>
+                {c.showOnHome && (
+                  <span style={{ fontSize: '11px', color: '#166534', background: '#e5f6ea', padding: '3px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                    ✓ Synced to Home Banner
+                  </span>
+                )}
+              </div>
 
               <div className="mobile-card-body">
                 <div className="mobile-card-actions" style={{ width: '100%', justifyContent: 'flex-end' }}>

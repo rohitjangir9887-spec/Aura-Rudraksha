@@ -4,7 +4,7 @@ import { Setting } from "../models/Setting.js";
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
-import { defaultCoupons } from "../data/defaultData.js";
+import { defaultCoupons, defaultProducts } from "../data/defaultData.js";
 
 /**
  * Single Authoritative Pricing & Coupon Service for Aura Rudraksha
@@ -87,8 +87,16 @@ export function normalizeLines(linesInput) {
  * Fetch authoritative products from MongoDB
  */
 export async function getAuthoritativeProducts(productIds = []) {
-  const cleanIds = Array.from(new Set(productIds.map(id => String(id).replace(/-indo$|_indo$/i, ""))));
+  const cleanIds = Array.from(
+    new Set(
+      productIds
+        .map(id => String(id || "").trim().replace(/-indo$|_indo$/i, "").replace(/^(product-card-|product-)/i, ""))
+        .filter(Boolean)
+    )
+  );
   if (cleanIds.length === 0) return [];
+
+  const resultsMap = new Map();
 
   if (isDbConnected()) {
     try {
@@ -100,21 +108,36 @@ export async function getAuthoritativeProducts(productIds = []) {
         ]
       }).lean();
 
-      if (dbProducts && dbProducts.length > 0) {
-        return dbProducts;
+      if (Array.isArray(dbProducts)) {
+        for (const p of dbProducts) {
+          resultsMap.set(String(p.id || p._id), p);
+        }
       }
     } catch (err) {
       console.warn("PricingService DB product lookup warning:", err.message);
     }
   }
 
-  // Fallback to in-memory store if DB is offline
-  if (inMemoryStore && inMemoryStore.products) {
-    const matched = inMemoryStore.products.filter(p => cleanIds.includes(String(p.id)));
-    if (matched.length > 0) return matched;
+  // Supplement any missing products from in-memory store and default catalog
+  const fallbackPool = [
+    ...((inMemoryStore && Array.isArray(inMemoryStore.products)) ? inMemoryStore.products : []),
+    ...(Array.isArray(defaultProducts) ? defaultProducts : [])
+  ];
+  for (const cid of cleanIds) {
+    const alreadyFound = Array.from(resultsMap.values()).some(
+      p => String(p.id) === cid || String(p._id) === cid || String(p.slug) === cid
+    );
+    if (!alreadyFound) {
+      const match = fallbackPool.find(
+        p => String(p.id) === cid || String(p._id) === cid || String(p.slug) === cid
+      );
+      if (match) {
+        resultsMap.set(String(match.id || match._id), match);
+      }
+    }
   }
 
-  return [];
+  return Array.from(resultsMap.values());
 }
 
 /**
@@ -229,8 +252,10 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   const unavailableItems = [];
 
   for (const line of normalized) {
-    const lookupId = line.baseId || String(line.id).replace(/-indo$|_indo$/i, "");
-    const product = fetchedProducts.find(p => String(p.id) === lookupId || String(p._id) === lookupId);
+    const lookupId = (line.baseId || String(line.id).replace(/-indo$|_indo$/i, "")).replace(/^(product-card-|product-)/i, "");
+    const product = fetchedProducts.find(
+      p => String(p.id) === lookupId || String(p._id) === lookupId || String(p.slug) === lookupId
+    );
     if (!product) {
       unavailableItems.push({ id: line.id, reason: "Product not found or discontinued" });
       continue;
@@ -317,7 +342,10 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   // Calculate per-product custom shipping fees if set
   let productShippingFees = 0;
   for (const line of normalized) {
-    const product = fetchedProducts.find(p => String(p.id) === String(line.id) || String(p._id) === String(line.id));
+    const lookupId = (line.baseId || String(line.id).replace(/-indo$|_indo$/i, "")).replace(/^(product-card-|product-)/i, "");
+    const product = fetchedProducts.find(
+      p => String(p.id) === lookupId || String(p._id) === lookupId || String(p.slug) === lookupId
+    );
     if (product && enableProductShipping) {
       if (product.freeShipping === false && Number(product.shippingFee) > 0) {
         productShippingFees += Number(product.shippingFee) * line.qty;
@@ -510,7 +538,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       if (!liveOffer && inMemoryStore.activeOffer?.status === "Active" && inMemoryStore.activeOffer?.enabled !== false) {
         liveOffer = inMemoryStore.activeOffer;
       }
-      if (liveOffer) {
+      if (liveOffer && liveOffer.autoApply !== false) {
         const isNeverExpire = liveOffer.neverExpires === true || liveOffer.timerEnabled === false;
         const expiryDate = liveOffer.expiry || liveOffer.expiresAt || null;
         const isExpired = !isNeverExpire && expiryDate && (new Date(expiryDate) < new Date());

@@ -2513,24 +2513,39 @@ export const db = {
       title = `Flat ${val}% OFF`;
     }
     const isNeverExpire = offer.neverExpires === true || offer.timerEnabled === false;
+    const isExplicitlyDisabled = offer.enabled === false || offer.status === "Disabled" || offer.status === "Inactive";
+    const isExplicitlyEnabled = !isExplicitlyDisabled && (offer.enabled === true || offer.status === "Active");
+    const isEnabled = isExplicitlyEnabled;
+    const status = isEnabled ? "Active" : "Disabled";
+
+    const resolvedSelectedProducts = Array.isArray(offer.applicableProducts) && offer.applicableProducts.length > 0
+      ? offer.applicableProducts
+      : (Array.isArray(offer.selectedProducts) ? offer.selectedProducts : (storeCache.activeOffer?.selectedProducts || []));
+
     const updated = {
       ...storeCache.activeOffer,
       ...offer,
-      title: title || offer.title,
+      enabled: isEnabled,
+      status: status,
+      title: title || offer.title || "Special Offer",
+      couponCode: String(offer.couponCode ?? "").trim().toUpperCase(),
       id: "OFFER-CENTRAL-1",
       neverExpires: isNeverExpire,
       autoApply: offer.autoApply !== false,
-      expiresAt: isNeverExpire ? "" : (offer.expiresAt || offer.expiry || storeCache.activeOffer.expiresAt),
-      expiry: isNeverExpire ? "" : (offer.expiresAt || offer.expiry || storeCache.activeOffer.expiry),
-      startDate: offer.startDate || offer.startAt || storeCache.activeOffer.startDate,
-      startAt: offer.startDate || offer.startAt || storeCache.activeOffer.startAt
+      selectedProducts: resolvedSelectedProducts,
+      applicableProducts: resolvedSelectedProducts,
+      expiresAt: isNeverExpire ? "" : (offer.expiresAt || offer.expiry || storeCache.activeOffer?.expiresAt || ""),
+      expiry: isNeverExpire ? "" : (offer.expiresAt || offer.expiry || storeCache.activeOffer?.expiry || ""),
+      startDate: offer.startDate || offer.startAt || storeCache.activeOffer?.startDate,
+      startAt: offer.startDate || offer.startAt || storeCache.activeOffer?.startAt,
+      updatedAt: new Date().toISOString()
     };
 
     // Optimistic persistence immediately
     storeCache.activeOffer = updated;
     try {
       localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
-      localStorage.setItem("aura_last_fetch_time", "0");
+      localStorage.setItem("aura_last_fetch_time", String(Date.now()));
     } catch (_) {}
     emitStoreUpdate("active-offer:saved", storeCache.activeOffer);
 
@@ -2538,10 +2553,11 @@ export const db = {
       const res = await apiRequest("/active-offer", {
         method: "POST",
         body: JSON.stringify(updated),
-        requiresAuth: true
+        requiresAuth: true,
+        noCache: true
       });
       if (res?.success && res.data) {
-        storeCache.activeOffer = { ...updated, ...res.data };
+        storeCache.activeOffer = { ...updated, ...res.data, updatedAt: new Date().toISOString() };
         try {
           localStorage.setItem("aura_active_offer_cache", JSON.stringify(storeCache.activeOffer));
         } catch (_) {}
@@ -2551,7 +2567,6 @@ export const db = {
       console.warn("Notice in saveActiveOffer background sync:", apiErr?.message);
     }
 
-    fetchHomeData(true).catch(() => {});
     return storeCache.activeOffer;
   },
 
@@ -2709,15 +2724,26 @@ export const db = {
     return null;
   },
   calculateCartSync: (lines = [], couponCode = null) => {
-    const prods = storeCache.products || [];
+    let prods = (storeCache && Array.isArray(storeCache.products) && storeCache.products.length > 0)
+      ? storeCache.products
+      : (db && typeof db.getProducts === "function" ? db.getProducts() : []);
+    if ((!prods || prods.length === 0) && typeof localStorage !== "undefined") {
+      try {
+        const cached = JSON.parse(localStorage.getItem("aura_products_cache") || "[]");
+        if (Array.isArray(cached) && cached.length > 0) prods = cached;
+      } catch (_) {}
+    }
     let subtotal = 0;
     let totalMrp = 0;
     const validItems = [];
 
     (lines || []).forEach(l => {
-      const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id) || String(x._id) === String(l.id) || String(x.slug) === String(l.id));
-      const price = p ? Number(p.price) : 0;
-      const mrp = p ? Number(p.mrp || p.comparePrice || price) : price;
+      const p = resolveCartProduct(prods, l)
+        || prods.find(x => String(x.id) === String(l.id) || String(x._id) === String(l.id) || String(x.slug) === String(l.id))
+        || resolveCartProduct(defaultProducts, l)
+        || defaultProducts.find(x => String(x.id) === String(l.id) || String(x.slug) === String(l.id));
+      const price = p ? Number(p.price) : (Number(l.price) || 0);
+      const mrp = p ? Number(p.mrp || p.comparePrice || price) : (Number(l.mrp || l.comparePrice || price) || price);
       subtotal += price * (l.qty || 1);
       totalMrp += mrp * (l.qty || 1);
       validItems.push({
@@ -2743,7 +2769,7 @@ export const db = {
     let productShippingFees = 0;
     if (enableProductShipping) {
       (lines || []).forEach(l => {
-        const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id));
+        const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id)) || resolveCartProduct(defaultProducts, l);
         if (p && p.freeShipping === false && Number(p.shippingFee) > 0) {
           productShippingFees += Number(p.shippingFee) * (l.qty || 1);
         }
@@ -2834,6 +2860,53 @@ export const db = {
         couponStatus = "INVALID";
         couponReason = `Coupon '${clean}' is not valid`;
       }
+    } else if (couponCode !== false) {
+      // Automatic Store-wide Live Offer application when enabled and in automatic mode
+      const liveOffer = storeCache.activeOffer;
+      if (liveOffer && liveOffer.status === "Active" && liveOffer.enabled !== false && liveOffer.autoApply !== false) {
+        const isNeverExpire = liveOffer.neverExpires === true || liveOffer.timerEnabled === false;
+        const expiryDate = liveOffer.expiry || liveOffer.expiresAt || null;
+        const isExpired = !isNeverExpire && expiryDate && (new Date(expiryDate) < new Date());
+        if (!isExpired) {
+          const isPct = liveOffer.discountType === "percentage";
+          const discountVal = Number(liveOffer.discountValue || 0);
+          if (discountVal > 0 && subtotal > 0) {
+            const tType = liveOffer.targetType || "all";
+            const selProds = (liveOffer.applicableProducts || liveOffer.selectedProducts || []).map(String);
+            const excProds = (liveOffer.excludedProducts || []).map(String);
+            let eligibleSubtotal = 0;
+            validItems.forEach(it => {
+              const pid = String(it.productId || it.id || "");
+              let eligible = true;
+              if (tType === "selected" && selProds.length > 0) eligible = selProds.includes(pid);
+              else if (tType === "excluded" && excProds.length > 0) eligible = !excProds.includes(pid);
+              else if (tType === "all" && excProds.length > 0) eligible = !excProds.includes(pid);
+              if (eligible) eligibleSubtotal += Number(it.price * (it.qty || 1)) || 0;
+            });
+            if (eligibleSubtotal > 0) {
+              couponDiscount = isPct
+                ? Math.min(eligibleSubtotal, Math.round((eligibleSubtotal * discountVal) / 100))
+                : Math.min(eligibleSubtotal, discountVal);
+              couponValid = true;
+              couponStatus = "APPLIED";
+              couponReason = `Automatic discount applied: ${liveOffer.title || "Central Live Offer"}`;
+              appliedCoupon = {
+                id: liveOffer.id || "OFFER-CENTRAL-1",
+                code: liveOffer.couponCode || "LIVE-OFFER",
+                status: "APPLIED",
+                valid: true,
+                discount: discountVal,
+                discountAmount: couponDiscount,
+                type: isPct ? "percentage" : "fixed",
+                minOrder: 0,
+                isAutomatic: true,
+                description: liveOffer.title || "Live Store Offer",
+                reason: couponReason
+              };
+            }
+          }
+        }
+      }
     }
 
     const finalTotal = Math.max(0, subtotal - couponDiscount + shipping);
@@ -2869,16 +2942,19 @@ export const db = {
     };
   },
   calculateCart: async (lines = [], couponCode = null) => {
-    // 1. Immediately return synchronous local result so UI renders at 0ms with zero lag
-    const localResult = db.calculateCartSync(lines, couponCode);
+    // 1. Attempt authoritative server calculation
+    try {
+      const res = await apiRequest("/cart/calculate", {
+        method: "POST",
+        body: JSON.stringify({ lines, couponCode })
+      });
+      if (res?.success && res.data && (res.data.subtotal > 0 || (lines || []).length === 0)) {
+        return res;
+      }
+    } catch (_) {}
 
-    // 2. Background async API revalidation (non-blocking)
-    apiRequest("/cart/calculate", {
-      method: "POST",
-      body: JSON.stringify({ lines, couponCode })
-    }).catch(() => {});
-
-    return localResult;
+    // 2. Resilient local synchronous fallback
+    return db.calculateCartSync(lines, couponCode);
   },
 
   validateCartCoupon: async (code, lines = []) => {
@@ -2888,6 +2964,12 @@ export const db = {
         body: JSON.stringify({ code, lines })
       });
       if (res?.success) {
+        if (res.totals && res.totals.subtotal === 0 && (lines || []).length > 0) {
+          const syncCalc = db.calculateCartSync(lines, code);
+          if (syncCalc?.data) {
+            res.totals = syncCalc.data;
+          }
+        }
         return res;
       }
     } catch (_) {}
@@ -2999,6 +3081,7 @@ export const db = {
       maxDiscount: Number(c.maxDiscount || 0),
       status: c.status || "Active",
       showOnHome: Boolean(c.showOnHome),
+      showOnCart: c.showOnCart !== false,
       targetType: c.targetType || "all",
       selectedProducts: Array.isArray(c.selectedProducts) ? c.selectedProducts : [],
       excludedProducts: Array.isArray(c.excludedProducts) ? c.excludedProducts : []

@@ -1,0 +1,6 @@
+{
+  "summary": "Implementation plan to fix the Central Live Offer automatic saving/editing issue, set default status to OFF, fix the cart page coupon deletion price-zero bug, and add the admin coupon visibility toggle for the cart page.",
+  "updatedAt": "2026-10-15T10:56:24.720737855Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

@@ -19,7 +19,8 @@ const COUPON_FIELDS = {
   code: "string", discount: "number", value: "number", type: "string", limit: "number",
   usage: "number", minAmount: "number", minOrder: "number", minOrderValue: "number",
   expiry: "nullableString", status: "string", description: "string", targetType: "string", selectedProducts: "string[]", excludedProducts: "string[]", targetCategories: "string[]", targetSubcategories: "string[]", maxDiscount: "number", perCustomerLimit: "number",
-  showOnHome: "boolean"
+  showOnHome: "boolean",
+  showOnCart: "boolean"
 };
 
 // Fields safe to show to unauthenticated shoppers on cart/checkout (no usage
@@ -38,7 +39,8 @@ function toPublicCoupon(c) {
     targetType: c.targetType || "all",
     selectedProducts: Array.isArray(c.selectedProducts) ? c.selectedProducts : [],
     excludedProducts: Array.isArray(c.excludedProducts) ? c.excludedProducts : [],
-    showOnHome: Boolean(c.showOnHome)
+    showOnHome: Boolean(c.showOnHome),
+    showOnCart: c.showOnCart !== false
   };
 }
 
@@ -247,7 +249,8 @@ export async function createCoupon(req, res, next) {
       targetType: data.targetType || "all",
       selectedProducts: Array.isArray(data.selectedProducts) ? data.selectedProducts : [],
       excludedProducts: Array.isArray(data.excludedProducts) ? data.excludedProducts : [],
-      showOnHome: Boolean(data.showOnHome)
+      showOnHome: Boolean(data.showOnHome),
+      showOnCart: data.showOnCart !== undefined ? Boolean(data.showOnCart) : (req.body.showOnCart !== undefined ? Boolean(req.body.showOnCart) : true)
     };
 
     if (!isDbConnected()) {

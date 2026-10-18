@@ -171,7 +171,7 @@ export function Checkout() {
   const [products, setProducts] = useState(() => db.getProducts());
   const [activeOffer, setActiveOffer] = useState(() => db.getActiveOffer());
   const [availableCoupons, setAvailableCoupons] = useState(() => 
-    db.getCoupons().filter(c => c.status === "Active")
+    db.getCoupons().filter(c => c && c.status === "Active" && c.showOnCart !== false)
   );
 
   const { 
@@ -333,7 +333,7 @@ export function Checkout() {
   useEffect(() => {
     setProducts(db.getProducts());
     setActiveOffer(db.getActiveOffer());
-    setAvailableCoupons(db.getCoupons().filter(c => c.status === "Active"));
+    setAvailableCoupons(db.getCoupons().filter(c => c && c.status === "Active" && c.showOnCart !== false));
 
     async function loadUserData() {
       const user = authClient.getUser();

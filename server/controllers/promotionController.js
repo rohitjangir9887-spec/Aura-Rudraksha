@@ -75,11 +75,11 @@ export async function saveActiveOffer(req, res, next) {
       resolvedTitle = `Flat ${discountVal}% OFF`;
     }
 
-    // Accurately determine enabled & status flags
-    const isExplicitlyEnabled = req.body.enabled === true || req.body.enablePromo === true || req.body.status === "Active";
+    // Accurately determine enabled & status flags (default OFF unless explicitly enabled and not disabled)
     const isExplicitlyDisabled = req.body.enabled === false || req.body.enablePromo === false || req.body.status === "Inactive" || req.body.status === "Disabled";
-    const enabled = isExplicitlyEnabled ? true : (isExplicitlyDisabled ? false : (data.enabled !== false));
-    const status = enabled ? "Active" : (data.status || "Inactive");
+    const isExplicitlyEnabled = !isExplicitlyDisabled && (req.body.enabled === true || req.body.enablePromo === true || req.body.status === "Active");
+    const enabled = isExplicitlyEnabled;
+    const status = enabled ? "Active" : "Disabled";
 
     const neverExpires = data.neverExpires === true || req.body.neverExpires === true || data.timerEnabled === false;
     let expiry = neverExpires ? "" : (data.expiresAt || data.expiry);
@@ -87,16 +87,23 @@ export async function saveActiveOffer(req, res, next) {
       expiry = new Date(Date.now() + 365 * 24 * 3600000).toISOString(); // 1 year default
     }
 
+    const resolvedSelectedProducts = Array.isArray(data.applicableProducts) && data.applicableProducts.length > 0
+      ? data.applicableProducts
+      : (Array.isArray(data.selectedProducts) ? data.selectedProducts : []);
+
     const payload = {
       ...(inMemoryStore.activeOffer || defaultActiveOffer),
       ...data,
       id: "OFFER-CENTRAL-1",
       enabled,
       status,
-      title: resolvedTitle,
+      title: resolvedTitle || "Special Offer",
+      couponCode: String(data.couponCode ?? req.body.couponCode ?? "").trim().toUpperCase(),
       discountValue: discountVal,
       neverExpires,
       autoApply: data.autoApply !== false,
+      selectedProducts: resolvedSelectedProducts,
+      applicableProducts: resolvedSelectedProducts,
       expiry: neverExpires ? "" : expiry,
       expiresAt: neverExpires ? "" : expiry,
       startDate: data.startAt || data.startDate || new Date().toISOString(),
@@ -108,7 +115,7 @@ export async function saveActiveOffer(req, res, next) {
     delete payload.__v;
     delete payload.createdAt;
 
-    inMemoryStore.activeOffer = { ...payload, id: "OFFER-CENTRAL-1" };
+    inMemoryStore.activeOffer = { ...payload, id: "OFFER-CENTRAL-1", updatedAt: new Date().toISOString() };
 
     if (!isDbConnected()) {
       await connectDB().catch(() => {});

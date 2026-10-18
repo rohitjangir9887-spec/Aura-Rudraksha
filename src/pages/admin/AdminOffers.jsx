@@ -73,7 +73,9 @@ export function AdminOffers() {
     load();
     loadDeals();
     const unsub = onStoreUpdate(() => {
-      load();
+      if (!isDirtyRef.current) {
+        load();
+      }
       loadDeals();
     });
     return () => unsub();
@@ -203,6 +205,7 @@ export function AdminOffers() {
         }
       } else {
         offerToSave.enabled = false;
+        offerToSave.status = "Disabled";
       }
       setActiveOffer(offerToSave);
       await db.saveActiveOffer(offerToSave);

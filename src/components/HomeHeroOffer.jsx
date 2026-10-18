@@ -73,9 +73,9 @@ export function HomeHeroOffer() {
               </p>
             </div>
 
-            {/* Coupon Code Pill & Shop Now Button */}
-            {code && (
-              <div className="hero-coupon-action-row">
+            {/* Coupon Code Pill or Auto-Apply Badge & Shop Now Button */}
+            <div className="hero-coupon-action-row">
+              {code ? (
                 <div 
                   className="hero-coupon-pill"
                   onClick={handleCopy}
@@ -119,20 +119,35 @@ export function HomeHeroOffer() {
                     )}
                   </button>
                 </div>
-
-                <Link 
-                  to="/shop" 
-                  className="hero-shop-now-btn"
+              ) : (
+                <div 
+                  className="hero-coupon-pill"
                   style={{
-                    backgroundColor: buttonColor,
-                    color: "#1A0D06"
+                    background: "rgba(255, 255, 255, 0.08)",
+                    borderColor: accentColor,
+                    color: textColor,
+                    cursor: "default"
                   }}
                 >
-                  <span>Shop Now</span>
-                  <ArrowRight size={14} className="hero-btn-arrow" />
-                </Link>
-              </div>
-            )}
+                  <div className="coupon-tag-badge">
+                    <Sparkles size={11} color="#C89B3C" />
+                    <span>AUTO-APPLIED AT CHECKOUT</span>
+                  </div>
+                </div>
+              )}
+
+              <Link 
+                to="/shop" 
+                className="hero-shop-now-btn"
+                style={{
+                  backgroundColor: buttonColor,
+                  color: "#1A0D06"
+                }}
+              >
+                <span>Shop Now</span>
+                <ArrowRight size={14} className="hero-btn-arrow" />
+              </Link>
+            </div>
           </div>
 
           {/* Right Compact Photo Side (Directly Opposite / In Front of the Text) */}

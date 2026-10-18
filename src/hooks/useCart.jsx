@@ -211,6 +211,8 @@ export function CartProvider({ children }) {
     } catch (_) {}
   }, []);
 
+  const autoOfferDismissedRef = useRef(false);
+
   // Fetch authoritative pricing from server
   const fetchAuthoritativeTotals = useCallback(async (currentLines, currentCoupon) => {
     if (!currentLines || currentLines.length === 0) {
@@ -227,166 +229,89 @@ export function CartProvider({ children }) {
       setLoadingTotals(true);
       const res = await db.calculateCart(currentLines, currentCoupon);
       if (res?.success && res.data) {
-        // Ensure appliedCoupon is null if valid is false or status is not APPLIED
         const data = res.data;
-        const isValidApplied = Boolean(data.appliedCoupon && (data.appliedCoupon.valid || data.appliedCoupon.status === "APPLIED"));
-        setTotals({
-          ...data,
-          appliedCoupon: isValidApplied ? data.appliedCoupon : null,
-          couponRejection: !isValidApplied && (data.couponRejection || data.appliedCoupon),
-          couponDiscount: isValidApplied ? (data.couponDiscount || 0) : 0
+        const isAutoOffer = Boolean(data.appliedCoupon?.isAutomatic && !autoOfferDismissedRef.current);
+        const isValidApplied = Boolean(
+          data.appliedCoupon &&
+          (data.appliedCoupon.valid || data.appliedCoupon.status === "APPLIED") &&
+          (currentCoupon || isAutoOffer)
+        );
+        setTotals((prev) => {
+          const syncFallback = (data.subtotal === 0 && currentLines.length > 0 && db && typeof db.calculateCartSync === "function")
+            ? db.calculateCartSync(currentLines, false)?.data
+            : null;
+          const resolvedSubtotal = (data.subtotal === 0 && currentLines.length > 0)
+            ? Number(syncFallback?.subtotal || prev?.subtotal || 0)
+            : Number(data.subtotal || 0);
+          const resolvedTotalMrp = (Number(data.totalMrp || 0) === 0 && currentLines.length > 0)
+            ? Number(syncFallback?.totalMrp || prev?.totalMrp || resolvedSubtotal)
+            : Number(data.totalMrp || resolvedSubtotal);
+          const resolvedProductSavings = Math.max(0, resolvedTotalMrp - resolvedSubtotal);
+          const resolvedShipping = Number(data.shipping ?? syncFallback?.shipping ?? prev?.shipping ?? 0);
+          const resolvedCouponDiscount = isValidApplied ? Math.min(resolvedSubtotal, Number(data.couponDiscount || 0)) : 0;
+          const resolvedFinal = Math.max(0, resolvedSubtotal - resolvedCouponDiscount + resolvedShipping);
+          const resolvedShippingDiscount = Number(data.shippingDiscount || 0);
+          const resolvedTotalSavings = resolvedProductSavings + resolvedCouponDiscount + resolvedShippingDiscount;
+
+          return {
+            ...data,
+            subtotal: resolvedSubtotal,
+            totalMrp: resolvedTotalMrp,
+            productSavings: resolvedProductSavings,
+            productDiscount: resolvedProductSavings,
+            shipping: resolvedShipping,
+            shippingFee: resolvedShipping,
+            finalTotal: resolvedFinal,
+            total: resolvedFinal,
+            amount: resolvedFinal,
+            savings: resolvedTotalSavings,
+            totalSavings: resolvedTotalSavings,
+            appliedCoupon: isValidApplied ? data.appliedCoupon : null,
+            couponRejection: (!isValidApplied && currentCoupon) ? (data.couponRejection || data.appliedCoupon) : null,
+            couponDiscount: resolvedCouponDiscount,
+            couponStatus: isValidApplied ? "APPLIED" : (currentCoupon ? (data.couponStatus || "INVALID") : "NONE"),
+            couponValid: isValidApplied
+          };
         });
       } else {
         throw new Error(res?.message || "Cart API returned unsuccessful response");
       }
     } catch (err) {
       console.warn("Cart calculation warning:", err.message);
-      // Fallback local calculation
+      // Fallback local calculation via calculateCartSync
       try {
-        const prods = db.getProducts ? db.getProducts() : [];
-        const coupons = db.getCoupons ? db.getCoupons() : [];
-        
-        let subtotal = 0;
-        let totalMrp = 0;
-        const validItems = [];
-
-        currentLines.forEach((l) => {
-          const p = resolveCartProduct(prods, l);
-          const price = p ? Number(p.price) : 0;
-          const mrp = p ? Number(p.mrp || p.comparePrice || price) : price;
-          subtotal += price * l.qty;
-          totalMrp += mrp * l.qty;
-          validItems.push({
-            id: l.id,
-            productId: p ? p.productId || p.id : l.id,
-            name: p ? p.name : "Sacred Rudraksha Item",
-            price,
-            mrp,
-            quantity: l.qty,
-            qty: l.qty,
-            origin: p?.origin || (p?.isIndonesian ? "Java / Indonesia" : "Nepal"),
-            isIndonesian: !!p?.isIndonesian,
-            img: p ? getProductPrimaryImage(p) : null
-          });
-        });
-
-        const storeSettings = (db.getSettings ? db.getSettings() : {}) || {};
-        let productShipping = 0;
-        validItems.forEach(item => {
-          const p = resolveCartProduct(prods, item);
-          if (p && p.freeShipping === false) {
-            productShipping += (Number(p.shippingFee) || 0) * item.quantity;
-          }
-        });
-
-        // Use strictly per-product delivery charges, overriding global automatic free shipping
-        const shipping = productShipping;
-        const isFreeShipping = shipping === 0;
-        const shippingDiscount = 0;
-        const threshold = 0;
-        const standardFee = 0;
-
-        let appliedCouponObj = null;
-        let couponRejectionObj = null;
-        let couponDiscount = 0;
-        let couponStatus = "NONE";
-        let couponReason = "";
-
-        if (currentCoupon) {
-          const c = coupons.find(x => x.code?.toUpperCase() === currentCoupon.toUpperCase());
-          if (c) {
-            const minOrder = Number(c.minAmount || c.minOrder || 0);
-            if (minOrder > 0 && subtotal < minOrder) {
-              couponStatus = "NOT_ELIGIBLE";
-              couponReason = `Add ₹${minOrder - subtotal} more to use this coupon.`;
-              couponRejectionObj = {
-                code: c.code,
-                status: "NOT_ELIGIBLE",
-                valid: false,
-                discount: Number(c.discount) || 0,
-                discountAmount: 0,
-                minOrder,
-                shortfall: minOrder - subtotal,
-                reason: couponReason
-              };
-            } else if (c.status === "Expired" || (c.expiry && new Date(c.expiry) < new Date())) {
-              couponStatus = "EXPIRED";
-              couponReason = "This coupon is expired.";
-              couponRejectionObj = {
-                code: c.code,
-                status: "EXPIRED",
-                valid: false,
-                discount: Number(c.discount) || 0,
-                discountAmount: 0,
-                reason: couponReason
-              };
-            } else {
-              couponStatus = "APPLIED";
-              const val = Number(c.discount) || 0;
-              couponDiscount = c.type === "fixed" ? Math.min(subtotal, val) : Math.min(subtotal, Math.round((subtotal * val) / 100));
-              appliedCouponObj = {
-                code: c.code,
-                status: "APPLIED",
-                valid: true,
-                discount: val,
-                discountAmount: couponDiscount,
-                type: c.type || "percentage",
-                description: c.type === "fixed" ? `Flat ₹${val} Off` : `${val}% Off`
-              };
-            }
-          } else {
-            couponStatus = "INVALID";
-            couponReason = "Invalid coupon code.";
-            couponRejectionObj = {
-              code: currentCoupon,
-              status: "INVALID",
-              valid: false,
-              discount: 0,
-              discountAmount: 0,
-              reason: couponReason
-            };
+        if (db && typeof db.calculateCartSync === "function") {
+          const syncCalc = db.calculateCartSync(currentLines, currentCoupon || (autoOfferDismissedRef.current ? false : ""));
+          if (syncCalc?.data) {
+            setTotals(syncCalc.data);
+            return;
           }
         }
-
-        const finalTotal = Math.max(0, subtotal - couponDiscount + shipping);
-        const totalSavings = productSavings + couponDiscount + shippingDiscount;
-
-        setTotals({
-          items: validItems,
-          itemCount: validItems.reduce((n, it) => n + it.quantity, 0),
-          subtotal,
-          totalMrp,
-          productSavings,
-          productDiscount: productSavings,
-          couponDiscount,
-          shipping,
-          shippingFee: shipping,
-          shippingDiscount,
-          isFreeShipping,
-          freeShippingThreshold: threshold,
-          standardShippingFee: standardFee,
-          tax: 0,
-          finalTotal,
-          total: finalTotal,
-          amount: finalTotal,
-          savings: totalSavings,
-          totalSavings,
-          appliedCoupon: appliedCouponObj,
-          couponRejection: couponRejectionObj,
-          couponStatus,
-          couponValid: Boolean(appliedCouponObj?.valid),
-          couponReason: couponReason || appliedCouponObj?.reason || couponRejectionObj?.reason || ""
-        });
       } catch (_) {}
     } finally {
       setLoadingTotals(false);
     }
   }, []);
 
-  // Trigger recalculation on lines or coupon change
+  // Trigger recalculation on lines or coupon change, and when store active offer / products sync
   useEffect(() => {
     isMounted.current = true;
     fetchAuthoritativeTotals(lines, couponCode);
+  }, [lines, couponCode, fetchAuthoritativeTotals]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleStoreSync = (e) => {
+      const type = e?.detail?.type || "";
+      if (type === "active-offer:saved") {
+        autoOfferDismissedRef.current = false;
+        fetchAuthoritativeTotals(lines, couponCode);
+      } else if (type === "products:synced" || type === "coupons:synced" || type === "coupon:saved" || type === "coupon:deleted") {
+        fetchAuthoritativeTotals(lines, couponCode);
+      }
+    };
+    window.addEventListener("aura:store-updated", handleStoreSync);
+    return () => window.removeEventListener("aura:store-updated", handleStoreSync);
   }, [lines, couponCode, fetchAuthoritativeTotals]);
 
   // Apply Coupon method
@@ -404,7 +329,7 @@ export function CartProvider({ children }) {
         // Save coupon code in state and localStorage
         persistCouponCode(cleanCode);
         
-        if (res.totals) {
+        if (res.totals && (res.totals.subtotal > 0 || lines.length === 0)) {
           setTotals(res.totals);
         } else {
           // Trigger full calculation with new coupon
@@ -457,7 +382,37 @@ export function CartProvider({ children }) {
 
   // Remove Coupon method
   const removeCoupon = useCallback(() => {
+    autoOfferDismissedRef.current = true;
     persistCouponCode("");
+    setTotals((prev) => {
+      const syncCalc = (lines && lines.length > 0 && db && typeof db.calculateCartSync === "function")
+        ? db.calculateCartSync(lines, false)?.data
+        : null;
+      const cleanSubtotal = Number(syncCalc?.subtotal || prev?.subtotal || 0);
+      const cleanTotalMrp = Number(syncCalc?.totalMrp || prev?.totalMrp || cleanSubtotal);
+      const cleanProductSavings = Math.max(0, cleanTotalMrp - cleanSubtotal);
+      const cleanShipping = Number(syncCalc?.shipping ?? prev?.shipping ?? 0);
+      const cleanFinalTotal = Math.max(0, cleanSubtotal + cleanShipping);
+      return {
+        ...(prev || defaultTotals),
+        ...(syncCalc || {}),
+        subtotal: cleanSubtotal,
+        totalMrp: cleanTotalMrp,
+        productSavings: cleanProductSavings,
+        productDiscount: cleanProductSavings,
+        appliedCoupon: null,
+        couponRejection: null,
+        couponDiscount: 0,
+        couponStatus: "NONE",
+        couponValid: false,
+        couponReason: "",
+        finalTotal: cleanFinalTotal,
+        total: cleanFinalTotal,
+        amount: cleanFinalTotal,
+        totalSavings: cleanProductSavings,
+        savings: cleanProductSavings
+      };
+    });
     fetchAuthoritativeTotals(lines, "");
   }, [lines, persistCouponCode, fetchAuthoritativeTotals]);
 
