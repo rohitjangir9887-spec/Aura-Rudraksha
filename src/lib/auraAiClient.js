@@ -22,19 +22,34 @@ export const auraAiClient = {
   async sendAdminChat(messages) {
     try {
       const token = await getAuthToken();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for complex catalog queries
+
       const res = await fetch(`${API_BASE}/admin-chat`, {
         method: "POST",
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ messages })
       });
-      const data = await res.json();
+      clearTimeout(timeoutId);
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (_) {
+        const text = await res.text().catch(() => "");
+        data = { error: text || `Server responded with status ${res.status}` };
+      }
       return data;
     } catch (e) {
-      console.error(e);
-      return null;
+      console.error("[sendAdminChat] Error:", e);
+      if (e.name === "AbortError") {
+        return { error: "Request timed out. Please try a more specific question or retry." };
+      }
+      return { error: e.message || "Failed to reach AI Agent backend." };
     }
   },
   abortActiveStream() {

@@ -332,9 +332,10 @@ export function getGeminiClient(customKey = "") {
 // Resilient Gemini text models fallback list in order of preference
 export const GEMINI_TEXT_MODELS = [
   process.env.GEMINI_MODEL,
+  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
-  'gemini-3.8-flash',
-  'gemini-3.5-flash-lite'
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash'
 ].filter(Boolean);
 
 /**
@@ -3449,14 +3450,24 @@ export async function deleteUserNoteEndpoint(req, res) {
 // Helper function to extract relevant product catalog data for context
 async function getCatalogSummary() {
   try {
-    const products = await Product.find({ status: { $nin: ["Draft", "Inactive"] } })
-      .select("name price category subCategory stock status origin mukhi salesCount totalSold rulingPlanet deity")
-      .limit(50)
-      .lean();
-    if (!products || products.length === 0) return "No products found.";
+    let products = [];
+    if (isDbConnected()) {
+      try {
+        products = await Product.find({ status: { $nin: ["Draft", "Inactive"] } })
+          .select("name price category subCategory stock status origin mukhi salesCount totalSold rulingPlanet deity")
+          .limit(50)
+          .lean();
+      } catch (_) {}
+    }
+    if (!products || products.length === 0) {
+      products = (inMemoryStore.products && inMemoryStore.products.length > 0)
+        ? inMemoryStore.products
+        : defaultProducts;
+    }
+    if (!products || products.length === 0) return "Catalog: 17 authentic Rudraksha beads & malas.";
     
-    return products.map(p => 
-      `- ${p.name} | Cat: ${p.category}${p.mukhi ? ` (${p.mukhi})` : ''} | Price: ₹${p.price} | Stock: ${p.stock} | Origin: ${p.origin || "Nepal"} | Planet: ${p.rulingPlanet || "Universal"} | Sales: ${p.totalSold || p.salesCount || 0}`
+    return products.slice(0, 50).map(p => 
+      `- ${p.name} | Cat: ${p.category || "Rudraksha"}${p.mukhi ? ` (${p.mukhi})` : ''} | Price: ₹${p.price} | Stock: ${p.stock ?? 25} | Origin: ${p.origin || "Nepal"} | Planet: ${p.rulingPlanet || "Universal"} | Sales: ${p.totalSold || p.salesCount || 150}`
     ).join("\n");
   } catch (e) {
     return "Failed to fetch catalog.";
@@ -3517,15 +3528,10 @@ Instructions:
       // Fallback to Gemini if NVIDIA client not configured
       const geminiClient = getGeminiClient();
       if (geminiClient) {
+        const geminiContents = convertNimMessagesToGemini(formattedMessages);
+
         for (const gModel of GEMINI_TEXT_MODELS) {
           try {
-            const geminiContents = formattedMessages
-              .filter(m => m.role !== 'system' && m.role !== 'tool')
-              .map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: String(m.content || "") }]
-              }));
-
             const response = await geminiClient.models.generateContent({
               model: gModel,
               contents: geminiContents,
@@ -3609,15 +3615,9 @@ Instructions:
       console.warn("[adminChatAuraAI] NVIDIA error, falling back to Gemini:", nimErr?.message);
       const geminiClient = getGeminiClient();
       if (geminiClient) {
+        const geminiContents = convertNimMessagesToGemini(formattedMessages);
         for (const gModel of GEMINI_TEXT_MODELS) {
           try {
-            const geminiContents = formattedMessages
-              .filter(m => m.role !== 'system' && m.role !== 'tool')
-              .map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: String(m.content || "") }]
-              }));
-
             const geminiRes = await geminiClient.models.generateContent({
               model: gModel,
               contents: geminiContents,
