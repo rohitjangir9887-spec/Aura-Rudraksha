@@ -4,7 +4,7 @@ import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck } from "lucide-react";
+import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, Eye } from "lucide-react";
 import { motion } from "framer-motion";
 import { money, pct } from "../data";
 import { db } from "../lib/db";
@@ -12,6 +12,7 @@ import { useWishlist } from "../hooks/useWishlist";
 import { useCart } from "../hooks/useCart";
 import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 import { emitToast } from "../context/ToastContext";
+import { ProductQuickViewModal } from "./ProductQuickViewModal";
 
 export function ProductCardSkeleton() {
   return (
@@ -34,6 +35,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const { offer, isActive: hasOffer } = useActiveOffer(p);
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
+  const [showQuickView, setShowQuickView] = useState(false);
 
   if (!p) return null;
 
@@ -177,6 +179,39 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           <Heart size={15} fill={isSaved ? "#a54d2b" : "none"} strokeWidth={2.2} />
         </button>
 
+        {/* Quick View Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowQuickView(true);
+          }}
+          style={{
+            position: "absolute",
+            bottom: "8px",
+            right: "8px",
+            background: "rgba(255, 255, 255, 0.92)",
+            backdropFilter: "blur(4px)",
+            border: "1px solid rgba(226, 210, 193, 0.8)",
+            borderRadius: "20px",
+            padding: "4px 9px",
+            fontSize: "11px",
+            fontWeight: 700,
+            color: "#7c2d12",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            cursor: "pointer",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+            zIndex: 4,
+            touchAction: "manipulation"
+          }}
+          title="क्विक व्यू (Quick View)"
+        >
+          <Eye size={12} /> Quick View
+        </button>
+
         {/* Interactive Gallery Dots (if multiple images available) */}
         {images.length > 1 && (
           <div className="aura-card-gallery-dots">
@@ -285,6 +320,14 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           )}
         </button>
       </div>
+
+      {/* Quick View Modal */}
+      {showQuickView && (
+        <ProductQuickViewModal
+          product={p}
+          onClose={() => setShowQuickView(false)}
+        />
+      )}
     </motion.div>
   );
 }

@@ -109,6 +109,9 @@ export function Footer() {
           </div>
           <div className="nf-links-col">
             <h4>VEDIC GUIDES</h4>
+            <Link to="/japa" style={{ color: "#d97706", fontWeight: 700 }}>📿 108 Daily Japa Mala</Link>
+            <Link to="/compare" style={{ color: "#d97706", fontWeight: 700 }}>⚖️ Rudraksha Comparison</Link>
+            <Link to="/pran-pratishtha" style={{ color: "#d97706", fontWeight: 700 }}>📜 Pran Pratishtha Vidhi</Link>
             <Link to="/how-to-wear-rudraksha">How to Wear Rudraksha</Link>
             <Link to="/rudraksha-benefits">Rudraksha Benefits</Link>
             <Link to="/rudraksha-authenticity">Authenticity &amp; Testing</Link>

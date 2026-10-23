@@ -98,10 +98,10 @@ export function Shell({children}) {
             <nav className="desktop-nav">
               <Link to="/" onPointerEnter={() => handlePreload("/")}>Home</Link>
               <Link to="/shop" onPointerEnter={() => handlePreload("/shop")}>Shop</Link>
-              <Link to="/wishlist" onPointerEnter={() => handlePreload("/wishlist")}>Wishlist</Link>
+              <Link to="/japa" onPointerEnter={() => handlePreload("/japa")} style={{ color: "var(--copper)", fontWeight: 700 }}>108 जप माला</Link>
+              <Link to="/compare" onPointerEnter={() => handlePreload("/compare")}>तुलना</Link>
+              <Link to="/pran-pratishtha" onPointerEnter={() => handlePreload("/pran-pratishtha")}>धारण विधि</Link>
               <Link to="/shop?offer=1" onPointerEnter={() => handlePreload("/shop")}>Offers</Link>
-              <Link to="/about" onPointerEnter={() => handlePreload("/about")}>About Us</Link>
-              <Link to="/contact" onPointerEnter={() => handlePreload("/contact")}>Contact</Link>
             </nav>
           </div>
           
@@ -208,7 +208,10 @@ export function Shell({children}) {
                 </div>
                 <nav>
                   <Link to="/" onClick={()=>setMenuOpen(false)}>Home</Link>
-                  <Link to="/aura-ai" onClick={()=>setMenuOpen(false)} style={{ color: 'var(--copper)', fontWeight: '700' }}>✨ Aura AI Shopping Guide</Link>
+                  <Link to="/japa" onClick={()=>setMenuOpen(false)} style={{ color: 'var(--copper)', fontWeight: '700' }}>📿 108 डिजिटल जप माला</Link>
+                  <Link to="/compare" onClick={()=>setMenuOpen(false)}>⚖️ रुद्राक्ष तुलना मैट्रिक्स</Link>
+                  <Link to="/pran-pratishtha" onClick={()=>setMenuOpen(false)}>📜 प्राण-प्रतिष्ठा व धारण विधि</Link>
+                  <Link to="/rudraksha-calculator" onClick={()=>setMenuOpen(false)}>✨ वैदिक कुंडली कैलकुलेटर</Link>
                   <Link to="/shop" onClick={()=>setMenuOpen(false)}>Shop Catalog</Link>
                   <Link to="/wishlist" onClick={()=>setMenuOpen(false)}>My Wishlist ({wishlistCount})</Link>
                   <Link to="/shop?offer=1" onClick={()=>setMenuOpen(false)}>Special Offers</Link>

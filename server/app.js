@@ -138,16 +138,21 @@ export function createApp(options = {}) {
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-
     const isDev = process.env.NODE_ENV !== "production";
+    const isHttps = Boolean(req.secure || req.headers["x-forwarded-proto"] === "https");
+
+    // Only enforce Strict-Transport-Security on HTTPS in production (never on HTTP dev / sandbox previews)
+    if (!isDev && isHttps) {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    }
+
     const cspDirectives = [
       "default-src 'self' https: data: blob:",
-      `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in`,
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.razorpay.com",
+      `script-src 'self' 'unsafe-inline' blob: ${isDev ? "'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in`,
+      "style-src 'self' 'unsafe-inline' https: data:",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https: wss: ws:",
+      "connect-src 'self' https: http: wss: ws:",
       "frame-src 'self' https: http: https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
       "object-src 'none'",
       "base-uri 'self'",

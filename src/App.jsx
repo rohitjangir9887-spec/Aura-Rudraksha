@@ -4,6 +4,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { PageTransition } from "./components/PageTransition";
 import { Home } from "./pages/Home";
 import { AuraAIFloating } from "./components/AuraAIFloating";
+import { LiveStorefrontFeatures } from "./components/LiveStorefrontFeatures";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AdminErrorBoundary } from "./components/admin/AdminErrorBoundary";
@@ -106,6 +107,7 @@ export function App() {
   return (
     <>
       <ScrollToTop />
+      <LiveStorefrontFeatures />
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <PageTransition>

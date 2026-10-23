@@ -29,6 +29,8 @@ const settingSchema = new mongoose.Schema(
     featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
     featuredProductEnabled: { type: Boolean, default: true },
     homeProductLayout: { type: Object, default: { draft: [], live: [] } },
+    announcementText: { type: String, default: "" },
+    aiCustomFeatures: { type: Array, default: [] }, // Dynamically added storefront features controlled by Admin AI Agent
   },
   { timestamps: true }
 );

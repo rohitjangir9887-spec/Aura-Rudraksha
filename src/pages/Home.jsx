@@ -15,6 +15,7 @@ import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
 import { HomeHeroOffer } from "../components/HomeHeroOffer";
+import { SacredFeaturesShowcase } from "../components/SacredFeaturesShowcase";
 import { useSeo } from "../hooks/useSeo";
 
 export function Home() {
@@ -280,6 +281,16 @@ export function Home() {
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
     >
       <HomeProductShowcase products={products} isLoading={isLoading} />
+    </motion.div>
+
+    {/* SACRED DEVOTIONAL TOOLS: JAPA COUNTER, COMPARISON & PRAN PRATISHTHA */}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, ease: "easeOut", delay: 0.08 }}
+    >
+      <SacredFeaturesShowcase />
     </motion.div>
 
     {/* THE AURA EDITORIAL: ASYMMETRIC SACRED DISCOVERY SECTION */}

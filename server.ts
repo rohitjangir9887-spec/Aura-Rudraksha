@@ -38,24 +38,18 @@ async function startServer() {
         return next();
       }
 
-      const acceptsHtml = req.headers.accept && req.headers.accept.includes("text/html");
-      const userAgent = (req.headers["user-agent"] || "").toLowerCase();
-      const isBot = /bot|crawl|spider|facebookexternalhit|whatsapp|telegram|twitter|slack|linkedin|bing|google/i.test(userAgent);
-
-      if (acceptsHtml || isBot) {
-        try {
-          const rawTemplate = await fs.promises.readFile(path.join(process.cwd(), "index.html"), "utf-8");
-          const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
-          const finalHtml = await injectSeoIntoHtml(transformedHtml, req.path, req);
-          res.setHeader("Content-Type", "text/html; charset=utf-8");
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-          return res.status(200).send(finalHtml);
-        } catch (err) {
-          console.warn("[Dev SEO Injection Notice]:", err?.message || err);
-          return next();
-        }
+      // Any navigation request that is not an API route or static asset should render index.html
+      try {
+        const rawTemplate = await fs.promises.readFile(path.join(process.cwd(), "index.html"), "utf-8");
+        const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
+        const finalHtml = await injectSeoIntoHtml(transformedHtml, req.path, req);
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return res.status(200).send(finalHtml);
+      } catch (err) {
+        console.warn("[Dev SEO Injection Notice]:", err?.message || err);
+        return next(err);
       }
-      next();
     });
 
     app.use(vite.middlewares);

@@ -19,11 +19,11 @@ let activeStreamAbortController = null;
 let activeStreamSeq = 0;
 
 export const auraAiClient = {
-  async sendAdminChat(messages) {
+  async sendAdminChat(messages, sessionId = "admin_master_session") {
     try {
       const token = await getAuthToken();
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for complex catalog queries
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
 
       const res = await fetch(`${API_BASE}/admin-chat`, {
         method: "POST",
@@ -32,7 +32,7 @@ export const auraAiClient = {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ messages })
+        body: JSON.stringify({ messages, sessionId })
       });
       clearTimeout(timeoutId);
 
@@ -47,9 +47,173 @@ export const auraAiClient = {
     } catch (e) {
       console.error("[sendAdminChat] Error:", e);
       if (e.name === "AbortError") {
-        return { error: "Request timed out. Please try a more specific question or retry." };
+        return { error: "Request is processing in the background on MongoDB. Refresh or check in a few seconds." };
       }
       return { error: e.message || "Failed to reach AI Agent backend." };
+    }
+  },
+  async getAdminAgentSession(sessionId = "admin_master_session") {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/session?sessionId=${encodeURIComponent(sessionId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async deleteAdminAgentMessage(messageId, sessionId = "admin_master_session") {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/session/message/${encodeURIComponent(messageId)}?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async clearAdminAgentSession(sessionId = "admin_master_session") {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/session/clear?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async executeAdminAgentAction(type, data = {}, sessionId = "admin_master_session") {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/action`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ type, data, sessionId })
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  },
+  async getAdminActionLogs() {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/actions`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false, actions: [] };
+    }
+  },
+  async undoAdminAction(actionId) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/actions/${encodeURIComponent(actionId)}/undo`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  },
+  async deleteAdminActionLog(actionId) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/actions/${encodeURIComponent(actionId)}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async getAdminTasks() {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/tasks`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false, tasks: [] };
+    }
+  },
+  async createAdminTask(payload) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  },
+  async controlAdminTask(taskId, command) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/tasks/${encodeURIComponent(taskId)}/control`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ command })
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async deleteAdminTask(taskId) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/tasks/${encodeURIComponent(taskId)}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async getAdminVault() {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/vault`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  },
+  async deleteAdminWorkLog(logId) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/work-logs/${encodeURIComponent(logId)}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
     }
   },
   abortActiveStream() {

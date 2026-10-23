@@ -9,12 +9,17 @@ import { getMenuItems, getBottomTabs } from "./admin/adminConfig";
 import { AdminNavLinks } from "./admin/AdminNavLinks";
 import { ADMIN_BASE_PATH } from "../lib/routes";
 
+import { AdminAIAgentChat } from "./admin/AdminAIAgentChat";
+
 export function AdminLayout({ children }) {
   const location = useLocation();
   const { loadingAuth, userEmail, handleLogout } = useAdminAuth();
   const counts = useAdminMetrics();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [floatingAgentOpen, setFloatingAgentOpen] = useState(false);
+
+  const isDedicatedAiPage = location.pathname === "/admin/ai";
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -267,6 +272,54 @@ export function AdminLayout({ children }) {
           {children}
         </motion.div>
       </section>
+
+      {/* Floating Admin AI Co-Pilot Button & Drawer (Exclusive to Admin Dashboard) */}
+      {!isDedicatedAiPage && (
+        <>
+          <button
+            type="button"
+            onClick={() => setFloatingAgentOpen(v => !v)}
+            style={{
+              position: "fixed",
+              bottom: "74px",
+              right: "18px",
+              zIndex: 9998,
+              background: "linear-gradient(135deg, #431407 0%, #7c2d12 100%)",
+              color: "#fde68a",
+              border: "1px solid #f59e0b",
+              borderRadius: "999px",
+              padding: "10px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "12.5px",
+              fontWeight: 800,
+              boxShadow: "0 8px 24px rgba(43, 20, 8, 0.35)",
+              cursor: "pointer"
+            }}
+          >
+            <Sparkles size={16} />
+            <span>{floatingAgentOpen ? "Close AI Agent" : "Aura AI Admin Agent"}</span>
+          </button>
+
+          {floatingAgentOpen && (
+            <div
+              style={{
+                position: "fixed",
+                bottom: "126px",
+                right: "18px",
+                width: "min(620px, calc(100vw - 28px))",
+                zIndex: 9999,
+                boxShadow: "0 16px 48px rgba(0,0,0,0.3)",
+                borderRadius: "14px",
+                overflow: "hidden"
+              }}
+            >
+              <AdminAIAgentChat compact />
+            </div>
+          )}
+        </>
+      )}
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="admin-mobile-bottom-nav">
