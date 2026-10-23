@@ -122,6 +122,10 @@ export function Home() {
 
   const loadHomeData = async () => {
     updateLocalState();
+    db.revalidateProducts(true).then(() => {
+      updateLocalState();
+      setIsLoading(false);
+    }).catch(() => {});
     if (db.fetchCoupons) {
       db.fetchCoupons().then(() => updateLocalState()).catch(() => {});
     }

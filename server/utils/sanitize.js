@@ -123,9 +123,7 @@ export function toPublicProductDTO(doc) {
     "autoIncrementSales",
     "lastSalesUpdateDate",
     "dailySalesMin",
-    "dailySalesMax",
-    "createdAt",
-    "updatedAt"
+    "dailySalesMax"
   ];
 
   for (const field of INTERNAL_FIELDS) {

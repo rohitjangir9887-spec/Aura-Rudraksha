@@ -72,15 +72,54 @@ export function getProductMukhiNumber(product) {
 }
 
 /**
+ * Detect whether a product is a newly created custom product (via Admin Dashboard or AI Agent)
+ * rather than one of the static seed IDs (1..30)
+ */
+export function isNewlyCreatedProduct(p) {
+  if (!p) return false;
+  const pid = String(p.id || p._id || "");
+  if (pid.startsWith("prod_")) return true;
+  if (/^\d{10,}$/.test(pid)) return true;
+  if (p.createdAt) {
+    const ts = new Date(p.createdAt).getTime();
+    if (!isNaN(ts) && ts > 1700000000000 && !/^(?:[1-9]|[12]\d|30)$/.test(pid)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function getProductCreatedTimestamp(p) {
+  if (!p) return 0;
+  if (p.createdAt) {
+    const t = new Date(p.createdAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  const pid = String(p.id || "");
+  const m = pid.match(/(\d{13})/);
+  if (m) return parseInt(m[1], 10);
+  return 0;
+}
+
+/**
  * Sort products for Shop / Catalog view based on:
- * 1. Explicit admin `sortOrder` / `displayOrder` (> 0)
- * 2. Natural category & Mukhi sequence (1 Mukhi -> 14 Mukhi -> Special Beads -> Malas -> Puja Samagri -> Others)
- * 3. Rating & Creation time
+ * 1. Newly created products (Admin / AI Agent uploads) first by newest timestamp
+ * 2. Explicit admin `sortOrder` / `displayOrder` (> 0)
+ * 3. Natural category & Mukhi sequence (1 Mukhi -> 14 Mukhi -> Special Beads -> Malas -> Puja Samagri -> Others)
+ * 4. Rating & Creation time
  */
 export function sortProductsByCatalogOrder(products = []) {
   if (!Array.isArray(products)) return [];
 
   return [...products].sort((a, b) => {
+    const isNewA = isNewlyCreatedProduct(a);
+    const isNewB = isNewlyCreatedProduct(b);
+    if (isNewA && isNewB) {
+      return getProductCreatedTimestamp(b) - getProductCreatedTimestamp(a);
+    }
+    if (isNewA && !isNewB) return -1;
+    if (!isNewA && isNewB) return 1;
+
     // 1. Explicit sort order
     const orderA = Number(a.sortOrder || a.displayOrder || 0);
     const orderB = Number(b.sortOrder || b.displayOrder || 0);
@@ -110,14 +149,23 @@ export function sortProductsByCatalogOrder(products = []) {
 
 /**
  * Sort products for Home Showcase based on:
- * 1. Explicit `homeOrder` (> 0)
- * 2. Popularity / Featured
- * 3. Shop Catalog order
+ * 1. Newly created products (Admin / AI Agent uploads) first
+ * 2. Explicit `homeOrder` (> 0)
+ * 3. Popularity / Featured
+ * 4. Shop Catalog order
  */
 export function sortProductsByHomeOrder(products = []) {
   if (!Array.isArray(products)) return [];
 
   return [...products].sort((a, b) => {
+    const isNewA = isNewlyCreatedProduct(a);
+    const isNewB = isNewlyCreatedProduct(b);
+    if (isNewA && isNewB) {
+      return getProductCreatedTimestamp(b) - getProductCreatedTimestamp(a);
+    }
+    if (isNewA && !isNewB) return -1;
+    if (!isNewA && isNewB) return 1;
+
     const homeOrderA = Number(a.homeOrder || 0);
     const homeOrderB = Number(b.homeOrder || 0);
 

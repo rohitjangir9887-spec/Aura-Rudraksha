@@ -546,7 +546,7 @@ const storeCache = {
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
-const CATALOG_CACHE_VERSION = "2026-09-27-v2"; // Versioned cache key to immediately bust obsolete/demo data on updates
+const CATALOG_CACHE_VERSION = "2026-10-23-v3"; // Versioned cache key to immediately bust obsolete/demo data on updates
 
 let isInitialized = false;
 let isHydrated = false;
@@ -761,9 +761,12 @@ export async function revalidateProducts(force = false) {
 export async function fetchHomeData(force = false) {
   if (typeof window === "undefined") return;
 
-  // Deduplicate background fetches for home resources
-  if (globalThis.__aura_fetching_home) {
+  // Deduplicate background fetches for home resources, unless force=true
+  if (globalThis.__aura_fetching_home && !force) {
     return globalThis.__aura_fetching_home_promise;
+  }
+  if (force) {
+    revalidateProducts(true).catch(() => {});
   }
 
   // Check background freshness limit for secondary resources (banners, offers, reviews, settings)

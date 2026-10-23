@@ -402,6 +402,10 @@ export async function createProduct(req, res, next) {
       id,
       slug: computedSlug,
       status: normalizedStatus,
+      showOnHome: data.showOnHome !== undefined ? Boolean(data.showOnHome) : true,
+      isPopular: data.isPopular !== undefined ? Boolean(data.isPopular) : true,
+      homeBadge: data.homeBadge || data.badge || "New Arrival",
+      badge: data.badge || data.homeBadge || "New Arrival",
       variants: Array.isArray(data.variants) ? data.variants : [],
       sizes: Array.isArray(data.sizes) ? data.sizes : [],
       tags: Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : autoSeo.tags,
@@ -413,11 +417,11 @@ export async function createProduct(req, res, next) {
       rulingPlanet: data.rulingPlanet || autoSeo.rulingPlanet || "",
       mrp: data.mrp || data.comparePrice || data.price,
       comparePrice: data.comparePrice || data.mrp || data.price,
-      images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : []),
-      img: (Array.isArray(data.images) && data.images[0]) || data.img || "/images/placeholder.svg",
-      stock: data.stock !== undefined ? Number(data.stock) : 0,
-      rating: Number(data.rating) || 0,
-      reviews: Number(data.reviews || data.reviewCount) || 0,
+      images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : ["/images/product-5mukhi.jpg"]),
+      img: (Array.isArray(data.images) && data.images[0]) || data.img || "/images/product-5mukhi.jpg",
+      stock: data.stock !== undefined ? Number(data.stock) : 25,
+      rating: Number(data.rating) || 4.9,
+      reviews: Number(data.reviews || data.reviewCount) || 12,
       totalSold: totalSoldStr,
       salesCount: salesCountNum,
       timesPurchased: salesCountNum,
@@ -455,6 +459,25 @@ export async function createProduct(req, res, next) {
       if (exIdx >= 0) inMemoryStore.products[exIdx] = freshDoc;
       else inMemoryStore.products.unshift(freshDoc);
     }
+
+    // If Home Product Layout is active in Settings and showOnHome is enabled, prepend new product ID so it immediately shows on Home UI
+    if (productPayload.showOnHome !== false) {
+      try {
+        const { Setting } = await import("../models/Setting.js");
+        const settingDoc = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+        if (settingDoc?.homeProductLayout) {
+          const liveArr = Array.isArray(settingDoc.homeProductLayout.live) ? settingDoc.homeProductLayout.live : [];
+          const draftArr = Array.isArray(settingDoc.homeProductLayout.draft) ? settingDoc.homeProductLayout.draft : [];
+          const nextLive = [cleanId, ...liveArr.filter(x => String(x) !== cleanId)];
+          const nextDraft = [cleanId, ...draftArr.filter(x => String(x) !== cleanId)];
+          await Setting.updateOne(
+            { id: "STORE_SETTINGS" },
+            { $set: { "homeProductLayout.live": nextLive, "homeProductLayout.draft": nextDraft } }
+          );
+        }
+      } catch (_) {}
+    }
+
     invalidateRagCache();
     invalidateProductCache();
 

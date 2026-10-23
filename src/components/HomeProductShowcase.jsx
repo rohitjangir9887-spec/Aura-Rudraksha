@@ -271,7 +271,7 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
   const homeProducts = useMemo(() => {
     const list = Array.isArray(products) ? products.filter(p => p && isPublicProduct(p)) : [];
     if (overrideLayout) {
-      return list;
+      return sortProductsByHomeOrder(list);
     }
     const settings = db.getSettings();
     if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
@@ -285,10 +285,15 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
           addedIds.add(String(prod.id || prod._id));
         }
       }
-      const remaining = sortProductsByHomeOrder(
-        list.filter(p => p && p.showOnHome !== false && isPublicProduct(p) && !addedIds.has(String(p.id || p._id)))
+      const unindexed = list.filter(p => p && p.showOnHome !== false && isPublicProduct(p) && !addedIds.has(String(p.id || p._id)));
+      const newlyAdded = sortProductsByHomeOrder(
+        unindexed.filter(p => String(p.id || "").startsWith("prod_") || /^\d{10,}$/.test(String(p.id || "")))
       );
-      const combined = [...orderedProducts, ...remaining];
+      const newlyAddedIds = new Set(newlyAdded.map(p => String(p.id || p._id)));
+      const otherRemaining = sortProductsByHomeOrder(
+        unindexed.filter(p => !newlyAddedIds.has(String(p.id || p._id)))
+      );
+      const combined = [...newlyAdded, ...orderedProducts, ...otherRemaining];
       if (combined.length > 0) return combined;
     }
     

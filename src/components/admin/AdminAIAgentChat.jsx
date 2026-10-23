@@ -29,6 +29,7 @@ import {
   X
 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
+import { db, broadcastCacheInvalidation } from "../../lib/db";
 import { AuraAIMessageContent } from "../AuraAIMessageContent";
 import { VoiceReader } from "../VoiceReader";
 import { emitToast } from "../../context/ToastContext";
@@ -196,6 +197,9 @@ export function AdminAIAgentChat({ compact = false }) {
       }
       if (res?.actionsExecuted?.length > 0) {
         emitToast(`${res.actionsExecuted.length} AI Action(s) executed & saved in MongoDB!`, "success");
+        broadcastCacheInvalidation();
+        db.revalidateProducts(true).catch(() => {});
+        db.fetchHomeData(true).catch(() => {});
         loadSessionAndTelemetry(true);
       }
     } catch (e) {
@@ -237,6 +241,9 @@ export function AdminAIAgentChat({ compact = false }) {
       const res = await auraAiClient.undoAdminAction(actionId);
       if (res?.success) {
         emitToast("AI Change reverted & previous state restored in MongoDB!", "success");
+        broadcastCacheInvalidation();
+        await db.revalidateProducts(true).catch(() => {});
+        await db.fetchHomeData(true).catch(() => {});
         setPreviewRefreshKey(k => k + 1);
         await loadSessionAndTelemetry(true);
       } else {
@@ -262,8 +269,15 @@ export function AdminAIAgentChat({ compact = false }) {
       const res = await auraAiClient.executeAdminAgentAction("CREATE_PRODUCT", prodForm);
       if (res?.success && res.result) {
         emitToast(`Product "${res.result.product?.name}" uploaded to MongoDB!`, "success");
+        if (res.result.product) {
+          db.cacheProduct(res.result.product);
+          db.emitStoreUpdate("product:saved", res.result.product);
+        }
+        broadcastCacheInvalidation();
+        await db.revalidateProducts(true).catch(() => {});
+        await db.fetchHomeData(true).catch(() => {});
         setShowProductUploader(false);
-        setActivePreviewRoute(res.result.previewRoute || "/shop");
+        setActivePreviewRoute(res.result.previewRoute || "/");
         setActivePreviewTitle(res.result.previewTitle || "New Product Preview");
         setShowSplitPreview(true);
         setPreviewRefreshKey(k => k + 1);

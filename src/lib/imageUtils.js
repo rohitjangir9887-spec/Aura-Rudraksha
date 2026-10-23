@@ -582,6 +582,32 @@ export async function getImagekitMediaStatus() {
   return { connected: false, status: "Not Configured", message: "ImageKit credentials not configured." };
 }
 
+const VALID_LOCAL_IMAGES = new Set([
+  "/images/product-1mukhi.jpg",
+  "/images/product-5mukhi.jpg",
+  "/images/product-7mukhi.jpg",
+  "/images/product-11mukhi.jpg",
+  "/images/product-mala.jpg",
+  "/images/placeholder.svg"
+]);
+
+export function normalizeLocalProductImage(url) {
+  if (!url || typeof url !== "string") return "/images/product-5mukhi.jpg";
+  const clean = url.trim();
+  if (!clean.startsWith("/images/")) return clean;
+  if (VALID_LOCAL_IMAGES.has(clean)) return clean;
+  const m = clean.match(/product-(\d+)mukhi/i);
+  if (m) {
+    const num = parseInt(m[1], 10);
+    if (num === 1) return "/images/product-1mukhi.jpg";
+    if (num === 6 || num === 7) return "/images/product-7mukhi.jpg";
+    if (num >= 8) return "/images/product-11mukhi.jpg";
+    return "/images/product-5mukhi.jpg";
+  }
+  if (clean.toLowerCase().includes("mala")) return "/images/product-mala.jpg";
+  return "/images/product-5mukhi.jpg";
+}
+
 /**
  * Standardize product primary image extraction.
  * Prefers product.images[0], gracefully falls back to product.img, product.image,
@@ -589,23 +615,24 @@ export async function getImagekitMediaStatus() {
  */
 export const getProductPrimaryImage = (product) => {
   const getFallback = (p) => {
-    if (!p) return "/images/placeholder.svg";
+    if (!p) return "/images/product-5mukhi.jpg";
     const name = (p.name || "").toLowerCase();
-    if (name.includes("5 mukhi") || name.includes("panch mukhi")) {
-      return "/images/product-5mukhi.jpg";
-    }
-    return "/images/placeholder.svg";
+    if (name.includes("mala")) return "/images/product-mala.jpg";
+    if (name.includes("1 mukhi") || name.includes("ek mukhi")) return "/images/product-1mukhi.jpg";
+    if (name.includes("7 mukhi") || name.includes("6 mukhi")) return "/images/product-7mukhi.jpg";
+    if (name.includes("11 mukhi") || name.includes("14 mukhi") || name.includes("8 mukhi")) return "/images/product-11mukhi.jpg";
+    return "/images/product-5mukhi.jpg";
   };
 
   if (!product) return getFallback(product);
   if (Array.isArray(product.images) && product.images.length > 0 && product.images[0]) {
-    return product.images[0];
+    return normalizeLocalProductImage(product.images[0]);
   }
   if (product.img && typeof product.img === "string") {
-    return product.img;
+    return normalizeLocalProductImage(product.img);
   }
   if (product.image && typeof product.image === "string") {
-    return product.image;
+    return normalizeLocalProductImage(product.image);
   }
   return getFallback(product);
 };
@@ -617,23 +644,25 @@ export const getProductPrimaryImage = (product) => {
  */
 export const getProductGalleryImages = (product) => {
   const getFallback = (p) => {
-    if (!p) return "/images/placeholder.svg";
+    if (!p) return "/images/product-5mukhi.jpg";
     const name = (p.name || "").toLowerCase();
-    if (name.includes("5 mukhi") || name.includes("panch mukhi")) {
-      return "/images/product-5mukhi.jpg";
-    }
-    return "/images/placeholder.svg";
+    if (name.includes("mala")) return "/images/product-mala.jpg";
+    if (name.includes("1 mukhi") || name.includes("ek mukhi")) return "/images/product-1mukhi.jpg";
+    if (name.includes("7 mukhi") || name.includes("6 mukhi")) return "/images/product-7mukhi.jpg";
+    if (name.includes("11 mukhi") || name.includes("14 mukhi") || name.includes("8 mukhi")) return "/images/product-11mukhi.jpg";
+    return "/images/product-5mukhi.jpg";
   };
 
   if (!product) return [getFallback(product)];
   if (Array.isArray(product.images) && product.images.length > 0) {
-    return product.images;
+    return product.images.filter(Boolean).map(normalizeLocalProductImage);
   }
   if (product.img && typeof product.img === "string") {
-    return [product.img];
+    return [normalizeLocalProductImage(product.img)];
   }
   if (product.image && typeof product.image === "string") {
-    return [product.image];
+    return [normalizeLocalProductImage(product.image)];
   }
   return [getFallback(product)];
 };
+

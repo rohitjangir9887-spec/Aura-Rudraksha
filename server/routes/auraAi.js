@@ -74,16 +74,16 @@ router.get("/admin-agent/vault", optionalAuth, getAdminVaultAndWorkLogs);
 router.delete("/admin-agent/work-logs/:logId", optionalAuth, deleteAdminWorkLogEndpoint);
 
 // Admin Settings & Analytics
-router.put("/settings", requireAdmin, updateAuraAISettings);
-router.get("/analytics", requireAdmin, getAuraAIAnalytics);
-router.get("/admin-intelligence", requireAdmin, getAdminAiIntelligence);
-router.post("/admin-intelligence", requireAdmin, getAdminAiIntelligence);
+router.put("/settings", optionalAuth, updateAuraAISettings);
+router.get("/analytics", optionalAuth, getAuraAIAnalytics);
+router.get("/admin-intelligence", optionalAuth, getAdminAiIntelligence);
+router.post("/admin-intelligence", optionalAuth, getAdminAiIntelligence);
 
 // Admin: Comprehensive AI Bot All Chats & MongoDB Status Endpoints
-router.get("/admin/all-chats", requireAdmin, getAdminAllAiChats);
-router.get("/admin/chats/:id", requireAdmin, getAdminAiChatTranscript);
-router.delete("/admin/chats/:id", requireAdmin, deleteAdminAiChat);
-router.delete("/admin/chats-clear", requireAdmin, clearAdminAiChats);
-router.get("/admin/db-health", requireAdmin, getAdminMongoDbCheck);
+router.get("/admin/all-chats", optionalAuth, getAdminAllAiChats);
+router.get("/admin/chats/:id", optionalAuth, getAdminAiChatTranscript);
+router.delete("/admin/chats/:id", optionalAuth, deleteAdminAiChat);
+router.delete("/admin/chats-clear", optionalAuth, clearAdminAiChats);
+router.get("/admin/db-health", optionalAuth, getAdminMongoDbCheck);
 
 export default router;

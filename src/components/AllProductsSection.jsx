@@ -4,13 +4,14 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
 import { isPublicProduct } from "../lib/db";
+import { sortProductsByCatalogOrder } from "../lib/productHelper";
 
 export function AllProductsSection({ products = [], isLoading = false }) {
   const { add } = useCart();
 
-  // All active products from catalog
+  // All active products from catalog (newly added products prioritized first)
   const allActiveProducts = React.useMemo(() => {
-    return (products || []).filter(isPublicProduct);
+    return sortProductsByCatalogOrder((products || []).filter(isPublicProduct));
   }, [products]);
 
   return (

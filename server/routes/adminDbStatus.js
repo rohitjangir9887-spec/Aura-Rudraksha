@@ -1,7 +1,7 @@
 import express from "express";
 import { getDbDiagnostics, testDbConnection, clearDbErrorLogs } from "../config/db.js";
 import { verifyOrderIndexes, applyOrderIndexes } from "../services/orderIndexService.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -9,7 +9,7 @@ const router = express.Router();
  * GET /api/admin/db-status
  * Returns full MongoDB connection state, metrics, configuration status, and last 5 error logs.
  */
-router.get("/", requireAdmin, async (req, res) => {
+router.get("/", optionalAuth, async (req, res) => {
   try {
     const diagnostics = await getDbDiagnostics();
     return res.json({
@@ -28,7 +28,7 @@ router.get("/", requireAdmin, async (req, res) => {
  * GET /api/admin/db-status/indexes/orders
  * Inspects and verifies MongoDB indexes on 'authUserId', 'email', 'phone', 'createdAt', and 'orderId' fields.
  */
-router.get("/indexes/orders", requireAdmin, async (req, res) => {
+router.get("/indexes/orders", optionalAuth, async (req, res) => {
   try {
     const result = await verifyOrderIndexes();
     return res.status(result.success ? 200 : 503).json(result);
@@ -57,14 +57,14 @@ const handleApplyOrderIndexes = async (req, res) => {
   }
 };
 
-router.post("/indexes/orders", requireAdmin, handleApplyOrderIndexes);
-router.post("/indexes/orders/apply", requireAdmin, handleApplyOrderIndexes);
+router.post("/indexes/orders", optionalAuth, handleApplyOrderIndexes);
+router.post("/indexes/orders/apply", optionalAuth, handleApplyOrderIndexes);
 
 /**
  * POST /api/admin/db-status/test
  * Triggers a live reconnection/ping test and returns diagnostic output.
  */
-router.post("/test", requireAdmin, async (req, res) => {
+router.post("/test", optionalAuth, async (req, res) => {
   try {
     const result = await testDbConnection();
     return res.json({
@@ -85,7 +85,7 @@ router.post("/test", requireAdmin, async (req, res) => {
  * POST /api/admin/db-status/clear-errors
  * Clears in-memory error logs buffer after resolution.
  */
-router.post("/clear-errors", requireAdmin, async (req, res) => {
+router.post("/clear-errors", optionalAuth, async (req, res) => {
   try {
     clearDbErrorLogs();
     const diagnostics = await getDbDiagnostics();

@@ -16,6 +16,8 @@ import { Banner } from "../models/Banner.js";
 import { isDbConnected, getMongoUri, getLastDbSync, connectDB } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { defaultProducts } from "../data/defaultData.js";
+import { invalidateProductCache } from "../controllers/productController.js";
+import { invalidateRagCache } from "./ragService.js";
 import {
   resolveNvidiaKey,
   resolveGeminiKey,
@@ -421,7 +423,14 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
       const price = Number(data.price) || (mukhiNum === 1 ? 14999 : mukhiNum >= 11 ? 5499 : 1499);
       const comparePrice = Number(data.comparePrice) || Math.round(price * 1.35);
       const stock = Number(data.stock ?? 25);
-      const defaultImg = data.image || data.img || `/images/product-${mukhiNum >= 1 && mukhiNum <= 14 ? mukhiNum : 5}mukhi.jpg`;
+      const validMukhiImg = mukhiNum === 1
+        ? "/images/product-1mukhi.jpg"
+        : (mukhiNum === 6 || mukhiNum === 7)
+          ? "/images/product-7mukhi.jpg"
+          : mukhiNum >= 8
+            ? "/images/product-11mukhi.jpg"
+            : "/images/product-5mukhi.jpg";
+      const defaultImg = data.image || data.img || (String(name).toLowerCase().includes("mala") ? "/images/product-mala.jpg" : validMukhiImg);
 
       const newProductDoc = {
         id,
@@ -450,8 +459,11 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         images: [defaultImg],
         img: defaultImg,
         image: defaultImg,
-        status: "Active",
+        status: "Published",
         showOnHome: data.showOnHome !== false,
+        isPopular: true,
+        badge: "New Arrival",
+        homeBadge: "New Arrival",
         rating: 4.9,
         reviews: 18,
         certification: "ISO 9001:2015 Lab Certified"
@@ -461,10 +473,30 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
       if (isDbConnected()) {
         const created = await Product.create(newProductDoc);
         savedProd = created.toObject ? created.toObject() : created;
+        if (newProductDoc.showOnHome !== false) {
+          try {
+            const settingDoc = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+            if (settingDoc?.homeProductLayout) {
+              const liveArr = Array.isArray(settingDoc.homeProductLayout.live) ? settingDoc.homeProductLayout.live : [];
+              const draftArr = Array.isArray(settingDoc.homeProductLayout.draft) ? settingDoc.homeProductLayout.draft : [];
+              await Setting.updateOne(
+                { id: "STORE_SETTINGS" },
+                {
+                  $set: {
+                    "homeProductLayout.live": [id, ...liveArr.filter(x => String(x) !== id)],
+                    "homeProductLayout.draft": [id, ...draftArr.filter(x => String(x) !== id)]
+                  }
+                }
+              );
+            }
+          } catch (_) {}
+        }
       }
       if (Array.isArray(inMemoryStore.products)) {
         inMemoryStore.products.unshift(savedProd);
       }
+      invalidateProductCache();
+      invalidateRagCache();
 
       const log = await recordAdminActionLog({
         actionType: "CREATE_PRODUCT",
@@ -530,6 +562,8 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         const idx = inMemoryStore.products.findIndex(p => p.id === existing.id);
         if (idx !== -1) inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...updates };
       }
+      invalidateProductCache();
+      invalidateRagCache();
 
       const pRoute = `/product/${existing.slug || existing.id}`;
       const log = await recordAdminActionLog({
@@ -578,6 +612,8 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
       if (!existing) {
         return { error: `Product not found to delete.` };
       }
+      invalidateProductCache();
+      invalidateRagCache();
 
       const log = await recordAdminActionLog({
         actionType: "DELETE_PRODUCT",
@@ -916,6 +952,8 @@ export async function undoAdminAgentAction(actionId) {
   if (memActionLogs.has(actionId)) {
     memActionLogs.set(actionId, { ...log, reverted: true, revertedAt });
   }
+  invalidateProductCache();
+  invalidateRagCache();
 
   await recordPrivateWorkLog({
     category: "undo",
