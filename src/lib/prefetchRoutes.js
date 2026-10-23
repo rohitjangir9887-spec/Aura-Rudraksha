@@ -24,6 +24,10 @@ export const prefetchLoaders = {
   categoryLanding: () => import("../pages/CategoryLanding"),
   rudrakshaCalculator: () => import("../pages/RudrakshaCalculator"),
   rudrakshaGuide: () => import("../pages/RudrakshaGuide"),
+  japa: () => import("../pages/JapaCounter"),
+  compare: () => import("../pages/RudrakshaCompare"),
+  pranPratishtha: () => import("../pages/PranPratishtha"),
+  vedicTools: () => import("../pages/VedicTools"),
 };
 
 const prefetchedSet = new Set();
@@ -65,6 +69,10 @@ export function prefetchPath(path) {
   else if (clean === "/rudraksha" || clean.startsWith("/rudraksha/")) prefetchRoute("categoryLanding");
   else if (clean === "/rudraksha-calculator" || clean === "/rudraksha-for-rashi") prefetchRoute("rudrakshaCalculator");
   else if (clean === "/how-to-wear-rudraksha" || clean === "/rudraksha-benefits" || clean === "/rudraksha-authenticity" || clean === "/rudraksha-care") prefetchRoute("rudrakshaGuide");
+  else if (clean === "/japa" || clean === "/japa-counter" || clean === "/japa-mala") prefetchRoute("japa");
+  else if (clean === "/compare" || clean === "/rudraksha-compare") prefetchRoute("compare");
+  else if (clean === "/pran-pratishtha" || clean === "/pranpratishtha") prefetchRoute("pranPratishtha");
+  else if (clean === "/vedic-tools" || clean === "/tools") prefetchRoute("vedicTools");
 }
 
 let idlePrefetchScheduled = false;

@@ -38,6 +38,10 @@ const CategoryLanding = lazy(() => import("./pages/CategoryLanding"));
 const RudrakshaCalculator = lazy(() => import("./pages/RudrakshaCalculator"));
 const RudrakshaGuide = lazy(() => import("./pages/RudrakshaGuide"));
 const VerifyCertificate = lazy(() => import("./pages/VerifyCertificate").then(m => ({ default: m.VerifyCertificate })));
+const JapaCounter = lazy(() => import("./pages/JapaCounter"));
+const RudrakshaCompare = lazy(() => import("./pages/RudrakshaCompare"));
+const PranPratishtha = lazy(() => import("./pages/PranPratishtha"));
+const VedicTools = lazy(() => import("./pages/VedicTools"));
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
@@ -169,6 +173,20 @@ export function App() {
           <Route path="/rudraksha-care" element={<RudrakshaGuide />} />
           <Route path="/verify-certificate" element={<VerifyCertificate />} />
           <Route path="/verify" element={<Navigate to="/verify-certificate" replace />} />
+
+          {/* Sacred Devotional & Vedic Tools */}
+          <Route path="/japa" element={<JapaCounter />} />
+          <Route path="/japa-counter" element={<Navigate to="/japa" replace />} />
+          <Route path="/japa-mala" element={<Navigate to="/japa" replace />} />
+          <Route path="/compare" element={<RudrakshaCompare />} />
+          <Route path="/rudraksha-compare" element={<Navigate to="/compare" replace />} />
+          <Route path="/comparison" element={<Navigate to="/compare" replace />} />
+          <Route path="/pran-pratishtha" element={<PranPratishtha />} />
+          <Route path="/pranpratishtha" element={<Navigate to="/pran-pratishtha" replace />} />
+          <Route path="/dharan-vidhi" element={<Navigate to="/pran-pratishtha" replace />} />
+          <Route path="/vedic-tools" element={<VedicTools />} />
+          <Route path="/tools" element={<Navigate to="/vedic-tools" replace />} />
+          <Route path="/spiritual-tools" element={<Navigate to="/vedic-tools" replace />} />
 
           {/* Customer Route Aliases for smooth navigation */}
           <Route path="/about-us" element={<Navigate to="/about" replace />} />

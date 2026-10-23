@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Send,
   Loader2,
@@ -19,13 +20,13 @@ import {
   Monitor,
   Smartphone,
   ExternalLink,
-  Key,
   Layers,
   Package,
   Wand2,
   ShieldCheck,
   RefreshCw,
   ChevronRight,
+  ArrowLeft,
   X
 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
@@ -35,6 +36,7 @@ import { VoiceReader } from "../VoiceReader";
 import { emitToast } from "../../context/ToastContext";
 
 export function AdminAIAgentChat({ compact = false }) {
+  const navigate = useNavigate();
   const [subTab, setSubTab] = useState("chat"); // 'chat' | 'tasks' | 'actions' | 'bugs' | 'vault'
   const [messages, setMessages] = useState([]);
   const [pagesDirectory, setPagesDirectory] = useState([]);
@@ -53,8 +55,6 @@ export function AdminAIAgentChat({ compact = false }) {
   const [showProductUploader, setShowProductUploader] = useState(false);
   const [showFeatureBuilder, setShowFeatureBuilder] = useState(false);
   const [showPagePicker, setShowPagePicker] = useState(false);
-  const [showNvidiaKeyModal, setShowNvidiaKeyModal] = useState(false);
-  const [nvidiaKeyInput, setNvidiaKeyInput] = useState("");
 
   // Product Upload Form State
   const [prodForm, setProdForm] = useState({
@@ -367,16 +367,11 @@ export function AdminAIAgentChat({ compact = false }) {
     }
   };
 
-  const handleSaveNvidiaKey = async (e) => {
-    e.preventDefault();
-    if (!nvidiaKeyInput.trim()) return;
-    const res = await auraAiClient.executeAdminAgentAction("SAVE_NVIDIA_KEY", {
-      nvidiaApiKey: nvidiaKeyInput.trim()
-    });
-    if (res?.success) {
-      emitToast("NVIDIA NIM API Key saved in MongoDB & activated!", "success");
-      setShowNvidiaKeyModal(false);
-      setNvidiaKeyInput("");
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/admin");
     }
   };
 
@@ -390,8 +385,8 @@ export function AdminAIAgentChat({ compact = false }) {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: compact ? "600px" : "760px",
-        maxHeight: compact ? "82vh" : "88vh",
+        height: compact ? "620px" : "calc(100vh - 170px)",
+        minHeight: compact ? "540px" : "680px",
         background: "#ffffff",
         border: "1px solid #e5d5c3",
         borderRadius: "14px",
@@ -399,8 +394,84 @@ export function AdminAIAgentChat({ compact = false }) {
         boxShadow: "0 8px 30px rgba(43, 23, 13, 0.08)"
       }}
     >
+      <style>{`
+        .admin-ai-agent-command-center {
+          --chat-header-bg: linear-gradient(135deg, #2b1409 0%, #5c220e 60%, #7c2d12 100%);
+        }
+        @media (max-width: 768px) {
+          .admin-ai-agent-command-center {
+            height: calc(100dvh - 110px) !important;
+            min-height: 560px !important;
+            max-height: none !important;
+            border-radius: 10px !important;
+            margin: 0 !important;
+          }
+          .admin-agent-header-row {
+            padding: 8px 10px !important;
+            gap: 6px !important;
+          }
+          .admin-agent-title-text {
+            font-size: 13.5px !important;
+          }
+          .admin-agent-subtitle-text {
+            display: none !important;
+          }
+          .admin-agent-subtabs-row {
+            padding: 6px 8px !important;
+            gap: 6px !important;
+          }
+          .admin-agent-subtab-btn {
+            padding: 6px 10px !important;
+            font-size: 11px !important;
+            flex-shrink: 0 !important;
+          }
+          .admin-agent-toolbar-row {
+            padding: 6px 8px !important;
+            gap: 5px !important;
+          }
+          .admin-agent-tool-btn {
+            padding: 5px 9px !important;
+            font-size: 11px !important;
+            flex-shrink: 0 !important;
+          }
+          .admin-agent-msg-stream {
+            padding: 10px !important;
+            gap: 10px !important;
+          }
+          .admin-agent-msg-bubble {
+            max-width: 96% !important;
+            padding: 10px 12px !important;
+            font-size: 13.5px !important;
+            line-height: 1.5 !important;
+          }
+          .admin-agent-input-form {
+            padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+            gap: 6px !important;
+          }
+          .admin-agent-input-field {
+            height: 44px !important;
+            font-size: 15px !important;
+            padding: 8px 12px !important;
+          }
+          .admin-agent-send-btn {
+            height: 44px !important;
+            min-width: 44px !important;
+            padding: 0 14px !important;
+          }
+          .admin-agent-prompt-chips {
+            padding: 6px 8px !important;
+            gap: 5px !important;
+          }
+          .admin-agent-prompt-chip {
+            padding: 4px 9px !important;
+            font-size: 11px !important;
+          }
+        }
+      `}</style>
+
       {/* TOP COMMAND HEADER */}
       <div
+        className="admin-agent-header-row"
         style={{
           padding: "10px 14px",
           background: "linear-gradient(135deg, #2b1409 0%, #5c220e 60%, #7c2d12 100%)",
@@ -412,47 +483,74 @@ export function AdminAIAgentChat({ compact = false }) {
           gap: "8px"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flexShrink: 1 }}>
+          {/* Back button that navigates to the previous page */}
+          <button
+            type="button"
+            onClick={handleBack}
+            className="admin-agent-back-btn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "6px 10px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: 700,
+              background: "rgba(255, 255, 255, 0.16)",
+              color: "#fff",
+              border: "1px solid rgba(255, 255, 255, 0.25)",
+              cursor: "pointer",
+              flexShrink: 0
+            }}
+            title="Go back to previous page"
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+
           <div
             style={{
               background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
               color: "#1c0d06",
-              width: 34,
-              height: 34,
-              borderRadius: 9,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
               display: "grid",
               placeItems: "center",
-              boxShadow: "0 2px 10px rgba(245, 158, 11, 0.4)"
+              boxShadow: "0 2px 10px rgba(245, 158, 11, 0.4)",
+              flexShrink: 0
             }}
           >
-            <Sparkles size={18} />
+            <Sparkles size={16} />
           </div>
-          <div>
+
+          <div style={{ minWidth: 0, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-              <h3 style={{ margin: 0, fontSize: "14.5px", fontWeight: 800, color: "#fffbeb" }}>
-                Aura AI Autonomous Admin Agent
+              <h3 className="admin-agent-title-text" style={{ margin: 0, fontSize: "14px", fontWeight: 800, color: "#fffbeb", whiteSpace: "nowrap" }}>
+                Aura AI Admin Agent
               </h3>
               <span
                 style={{
-                  fontSize: "10px",
+                  fontSize: "9.5px",
                   background: "rgba(245, 158, 11, 0.22)",
                   color: "#fde68a",
                   border: "1px solid rgba(245, 158, 11, 0.45)",
-                  padding: "2px 7px",
+                  padding: "2px 6px",
                   borderRadius: "999px",
-                  fontWeight: 700
+                  fontWeight: 700,
+                  whiteSpace: "nowrap"
                 }}
               >
-                NVIDIA NIM • nemotron-3-super-120b
+                NVIDIA NIM 120B
               </span>
             </div>
-            <div style={{ fontSize: "11px", color: "#fed7aa", opacity: 0.9 }}>
-              Full Website & MongoDB Control • Background Offline Task Engine • 1-Click Undo
+            <div className="admin-agent-subtitle-text" style={{ fontSize: "10.5px", color: "#fed7aa", opacity: 0.88, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Full Website & MongoDB Control • Background Tasks • 1-Click Undo
             </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           {/* MongoDB Status Pill */}
           <button
             type="button"
@@ -464,68 +562,46 @@ export function AdminAIAgentChat({ compact = false }) {
               display: "inline-flex",
               alignItems: "center",
               gap: "5px",
-              padding: "4px 10px",
+              padding: "5px 9px",
               borderRadius: "999px",
               fontSize: "11px",
               fontWeight: 700,
-              background: mongoOk ? "rgba(22, 163, 74, 0.25)" : "rgba(234, 88, 12, 0.25)",
+              background: mongoOk ? "rgba(22, 163, 74, 0.28)" : "rgba(234, 88, 12, 0.28)",
               color: mongoOk ? "#86efac" : "#fdba74",
-              border: `1px solid ${mongoOk ? "rgba(134, 239, 172, 0.4)" : "rgba(253, 186, 116, 0.4)"}`,
-              cursor: "pointer"
+              border: `1px solid ${mongoOk ? "rgba(134, 239, 172, 0.45)" : "rgba(253, 186, 116, 0.45)"}`,
+              cursor: "pointer",
+              whiteSpace: "nowrap"
             }}
             title="Inspect MongoDB Connection & Saved AI Data"
           >
             <Database size={12} />
-            {mongoOk
-              ? `MongoDB Live (${vaultData?.mongodb?.pingMs || 1}ms)`
-              : "MongoDB Syncing"}
+            {mongoOk ? "MongoDB Live" : "Syncing"}
           </button>
 
-          {/* Configure NVIDIA NIM API Key Button */}
-          <button
-            type="button"
-            onClick={() => setShowNvidiaKeyModal(v => !v)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "4px 9px",
-              borderRadius: "8px",
-              fontSize: "11px",
-              fontWeight: 700,
-              background: "rgba(255,255,255,0.12)",
-              color: "#fde68a",
-              border: "1px solid rgba(253, 230, 138, 0.3)",
-              cursor: "pointer"
-            }}
-            title="Configure NVIDIA NIM Key in MongoDB"
-          >
-            <Key size={12} /> NIM Key
-          </button>
-
-          {/* Toggle Split Live Preview */}
+          {/* Toggle Split Live Preview (Desktop only) */}
           {!compact && (
             <button
               type="button"
+              className="hidden md:inline-flex"
               onClick={() => {
                 if (!activePreviewRoute) setActivePreviewRoute("/");
                 setShowSplitPreview(v => !v);
               }}
               style={{
-                display: "inline-flex",
                 alignItems: "center",
                 gap: "4px",
-                padding: "4px 10px",
+                padding: "5px 9px",
                 borderRadius: "8px",
                 fontSize: "11px",
                 fontWeight: 700,
-                background: showSplitPreview ? "#f59e0b" : "rgba(255,255,255,0.12)",
+                background: showSplitPreview ? "#f59e0b" : "rgba(255,255,255,0.14)",
                 color: showSplitPreview ? "#1c0d06" : "#fff",
                 border: "1px solid rgba(255,255,255,0.25)",
-                cursor: "pointer"
+                cursor: "pointer",
+                whiteSpace: "nowrap"
               }}
             >
-              <Eye size={12} /> {showSplitPreview ? "Hide Live Preview" : "Live Preview"}
+              <Eye size={12} /> {showSplitPreview ? "Hide Preview" : "Live Preview"}
             </button>
           )}
 
@@ -536,14 +612,15 @@ export function AdminAIAgentChat({ compact = false }) {
               display: "inline-flex",
               alignItems: "center",
               gap: "4px",
-              padding: "4px 9px",
+              padding: "5px 9px",
               borderRadius: "8px",
               fontSize: "11px",
               fontWeight: 600,
-              background: "rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.12)",
               color: "#fecaca",
               border: "1px solid rgba(254, 202, 202, 0.25)",
-              cursor: "pointer"
+              cursor: "pointer",
+              whiteSpace: "nowrap"
             }}
             title="Clear current chat in MongoDB"
           >
@@ -552,64 +629,9 @@ export function AdminAIAgentChat({ compact = false }) {
         </div>
       </div>
 
-      {/* OPTIONAL NVIDIA NIM KEY INPUT BAR */}
-      {showNvidiaKeyModal && (
-        <form
-          onSubmit={handleSaveNvidiaKey}
-          style={{
-            padding: "8px 14px",
-            background: "#fffbeb",
-            borderBottom: "1px solid #fde68a",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            flexWrap: "wrap"
-          }}
-        >
-          <span style={{ fontSize: "12px", fontWeight: 700, color: "#78350f" }}>
-            🔑 NVIDIA NIM API Key (`nvapi-...`):
-          </span>
-          <input
-            type="password"
-            value={nvidiaKeyInput}
-            onChange={e => setNvidiaKeyInput(e.target.value)}
-            placeholder="Paste nvapi-... key to save in MongoDB for Nemotron-3-Super-120B"
-            style={{
-              flex: 1,
-              minWidth: "220px",
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border: "1px solid #f59e0b",
-              fontSize: "12px"
-            }}
-          />
-          <button
-            type="submit"
-            style={{
-              padding: "6px 12px",
-              background: "#7c2d12",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "12px",
-              fontWeight: 700,
-              cursor: "pointer"
-            }}
-          >
-            Save Key to MongoDB
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowNvidiaKeyModal(false)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#78350f" }}
-          >
-            <X size={15} />
-          </button>
-        </form>
-      )}
-
       {/* SUB-NAVIGATION BAR */}
       <div
+        className="admin-agent-subtabs-row"
         style={{
           display: "flex",
           gap: "4px",
@@ -623,6 +645,7 @@ export function AdminAIAgentChat({ compact = false }) {
         <button
           type="button"
           onClick={() => setSubTab("chat")}
+          className="admin-agent-subtab-btn"
           style={{
             padding: "6px 12px",
             borderRadius: "8px",
@@ -643,6 +666,7 @@ export function AdminAIAgentChat({ compact = false }) {
         <button
           type="button"
           onClick={() => setSubTab("tasks")}
+          className="admin-agent-subtab-btn"
           style={{
             padding: "6px 12px",
             borderRadius: "8px",
@@ -663,6 +687,7 @@ export function AdminAIAgentChat({ compact = false }) {
         <button
           type="button"
           onClick={() => setSubTab("actions")}
+          className="admin-agent-subtab-btn"
           style={{
             padding: "6px 12px",
             borderRadius: "8px",
@@ -683,6 +708,7 @@ export function AdminAIAgentChat({ compact = false }) {
         <button
           type="button"
           onClick={handleRunBugScan}
+          className="admin-agent-subtab-btn"
           style={{
             padding: "6px 12px",
             borderRadius: "8px",
@@ -706,6 +732,7 @@ export function AdminAIAgentChat({ compact = false }) {
             setSubTab("vault");
             loadSessionAndTelemetry();
           }}
+          className="admin-agent-subtab-btn"
           style={{
             padding: "6px 12px",
             borderRadius: "8px",
@@ -743,6 +770,7 @@ export function AdminAIAgentChat({ compact = false }) {
             >
               {/* Action Toolbar inside Chat */}
               <div
+                className="admin-agent-toolbar-row"
                 style={{
                   padding: "7px 12px",
                   background: "#fffcf8",
@@ -755,6 +783,7 @@ export function AdminAIAgentChat({ compact = false }) {
               >
                 <button
                   type="button"
+                  className="admin-agent-tool-btn"
                   onClick={() => {
                     setShowProductUploader(v => !v);
                     setShowFeatureBuilder(false);
@@ -779,6 +808,7 @@ export function AdminAIAgentChat({ compact = false }) {
 
                 <button
                   type="button"
+                  className="admin-agent-tool-btn"
                   onClick={() => {
                     setShowFeatureBuilder(v => !v);
                     setShowProductUploader(false);
@@ -803,6 +833,7 @@ export function AdminAIAgentChat({ compact = false }) {
 
                 <button
                   type="button"
+                  className="admin-agent-tool-btn"
                   onClick={() => {
                     setShowPagePicker(v => !v);
                     setShowProductUploader(false);
@@ -827,6 +858,7 @@ export function AdminAIAgentChat({ compact = false }) {
 
                 <button
                   type="button"
+                  className="admin-agent-tool-btn"
                   onClick={() => handleSend("Website aur MongoDB ke sabhi bugs scan karo aur report do")}
                   style={{
                     padding: "5px 10px",
@@ -848,6 +880,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 {activeChangesCount > 0 && (
                   <button
                     type="button"
+                    className="admin-agent-tool-btn"
                     onClick={() => {
                       const latest = actionLogs.find(a => !a.reverted);
                       if (latest) handleUndoAction(latest.actionId);
@@ -1106,6 +1139,7 @@ export function AdminAIAgentChat({ compact = false }) {
               {/* CHAT MESSAGES STREAM */}
               <div
                 ref={scrollRef}
+                className="admin-agent-msg-stream"
                 style={{
                   flex: 1,
                   overflowY: "auto",
@@ -1126,6 +1160,7 @@ export function AdminAIAgentChat({ compact = false }) {
                     }}
                   >
                     <div
+                      className="admin-agent-msg-bubble"
                       style={{
                         maxWidth: "92%",
                         padding: "12px 16px",
@@ -1398,6 +1433,7 @@ export function AdminAIAgentChat({ compact = false }) {
 
               {/* ONE-TAP AUTONOMOUS PROMPT CHIPS */}
               <div
+                className="admin-agent-prompt-chips"
                 style={{
                   padding: "7px 12px",
                   background: "#faf7f2",
@@ -1410,6 +1446,7 @@ export function AdminAIAgentChat({ compact = false }) {
               >
                 <button
                   type="button"
+                  className="admin-agent-prompt-chip"
                   disabled={isTyping}
                   onClick={() =>
                     handleSend(
@@ -1431,6 +1468,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 </button>
                 <button
                   type="button"
+                  className="admin-agent-prompt-chip"
                   disabled={isTyping}
                   onClick={() =>
                     handleSend(
@@ -1452,6 +1490,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 </button>
                 <button
                   type="button"
+                  className="admin-agent-prompt-chip"
                   disabled={isTyping}
                   onClick={() => handleSend("Home page aur Shop page ka live preview chat me dikhao")}
                   style={{
@@ -1469,6 +1508,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 </button>
                 <button
                   type="button"
+                  className="admin-agent-prompt-chip"
                   disabled={isTyping}
                   onClick={() => handleSend("Puri website aur MongoDB ke bugs check karo aur auto-fix karo")}
                   style={{
@@ -1486,6 +1526,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 </button>
                 <button
                   type="button"
+                  className="admin-agent-prompt-chip"
                   disabled={isTyping}
                   onClick={() =>
                     handleSend(
@@ -1513,6 +1554,7 @@ export function AdminAIAgentChat({ compact = false }) {
                   e.preventDefault();
                   handleSend();
                 }}
+                className="admin-agent-input-form"
                 style={{
                   padding: "10px 12px",
                   background: "#fff",
@@ -1528,6 +1570,7 @@ export function AdminAIAgentChat({ compact = false }) {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   placeholder="Command Aura AI: '11 Mukhi product bnao', 'Home page dikhao', 'Feature add karo', 'Undo', 'Bug check karo'..."
+                  className="admin-agent-input-field"
                   style={{
                     flex: 1,
                     padding: "11px 14px",
@@ -1543,6 +1586,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 <button
                   type="submit"
                   disabled={!input.trim() || isTyping}
+                  className="admin-agent-send-btn"
                   style={{
                     background: input.trim() && !isTyping ? "#7c2d12" : "#cbd5e1",
                     color: "#fff",

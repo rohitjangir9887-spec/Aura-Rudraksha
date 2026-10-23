@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles, Bot } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles, Bot, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAdminAuth } from "../hooks/useAdminAuth";
@@ -13,6 +13,7 @@ import { AdminAIAgentChat } from "./admin/AdminAIAgentChat";
 
 export function AdminLayout({ children }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { loadingAuth, userEmail, handleLogout } = useAdminAuth();
   const counts = useAdminMetrics();
 
@@ -78,7 +79,40 @@ export function AdminLayout({ children }) {
     <div className="admin-wrapper">
       {/* Mobile Header */}
       <header className="admin-mobile-header">
-        <div className="mobile-header-left">
+        <div className="mobile-header-left" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {/* History Back button if navigated into any subpage */}
+          {location.pathname !== ADMIN_BASE_PATH && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate(ADMIN_BASE_PATH);
+                }
+              }}
+              aria-label="Back to previous page"
+              title="Go back to previous page"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                background: "#ffffff",
+                border: "1px solid #e7ded5",
+                color: "#7c2d12",
+                padding: "6px 10px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: "0 1px 3px rgba(43, 23, 13, 0.06)",
+                flexShrink: 0
+              }}
+            >
+              <ArrowLeft size={15} /> Back
+            </button>
+          )}
+
           <button className="menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open Admin Menu">
             <Menu size={22} />
           </button>
@@ -88,26 +122,7 @@ export function AdminLayout({ children }) {
           </div>
         </div>
 
-        <div className="mobile-header-actions">
-          <Link
-            to="/admin/ai-chats"
-            className="mobile-store-icon"
-            title="AI Bot All Chats & User Logs"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: "700",
-              color: "#92400e",
-              background: "#fef3c7",
-              padding: "6px 9px",
-              borderRadius: "6px",
-              border: "1px solid #fde68a"
-            }}
-          >
-            <Bot size={15} /> Chats
-          </Link>
+        <div className="mobile-header-actions" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <Link
             to="/admin/ai"
             className="mobile-store-icon"
@@ -118,14 +133,14 @@ export function AdminLayout({ children }) {
               gap: "4px",
               fontSize: "12px",
               fontWeight: "700",
-              color: "#a84118",
-              background: "#fff1f2",
-              padding: "6px 9px",
-              borderRadius: "6px",
+              color: isDedicatedAiPage ? "#ffffff" : "#a84118",
+              background: isDedicatedAiPage ? "#7c2d12" : "#fff1f2",
+              padding: "6px 10px",
+              borderRadius: "8px",
               border: "1px solid #fecdd3"
             }}
           >
-            <Sparkles size={15} /> Agent
+            <Sparkles size={14} /> Agent
           </Link>
           <Link
             to="/"
@@ -140,19 +155,19 @@ export function AdminLayout({ children }) {
               color: "#7a320c",
               background: "#fdf5ef",
               padding: "6px 9px",
-              borderRadius: "6px",
+              borderRadius: "8px",
               border: "1px solid #e8dac9"
             }}
           >
-            <Store size={15} /> Home
+            <Store size={14} />
           </Link>
           <button
             onClick={handleLogout}
             className="mobile-store-icon"
             title="Logout"
-            style={{ background: "none", border: "none", color: "#c62828", cursor: "pointer" }}
+            style={{ background: "none", border: "none", color: "#c62828", cursor: "pointer", padding: "6px" }}
           >
-            <LogOut size={18} />
+            <LogOut size={17} />
           </button>
         </div>
       </header>

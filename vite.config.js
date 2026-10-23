@@ -15,9 +15,7 @@ export default defineConfig(({ mode }) => ({
     host: "0.0.0.0",
     port: 3000,
     allowedHosts: true,
-    hmr: isHmrDisabled ? false : {
-      overlay: false,
-    },
+    hmr: false,
   },
   preview: {
     host: "0.0.0.0",

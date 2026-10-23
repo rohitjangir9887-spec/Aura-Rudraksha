@@ -80,20 +80,22 @@ export function NotFound() {
             </Link>
 
             <Link
-              to="/shop"
-              className="primary-btn"
+              to="/vedic-tools"
+              className="outline-btn"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
-                padding: "10px 22px",
+                padding: "10px 20px",
                 borderRadius: "99px",
                 fontSize: "13px",
                 fontWeight: 600,
-                textDecoration: "none"
+                textDecoration: "none",
+                color: "#9a3412",
+                borderColor: "#fed7aa"
               }}
             >
-              <ShoppingBag size={16} /> Explore Shop
+              ✦ वैदिक टूल्स (Vedic Tools)
             </Link>
           </div>
         </motion.div>

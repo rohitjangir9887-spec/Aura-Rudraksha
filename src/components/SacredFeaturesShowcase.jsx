@@ -48,6 +48,7 @@ export function SacredFeaturesShowcase() {
 
   return (
     <section 
+      id="sacred-vedic-tools"
       style={{ 
         maxWidth: "1200px", 
         margin: "40px auto 30px", 
@@ -56,20 +57,25 @@ export function SacredFeaturesShowcase() {
       aria-label="Aura Sacred Features"
     >
       <div style={{ textAlign: "center", marginBottom: "28px" }}>
-        <span style={{ 
-          fontSize: "12px", 
-          fontWeight: 700, 
-          letterSpacing: "1.2px", 
-          textTransform: "uppercase", 
-          color: "#9a3412",
-          background: "#fff1e7",
-          padding: "4px 14px",
-          borderRadius: "20px",
-          display: "inline-block",
-          marginBottom: "8px"
-        }}>
-          ✦ ऑरा विशेष सुविधाएं • SACRED DEVOTIONAL TOOLS
-        </span>
+        <Link 
+          to="/vedic-tools"
+          style={{ 
+            fontSize: "12px", 
+            fontWeight: 700, 
+            letterSpacing: "1.2px", 
+            textTransform: "uppercase", 
+            color: "#9a3412",
+            background: "#fff1e7",
+            padding: "4px 14px",
+            borderRadius: "20px",
+            display: "inline-block",
+            marginBottom: "8px",
+            textDecoration: "none",
+            border: "1px solid #fed7aa"
+          }}
+        >
+          ✦ ऑरा विशेष सुविधाएं • SACRED DEVOTIONAL TOOLS →
+        </Link>
         <h2 style={{ fontSize: "26px", fontWeight: 800, color: "#2b170d", margin: "4px 0 8px", fontFamily: "'Cinzel', serif" }}>
           आपकी आध्यात्मिक यात्रा के लिए विशेष वैदिक टूल्स
         </h2>

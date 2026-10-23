@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Sparkles, 
   Bot, 
@@ -22,7 +23,8 @@ import {
   BarChart3,
   Calendar,
   Layers,
-  PhoneCall
+  PhoneCall,
+  ArrowLeft
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
 import { AdminAIAgentChat } from "../../components/admin/AdminAIAgentChat";
@@ -31,6 +33,7 @@ import { emitToast } from "../../context/ToastContext";
 import { db, isPublicProduct } from "../../lib/db";
 
 export function AdminAI() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("agent");
   const [analytics, setAnalytics] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -171,29 +174,57 @@ export function AdminAI() {
     <AdminLayout>
       <div className="admin-ai-page">
         {/* Top Header */}
-        <div className="admin-ai-topbar">
-          <div className="admin-ai-title-wrap">
+        <div className="admin-ai-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+          <div className="admin-ai-title-wrap" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate("/admin");
+                }
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                background: "#ffffff",
+                border: "1px solid #ebd8c5",
+                borderRadius: "8px",
+                padding: "8px 12px",
+                fontSize: "12.5px",
+                fontWeight: 700,
+                color: "#7a320c",
+                cursor: "pointer",
+                boxShadow: "0 1px 3px rgba(43, 23, 13, 0.06)",
+                flexShrink: 0
+              }}
+              title="Go back to previous page"
+            >
+              <ArrowLeft size={16} /> Back
+            </button>
             <div className="admin-ai-icon-box">
               <Sparkles size={24} />
             </div>
             <div>
-              <h1 className="admin-ai-title">AURA AI Admin Agent</h1>
-              <p className="admin-ai-subtitle">
-                Research • SEO • Products • Sales • Operations
+              <h1 className="admin-ai-title" style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)", fontWeight: 800 }}>AURA AI Admin Agent</h1>
+              <p className="admin-ai-subtitle" style={{ margin: "2px 0 0", fontSize: "12px", color: "#806f62" }}>
+                Autonomous Catalog • Operations • Live Preview • Tasks
               </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             <button
               onClick={loadAll}
               style={{
                 background: "#fff", border: "1px solid #ebd8c5", borderRadius: "8px",
-                padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, color: "#7a320c",
-                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px"
+                padding: "7px 12px", fontSize: "12px", fontWeight: 600, color: "#7a320c",
+                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "5px"
               }}
             >
-              <RotateCcw size={14} /> Refresh
+              <RotateCcw size={13} /> Refresh
             </button>
             <div className="admin-ai-status-pill">
               <span className={`status-dot ${settings.enabled ? "active" : "inactive"}`} />
@@ -913,7 +944,7 @@ export function AdminAI() {
                   <Sparkles size={18} color="#b45309" /> NVIDIA NIM Engine Configuration
                 </h3>
                 <p style={{ fontSize: "13px", color: "#6b5e52", marginBottom: "16px" }}>
-                  Configure your high-performance NVIDIA NIM API key and model for real-time customer consultations, AI Pandit Ji, and catalog recommendations.
+                  Model selection for real-time customer consultations, AI Pandit Ji, and catalog recommendations. The API key is securely managed server-side.
                 </p>
 
                 <div className="form-field-group">
@@ -931,21 +962,6 @@ export function AdminAI() {
                     <option value="meta/llama-3.1-8b-instruct">⚡ Fast Llama 3.1 8B (meta/llama-3.1-8b-instruct)</option>
                     <option value="mistralai/mistral-7b-instruct-v0.3">⚡ Mistral 7B Instruct v0.3</option>
                   </select>
-                </div>
-
-                <div className="form-field-group">
-                  <label>NVIDIA NIM API Key (nvapi-...)</label>
-                  <input
-                    type="password"
-                    placeholder="nvapi-xxxxxxxxxxxxxxxxxxxxxxxx"
-                    value={settings.nvidiaApiKey || settings.nemotronApiKey || ""}
-                    onChange={e => setSettings({ ...settings, nvidiaApiKey: e.target.value, nemotronApiKey: e.target.value })}
-                    className="admin-input"
-                    autoComplete="off"
-                  />
-                  <small style={{ fontSize: "11.5px", color: "#8c786a", marginTop: "4px", display: "block" }}>
-                    Your NVIDIA API key is securely encrypted on the server and used directly with integrate.api.nvidia.com.
-                  </small>
                 </div>
               </div>
 
