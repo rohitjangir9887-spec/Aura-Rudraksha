@@ -53,15 +53,36 @@ export function ProductInfoTabs({ product, reviewsCount = 0, averageRating = "5.
       if (!rawT) {
         formattedHtml += '<div style="height: 10px;"></div>';
       } else if (rawT.startsWith('•') || rawT.startsWith('-')) {
-        const bulletText = rawT.substring(1).trim().replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Only escape the user-provided text, not the HTML we are wrapping it in
+        const cleanBulletText = rawT.substring(1).trim()
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+        // Then apply markdown formatting
+        const bulletText = cleanBulletText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         formattedHtml += `<div class="desc-bullet-row"><span class="desc-bullet-dot">•</span><span>${bulletText}</span></div>`;
       } else {
-        const t = rawT.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        const cleanT = rawT
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+        const t = cleanT.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         formattedHtml += `<p class="desc-paragraph">${t}</p>`;
       }
     });
 
-    return <div dangerouslySetInnerHTML={{ __html: formattedHtml }} className="custom-desc-body" />;
+    // Since we manually escaped above, we know the HTML structure is safe, but we can also use DOMPurify
+    // for a defense-in-depth approach just in case our manual escaping was insufficient or changes.
+    const sanitizedFormattedHtml = DOMPurify.sanitize(formattedHtml, {
+      ALLOWED_TAGS: ['div', 'span', 'p', 'strong'],
+      ALLOWED_ATTR: ['class', 'style']
+    });
+
+    return <div dangerouslySetInnerHTML={{ __html: sanitizedFormattedHtml }} className="custom-desc-body" />;
   };
 
   const tabs = isRudraksha ? [
