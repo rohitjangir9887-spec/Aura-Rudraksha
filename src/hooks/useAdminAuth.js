@@ -54,6 +54,11 @@ export function useAdminAuth() {
         if (!isSubscribed) return;
 
         if (!currentUser) {
+          const cached = authClient.getCachedAdminVerification();
+          if (cached && cached.authorized) {
+            setLoadingAuth(false);
+            return;
+          }
           setAdminSession(null);
           setLoadingAuth(false);
           navigate(ADMIN_LOGIN_PATH, {
@@ -67,6 +72,11 @@ export function useAdminAuth() {
         if (!isSubscribed) return;
 
         if (!verifyResult.authorized) {
+          const cached = authClient.getCachedAdminVerification();
+          if (cached && cached.authorized) {
+            setLoadingAuth(false);
+            return;
+          }
           setAdminSession(null);
           setLoadingAuth(false);
           navigate(ADMIN_LOGIN_PATH, { replace: true });

@@ -462,7 +462,39 @@ export async function createAdminTaskEndpoint(req, res) {
 export async function controlAdminTaskEndpoint(req, res) {
   try {
     const { taskId } = req.params;
-    const { command } = req.body || {}; // 'pause' | 'resume' | 'stop' | 'run_now'
+    const { command, instruction, prompt } = req.body || {}; // 'pause' | 'resume' | 'stop' | 'run_now' | 'send_command'
+
+    if (command === "send_command" || command === "update_instruction") {
+      const newPrompt = (instruction || prompt || "").trim();
+      if (newPrompt) {
+        if (isDbConnected()) {
+          await AdminAITask.updateOne({ taskId }, {
+            $set: { prompt: newPrompt, status: "running" },
+            $push: {
+              logs: {
+                $each: [{
+                  runId: "cmd_" + Date.now(),
+                  timestamp: new Date().toISOString(),
+                  status: "command_received",
+                  summary: `Admin dispatched instruction: "${newPrompt.slice(0, 120)}"`,
+                  aiOutput: `Task instruction updated to: "${newPrompt}"`
+                }],
+                $position: 0
+              }
+            }
+          });
+        }
+        await recordPrivateWorkLog({
+          category: "task",
+          status: "active",
+          title: `Command Sent to Task: ${taskId}`,
+          detail: newPrompt
+        });
+        const runLog = await executeSingleTaskCycle(taskId);
+        const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : null;
+        return res.json({ success: true, runLog, task: updated, message: "Command dispatched and cycle executed!" });
+      }
+    }
 
     if (command === "run_now") {
       const runLog = await executeSingleTaskCycle(taskId);

@@ -248,7 +248,7 @@ export function AuraAIChatOrderModal({
       const buyNowPayload = {
         lines: [
           {
-            id: product.id,
+            id: product.id || product._id || product.slug,
             name: product.name,
             price: unitPrice,
             qty: qty,

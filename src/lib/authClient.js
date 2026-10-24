@@ -301,7 +301,11 @@ export const authClient = {
 
     try {
       const token = await authClient.getToken();
-      if (!token) return { authorized: false, user: null };
+      if (!token) {
+        const cached = authClient.getCachedAdminVerification();
+        if (cached && cached.authorized) return cached;
+        return { authorized: false, user: null };
+      }
 
       const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
       const res = await fetch(`${apiBase}/auth/admin-me`, {
@@ -327,9 +331,15 @@ export const authClient = {
           } catch (_) {}
           return verifiedPayload;
         }
+      } else if (res.status >= 500) {
+        // Resilient fallback on transient server warm-up or 5xx
+        const cached = authClient.getCachedAdminVerification();
+        if (cached && cached.authorized) return cached;
       }
     } catch (err) {
       console.warn("[authClient] verifyAdminStatus error:", err?.message);
+      const cached = authClient.getCachedAdminVerification();
+      if (cached && cached.authorized) return cached;
     }
     return { authorized: false, user: null };
   },

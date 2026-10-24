@@ -79,6 +79,18 @@ export function AdminGuard({ children }) {
             error: null
           });
         } else {
+          // Check if valid cache is still present before dropping access
+          const cached = authClient.getCachedAdminVerification();
+          if (cached && cached.authorized) {
+            setAuthState({
+              loading: false,
+              authenticated: true,
+              authorized: true,
+              user: cached.user || currentUser,
+              error: null
+            });
+            return;
+          }
           setAuthState({
             loading: false,
             authenticated: true,
@@ -89,6 +101,17 @@ export function AdminGuard({ children }) {
         }
       } catch (err) {
         if (!isSubscribed || !mountedRef.current) return;
+        const cached = authClient.getCachedAdminVerification();
+        if (cached && cached.authorized) {
+          setAuthState({
+            loading: false,
+            authenticated: true,
+            authorized: true,
+            user: cached.user,
+            error: null
+          });
+          return;
+        }
         console.error("Admin authentication check error:", err);
         setAuthState({
           loading: false,
@@ -109,6 +132,11 @@ export function AdminGuard({ children }) {
 
     const unsubscribe = authClient.onAuthStateChanged((user) => {
       if (!user) {
+        const cached = authClient.getCachedAdminVerification();
+        if (cached && cached.authorized) {
+          // Keep active admin session alive during background token renewal
+          return;
+        }
         setAuthState({
           loading: false,
           authenticated: false,
@@ -117,7 +145,7 @@ export function AdminGuard({ children }) {
           error: null
         });
       } else {
-        evaluateAdminAuth(true);
+        evaluateAdminAuth(false);
       }
     });
 

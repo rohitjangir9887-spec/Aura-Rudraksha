@@ -1,3 +1,6 @@
+import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl } from "../lib/imageUtils";
+import { getProductRoute } from "../lib/routes";
+import { safePrice } from "../lib/productHelper";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";

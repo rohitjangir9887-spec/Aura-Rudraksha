@@ -89,6 +89,7 @@ export function AdminAIAgentChat({ compact = false }) {
     intervalMinutes: 5
   });
   const [creatingTask, setCreatingTask] = useState(false);
+  const [taskCommandInputs, setTaskCommandInputs] = useState({});
 
   // Action Logs (Undo / Rollback) State
   const [actionLogs, setActionLogs] = useState([]);
@@ -204,12 +205,13 @@ export function AdminAIAgentChat({ compact = false }) {
       }
     } catch (e) {
       setLastFailedMessage(textToSend);
+      console.error("[AdminAgent] Chat send error:", e);
       setMessages([
         ...nextMsgs,
         {
           id: "amsg_err_" + Date.now(),
           sender: "ai",
-          text: `⚠️ **Connection Notice:** Request MongoDB queue mein save ho gayi hai (${e.message || "Network Notice"}).`
+          text: `⚠️ **Admin Agent Error:** Hum NVIDIA NIM aur Fallback AI dono se response nahi le paaye. Please try again, ya Admin Action button use karein.\n\n*(Error: ${e.message || "Network/System Error"})*`
         }
       ]);
     } finally {
@@ -351,12 +353,21 @@ export function AdminAIAgentChat({ compact = false }) {
     }
   };
 
-  const handleTaskControl = async (taskId, command) => {
-    const res = await auraAiClient.controlAdminTask(taskId, command);
+  const handleTaskControl = async (taskId, command, extraData = {}) => {
+    const res = await auraAiClient.controlAdminTask(taskId, command, extraData);
     if (res?.success) {
-      emitToast(`Task ${command} executed.`, "success");
+      emitToast(res?.message || `Task ${command} executed.`, "success");
       await loadSessionAndTelemetry(true);
+    } else {
+      emitToast(res?.message || "Task command failed.", "error");
     }
+  };
+
+  const handleSendTaskCommand = async (taskId) => {
+    const instruction = (taskCommandInputs[taskId] || "").trim();
+    if (!instruction) return;
+    await handleTaskControl(taskId, "send_command", { instruction });
+    setTaskCommandInputs(prev => ({ ...prev, [taskId]: "" }));
   };
 
   const handleDeleteTask = async (taskId) => {
@@ -1875,150 +1886,332 @@ export function AdminAIAgentChat({ compact = false }) {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {tasks.map(t => (
-                  <div
-                    key={t.taskId}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #e2d2c1",
-                      borderRadius: "10px",
-                      padding: "14px"
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", flexWrap: "wrap" }}>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <strong style={{ fontSize: "14px", color: "#2b170d" }}>{t.title}</strong>
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: "999px",
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              background: t.status === "running" ? "#dcfce7" : "#f1f5f9",
-                              color: t.status === "running" ? "#15803d" : "#475569"
-                            }}
-                          >
-                            ● {String(t.status || "").toUpperCase()}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#6b5748", marginTop: "4px" }}>
-                          <strong>Command:</strong> {t.prompt}
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#9a7b6c", marginTop: "4px" }}>
-                          Duration: <strong>{t.durationMinutes} mins</strong> • Interval: Every{" "}
-                          <strong>{t.intervalMinutes} mins</strong> • Cycles Completed:{" "}
-                          <strong>{t.runsCount || 0}</strong> • Expires:{" "}
-                          {t.expiresAt ? new Date(t.expiresAt).toLocaleTimeString() : "N/A"}
-                        </div>
-                      </div>
+                {tasks.map(t => {
+                  const taskActions = actionLogs.filter(a => a.taskId === t.taskId);
+                  const isRunning = t.status === "running";
 
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          onClick={() => handleTaskControl(t.taskId, "run_now")}
-                          style={{
-                            padding: "5px 10px",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            background: "#eff6ff",
-                            color: "#1d4ed8",
-                            border: "1px solid #bfdbfe",
-                            borderRadius: "6px",
-                            cursor: "pointer"
-                          }}
-                        >
-                          ⚡ Run Cycle Now
-                        </button>
-                        {t.status === "running" ? (
+                  return (
+                    <div
+                      key={t.taskId}
+                      style={{
+                        background: "#fff",
+                        border: isRunning ? "1px solid #86efac" : "1px solid #e2d2c1",
+                        borderRadius: "10px",
+                        padding: "14px",
+                        boxShadow: isRunning ? "0 2px 8px rgba(34, 197, 94, 0.08)" : "none"
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", flexWrap: "wrap" }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <strong style={{ fontSize: "14px", color: "#2b170d" }}>{t.title}</strong>
+                            <span
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: "999px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                background: isRunning ? "#dcfce7" : "#f1f5f9",
+                                color: isRunning ? "#15803d" : "#475569",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: "6px",
+                                  height: "6px",
+                                  borderRadius: "50%",
+                                  background: isRunning ? "#22c55e" : "#94a3b8",
+                                  display: "inline-block"
+                                }}
+                              />
+                              {String(t.status || "").toUpperCase()}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#6b5748", marginTop: "4px" }}>
+                            <strong>Active Command:</strong> {t.prompt}
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#9a7b6c", marginTop: "4px" }}>
+                            Duration: <strong>{t.durationMinutes} mins</strong> • Interval: Every{" "}
+                            <strong>{t.intervalMinutes} mins</strong> • Cycles Completed:{" "}
+                            <strong>{t.runsCount || 0}</strong> • Next Cycle:{" "}
+                            {t.nextRunAt ? new Date(t.nextRunAt).toLocaleTimeString() : "Immediate"} • Expires:{" "}
+                            {t.expiresAt ? new Date(t.expiresAt).toLocaleTimeString() : "N/A"}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                           <button
                             type="button"
-                            onClick={() => handleTaskControl(t.taskId, "pause")}
+                            onClick={() => handleTaskControl(t.taskId, "run_now")}
                             style={{
                               padding: "5px 10px",
                               fontSize: "11px",
                               fontWeight: 700,
-                              background: "#fef9c3",
-                              color: "#854d0e",
-                              border: "1px solid #fde047",
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              border: "1px solid #bfdbfe",
                               borderRadius: "6px",
                               cursor: "pointer"
                             }}
                           >
-                            <Pause size={11} /> Pause
+                            ⚡ Run Cycle Now
                           </button>
-                        ) : (
+                          {isRunning ? (
+                            <button
+                              type="button"
+                              onClick={() => handleTaskControl(t.taskId, "pause")}
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                background: "#fef9c3",
+                                color: "#854d0e",
+                                border: "1px solid #fde047",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              <Pause size={11} /> Pause
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleTaskControl(t.taskId, "resume")}
+                              style={{
+                                padding: "5px 10px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                background: "#dcfce7",
+                                color: "#15803d",
+                                border: "1px solid #86efac",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              <Play size={11} /> Resume
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => handleTaskControl(t.taskId, "resume")}
+                            onClick={() => handleDeleteTask(t.taskId)}
                             style={{
                               padding: "5px 10px",
                               fontSize: "11px",
                               fontWeight: 700,
-                              background: "#dcfce7",
-                              color: "#15803d",
-                              border: "1px solid #86efac",
+                              background: "#fef2f2",
+                              color: "#991b1b",
+                              border: "1px solid #fecaca",
                               borderRadius: "6px",
-                              cursor: "pointer"
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px"
                             }}
                           >
-                            <Play size={11} /> Resume
+                            <Trash2 size={11} /> Delete
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTask(t.taskId)}
-                          style={{
-                            padding: "5px 10px",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            background: "#fef2f2",
-                            color: "#991b1b",
-                            border: "1px solid #fecaca",
-                            borderRadius: "6px",
-                            cursor: "pointer"
-                          }}
-                        >
-                          <Trash2 size={11} /> Delete
-                        </button>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Recent Execution Logs of this Task */}
-                    {Array.isArray(t.logs) && t.logs.length > 0 && (
+                      {/* 1. Send Live Command / Instruction to this Task */}
                       <div
                         style={{
-                          marginTop: "10px",
-                          padding: "10px",
+                          marginTop: "12px",
+                          padding: "8px 10px",
                           background: "#f8fafc",
                           borderRadius: "8px",
                           border: "1px solid #e2e8f0",
-                          maxHeight: "160px",
-                          overflowY: "auto"
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "center"
                         }}
                       >
-                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                          Private Background Execution Logs ({t.logs.length}):
-                        </div>
-                        {t.logs.slice(0, 5).map((lg, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              fontSize: "11.5px",
-                              padding: "6px 0",
-                              borderBottom: idx < t.logs.length - 1 ? "1px dashed #cbd5e1" : "none"
-                            }}
-                          >
-                            <span style={{ color: "#64748b", fontSize: "10.5px" }}>
-                              [{new Date(lg.timestamp).toLocaleTimeString()}]
-                            </span>{" "}
-                            <strong style={{ color: "#0f172a" }}>{lg.summary}</strong>
-                          </div>
-                        ))}
+                        <input
+                          type="text"
+                          placeholder="Send instruction to running task (e.g. 'Ab stock check karo aur 5 Mukhi ko update karo')..."
+                          value={taskCommandInputs[t.taskId] || ""}
+                          onChange={e => setTaskCommandInputs({ ...taskCommandInputs, [t.taskId]: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSendTaskCommand(t.taskId);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "6px 10px",
+                            fontSize: "12px",
+                            borderRadius: "6px",
+                            border: "1px solid #cbd5e1",
+                            outline: "none"
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSendTaskCommand(t.taskId)}
+                          disabled={!taskCommandInputs[t.taskId]?.trim()}
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "11.5px",
+                            fontWeight: 700,
+                            background: taskCommandInputs[t.taskId]?.trim() ? "#7c2d12" : "#cbd5e1",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor: taskCommandInputs[t.taskId]?.trim() ? "pointer" : "not-allowed",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}
+                        >
+                          <Send size={11} /> Send Command
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {/* 2. Changes Made by this Specific Task with 1-Click Undo */}
+                      {taskActions.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: "10px",
+                            padding: "10px",
+                            background: "#fffbeb",
+                            borderRadius: "8px",
+                            border: "1px solid #fde68a"
+                          }}
+                        >
+                          <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#92400e", marginBottom: "6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span>🔄 Changes Made by this Task in MongoDB ({taskActions.length}):</span>
+                            <span style={{ fontSize: "10.5px", color: "#b45309" }}>1-Click Rollback Supported</span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            {taskActions.map(act => (
+                              <div
+                                key={act.actionId}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  background: "#fff",
+                                  padding: "6px 10px",
+                                  borderRadius: "6px",
+                                  border: "1px solid #fef3c7",
+                                  fontSize: "11.5px",
+                                  gap: "8px",
+                                  flexWrap: "wrap"
+                                }}
+                              >
+                                <div>
+                                  <span style={{ fontWeight: 700, color: act.reverted ? "#94a3b8" : "#7c2d12", textDecoration: act.reverted ? "line-through" : "none" }}>
+                                    {act.title}
+                                  </span>
+                                  <span style={{ color: "#78716c", marginLeft: "6px", fontSize: "10.5px" }}>
+                                    [{new Date(act.timestamp).toLocaleTimeString()}]
+                                  </span>
+                                  {act.reverted && (
+                                    <span style={{ marginLeft: "6px", color: "#dc2626", fontWeight: 700, fontSize: "10px" }}>
+                                      [REVERTED]
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  {act.previewRoute && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActivePreviewRoute(act.previewRoute);
+                                        setActivePreviewTitle(`Preview: ${act.title}`);
+                                        setShowSplitPreview(true);
+                                      }}
+                                      style={{
+                                        background: "#f1f5f9",
+                                        color: "#334155",
+                                        border: "1px solid #cbd5e1",
+                                        borderRadius: "4px",
+                                        padding: "3px 8px",
+                                        fontSize: "10.5px",
+                                        cursor: "pointer",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "3px"
+                                      }}
+                                    >
+                                      <Eye size={10} /> View
+                                    </button>
+                                  )}
+                                  {!act.reverted && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUndoAction(act.actionId)}
+                                      disabled={undoingId === act.actionId}
+                                      style={{
+                                        background: "#fee2e2",
+                                        color: "#b91c1c",
+                                        border: "1px solid #fca5a5",
+                                        borderRadius: "4px",
+                                        padding: "3px 8px",
+                                        fontSize: "10.5px",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "3px"
+                                      }}
+                                    >
+                                      <Undo2 size={10} /> {undoingId === act.actionId ? "Reverting..." : "Revert Change"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. Recent Execution Logs of this Task */}
+                      {Array.isArray(t.logs) && t.logs.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: "10px",
+                            padding: "10px",
+                            background: "#f8fafc",
+                            borderRadius: "8px",
+                            border: "1px solid #e2e8f0",
+                            maxHeight: "160px",
+                            overflowY: "auto"
+                          }}
+                        >
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                            Live Execution History ({t.logs.length} cycle entries):
+                          </div>
+                          {t.logs.slice(0, 6).map((lg, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                fontSize: "11.5px",
+                                padding: "6px 0",
+                                borderBottom: idx < t.logs.length - 1 ? "1px dashed #cbd5e1" : "none"
+                              }}
+                            >
+                              <span style={{ color: "#64748b", fontSize: "10.5px" }}>
+                                [{new Date(lg.timestamp).toLocaleTimeString()}]
+                              </span>{" "}
+                              <strong style={{ color: "#0f172a" }}>{lg.summary}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -165,7 +165,7 @@ export const auraAiClient = {
       return { success: false, message: e.message };
     }
   },
-  async controlAdminTask(taskId, command) {
+  async controlAdminTask(taskId, command, extraData = {}) {
     try {
       const token = await getAuthToken();
       const res = await fetch(`${API_BASE}/admin-agent/tasks/${encodeURIComponent(taskId)}/control`, {
@@ -174,11 +174,11 @@ export const auraAiClient = {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ command })
+        body: JSON.stringify({ command, ...extraData })
       });
       return await res.json();
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   async deleteAdminTask(taskId) {

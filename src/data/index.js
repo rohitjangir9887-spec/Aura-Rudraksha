@@ -134,7 +134,11 @@ export const products = [
   }
 ];
 
-export const money = n => `₹${Number(n).toLocaleString("en-IN")}`;
+export const money = n => {
+  const num = Number(n);
+  if (isNaN(num)) return "₹0";
+  return `₹${num.toLocaleString("en-IN")}`;
+};
 export const pct = (p) => {
   if (p?.discountPercent && Number(p.discountPercent) > 0) {
     return Number(p.discountPercent);
