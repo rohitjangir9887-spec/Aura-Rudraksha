@@ -8,6 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { setupGlobalTouchFeedback } from "./lib/haptics";
 import "./styles.css";
 import "./pages/Shop.css";
+import "./review-safe-overrides.css";
 
 // ---------------------------------------------------------------------------
 // 60-90 FPS Smooth Scrolling & Hardware Acceleration Setup
