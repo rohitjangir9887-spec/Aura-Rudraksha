@@ -91,6 +91,7 @@ export function TopOfferStrip({ isHome = false, showOnAllPages = true }) {
 
           {offer.couponCode && (
             <button 
+              type="button"
               className="top-promo-coupon-chip" 
               onClick={handleCopyCoupon}
               title="Click to copy coupon code"
