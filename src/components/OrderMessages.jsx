@@ -101,6 +101,7 @@ export function OrderMessages({ orderId, messages = [], onMessageAdded, isAdmin 
           <button
             type="submit"
             disabled={submitting || !text.trim()}
+            aria-label="Send message"
             style={{
               padding: '0 20px',
               background: submitting || !text.trim() ? '#94a3b8' : '#2563eb',

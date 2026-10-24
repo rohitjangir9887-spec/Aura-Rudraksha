@@ -237,8 +237,10 @@ export function WriteReviewModal({
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
               disabled={isSubmitting}
+              aria-label="Close"
               style={{
                 background: "none",
                 border: "none",
@@ -436,6 +438,7 @@ export function WriteReviewModal({
                         <button
                           type="button"
                           onClick={() => removeImage(idx)}
+                          aria-label="Remove image"
                           style={{
                             position: "absolute",
                             top: "2px",
