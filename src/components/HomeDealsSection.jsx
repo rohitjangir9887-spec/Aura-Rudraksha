@@ -185,6 +185,7 @@ export function HomeDealsSection() {
                       fontWeight: 700
                     }}
                     title="Click to copy coupon code"
+                    aria-label={`Copy coupon code ${deal.couponCode}`}
                   >
                     {isCopied ? <Check size={13} color="#22c55e" /> : <Copy size={13} color="#c89b3c" />}
                     <span>{deal.couponCode}</span>
