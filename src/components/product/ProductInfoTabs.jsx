@@ -61,7 +61,7 @@ export function ProductInfoTabs({ product, reviewsCount = 0, averageRating = "5.
       }
     });
 
-    return <div dangerouslySetInnerHTML={{ __html: formattedHtml }} className="custom-desc-body" />;
+    return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formattedHtml) }} className="custom-desc-body" />;
   };
 
   const tabs = isRudraksha ? [
