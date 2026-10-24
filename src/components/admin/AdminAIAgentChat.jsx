@@ -552,7 +552,7 @@ export function AdminAIAgentChat({ compact = false }) {
                   whiteSpace: "nowrap"
                 }}
               >
-                NVIDIA NIM 120B
+                NVIDIA NIM 70B / Gemini
               </span>
             </div>
             <div className="admin-agent-subtitle-text" style={{ fontSize: "10.5px", color: "#fed7aa", opacity: 0.88, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1369,7 +1369,7 @@ export function AdminAIAgentChat({ compact = false }) {
                             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                               <VoiceReader text={m.text || m.content} />
                               <span style={{ fontSize: "10px", color: "#9a7b6c", fontWeight: 600 }}>
-                                {m.modelUsed || "nvidia/nemotron-3-super-120b-a12b"}
+                                {m.modelUsed || "nvidia/llama-3.1-nemotron-70b-instruct"}
                               </span>
                             </div>
                             {m.id && m.id !== "amsg_welcome" && (
