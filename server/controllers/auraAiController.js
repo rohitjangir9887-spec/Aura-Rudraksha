@@ -33,7 +33,8 @@ const AI_SETTING_FIELDS = {
   language: "string", tone: "string", greeting: "string",
   recommendProducts: "bool", recommendOffers: "bool", cartActions: "bool",
   orderSupport: "bool", humanSupport: "bool", personalization: "bool",
-  nvidiaApiKey: "string", nemotronApiKey: "string", nemotronModel: "string"
+  nvidiaApiKey: "string", nemotronApiKey: "string", nemotronModel: "string",
+  selectedNimModel: "string", nvidiaModel: "string"
 };
 
 // Rate limiting in-memory map

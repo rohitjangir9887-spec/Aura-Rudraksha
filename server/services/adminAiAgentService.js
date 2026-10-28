@@ -187,8 +187,18 @@ export function sanitizeNimMessages(systemPrompt, rawMessages = []) {
 }
 
 /**
- * Call NVIDIA NIM (primary) with multi-model resilience + Gemini fallback
+/**
+ * Helper to prevent external model API requests from hanging indefinitely
  */
+function withTimeout(promise, ms = 7000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`API request timed out after ${ms}ms`)), ms)
+    )
+  ]);
+}
+
 /**
  * Call NVIDIA NIM (primary) with multi-model resilience + Gemini fallback + Autonomous Synthesis Engine
  */
@@ -200,16 +210,34 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
   const gemini = getGeminiClient();
   const nimMessages = sanitizeNimMessages(systemPrompt, rawMessages);
 
+  // Check if admin has configured a preferred NVIDIA NIM model in settings
+  let userSelectedModel = "";
+  if (isDbConnected()) {
+    try {
+      const setting = await AuraAISetting.findOne().select("selectedNimModel nemotronModel nvidiaModel").lean();
+      userSelectedModel = (setting?.selectedNimModel || setting?.nemotronModel || setting?.nvidiaModel || "").trim();
+    } catch (_) {}
+  }
+
+  const candidateModels = [
+    userSelectedModel,
+    ...NIM_FALLBACK_MODELS
+  ].filter(Boolean);
+  const uniqueCandidateModels = [...new Set(candidateModels)];
+
   if (nvidia) {
-    for (const modelName of NIM_FALLBACK_MODELS) {
+    for (const modelName of uniqueCandidateModels) {
       try {
         console.log(`[AdminAgent] Attempting NVIDIA NIM model: ${modelName}`);
-        const completion = await nvidia.chat.completions.create({
-          model: modelName,
-          messages: nimMessages,
-          temperature: 0.65,
-          max_tokens: maxTokens
-        });
+        const completion = await withTimeout(
+          nvidia.chat.completions.create({
+            model: modelName,
+            messages: nimMessages,
+            temperature: 0.65,
+            max_tokens: maxTokens
+          }),
+          7000
+        );
         const msg = completion?.choices?.[0]?.message;
         const text = (msg?.content || msg?.reasoning_content || "").trim();
         if (text) {
@@ -217,7 +245,7 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
           return { text, modelUsed: modelName, provider: "NVIDIA NIM" };
         }
       } catch (nimErr) {
-        console.warn(`[AdminAgent] NVIDIA NIM (${modelName}) failed:`, nimErr?.message || nimErr);
+        console.warn(`[AdminAgent] NVIDIA NIM (${modelName}) failed or timed out:`, nimErr?.message || nimErr);
       }
     }
   }
@@ -226,20 +254,23 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
     const geminiContents = convertNimMessagesToGemini(nimMessages);
     for (const gModel of GEMINI_TEXT_MODELS) {
       try {
-        const response = await gemini.models.generateContent({
-          model: gModel,
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.65
-          }
-        });
+        const response = await withTimeout(
+          gemini.models.generateContent({
+            model: gModel,
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.65
+            }
+          }),
+          7000
+        );
         const text = (response?.text || "").trim();
         if (text) {
           return { text, modelUsed: `${PRIMARY_NIM_MODEL} (via ${gModel} engine)`, provider: "Hybrid NIM/Gemini" };
         }
       } catch (gErr) {
-        console.warn(`[AdminAgent] Gemini fallback (${gModel}) warning:`, gErr?.message || gErr);
+        console.warn(`[AdminAgent] Gemini fallback (${gModel}) warning or timeout:`, gErr?.message || gErr);
       }
     }
   }

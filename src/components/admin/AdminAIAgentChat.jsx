@@ -27,6 +27,10 @@ import {
   RefreshCw,
   ChevronRight,
   ArrowLeft,
+  Maximize2,
+  Minimize2,
+  Cpu,
+  Key,
   X
 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
@@ -55,6 +59,15 @@ export function AdminAIAgentChat({ compact = false }) {
   const [showProductUploader, setShowProductUploader] = useState(false);
   const [showFeatureBuilder, setShowFeatureBuilder] = useState(false);
   const [showPagePicker, setShowPagePicker] = useState(false);
+  const [showNimModal, setShowNimModal] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // NVIDIA NIM Modal & Model Selection State
+  const [selectedNimModel, setSelectedNimModel] = useState("nvidia/llama-3.1-nemotron-70b-instruct");
+  const [nvidiaApiKeyInput, setNvidiaApiKeyInput] = useState("");
+  const [savingNimSettings, setSavingNimSettings] = useState(false);
+  const [testingNim, setTestingNim] = useState(false);
+  const [testNimResult, setTestNimResult] = useState(null);
 
   // Product Upload Form State
   const [prodForm, setProdForm] = useState({
@@ -136,6 +149,65 @@ export function AdminAIAgentChat({ compact = false }) {
     }, 6000);
     return () => clearInterval(interval);
   }, [loadSessionAndTelemetry]);
+
+  useEffect(() => {
+    auraAiClient.getSettings().then(s => {
+      const data = s?.data || s;
+      if (data) {
+        if (data.selectedNimModel || data.nemotronModel || data.nvidiaModel) {
+          setSelectedNimModel(data.selectedNimModel || data.nemotronModel || data.nvidiaModel);
+        }
+        if (data.nvidiaApiKey || data.nemotronApiKey) {
+          setNvidiaApiKeyInput(data.nvidiaApiKey || data.nemotronApiKey);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveNimModalSettings = async () => {
+    setSavingNimSettings(true);
+    try {
+      const res = await auraAiClient.updateSettings({
+        selectedNimModel,
+        nemotronModel: selectedNimModel,
+        nvidiaModel: selectedNimModel,
+        nvidiaApiKey: nvidiaApiKeyInput.trim(),
+        nemotronApiKey: nvidiaApiKeyInput.trim()
+      });
+      if (res?.success) {
+        emitToast(`NVIDIA NIM Model updated to ${selectedNimModel}!`, "success");
+        setShowNimModal(false);
+      } else {
+        emitToast("Could not save NIM settings.", "error");
+      }
+    } catch (_) {
+      emitToast("Error updating NIM settings.", "error");
+    } finally {
+      setSavingNimSettings(false);
+    }
+  };
+
+  const handleTestNimConnection = async () => {
+    setTestingNim(true);
+    setTestNimResult(null);
+    try {
+      const res = await auraAiClient.sendAdminAgentMessage("Ping: verify NVIDIA NIM status");
+      if (res?.success) {
+        setTestNimResult({
+          success: true,
+          model: res.modelUsed || selectedNimModel,
+          text: (res.message || "Connected to NIM engine.").slice(0, 140) + "..."
+        });
+        emitToast("NVIDIA NIM connection operational!", "success");
+      } else {
+        setTestNimResult({ success: false, message: res?.error || "Connection timed out." });
+      }
+    } catch (err) {
+      setTestNimResult({ success: false, message: err?.message || "Failed to contact NIM endpoint." });
+    } finally {
+      setTestingNim(false);
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current && subTab === "chat") {
@@ -396,13 +468,29 @@ export function AdminAIAgentChat({ compact = false }) {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: compact ? "620px" : "calc(100vh - 170px)",
-        minHeight: compact ? "540px" : "680px",
+        ...(isMaximized
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              height: "100vh",
+              minHeight: "100vh",
+              borderRadius: 0,
+              margin: 0
+            }
+          : {
+              height: compact ? "720px" : "calc(100vh - 110px)",
+              minHeight: compact ? "600px" : "800px",
+              borderRadius: "14px",
+              position: "relative"
+            }),
         background: "#ffffff",
-        border: "1px solid #e5d5c3",
-        borderRadius: "14px",
+        border: isMaximized ? "none" : "1px solid #e5d5c3",
         overflow: "hidden",
-        boxShadow: "0 8px 30px rgba(43, 23, 13, 0.08)"
+        boxShadow: isMaximized ? "none" : "0 8px 30px rgba(43, 23, 13, 0.08)"
       }}
     >
       <style>{`
@@ -589,6 +677,30 @@ export function AdminAIAgentChat({ compact = false }) {
             {mongoOk ? "MongoDB Live" : "Syncing"}
           </button>
 
+          {/* NVIDIA NIM Model & Settings Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowNimModal(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              padding: "5px 10px",
+              borderRadius: "8px",
+              fontSize: "11px",
+              fontWeight: 700,
+              background: "linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(217, 119, 6, 0.3) 100%)",
+              color: "#fef3c7",
+              border: "1px solid rgba(245, 158, 11, 0.55)",
+              cursor: "pointer",
+              whiteSpace: "nowrap"
+            }}
+            title="Open NVIDIA NIM Models & API Key Settings Modal"
+          >
+            <Cpu size={12} />
+            <span>NVIDIA NIM Modal</span>
+          </button>
+
           {/* Toggle Split Live Preview (Desktop only) */}
           {!compact && (
             <button
@@ -615,6 +727,30 @@ export function AdminAIAgentChat({ compact = false }) {
               <Eye size={12} /> {showSplitPreview ? "Hide Preview" : "Live Preview"}
             </button>
           )}
+
+          {/* Maximize / Badi Window Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMaximized(m => !m)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "5px 9px",
+              borderRadius: "8px",
+              fontSize: "11px",
+              fontWeight: 700,
+              background: isMaximized ? "#f59e0b" : "rgba(255,255,255,0.14)",
+              color: isMaximized ? "#1c0d06" : "#fff",
+              border: "1px solid rgba(255,255,255,0.25)",
+              cursor: "pointer",
+              whiteSpace: "nowrap"
+            }}
+            title={isMaximized ? "Restore window size" : "Expand to Fullscreen Badi Window"}
+          >
+            {isMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            <span className="hidden sm:inline">{isMaximized ? "Chhoti Window" : "Badi Window (Maximize)"}</span>
+          </button>
 
           <button
             type="button"
@@ -1752,7 +1888,7 @@ export function AdminAIAgentChat({ compact = false }) {
                 >
                   <iframe
                     key={`${activePreviewRoute || "/"}_${previewRefreshKey}`}
-                    src={activePreviewRoute || "/"}
+                    src={`${activePreviewRoute || "/"}${String(activePreviewRoute || "/").includes("?") ? "&" : "?"}livePreview=1`}
                     title="Split Screen Live Website Preview"
                     style={{
                       width: previewViewport === "mobile" ? "375px" : "100%",
@@ -2627,6 +2763,326 @@ export function AdminAIAgentChat({ compact = false }) {
           </div>
         )}
       </div>
+
+      {/* ===============================================================
+          NVIDIA NIM MODELS & SETTINGS MODAL
+          =============================================================== */}
+      {showNimModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100000,
+            background: "rgba(15, 10, 5, 0.72)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px"
+          }}
+          onClick={() => setShowNimModal(false)}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #ebd9c8",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "580px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.25)",
+              display: "flex",
+              flexDirection: "column"
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "16px 20px",
+                background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderTopLeftRadius: "15px",
+                borderTopRightRadius: "15px"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "8px",
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#fff",
+                    fontWeight: 900
+                  }}
+                >
+                  <Cpu size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#f8fafc" }}>
+                    NVIDIA NIM Model & Engine Settings
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: "11.5px", color: "#94a3b8" }}>
+                    Select active model or configure your NVIDIA API Key
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNimModal(false)}
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "30px",
+                  height: "30px",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#fff",
+                  cursor: "pointer"
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Model Selection Group */}
+              <div>
+                <label style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b", marginBottom: "8px", display: "block" }}>
+                  Select Preferred NVIDIA NIM Model:
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {[
+                    {
+                      id: "nvidia/llama-3.1-nemotron-70b-instruct",
+                      name: "Llama 3.1 Nemotron 70B Instruct (Recommended)",
+                      desc: "Optimized by NVIDIA for high-accuracy reasoning, instruction following, and catalog execution.",
+                      badge: "Flagship"
+                    },
+                    {
+                      id: "meta/llama-3.3-70b-instruct",
+                      name: "Meta Llama 3.3 70B Instruct",
+                      desc: "Latest ultra-fast reasoning model with deep Vedic and product comprehension.",
+                      badge: "Popular"
+                    },
+                    {
+                      id: "mistralai/mixtral-8x22b-instruct-v0.1",
+                      name: "Mistral Mixtral 8x22B MoE",
+                      desc: "High-throughput Mixture of Experts model for rapid task cycles and analytics.",
+                      badge: "Fast"
+                    },
+                    {
+                      id: "deepseek-ai/deepseek-r1",
+                      name: "DeepSeek R1 Reasoning",
+                      desc: "Advanced chain-of-thought planner for complex multi-step website modifications.",
+                      badge: "Reasoning"
+                    },
+                    {
+                      id: "nvidia/nemotron-4-340b-instruct",
+                      name: "NVIDIA Nemotron 4 340B",
+                      desc: "Massive scale model for high-fidelity product storytelling and enterprise management.",
+                      badge: "Ultra-Scale"
+                    }
+                  ].map(m => {
+                    const isSelected = selectedNimModel === m.id;
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => setSelectedNimModel(m.id)}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: `1.5px solid ${isSelected ? "#7c2d12" : "#e2e8f0"}`,
+                          background: isSelected ? "#fffbeb" : "#ffffff",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "10px",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="selectedNimModel"
+                          checked={isSelected}
+                          onChange={() => setSelectedNimModel(m.id)}
+                          style={{ marginTop: "3px", accentColor: "#7c2d12" }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                            <strong style={{ fontSize: "13px", color: isSelected ? "#7c2d12" : "#1e293b" }}>
+                              {m.name}
+                            </strong>
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: 800,
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: isSelected ? "#fde68a" : "#f1f5f9",
+                                color: isSelected ? "#92400e" : "#475569"
+                              }}
+                            >
+                              {m.badge}
+                            </span>
+                          </div>
+                          <p style={{ margin: "3px 0 0", fontSize: "11.5px", color: "#64748b", lineHeight: 1.4 }}>
+                            {m.desc}
+                          </p>
+                          <code style={{ fontSize: "10px", color: "#94a3b8", display: "inline-block", marginTop: "2px" }}>
+                            Endpoint: {m.id}
+                          </code>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* NVIDIA NIM API Key Input */}
+              <div style={{ borderTop: "1px dashed #e2e8f0", paddingTop: "14px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Key size={14} className="text-amber-600" />
+                  <span>NVIDIA NIM API Key (Optional):</span>
+                </label>
+                <input
+                  type="password"
+                  value={nvidiaApiKeyInput}
+                  onChange={e => setNvidiaApiKeyInput(e.target.value)}
+                  placeholder="nvapi-..."
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    fontFamily: "monospace",
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+                <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748b" }}>
+                  Leave blank to use pre-configured server environment key. Changes are saved securely in MongoDB.
+                </p>
+              </div>
+
+              {/* Live Test Status Feedback */}
+              {testNimResult && (
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    background: testNimResult.success ? "#dcfce7" : "#fee2e2",
+                    border: `1px solid ${testNimResult.success ? "#86efac" : "#fca5a5"}`,
+                    color: testNimResult.success ? "#166534" : "#991b1b",
+                    fontSize: "12px"
+                  }}
+                >
+                  {testNimResult.success ? (
+                    <div>
+                      <div style={{ fontWeight: 800 }}>✓ Connection Test Successful!</div>
+                      <div style={{ fontSize: "11px", marginTop: "2px" }}>
+                        Active Model: <strong>{testNimResult.model}</strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontWeight: 800 }}>⚠️ Test Notice:</div>
+                      <div style={{ fontSize: "11px", marginTop: "2px" }}>{testNimResult.message}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div
+              style={{
+                padding: "14px 20px",
+                background: "#f8fafc",
+                borderTop: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderBottomLeftRadius: "15px",
+                borderBottomRightRadius: "15px"
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleTestNimConnection}
+                disabled={testingNim}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  background: "#ffffff",
+                  color: "#334155",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: testingNim ? "wait" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                {testingNim ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} className="text-amber-500" />}
+                <span>{testingNim ? "Testing Connection..." : "Test NIM Connection"}</span>
+              </button>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowNimModal(false)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#64748b",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveNimModalSettings}
+                  disabled={savingNimSettings}
+                  style={{
+                    padding: "8px 18px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #7c2d12 0%, #9a3412 100%)",
+                    color: "#ffffff",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    cursor: savingNimSettings ? "wait" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: "0 2px 8px rgba(124, 45, 18, 0.3)"
+                  }}
+                >
+                  {savingNimSettings ? <Loader2 size={13} className="spin" /> : <Check size={13} />}
+                  <span>{savingNimSettings ? "Saving..." : "Save Model Settings"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

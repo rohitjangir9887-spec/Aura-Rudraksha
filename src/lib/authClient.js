@@ -345,6 +345,10 @@ export const authClient = {
   },
 
   clearAdminCache: () => {
+    if (typeof window !== "undefined" && window.self !== window.top) {
+      // Inside an embedded preview iframe: NEVER wipe the parent window's admin cache!
+      return;
+    }
     inMemoryAdminVerification = null;
     try {
       localStorage.removeItem(ADMIN_VERIFY_CACHE_KEY);
@@ -565,8 +569,14 @@ export const authClient = {
         saveCachedUser(user);
         callback(user);
       } else {
-        saveCachedUser(null);
-        authClient.clearAdminCache();
+        const isIframe = typeof window !== "undefined" && window.self !== window.top;
+        if (!isIframe) {
+          const cachedAdmin = authClient.getCachedAdminVerification();
+          if (!cachedAdmin || !cachedAdmin.authorized) {
+            saveCachedUser(null);
+            authClient.clearAdminCache();
+          }
+        }
         callback(null);
       }
     });
