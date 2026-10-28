@@ -11,9 +11,21 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+async function safeInjectSeo(html: string, reqPath: string, req: express.Request): Promise<string> {
+  try {
+    return await Promise.race([
+      injectSeoIntoHtml(html, reqPath, req),
+      new Promise<string>((resolve) => setTimeout(() => resolve(html), 1500))
+    ]);
+  } catch (err: any) {
+    console.warn("[SEO Injection Fallback Notice]:", err?.message || err);
+    return html;
+  }
+}
+
 async function startServer() {
   const app = createApp();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -42,13 +54,13 @@ async function startServer() {
       try {
         const rawTemplate = await fs.promises.readFile(path.join(process.cwd(), "index.html"), "utf-8");
         const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
-        const finalHtml = await injectSeoIntoHtml(transformedHtml, req.path, req);
+        const finalHtml = await safeInjectSeo(transformedHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).send(finalHtml);
-      } catch (err) {
-        console.warn("[Dev SEO Injection Notice]:", err?.message || err);
-        return next(err);
+      } catch (err: any) {
+        console.warn("[Dev HTML Render Notice]:", err?.message || err);
+        return next();
       }
     });
 
@@ -76,21 +88,27 @@ async function startServer() {
     });
     // SPA fallback with server-side SEO & Schema injection for all public routes
     let cachedDistHtml = "";
-    app.use(async (req, res, next) => {
+    app.use(async (req, res) => {
       if (req.path.startsWith("/api")) {
         return res.status(404).json({ success: false, error: "Not Found", message: "API endpoint not found" });
       }
       try {
         if (!cachedDistHtml) {
-          cachedDistHtml = await fs.promises.readFile(path.join(distPath, "index.html"), "utf-8");
+          const distHtmlPath = path.join(distPath, "index.html");
+          const fallbackHtmlPath = path.join(process.cwd(), "index.html");
+          cachedDistHtml = await fs.promises.readFile(
+            fs.existsSync(distHtmlPath) ? distHtmlPath : fallbackHtmlPath,
+            "utf-8"
+          );
         }
-        const finalHtml = await injectSeoIntoHtml(cachedDistHtml, req.path, req);
+        const finalHtml = await safeInjectSeo(cachedDistHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).send(finalHtml);
       } catch (err) {
         console.warn("[Prod SEO HTML Fallback Notice]:", err);
-        res.sendFile(path.join(distPath, "index.html"));
+        const distHtmlPath = path.join(distPath, "index.html");
+        res.sendFile(fs.existsSync(distHtmlPath) ? distHtmlPath : path.join(process.cwd(), "index.html"));
       }
     });
   }
