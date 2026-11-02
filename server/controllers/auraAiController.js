@@ -19,7 +19,7 @@ import {
   VEDIC_BEADS_KNOWLEDGE,
   SACRED_RUDRAKSHA_COMBINATIONS
 } from "../services/vedicKnowledgeService.js";
-import { calculateAuthenticKundali, determineAstrologicalIntent } from "../services/vedicAstrologyService.js";
+import { calculateAuthenticKundali, determineAstrologicalIntent, generateKundaliTopicDiagnosis } from "../services/vedicAstrologyService.js";
 import { defaultProducts } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
@@ -782,18 +782,41 @@ function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, a
   const msgLower = (userMessage || "").toLowerCase();
   const replies = [];
   
-  // 1. If Kundali is calculated, provide Pandit Ji deep Kundali & Pareshani Nivaran suggestions + Canonical Mukhi!
+  // 1. If Kundali is calculated, provide Pandit Ji context-sensitive topic & remedy suggestions!
   if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
     const primaryRec = calculatedKundaliData.astronomicalKundali.rudrakshaRecommendations?.[0];
     const canonicalMukhi = primaryRec?.mukhi || "मुख्य रुद्राक्ष";
     const dasha = calculatedKundaliData.astronomicalKundali.vimshottariDasha?.currentMahadashaHindi || "महादशा";
 
-    replies.push(
-      `🔍 अभी क्या-क्या परेशानी चल रही है, क्यों और कब ठीक होगी?`,
-      `🪐 मेरी संपूर्ण विस्तृत कुंडली व सभी 9 ग्रहों का फल बताएं`,
-      `📿 ${canonicalMukhi} धारण विधि, बीज मंत्र व लाल किताब उपाय`,
-      `⏳ ${dasha} महादशा कब तक है और भाग्योदय कब होगा?`
-    );
+    if (/(career|job|naukri|nokri|business|vyapar|kaam|profession|कैरियर|नौकरी|व्यापार)/i.test(msgLower)) {
+      replies.push(
+        "💼 नौकरी में पदोन्नति व बदलाव का सटीक समय",
+        "⚖️ मेरे लिए नौकरी बेहतर है या व्यापार?",
+        `📿 करियर व धन वृद्धि हेतु ${canonicalMukhi} उपाय`,
+        "💰 आर्थिक स्थिरता व आय वृद्धि के योग"
+      );
+    } else if (/(marriage|shaadi|shadi|vivah|love|relationship|husband|wife|patni|pati|शादी|विवाह)/i.test(msgLower)) {
+      replies.push(
+        "❤️ शीघ्र विवाह व योग्य जीवनसाथी का समय",
+        "💍 दांपत्य सुख हेतु गौरी शंकर रुद्राक्ष विधि",
+        "🪐 कुंडली में मांगलिक विचार व निवारण",
+        "⏳ आगामी भाग्योदय व अनुकूल समय"
+      );
+    } else if (/(wealth|dhan|money|paisa|finance|debt|karz|karza|धन|पैसा|कर्ज)/i.test(msgLower)) {
+      replies.push(
+        "💰 धन लाभ व रुका हुआ पैसा कब आएगा?",
+        "🪙 7 मुखी महालक्ष्मी रुद्राक्ष लाभ व विधि",
+        "💼 करियर व व्यापार में रुकावट का समाधान",
+        `⏳ ${dasha} महादशा में आर्थिक सुधार का समय`
+      );
+    } else {
+      replies.push(
+        "💼 नौकरी व करियर के बारे में बताएं",
+        "💰 धन, व्यापार व आर्थिक स्थिति का विचार",
+        "❤️ विवाह, संबंध व जीवनसाथी का योग",
+        `📿 ${canonicalMukhi} धारण विधि व लाल किताब उपाय`
+      );
+    }
     return replies;
   }
 
@@ -1380,8 +1403,26 @@ SAFETY:
 export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], matchedCoupons = [], effectiveMode = "standard", calculatedKundaliData = null) {
   const lower = String(message || "").toLowerCase().trim();
 
-  // If in Panditji mode and Kundali data exists, return the full detailed Pandit Ji Kundali report
+  // If in Panditji mode and Kundali data exists:
   if (effectiveMode === "panditji" && calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
+    const astroIntent = determineAstrologicalIntent(message || "");
+    const isExplicitFullKundaliDump = (
+      astroIntent.type === "full_kundali" &&
+      /(puri|poori|full|sampurna|sab kuch|पूरी|संपूर्ण|विस्तृत|फुल)/i.test(message || "") &&
+      !/(nokri|naukri|naukari|job|career|business|vyapar|shadi|shaadi|vivah|marriage|paisa|paise|dhan|karz|karza|health|bimari|swasthya)/i.test(message || "")
+    );
+
+    // If devotee specifically asks for full Kundali breakdown:
+    if (isExplicitFullKundaliDump && calculatedKundaliData.astronomicalKundali.panditJiDiagnosis?.fullPanditJiReportMarkdown) {
+      return calculatedKundaliData.astronomicalKundali.panditJiDiagnosis.fullPanditJiReportMarkdown;
+    }
+
+    // For specific topic questions (nokri/job, marriage, finance, health, etc.) or follow-ups:
+    const topicAnswer = generateKundaliTopicDiagnosis(calculatedKundaliData, astroIntent, message);
+    if (topicAnswer) {
+      return topicAnswer;
+    }
+
     if (calculatedKundaliData.astronomicalKundali.panditJiDiagnosis?.fullPanditJiReportMarkdown) {
       return calculatedKundaliData.astronomicalKundali.panditJiDiagnosis.fullPanditJiReportMarkdown;
     }
@@ -2048,6 +2089,13 @@ LINK FORMAT RULES:
 
     const astroIntent = determineAstrologicalIntent(message || "");
 
+    const hasPriorConversation = Array.isArray(history) && history.length > 0;
+    const isExplicitRepeatFullReport = /(wapas\s*puri|dobara\s*puri|fir\s*se\s*puri|poori\s*kundali\s*dobara|full\s*kundali\s*again|पूरी\s*कुंडली\s*दोबारा|वापस\s*पूरी)/i.test(message || "");
+    const isTopicOrFollowUpQuery = !isExplicitRepeatFullReport && (
+      hasPriorConversation ||
+      (astroIntent.type !== "greeting" && astroIntent.type !== "full_kundali")
+    );
+
     // 7. Build High-Integrity Persona System Prompt for NVIDIA NIM (nemotron-3-super-120b-a12b)
     let systemPrompt = "";
 
@@ -2162,6 +2210,31 @@ ${astroIntent.type === "greeting" ? `
 
      आज मैं आपकी जन्म कुंडली, वर्तमान परेशानियों के कारण व समाधान, विंशोत्तरी महादशा, या कल्याणकारी रुद्राक्ष उपाय के विषय में क्या सेवा करूँ?"
    - DO NOT dump a massive Kundali reading on a plain "hi". Keep it welcoming.
+` : isTopicOrFollowUpQuery ? `
+   - **TARGETED TOPIC & FOLLOW-UP JYOTISH GUIDANCE (विशिष्ट प्रश्न पर केंद्रित सटीक उत्तर — पूरी कुंडली दोबारा न दोहराएं)**:
+   - जातक का प्रश्न: "${message || ''}" (विषय: ${astroIntent.label})।
+   - 🚫 **सख्त निषेध (STRICT PROHIBITION):**
+     * पूरी 9 ग्रहों की सूची (All 9 Planets detailed reading), अवकहड़ा चक्र (Avakahada), या पूरे 10-खंड का सामान्य कुंडली ड्राफ्ट दोबारा कतई न लिखें!
+     * जातक पहले ही अपनी संपूर्ण कुंडली देख चुका है। जब जातक ने किसी खास विषय (जैसे "नौकरी के बारे में", "विवाह", "धन", "स्वास्थ्य") पर पूछा है, तो पूरी कुंडली दोबारा दोहराना जातक के अनुभव को खराब करता है।
+   - ✅ **अनिवार्य निर्देश (MANDATORY INSTRUCTION):**
+     * जातक ने जिस विषय (जैसे नौकरी/करियर, विवाह, धन, स्वास्थ्य आदि) पर पूछा है, **केवल और केवल उसी विषय पर 100% केंद्रित होकर गहरा और प्रामाणिक उत्तर दें।**
+     * ⚖️ **रैंडम उत्तर कतई न दें (NO RANDOM ANSWERS — कुंडली देखकर ही जवाब दें):**
+       - "har bar kundali dekhe ashe rendom hi jbab na de" — हर बार जातक की वास्तविक कुंडली के संबंधित भाव, भावेश, स्थित ग्रह और दशा चक्र देखकर ही शास्त्रीय फलादेश दें:
+       - **नौकरी / करियर (Job/Career):** दशम भाव (कर्म: ${calculatedKundaliData.astronomicalKundali.houses[9]?.rashiHindi}, स्वामी: ${calculatedKundaliData.astronomicalKundali.houses[9]?.lord}, स्थित ग्रह: ${calculatedKundaliData.astronomicalKundali.houses[9]?.occupants?.join(", ") || "कोई नहीं"}), षष्ठ भाव (सेवा/नौकरी: ${calculatedKundaliData.astronomicalKundali.houses[5]?.rashiHindi}, स्वामी: ${calculatedKundaliData.astronomicalKundali.houses[5]?.lord}), शनि देव (कर्म कारक), सूर्य देव (अधिकार/सरकारी नौकरी) और वर्तमान विंशोत्तरी दशा का सीधा संबंध बताएं। नौकरी vs व्यापार में क्या बेहतर है, यह भी स्पष्ट करें।
+       - **विवाह / दांपत्य (Marriage):** सप्तम भाव (${calculatedKundaliData.astronomicalKundali.houses[6]?.rashiHindi}, स्वामी: ${calculatedKundaliData.astronomicalKundali.houses[6]?.lord}), शुक्र देव, गुरु देव, और मांगलिक स्थिति (${calculatedKundaliData.astronomicalKundali.doshaSummary?.manglikNote}) का सीधा विश्लेषण करें।
+       - **धन / कर्ज (Finance):** द्वितीय भाव (धन: ${calculatedKundaliData.astronomicalKundali.houses[1]?.lord}), एकादश भाव (लाभ: ${calculatedKundaliData.astronomicalKundali.houses[10]?.lord}), और गुरु बृहस्पति का प्रभाव बताएं।
+       - **स्वास्थ्य (Health):** प्रथम भाव (लग्न), षष्ठ भाव (रोग) और सूर्य/चंद्र की स्थिति बताएं।
+     * ⏳ **सटीक समय चक्र (Timing):**
+       - वर्तमान महादशा (**${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentMahadashaHindi}**) व अंतर्दशा (**${calculatedKundaliData.astronomicalKundali.vimshottariDasha.currentAntardashaHindi}**) तथा प्रत्यंतर दशा के आधार पर बताएं कि यह परेशानी कब तक चलेगी और आगामी किस तारीख/माह में शुभ अवसर या भाग्योदय होगा।
+     * 📿 **कल्याणकारी रुद्राक्ष व अचूक उपाय:**
+       - उस विशिष्ट विषय के लिए सर्वश्रेष्ठ सिद्ध नेपाली रुद्राक्ष (स्टोर लिंक [Product Name](/product/slug) के साथ) और वैदिक/लाल किताब उपाय स्पष्ट रूप से बताएं।
+   - 📋 **उत्तर की संरचना (Clean Bullet Points में):**
+     1. 🙏 **वैदिक अभिवादन व विषय का सीधा उत्तर** (जातक के प्रश्न पर तुरंत स्पष्ट निष्कर्ष)
+     2. 🏛️ **कुंडली के संबंधित भावों व भावेशों का विश्लेषण** (केवल उस विषय से जुड़े भाव)
+     3. 🪐 **मुख्य कारक ग्रहों व दशा का वास्तविक प्रभाव** (कुंडली डेटा अनुसार)
+     4. ⏳ **सटीक समय चक्र व भाग्योदय** (कब सुधार होगा और कब नया अवसर मिलेगा)
+     5. 📿 **कल्याणकारी सिद्ध रुद्राक्ष व सरल वैदिक उपाय** (स्टोर लिंक के साथ)
+     6. 🌟 **पंडित जी का आशीर्वाद**
 ` : `
    - **MANDATORY DEEP PANDIT JI KUNDALI READING (पूरी डिटेल में कुंडली व जीवन की परेशानियों का निदान)**:
    - जातक का प्रश्न/संकल्प: "${message || ''}" (${astroIntent.label})।
@@ -2546,7 +2619,11 @@ ${memoryContextText || "Guest shopper."}`;
         let fallbackText = "";
         if (effectiveMode === "panditji") {
           if (calculatedKundaliData) {
-            fallbackText = calculatedKundaliData.astronomicalKundali?.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
+            if (isTopicOrFollowUpQuery) {
+              fallbackText = generateKundaliTopicDiagnosis(calculatedKundaliData, astroIntent, message);
+            } else {
+              fallbackText = calculatedKundaliData.astronomicalKundali?.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
+            }
             if (!fallbackText) {
               const vDasha = calculatedKundaliData.astronomicalKundali?.vimshottariDasha;
               const currentMaha = vDasha?.currentMahadashaHindi || "बृहस्पति (गुरु)";
@@ -2750,7 +2827,11 @@ ${memoryContextText || "Guest shopper."}`;
     if (!generatedSuccessfully || !aiResponseText.trim()) {
       if (effectiveMode === "panditji") {
         if (calculatedKundaliData) {
-          aiResponseText = calculatedKundaliData.astronomicalKundali?.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
+          if (isTopicOrFollowUpQuery) {
+            aiResponseText = generateKundaliTopicDiagnosis(calculatedKundaliData, astroIntent, message);
+          } else {
+            aiResponseText = calculatedKundaliData.astronomicalKundali?.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
+          }
           if (!aiResponseText) {
             const vDasha = calculatedKundaliData.astronomicalKundali?.vimshottariDasha;
             const currentMaha = vDasha?.currentMahadashaHindi || "बृहस्पति (गुरु)";
