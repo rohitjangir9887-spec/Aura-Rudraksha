@@ -9,7 +9,8 @@ vi.mock('../authClient.js', () => ({
 
 vi.mock('../auraChatStore.js', () => ({
     auraChatStore: {
-        getGuestSessionId: vi.fn().mockReturnValue('test-session')
+        getGuestSessionId: vi.fn().mockReturnValue('test-session'),
+        getVerifiedBirthDetails: vi.fn().mockReturnValue(null)
     }
 }));
 

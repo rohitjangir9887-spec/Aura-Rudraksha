@@ -292,8 +292,8 @@ export const auraAiClient = {
 
     try {
       const token = await authClient.getToken();
-      const guestSessionId = auraChatStore.getGuestSessionId();
-      const savedBirth = auraChatStore.getVerifiedBirthDetails();
+      const guestSessionId = typeof auraChatStore.getGuestSessionId === "function" ? auraChatStore.getGuestSessionId() : "guest_session";
+      const savedBirth = typeof auraChatStore.getVerifiedBirthDetails === "function" ? auraChatStore.getVerifiedBirthDetails() : null;
       const isAstroQuery = (
         mode === "panditji" ||
         Boolean(birthDetails) ||

@@ -1,25 +1,32 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "aura-rudraksha",
+  "main": "server/cloudflare-worker.js",
   "compatibility_date": "2026-08-24",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
 
   // ==========================================================================
-  // STATIC FRONTEND DEPLOYMENT (Cloudflare Pages)
+  // CLOUDFLARE WORKERS & PAGES ASSETS DEPLOYMENT
   // ==========================================================================
-  // The Vite-built SPA in dist/ is served as static assets.
-  // Cloudflare Pages provides HTTPS, caching, and SPA fallback automatically.
-  //
-  // IMPORTANT: The Node/Express API (server.ts -> dist/server.cjs) requires a
-  // Node.js runtime and CANNOT run on Workers directly.  For production, host
-  // the API separately (see docs/CLOUDFLARE.md) and proxy /api/* to it via a
-  // Pages _redirects file OR deploy the bundled server to Cloudflare Containers.
+  // The Vite-built SPA in dist/ is served globally on Cloudflare edge.
+  // - Automatic SPA fallback to /index.html for client-side routing
+  // - Edge caching and HTTP/3 support
+  // - server/cloudflare-worker.js automatically proxies /api/* requests
+  //   to your backend when BACKEND_URL or API_BASE_URL is configured.
   // ==========================================================================
-  "pages_build_output_dir": "dist",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "html_handling": "auto-trailing-slash"
+  },
 
-  // Environment variables that must be set in Cloudflare Dashboard:
-  //   MONGODB_URI, NVIDIA_API_KEY,
-  //   FIREBASE_SERVICE_ACCOUNT_KEYFILE (or FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY + FIREBASE_PROJECT_ID),
-  //   INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PHONE,
-  //   NODE_ENV=production
-  "vars": {}
+  // Environment variables configured for Cloudflare Worker:
+  // For production backend proxying, set BACKEND_URL in Cloudflare dashboard
+  // (e.g. BACKEND_URL = "https://api.aurarudraksha.bond")
+  "vars": {
+    "NODE_ENV": "production"
+  }
 }
