@@ -30,7 +30,7 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: { middlewareMode: true, hmr: false, ws: false },
       appType: "spa",
     });
 
@@ -53,7 +53,9 @@ async function startServer() {
       // Any navigation request that is not an API route or static asset should render index.html
       try {
         const rawTemplate = await fs.promises.readFile(path.join(process.cwd(), "index.html"), "utf-8");
-        const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
+        let transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
+        // Remove @vite/client in no-HMR preview environments so the browser never tries to open a WebSocket to port 24678
+        transformedHtml = transformedHtml.replace(/<script\s+type=["']module["']\s+src=["']\/@vite\/client["']><\/script>\s*/gi, "");
         const finalHtml = await safeInjectSeo(transformedHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -65,6 +67,15 @@ async function startServer() {
     });
 
     app.use(vite.middlewares);
+
+    // Warm up core entry modules so first browser load has 0ms transform delay
+    if (typeof (vite as any).warmupRequest === "function") {
+      setTimeout(() => {
+        (vite as any).warmupRequest("/src/main.jsx").catch(() => {});
+        (vite as any).warmupRequest("/src/App.jsx").catch(() => {});
+        (vite as any).warmupRequest("/src/pages/Home.jsx").catch(() => {});
+      }, 50);
+    }
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath, {

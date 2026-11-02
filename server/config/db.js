@@ -60,6 +60,9 @@ function scheduleBackgroundReconnect(delayMs = 3000) {
       });
     }
   }, delayMs);
+  if (reconnectTimer && typeof reconnectTimer.unref === "function") {
+    reconnectTimer.unref();
+  }
 }
 
 if (!global.__mongoose_listeners_attached) {
@@ -98,7 +101,7 @@ if (!global.__mongoose_listeners_attached) {
   // Background keep-alive & watchdog: pings every 15s on long-running instances
   // Disabled on serverless (Vercel/AWS Lambda) to prevent socket freezes and lingering timers
   if (!isVercelServerless) {
-    setInterval(() => {
+    const keepAliveTimer = setInterval(() => {
       if (mongoose?.connection?.readyState === 1 && mongoose?.connection?.db) {
         mongoose.connection.db.command({ ping: 1 }).catch((err) => {
           console.warn("⚠️ [MongoDB] Keep-alive ping notice:", err?.message);
@@ -111,6 +114,9 @@ if (!global.__mongoose_listeners_attached) {
         connectDB().catch(() => {});
       }
     }, 15000);
+    if (keepAliveTimer && typeof keepAliveTimer.unref === "function") {
+      keepAliveTimer.unref();
+    }
   }
 }
 
@@ -173,7 +179,7 @@ export async function connectDB() {
   cached.lastAttempt = new Date().toISOString();
 
   let targetUri = configuredUri;
-  if (!targetUri) {
+  if (!targetUri || memoryServerInstance) {
     targetUri = await getOrStartMemoryMongo();
   }
 

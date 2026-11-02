@@ -3,19 +3,36 @@ import tailwindcss from "@tailwindcss/vite";
 
 const isHmrDisabled = process.env.DISABLE_HMR === "true" || process.env.DISABLE_HMR === "1";
 
-export default defineConfig(({ mode }) => ({
-  mode: mode || "production",
+export default defineConfig(({ command, mode }) => {
+  const isDev = command === "serve" || mode === "development";
+  return {
+  mode: isDev ? "development" : (mode || "production"),
   plugins: [
     tailwindcss(),
   ],
   define: {
-    "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "development" : "production"),
+    "process.env.NODE_ENV": JSON.stringify(isDev ? "development" : "production"),
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "react-router-dom",
+      "framer-motion",
+      "lucide-react",
+      "dompurify",
+      "canvas-confetti",
+    ],
   },
   server: {
     host: "0.0.0.0",
     port: 3000,
     allowedHosts: true,
     hmr: false,
+    ws: false,
   },
   preview: {
     host: "0.0.0.0",
@@ -57,4 +74,5 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-}));
+  };
+});

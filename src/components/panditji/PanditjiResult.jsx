@@ -350,16 +350,16 @@ export function PanditjiResult({
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
-            "धारण विधि व शुभ मुहूर्त बताएं",
-            "क्या महिलाएं इसे पहन सकती हैं?",
-            "खान-पान और नित्य नियम क्या हैं?",
-            "शनि साढ़े साती निवारण कैसे करें?",
-            "ओरिजिनल रुद्राक्ष की पहचान कैसे करें?"
+            "🔍 अभी क्या-क्या परेशानी चल रही है, क्यों और कब ठीक होगी? पूरी कुंडली बताएं",
+            "🪐 मेरी संपूर्ण विस्तृत कुंडली व सभी 9 ग्रहों का फलादेश बताएं",
+            "⏳ मेरी महादशा-अंतर्दशा कब से चल रही है और शुभ समय कब आएगा?",
+            "📕 लाल किताब उपाय व सिद्ध रुद्राक्ष धारण विधि बताएं",
+            "🛡️ शनि साढ़े साती व राहु-केतु दोष निवारण कैसे करें?"
           ].map((qText, i) => (
             <button
               key={i}
               type="button"
-              onClick={() => handleAskInChat(`नमस्ते पंडित जी 🙏 ${qText} (मेरी राशि: ${result.rashiHindi}, अनुशंसित: ${result.recommendedMukhi})`)}
+              onClick={() => handleAskInChat(`नमस्ते पंडित जी 🙏 ${qText} (मेरी राशि: ${result.rashiHindi}, अनुशंसित रुद्राक्ष: ${result.recommendedMukhi})`)}
               style={{
                 background: '#fef3c7',
                 border: '1px solid #fde68a',
@@ -382,7 +382,7 @@ export function PanditjiResult({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => handleAskInChat()}
+          onClick={() => handleAskInChat(`नमस्ते पंडित जी 🙏 कृपया मेरी संपूर्ण विस्तृत कुंडली देखकर बताएं कि अभी मेरे जीवन में क्या-क्या परेशानी चल रही है, क्यों और कब से चल रही है, यह कब ठीक होगी, तथा सभी 9 ग्रहों का फल और अचूक उपाय क्या हैं?`)}
           style={{
             flex: 1,
             minWidth: '180px',

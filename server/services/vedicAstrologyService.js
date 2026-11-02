@@ -1545,7 +1545,17 @@ export function calculateAuthenticKundali(params = {}) {
   // 10. Gochar (Planetary Transits from Moon Sign)
   const gochar = calculateGochar(moonSid);
 
-  return {
+  const doshaSummaryObj = {
+    isManglik,
+    isManglikPosition,
+    manglikNote: isManglik 
+      ? `Mangal ${marsHouse}th House mein sthit hai (Manglik Prabhav Shanti ke liye 3 Mukhi / 11 Mukhi upyogi hai).` 
+      : (isMarsInOwnOrExalted ? `Mangal ${marsHouse}th House mein swarashi/uchha hone se Manglik dosha Parashari niyam se cancel (Nivritti) ho gaya hai.` : "Kendra ya Trikon mein Mangal anukool sthiti mein hai (Manglik dosha mukt)."),
+    sadeSati: sadeSatiInfo,
+    kaalSarp: kaalSarpInfo || { type: "Kaal Sarp Mukt", description: "Kundali mein sabhi grah Rahu-Ketu ke bahar sthit hain (Kaal Sarp dosha nahi hai)." }
+  };
+
+  const baseKundaliResult = {
     verifiedBirthData: {
       name: name || "Devotee",
       gender: gender || "Not Specified",
@@ -1609,21 +1619,16 @@ export function calculateAuthenticKundali(params = {}) {
       planets,
       houses,
       vimshottariDasha: dashaInfo,
-      doshaSummary: {
-        isManglik,
-        isManglikPosition,
-        manglikNote: isManglik 
-          ? `Mangal ${marsHouse}th House mein sthit hai (Manglik Prabhav Shanti ke liye 3 Mukhi / 11 Mukhi upyogi hai).` 
-          : (isMarsInOwnOrExalted ? `Mangal ${marsHouse}th House mein swarashi/uchha hone se Manglik dosha Parashari niyam se cancel (Nivritti) ho gaya hai.` : "Kendra ya Trikon mein Mangal anukool sthiti mein hai (Manglik dosha mukt)."),
-        sadeSati: sadeSatiInfo,
-        kaalSarp: kaalSarpInfo || { type: "Kaal Sarp Mukt", description: "Kundali mein sabhi grah Rahu-Ketu ke bahar sthit hain (Kaal Sarp dosha nahi hai)." }
-      },
+      doshaSummary: doshaSummaryObj,
       yogas,
       jaiminiKarakas,
       badhakaMarakaInfo,
       rudrakshaRecommendations
     }
   };
+
+  baseKundaliResult.astronomicalKundali.panditJiDiagnosis = generatePanditJiLifeDiagnosis(baseKundaliResult);
+  return baseKundaliResult;
 }
 
 /**
@@ -2316,28 +2321,254 @@ export function calculateGochar(moonDeg) {
 
 
 /**
+ * 11. Comprehensive Vedic Pandit Ji Life Diagnosis Engine
+ * Diagnoses EXACTLY:
+ * - क्या-क्या परेशानी चल रही है (What problems are happening right now across Mind, Career, Wealth, Relationships, Health)
+ * - क्यों और कैसे चल रही है (Why & How it is happening: Dasha lords, Dusthana 6/8/12 houses, Neecha/Ast/Vakri planets, Lal Kitab Manda planets, Gochar)
+ * - कब से चल रही है (Since when it started: Exact Mahadasha, Antardasha & Pratyantardasha start dates)
+ * - कब सही होगी (When it will get resolved: Exact Pratyantardasha & Antardasha relief dates + upcoming golden periods)
+ * - संपूर्ण कुंडली विवरण (Full 9 Planets, 12 Houses, Yogas, Doshas, Lal Kitab Upay & 1-3 Rudraksha Remedies)
+ */
+export function generatePanditJiLifeDiagnosis(kundaliData) {
+  if (!kundaliData || !kundaliData.astronomicalKundali) return null;
+  const vb = kundaliData.verifiedBirthData || {};
+  const ak = kundaliData.astronomicalKundali;
+  const lagna = ak.lagna || {};
+  const chandra = ak.chandraRashi || {};
+  const surya = ak.suryaRashi || {};
+  const dasha = ak.vimshottariDasha || {};
+  const planets = ak.planets || [];
+  const houses = ak.houses || [];
+  const dosha = ak.doshaSummary || {};
+  const gochar = ak.gochar || [];
+  const lalKitab = ak.lalKitab || {};
+  const yogas = ak.yogas || [];
+  const recs = ak.rudrakshaRecommendations || [];
+
+  const mahaHindi = dasha.currentMahadashaHindi || "बृहस्पति (गुरु)";
+  const antarHindi = dasha.currentAntardashaHindi || "बुध (Mercury)";
+  const pratyantarHindi = dasha.currentPratyantardashaHindi || antarHindi;
+  const mahaStart = dasha.mahadashaStartDate || "2021-01-01";
+  const mahaEnd = dasha.mahadashaEndDate || "2037-01-01";
+  const antarStart = dasha.antardashaStartDate || "2024-06-01";
+  const antarEnd = dasha.antardashaEndDate || "2026-11-01";
+  const pratyantarStart = dasha.pratyantardashaStartDate || antarStart;
+  const pratyantarEnd = dasha.pratyantardashaEndDate || antarEnd;
+
+  // Identify key planets in Dusthana (6, 8, 12), debilitated/enemy, or retrograde/combust
+  const dusthanaPlanets = planets.filter(p => [6, 8, 12].includes(p.houseNumber));
+  const afflictedPlanets = planets.filter(p =>
+    /Debilitated|नीच|Enemy|शत्रु/i.test(p.dignity || "") ||
+    p.isCombust ||
+    [6, 8, 12].includes(p.houseNumber)
+  );
+  const strongPlanets = planets.filter(p =>
+    /Exalted|उच्च|Own|स्वगृही|Moolatrikona|मूलत्रिकोण|Friendly|मित्र/i.test(p.dignity || "") &&
+    ![6, 8, 12].includes(p.houseNumber)
+  );
+
+  const findPlanet = (key) => planets.find(p => (p.name || "").includes(key) || (p.englishName || "").toLowerCase().includes(key.toLowerCase())) || {};
+  const moonP = findPlanet("Chandra");
+  const sunP = findPlanet("Surya");
+  const marsP = findPlanet("Mangal");
+  const mercP = findPlanet("Budha");
+  const jupP = findPlanet("Guru");
+  const venP = findPlanet("Shukra");
+  const satP = findPlanet("Shani");
+  const rahuP = findPlanet("Rahu");
+  const ketuP = findPlanet("Ketu");
+
+  const h10 = houses[9] || {};
+  const h2 = houses[1] || {};
+  const h7 = houses[6] || {};
+  const h6 = houses[5] || {};
+  const h8 = houses[7] || {};
+  const h12 = houses[11] || {};
+
+  // Find active Mahadasha & Antardasha planet placements
+  const mahaPlanetObj = planets.find(p => mahaHindi.includes((p.name || "").split(" ")[0])) || jupP;
+  const antarPlanetObj = planets.find(p => antarHindi.includes((p.name || "").split(" ")[0])) || mercP;
+
+  // 1. क्या-क्या परेशानी चल रही है (Current Life Problems Diagnosis)
+  const currentProblems = [
+    `🧠 **मानसिक अशांति, अधिक सोच (Overthinking) व निर्णय में उलझन:** चंद्र देव आपकी कुंडली के **${moonP.houseNumber || 1}वें भाव (${moonP.rashiHindi || chandra.rashiHindi})** में स्थित हैं और वर्तमान में **${mahaHindi} महादशा** के भीतर **${antarHindi} की अंतर्दशा** चल रही है। इसके कारण मन में अकारण बेचैनी, भविष्य की चिंता, रात में नींद का टूटना या एक साथ कई विचारों का चलना बना हुआ है। आप मेहनत पूरी कर रहे हैं, किंतु मन को संतुष्टि देर से मिल रही है।`,
+    `💼 **करियर, व्यापार व परिश्रम के अनुपात में रुकावट:** दशम भाव (कर्म स्थान - ${h10.rashiHindi || "कर्म भाव"}, स्वामी: **${h10.lord || "शनि"}**) और सक्रिय अंतर्दशा नाथ **${antarPlanetObj.name || antarHindi}** (${antarPlanetObj.houseNumber || 10}वें भाव में) के प्रभाव से बनते हुए कार्यों में अंतिम समय पर विलंब (Delay), कार्यस्थल पर गुप्त प्रतिस्पर्धा, या व्यापार/नौकरी में जितनी मेहनत कर रहे हैं उसका पूरा श्रेय व प्रतिफल न मिल पाने की स्थिति बनी हुई है।`,
+    `💰 **आर्थिक बहाव, अनावश्यक खर्च व धन रुकने की समस्या:** धन भाव (2nd House - स्वामी: **${h2.lord || "गुरु"}**) एवं व्यय भाव (12th House - स्वामी: **${h12.lord || "मंगल"}**) के समीकरण तथा ${rahuP.houseNumber ? `राहु के ${rahuP.houseNumber}वें भाव` : "छाया ग्रहों"} के प्रभाव से पैसा हाथ में आता तो है, पर किसी न किसी आकस्मिक कार्य, पारिवारिक जिम्मेदारी या अनावश्यक मद में खर्च हो जाता है (बचत में रुकावट व फंसा हुआ धन)।`,
+    `❤️ **पारिवारिक व दांपत्य/संबंधों में वैचारिक मतभेद:** सप्तम भाव (${h7.rashiHindi || "विवाह भाव"}, स्वामी: **${h7.lord || "शुक्र"}**) और ${dosha.isManglik ? `मंगल के ${marsP.houseNumber}वें भाव में होने (मांगलिक प्रभाव)` : `शनि/राहु की दृष्टि`} के कारण जीवनसाथी या परिवार के सदस्यों के साथ कभी-कभी बिना बड़ी बात के गलतफहमी, वाणी में तेजी या भावनात्मक दूरी महसूस होती है—जबकि आपका मन साफ रहता है।`,
+    `🩺 **शारीरिक ऊर्जा में कमी, थकान व गुप्त बाधाएं:** ${dusthanaPlanets.length > 0 ? `त्रिक भाव (6, 8, 12) में स्थित ग्रहों (${dusthanaPlanets.map(p => `${p.name} - ${p.houseNumber}वां भाव`).join(", ")})` : `षष्ठेश (${h6.lord}) व अष्टमेश (${h8.lord})`} के कारण सिरदर्द, पेट/पाचन या कंधे-कमर में जकड़न, आलस्य और अचानक नजर दोष या गुप्त शत्रुओं द्वारा काम में अड़चन डालने की स्थिति बन रही है।`
+  ];
+
+  // 2. यह परेशानी क्यों और कैसे चल रही है (Why & How It Is Happening - Astrological Proof)
+  const cautionedGochar = gochar.filter(g => [6, 8, 12, 4, 1].includes(g.houseFromMoon));
+  const mandaLalKitab = (lalKitab.planets || []).filter(lp => (lp.status || "").includes("मंदा"));
+  const whyAndHow = [
+    `🪐 **1. महादशा और अंतर्दशा का प्रत्यक्ष प्रभाव (Primary Root Cause):** इस समय आप पर **${mahaHindi}** की महादशा और उसमें **${antarHindi}** की अंतर्दशा तथा **${pratyantarHindi}** की प्रत्यंतर दशा चल रही है। कुंडली में **${mahaPlanetObj.name || mahaHindi}** ${mahaPlanetObj.houseNumber || 1}वें भाव (${mahaPlanetObj.rashiHindi || ""}) में और **${antarPlanetObj.name || antarHindi}** ${antarPlanetObj.houseNumber || 6}वें भाव (${antarPlanetObj.rashiHindi || ""}) में बैठा है। बृहत्पाराशर होरा शास्त्र के अनुसार जब महादशानाथ और अंतर्दशानाथ परस्पर षडाष्टक (6/8) या द्विर्द्वादश (2/12) संबंध बनाते हैं अथवा त्रिक भावों को सक्रिय करते हैं, तब जातक को मानसिक व आर्थिक संघर्ष से गुजरना पड़ता है।`,
+    `🔭 **2. कुंडली के पीड़ित/त्रिक भावों (6, 8, 12 Houses) का सक्रिय होना:** आपकी कुंडली में ${afflictedPlanets.length > 0 ? afflictedPlanets.map(p => `**${p.name}** (${p.houseNumber}वें भाव में - ${p.dignity})`).join(", ") : `राहु (${rahuP.houseNumber}वें भाव) और केतु (${ketuP.houseNumber}वें भाव)`} स्थित हैं। यह ग्रह योग जातक के आत्मविश्वास की परीक्षा लेता है और बिना संघर्ष के तुरंत सफलता नहीं मिलने देता—हर काम में दो बार प्रयास करना पड़ता है।`,
+    `🌌 **3. वर्तमान गोचर (Current Transit) व शनि/राहु की स्थिति:** आपकी जन्म राशि **${chandra.rashiHindi}** से वर्तमान गोचर में ${cautionedGochar.length > 0 ? cautionedGochar.map(g => `**${g.planet}** जन्म राशि से **${g.houseFromMoon}वें भाव** (${g.transitRashi}) में`).join(", ") : `शनि कुंभ राशि में व राहु मीन राशि में`} भ्रमण कर रहे हैं। ${dosha.sadeSati?.phase && dosha.sadeSati.phase !== "Sade Sati Mukt" ? `साथ ही आप पर **${dosha.sadeSati.phase}** का प्रभाव भी कार्यरत है, जो कर्मों की कसौटी और धैर्य की परीक्षा ले रहा है।` : `राशि से अष्टम/द्वादश/चतुर्थ गोचर मानसिक भटकाव और कार्यों में देरी पैदा कर रहा है।`}`,
+    `📕 **4. लाल किताब एवं बाधक ग्रह विचार:** ${ak.badhakaMarakaInfo?.badhaka?.note || ""} लाल किताब के अनुसार आपकी कुंडली में ${mandaLalKitab.length > 0 ? mandaLalKitab.map(m => `**${m.planet}** (खाना नं. ${m.houseNumber} में मंदा/पीड़ित)`).join(", ") : "राहु व शनि का प्रभाव"} होने से भाग्य का ताला (Sleeping Fate) पूरी तरह खुलने में रुकावट आ रही है।`
+  ];
+
+  // 3. यह परेशानी कब से चल रही है (Since When It Started - Exact Timeline)
+  const sinceWhen = [
+    `📅 **पृष्ठभूमि की शुरुआत (Background Phase):** आपके जीवन में बड़े बदलावों और जिम्मेदारियों के दबाव की मूल पृष्ठभूमि **${mahaStart}** से शुरू हुई, जब आपकी **${mahaHindi} की महादशा** प्रारंभ हुई।`,
+    `⚡ **वर्तमान परेशानियों और रुकावटों का तीव्र दौर (Main Struggle Start):** अभी जो मुख्य मानसिक उलझन, काम में अटकाव और आर्थिक/पारिवारिक तनाव आप महसूस कर रहे हैं, वह विशेष रूप से **${antarStart}** से शुरू हुआ है—क्योंकि इसी तारीख से **${mahaHindi} में ${antarHindi} की अंतर्दशा** सक्रिय हुई है।`,
+    `🔥 **हालिया उतार-चढ़ाव (Recent Peak Pressure):** पिछले कुछ समय में **${pratyantarStart}** से जब **${pratyantarHindi} की प्रत्यंतर दशा** लगी, तब से मन में बेचैनी, खर्चों की अधिकता और बनते काम रुकने की गति और अधिक तेज महसूस हो रही है।`
+  ];
+
+  // 4. यह परेशानी कब ठीक होगी और भाग्योदय कब होगा (When Will It Resolve - Relief & Golden Period Dates)
+  const timelineList = dasha.antardashasTimeline || [];
+  const currentIdx = timelineList.findIndex(a => a.isCurrent);
+  const nextAntar1 = currentIdx >= 0 && timelineList[currentIdx + 1] ? timelineList[currentIdx + 1] : timelineList[0];
+  const nextAntar2 = currentIdx >= 0 && timelineList[currentIdx + 2] ? timelineList[currentIdx + 2] : timelineList[1];
+
+  const whenWillItResolve = [
+    `🌤️ **पहली राहत (Initial Relief Milestone):** आपकी वर्तमान प्रत्यंतर दशा **${pratyantarEnd}** को समाप्त हो रही है। **${pratyantarEnd}** के तुरंत बाद से आपके मानसिक तनाव में कमी आएगी, रुके हुए छोटे काम बनने लगेंगे और मन में स्पष्टता लौटेगी।`,
+    `🌅 **बड़ा परिवर्तन और संकट से पूर्ण मुक्ति (Major Turnaround Date):** वर्तमान **${antarHindi} की अंतर्दशा ${antarEnd} को पूर्ण रूप से समाप्त हो जाएगी।** पंडित जी के गणितीय विश्लेषण के अनुसार **${antarEnd}** के बाद आपकी वर्तमान बड़ी परेशानियां, कर्ज/खर्च का दबाव और कार्यक्षेत्र की रुकावटें जड़ से हटने लगेंगी।`,
+    `👑 **स्वर्ण काल व भाग्योदय समय चक्र (Upcoming Golden Period):** ${nextAntar1 ? `**${nextAntar1.startDate} से ${nextAntar1.endDate}** तक चलने वाली **${nextAntar1.planetHindi} की अंतर्दशा** आपके लिए अत्यंत शुभ और भाग्योदयकारी रहेगी। इस अवधि में रुका हुआ धन प्राप्त होगा, करियर/व्यापार में बड़ी उन्नति होगी और पारिवारिक सुख-शांति स्थापित होगी।` : `**${antarEnd}** के पश्चात नई अंतर्दशा लगते ही आपके राजयोग (${yogas.slice(0, 2).map(y => y.name).join(", ") || "लग्न-त्रिकोण योग"}) पूर्ण फल देने लगेंगे।`} ${nextAntar2 ? `इसके पश्चात **${nextAntar2.startDate} से ${nextAntar2.endDate}** (${nextAntar2.planetHindi} अंतर्दशा) में स्थायी संपत्ति, पद-प्रतिष्ठा और आर्थिक समृद्धि के प्रबल योग बनेंगे।` : ""}`,
+    `🛡️ **तुरंत राहत का शास्त्रीय मार्ग:** यदि आप **${antarEnd}** तक का इंतजार किए बिना अभी तुरंत (11 से 41 दिनों के भीतर) ग्रहों की नकारात्मकता शांत करना चाहते हैं, तो नीचे दिए गए **सिद्ध नेपाली रुद्राक्ष (${recs.map(r => r.mukhi).join(", ")})** और लाल किताब/वैदिक उपायों को श्रद्धापूर्वक प्रारंभ कर दें—इससे दशा का अशुभ प्रभाव तुरंत कवच की तरह कटने लगता है।`
+  ];
+
+  // Build Full Pandit Ji Report Markdown (Used as authoritative reference & instant fallback)
+  const planetsBulletMarkdown = planets.map(p => {
+    const isGood = /Exalted|उच्च|Own|स्वगृही|Moolatrikona|मूलत्रिकोण|Friendly|मित्र/i.test(p.dignity || "") && ![6, 8, 12].includes(p.houseNumber);
+    return `• 📌 **${p.name}** — **भाव:** ${p.houseNumber}वां भाव | **राशि:** ${p.rashiHindi} (${p.degreeInSign}) | **नक्षत्र:** ${p.nakshatra} (चरण ${p.pada}) | **स्थिति:** **${p.dignity}** | **नवमांश (D9):** ${p.navamshaRashiHindi}${p.isVargottama ? " 🌟 *(वर्गोत्तम - अत्यंत बली)*" : ""}${p.isRetrograde ? " 🔄 *(वक्री)*" : ""}${p.isCombust ? " 🔥 *(अस्त)*" : ""}\n  - 💡 **पंडित जी का फलादेश:** ${p.signification || ""} ${isGood ? "यह ग्रह आपकी कुंडली में शुभ बल दे रहा है और सही दशा आने पर उच्च सफलता दिलाएगा।" : "इस ग्रह की पीड़ा/स्थान के कारण संबंधित क्षेत्र में संघर्ष व विलंब होता है, जिसके लिए रुद्राक्ष व मंत्र जाप आवश्यक है।"}`;
+  }).join("\n\n");
+
+  const housesBulletMarkdown = houses.map(h => {
+    const occText = h.occupants && h.occupants.length > 0 ? h.occupants.join(", ") : "कोई ग्रह नहीं (भावेश द्वारा संचालित)";
+    const aspText = h.aspects && h.aspects.length > 0 ? h.aspects.join(", ") : "सामान्य दृष्टि";
+    return `• 🏛️ **${h.houseNumber}वां भाव (${h.significance || "जीवन क्षेत्र"})** — **राशि:** ${h.rashiHindi} | **स्वामी (भावेश):** ${h.lord} | **स्थित ग्रह:** ${occText} | **दृष्टि:** ${aspText}`;
+  }).join("\n");
+
+  const lalKitabUpayMarkdown = (lalKitab.planets || []).slice(0, 5).map(lp =>
+    `• 📕 **${lp.planet} (खाना नं. ${lp.houseNumber} - ${lp.status}):** ${lp.lalKitabUpay}`
+  ).join("\n");
+
+  const rudrakshaMarkdown = recs.map((r, idx) =>
+    `• 📿 **${idx + 1}. ${r.role}: ${r.mukhi}**\n  - **शास्त्रीय कारण:** ${r.reason}\n  - **सिद्ध बीज मंत्र:** \`${r.beejMantra || "ॐ नमः शिवाय"}\` (प्रतिदिन प्रातः 108 बार जाप)\n  - **धारण दिवस:** ${r.wearingDay || "सोमवार या प्रदोष व्रत"} (गंगाजल व कच्चे दूध से अभिषेक कर लाल/पीले रेशमी धागे या चाँदी में धारण करें)`
+  ).join("\n\n");
+
+  const fullPanditJiReportMarkdown = `🙏 **श्री गणेशाय नमः! हर हर महादेव! प्रणाम ${vb.name || "भक्त"} जी।**
+
+मैं **AI पंडित जी (ज्योतिषाचार्य)** हूँ। मैंने महर्षि पाराशर के **बृहत्पाराशर होरा शास्त्र (BPHS)**, **फलदीपिका**, **जैमिनी सूत्र**, **लाल किताब** और **शिव पुराण** के शास्त्रीय नियमों तथा **लाहिड़ी चित्रापक्षीय अयनांश (${vb.ayanamsha || "Lahiri"})** के आधार पर आपकी जन्म कुंडली का सूक्ष्म गणितीय अध्ययन किया है।
+
+एक सच्चे वैदिक ब्राह्मण व ज्योतिषी की भांति मैं बिना कुछ छिपाए आपको स्पष्ट शब्दों में बता रहा हूँ कि **अभी आपके जीवन में क्या-क्या परेशानी चल रही है, क्यों चल रही है, कब से चल रही है, कैसे चल रही है और यह कब पूरी तरह ठीक होगी:**
+
+---
+
+### 1. 🔍 अभी आपके जीवन में क्या-क्या परेशानी चल रही है? (वर्तमान समस्याओं का सटीक निदान)
+${currentProblems.map(item => `• ${item}`).join("\n\n")}
+
+---
+
+### 2. ❓ यह परेशानी क्यों और कैसे चल रही है? (कुंडली के ग्रहों व भावों का प्रत्यक्ष शास्त्रीय कारण)
+${whyAndHow.map(item => `• ${item}`).join("\n\n")}
+
+---
+
+### 3. 📅 यह परेशानी कब से चल रही है? (सटीक तारीख व दशा प्रमाण)
+${sinceWhen.map(item => `• ${item}`).join("\n\n")}
+
+---
+
+### 4. ⏳ यह परेशानी कब ठीक होगी और आपका भाग्योदय कब होगा? (सटीक समय व समाधान काल)
+${whenWillItResolve.map(item => `• ${item}`).join("\n\n")}
+
+---
+
+### 5. 🔭 आपकी जन्म कुंडली का मूल पंचांग व अवकहड़ा चक्र (Birth Chart Foundation)
+• **जातक का नाम:** ${vb.name || "भक्त"} | **जन्म तिथि:** ${vb.dob} | **जन्म समय:** ${vb.birthTime} | **जन्म स्थान:** ${vb.birthPlace}
+• **जन्म लग्न (Ascendant):** **${lagna.rashiHindi} (${lagna.rashiEnglish})** — अंश: ${lagna.degree} | **लग्नेश:** ${lagna.lord} | **नवमांश (D9):** ${lagna.navamsha}
+• **जन्म चंद्र राशि (Moon Sign):** **${chandra.rashiHindi} (${chandra.rashiEnglish})** — अंश: ${chandra.degree} | **राशि स्वामी:** ${chandra.lord}
+• **जन्म नक्षत्र:** **${chandra.nakshatra}** (चरण ${chandra.pada}) | **सूर्य राशि:** ${surya.rashiHindi} (${surya.rashiEnglish})
+• **पंचांग विवरण:** वार: ${ak.panchanga?.vaar || "शुभ वार"} | तिथि: ${ak.panchanga?.tithi || "शुभ तिथि"} | योग: ${ak.panchanga?.yoga || "शुभ योग"} | करण: ${ak.panchanga?.karana || "शुभ करण"}
+• **अवकहड़ा चक्र:** पाया: **${ak.avakahadaChakra?.paya || "चाँदी"}** | वर्ण: ${ak.avakahadaChakra?.varna || "क्षत्रिय"} | गण: ${ak.avakahadaChakra?.gana || "देव"} | नाड़ी: ${ak.avakahadaChakra?.nadi || "मध्य"} | मूलांक: **${ak.mulank}** | भाग्यांक: **${ak.avakahadaChakra?.bhagyank || ak.mulank}**
+• **शुभ अंक:** ${ak.avakahadaChakra?.shubhAnk || "1, 3, 9"} | **शुभ दिन:** ${ak.avakahadaChakra?.shubhDin || "सोमवार, गुरुवार"} | **भाग्योदय वर्ष:** ${ak.avakahadaChakra?.shubhVarsh || "24, 28, 32, 36 वर्ष"}
+
+---
+
+### 6. 🪐 नवग्रहों की भाव-राशि स्थिति, उच्च/नीच विचार व विस्तृत फलादेश (All 9 Planets Detailed Reading)
+${planetsBulletMarkdown}
+
+---
+
+### 7. 🏛️ कुंडली के 12 भावों (Bhavas) का संपूर्ण विश्लेषण
+${housesBulletMarkdown}
+
+---
+
+### 8. ✨ कुंडली के प्रमुख राजयोग, दोष एवं गोचर (Yogas, Doshas & Transits)
+• **प्रमुख शुभ योग:** ${yogas.length > 0 ? yogas.map(y => `**${y.name}** (${y.description})`).join(" | ") : "लग्न-त्रिकोण राजयोग एवं धर्म-कर्मधिपति सहयोग"}
+• **मांगलिक दोष विचार:** ${dosha.manglikNote}
+• **शनि साढ़े साती / ढैया स्थिति:** ${dosha.sadeSati?.phase || "साढ़े साती मुक्त"} — ${dosha.sadeSati?.description || ""}
+• **कालसर्प योग विचार:** ${dosha.kaalSarp?.type || "कालसर्प मुक्त"} — ${dosha.kaalSarp?.description || ""}
+• **ताजिक वर्षफल (मुंथा विचार - वर्ष ${ak.tajikVarshphal?.currentYear || new Date().getFullYear()}):** आपकी वार्षिक मुंथा **${ak.tajikVarshphal?.munthaHouse || 1}वें भाव (${ak.tajikVarshphal?.munthaRashi || lagna.rashiHindi})** में है — ${ak.tajikVarshphal?.munthaSignificance || ""}
+
+---
+
+### 9. ⏱️ विंशोत्तरी महादशा, अंतर्दशा व आगामी समय सारिणी (Complete Dasha Timeline)
+• **सक्रिय 4-स्तरीय दशा सूत्र:** **${dasha.dashaChainSummary || `${mahaHindi} > ${antarHindi} > ${pratyantarHindi}`}**
+• **वर्तमान महादशा:** **${mahaHindi}** (${mahaStart} से ${mahaEnd} तक)
+• **वर्तमान अंतर्दशा:** **${antarHindi}** (${antarStart} से ${antarEnd} तक)
+• **वर्तमान प्रत्यंतर दशा:** **${pratyantarHindi}** (${pratyantarStart} से ${pratyantarEnd} तक)
+• **अंतर्दशा समय चक्र (Antardasha Roadmap):**
+${(dasha.antardashasTimeline || []).map(a => `  - **${a.planetHindi}:** ${a.startDate} से ${a.endDate} तक ${a.isCurrent ? "👉 **[वर्तमान में सक्रिय]**" : ""}`).join("\n")}
+
+---
+
+### 10. 📕 लाल किताब के अचूक उपाय व कुंडली-प्रमाणित सिद्ध नेपाली रुद्राक्ष (Remedies & Rudraksha)
+**क) लाल किताब व वैदिक घरेलू उपाय:**
+${lalKitabUpayMarkdown}
+• प्रतिदिन प्रातः तांबे के लोटे से सूर्य देव को जल अर्पित करें और शिवलिंग पर जल व काले तिल चढ़ाएं।
+
+**ख) आपकी जन्म कुंडली से 100% प्रमाणित सिद्ध नेपाली रुद्राक्ष कवच (शिव पुराण सम्मत):**
+${rudrakshaMarkdown}
+
+---
+
+### 🌟 पंडित जी का अनिवार्य सारांश (Key Takeaways)
+• **मुख्य समस्या का कारण:** **${mahaHindi}** महादशा में **${antarHindi}** अंतर्दशा (${antarStart} से सक्रिय) एवं त्रिक भाव/गोचर का दबाव।
+• **राहत कब मिलेगी:** पहली राहत **${pratyantarEnd}** के बाद और पूर्ण भाग्योदय **${antarEnd}** के पश्चात।
+• **सर्वश्रेष्ठ रक्षा कवच:** **${recs.map(r => r.mukhi).join(" + ")}** (100% शुद्ध नेपाली, लैब प्रमाणित व प्राण-प्रतिष्ठित)।
+
+भगवान देवाधिदेव महादेव एवं माता अन्नपूर्णा आपके समस्त कष्टों का निवारण करें और आपके जीवन में सुख, शांति व अथाह समृद्धि प्रदान करें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: ${recs[0]?.mukhi || "सिद्ध रुद्राक्ष"} धारण विधि | मेरी परेशानी कब ठीक होगी | ${mahaHindi} महादशा उपाय | नवग्रह शांति उपाय | संपूर्ण कुंडली फलादेश`;
+
+  return {
+    currentProblems,
+    whyAndHow,
+    sinceWhen,
+    whenWillItResolve,
+    fullPanditJiReportMarkdown
+  };
+}
+
+
+/**
  * Determine Question Intent for Focused Astrological Analysis
  */
 export function determineAstrologicalIntent(userQuery = "") {
-  if (!userQuery || typeof userQuery !== "string") return { type: "specific_query", label: "Astrological Inquiry" };
+  if (!userQuery || typeof userQuery !== "string") return { type: "full_kundali", label: "Sampurna Vedic Kundali & Pareshani Nivaran Vishleshan" };
   const q = userQuery.toLowerCase().trim();
 
   // 1. Greetings & Casual Hi (when user just greets without asking a specific question)
   if (
     /^(hi|hii|hiii|hiiii|helo|hello|hey|namaste|namaskar|pranam|ram ram|radhe radhe|jai shree ram|har har mahadev|greetings)$/i.test(q) ||
     /^(नमस्ते|प्रणाम|नमस्कार|जय श्री राम|हर हर महादेव|राधे राधे|हेलो|हाय)$/i.test(q) ||
-    (q.length <= 25 && /^(hi|hii|hello|hey|namaste|pranam|namaskar|नमस्ते|प्रणाम|नमस्कार)\b/i.test(q) && !/kundali|dasha|rashi|graha|job|shaadi|future|batao|bataiye|dekh|kaisa|kab|kya|shani/i.test(q))
+    (q.length <= 25 && /^(hi|hii|hello|hey|namaste|pranam|namaskar|नमस्ते|प्रणाम|नमस्कार)\b/i.test(q) && !/kundali|dasha|rashi|graha|job|shaadi|future|batao|bataiye|dekh|kaisa|kab|kya|shani|pareshan|problem|dikkat/i.test(q))
   ) {
     return { type: "greeting", label: "Devotee Greeting" };
   }
 
-  // 2. EXPLICIT Full Kundali triggers ONLY (when user explicitly asks for the complete/entire horoscope reading)
-  const isExplicitFullRequest = (
-    /^(पूरी\s*कुंडली|संपूर्ण\s*कुंडली|विस्तृत\s*कुंडली|फुल\s*कुंडली|puri\s*kundali|poori\s*kundali|full\s*kundali|complete\s*kundli|complete\s*reading|sampurna\s*kundali)/i.test(q) ||
-    /(पूरी\s*कुंडली\s*(बताओ|दिखाओ|विश्लेषण|पढ़ो|बनाओ)|poori\s*kundali\s*batao|full\s*kundali\s*reading|complete\s*horoscope\s*analysis)/i.test(q)
+  // 2. Comprehensive Full Kundali + Life Problem Diagnosis Triggers
+  // Triggers when user submits birth form, asks for full kundali, OR asks what problems are going on, why, since when, how, and when it will be fixed
+  const isFullOrLifeDiagnosisRequest = (
+    /(पूरी\s*कुंडली|संपूर्ण\s*कुंडली|विस्तृत\s*कुंडली|फुल\s*कुंडली|कुंडली\s*विश्लेषण|जन्म\s*तिथि:|जन्म\s*समय:|जन्म\s*स्थान:|मुख्य\s*संकल्प|puri\s*kundali|poori\s*kundali|full\s*kundali|complete\s*kundli|complete\s*reading|sampurna\s*kundali|diteld|detailed|sab\s*kuch|सब\s*कुछ)/i.test(q) ||
+    /(pareshani|paresani|dikkat|problem|samasya|sankat|rukaawat|rukawat|kya\s*chal\s*raha|kyo\s*chal|kyu\s*chal|kab\s*se|kese\s*chal|kaise\s*chal|kab\s*sahi\s*hog|kab\s*thik\s*hog|kab\s*theek\s*hog|परेशानी|दिक्कत|समस्या|संकट|रुकावट|क्यों\s*चल|कब\s*से|कैसे\s*चल|कब\s*सही\s*होगी|कब\s*ठीक\s*होगी|पंडित\s*की\s*तरह|bandit\s*ki\s*tarh|pandit\s*ki\s*tarah)/i.test(q)
   );
-  if (isExplicitFullRequest && !/(career|job|naukri|shaadi|marriage|vivah|finance|health|videsh|rudraksha|रुद्राक्ष|शनि|राहु|दशा)/i.test(q)) {
-    return { type: "full_kundali", label: "Sampurna Vedic Kundali Vishleshan" };
+  if (isFullOrLifeDiagnosisRequest) {
+    return { type: "full_kundali", label: "Sampurna Vedic Kundali & Pareshani Nivaran Vishleshan (What, Why, Since When, How & When Resolved)" };
   }
 
   // 3. Specific Astrological Topics:

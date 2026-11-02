@@ -1265,7 +1265,7 @@ export function AuraAIFloating() {
       spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
     };
 
-    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया मेरी जन्म कुंडली व नक्षत्रों का प्रामाणिक वैदिक विश्लेषण करके सर्वोत्तम रुद्राक्ष, बीज मंत्र और पूजन विधि बताइए।`;
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया एक अनुभवी वैदिक पंडित जी की तरह मेरी संपूर्ण विस्तृत जन्म कुंडली (Full Detailed Kundali) देखकर बताइए:\n1. अभी मेरे जीवन में क्या-क्या परेशानी चल रही है?\n2. यह परेशानी क्यों, कब से और कैसे चल रही है?\n3. यह परेशानी कब ठीक होगी और मेरा भाग्योदय कब होगा?\n4. सभी 9 ग्रहों, 12 भावों व महादशा का पूरा फल तथा सर्वोत्तम सिद्ध नेपाली रुद्राक्ष व लाल किताब उपाय बताइए।`;
 
     const verifiedDetails = {
       name: birthForm.name.trim(),
