@@ -67,7 +67,7 @@ export function AdminLogin() {
   const verifyAdminAndRedirect = async () => {
     try {
       setLoading(true);
-      const token = await authClient.getToken();
+      const token = await authClient.getToken(false, true);
       
       if (!token) {
         setError("Access Denied: Session token not found.");
@@ -97,6 +97,8 @@ export function AdminLogin() {
         setLoading(false);
         return;
       }
+
+      authClient.setCachedAdminVerification(json.user || authClient.getUser());
       
       const from = getSafeReturnPath(location.state?.from, ADMIN_BASE_PATH);
       navigate(from, { replace: true });

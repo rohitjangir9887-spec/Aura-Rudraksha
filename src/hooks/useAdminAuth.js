@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { authClient } from "../lib/authClient";
 import { ADMIN_LOGIN_PATH } from "../lib/routes";
 
 export function useAdminAuth() {
-  const location = useLocation();
   const navigate = useNavigate();
   const cachedAdmin = authClient.getCachedAdminVerification();
 
@@ -19,10 +18,20 @@ export function useAdminAuth() {
         name: cachedAdmin.user?.name || cachedAdmin.user?.displayName || displayIdentifier
       };
     }
-    return null;
+    const activeUser = authClient.getUser();
+    if (activeUser) {
+      const displayIdentifier = activeUser.email || activeUser.displayName || "Admin";
+      return {
+        email: displayIdentifier,
+        name: activeUser.displayName || displayIdentifier
+      };
+    }
+    return { email: "Admin", name: "Admin" };
   });
 
-  const [loadingAuth, setLoadingAuth] = useState(() => !(cachedAdmin && cachedAdmin.authorized));
+  // AdminGuard already protects all /admin/* routes before AdminLayout mounts,
+  // so AdminLayout should never block page rendering with a second auth spinner.
+  const [loadingAuth, setLoadingAuth] = useState(false);
 
   const userEmail =
     adminSession?.email ||
@@ -33,19 +42,20 @@ export function useAdminAuth() {
   useEffect(() => {
     let isSubscribed = true;
 
-    async function checkAuth() {
-      // If already verified in cache, no need to show loading
+    async function syncAdminIdentity() {
       const cached = authClient.getCachedAdminVerification();
       if (cached && cached.authorized) {
         const displayIdentifier =
           cached.user?.email ||
           cached.user?.displayName ||
           "Admin";
-        setAdminSession({
-          email: displayIdentifier,
-          name: cached.user?.name || cached.user?.displayName || displayIdentifier
-        });
-        setLoadingAuth(false);
+        if (isSubscribed) {
+          setAdminSession({
+            email: displayIdentifier,
+            name: cached.user?.name || cached.user?.displayName || displayIdentifier
+          });
+          setLoadingAuth(false);
+        }
         return;
       }
 
@@ -53,61 +63,36 @@ export function useAdminAuth() {
         const currentUser = await authClient.getCurrentUserAsync();
         if (!isSubscribed) return;
 
-        if (!currentUser) {
-          const cached = authClient.getCachedAdminVerification();
-          if (cached && cached.authorized) {
-            setLoadingAuth(false);
-            return;
+        if (currentUser) {
+          const verifyResult = await authClient.verifyAdminStatus();
+          if (!isSubscribed) return;
+
+          if (verifyResult.authorized) {
+            const displayIdentifier =
+              verifyResult.user?.email ||
+              currentUser?.email ||
+              currentUser?.displayName ||
+              "Admin";
+
+            setAdminSession({
+              email: displayIdentifier,
+              name: verifyResult.user?.name || currentUser?.displayName || displayIdentifier
+            });
           }
-          setAdminSession(null);
-          setLoadingAuth(false);
-          navigate(ADMIN_LOGIN_PATH, {
-            replace: true,
-            state: { from: location.pathname + location.search + location.hash }
-          });
-          return;
         }
-
-        const verifyResult = await authClient.verifyAdminStatus();
-        if (!isSubscribed) return;
-
-        if (!verifyResult.authorized) {
-          const cached = authClient.getCachedAdminVerification();
-          if (cached && cached.authorized) {
-            setLoadingAuth(false);
-            return;
-          }
-          setAdminSession(null);
-          setLoadingAuth(false);
-          navigate(ADMIN_LOGIN_PATH, { replace: true });
-          return;
-        }
-
-        const displayIdentifier =
-          verifyResult.user?.email ||
-          currentUser?.email ||
-          currentUser?.displayName ||
-          "Admin";
-
-        setAdminSession({
-          email: displayIdentifier,
-          name: verifyResult.user?.name || currentUser?.displayName || displayIdentifier
-        });
-      } catch (err) {
-        if (!isSubscribed) return;
-        setAdminSession(null);
-        navigate(ADMIN_LOGIN_PATH, { replace: true });
+      } catch (_) {
+        // Handled by AdminGuard
       } finally {
         if (isSubscribed) setLoadingAuth(false);
       }
     }
 
-    checkAuth();
+    syncAdminIdentity();
 
     return () => {
       isSubscribed = false;
     };
-  }, [navigate]);
+  }, []);
 
   const handleLogout = async () => {
     try {

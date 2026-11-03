@@ -131,6 +131,12 @@ export function useUserAuth() {
         };
 
         setProfile(updatedProfile);
+        if ((updatedProfile.role || "").toLowerCase() === "admin") {
+          authClient.setCachedAdminVerification({
+            ...updatedProfile,
+            uid: activeUser.uid || activeUser.authUserId || ""
+          });
+        }
 
         // Store with user-scoped key
         try {

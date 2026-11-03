@@ -290,17 +290,35 @@ export const authClient = {
     return inMemoryAdminVerification;
   },
 
-  verifyAdminStatus: async (force = false) => {
-    const currentUid = auth.currentUser?.uid || inMemoryCachedUser?.uid;
-    if (!currentUid) return { authorized: false, user: null };
+  setCachedAdminVerification: (userObj) => {
+    const currentUid = userObj?.uid || userObj?.authUserId || auth.currentUser?.uid || inMemoryCachedUser?.uid || "";
+    const verifiedPayload = {
+      authorized: true,
+      user: userObj || auth.currentUser || inMemoryCachedUser || { email: "Admin" },
+      uid: currentUid,
+      verifiedAt: Date.now()
+    };
+    inMemoryAdminVerification = verifiedPayload;
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(ADMIN_VERIFY_CACHE_KEY, JSON.stringify(verifiedPayload));
+        localStorage.setItem("isAdmin", "true");
+        if (verifiedPayload.user?.email) {
+          localStorage.setItem("user_email", verifiedPayload.user.email);
+        }
+      } catch (_) {}
+    }
+    return verifiedPayload;
+  },
 
+  verifyAdminStatus: async (force = false) => {
     if (!force) {
       const cached = authClient.getCachedAdminVerification();
       if (cached && cached.authorized) return cached;
     }
 
     try {
-      const token = await authClient.getToken();
+      const token = await authClient.getToken(false, true);
       if (!token) {
         const cached = authClient.getCachedAdminVerification();
         if (cached && cached.authorized) return cached;
@@ -318,18 +336,7 @@ export const authClient = {
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data && data.success && data.authorized && data.role === "admin") {
-          const verifiedPayload = {
-            authorized: true,
-            user: data.user || auth.currentUser || inMemoryCachedUser,
-            uid: currentUid,
-            verifiedAt: Date.now()
-          };
-          inMemoryAdminVerification = verifiedPayload;
-          try {
-            localStorage.setItem(ADMIN_VERIFY_CACHE_KEY, JSON.stringify(verifiedPayload));
-            localStorage.setItem("isAdmin", "true");
-          } catch (_) {}
-          return verifiedPayload;
+          return authClient.setCachedAdminVerification(data.user || auth.currentUser || inMemoryCachedUser);
         }
       } else if (res.status >= 500) {
         // Resilient fallback on transient server warm-up or 5xx
@@ -345,8 +352,9 @@ export const authClient = {
   },
 
   clearAdminCache: () => {
-    if (typeof window !== "undefined" && window.self !== window.top) {
-      // Inside an embedded preview iframe: NEVER wipe the parent window's admin cache!
+    const isSameOriginPreviewIframe = typeof window !== "undefined" && Boolean(window.frameElement);
+    if (isSameOriginPreviewIframe) {
+      // Inside an embedded same-origin preview iframe: NEVER wipe the parent window's admin cache!
       return;
     }
     inMemoryAdminVerification = null;

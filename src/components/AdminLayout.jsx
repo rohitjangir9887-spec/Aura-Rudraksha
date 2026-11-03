@@ -24,6 +24,12 @@ export function AdminLayout({ children }) {
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    if (typeof document !== "undefined") {
+      if (document.body.style.overflow) document.body.style.overflow = "";
+      if (document.body.style.pointerEvents) document.body.style.pointerEvents = "";
+      if (document.documentElement.style.overflow) document.documentElement.style.overflow = "";
+      if (document.documentElement.style.pointerEvents) document.documentElement.style.pointerEvents = "";
+    }
   }, [location.pathname]);
 
   const menuItems = getMenuItems(counts);
@@ -32,7 +38,7 @@ export function AdminLayout({ children }) {
   const currentItem = menuItems.find(
     (i) =>
       i.path === location.pathname ||
-      (i.path !== ADMIN_BASE_PATH && location.pathname.startsWith(i.path))
+      (i.path !== ADMIN_BASE_PATH && location.pathname.startsWith(i.path + "/"))
   );
   const pageTitle = currentItem?.label || "Admin";
 
@@ -277,15 +283,9 @@ export function AdminLayout({ children }) {
           </div>
         </div>
 
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="admin-content-wrapper"
-        >
+        <div className="admin-content-wrapper">
           {children}
-        </motion.div>
+        </div>
       </section>
 
       {/* Floating Admin AI Co-Pilot Button & Drawer (Exclusive to Admin Dashboard) */}

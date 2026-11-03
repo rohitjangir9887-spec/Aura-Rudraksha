@@ -211,11 +211,19 @@ export function AdminGuard({ children }) {
 
   // 2. Not authenticated -> Redirect to Admin Login
   if (!authState.authenticated) {
-    const isIframe = typeof window !== "undefined" && window.self !== window.top;
-    if (isIframe) {
+    const isSameOriginPreviewIframe = typeof window !== "undefined" && Boolean(window.frameElement);
+    if (isSameOriginPreviewIframe) {
+      const parentCached = authClient.getCachedAdminVerification();
+      if (parentCached && parentCached.authorized) {
+        return (
+          <React.Suspense fallback={null}>
+            {children ? children : <Outlet />}
+          </React.Suspense>
+        );
+      }
       return (
         <div style={{ padding: "24px 16px", textAlign: "center", color: "#7c2d12", background: "#fdfaf7" }}>
-          <p style={{ fontWeight: 700, margin: 0, fontSize: "14px" }}>Admin View (Live Preview Protected)</p>
+          <p style={{ fontWeight: 700, margin: 0, fontSize: "14px" }}>Admin View (Please sign in to Admin first)</p>
         </div>
       );
     }
@@ -313,5 +321,9 @@ export function AdminGuard({ children }) {
   }
 
   // 4. Authorized -> Render Protected Content
-  return children ? children : <Outlet />;
+  return (
+    <React.Suspense fallback={null}>
+      {children ? children : <Outlet />}
+    </React.Suspense>
+  );
 }

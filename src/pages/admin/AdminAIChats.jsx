@@ -35,7 +35,9 @@ import {
 import { authClient } from "../../lib/authClient";
 import { emitToast } from "../../context/ToastContext";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { AdminLayout } from "../../components/AdminLayout";
 import { motion, AnimatePresence } from "framer-motion";
+import "./admin-pages.css";
 
 const API_BASE = ((((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env.VITE_API_BASE_URL : undefined) || "/api").replace(/\/$/, "")) + "/aura-ai";
 
@@ -298,6 +300,7 @@ export function AdminAIChats() {
   });
 
   return (
+    <AdminLayout>
     <div style={{ padding: "16px 20px 60px", maxWidth: "1400px", margin: "0 auto", color: "#2B170D" }}>
       
       {/* 1. Page Header */}
@@ -1152,5 +1155,6 @@ export function AdminAIChats() {
       )}
 
     </div>
+    </AdminLayout>
   );
 }

@@ -43,25 +43,25 @@ const RudrakshaCompare = lazy(() => import("./pages/RudrakshaCompare"));
 const PranPratishtha = lazy(() => import("./pages/PranPratishtha"));
 const VedicTools = lazy(() => import("./pages/VedicTools"));
 
-const AdminLogin = lazy(() => import("./pages/admin/AdminLogin").then(m => ({ default: m.AdminLogin })));
-const Admin = lazy(() => import("./pages/admin/Admin").then(m => ({ default: m.Admin })));
-const AdminAI = lazy(() => import("./pages/admin/AdminAI").then(m => ({ default: m.AdminAI })));
-const AdminAIChats = lazy(() => import("./pages/admin/AdminAIChats").then(m => ({ default: m.AdminAIChats })));
-const AdminProducts = lazy(() => import("./pages/admin/AdminProducts").then(m => ({ default: m.AdminProducts })));
-const AdminOrders = lazy(() => import("./pages/admin/AdminOrders").then(m => ({ default: m.AdminOrders })));
-const AdminCustomers = lazy(() => import("./pages/admin/AdminCustomers").then(m => ({ default: m.AdminCustomers })));
-const AdminBanners = lazy(() => import("./pages/admin/AdminBanners").then(m => ({ default: m.AdminBanners })));
-const AdminHomeProductManager = lazy(() => import("./pages/admin/AdminHomeProductManager").then(m => ({ default: m.AdminHomeProductManager })));
-const HeroImages = lazy(() => import("./pages/admin/HeroImages").then(m => ({ default: m.HeroImages })));
-const AdminPromotions = lazy(() => import("./pages/admin/AdminPromotions").then(m => ({ default: m.AdminPromotions })));
-const AdminCategories = lazy(() => import("./pages/admin/AdminCategories").then(m => ({ default: m.AdminCategories })));
-const AdminOffers = lazy(() => import("./pages/admin/AdminOffers").then(m => ({ default: m.AdminOffers })));
-const AdminCoupons = lazy(() => import("./pages/admin/AdminCoupons").then(m => ({ default: m.AdminCoupons })));
-const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics").then(m => ({ default: m.AdminAnalytics })));
-const AdminReviews = lazy(() => import("./pages/admin/AdminReviews").then(m => ({ default: m.AdminReviews })));
-const AdminSupport = lazy(() => import("./pages/admin/AdminSupport").then(m => ({ default: m.AdminSupport })));
-const AdminSettings = lazy(() => import("./pages/admin/AdminSettings").then(m => ({ default: m.AdminSettings })));
-const AdminZodiac = lazy(() => import("./pages/admin/AdminZodiac").then(m => ({ default: m.AdminZodiac })));
+import { AdminLogin } from "./pages/admin/AdminLogin";
+import { Admin } from "./pages/admin/Admin";
+import { AdminAI } from "./pages/admin/AdminAI";
+import { AdminAIChats } from "./pages/admin/AdminAIChats";
+import { AdminProducts } from "./pages/admin/AdminProducts";
+import { AdminOrders } from "./pages/admin/AdminOrders";
+import { AdminCustomers } from "./pages/admin/AdminCustomers";
+import { AdminBanners } from "./pages/admin/AdminBanners";
+import { AdminHomeProductManager } from "./pages/admin/AdminHomeProductManager";
+import { HeroImages } from "./pages/admin/HeroImages";
+import { AdminPromotions } from "./pages/admin/AdminPromotions";
+import { AdminCategories } from "./pages/admin/AdminCategories";
+import { AdminOffers } from "./pages/admin/AdminOffers";
+import { AdminCoupons } from "./pages/admin/AdminCoupons";
+import { AdminAnalytics } from "./pages/admin/AdminAnalytics";
+import { AdminReviews } from "./pages/admin/AdminReviews";
+import { AdminSupport } from "./pages/admin/AdminSupport";
+import { AdminSettings } from "./pages/admin/AdminSettings";
+import { AdminZodiac } from "./pages/admin/AdminZodiac";
 
 function PageLoader() {
   return (

@@ -18,7 +18,7 @@ export function AdminNavLinks({ counts, onLogout }) {
         {menuItems.map(item => {
           const isActive =
             location.pathname === item.path ||
-            (item.path !== ADMIN_BASE_PATH && location.pathname.startsWith(item.path));
+            (item.path !== ADMIN_BASE_PATH && location.pathname.startsWith(item.path + "/"));
 
           return (
             <Link

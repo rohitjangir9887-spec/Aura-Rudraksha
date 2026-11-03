@@ -27,8 +27,7 @@ export const getSafeReturnPath = (fromPath, defaultFallback = "/account") => {
   if (
     cleanPath.startsWith("/login") ||
     cleanPath.startsWith("/admin/login") ||
-    cleanPath.startsWith(ADMIN_LOGIN_PATH.toLowerCase()) ||
-    cleanPath === "/admin"
+    cleanPath.startsWith(ADMIN_LOGIN_PATH.toLowerCase())
   ) {
     return defaultFallback;
   }
