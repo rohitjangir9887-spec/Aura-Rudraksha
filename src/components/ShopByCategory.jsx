@@ -10,40 +10,40 @@ const DEFAULT_CATEGORIES = [
     id: "rudraksha",
     name: "Rudraksha",
     desc: "Authentic Nepal beads",
-    image: "/images/product-5mukhi.jpg",
-    fallback: "/images/product-5mukhi.jpg",
+    image: "/images/placeholder.svg",
+    fallback: "/images/placeholder.svg",
     link: "/shop?category=Rudraksha"
   },
   {
     id: "malas",
     name: "Malas",
     desc: "108+1 Japa malas",
-    image: "/images/product-mala.jpg",
-    fallback: "/images/product-mala.jpg",
+    image: "/images/placeholder.svg",
+    fallback: "/images/placeholder.svg",
     link: "/shop?category=Malas"
   },
   {
     id: "puja-samagri",
     name: "Puja Samagri",
     desc: "Sacred ritual essentials",
-    image: "/images/product-7mukhi.jpg",
-    fallback: "/images/product-7mukhi.jpg",
+    image: "/images/placeholder.svg",
+    fallback: "/images/placeholder.svg",
     link: "/shop?category=Puja%20Samagri"
   },
   {
     id: "bracelets",
     name: "Bracelets",
     desc: "Energized wristbands",
-    image: "/images/product-1mukhi.jpg",
-    fallback: "/images/product-1mukhi.jpg",
+    image: "/images/placeholder.svg",
+    fallback: "/images/placeholder.svg",
     link: "/shop?category=Bracelets"
   },
   {
     id: "god-idols",
     name: "God Idols",
     desc: "Consecrated idols & statues",
-    image: "/images/product-11mukhi.jpg",
-    fallback: "/images/product-11mukhi.jpg",
+    image: "/images/placeholder.svg",
+    fallback: "/images/placeholder.svg",
     link: "/shop?category=God%20Idols"
   },
   {
@@ -55,6 +55,12 @@ const DEFAULT_CATEGORIES = [
     link: "/shop?category=Yantra"
   }
 ];
+
+function isDemoImagePath(url) {
+  if (!url || typeof url !== "string") return true;
+  const clean = url.trim();
+  return !clean || clean.includes("placeholder.svg") || /^\/images\/product-/i.test(clean);
+}
 
 function getResolvedCategories() {
   const settings = db.getSettings();
@@ -78,24 +84,26 @@ function getResolvedCategories() {
       return pCat.includes(catKeyword) || pSub.includes(catKeyword) || pName.includes(catKeyword);
     });
 
-    // Prioritize custom uploaded image from Admin Dashboard if provided and not placeholder
+    // Prioritize custom uploaded image from Admin Dashboard if provided and not a demo/placeholder image
     const customImg = cat.customImage || cat.image;
-    const hasCustomImg = customImg && !customImg.includes("placeholder.svg");
+    const hasCustomImg = customImg && !isDemoImagePath(customImg);
 
     let liveImg = hasCustomImg ? customImg : "";
 
-    // If no custom uploaded image set, fallback to first matching product image from DB
+    // If no custom uploaded image set, fallback to first matching real product image from DB
     if (!liveImg && matchedProd) {
-      const prodImg = (Array.isArray(matchedProd.images) && matchedProd.images[0]) ? matchedProd.images[0] : (matchedProd.image || "");
-      if (prodImg && !prodImg.includes("placeholder.svg")) {
+      const prodImg = (Array.isArray(matchedProd.images) && matchedProd.images[0]) ? matchedProd.images[0] : (matchedProd.img || matchedProd.image || "");
+      if (prodImg && !isDemoImagePath(prodImg)) {
         liveImg = prodImg;
       }
     }
 
+    const safeFallback = (cat.fallback && !isDemoImagePath(cat.fallback)) ? cat.fallback : "/images/placeholder.svg";
+
     return {
       ...cat,
       link: cleanLink,
-      image: liveImg || cat.fallback || "/images/placeholder.svg"
+      image: liveImg || safeFallback
     };
   });
 }

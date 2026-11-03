@@ -81,8 +81,32 @@ export async function ensureDatabaseInitialized() {
           await Product.updateOne({ _id: doc._id }, { $set: { slug: fallbackSlug } });
         }
       }
+
+      // Clean any legacy demo image paths (/images/product-*.jpg) in existing MongoDB products & reviews
+      const demoProducts = await Product.find({
+        $or: [
+          { img: { $regex: /^\/images\/product-/i } },
+          { images: { $elemMatch: { $regex: /^\/images\/product-/i } } }
+        ]
+      }).lean();
+
+      for (const prod of demoProducts) {
+        const cleanedImages = (Array.isArray(prod.images) ? prod.images : [])
+          .filter((u) => typeof u === "string" && !u.startsWith("/images/product-"));
+        const finalImages = cleanedImages.length > 0 ? cleanedImages : ["/images/placeholder.svg"];
+        const finalImg = (prod.img && !prod.img.startsWith("/images/product-")) ? prod.img : finalImages[0];
+        await Product.updateOne(
+          { _id: prod._id },
+          { $set: { img: finalImg, images: finalImages } }
+        );
+      }
+
+      await Review.updateMany(
+        { images: { $elemMatch: { $regex: /^\/images\/product-/i } } },
+        { $set: { images: [] } }
+      );
     } catch (err) {
-      console.warn("⚠️ [DB Init] Slug migration notice:", err?.message);
+      console.warn("⚠️ [DB Init] Slug/Image migration notice:", err?.message);
     }
 
     // 2. Ensure Store Settings

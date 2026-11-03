@@ -146,21 +146,24 @@ export async function getAuthoritativeProducts(productIds = []) {
 export async function getAuthoritativeCoupon(couponCode) {
   if (!couponCode) return null;
   const cleanCode = String(couponCode).trim().toUpperCase();
+  const deletedCodes = inMemoryStore?.deletedCouponCodes || new Set();
+  if (deletedCodes.has(cleanCode)) return null;
 
   if (isDbConnected()) {
     try {
-      const coupon = await Coupon.findOne({ code: cleanCode }).lean();
+      const coupon = await Coupon.findOne({
+        code: { $regex: new RegExp(`^${cleanCode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") }
+      }).lean();
       if (coupon) return coupon;
 
       // Also check central ActiveOffer
       const activeOffer = await ActiveOffer.findOne({
-        couponCode: cleanCode,
         status: "Active",
         enabled: { $ne: false }
       }).lean();
 
-      if (activeOffer) {
-        const isPct = activeOffer.discountType === "percentage";
+      if (activeOffer && String(activeOffer.couponCode || "").trim().toUpperCase() === cleanCode) {
+        const isPct = String(activeOffer.discountType || "").toLowerCase() === "percentage";
         const val = Number(activeOffer.discountValue) || (isPct ? 10 : 200);
         return {
           id: activeOffer.id || "OFFER-CENTRAL-1",
@@ -168,8 +171,11 @@ export async function getAuthoritativeCoupon(couponCode) {
           discount: val,
           type: isPct ? "percentage" : "fixed",
           status: "Active",
-          expiry: activeOffer.expiresAt || activeOffer.expiry,
+          expiry: activeOffer.neverExpires ? null : (activeOffer.expiresAt || activeOffer.expiry),
           minAmount: 0,
+          targetType: activeOffer.targetType || "all",
+          selectedProducts: activeOffer.applicableProducts || activeOffer.selectedProducts || [],
+          excludedProducts: activeOffer.excludedProducts || [],
           description: isPct ? `${val}% OFF` : (activeOffer.subtitle || activeOffer.title || "Central Live Offer")
         };
       }
@@ -211,20 +217,34 @@ export async function getAuthoritativeCoupon(couponCode) {
           description: offer.description || offer.title
         };
       }
-
-      // DB is connected, but coupon was not found in Coupon, ActiveOffer, Promotion, or Offer.
-      // Do NOT fall back to inMemoryStore so deleted coupons are strictly rejected!
-      return null;
     } catch (err) {
       console.warn("PricingService DB coupon lookup warning:", err.message);
     }
-  } else if (inMemoryStore) {
-    // Offline fallback
-    const deletedCodes = inMemoryStore.deletedCouponCodes || new Set();
-    if (deletedCodes.has(cleanCode)) return null;
+  }
+
+  if (inMemoryStore) {
     const list = inMemoryStore.coupons || [];
-    const found = list.find(c => String(c.code).trim().toUpperCase() === cleanCode && c.status === "Active");
+    const found = list.find(c => String(c.code || "").trim().toUpperCase() === cleanCode && c.status !== "Inactive" && c.status !== "Disabled");
     if (found) return found;
+
+    const memOffer = inMemoryStore.activeOffer;
+    if (memOffer && memOffer.status === "Active" && memOffer.enabled !== false && String(memOffer.couponCode || "").trim().toUpperCase() === cleanCode) {
+      const isPct = String(memOffer.discountType || "").toLowerCase() === "percentage";
+      const val = Number(memOffer.discountValue) || (isPct ? 10 : 200);
+      return {
+        id: memOffer.id || "OFFER-CENTRAL-1",
+        code: cleanCode,
+        discount: val,
+        type: isPct ? "percentage" : "fixed",
+        status: "Active",
+        expiry: memOffer.neverExpires ? null : (memOffer.expiresAt || memOffer.expiry),
+        minAmount: 0,
+        targetType: memOffer.targetType || "all",
+        selectedProducts: memOffer.applicableProducts || memOffer.selectedProducts || [],
+        excludedProducts: memOffer.excludedProducts || [],
+        description: isPct ? `${val}% OFF` : (memOffer.subtitle || memOffer.title || "Central Live Offer")
+      };
+    }
   }
 
   return null;
@@ -281,9 +301,10 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       ? product.indonesianTitle 
       : (isIndo ? `${product.name} (Indonesian / Java Origin)` : product.name || "Sacred Rudraksha Item");
     
-    const itemImg = isIndo && (product.indonesianImg || (Array.isArray(product.indonesianImages) && product.indonesianImages[0]))
+    const rawItemImg = isIndo && (product.indonesianImg || (Array.isArray(product.indonesianImages) && product.indonesianImages[0]))
       ? (product.indonesianImg || product.indonesianImages[0])
-      : ((Array.isArray(product.images) && product.images[0]) || product.img || "/images/product-5mukhi.jpg");
+      : ((Array.isArray(product.images) && product.images[0]) || product.img || "/images/placeholder.svg");
+    const itemImg = (typeof rawItemImg === "string" && /^\/images\/product-/i.test(rawItemImg)) ? "/images/placeholder.svg" : rawItemImg;
 
     const itemSubtotal = unitPrice * line.qty;
     const itemMrpTotal = mrp * line.qty;
@@ -502,7 +523,9 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
         };
       } else {
         couponStatus = "APPLIED";
-        if (couponType === "fixed") {
+        const normType = String(couponType || "percentage").toLowerCase();
+        const isFixed = normType === "fixed" || normType.includes("flat");
+        if (isFixed) {
           couponDiscount = Math.min(eligibleSubtotal, discountVal);
         } else {
           couponDiscount = Math.min(eligibleSubtotal, Math.round((eligibleSubtotal * discountVal) / 100));
@@ -519,9 +542,9 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
           valid: true,
           discount: discountVal,
           discountAmount: couponDiscount,
-          type: couponType,
+          type: isFixed ? "fixed" : "percentage",
           minOrder,
-          description: couponType === "percentage" ? `${discountVal}% Discount` : `Flat ₹${discountVal} Off`,
+          description: !isFixed ? `${discountVal}% Discount` : `Flat ₹${discountVal} Off`,
           reason: `Coupon '${coupon.code}' applied successfully!`
         };
       }

@@ -10,6 +10,17 @@ import { inMemoryStore } from "../data/inMemoryStore.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { submitToIndexNow } from "../services/indexNowService.js";
 import { generateProductSeoMetadata } from "../services/keywordIntelligenceService.js";
+import { matchProductQuery } from "../../src/lib/searchUtils.js";
+
+function applySearchQueryFilter(items = [], rawSearch = "") {
+  const q = String(rawSearch || "").trim();
+  if (!q) return items;
+  return items
+    .map((p) => ({ product: p, score: matchProductQuery(p, q) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.product);
+}
 
 const PRODUCT_FIELDS = {
   id: "string", name: "string", slug: "string", price: "number",
@@ -148,7 +159,9 @@ export async function getProducts(req, res, next) {
       req.headers["pragma"]?.includes("no-cache")
     );
 
-    if (isAdmin || isNoCache) {
+    const searchQuery = String(req.query.q || req.query.search || "").trim();
+
+    if (isAdmin || isNoCache || searchQuery) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
     } else {
       res.setHeader("Cache-Control", "no-cache, must-revalidate");
@@ -162,7 +175,7 @@ export async function getProducts(req, res, next) {
       const items = inMemoryStore.products || [];
       const updatedItems = await applyDailySalesIncrement(items);
       inMemoryStore.products = updatedItems;
-      const publicItems = toPublicProductDTO(updatedItems);
+      const publicItems = applySearchQueryFilter(toPublicProductDTO(updatedItems), searchQuery);
       return res.json({
         success: true,
         data: publicItems,
@@ -209,16 +222,18 @@ export async function getProducts(req, res, next) {
     const productsWithUpdatedSales = await applyDailySalesIncrement(products);
     const sanitizedProducts = toPublicProductDTO(productsWithUpdatedSales);
 
-    if (!isAdmin && !isNoCache && !req.query.status && !req.query.category) {
+    if (!isAdmin && !isNoCache && !req.query.status && !req.query.category && !searchQuery) {
       publicProductsCache = sanitizedProducts;
       publicProductsCacheExpiry = Date.now() + 3000;
     }
 
-    return res.json({ success: true, data: sanitizedProducts, count: sanitizedProducts.length });
+    const finalProducts = applySearchQueryFilter(sanitizedProducts, searchQuery);
+    return res.json({ success: true, data: finalProducts, count: finalProducts.length });
   } catch (err) {
     console.warn("Notice in getProducts:", err.message);
+    const searchQuery = String(req.query.q || req.query.search || "").trim();
     const fallbackList = (inMemoryStore.products && inMemoryStore.products.length > 0) ? inMemoryStore.products : (defaultProducts || []);
-    const publicFallback = toPublicProductDTO(fallbackList);
+    const publicFallback = applySearchQueryFilter(toPublicProductDTO(fallbackList), searchQuery);
     return res.json({
       success: true,
       data: publicFallback,
@@ -417,8 +432,8 @@ export async function createProduct(req, res, next) {
       rulingPlanet: data.rulingPlanet || autoSeo.rulingPlanet || "",
       mrp: data.mrp || data.comparePrice || data.price,
       comparePrice: data.comparePrice || data.mrp || data.price,
-      images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : ["/images/product-5mukhi.jpg"]),
-      img: (Array.isArray(data.images) && data.images[0]) || data.img || "/images/product-5mukhi.jpg",
+      images: Array.isArray(data.images) && data.images.length > 0 ? data.images : (data.img ? [data.img] : ["/images/placeholder.svg"]),
+      img: (Array.isArray(data.images) && data.images[0]) || data.img || "/images/placeholder.svg",
       stock: data.stock !== undefined ? Number(data.stock) : 25,
       rating: Number(data.rating) || 4.9,
       reviews: Number(data.reviews || data.reviewCount) || 12,

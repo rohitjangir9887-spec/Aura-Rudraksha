@@ -121,7 +121,7 @@ export async function buildStoreRagIndex() {
         mrp: pMrp,
         stock: pStock,
         inStock: pStock > 0,
-        image: (p.images && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg",
+        image: (p.images && p.images[0]) || p.img || p.image || "/images/placeholder.svg",
         category: p.category || "Rudraksha"
       }
     });

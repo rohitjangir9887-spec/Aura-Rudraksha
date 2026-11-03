@@ -396,7 +396,8 @@ export function isExactMukhiProduct(p, targetMukhiNum) {
 // Format product object with verified catalog images, price, discounts and attributes
 function formatProductForResponse(p) {
   if (!p) return null;
-  const img = (p.images && p.images.length > 0 && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg";
+  const rawImg = (p.images && p.images.length > 0 && p.images[0]) || p.img || p.image || "/images/placeholder.svg";
+  const img = typeof rawImg === "string" && rawImg.startsWith("/images/product-") ? "/images/placeholder.svg" : rawImg;
   const price = Number(p.price) || 0;
   const comparePrice = Number(p.comparePrice || p.mrp || Math.round(price * 1.35));
   const mrp = Number(p.mrp || comparePrice || Math.round(price * 1.35));
@@ -413,7 +414,7 @@ function formatProductForResponse(p) {
     discount: discount,
     discountPercent: discount,
     image: img,
-    images: p.images && p.images.length > 0 ? p.images : (img ? [img] : ["/images/product-5mukhi.jpg"]),
+    images: p.images && p.images.length > 0 ? p.images.map(u => typeof u === "string" && u.startsWith("/images/product-") ? "/images/placeholder.svg" : u) : (img ? [img] : ["/images/placeholder.svg"]),
     img: img,
     category: p.category || "Rudraksha",
     rating: Number(p.rating) || 4.9,

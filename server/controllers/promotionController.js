@@ -117,6 +117,26 @@ export async function saveActiveOffer(req, res, next) {
 
     inMemoryStore.activeOffer = { ...payload, id: "OFFER-CENTRAL-1", updatedAt: new Date().toISOString() };
 
+    const cleanCode = (payload.couponCode || "").trim().toUpperCase();
+    if (cleanCode && payload.enabled !== false && payload.status === "Active") {
+      const syncedCoupon = {
+        id: "COUP-" + cleanCode,
+        code: cleanCode,
+        discount: discountVal,
+        type: isPct ? "percentage" : "fixed",
+        status: "Active",
+        expiry: payload.neverExpires ? null : (payload.expiresAt || payload.expiry || null),
+        minAmount: 0,
+        description: isPct ? `${discountVal}% OFF` : (payload.subtitle || payload.title || "Central Live Offer"),
+        targetType: payload.targetType || "all",
+        selectedProducts: resolvedSelectedProducts
+      };
+      if (!Array.isArray(inMemoryStore.coupons)) inMemoryStore.coupons = [];
+      const existingIdx = inMemoryStore.coupons.findIndex(c => String(c.code || "").toUpperCase() === cleanCode);
+      if (existingIdx >= 0) inMemoryStore.coupons[existingIdx] = { ...inMemoryStore.coupons[existingIdx], ...syncedCoupon };
+      else inMemoryStore.coupons.unshift(syncedCoupon);
+    }
+
     if (!isDbConnected()) {
       await connectDB().catch(() => {});
     }
@@ -130,7 +150,6 @@ export async function saveActiveOffer(req, res, next) {
         );
 
         // Also ensure coupon code is synchronized in Coupon collection if offer is active and has code
-        const cleanCode = (payload.couponCode || "").trim().toUpperCase();
         if (cleanCode && payload.enabled !== false && payload.status === "Active") {
           await Coupon.findOneAndUpdate(
             { code: cleanCode },
@@ -143,7 +162,9 @@ export async function saveActiveOffer(req, res, next) {
                 status: "Active",
                 expiry: payload.neverExpires ? null : (payload.expiresAt || payload.expiry || null),
                 minAmount: 0,
-                description: isPct ? `${discountVal}% OFF` : (payload.subtitle || payload.title || "Central Live Offer")
+                description: isPct ? `${discountVal}% OFF` : (payload.subtitle || payload.title || "Central Live Offer"),
+                targetType: payload.targetType || "all",
+                selectedProducts: resolvedSelectedProducts
               }
             },
             { upsert: true, setDefaultsOnInsert: true }

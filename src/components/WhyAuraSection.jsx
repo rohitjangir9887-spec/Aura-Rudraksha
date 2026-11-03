@@ -47,7 +47,7 @@ export function WhyAuraSection() {
                   const target = e.currentTarget;
                   if (target.src.includes("wsrv.nl")) {
                     target.src = raw;
-                  } else if (!target.src.includes('product-5mukhi.jpg')) {
+                  } else if (!target.src.includes('placeholder.svg')) {
                     target.src = "/images/placeholder.svg";
                   }
                 }}
@@ -78,8 +78,8 @@ export function WhyAuraSection() {
                     const target = e.currentTarget;
                     if (target.src.includes("wsrv.nl")) {
                       target.src = raw;
-                    } else if (!target.src.includes('product-7mukhi.jpg')) {
-                      target.src = "/images/product-7mukhi.jpg";
+                    } else if (!target.src.includes('placeholder.svg')) {
+                      target.src = "/images/placeholder.svg";
                     }
                   }}
                 />
@@ -106,8 +106,8 @@ export function WhyAuraSection() {
                     const target = e.currentTarget;
                     if (target.src.includes("wsrv.nl")) {
                       target.src = raw;
-                    } else if (!target.src.includes('product-11mukhi.jpg')) {
-                      target.src = "/images/product-11mukhi.jpg";
+                    } else if (!target.src.includes('placeholder.svg')) {
+                      target.src = "/images/placeholder.svg";
                     }
                   }}
                 />
@@ -134,8 +134,8 @@ export function WhyAuraSection() {
                     const target = e.currentTarget;
                     if (target.src.includes("wsrv.nl")) {
                       target.src = raw;
-                    } else if (!target.src.includes('product-1mukhi.jpg')) {
-                      target.src = "/images/product-1mukhi.jpg";
+                    } else if (!target.src.includes('placeholder.svg')) {
+                      target.src = "/images/placeholder.svg";
                     }
                   }}
                 />

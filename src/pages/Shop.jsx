@@ -249,6 +249,14 @@ export function Shop() {
     }
   }, [isOfferQuery]);
 
+  // Whenever a user searches for a product (?q=...), reset category chip & price filter so the searched product is never hidden
+  useEffect(() => {
+    if (q && !chipParam && !categoryParam) {
+      setChip("all");
+      setPriceRange("all");
+    }
+  }, [q, chipParam, categoryParam]);
+
   // Compute category counts for chips
   const chipCounts = useMemo(() => {
     const counts = { all: products.length, mukhi: 0, gauri: 0, mala: 0, puja: 0, offers: 0 };

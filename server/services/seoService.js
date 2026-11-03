@@ -21,6 +21,7 @@ import { Review } from "../models/Review.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
 import { defaultProducts } from "../data/defaultData.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Canonical Organization & Brand Details
 export const SEO_BRAND = {
@@ -768,8 +769,18 @@ export async function findProductForSeo(idOrSlug) {
     }
   }
 
-  // Fallback to seed catalog if database query yields no match
-  return matchProductFromCatalog(defaultProducts, clean) || matchProductFromCatalog(defaultProducts, strippedSlug) || defaultProducts[0];
+  // Check in-memory store (which includes newly added or updated admin products) before seed catalog
+  const memoryCatalog = Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0
+    ? inMemoryStore.products
+    : defaultProducts;
+
+  return (
+    matchProductFromCatalog(memoryCatalog, clean) ||
+    matchProductFromCatalog(memoryCatalog, strippedSlug) ||
+    matchProductFromCatalog(defaultProducts, clean) ||
+    matchProductFromCatalog(defaultProducts, strippedSlug) ||
+    defaultProducts[0]
+  );
 }
 
 /**
@@ -1042,8 +1053,19 @@ export async function resolveSeoData(pathname, req) {
       }
 
       const canonical = `${baseUrl}/product/${product.slug || product.id}`;
-      const imgList = (Array.isArray(product.images) && product.images.length > 0) ? product.images : [product.img || SEO_BRAND.defaultImage];
-      const imageArray = imgList.map(img => img.startsWith("http") ? img : `${baseUrl}${img.startsWith("/") ? "" : "/"}${img}`);
+      const rawImgs = (Array.isArray(product.images) && product.images.length > 0)
+        ? product.images
+        : [product.img || SEO_BRAND.defaultImage];
+      // Filter out SVG placeholders and removed demo images for social crawlers (WhatsApp/Facebook require raster JPEG/PNG for og:image)
+      const rasterImgs = rawImgs.filter(
+        (img) =>
+          typeof img === "string" &&
+          img.trim() &&
+          !img.endsWith(".svg") &&
+          !img.includes("/images/product-")
+      );
+      const effectiveImgs = rasterImgs.length > 0 ? rasterImgs : [SEO_BRAND.defaultImage];
+      const imageArray = effectiveImgs.map(img => img.startsWith("http") ? img : `${baseUrl}${img.startsWith("/") ? "" : "/"}${img}`);
       const ogImage = imageArray[0] || SEO_BRAND.defaultImage;
       const inStock = (product.stock === undefined || Number(product.stock) > 0) && product.status !== "Out of Stock";
       const rawPrice = product.price !== undefined && product.price !== null ? Number(product.price) : null;
@@ -1316,6 +1338,18 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   headInjections += `  <meta name="twitter:title" content="${escapeXml(seo.title)}" />\n`;
   headInjections += `  <meta name="twitter:description" content="${escapeXml(seo.description)}" />\n`;
   headInjections += `  <meta name="twitter:image" content="${safeOgImage}" />\n`;
+
+  // Rich Product Meta Tags for WhatsApp / Facebook Commerce Catalog Preview
+  if (seo.product) {
+    const prodPrice = Number(seo.product.price || 0);
+    const prodInStock = (seo.product.stock === undefined || Number(seo.product.stock) > 0) && seo.product.status !== "Out of Stock";
+    if (prodPrice > 0) {
+      headInjections += `  <meta property="product:price:amount" content="${escapeXml(String(prodPrice))}" />\n`;
+      headInjections += `  <meta property="product:price:currency" content="INR" />\n`;
+    }
+    headInjections += `  <meta property="product:availability" content="${prodInStock ? "in stock" : "out of stock"}" />\n`;
+    headInjections += `  <meta property="product:brand" content="${escapeXml(SEO_BRAND.name)}" />\n`;
+  }
 
   // Structured Data (JSON-LD)
   if (seo.schemas && seo.schemas.length > 0) {

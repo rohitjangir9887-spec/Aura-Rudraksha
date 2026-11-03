@@ -329,7 +329,7 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     const comparePrice = Math.round(price * 1.45);
     const stock = 25;
     const prodName = `Original ${mukhiNum} Mukhi Nepali Rudraksha (Lab Certified)`;
-    const prodImage = `/images/product-${mukhiNum === "1" ? "1mukhi" : (mukhiNum === "5" ? "5mukhi" : (mukhiNum === "7" ? "7mukhi" : "11mukhi"))}.jpg`;
+    const prodImage = "/images/placeholder.svg";
 
     actionTag = `[ADMIN_ACTION: {"type": "CREATE_PRODUCT", "data": {"name": "${prodName}", "mukhi": "${mukhiNum}", "price": ${price}, "comparePrice": ${comparePrice}, "stock": ${stock}, "category": "Rudraksha Beads", "origin": "Nepal (Himalayan)", "image": "${prodImage}", "description": "<p>100% Authentic ${mukhiNum} Mukhi Nepali Rudraksha blessed by ${deity}. Consecrated with sacred Gangajal and Shiva Beej Mantras.</p>", "tags": ["100% Nepali Origin", "Govt Lab Certified", "${deity}"]}}]`;
     navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
@@ -579,14 +579,7 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
       const price = Number(data.price) || (mukhiNum === 1 ? 14999 : mukhiNum >= 11 ? 5499 : 1499);
       const comparePrice = Number(data.comparePrice) || Math.round(price * 1.35);
       const stock = Number(data.stock ?? 25);
-      const validMukhiImg = mukhiNum === 1
-        ? "/images/product-1mukhi.jpg"
-        : (mukhiNum === 6 || mukhiNum === 7)
-          ? "/images/product-7mukhi.jpg"
-          : mukhiNum >= 8
-            ? "/images/product-11mukhi.jpg"
-            : "/images/product-5mukhi.jpg";
-      const defaultImg = data.image || data.img || (String(name).toLowerCase().includes("mala") ? "/images/product-mala.jpg" : validMukhiImg);
+      const defaultImg = data.image || data.img || "/images/placeholder.svg";
 
       const newProductDoc = {
         id,

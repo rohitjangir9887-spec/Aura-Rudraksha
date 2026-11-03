@@ -14,10 +14,11 @@ function sanitizeCartLines(lines) {
     let qty = 1;
     if (typeof item === "string" || typeof item === "number") {
       id = String(item).trim();
-    } else if (typeof item === "object" && item.id) {
-      if (typeof item.id === "object") continue;
-      id = String(item.id).trim();
-      qty = Math.max(1, Math.floor(Number(item.qty) || 1));
+    } else if (typeof item === "object" && (item.id || item.productId || item._id)) {
+      const rawId = item.id || item.productId || item._id;
+      if (typeof rawId === "object") continue;
+      id = String(rawId).trim();
+      qty = Math.max(1, Math.floor(Number(item.qty || item.quantity) || 1));
     }
     if (!id || id === "[object Object]" || id === "undefined" || id === "null") continue;
     map.set(id, (map.get(id) || 0) + qty);
@@ -108,13 +109,14 @@ router.post("/merge", requireAuth, async (req, res, next) => {
  */
 router.post("/calculate", optionalAuth, async (req, res, next) => {
   try {
-    const { lines = [], couponCode = null } = req.body;
+    const { lines = [], items = [], couponCode = null, code = null } = req.body;
+    const rawLines = Array.isArray(lines) && lines.length > 0 ? lines : items;
     const authUserId = req.user?.authUserId || null;
-    const cleanLines = sanitizeCartLines(lines);
+    const cleanLines = sanitizeCartLines(rawLines);
 
     const totals = await calculateOrderTotals({
       lines: cleanLines,
-      couponCode,
+      couponCode: couponCode || code,
       authUserId
     });
 
@@ -133,10 +135,11 @@ router.post("/calculate", optionalAuth, async (req, res, next) => {
  */
 router.post("/validate-coupon", optionalAuth, async (req, res, next) => {
   try {
-    const { code, couponCode, lines = [] } = req.body;
+    const { code, couponCode, lines = [], items = [] } = req.body;
+    const rawLines = Array.isArray(lines) && lines.length > 0 ? lines : items;
     const cleanCode = (code || couponCode || "").trim().toUpperCase();
     const authUserId = req.user?.authUserId || null;
-    const cleanLines = sanitizeCartLines(lines);
+    const cleanLines = sanitizeCartLines(rawLines);
 
     if (!cleanCode) {
       return res.status(400).json({

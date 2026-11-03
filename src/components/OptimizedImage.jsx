@@ -60,16 +60,10 @@ export function OptimizedImage({
     markProxyFailed(src);
     if (!hasError) {
       setHasError(true);
-      // Fallback: Try raw unproxied src if proxy failed, or fallback placeholder
       if (currentSrc !== src && src && typeof src === "string") {
         setCurrentSrc(src);
-      } else if (!currentSrc.includes("product-5mukhi.jpg") && !currentSrc.includes("placeholder.svg")) {
-        const name = (alt || "").toLowerCase();
-        if (name.includes("5 mukhi") || name.includes("panch mukhi")) {
-          setCurrentSrc("/images/product-5mukhi.jpg");
-        } else {
-          setCurrentSrc("/images/placeholder.svg");
-        }
+      } else if (!currentSrc.includes("placeholder.svg")) {
+        setCurrentSrc("/images/placeholder.svg");
       } else {
         setIsLoaded(true);
       }

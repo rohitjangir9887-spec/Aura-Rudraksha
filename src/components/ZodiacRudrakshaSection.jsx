@@ -27,12 +27,12 @@ function getResolvedZodiacs() {
     });
 
     if (matched) {
-      const prodImg = (Array.isArray(matched.images) && matched.images[0]) ? matched.images[0] : (matched.image || "");
-      if (prodImg && !prodImg.includes("placeholder.svg")) {
+      const prodImg = getProductPrimaryImage(matched);
+      if (prodImg && !prodImg.includes("placeholder.svg") && !prodImg.includes("/images/product-")) {
         return { ...item, image: prodImg };
       }
     }
-    return item;
+    return { ...item, image: (item.image && !item.image.includes("/images/product-")) ? item.image : "/images/placeholder.svg" };
   });
 }
 

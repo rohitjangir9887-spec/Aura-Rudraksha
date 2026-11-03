@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Search, Heart, ShoppingCart, User, Menu, X, Home, ShoppingBag, PackageCheck, MessageCircle } from "lucide-react";
 import { useCart } from "../hooks/useCart";
 import { useWishlist } from "../hooks/useWishlist";
 import { db, onStoreUpdate } from "../lib/db";
-import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
+import { getOptimizedImageUrl, getProductPrimaryImage, markProxyFailed } from "../lib/imageUtils";
+import { extractMukhiNumber } from "../lib/searchUtils";
 import { Footer } from "./Footer";
 import { TopOfferStrip } from "./TopOfferStrip";
 import { AuraAIPill } from "./AuraAIPill";
@@ -20,7 +21,9 @@ export function Shell({children}) {
   const pathname = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [q, setQ] = useState("");
+  const searchWrapRef = useRef(null);
   const [settings, setSettings] = useState(() => db.getSettings());
   const { offer } = useActiveOffer();
   const [activeOffer, setActiveOffer] = useState(() => db.getActiveOffer());
@@ -50,6 +53,22 @@ export function Shell({children}) {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+        setSearchFocused(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
+  }, []);
+
+  const searchResults = useMemo(() => {
+    const term = q.trim();
+    if (!term) return [];
+    return db.searchProducts(term).slice(0, 6);
+  }, [q]);
+
   const handlePreload = useCallback((path) => {
     prefetchPath(path);
   }, []);
@@ -65,10 +84,53 @@ export function Shell({children}) {
   const isOrdersActive = pathname.startsWith("/account/orders");
   const isAccountActive = (pathname === "/account" || pathname.startsWith("/account")) && !isOrdersActive;
 
+  const openProductDirect = (product) => {
+    if (!product) return;
+    const targetSlug = product.slug || product.id;
+    setSearchFocused(false);
+    setSearchOpen(false);
+    setMenuOpen(false);
+    navigate(`/product/${encodeURIComponent(targetSlug)}`);
+  };
+
   const goSearch = (e) => {
     e?.preventDefault();
     const term = q.trim();
-    navigate(term ? `/shop?q=${encodeURIComponent(term)}` : "/shop");
+    if (!term) {
+      navigate("/shop");
+      setSearchFocused(false);
+      setSearchOpen(false);
+      setMenuOpen(false);
+      return;
+    }
+
+    const matches = db.searchProducts(term);
+    const mukhiNum = extractMukhiNumber(term);
+    const lowerTerm = term.toLowerCase();
+
+    if (matches.length === 1) {
+      openProductDirect(matches[0]);
+      return;
+    }
+
+    if (matches.length > 0) {
+      const top = matches[0];
+      const topName = (top.name || "").toLowerCase();
+      const topSlug = (top.slug || "").toLowerCase();
+      const isExactDirectMatch =
+        topName === lowerTerm ||
+        topSlug === lowerTerm ||
+        String(top.id).toLowerCase() === lowerTerm ||
+        (mukhiNum !== null && !lowerTerm.includes("mala") && Number(top.mukhi) === mukhiNum);
+
+      if (isExactDirectMatch) {
+        openProductDirect(top);
+        return;
+      }
+    }
+
+    navigate(`/shop?q=${encodeURIComponent(term)}`);
+    setSearchFocused(false);
     setSearchOpen(false);
     setMenuOpen(false);
   };
@@ -126,16 +188,109 @@ export function Shell({children}) {
             </Link>
           </div>
 
-          <div className="header-right">
-            <form className="search desktop-search" onSubmit={goSearch}>
-              <Search size={17}/>
-              <input 
-                placeholder="Search products..." 
-                value={q} 
-                onChange={(e)=>setQ(e.target.value)} 
-                onFocus={() => handlePreload("/shop")}
-              />
-            </form>
+          <div className="header-right" ref={searchWrapRef}>
+            <div style={{ position: "relative" }}>
+              <form className="search desktop-search" onSubmit={goSearch}>
+                <Search size={17}/>
+                <input 
+                  placeholder="Search Rudraksha (e.g. 5 Mukhi)..." 
+                  value={q} 
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setSearchFocused(true);
+                  }} 
+                  onFocus={() => {
+                    setSearchFocused(true);
+                    handlePreload("/shop");
+                  }}
+                />
+              </form>
+              {searchFocused && q.trim() && searchResults.length > 0 && (
+                <div
+                  className="search-suggestions-dropdown"
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    width: "320px",
+                    maxHeight: "380px",
+                    overflowY: "auto",
+                    background: "#FFFDF9",
+                    border: "1px solid rgba(212, 175, 55, 0.35)",
+                    borderRadius: "14px",
+                    boxShadow: "0 14px 34px rgba(45, 22, 10, 0.16)",
+                    zIndex: 1200,
+                    padding: "6px"
+                  }}
+                >
+                  {searchResults.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openProductDirect(item)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        width: "100%",
+                        padding: "8px 10px",
+                        border: "none",
+                        background: "transparent",
+                        borderRadius: "10px",
+                        cursor: "pointer",
+                        textAlign: "left"
+                      }}
+                    >
+                      <img
+                        src={getProductPrimaryImage(item)}
+                        alt={item.name}
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          borderRadius: "8px",
+                          objectFit: "cover",
+                          border: "1px solid rgba(212,175,55,0.25)",
+                          flexShrink: 0
+                        }}
+                        onError={(e) => {
+                          e.currentTarget.src = "/images/placeholder.svg";
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A1810", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {item.name}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#8C3E1E", fontWeight: 600 }}>
+                          ₹{Number(item.price || 0).toLocaleString("en-IN")} • {item.category || "Sacred Rudraksha"}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate(`/shop?q=${encodeURIComponent(q.trim())}`);
+                      setSearchFocused(false);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      marginTop: "4px",
+                      border: "none",
+                      borderTop: "1px solid rgba(212,175,55,0.2)",
+                      background: "transparent",
+                      color: "#8C3E1E",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    View all results for "{q.trim()}" →
+                  </button>
+                </div>
+              )}
+            </div>
             <button 
               className="mobile-search" 
               aria-label="Search" 
@@ -186,16 +341,74 @@ export function Shell({children}) {
         </header>
 
         {searchOpen && (
-          <form className="mobile-search-bar" onSubmit={goSearch}>
-            <Search size={18}/>
-            <input 
-              autoFocus 
-              placeholder="Search Rudraksha..." 
-              value={q} 
-              onChange={(e)=>setQ(e.target.value)} 
-            />
-            <button type="submit">Go</button>
-          </form>
+          <div style={{ position: "relative", zIndex: 1100 }}>
+            <form className="mobile-search-bar" onSubmit={goSearch}>
+              <Search size={18}/>
+              <input 
+                autoFocus 
+                placeholder="Search Rudraksha (e.g. 5 Mukhi)..." 
+                value={q} 
+                onChange={(e)=>setQ(e.target.value)} 
+              />
+              <button type="submit">Go</button>
+            </form>
+            {q.trim() && searchResults.length > 0 && (
+              <div
+                style={{
+                  background: "#FFFDF9",
+                  borderBottom: "1px solid rgba(212, 175, 55, 0.35)",
+                  boxShadow: "0 12px 28px rgba(45, 22, 10, 0.14)",
+                  padding: "6px 12px",
+                  maxHeight: "320px",
+                  overflowY: "auto"
+                }}
+              >
+                {searchResults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openProductDirect(item)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      width: "100%",
+                      padding: "8px 6px",
+                      border: "none",
+                      borderBottom: "1px solid rgba(212,175,55,0.12)",
+                      background: "transparent",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <img
+                      src={getProductPrimaryImage(item)}
+                      alt={item.name}
+                      style={{
+                        width: "38px",
+                        height: "38px",
+                        borderRadius: "8px",
+                        objectFit: "cover",
+                        border: "1px solid rgba(212,175,55,0.25)",
+                        flexShrink: 0
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.src = "/images/placeholder.svg";
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A1810", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#8C3E1E", fontWeight: 600 }}>
+                        ₹{Number(item.price || 0).toLocaleString("en-IN")} • {item.category || "Sacred Rudraksha"}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         <AnimatePresence>

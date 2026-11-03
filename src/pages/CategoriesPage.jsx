@@ -16,14 +16,14 @@ const CATEGORIES_DATA = [
     description: "Each Mukhi (face) possesses distinct planetary vibrations, ruling deities, and chakra activations.",
     filterLink: "/shop?cat=Single%20Beads",
     items: [
-      { name: "1 Mukhi (Ek Mukhi)", deity: "Lord Shiva", planet: "Sun (Surya)", img: "/images/product-1mukhi.jpg", link: "/shop?chip=1-mukhi" },
-      { name: "2 Mukhi (Do Mukhi)", deity: "Ardhanarishvara", planet: "Moon (Chandra)", img: "/images/product-2mukhi.jpg", link: "/shop?chip=2-mukhi" },
-      { name: "3 Mukhi (Teen Mukhi)", deity: "Agni Dev", planet: "Mars (Mangal)", img: "/images/product-3mukhi.jpg", link: "/shop?chip=3-mukhi" },
-      { name: "4 Mukhi (Char Mukhi)", deity: "Lord Brahma", planet: "Mercury (Budh)", img: "/images/product-4mukhi.jpg", link: "/shop?chip=4-mukhi" },
+      { name: "1 Mukhi (Ek Mukhi)", deity: "Lord Shiva", planet: "Sun (Surya)", img: "/images/placeholder.svg", link: "/shop?chip=1-mukhi" },
+      { name: "2 Mukhi (Do Mukhi)", deity: "Ardhanarishvara", planet: "Moon (Chandra)", img: "/images/placeholder.svg", link: "/shop?chip=2-mukhi" },
+      { name: "3 Mukhi (Teen Mukhi)", deity: "Agni Dev", planet: "Mars (Mangal)", img: "/images/placeholder.svg", link: "/shop?chip=3-mukhi" },
+      { name: "4 Mukhi (Char Mukhi)", deity: "Lord Brahma", planet: "Mercury (Budh)", img: "/images/placeholder.svg", link: "/shop?chip=4-mukhi" },
       { name: "5 Mukhi (Panch Mukhi)", deity: "Kalagni Rudra", planet: "Jupiter (Guru)", img: "/images/placeholder.svg", link: "/shop?chip=5-mukhi" },
-      { name: "6 Mukhi (Chhah Mukhi)", deity: "Lord Kartikeya", planet: "Venus (Shukra)", img: "/images/product-6mukhi.jpg", link: "/shop?chip=6-mukhi" },
-      { name: "7 Mukhi (Saat Mukhi)", deity: "Goddess Mahalakshmi", planet: "Saturn (Shani)", img: "/images/product-7mukhi.jpg", link: "/shop?chip=7-mukhi" },
-      { name: "8 Mukhi (Aath Mukhi)", deity: "Lord Ganesha", planet: "Rahu", img: "/images/product-8mukhi.jpg", link: "/shop?chip=8-mukhi" }
+      { name: "6 Mukhi (Chhah Mukhi)", deity: "Lord Kartkkeya", planet: "Venus (Shukra)", img: "/images/placeholder.svg", link: "/shop?chip=6-mukhi" },
+      { name: "7 Mukhi (Saat Mukhi)", deity: "Goddess Mahalakshmi", planet: "Saturn (Shani)", img: "/images/placeholder.svg", link: "/shop?chip=7-mukhi" },
+      { name: "8 Mukhi (Aath Mukhi)", deity: "Lord Ganesha", planet: "Rahu", img: "/images/placeholder.svg", link: "/shop?chip=8-mukhi" }
     ]
   },
   {
@@ -33,10 +33,10 @@ const CATEGORIES_DATA = [
     description: "Extraordinarily rare naturally conjoined and divine collector formations with profound energy field.",
     filterLink: "/shop?cat=Rare%20Collector",
     items: [
-      { name: "Gauri Shankar", deity: "Shiva & Parvati", planet: "Moon & Sun", img: "/images/product-gaurishankar.jpg", link: "/shop?chip=gauri-shankar" },
-      { name: "Ganesh Rudraksha", deity: "Lord Ganesha", planet: "Rahu & Ketu", img: "/images/product-ganesh.jpg", link: "/shop?chip=ganesh" },
-      { name: "Garbh Gauri", deity: "Parvati & Ganesha", planet: "Fertility & Protection", img: "/images/product-garbhgauri.jpg", link: "/shop?chip=rare" },
-      { name: "Trijuti (Trinity)", deity: "Brahma, Vishnu, Shiva", planet: "All 9 Planets", img: "/images/product-trijuti.jpg", link: "/shop?chip=rare" }
+      { name: "Gauri Shankar", deity: "Shiva & Parvati", planet: "Moon & Sun", img: "/images/placeholder.svg", link: "/shop?chip=gauri-shankar" },
+      { name: "Ganesh Rudraksha", deity: "Lord Ganesha", planet: "Rahu & Ketu", img: "/images/placeholder.svg", link: "/shop?chip=ganesh" },
+      { name: "Garbh Gauri", deity: "Parvati & Ganesha", planet: "Fertility & Protection", img: "/images/placeholder.svg", link: "/shop?chip=rare" },
+      { name: "Trijuti (Trinity)", deity: "Brahma, Vishnu, Shiva", planet: "All 9 Planets", img: "/images/placeholder.svg", link: "/shop?chip=rare" }
     ]
   },
   {
@@ -46,10 +46,10 @@ const CATEGORIES_DATA = [
     description: "Handcrafted Japa and wearing strings in 5 Mukhi, 7 Mukhi, and multi-mukhi configurations with silk tassels.",
     filterLink: "/shop?cat=Malas",
     items: [
-      { name: "108+1 Japa Mala (5 Mukhi)", deity: "Lord Shiva", planet: "Jupiter (Wisdom)", img: "/images/product-mala.jpg", link: "/shop?chip=mala" },
-      { name: "Silver Capped Siddha Mala", deity: "All Deities", planet: "Navagraha Shanti", img: "/images/product-siddha.jpg", link: "/shop?chip=siddha" },
-      { name: "Chikna Smooth Japa Mala", deity: "Mantra Sadhana", planet: "Calm Mind", img: "/images/product-mala.jpg", link: "/shop?chip=mala" },
-      { name: "Himalayan Kantha Mala", deity: "Maha Rudra", planet: "Aura Shield", img: "/images/product-kantha.jpg", link: "/shop?chip=kantha" }
+      { name: "108+1 Japa Mala (5 Mukhi)", deity: "Lord Shiva", planet: "Jupiter (Wisdom)", img: "/images/placeholder.svg", link: "/shop?chip=mala" },
+      { name: "Silver Capped Siddha Mala", deity: "All Deities", planet: "Navagraha Shanti", img: "/images/placeholder.svg", link: "/shop?chip=siddha" },
+      { name: "Chikna Smooth Japa Mala", deity: "Mantra Sadhana", planet: "Calm Mind", img: "/images/placeholder.svg", link: "/shop?chip=mala" },
+      { name: "Himalayan Kantha Mala", deity: "Maha Rudra", planet: "Aura Shield", img: "/images/placeholder.svg", link: "/shop?chip=kantha" }
     ]
   },
   {
@@ -59,10 +59,10 @@ const CATEGORIES_DATA = [
     description: "Contemporary handcrafted wristlets in genuine 925 sterling silver, Panchdhatu, and elastic cord.",
     filterLink: "/shop?cat=Bracelets",
     items: [
-      { name: "Silver Capped 5 Mukhi Bracelet", deity: "Shiva Protection", planet: "Aura Shield", img: "/images/product-bracelet.jpg", link: "/shop?chip=bracelet" },
-      { name: "Navagraha Balance Bracelet", deity: "9 Planetary Deities", planet: "Planetary Harmony", img: "/images/product-navagraha.jpg", link: "/shop?chip=bracelet" },
-      { name: "Rudraksha & Sphatik Wristlet", deity: "Shiva-Shakti", planet: "Cooling & Peace", img: "/images/product-sphatik.jpg", link: "/shop?chip=bracelet" },
-      { name: "Adjustable Macrame Bracelet", deity: "Daily Vitality", planet: "All Chakras", img: "/images/product-macrame.jpg", link: "/shop?chip=bracelet" }
+      { name: "Silver Capped 5 Mukhi Bracelet", deity: "Shiva Protection", planet: "Aura Shield", img: "/images/placeholder.svg", link: "/shop?chip=bracelet" },
+      { name: "Navagraha Balance Bracelet", deity: "9 Planetary Deities", planet: "Planetary Harmony", img: "/images/placeholder.svg", link: "/shop?chip=bracelet" },
+      { name: "Rudraksha & Sphatik Wristlet", deity: "Shiva-Shakti", planet: "Cooling & Peace", img: "/images/placeholder.svg", link: "/shop?chip=bracelet" },
+      { name: "Adjustable Macrame Bracelet", deity: "Daily Vitality", planet: "All Chakras", img: "/images/placeholder.svg", link: "/shop?chip=bracelet" }
     ]
   }
 ];

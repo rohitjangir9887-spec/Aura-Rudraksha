@@ -44,8 +44,8 @@ export function AuraEditorialSection() {
                 const target = e.currentTarget;
                 if (target.src.includes("wsrv.nl")) {
                   target.src = raw;
-                } else if (!target.src.includes("product-mala.jpg")) { 
-                  target.src = "/images/product-mala.jpg"; 
+                } else if (!target.src.includes("placeholder.svg")) { 
+                  target.src = "/images/placeholder.svg"; 
                 }
               }}
             />
@@ -74,7 +74,7 @@ export function AuraEditorialSection() {
                   const target = e.currentTarget;
                   if (target.src.includes("wsrv.nl")) {
                     target.src = raw;
-                  } else if (!target.src.includes("product-5mukhi.jpg")) { 
+                  } else if (!target.src.includes("placeholder.svg")) { 
                     target.src = "/images/placeholder.svg"; 
                   }
                 }}
@@ -89,10 +89,13 @@ export function AuraEditorialSection() {
           >
             <div className="absolute inset-0 overflow-hidden">
               <img
-                src="/images/product-11mukhi.jpg"
+                src={getOptimizedImageUrl("https://i.ibb.co/v6qncJqn/file-000000009b148211a15f486f2796884a.png", { width: 440, quality: 80 })}
                 alt="Sacred Wrist Bracelets"
                 className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-500 ease-out"
                 loading="lazy"
+                onError={(e) => {
+                  if (!e.currentTarget.src.includes("placeholder.svg")) { e.currentTarget.src = "/images/placeholder.svg"; }
+                }}
               />
             </div>
           </Link>
@@ -104,12 +107,12 @@ export function AuraEditorialSection() {
           >
             <div className="absolute inset-0 overflow-hidden">
               <img
-                src="https://images.unsplash.com/photo-1606293926075-69a00dbfde81?auto=format&fit=crop&w=1200&q=80"
+                src={getOptimizedImageUrl("https://i.ibb.co/GQR7sCpS/file-00000000567c8211bf9d0bc607e701c0.png", { width: 640, quality: 80 })}
                 alt="Puja Essentials and Brass Diyas"
                 className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-600 ease-out"
                 loading="lazy"
                 onError={(e) => {
-                  if (!e.currentTarget.src.includes("BVtGczcQ")) { e.currentTarget.src = "https://i.ibb.co/BVtGczcQ/file-00000000ee808211869df734ac614fe5.png"; }
+                  if (!e.currentTarget.src.includes("placeholder.svg")) { e.currentTarget.src = "/images/placeholder.svg"; }
                 }}
               />
             </div>

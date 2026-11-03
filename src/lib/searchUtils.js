@@ -171,23 +171,38 @@ export function matchProductQuery(product, rawQuery) {
   const prodMukhi = extractMukhiNumber(mukhiClean) || extractMukhiNumber(nameClean);
 
   // If query explicitly asks for a specific Mukhi (e.g. "5 mukhi" or "5")
-  // and product is explicitly a DIFFERENT Mukhi (e.g. "7 mukhi"), then fail match!
+  // and product is explicitly a DIFFERENT Mukhi (e.g. "7 mukhi" or "15 mukhi"), then fail match!
   if (queryMukhi && prodMukhi && queryMukhi !== prodMukhi) {
     return 0;
+  }
+
+  const queryWantsMala = /\b(mala|kantha|108|japa|rosary|bracelet)\b/i.test(cleanQ);
+  const prodIsMala = /\b(mala|kantha|108|japa|bracelet)\b/i.test(nameClean) || /\b(mala|bracelet)\b/i.test(categoryClean);
+
+  // If user searched for a specific Mukhi (e.g. "5 mukhi", "14 mukhi") and product is that exact Mukhi
+  if (queryMukhi && prodMukhi === queryMukhi) {
+    if (!queryWantsMala && !prodIsMala) {
+      return 150; // Exact single-bead Mukhi match is ranked #1
+    }
+    if (queryWantsMala && prodIsMala) {
+      return 145;
+    }
+    return 92; // Secondary match (e.g., 5 Mukhi Mala when searching "5 mukhi")
   }
 
   // Check special cases like "gauri shankar"
   if (/gauri\s*shankar/i.test(cleanQ)) {
     if (/gauri\s*shankar/i.test(nameClean) || /gauri\s*shankar/i.test(mukhiClean) || /gauri\s*shankar/i.test(categoryClean)) {
-      return 100;
+      return 150;
     }
     return 0;
   }
 
   // Exact phrase match (Highest Priority)
-  if (nameClean.includes(cleanQ)) return 100;
-  if (slugClean.includes(cleanQ)) return 95;
-  if (mukhiClean && mukhiClean.includes(cleanQ)) return 90;
+  if (nameClean === cleanQ || slugClean === cleanQ) return 140;
+  if (nameClean.includes(cleanQ)) return prodIsMala && !queryWantsMala ? 95 : 120;
+  if (slugClean.includes(cleanQ)) return 110;
+  if (mukhiClean && mukhiClean.includes(cleanQ)) return 105;
   if (keywordsClean.some(k => k === cleanQ || k.includes(cleanQ))) return 85;
   if (searchKeywordsClean.some(sk => sk === cleanQ || sk.includes(cleanQ))) return 85;
   if (tagsClean.some(t => t === cleanQ || t.includes(cleanQ))) return 80;

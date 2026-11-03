@@ -15,22 +15,25 @@ import { sortProductsByHomeOrder, isRudrakshaProduct } from "../lib/productHelpe
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { defaultProducts } from "../lib/defaultProducts";
 
-// Authentic Devotee Avatars
+// Authentic Devotee Monogram Badges (No stock demo photos)
 const DEVOTEE_AVATARS = [
   {
     name: "Aarav S.",
     city: "Varanasi",
-    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80"
+    initials: "अ",
+    bg: "#7A280D"
   },
   {
     name: "Pooja M.",
     city: "Bengaluru",
-    img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80"
+    initials: "पू",
+    bg: "#9A5218"
   },
   {
     name: "Rajesh K.",
     city: "Haridwar",
-    img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&auto=format&fit=crop&q=80"
+    initials: "रा",
+    bg: "#5D2A12"
   }
 ];
 
@@ -710,24 +713,28 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               {DEVOTEE_AVATARS.map((devotee, idx) => (
-                <img
+                <span
                   key={idx}
-                  src={devotee.img}
-                  alt={devotee.name}
                   title={`${devotee.name} (${devotee.city})`}
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
                   style={{
                     width: '20px',
                     height: '20px',
                     borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '1.2px solid #240E05',
+                    background: devotee.bg,
+                    color: '#FFE9B8',
+                    fontSize: '9px',
+                    fontWeight: '700',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1.2px solid #D4AF37',
                     marginLeft: idx > 0 ? '-6px' : '0',
                     position: 'relative',
                     zIndex: 3 - idx
                   }}
-                />
+                >
+                  {devotee.initials}
+                </span>
               ))}
             </div>
 

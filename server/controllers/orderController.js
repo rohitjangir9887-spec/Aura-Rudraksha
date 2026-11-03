@@ -901,7 +901,7 @@ export async function trackOrderPublic(req, res, next) {
         qty: Number(item.quantity || item.qty || 1),
         price: Number(item.price || item.unitPrice || item.finalPrice || (item.total ? Number(item.total) / Number(item.quantity || item.qty || 1) : 0)),
         total: Number(item.total || ((Number(item.price || item.unitPrice || item.finalPrice || 0)) * Number(item.quantity || item.qty || 1))),
-        img: item.img || item.image || item.images?.[0] || "/images/product-5mukhi.jpg"
+        img: item.img || item.image || item.images?.[0] || "/images/placeholder.svg"
       })),
       timeline: order.timeline && order.timeline.length > 0 ? order.timeline : [
         { title: "Order Confirmed & Placed", date: new Date(order.createdAt || order.date || Date.now()).toLocaleDateString("en-IN"), done: true },

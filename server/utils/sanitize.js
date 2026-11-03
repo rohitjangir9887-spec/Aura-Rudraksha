@@ -134,6 +134,17 @@ export function toPublicProductDTO(doc) {
     cleaned.id = finalId;
   }
 
+  const isDemoPath = (u) => typeof u === "string" && (/^\/images\/product-.*mukhi/i.test(u.trim()) || /^\/images\/product-mala/i.test(u.trim()));
+
+  if (Array.isArray(cleaned.images)) {
+    const realImages = cleaned.images.filter(u => u && typeof u === "string" && !isDemoPath(u));
+    cleaned.images = realImages.length > 0 ? realImages : ["/images/placeholder.svg"];
+  }
+  if (cleaned.img && isDemoPath(cleaned.img)) {
+    cleaned.img = (Array.isArray(cleaned.images) && cleaned.images[0]) || "/images/placeholder.svg";
+  }
+
   return cleaned;
 }
+
 

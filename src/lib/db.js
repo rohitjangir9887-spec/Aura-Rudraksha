@@ -546,7 +546,7 @@ const storeCache = {
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
-const CATALOG_CACHE_VERSION = "2026-10-23-v3"; // Versioned cache key to immediately bust obsolete/demo data on updates
+const CATALOG_CACHE_VERSION = "2026-11-03-v4"; // Versioned cache key to immediately bust obsolete/demo data on updates
 
 let isInitialized = false;
 let isHydrated = false;
@@ -1202,9 +1202,8 @@ export const db = {
         reviewCount: liveReviews,
         mrp: p.mrp || p.comparePrice || p.price,
         comparePrice: p.comparePrice || p.mrp || p.price,
-        images: (Array.isArray(p.images) && p.images.length > 0)
-          ? p.images
-          : getProductGalleryImages(p)
+        img: getProductPrimaryImage(p),
+        images: getProductGalleryImages(p)
       };
     });
   },
@@ -1272,9 +1271,8 @@ export const db = {
       slug: p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : pId),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
-      images: (Array.isArray(p.images) && p.images.length > 0)
-        ? p.images
-        : getProductGalleryImages(p)
+      img: getProductPrimaryImage(p),
+      images: getProductGalleryImages(p)
     };
   },
 
@@ -1511,9 +1509,8 @@ export const db = {
       id: String(p.id || p._id),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
-      images: (Array.isArray(p.images) && p.images.length > 0)
-        ? p.images
-        : getProductGalleryImages(p)
+      img: getProductPrimaryImage(p),
+      images: getProductGalleryImages(p)
     }));
     const filtered = options.includeDrafts ? all : all.filter(isPublicProduct);
     return searchAndRankProducts(filtered, query);
@@ -2793,11 +2790,29 @@ export const db = {
 
     if (couponCode && String(couponCode).trim()) {
       const clean = String(couponCode).trim().toUpperCase();
-      const coup = (storeCache.coupons || []).find(c => (c.code || "").toUpperCase() === clean);
+      let coup = (storeCache.coupons || []).find(c => String(c.code || "").trim().toUpperCase() === clean);
+      if (!coup && storeCache.activeOffer && storeCache.activeOffer.enabled !== false && storeCache.activeOffer.status === "Active") {
+        const offerCode = String(storeCache.activeOffer.couponCode || "").trim().toUpperCase();
+        if (offerCode && offerCode === clean) {
+          const isPct = String(storeCache.activeOffer.discountType || "").toLowerCase() === "percentage";
+          coup = {
+            id: storeCache.activeOffer.id || "OFFER-CENTRAL-1",
+            code: clean,
+            discount: Number(storeCache.activeOffer.discountValue) || (isPct ? 10 : 200),
+            type: isPct ? "percentage" : "fixed",
+            status: "Active",
+            expiry: storeCache.activeOffer.neverExpires ? null : (storeCache.activeOffer.expiresAt || storeCache.activeOffer.expiry),
+            minAmount: 0,
+            targetType: storeCache.activeOffer.targetType || "all",
+            selectedProducts: storeCache.activeOffer.applicableProducts || storeCache.activeOffer.selectedProducts || [],
+            excludedProducts: storeCache.activeOffer.excludedProducts || []
+          };
+        }
+      }
       if (coup) {
         const isExp = coup.expiry && new Date(coup.expiry).getTime() < Date.now();
         const isDisabled = coup.status === "Inactive" || coup.status === "Disabled";
-        const minSpend = Number(coup.minAmount || coup.minOrderValue || 0);
+        const minSpend = Number(coup.minAmount || coup.minOrderValue || coup.minOrder || 0);
 
         if (isDisabled || isExp) {
           couponStatus = "INVALID";
@@ -2832,10 +2847,12 @@ export const db = {
             const evalSubtotal = eligibleSubtotal > 0 ? eligibleSubtotal : subtotal;
             let rawDiscount = 0;
 
-            if (coup.type === "fixed") {
-              rawDiscount = Number(coup.discount || 0);
+            const cTypeNorm = String(coup.type || "percentage").toLowerCase();
+            const isFixedType = cTypeNorm === "fixed" || cTypeNorm.includes("flat");
+            if (isFixedType) {
+              rawDiscount = Number(coup.discount || coup.value || 0);
             } else {
-              const pct = Number(coup.discount || 10);
+              const pct = Number(coup.discount || coup.value || 10);
               rawDiscount = Math.round((evalSubtotal * pct) / 100);
             }
 
@@ -2978,7 +2995,25 @@ export const db = {
     } catch (_) {}
 
     const clean = (code || "").trim().toUpperCase();
-    const coup = storeCache.coupons.find(c => (c.code || "").toUpperCase() === clean);
+    let coup = (storeCache.coupons || []).find(c => (c.code || "").trim().toUpperCase() === clean);
+    if (!coup && storeCache.activeOffer && storeCache.activeOffer.enabled !== false && storeCache.activeOffer.status === "Active") {
+      const offerCode = String(storeCache.activeOffer.couponCode || "").trim().toUpperCase();
+      if (offerCode && offerCode === clean) {
+        const isPct = String(storeCache.activeOffer.discountType || "").toLowerCase() === "percentage";
+        coup = {
+          id: storeCache.activeOffer.id || "OFFER-CENTRAL-1",
+          code: clean,
+          discount: Number(storeCache.activeOffer.discountValue) || (isPct ? 10 : 200),
+          type: isPct ? "percentage" : "fixed",
+          status: "Active",
+          expiry: storeCache.activeOffer.neverExpires ? null : (storeCache.activeOffer.expiresAt || storeCache.activeOffer.expiry),
+          minAmount: 0,
+          targetType: storeCache.activeOffer.targetType || "all",
+          selectedProducts: storeCache.activeOffer.applicableProducts || storeCache.activeOffer.selectedProducts || [],
+          excludedProducts: storeCache.activeOffer.excludedProducts || []
+        };
+      }
+    }
     if (!coup) {
       return {
         success: false,
@@ -3229,7 +3264,7 @@ export const db = {
         source: r.source || "customer",
         status: r.status || "Approved",
         publicDisplay: true,
-        images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
+        images: (Array.isArray(r.images) ? r.images : (r.img ? [r.img] : [])).filter(img => img && typeof img === "string" && !/^\/images\/product-/i.test(img.trim()) && img !== "/images/placeholder.svg"),
         img: getProductPrimaryImage(r) !== "/images/placeholder.svg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,
@@ -3319,7 +3354,7 @@ export const db = {
         source: r.source || "customer",
         status: r.status || "Approved",
         publicDisplay: r.publicDisplay !== false,
-        images: Array.isArray(r.images) && r.images.length > 0 ? r.images : (r.img ? [r.img] : []),
+        images: (Array.isArray(r.images) ? r.images : (r.img ? [r.img] : [])).filter(img => img && typeof img === "string" && !/^\/images\/product-/i.test(img.trim()) && img !== "/images/placeholder.svg"),
         img: getProductPrimaryImage(r) !== "/images/placeholder.svg" ? getProductPrimaryImage(r) : null,
         helpfulUp: Number(r.helpfulUp) || 0,
         helpfulDown: Number(r.helpfulDown) || 0,

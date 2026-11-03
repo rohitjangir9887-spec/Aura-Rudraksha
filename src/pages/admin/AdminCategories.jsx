@@ -20,7 +20,7 @@ const DEFAULT_CATEGORIES = [
     id: "malas",
     name: "Malas",
     desc: "108+1 Japa malas",
-    image: "/images/product-mala.jpg",
+    image: "/images/placeholder.svg",
     link: "/shop?q=Mala"
   }
 ];

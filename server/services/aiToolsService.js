@@ -194,7 +194,7 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
             mrp: Number(p.mrp || p.comparePrice || Math.round(p.price * 1.35)),
             inStock: p.inStock !== false && (p.stock !== undefined ? Number(p.stock) : 0) > 0,
             rating: p.rating || 4.9,
-            image: (p.images && p.images[0]) || p.img || p.image || "/images/product-5mukhi.jpg",
+            image: (p.images && p.images[0]) || p.img || p.image || "/images/placeholder.svg",
             category: p.category || "Rudraksha",
             slug: p.slug
           }))
@@ -238,7 +238,7 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
           origin: "100% Nepali Origin (X-Ray Tested)",
           highlight: p.highlight || p.description,
           category: p.category || "Rudraksha",
-          images: p.images || [p.img || p.image || "/images/product-5mukhi.jpg"]
+          images: p.images || [p.img || p.image || "/images/placeholder.svg"]
         };
       }
 
