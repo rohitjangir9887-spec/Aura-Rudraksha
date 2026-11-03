@@ -296,12 +296,10 @@ export const auraAiClient = {
       const savedBirth = typeof auraChatStore.getVerifiedBirthDetails === "function" ? auraChatStore.getVerifiedBirthDetails() : null;
       const isAstroQuery = (
         mode === "panditji" ||
-        Boolean(birthDetails) ||
-        Boolean(savedBirth) ||
         /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(message || "")
       );
-      const targetMode = isAstroQuery ? "panditji" : mode;
-      const effectiveBirthDetails = birthDetails || (targetMode === "panditji" ? savedBirth : null);
+      const targetMode = isAstroQuery ? "panditji" : (mode || "standard");
+      const effectiveBirthDetails = targetMode === "panditji" ? (birthDetails || savedBirth || null) : null;
 
       if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
         return { aborted: true, text: "" };

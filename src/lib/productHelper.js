@@ -41,9 +41,8 @@ export function isRudrakshaProduct(product) {
   // If category is "Mala" or "Malas" or "Bracelets", check if it's explicitly a Rudraksha mala
   const isGeneralMala = cat.includes("mala") || subCat.includes("mala") || cat.includes("bracelet");
   if (isGeneralMala) {
-    // Only true if name or tags specifically say rudraksha or mukhi
     const hasRudrakshaSignal = name.includes("rudraksha") || name.includes("mukhi") || name.includes("gauri shankar");
-    if (!hasRudrakshaSignal && !product.isRudraksha) {
+    if (!hasRudrakshaSignal) {
       return false;
     }
   }
@@ -56,10 +55,12 @@ export function isRudrakshaProduct(product) {
     name.includes("ganesh rudraksha") ||
     name.includes("garbh gauri") ||
     cat.includes("rudraksha") ||
-    cat.includes("mukhi") ||
-    type === "rudraksha" ||
-    product.isRudraksha === true
+    cat.includes("mukhi")
   ) {
+    return true;
+  }
+
+  if (product.isRudraksha === true && !isExplicitNonRudraksha && !isGeneralMala) {
     return true;
   }
 

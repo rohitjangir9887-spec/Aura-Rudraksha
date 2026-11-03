@@ -110,17 +110,25 @@ export function AuraAIFloating() {
   // Universal Touch & Screen Unlocker: Guarantees main UI and product clicks work 100% with zero touch lock
   const unlockScreenAndTouch = useCallback(() => {
     if (typeof document !== "undefined") {
-      if (document.body.style.overflow) document.body.style.overflow = "";
-      if (document.body.style.position) document.body.style.position = "";
-      if (document.body.style.pointerEvents) document.body.style.pointerEvents = "";
-      if (document.body.style.touchAction) document.body.style.touchAction = "";
-      if (document.documentElement.style.overflow) document.documentElement.style.overflow = "";
-      if (document.documentElement.style.pointerEvents) document.documentElement.style.pointerEvents = "";
-      if (document.documentElement.style.touchAction) document.documentElement.style.touchAction = "";
-      const rootEl = document.getElementById("root");
-      if (rootEl && rootEl.style.pointerEvents) {
-        rootEl.style.pointerEvents = "";
-      }
+      try {
+        if (document.body.style.overflow) document.body.style.overflow = "";
+        if (document.body.style.position) document.body.style.position = "";
+        if (document.body.style.pointerEvents) document.body.style.pointerEvents = "";
+        if (document.body.style.touchAction) document.body.style.touchAction = "";
+        if (document.documentElement.style.overflow) document.documentElement.style.overflow = "";
+        if (document.documentElement.style.pointerEvents) document.documentElement.style.pointerEvents = "";
+        if (document.documentElement.style.touchAction) document.documentElement.style.touchAction = "";
+        const rootEl = document.getElementById("root");
+        if (rootEl && rootEl.style.pointerEvents) {
+          rootEl.style.pointerEvents = "";
+        }
+        // Remove any orphan modal backdrops if assistant is closing
+        document.querySelectorAll(".aura-ai-floating-backdrop, .aura-ai-order-modal-backdrop").forEach(el => {
+          if (el && !auraChatStore.isFloatingOpen()) {
+            try { el.remove(); } catch (_) {}
+          }
+        });
+      } catch (_) {}
     }
   }, []);
 
@@ -496,7 +504,11 @@ export function AuraAIFloating() {
   // Handle hardware Back button, browser back, and swipe gestures smoothly
   useEffect(() => {
     if (isOpen) {
-      const handlePopState = () => {
+      if (typeof window !== "undefined" && window.history && !window.history.state?.auraAiModal) {
+        window.history.pushState({ auraAiModal: true }, "");
+      }
+
+      const handlePopState = (e) => {
         setIsOpenState(false);
         auraChatStore.setFloatingOpen(false);
         setIsFullWindow(false);
@@ -539,6 +551,10 @@ export function AuraAIFloating() {
     setShowBirthForm(false);
     setOrderModalProduct(null);
     unlockScreenAndTouch();
+
+    if (typeof window !== "undefined" && window.history && window.history.state?.auraAiModal) {
+      try { window.history.back(); } catch (_) {}
+    }
   }, [unlockScreenAndTouch]);
 
   // When chat window is open in full-window modal, clicking outside the window on the website closes it
@@ -836,13 +852,15 @@ export function AuraAIFloating() {
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
       const notesContext = notesList.map(n => `${n.memoryKey}: ${n.memoryValue}`).join("; ");
-      const effectiveBirthDetails = customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null;
       const isAstroQuery = (
         mode === "panditji" ||
-        Boolean(effectiveBirthDetails) ||
         /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
       );
-      const targetMode = isAstroQuery ? "panditji" : mode;
+      const targetMode = isAstroQuery ? "panditji" : (mode || "standard");
+      const effectiveBirthDetails = targetMode === "panditji"
+        ? (customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null)
+        : null;
+
       if (isAstroQuery && mode !== "panditji") {
         setMode("panditji");
       }

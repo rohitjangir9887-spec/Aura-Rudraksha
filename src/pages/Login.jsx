@@ -128,13 +128,7 @@ export function Login({ initialMode = "signin" }) {
   useEffect(() => {
     const user = authClient.getUser();
     if (user && !user.isAnonymous && mode === "signin") {
-      // If user is already verified or signed in via Google
-      if (user.emailVerified || !user.email) {
-        redirectUser();
-      } else if (!user.emailVerified && user.email) {
-        // Unverified email account
-        setMode("verify-email");
-      }
+      redirectUser();
     }
   }, []);
 
@@ -227,17 +221,6 @@ export function Login({ initialMode = "signin" }) {
       setLoading(true);
       setError("");
       const user = await authClient.signInWithEmail(email.trim(), password);
-
-      // Verify email check
-      if (user && !user.emailVerified) {
-        // Send a fresh verification email if not verified
-        try {
-          await authClient.sendVerificationEmail(user);
-        } catch (_) {}
-        setMode("verify-email");
-        emitToast("Please verify your email to access all account features.", "info");
-        return;
-      }
 
       emitToast("Welcome back! Signed in successfully.", "success");
       redirectUser();

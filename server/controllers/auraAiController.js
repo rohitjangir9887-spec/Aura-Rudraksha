@@ -172,7 +172,7 @@ export function getNvidiaClient(customKey = "") {
     return new OpenAI({
       baseURL,
       apiKey,
-      timeout: 120000 // 120s full capacity timeout
+      timeout: 10000 // 10s fast failover timeout
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM / OpenAI client:", err?.message || err);
@@ -1487,18 +1487,33 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
     return `🎁 **आज के विशेष ऑरा रुद्राक्ष डिस्काउंट कूपन:**\n\n1. 🌟 **SHIVOHAM10** — फ्लैट 10% की अतिरिक्त छूट (सभी रुद्राक्ष व माला पर लागू)।\n2. 🔱 **MAHASHIVRATRI** — फ्लैट 15% की भव्य छूट (₹1,999 से अधिक के ऑर्डर्स पर)।\n3. 🚚 **मुफ्त डिलीवरी (Free Shipping):** ₹999 से अधिक के सभी प्रीपेड ऑर्डर्स पर संपूर्ण भारत में निशुल्क डिलीवरी!\n\nCheck out के समय 'Apply Coupon' में कोड दर्ज करें और तुरंत बचत प्राप्त करें!`;
   }
 
-  // 7. Career, Job, Money, Wealth
-  if (/career|job|naukri|paisa|money|dhan|business|vyapar/i.test(lower)) {
+  // 7. Price / Cost Queries
+  if (/price|cost|rate|kitne|kimat|keemat|paisa|rupaye|kharch/i.test(lower)) {
+    const listProds = matchedProducts.length > 0 ? matchedProducts : [];
+    return `💰 **ऑरा रुद्राक्ष मूल्य व प्रामाणिक रेट सूची:**\n\n${listProds.length > 0 ? listProds.slice(0, 4).map(p => `• **${p.name}** — ₹${Number(p.price).toLocaleString("en-IN")}${p.comparePrice ? ` (MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})` : ""}`).join("\n") : "• 1 मुखी से 14 मुखी सिद्ध नेपाली रुद्राक्ष ₹999 से आरंभ होते हैं।"}\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** लगाकर तुरंत 10% की अतिरिक्त बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत | ओरिजिनल रेट | आज का डिस्काउंट | लैब सर्टिफाइड रुद्राक्ष`;
+  }
+
+  // 8. Career, Job, Money, Wealth
+  if (/career|job|naukri|business|vyapar/i.test(lower)) {
     return `💼 **करियर, व्यापार व धन वृद्धि हेतु सर्वश्रेष्ठ रुद्राक्ष:**\n\n1. 🪙 **7 मुखी रुद्राक्ष (माता महालक्ष्मी):** आर्थिक तंगी दूर करने, स्थिर धन प्राप्ति और कर्ज से मुक्ति के लिए सर्वश्रेष्ठ।\n2. 🌟 **10 मुखी रुद्राक्ष (भगवान विष्णु):** कार्यक्षेत्र में षड्यंत्रों से रक्षा व सभी 9 ग्रहों की अनुकूलता।\n3. 👑 **14 मुखी रुद्राक्ष (देव मणि):** उच्च पद, लीडरशिप, सही निर्णय क्षमता और शेयर मार्केट/व्यापार में सफलता।\n\nविशेष छूट के लिए **SHIVOHAM10** कूपन कोड का उपयोग करें!\n\n[AURA_KEYWORDS]: 7 मुखी धन रुद्राक्ष | व्यापार वृद्धि उपाय | महालक्ष्मी रुद्राक्ष | करियर में सफलता`;
   }
 
-  // 8. General Products Match fallback
-  if (matchedProducts.length > 0) {
-    return `🙏 **हर हर महादेव! आपके प्रश्न के अनुसार प्रामाणिक स्टोर चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **${p.name}** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध नेपाली • लैब प्रमाणित • प्राण-प्रतिष्ठित)*`).join("\n\n")}\n\nआप किसी भी रुद्राक्ष पर क्लिक करके उसका संपूर्ण शास्त्रीय विवरण देख सकते हैं या कूपन **SHIVOHAM10** लगाकर 10% छूट प्राप्त कर सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध नेपाली रुद्राक्ष | लैब सर्टिफाइड | धारण विधि | आज के ऑफर्स`;
+  // 9. Returns, Refunds, Customer Support
+  if (/return|refund|exchange|cancel|support|contact|helpline|phone/i.test(lower)) {
+    return `🤝 **ऑरा रुद्राक्ष ग्राहक सेवा व 7-दिवसीय रिटर्न पॉलिसी:**\n\n• 🔄 **7 Days Easy Replacement:** यदि पार्सल में कोई भी समस्या आती है तो 7 दिनों के भीतर बिना किसी झंझट के रिप्लेसमेंट उपलब्ध है।\n• 📞 **व्हाट्सएप व कॉल हेल्पलाइन:** +91 9672996531 (सोम-शनि, 10 AM - 7 PM)\n• 📧 **ईमेल सहायता:** aurarudrakshaofficial@gmail.com\n\nहम 100% संतुष्टि और प्रामाणिकता की गारंटी देते हैं!`;
   }
 
-  // 9. Standard Warm Greeting and Capability Overview
-  return `🙏 **हर हर महादेव! Main Aura AI hoon — Aura Rudraksha ka shopping aur Vedic assistant.**\n\nMain aapki in sabhi vishayon mein madad kar sakta hoon:\n• 🪐 **1 se 21 Mukhi Nepali Rudraksha** ke Shastriya labh, deity aur mantras\n• 📿 **108+1 Jaap Mala** aur dharana vidhi\n• 🔬 **100% Govt Lab X-Ray Certificate** verification\n• 🚚 **Live Order Tracking** aur delivery status (/track-order)\n• 🎁 **Active Discount Coupons** (Use code: **SHIVOHAM10**)\n\nAap jis bhi Rudraksha ya samasya ke baare mein jaanna chahte hain, kripya yahan likhein!`;
+  // 10. General Products Match fallback
+  if (matchedProducts.length > 0) {
+    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **${p.name}** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध • वैदिक अभिमंत्रित • सुरक्षित डिलीवरी)*`).join("\n\n")}\n\nआप किसी भी आइटम पर क्लिक करके उसका संपूर्ण विवरण देख सकते हैं या कूपन **SHIVOHAM10** लगाकर 10% छूट प्राप्त कर सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | स्टोर चयन | आज के ऑफर्स | प्रामाणिक ऑरा रुद्राक्ष`;
+  }
+
+  // 11. Greeting & Default tailored reply
+  if (/^(hi|hello|hey|namaste|pranam|ram|radhe|har|shambhu)/i.test(lower)) {
+    return `🙏 **हर हर महादेव! नमस्ते! Main Aura AI hoon.**\n\nMain Aura Rudraksha ka 24/7 shopping assistant hoon. Main aapki in vishayon mein turant madad kar sakta hoon:\n• 📿 **1 se 21 Mukhi Nepali Rudraksha** aur unke labh\n• 🌸 **108+1 Jaap Mala, Sphatik aur Bracelets**\n• 🎁 **Active Discount Coupons** (Use: **SHIVOHAM10** for 10% OFF)\n• 🚚 **Order Status aur Live Tracking** (/track-order)\n\nAapko kis product ya jaankari ki aavashyakta hai?`;
+  }
+
+  return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'जानकारी'}" के संदर्भ में:**\n\nऑरा रुद्राक्ष पर सभी पवित्र मनके, जप मालाएं और वैदिक वस्तुएं 100% शुद्ध, प्राकृतिक और काशी-हरिद्वार में प्राण-प्रतिष्ठित हैं।\n\n• 📿 आप [Shop Catalog](/shop) पर संपूर्ण संग्रह देख सकते हैं।\n• 🎁 कूपन **SHIVOHAM10** का उपयोग करके 10% अतिरिक्त छूट प्राप्त कर सकते हैं।\n• 🚚 ₹999 से अधिक के ऑर्डर्स पर संपूर्ण भारत में निशुल्क डिलीवरी उपलब्ध है।\n\nयदि आप किसी विशिष्ट मनके, माला या आभूषण की कीमत या धारण विधि जानना चाहते हैं, तो कृपया उसका नाम लिखें!`;
 }
 
 /**
@@ -1691,20 +1706,20 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    // Auto-promote mode to "panditji" whenever astrological, Kundali, or birth details are involved
-    let effectiveMode = mode;
-    const isAstrologySpecificQuery = (
-      mode === "panditji" ||
-      intent === "KUNDALI" ||
-      Boolean(activeBirthDetails) ||
-      Boolean(incomingBirthDetails) ||
-      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(message || "")
-    );
+    // Auto-promote mode to "panditji" ONLY when astrological/Kundali topic is explicitly queried or mode is panditji
+    let effectiveMode = mode || "standard";
+    const hasAstroKeywords = /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(message || "");
+    const isAstrologySpecificQuery = mode === "panditji" || intent === "KUNDALI" || (Boolean(incomingBirthDetails) && hasAstroKeywords) || hasAstroKeywords;
+    
     if (isAstrologySpecificQuery) {
       effectiveMode = "panditji";
+    } else {
+      effectiveMode = "standard";
+      activeBirthDetails = null;
+      calculatedKundaliData = null;
     }
 
-    if (!activeBirthDetails && (effectiveMode === "panditji" || isAstrologySpecificQuery)) {
+    if (!activeBirthDetails && effectiveMode === "panditji") {
       shouldPromptBirthForm = true;
     }
 
@@ -2566,11 +2581,16 @@ ${memoryContextText || "Guest shopper."}`;
                 return;
               }
               console.warn(`[Aura AI Streaming] NVIDIA NIM notice (${modelCandidate}, attempt ${attempt}):`, streamErr?.message || streamErr);
+              const isAuthErr = streamErr?.status === 401 || streamErr?.status === 403 || streamErr?.status === 404 || String(streamErr?.message).includes("API key");
+              if (isAuthErr) {
+                break; // Break out immediately to Gemini fallback
+              }
               if (!fullStreamedText.trim() && attempt < MAX_CANDIDATE_ATTEMPTS) {
-                await new Promise((r) => setTimeout(r, 400 * attempt));
+                await new Promise((r) => setTimeout(r, 200 * attempt));
               }
             }
           }
+          if (streamSucceeded) break;
         }
       }
 

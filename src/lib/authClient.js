@@ -577,15 +577,14 @@ export const authClient = {
         saveCachedUser(user);
         callback(user);
       } else {
-        const isIframe = typeof window !== "undefined" && window.self !== window.top;
-        if (!isIframe) {
-          const cachedAdmin = authClient.getCachedAdminVerification();
-          if (!cachedAdmin || !cachedAdmin.authorized) {
-            saveCachedUser(null);
-            authClient.clearAdminCache();
-          }
+        // If an authenticated session is cached in local persistence, do NOT prematurely wipe it on cold start
+        const cached = inMemoryCachedUser || (typeof window !== "undefined" ? JSON.parse(localStorage.getItem(USER_CACHE_KEY) || "null") : null);
+        if (cached && (cached.email || cached.uid)) {
+          callback(cached);
+        } else {
+          saveCachedUser(null);
+          callback(null);
         }
-        callback(null);
       }
     });
 

@@ -412,18 +412,28 @@ export async function createProduct(req, res, next) {
       ? data.keywords
       : (Array.isArray(data.searchKeywords) && data.searchKeywords.length > 0 ? data.searchKeywords : autoSeo.keywords);
 
+    const isRudrakshaDetected = data.isRudraksha !== undefined 
+      ? Boolean(data.isRudraksha) 
+      : (/rudraksha|mukhi|gauri\s*shankar|garbh\s*gauri/i.test(data.name || "") && !/spatika|sphatik|karungali|crystal|parad/i.test(data.name || ""));
+    const hasCertificateDetected = data.hasCertificate !== undefined 
+      ? Boolean(data.hasCertificate) 
+      : false;
+
     const productPayload = {
       ...data,
       id,
       slug: computedSlug,
       status: normalizedStatus,
+      isRudraksha: isRudrakshaDetected,
+      hasCertificate: hasCertificateDetected,
+      productType: data.productType || (isRudrakshaDetected ? "rudraksha" : "general"),
       showOnHome: data.showOnHome !== undefined ? Boolean(data.showOnHome) : true,
       isPopular: data.isPopular !== undefined ? Boolean(data.isPopular) : true,
       homeBadge: data.homeBadge || data.badge || "New Arrival",
       badge: data.badge || data.homeBadge || "New Arrival",
       variants: Array.isArray(data.variants) ? data.variants : [],
       sizes: Array.isArray(data.sizes) ? data.sizes : [],
-      tags: Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : autoSeo.tags,
+      tags: Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : (isRudrakshaDetected ? autoSeo.tags : autoSeo.tags.filter(t => !t.toLowerCase().includes("rudraksha") && !t.toLowerCase().includes("lab certified"))),
       keywords: rawKeywords,
       searchKeywords: rawKeywords,
       metaTitle: data.metaTitle || autoSeo.metaTitle,

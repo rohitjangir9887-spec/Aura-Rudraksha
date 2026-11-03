@@ -18,8 +18,7 @@ export function ProductTrustBadges({ product }) {
   const hasCert = Boolean(
     product.hasCertificate === true || 
     (product.certificate && (product.certificate.url || product.certificate.number)) ||
-    (product.labCertificate && product.labCertificate !== "") ||
-    (isRudraksha && product.hasCertificate !== false && Array.isArray(product.tags) && product.tags.some(t => String(t).toLowerCase().includes("lab certified")))
+    (product.labCertificate && product.labCertificate !== "")
   );
 
   const originText = product.origin && !product.origin.toLowerCase().includes("nepal")
