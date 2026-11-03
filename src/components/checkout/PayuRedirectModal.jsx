@@ -108,16 +108,16 @@ export function PayuRedirectModal({
   let badgeTheme = "connecting";
 
   if (isFailed) {
-    title = timeoutOccurred ? "Connection Taking Longer" : "Payment Failed";
+    title = timeoutOccurred ? "Connection Taking Longer" : "Payment Incomplete (भुगतान अधूरा)";
     subtitle = errorMsg 
       ? errorMsg 
       : timeoutOccurred 
       ? "Connecting to PayU took longer than expected. Please retry or choose another method." 
-      : "Your payment could not be completed. Your order is safely saved.";
+      : "आपका पेमेंट पूरा नहीं हो सका। आपके बैंक खाते से कोई पैसा नहीं कटा है और आपका कार्ट सुरक्षित है। (Your cart is safely saved.)";
     badgeTheme = "failed";
   } else if (isCancelled) {
-    title = "Payment Cancelled";
-    subtitle = "The payment session was cancelled. You can retry whenever you're ready.";
+    title = "Payment Cancelled (पेमेंट कैंसिल)";
+    subtitle = "आप पेमेंट पेज से वापस आ गए हैं। कोई राशि नहीं कटी है — आप तुरंत दोबारा पेमेंट कर सकते हैं या चेकआउट पर वापस जा सकते हैं।";
     badgeTheme = "cancelled";
   } else if (isPending) {
     title = "Payment Processing";
@@ -487,7 +487,7 @@ export function PayuRedirectModal({
                     onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
                   >
                     <RefreshCw size={15} />
-                    <span>Retry Payment</span>
+                    <span>Retry Payment Now (दोबारा पेमेंट करें)</span>
                   </button>
                 )}
                 {onClose && (
@@ -514,7 +514,7 @@ export function PayuRedirectModal({
                     onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
                   >
                     <ArrowLeft size={14} />
-                    <span>{orderId ? "View My Orders" : "Back to Checkout"}</span>
+                    <span>Back to Checkout (चेकआउट पर वापस जाएं)</span>
                   </button>
                 )}
               </div>

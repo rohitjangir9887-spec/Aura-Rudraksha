@@ -81,11 +81,14 @@ export function PaymentResult() {
               localStorage.setItem(`aura_order_txnid_${oId}`, tId);
             }
           }
+          // Only clear cart once payment is verified as Paid so cancelled/failed users keep their cart
+          if (res.data.paymentStatus === "Paid") {
+            try {
+              sessionStorage.removeItem("aura_buy_now_intent");
+              clear();
+            } catch (_) {}
+          }
         }
-        // Once user reaches PaymentResult for an order, clear the cart unconditionally
-        try {
-          clear();
-        } catch (_) {}
       } catch (err) {
         console.error("Verification failed:", err);
       } finally {
@@ -99,15 +102,32 @@ export function PaymentResult() {
     }
   }, [orderId, txnid, guestToken, clear, status]);
 
+  // Reset retrying state if user presses browser Back button from PayU after clicking Retry
+  useEffect(() => {
+    const onPageShow = () => {
+      setRetrying(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   // Authoritative server-verified payment success
   const isVerifiedSuccess = order?.paymentStatus === "Paid";
 
-  // Safe navigation on Back button without corrupting React Router history
+  // Safe navigation on Back button so user never lands on an expired PayU POST form page
   useEffect(() => {
-    if (!isVerifiedSuccess || (!orderId && !txnid)) return;
+    if (!orderId && !txnid) return;
+
+    try {
+      window.history.pushState({ auraPaymentResultGuard: true }, "", window.location.href);
+    } catch (_) {}
 
     const handlePopState = () => {
-      navigate("/", { replace: true });
+      if (isVerifiedSuccess) {
+        navigate("/", { replace: true });
+      } else {
+        navigate("/checkout", { replace: true });
+      }
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -117,12 +137,26 @@ export function PaymentResult() {
   }, [isVerifiedSuccess, orderId, txnid, navigate]);
 
   const handleRetry = async () => {
-    if (!orderId) return;
+    const targetOrderId = order?.orderNumber || order?.id || orderId;
+    if (!targetOrderId) return;
     setRetrying(true);
     try {
-      const res = await db.retryPayment(orderId, txnid || "", guestToken || "");
+      const effectiveGuestTok = guestToken || order?.guestToken || sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "";
+      const res = await db.retryPayment(targetOrderId, txnid || order?.txnid || "", effectiveGuestTok);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
         const { paymentUrl, params } = res.data;
+        const retryTxnid = res.data.txnid || params?.txnid || "";
+        const retryGuestTok = res.data.guestToken || effectiveGuestTok;
+        try {
+          sessionStorage.setItem("aura_pending_orderId", targetOrderId);
+          if (retryTxnid) sessionStorage.setItem("aura_pending_txnid", retryTxnid);
+          if (retryGuestTok) {
+            sessionStorage.setItem("aura_guest_token", retryGuestTok);
+            localStorage.setItem("aura_guest_token", retryGuestTok);
+          }
+          sessionStorage.setItem("aura_pending_timestamp", String(Date.now()));
+        } catch (_) {}
+
         const form = document.createElement("form");
         form.method = "POST";
         form.action = paymentUrl;
@@ -131,13 +165,10 @@ export function PaymentResult() {
           const input = document.createElement("input");
           input.type = "hidden";
           input.name = k;
-          input.value = v;
+          input.value = v !== undefined && v !== null ? String(v) : "";
           form.appendChild(input);
         });
         document.body.appendChild(form);
-        
-        // Use replaceState to clear this result page from history before redirecting to PayU
-        window.history.replaceState(null, "", guestToken ? "/checkout" : "/account/orders");
         form.submit();
       } else {
         emitToast(res?.message || "Payment retry failed.", "error");
@@ -399,12 +430,12 @@ export function PaymentResult() {
             {isCancelled ? "Order Cancelled • Payment Not Done" : "Payment Incomplete"}
           </div>
           <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "32px", fontWeight: "700", color: "#991b1b", margin: "0 0 8px" }}>
-            {isCancelled ? "भुगतान नहीं हुआ — आर्डर कैंसिल" : "Payment Not Completed"}
+            {isCancelled ? "भुगतान पूरा नहीं हुआ (Payment Cancelled)" : "Payment Not Completed"}
           </h1>
           <p style={{ fontSize: "14.5px", color: "#4a3528", margin: "0 auto 14px", maxWidth: "520px", lineHeight: "1.6" }}>
             {isCancelled 
-              ? "आपका भुगतान पूरा नहीं हुआ था, इसलिए यह आर्डर कैंसिल कर दिया गया है। आपके बैंक खाते से कोई राशि नहीं कटी है। आप नीचे दिए गए बटन से पवित्र रुद्राक्ष संग्रह देख सकते हैं या नया आर्डर कर सकते हैं।" 
-              : "The payment session could not be completed with the payment gateway. No funds were debited."}
+              ? "आपने पेमेंट स्क्रीन से वापस (Back/Cancel) आने का विकल्प चुना या भुगतान अधूरा रह गया। आपके बैंक खाते से कोई राशि नहीं कटी है और आपका कार्ट सुरक्षित है। आप नीचे दिए गए बटन से तुरंत दोबारा पेमेंट कर सकते हैं।" 
+              : "पेमेंट गेटवे के साथ भुगतान पूरा नहीं हो सका। यदि आपके खाते से राशि नहीं कटी है, तो आप नीचे दिए गए बटन से तुरंत दोबारा प्रयास (Retry) कर सकते हैं।"}
           </p>
           {reason && (
             <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "10px 14px", fontSize: "12px", color: "#b91c1c", margin: "12px auto 24px", maxWidth: "480px" }}>
@@ -412,11 +443,48 @@ export function PaymentResult() {
             </div>
           )}
           <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>
+            {orderId && (
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={handleRetry}
+                className="primary-btn"
+                style={{
+                  padding: "13px 26px",
+                  fontSize: "14.5px",
+                  fontWeight: "700",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: retrying ? "wait" : "pointer"
+                }}
+              >
+                {retrying ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Connecting to PayU...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={16} />
+                    <span>Retry Payment Now (दोबारा पेमेंट करें)</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate("/checkout", { replace: true })}
+              className="outline-btn"
+              style={{ padding: "12px 20px", fontSize: "14px", fontWeight: "700", background: "#fffdf9" }}
+            >
+              Back to Checkout (चेकआउट पर वापस जाएं)
+            </button>
             <button 
               type="button" 
               onClick={() => navigate("/shop", { replace: true })} 
-              className="primary-btn" 
-              style={{ padding: "13px 26px", fontSize: "14.5px", fontWeight: "700" }}
+              className="outline-btn" 
+              style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
             >
               Explore Rudraksha Catalog (दुकान देखें)
             </button>

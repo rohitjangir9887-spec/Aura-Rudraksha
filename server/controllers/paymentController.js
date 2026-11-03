@@ -11,6 +11,7 @@ import { calculateOrderTotals } from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import {
   getPayuConfig,
+  sanitizeHashParam,
   generatePayuPaymentHash,
   verifyPayuResponseHash,
   verifyPayuPaymentServerSide,
@@ -103,12 +104,15 @@ export function sanitizePaymentDetails(details) {
  * Helper to resolve authoritative base URL for PayU redirects & webhooks
  */
 function resolveAppBaseUrl(req) {
-  const host = req ? (req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.host) || "") : "";
-  const protocol = req && req.headers?.["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
-  if (host && (host.includes("localhost") || host.includes("127.0.0.1"))) {
-    return `${protocol}://${host}`;
+  const rawHost = req ? (req.headers?.["x-forwarded-host"] || (typeof req.get === "function" ? req.get("host") : req.headers?.host) || "") : "";
+  const host = String(rawHost).split(",")[0].trim();
+  const rawProto = req && req.headers?.["x-forwarded-proto"] ? req.headers["x-forwarded-proto"] : (req && req.protocol ? req.protocol : "https");
+  const protocol = String(rawProto).split(",")[0].trim() || "https";
+  if (host) {
+    const effectiveProto = (host.includes("localhost") || host.includes("127.0.0.1")) ? (protocol || "http") : "https";
+    return `${effectiveProto}://${host}`;
   }
-  return "https://aurarudraksha.bond";
+  return process.env.SITE_URL || "https://aurarudraksha.bond";
 }
 
 /**
@@ -207,27 +211,51 @@ export async function initiatePayuPayment(req, res, next) {
     // Unique PayU transaction ID for this payment attempt
     const txnid = `TXN_${orderId.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
-    // Shipping address snapshot
-    const shippingAddress = data.shippingAddress || {
-      address: data.address || "",
-      city: data.city || "",
-      state: data.state || "",
-      pincode: data.pincode || "",
-      phone: data.phone || "",
-      firstName: data.firstName || "",
-      lastName: data.lastName || ""
-    };
+    // Shipping address snapshot (supports both flat Checkout payload and nested Aura AI modal payload)
+    const nestedCustomer = (data.customer && typeof data.customer === "object") ? data.customer : {};
+    const nestedShipping = (data.shippingAddress && typeof data.shippingAddress === "object") ? data.shippingAddress : {};
+    const rawFullName = String(
+      data.customerName ||
+      nestedCustomer.name ||
+      nestedShipping.fullName ||
+      `${data.firstName || nestedShipping.firstName || ""} ${data.lastName || nestedShipping.lastName || ""}`
+    ).trim();
+    const nameParts = rawFullName.split(/\s+/).filter(Boolean);
+    const resolvedFirstName = sanitizeHashParam(data.firstName || nestedShipping.firstName || nameParts[0] || req.user?.name || "Devotee");
+    const resolvedLastName = sanitizeHashParam(data.lastName || nestedShipping.lastName || nameParts.slice(1).join(" ") || "");
+    const phone = sanitizeHashParam(data.phone || data.customerPhone || nestedCustomer.phone || nestedShipping.phone || "");
+    const cleanDigitsPhone = phone.replace(/\D/g, "");
 
-    const email = (data.customerEmail || data.email || req.user?.email || "").trim().toLowerCase();
+    let email = sanitizeHashParam(
+      data.customerEmail ||
+      data.email ||
+      nestedCustomer.email ||
+      nestedShipping.email ||
+      req.user?.email ||
+      (cleanDigitsPhone.length >= 10 ? `${cleanDigitsPhone.slice(-10)}@auracustomer.in` : "")
+    ).toLowerCase();
+
     if (!email || !email.includes("@")) {
       return res.status(400).json({
         success: false,
         message: "Valid customer email is required to initiate payment."
       });
     }
-    const firstname = (data.firstName || data.customerName || req.user?.name || "Devotee").trim();
-    const phone = (data.phone || data.customerPhone || "").trim();
-    const productinfo = `Aura Rudraksha Order ${orderId}`;
+
+    const shippingAddress = {
+      ...nestedShipping,
+      address: nestedShipping.address || data.address || "",
+      city: nestedShipping.city || data.city || "",
+      state: nestedShipping.state || data.state || "",
+      pincode: nestedShipping.pincode || data.pincode || "",
+      phone: nestedShipping.phone || phone,
+      email: nestedShipping.email || email,
+      firstName: nestedShipping.firstName || resolvedFirstName,
+      lastName: nestedShipping.lastName || resolvedLastName
+    };
+
+    const firstname = resolvedFirstName;
+    const productinfo = sanitizeHashParam(`Aura Rudraksha Order ${orderId}`);
 
     // Payment attempt tracking object
     const attempt = {
@@ -305,11 +333,16 @@ export async function initiatePayuPayment(req, res, next) {
       console.warn("Could not save PaymentTransaction record:", txnErr.message);
     }
 
-    // Authoritative Callback URLs for PayU
+    // Authoritative Callback URLs for PayU (include query fallback for orderId & txnid)
     const appBaseUrl = resolveAppBaseUrl(req);
-    const surl = `${appBaseUrl}/api/payment/payu-callback`;
-    const furl = `${appBaseUrl}/api/payment/payu-callback`;
-    const curl = `${appBaseUrl}/api/payment/payu-cancel`;
+    const cbQuery = `?orderId=${encodeURIComponent(orderId)}&txnid=${encodeURIComponent(txnid)}`;
+    const surl = `${appBaseUrl}/api/payment/payu-callback${cbQuery}`;
+    const furl = `${appBaseUrl}/api/payment/payu-callback${cbQuery}`;
+    const curl = `${appBaseUrl}/api/payment/payu-cancel${cbQuery}`;
+
+    const cleanUdf1 = sanitizeHashParam(orderId);
+    const cleanUdf2 = sanitizeHashParam(effectiveAuthUserId);
+    const cleanUdf3 = "AURA_RUDRAKSHA";
 
     // Generate SHA-512 Hash strictly on backend
     const hash = generatePayuPaymentHash({
@@ -319,9 +352,9 @@ export async function initiatePayuPayment(req, res, next) {
       productinfo,
       firstname,
       email,
-      udf1: orderId,
-      udf2: effectiveAuthUserId,
-      udf3: "AURA_RUDRAKSHA",
+      udf1: cleanUdf1,
+      udf2: cleanUdf2,
+      udf3: cleanUdf3,
       udf4: "",
       udf5: "",
       salt
@@ -339,7 +372,7 @@ export async function initiatePayuPayment(req, res, next) {
         paymentUrl,
         params: {
           key,
-          txnid,
+          txnid: sanitizeHashParam(txnid),
           amount: Number(totals.finalTotal).toFixed(2),
           productinfo,
           firstname,
@@ -349,9 +382,9 @@ export async function initiatePayuPayment(req, res, next) {
           furl,
           curl,
           hash,
-          udf1: orderId,
-          udf2: effectiveAuthUserId,
-          udf3: "AURA_RUDRAKSHA",
+          udf1: cleanUdf1,
+          udf2: cleanUdf2,
+          udf3: cleanUdf3,
           udf4: "",
           udf5: "",
           service_provider: "payu_paisa"
@@ -387,10 +420,16 @@ export async function handlePayuCallback(req, res) {
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=unconfigured&reason=${encodeURIComponent("Payment gateway service is unavailable.")}`);
     }
 
-    const orderId = String(params.udf1 || params.orderId || "").trim();
-    const txnid = String(params.txnid || "").trim();
-    const status = String(params.status || "").toLowerCase().trim();
+    const orderId = String(params.udf1 || params.orderId || req.query?.orderId || "").trim();
+    const txnid = String(params.txnid || req.query?.txnid || "").trim();
+    const status = String(params.status || req.query?.status || "").toLowerCase().trim();
+    const unmapped = String(params.unmappedstatus || "").toLowerCase().trim();
     const safeOrderId = orderId.replace(/[^a-zA-Z0-9_\-]/g, "").substring(0, 50);
+
+    // If user cancelled on PayU before hash generation and PayU redirected to furl/surl without hash, delegate cleanly to handlePayuCancel
+    if (!params.hash && (status === "cancelled" || status === "usercancelled" || unmapped === "usercancelled" || (!status && (orderId || txnid)))) {
+      return handlePayuCancel(req, res);
+    }
 
     // 1. Reject incomplete callbacks cleanly (missing orderId, txnid, or hash)
     if (!orderId || !txnid || !params.hash) {
@@ -418,9 +457,10 @@ export async function handlePayuCallback(req, res) {
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Order record not found")}`);
     }
 
+    const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
+
     // 5. Idempotency Check: A late failed callback or duplicate callback must NEVER alter or downgrade an already Paid order
     if (order.paymentStatus === "Paid") {
-      const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
       return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid || order.txnid}${guestQuery}`);
     }
 
@@ -428,39 +468,39 @@ export async function handlePayuCallback(req, res) {
     const belongsToOrder = order.txnid === txnid || (order.paymentAttempts && order.paymentAttempts.some(a => a.txnid === txnid));
     if (!belongsToOrder) {
       console.warn(`[PayU Callback Notice] Transaction ID mismatch for order '${safeOrderId}'`);
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Transaction ID mismatch")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Transaction ID mismatch")}${guestQuery}`);
     }
 
-    // 7. Verify User Ownership if udf2 is provided
+    // 7. Log udf2 discrepancy if guest logged in before retry, but never reject a cryptographically signed PayU callback
     if (params.udf2 && order.authUserId && order.authUserId !== "guest" && String(params.udf2).trim() !== String(order.authUserId).trim()) {
-      console.warn(`[PayU Callback Notice] User authorization mismatch for order '${safeOrderId}'`);
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("User authorization mismatch")}`);
+      console.info(`[PayU Callback Info] udf2 ('${params.udf2}') differs from initial order.authUserId ('${order.authUserId}') for order '${safeOrderId}'`);
     }
 
     // 8. Verify Amount Consistency
     const callbackAmount = parseFloat(params.amount);
     if (params.amount === undefined || params.amount === null || params.amount === "" || isNaN(callbackAmount) || !isFinite(callbackAmount) || callbackAmount <= 0) {
       console.warn(`[PayU Callback Notice] Invalid transaction amount for order '${safeOrderId}'`);
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Invalid transaction amount")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Invalid transaction amount")}${guestQuery}`);
     }
 
     const expectedAmount = Number(order.finalAmount || order.total || order.amount || 0);
     if (Math.abs(callbackAmount - expectedAmount) > 0.01) {
       console.warn(`[PayU Callback Notice] Amount mismatch for order '${safeOrderId}': expected ${expectedAmount}, received ${callbackAmount}`);
-      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Transaction amount mismatch")}`);
+      return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${safeOrderId}&reason=${encodeURIComponent("Transaction amount mismatch")}${guestQuery}`);
     }
 
-    // 9. Handle Non-Success or Terminal Failure Status cleanly
-    const isFailedStatus = status === "failure" || status === "failed" || status === "cancelled" || status === "bounced" || status === "usercancelled";
+    // 9. Handle Non-Success or Terminal Failure/Cancel Status cleanly
+    const isUserCancelled = status === "cancelled" || status === "usercancelled" || unmapped === "usercancelled";
+    const isFailedStatus = isUserCancelled || status === "failure" || status === "failed" || status === "bounced" || unmapped === "bounced" || unmapped === "dropped";
     const isSuccessStatus = status === "success";
 
     if (!isSuccessStatus) {
       if (isFailedStatus) {
-        const errorMsg = params.error_Message || params.error || params.unmappedstatus || "Payment was not completed";
+        const errorMsg = params.error_Message || params.error || params.unmappedstatus || (isUserCancelled ? "Payment was cancelled by user" : "Payment was not completed");
         const attempts = order.paymentAttempts || [];
         const attemptIdx = attempts.findIndex(a => a.txnid === txnid);
         if (attemptIdx >= 0) {
-          attempts[attemptIdx].status = "failure";
+          attempts[attemptIdx].status = isUserCancelled ? "cancelled" : "failure";
           attempts[attemptIdx].error = errorMsg;
           attempts[attemptIdx].mihpayid = params.mihpayid || attempts[attemptIdx].mihpayid || "";
           attempts[attemptIdx].updatedAt = new Date().toISOString();
@@ -472,16 +512,21 @@ export async function handlePayuCallback(req, res) {
           );
         } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
 
-        order.paymentStatus = "Failed";
+        order.paymentStatus = isUserCancelled ? "Cancelled" : "Failed";
+        if (isUserCancelled && order.status === "Pending") {
+          order.status = "Cancelled";
+          order.orderStatus = "Cancelled";
+        }
         order.mihpayid = params.mihpayid || order.mihpayid || "";
         order.paymentAttempts = attempts;
         await order.save();
 
-        return res.redirect(303, `${clientBaseUrl}/payment-result?status=failed&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(errorMsg)}`);
+        const redirectStatus = isUserCancelled ? "cancelled" : "failed";
+        return res.redirect(303, `${clientBaseUrl}/payment-result?status=${redirectStatus}&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent(errorMsg)}${guestQuery}`);
       } else {
         // Non-terminal / unrecognized status (e.g., pending, processing, unknown)
         console.warn(`[PayU Callback Notice] Non-terminal payment status '${status}' received for order '${safeOrderId}'`);
-        return res.redirect(303, `${clientBaseUrl}/payment-result?status=pending&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent("Payment status is pending verification")}`);
+        return res.redirect(303, `${clientBaseUrl}/payment-result?status=pending&orderId=${orderId}&txnid=${txnid}&reason=${encodeURIComponent("Payment status is pending verification")}${guestQuery}`);
       }
     }
 
@@ -638,7 +683,6 @@ export async function handlePayuCallback(req, res) {
       }
     }
 
-    const guestQuery = order.guestToken ? `&guestToken=${encodeURIComponent(order.guestToken)}` : "";
     return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid}${guestQuery}`);
   } catch (err) {
     console.error("Critical error in handlePayuCallback:", err?.message || err);
@@ -803,10 +847,9 @@ export async function handlePayuWebhook(req, res) {
       return res.status(400).json({ success: false, message: "Transaction ID mismatch" });
     }
 
-    // 7. Verify user ownership if udf2 is sent
+    // 7. Log udf2 discrepancy if guest logged in before retry, but never reject a cryptographically signed PayU webhook
     if (params.udf2 && order.authUserId && order.authUserId !== "guest" && String(params.udf2).trim() !== String(order.authUserId).trim()) {
-      console.warn(`[PayU Webhook Notice] User authorization mismatch for order '${safeOrderId}'`);
-      return res.status(400).json({ success: false, message: "User authorization mismatch" });
+      console.info(`[PayU Webhook Info] udf2 ('${params.udf2}') differs from initial order.authUserId ('${order.authUserId}') for order '${safeOrderId}'`);
     }
 
     // 8. Verify amount
@@ -1424,15 +1467,19 @@ export async function retryPayuPayment(req, res, next) {
     const newTxnid = `TXN_${(order.orderNumber || order.id).replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     const amount = Number(order.finalAmount || order.total || order.amount || 0);
 
-    const email = (order.customerEmail || req.user?.email || "devotee@aurarudraksha.bond").trim().toLowerCase();
-    const firstname = (order.customerName || order.firstName || req.user?.name || "Devotee").trim();
-    const phone = (order.phone || order.customerPhone || "").trim();
-    const productinfo = `Aura Rudraksha Order Retry (${order.orderNumber || order.id})`;
+    const email = sanitizeHashParam(order.customerEmail || req.user?.email || "devotee@aurarudraksha.bond").toLowerCase();
+    const firstname = sanitizeHashParam(order.customerName || order.firstName || req.user?.name || "Devotee");
+    const phone = sanitizeHashParam(order.phone || order.customerPhone || "");
+    const productinfo = sanitizeHashParam(`Aura Rudraksha Order Retry (${order.orderNumber || order.id})`);
+    const cleanOrderId = sanitizeHashParam(order.orderNumber || order.id);
+    const cleanUdf2 = sanitizeHashParam(authUserId || order.authUserId || "");
+    const cleanUdf3 = "AURA_RUDRAKSHA";
 
     const appBaseUrl = resolveAppBaseUrl(req);
-    const surl = `${appBaseUrl}/api/payment/payu-callback`;
-    const furl = `${appBaseUrl}/api/payment/payu-callback`;
-    const curl = `${appBaseUrl}/api/payment/payu-cancel`;
+    const cbQuery = `?orderId=${encodeURIComponent(cleanOrderId)}&txnid=${encodeURIComponent(newTxnid)}`;
+    const surl = `${appBaseUrl}/api/payment/payu-callback${cbQuery}`;
+    const furl = `${appBaseUrl}/api/payment/payu-callback${cbQuery}`;
+    const curl = `${appBaseUrl}/api/payment/payu-cancel${cbQuery}`;
 
     // Append to payment attempts
     const attempts = order.paymentAttempts || [];
@@ -1450,9 +1497,9 @@ export async function retryPayuPayment(req, res, next) {
     try {
       await PaymentTransaction.create({
         transactionId: newTxnid,
-        orderId: order.orderNumber || order.id,
-        orderNumber: order.orderNumber || order.id,
-        authUserId: authUserId || "guest",
+        orderId: cleanOrderId,
+        orderNumber: cleanOrderId,
+        authUserId: authUserId || order.authUserId || "guest",
         provider: "payu",
         amount,
         currency: "INR",
@@ -1474,24 +1521,27 @@ export async function retryPayuPayment(req, res, next) {
       productinfo,
       firstname,
       email,
-      udf1: order.orderNumber || order.id,
-      udf2: authUserId,
-      udf3: "AURA_RUDRAKSHA",
+      udf1: cleanOrderId,
+      udf2: cleanUdf2,
+      udf3: cleanUdf3,
+      udf4: "",
+      udf5: "",
       salt
     });
 
     return res.json({
       success: true,
       data: {
-        orderId: order.orderNumber || order.id,
-        orderNumber: order.orderNumber || order.id,
+        orderId: cleanOrderId,
+        orderNumber: cleanOrderId,
+        guestToken: order.guestToken || "",
         txnid: newTxnid,
         amount,
         payuConfigured: true,
         paymentUrl,
         params: {
           key,
-          txnid: newTxnid,
+          txnid: sanitizeHashParam(newTxnid),
           amount: amount.toFixed(2),
           productinfo,
           firstname,
@@ -1501,9 +1551,9 @@ export async function retryPayuPayment(req, res, next) {
           furl,
           curl,
           hash,
-          udf1: order.orderNumber || order.id,
-          udf2: authUserId,
-          udf3: "AURA_RUDRAKSHA",
+          udf1: cleanOrderId,
+          udf2: cleanUdf2,
+          udf3: cleanUdf3,
           udf4: "",
           udf5: "",
           service_provider: "payu_paisa"
@@ -1947,7 +1997,9 @@ export async function syncPayuOrder(req, res) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    const attempts = order.paymentAttempts || [];
+    const attempts = (order.paymentAttempts && order.paymentAttempts.length > 0)
+      ? order.paymentAttempts
+      : (order.txnid ? [{ txnid: order.txnid, amount: order.finalAmount || order.total || order.amount || 0, status: "initiated", createdAt: order.date || new Date().toISOString() }] : []);
     let syncedCount = 0;
     let orderBecamePaid = false;
     let successfulMihpayid = null;

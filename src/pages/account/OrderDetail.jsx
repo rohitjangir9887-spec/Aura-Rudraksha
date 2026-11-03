@@ -85,6 +85,12 @@ export function OrderDetail() {
   const [retryingPayment, setRetryingPayment] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
 
+  useEffect(() => {
+    const onPageShow = () => setRetryingPayment(false);
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const handlePayuRetry = async () => {
     const targetOrderId = order?.orderNumber || order?.id || order?._id || id;
     if (!targetOrderId) return;
@@ -94,6 +100,18 @@ export function OrderDetail() {
       const targetTxnid = effectiveTxnid || order?.txnid || "";
       const res = await db.retryPayment(targetOrderId, targetTxnid, targetGuestToken);
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        const retryTxnid = res.data.txnid || res.data.params?.txnid || "";
+        const retryGuestToken = res.data.guestToken || targetGuestToken;
+        try {
+          sessionStorage.setItem("aura_pending_orderId", targetOrderId);
+          if (retryTxnid) sessionStorage.setItem("aura_pending_txnid", retryTxnid);
+          if (retryGuestToken) {
+            sessionStorage.setItem("aura_guest_token", retryGuestToken);
+            localStorage.setItem("aura_guest_token", retryGuestToken);
+          }
+          sessionStorage.setItem("aura_pending_timestamp", String(Date.now()));
+        } catch (_) {}
+
         emitToast("Redirecting to PayU Secure Gateway...", "info");
         const form = document.createElement("form");
         form.method = "POST";
@@ -620,8 +638,8 @@ export function OrderDetail() {
             )}
           </div>
 
-          {/* If unpaid and NOT cancelled, provide live Retry PayU button */}
-          {!isCancelled && order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && (
+          {/* If unpaid and not seller-cancelled, provide live Retry PayU button */}
+          {(!isCancelled || order?.cancelledBy !== "Seller") && order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && (
             <button
               type="button"
               id="btn-order-retry-payu"

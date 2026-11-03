@@ -55,7 +55,7 @@ export function getPayuConfig() {
 /**
  * Sanitize strings for PayU hash generation to prevent pipe character injection
  */
-function sanitizeHashParam(val) {
+export function sanitizeHashParam(val) {
   if (val === undefined || val === null) return "";
   return String(val).replace(/\|/g, " ").replace(/[\r\n]+/g, " ").trim();
 }

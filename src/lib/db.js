@@ -1941,7 +1941,10 @@ export const db = {
     return res;
   },
   syncPayuOrder: async (orderId) => {
-    const res = await apiRequest(`/payment/sync-payu/${orderId}`, { method: "POST" });
+    const res = await apiRequest(`/payment/sync-payu/${orderId}`, {
+      method: "POST",
+      requiresAuth: true
+    });
     if (!res?.success) throw new Error(res?.message || "Failed to sync PayU status.");
     return res;
   },
@@ -1949,7 +1952,8 @@ export const db = {
   requestRefundOtp: async (orderId, { refundAmount, reason }) => {
     const res = await apiRequest(`/payment/refund/request-otp/${orderId}`, {
       method: "POST",
-      body: JSON.stringify({ refundAmount, reason })
+      body: JSON.stringify({ refundAmount, reason }),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to send refund OTP to admin Gmail.");
@@ -1957,10 +1961,11 @@ export const db = {
     return res;
   },
 
-  processRefund: async (orderId, { refundAmount, reason, otp, refundToken }) => {
+  processRefund: async (orderId, { refundAmount, reason, otp, refundToken, refundNotes, refundStatus }) => {
     const res = await apiRequest(`/payment/refund/${orderId}`, {
       method: "POST",
-      body: JSON.stringify({ refundAmount, reason, otp, refundToken })
+      body: JSON.stringify({ refundAmount, reason, otp, refundToken, refundNotes, refundStatus }),
+      requiresAuth: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to process PayU refund.");

@@ -231,10 +231,20 @@ export function Checkout() {
 
   // PayU Redirect Modal State
   const [payuModalOpen, setPayuModalOpen] = useState(false);
-  const [paymentState, setPaymentState] = useState("IDLE"); // IDLE, INITIATING, REDIRECTING, PAYU_ACTIVE, PENDING
+  const [paymentState, setPaymentState] = useState("IDLE"); // IDLE, INITIATING, REDIRECTING, PAYU_ACTIVE, PENDING, CANCELLED, FAILED
   const [isStatusPolling, setIsStatusPolling] = useState(false);
   const [payuTimeout, setPayuTimeout] = useState(false);
   const [payuError, setPayuError] = useState(null);
+  const [lastUnpaidOrder, setLastUnpaidOrder] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const oId = sessionStorage.getItem("aura_pending_orderId");
+      const tId = sessionStorage.getItem("aura_pending_txnid");
+      const gTok = sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token");
+      if (oId) return { orderId: oId, txnid: tId || "", guestToken: gTok || "" };
+    } catch (_) {}
+    return null;
+  });
   const isRedirectingRef = useRef(false);
   const isSubmittingRef = useRef(false);
 
@@ -255,6 +265,7 @@ export function Checkout() {
     try {
       const parsed = JSON.parse(buyNowIntentStr);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (parsed && Array.isArray(parsed.lines) && parsed.lines.length > 0) return parsed.lines;
     } catch (_) {}
     return null;
   }, [buyNowIntentStr]);
@@ -326,10 +337,99 @@ export function Checkout() {
   const finalTotal = effectiveTotals.finalTotal;
   const totalSavings = effectiveTotals.totalSavings;
 
-  // Detect Unresolved Payment Attempt (Back from PayU)
-
-
+  // Detect Unresolved Payment Attempt (Back button from PayU / bfcache restoration)
   const isVerifyingRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleReturnFromGateway = async (isBfCache = false) => {
+      const pendingOrderId = sessionStorage.getItem("aura_pending_orderId");
+      const pendingTxnid = sessionStorage.getItem("aura_pending_txnid");
+      const pendingGuestToken = sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "";
+
+      // Always unlock UI submission states if returning via browser Back button
+      if (isBfCache || isRedirectingRef.current || pendingOrderId) {
+        isRedirectingRef.current = false;
+        isSubmittingRef.current = false;
+        setLoading(false);
+        setRetrying(false);
+      }
+
+      if (!pendingOrderId || isVerifyingRef.current) return;
+      isVerifyingRef.current = true;
+
+      try {
+        const res = await db.verifyPayment(pendingOrderId, pendingTxnid || pendingOrderId, pendingGuestToken);
+        const pStatus = res?.data?.paymentStatus;
+
+        if (pStatus === "Paid") {
+          sessionStorage.removeItem("aura_pending_orderId");
+          sessionStorage.removeItem("aura_pending_txnid");
+          sessionStorage.removeItem("aura_pending_timestamp");
+          sessionStorage.removeItem("aura_buy_now_intent");
+          try { clear(); } catch (_) {}
+          const gQuery = pendingGuestToken ? `&guestToken=${encodeURIComponent(pendingGuestToken)}` : "";
+          navigate(`/payment-result?status=success&orderId=${encodeURIComponent(pendingOrderId)}&txnid=${encodeURIComponent(pendingTxnid || "")}${gQuery}`, { replace: true });
+          return;
+        }
+
+        // User pressed Back from PayU before completing payment
+        sessionStorage.removeItem("aura_pending_orderId");
+        sessionStorage.removeItem("aura_pending_txnid");
+        sessionStorage.removeItem("aura_pending_timestamp");
+
+        setLastUnpaidOrder({
+          orderId: pendingOrderId,
+          txnid: pendingTxnid || "",
+          guestToken: pendingGuestToken
+        });
+        setPaymentState("CANCELLED");
+        setPayuModalOpen(true);
+      } catch (_) {
+        sessionStorage.removeItem("aura_pending_orderId");
+        sessionStorage.removeItem("aura_pending_txnid");
+        sessionStorage.removeItem("aura_pending_timestamp");
+        setLastUnpaidOrder({
+          orderId: pendingOrderId,
+          txnid: pendingTxnid || "",
+          guestToken: pendingGuestToken
+        });
+        setPaymentState("CANCELLED");
+        setPayuModalOpen(true);
+      } finally {
+        isVerifyingRef.current = false;
+      }
+    };
+
+    const onPageShow = (e) => {
+      if (e.persisted || sessionStorage.getItem("aura_pending_orderId")) {
+        handleReturnFromGateway(true);
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && sessionStorage.getItem("aura_pending_orderId")) {
+        const ts = Number(sessionStorage.getItem("aura_pending_timestamp") || 0);
+        if (!ts || Date.now() - ts > 1200) {
+          handleReturnFromGateway(false);
+        }
+      }
+    };
+
+    // Check on initial mount if user navigated back to /checkout
+    if (sessionStorage.getItem("aura_pending_orderId")) {
+      handleReturnFromGateway(false);
+    }
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [clear, navigate]);
+
   useEffect(() => {
     setProducts(db.getProducts());
     setActiveOffer(db.getActiveOffer());
@@ -760,7 +860,6 @@ export function Checkout() {
     });
 
     document.body.appendChild(form);
-    window.history.replaceState({ auraSafeNav: true, page: "home" }, "", "/");
     form.submit();
   };
 
@@ -846,18 +945,38 @@ export function Checkout() {
       const res = await db.initiatePayment(paymentPayload);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
-        if (res.data?.guestToken) {
-          try {
-            sessionStorage.setItem("aura_guest_token", res.data.guestToken);
-            localStorage.setItem("aura_guest_token", res.data.guestToken);
-          } catch (_) {}
-        }
-        setPaymentState("REDIRECTING");
-        // Clear cart immediately upon order creation so products do not linger in cart
+        const createdOrderId = res.data.orderId || res.data.params?.udf1 || "";
+        const createdTxnid = res.data.txnid || res.data.params?.txnid || "";
+        const createdGuestToken = res.data.guestToken || "";
         try {
-          clear();
+          if (createdGuestToken) {
+            sessionStorage.setItem("aura_guest_token", createdGuestToken);
+            localStorage.setItem("aura_guest_token", createdGuestToken);
+            if (createdOrderId) {
+              sessionStorage.setItem(`aura_order_token_${createdOrderId}`, createdGuestToken);
+              localStorage.setItem(`aura_order_token_${createdOrderId}`, createdGuestToken);
+            }
+          }
+          if (createdOrderId) {
+            sessionStorage.setItem("aura_pending_orderId", createdOrderId);
+          }
+          if (createdTxnid) {
+            sessionStorage.setItem("aura_pending_txnid", createdTxnid);
+            if (createdOrderId) {
+              sessionStorage.setItem(`aura_order_txnid_${createdOrderId}`, createdTxnid);
+              localStorage.setItem(`aura_order_txnid_${createdOrderId}`, createdTxnid);
+            }
+          }
+          sessionStorage.setItem("aura_pending_timestamp", String(Date.now()));
         } catch (_) {}
-        // Automatically and immediately redirect to PayU
+
+        setLastUnpaidOrder({
+          orderId: createdOrderId,
+          txnid: createdTxnid,
+          guestToken: createdGuestToken
+        });
+        setPaymentState("REDIRECTING");
+        // Keep cart intact until payment is confirmed so pressing Back from PayU never loses items
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
         throw new Error(res?.message || "Could not initialize PayU payment gateway");
@@ -903,8 +1022,13 @@ export function Checkout() {
     await executeOrderSubmission();
   };
 
-  // Retry Payment on failed order
-  const handleRetryPayment = async (orderId) => {
+  // Retry Payment on failed/cancelled order
+  const handleRetryPayment = async (orderIdToRetry) => {
+    const targetOrderId = orderIdToRetry || lastUnpaidOrder?.orderId;
+    if (!targetOrderId) {
+      await executeOrderSubmission();
+      return;
+    }
     triggerHaptic("medium");
     setRetrying(true);
     setPaymentState("INITIATING");
@@ -912,12 +1036,27 @@ export function Checkout() {
     setPayuTimeout(false);
     setPayuError(null);
 
-
-
     try {
-      const res = await db.retryPayment(orderId, null);
+      const storedGuestToken = lastUnpaidOrder?.guestToken || sessionStorage.getItem("aura_guest_token") || localStorage.getItem("aura_guest_token") || "";
+      const res = await db.retryPayment(targetOrderId, lastUnpaidOrder?.txnid || "", storedGuestToken);
 
       if (res?.success && res.data?.paymentUrl && res.data?.params) {
+        const retryTxnid = res.data.txnid || res.data.params?.txnid || "";
+        const retryGuestToken = res.data.guestToken || storedGuestToken;
+        try {
+          sessionStorage.setItem("aura_pending_orderId", targetOrderId);
+          if (retryTxnid) sessionStorage.setItem("aura_pending_txnid", retryTxnid);
+          if (retryGuestToken) {
+            sessionStorage.setItem("aura_guest_token", retryGuestToken);
+            localStorage.setItem("aura_guest_token", retryGuestToken);
+          }
+          sessionStorage.setItem("aura_pending_timestamp", String(Date.now()));
+        } catch (_) {}
+        setLastUnpaidOrder({
+          orderId: targetOrderId,
+          txnid: retryTxnid,
+          guestToken: retryGuestToken
+        });
         setPaymentState("REDIRECTING");
         postToPayuGateway(res.data.paymentUrl, res.data.params);
       } else {
@@ -1069,13 +1208,80 @@ export function Checkout() {
           )}
 
 
+        {/* Unpaid Order Quick Retry Banner when user closed modal after pressing Back from PayU */}
+        {lastUnpaidOrder?.orderId && !payuModalOpen && (
+          <div
+            style={{
+              marginTop: "14px",
+              padding: "14px 16px",
+              borderRadius: "14px",
+              background: "#fffbeb",
+              border: "1.5px solid #fde68a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "12px"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AlertCircle size={20} color="#d97706" />
+              <div>
+                <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#92400e" }}>
+                  पिछला पेमेंट अधूरा रहा (Order #{lastUnpaidOrder.orderId})
+                </div>
+                <div style={{ fontSize: "12px", color: "#78350f" }}>
+                  आपका कार्ट सुरक्षित है। आप तुरंत दोबारा पेमेंट कर सकते हैं या नीचे डिटेल्स बदलकर नया आर्डर कर सकते हैं।
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleRetryPayment(lastUnpaidOrder.orderId)}
+              disabled={retrying || loading}
+              style={{
+                background: "linear-gradient(135deg, #b85d25 0%, #8c2b10 100%)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "10px",
+                padding: "9px 16px",
+                fontSize: "12.5px",
+                fontWeight: "700",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <RefreshCw size={14} /> Retry Payment (दोबारा पेमेंट करें)
+            </button>
+          </div>
+        )}
+
         {/* Full-Screen PayU Gateway Transition Loading Overlay */}
         <PayuRedirectModal
           isOpen={payuModalOpen}
           state={paymentState}
           amount={finalTotal}
+          orderId={lastUnpaidOrder?.orderId}
           errorMsg={payuError}
           timeoutOccurred={payuTimeout}
+          onRetry={() => {
+            if (lastUnpaidOrder?.orderId) {
+              handleRetryPayment(lastUnpaidOrder.orderId);
+            } else {
+              executeOrderSubmission();
+            }
+          }}
+          onClose={() => {
+            setPayuModalOpen(false);
+            setPaymentState("IDLE");
+            setPayuError(null);
+            setLoading(false);
+            setRetrying(false);
+            isSubmittingRef.current = false;
+            isRedirectingRef.current = false;
+          }}
         />
       </main>
     </Shell>

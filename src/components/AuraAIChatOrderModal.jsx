@@ -294,8 +294,22 @@ export function AuraAIChatOrderModal({
       const payRes = await db.initiatePayment(paymentIntentPayload);
 
       if (payRes?.success && payRes.data?.paymentUrl && payRes.data?.params) {
+        const { paymentUrl, params, orderId: createdOrderId, txnid: createdTxnid, guestToken: createdGuestToken } = payRes.data;
+        try {
+          if (createdGuestToken) {
+            sessionStorage.setItem("aura_guest_token", createdGuestToken);
+            localStorage.setItem("aura_guest_token", createdGuestToken);
+          }
+          if (createdOrderId || params?.udf1) {
+            sessionStorage.setItem("aura_pending_orderId", createdOrderId || params.udf1);
+          }
+          if (createdTxnid || params?.txnid) {
+            sessionStorage.setItem("aura_pending_txnid", createdTxnid || params.txnid);
+          }
+          sessionStorage.setItem("aura_pending_timestamp", String(Date.now()));
+        } catch (_) {}
+
         // Redirect/submit to PayU gateway form
-        const { paymentUrl, params } = payRes.data;
         const form = document.createElement("form");
         form.method = "POST";
         form.action = paymentUrl;
