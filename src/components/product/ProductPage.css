@@ -293,6 +293,7 @@
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
+  max-height: 480px;
   background: #ffffff;
   border-radius: 16px;
   border: 1px solid var(--aura-border-subtle);
@@ -304,6 +305,16 @@
   touch-action: pan-y pinch-zoom;
 }
 
+@media (max-width: 768px) {
+  .aura-gallery-main-frame {
+    max-height: clamp(280px, 52vh, 370px);
+    aspect-ratio: 1 / 1;
+    border-radius: 14px;
+    background: #ffffff;
+    margin: 0 auto;
+  }
+}
+
 .aura-gallery-viewport {
   width: 100%;
   height: 100%;
@@ -312,13 +323,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #ffffff;
 }
 
 .aura-gallery-hero-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
+  background: #ffffff;
+}
+
+.aura-gallery-hero-img.fit-cover {
+  object-fit: cover;
 }
 
 .aura-gallery-badges {

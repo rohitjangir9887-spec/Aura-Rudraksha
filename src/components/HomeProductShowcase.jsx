@@ -277,6 +277,26 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
       return sortProductsByHomeOrder(list);
     }
     const settings = db.getSettings();
+    if (settings?.homeProductLayout?.isAiAutoOrder) {
+      // AI Automatic Ranking: Prioritizes sacred Rudrakshas, sales volume, top rating, and popular picks
+      const activeHomeProds = list.filter(p => p.showOnHome !== false && isPublicProduct(p));
+      return [...activeHomeProds].sort((a, b) => {
+        const isRudA = isRudrakshaProduct(a);
+        const isRudB = isRudrakshaProduct(b);
+        const scoreA = (isRudA ? 100 : 20) +
+                       ((Number(a.salesCount) || Number(a.timesPurchased) || 0) * 1.5) +
+                       ((Number(a.rating) || 4.8) * 20) +
+                       (a.isPopular ? 40 : 0) -
+                       ((Number(a.homeOrder) || 999) * 2);
+        const scoreB = (isRudB ? 100 : 20) +
+                       ((Number(b.salesCount) || Number(b.timesPurchased) || 0) * 1.5) +
+                       ((Number(b.rating) || 4.8) * 20) +
+                       (b.isPopular ? 40 : 0) -
+                       ((Number(b.homeOrder) || 999) * 2);
+        return scoreB - scoreA;
+      });
+    }
+
     if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
       const liveOrder = settings.homeProductLayout.live;
       const orderedProducts = [];

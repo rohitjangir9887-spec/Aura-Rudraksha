@@ -164,11 +164,12 @@ export function ProductVariantSelector({
       {hasSizes && (
         <div className="aura-variant-selector-block">
           <label className="aura-variant-label">
-            {isRudraksha ? "Select Bead Dimension:" : "Select Quantity / Size:"}
+            {isRudraksha ? "Select Bead Dimension / Size:" : "Select Size / Quantity:"}
           </label>
           <div className="aura-variant-chips">
             {product.sizes.map((s, idx) => {
-              const sName = typeof s === "string" ? s : (s.size || s.name || s);
+              const sName = typeof s === "string" ? s : (s.size || s.name || s.label || `Size ${idx + 1}`);
+              const sPrice = typeof s === "object" && s.price ? Math.max(0, safePrice(s.price, 0)) : null;
               const isSelected = selectedSize === sName || (!selectedSize && idx === 0);
               return (
                 <button
@@ -182,6 +183,7 @@ export function ProductVariantSelector({
                 >
                   {isSelected && <Check size={13} strokeWidth={2.5} />}
                   <span>{sName}</span>
+                  {sPrice ? <span className="variant-price" style={{ marginLeft: "5px", color: isSelected ? "#8c2b10" : "#7c2d12", fontWeight: "700" }}>₹{sPrice.toLocaleString("en-IN")}</span> : null}
                 </button>
               );
             })}
@@ -190,27 +192,102 @@ export function ProductVariantSelector({
       )}
 
       {/* Single Authentic Specification showcase */}
-      {!hasVariants && !hasSizes && (
-        <div className="aura-natural-spec-chip">
-          <div className="spec-icon-box">{isRudraksha ? "📿" : "🪔"}</div>
-          <div className="spec-text-box">
-            <span className="spec-title">
-              {isRudraksha 
-                ? (selectedOrigin === "Indonesia" ? "AUTHENTIC JAVA / INDONESIAN BEAD SPECIFICATION" : "AUTHENTIC HIMALAYAN SEED SPECIFICATION")
-                : "100% PURE & VEDIC SANCTIFIED SPECIFICATION"}
-            </span>
-            <span className="spec-desc">
-              <strong>
-                {isRudraksha 
-                  ? (selectedOrigin === "Indonesia"
-                      ? (product.indonesianSize || "Small Java Bead (10–14 mm)")
-                      : (product.size || "Authentic Nepal Size (16–20 mm)"))
-                  : (product.netWeight || product.size || "Auspicious Devotional Grade (100% Pure)")}
-              </strong> • {isRudraksha ? "100% Genuine, Natural & Energized" : "100% Pure, Natural & Sanctified"}
-            </span>
+      {!hasVariants && !hasSizes && (() => {
+        const catL = (product.category || "").toLowerCase();
+        const nameL = (product.name || "").toLowerCase();
+        const isSphatik = nameL.includes("sphatik") || nameL.includes("spatika") || nameL.includes("crystal");
+        const isMalaProd = catL.includes("mala") || nameL.includes("mala") || nameL.includes("108");
+        const isIdolOrYantra = catL.includes("idol") || catL.includes("statue") || catL.includes("murti") || catL.includes("yantra") || nameL.includes("idol") || nameL.includes("yantra");
+        const isPuja = catL.includes("puja") || catL.includes("samagri") || nameL.includes("camphor") || nameL.includes("kapoor") || nameL.includes("dhoop") || nameL.includes("agarbatti");
+
+        if (isRudraksha) {
+          const specTitle = selectedOrigin === "Indonesia"
+            ? "AUTHENTIC JAVA / INDONESIAN BEAD SPECIFICATION"
+            : "AUTHENTIC HIMALAYAN SEED SPECIFICATION";
+          const specSize = selectedOrigin === "Indonesia"
+            ? (product.indonesianSize || "Small Java Bead (10–14 mm)")
+            : (product.size || "Authentic Nepal Size (16–20 mm)");
+          return (
+            <div className="aura-natural-spec-chip">
+              <div className="spec-icon-box">📿</div>
+              <div className="spec-text-box">
+                <span className="spec-title">{specTitle}</span>
+                <span className="spec-desc">
+                  <strong>{specSize}</strong> • 100% Genuine, Natural & Energized
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (isSphatik) {
+          return (
+            <div className="aura-natural-spec-chip">
+              <div className="spec-icon-box">💎</div>
+              <div className="spec-text-box">
+                <span className="spec-title">100% NATURAL SPHATIK (QUARTZ) SPECIFICATION</span>
+                <span className="spec-desc">
+                  <strong>{product.size || "108+1 Knotted Beads (6–8 mm)"}</strong> • Certified Natural Quartz • Calming Bio-Resonance
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (isMalaProd) {
+          return (
+            <div className="aura-natural-spec-chip">
+              <div className="spec-icon-box">📿</div>
+              <div className="spec-text-box">
+                <span className="spec-title">SACRED JAPA & MEDITATION MALA SPECIFICATION</span>
+                <span className="spec-desc">
+                  <strong>{product.size || "108+1 Consecrated Beads"}</strong> • Traditional Hand-Knotted • Pre-Energized
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (isIdolOrYantra) {
+          return (
+            <div className="aura-natural-spec-chip">
+              <div className="spec-icon-box">🪔</div>
+              <div className="spec-text-box">
+                <span className="spec-title">CONSECRATED VEDIC CRAFT SPECIFICATION</span>
+                <span className="spec-desc">
+                  <strong>{product.size || product.dimensions || "Sacred Temple Proportions"}</strong> • Traditional Devotional Alloy • Consecrated
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (isPuja) {
+          return (
+            <div className="aura-natural-spec-chip">
+              <div className="spec-icon-box">🌿</div>
+              <div className="spec-text-box">
+                <span className="spec-title">100% SATTVIC & CHEMICAL-FREE ESSENTIAL</span>
+                <span className="spec-desc">
+                  <strong>{product.netWeight || product.size || "Auspicious Devotional Grade"}</strong> • Pure, Natural & Non-Toxic
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="aura-natural-spec-chip">
+            <div className="spec-icon-box">🪔</div>
+            <div className="spec-text-box">
+              <span className="spec-title">100% PURE & VEDIC SANCTIFIED SPECIFICATION</span>
+              <span className="spec-desc">
+                <strong>{product.netWeight || product.size || "Auspicious Devotional Grade"}</strong> • 100% Pure, Natural & Sanctified
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

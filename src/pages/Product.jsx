@@ -77,20 +77,26 @@ export function Product() {
     return "";
   });
   const [selectedSize, setSelectedSize] = useState(() => {
-    if (initialProduct?.sizes && initialProduct.sizes.length > 0) {
+    if (initialProduct?.sizes && Array.isArray(initialProduct.sizes) && initialProduct.sizes.length > 0) {
+      const defaultS = initialProduct.sizes.find(s => typeof s === "object" && s.isDefault);
+      if (defaultS) return defaultS.size || defaultS.name || defaultS.label || "";
       const firstS = initialProduct.sizes[0];
-      return typeof firstS === "string" ? firstS : (firstS?.size || firstS?.name || "Medium (16 - 20 mm)");
+      return typeof firstS === "string" ? firstS : (firstS?.size || firstS?.name || firstS?.label || "");
     }
-    return initialProduct?.size || "Medium (16 - 20 mm)";
+    return initialProduct?.size || "Standard";
   });
   const [added, setAdded] = useState(false);
 
   // Keep selectedSize aligned if product loaded has specific custom sizes
   useEffect(() => {
     if (product?.sizes && Array.isArray(product.sizes) && product.sizes.length > 0) {
-      const validNames = product.sizes.map(s => typeof s === "string" ? s : (s?.size || s?.name || ""));
-      if (validNames.length > 0 && !validNames.includes(selectedSize)) {
-        setSelectedSize(validNames[0]);
+      const defaultS = product.sizes.find(s => typeof s === "object" && s.isDefault);
+      const validNames = product.sizes.map(s => typeof s === "string" ? s : (s?.size || s?.name || s?.label || ""));
+      if (defaultS && !selectedSize) {
+        setSelectedSize(defaultS.size || defaultS.name || defaultS.label || validNames[0]);
+      } else if (validNames.length > 0 && !validNames.includes(selectedSize)) {
+        const fallbackName = (defaultS && (defaultS.size || defaultS.name || defaultS.label)) || validNames[0];
+        setSelectedSize(fallbackName);
       }
     }
   }, [product?.sizes, selectedSize]);
@@ -231,6 +237,15 @@ export function Product() {
     }) || null;
   }, [rawP?.variants, selectedVariant]);
 
+  // Find currently selected size object if present
+  const activeSizeObj = React.useMemo(() => {
+    if (!rawP?.sizes || !Array.isArray(rawP.sizes) || rawP.sizes.length === 0) return null;
+    return rawP.sizes.find(s => {
+      const sName = typeof s === "string" ? s : (s?.size || s?.name || s?.label || "");
+      return sName === selectedSize;
+    }) || null;
+  }, [rawP?.sizes, selectedSize]);
+
   const p = React.useMemo(() => {
     if (!rawP) return null;
     
@@ -266,8 +281,22 @@ export function Product() {
       };
     }
 
+    // When a custom size with specific price is selected
+    if (activeSizeObj && typeof activeSizeObj === "object" && Number(activeSizeObj.price) > 0) {
+      const sPrice = Number(activeSizeObj.price);
+      const sMrp = Number(activeSizeObj.mrp);
+      const sStock = activeSizeObj.stock !== undefined && activeSizeObj.stock !== "" ? Number(activeSizeObj.stock) : undefined;
+      return {
+        ...rawP,
+        price: sPrice,
+        mrp: (sMrp && sMrp > 0) ? sMrp : ((sPrice > 0 && (!rawP.mrp || rawP.mrp < sPrice)) ? sPrice : rawP.mrp),
+        size: activeSizeObj.size || activeSizeObj.name || activeSizeObj.label || selectedSize,
+        ...(sStock !== undefined && !isNaN(sStock) ? { stock: sStock } : {})
+      };
+    }
+
     return rawP;
-  }, [rawP, isIndonesianActive, activeVariantObj]);
+  }, [rawP, isIndonesianActive, activeVariantObj, activeSizeObj, selectedSize]);
 
   // Rating & review summary from real approved devotee reviews in MongoDB
   const realReviewsForRating = reviews.filter(r => {

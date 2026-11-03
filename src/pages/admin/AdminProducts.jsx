@@ -533,7 +533,22 @@ export function AdminProducts() {
             mrp: v.mrp !== undefined && v.mrp !== null ? v.mrp : "",
             stock: v.stock !== undefined && v.stock !== null ? v.stock : ""
           };
-        }) : []
+        }) : [],
+        hasSizes: p.hasSizes !== undefined ? !!p.hasSizes : (Array.isArray(p.sizes) && p.sizes.length > 0),
+        sizes: Array.isArray(p.sizes) ? p.sizes.map((s, idx) => {
+          if (typeof s === "string") {
+            return { id: `sz-${idx}-${Date.now()}`, name: s, price: "", mrp: "", inStock: true, isDefault: idx === 0 };
+          }
+          return {
+            id: s.id || `sz-${idx}-${Date.now()}`,
+            name: s.name || s.size || s.label || "",
+            price: s.price !== undefined && s.price !== null ? s.price : "",
+            mrp: s.mrp !== undefined && s.mrp !== null ? s.mrp : "",
+            inStock: s.inStock !== false,
+            isDefault: !!s.isDefault
+          };
+        }) : [],
+        hasCertificate: p.hasCertificate !== undefined ? !!p.hasCertificate : (isRudrakshaProduct(p) && p.hasCertificate !== false)
       });
     } else {
       setEditing({
@@ -547,7 +562,7 @@ export function AdminProducts() {
         subCategory: "",
         keywords: [],
         searchKeywords: [],
-        tags: ["Authentic", "Nepal Origin", "Lab Certified"],
+        tags: ["Authentic", "100% Pure"],
         mukhi: "",
         rulingPlanet: "",
         deity: "",
@@ -575,7 +590,10 @@ export function AdminProducts() {
         autoIncrementSales: true,
         dailySalesMin: 1,
         dailySalesMax: 10,
-        variants: []
+        variants: [],
+        hasSizes: false, // Default OFF as requested
+        sizes: [],
+        hasCertificate: false // Default OFF as requested
       });
     }
   };
@@ -630,6 +648,76 @@ export function AdminProducts() {
     };
     setEditing({ ...editing, variants: [...currentVariants, newVariant] });
     emitToast(`Added variant: ${presetName}`, "success");
+  };
+
+  // 📏 Size & Custom Price Management Handlers (साइज व विशेष मूल्य)
+  const handleAddSize = (name = "") => {
+    if (!editing) return;
+    const currentSizes = Array.isArray(editing.sizes) ? [...editing.sizes] : [];
+    const isFirst = currentSizes.length === 0;
+    const newSize = {
+      id: `sz-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: name,
+      price: editing.price !== undefined && editing.price !== "" ? editing.price : "",
+      mrp: editing.mrp !== undefined && editing.mrp !== "" ? editing.mrp : "",
+      inStock: true,
+      isDefault: isFirst
+    };
+    setEditing({ ...editing, hasSizes: true, sizes: [...currentSizes, newSize] });
+  };
+
+  const handleUpdateSize = (index, field, value) => {
+    if (!editing) return;
+    const currentSizes = Array.isArray(editing.sizes) ? [...editing.sizes] : [];
+    if (!currentSizes[index]) return;
+    currentSizes[index] = { ...currentSizes[index], [field]: value };
+    setEditing({ ...editing, sizes: currentSizes });
+  };
+
+  const handleSetDefaultSize = (index) => {
+    if (!editing) return;
+    const currentSizes = (Array.isArray(editing.sizes) ? [...editing.sizes] : []).map((s, idx) => ({
+      ...s,
+      isDefault: idx === index
+    }));
+    setEditing({ ...editing, sizes: currentSizes });
+    emitToast(`Default size set to "${currentSizes[index]?.name || ''}"`, "info");
+  };
+
+  const handleRemoveSize = (index) => {
+    if (!editing) return;
+    const currentSizes = Array.isArray(editing.sizes) ? [...editing.sizes] : [];
+    const wasDefault = currentSizes[index]?.isDefault;
+    currentSizes.splice(index, 1);
+    if (wasDefault && currentSizes.length > 0) {
+      currentSizes[0].isDefault = true;
+    }
+    setEditing({ ...editing, sizes: currentSizes, hasSizes: currentSizes.length > 0 });
+  };
+
+  const handleQuickAddPresetSize = (presetName, priceOffset = 0) => {
+    if (!editing) return;
+    const currentSizes = Array.isArray(editing.sizes) ? [...editing.sizes] : [];
+    const exists = currentSizes.some(s => (s.name || "").trim().toLowerCase() === presetName.trim().toLowerCase());
+    if (exists) {
+      emitToast(`"${presetName}" is already in sizes list`, "info");
+      return;
+    }
+    const basePrice = Number(editing.price) || 0;
+    const baseMrp = Number(editing.mrp) || 0;
+    const calcPrice = priceOffset !== 0 && basePrice > 0 ? Math.max(0, basePrice + priceOffset) : (basePrice > 0 ? basePrice : "");
+    const calcMrp = priceOffset !== 0 && baseMrp > 0 ? Math.max(0, baseMrp + priceOffset) : (baseMrp > 0 ? baseMrp : "");
+    const isFirst = currentSizes.length === 0;
+    const newSize = {
+      id: `sz-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: presetName,
+      price: calcPrice,
+      mrp: calcMrp,
+      inStock: true,
+      isDefault: isFirst
+    };
+    setEditing({ ...editing, hasSizes: true, sizes: [...currentSizes, newSize] });
+    emitToast(`Added size: ${presetName}`, "success");
   };
 
   // Image Upload Handler using Puter Batch Media Storage
@@ -930,6 +1018,25 @@ export function AdminProducts() {
           })
       : [];
 
+    const cleanSizes = editing.hasSizes && Array.isArray(editing.sizes)
+      ? editing.sizes
+          .filter(s => s && (typeof s === "string" ? s.trim() : (s.name && s.name.trim())))
+          .map((s, idx) => {
+            if (typeof s === "string") return { id: `sz-${idx}-${Date.now()}`, name: s.trim(), inStock: true, isDefault: idx === 0 };
+            const sName = (s.name || "").trim();
+            const sPrice = s.price !== "" && s.price !== undefined && !isNaN(Number(s.price)) ? Number(s.price) : undefined;
+            const sMrp = s.mrp !== "" && s.mrp !== undefined && !isNaN(Number(s.mrp)) ? Number(s.mrp) : undefined;
+            return {
+              id: s.id || `sz-${idx}-${Date.now()}`,
+              name: sName,
+              ...(sPrice !== undefined ? { price: sPrice } : {}),
+              ...(sMrp !== undefined ? { mrp: sMrp } : {}),
+              inStock: s.inStock !== false,
+              isDefault: !!s.isDefault
+            };
+          })
+      : [];
+
     const finalProduct = {
       ...editing,
       name: editing.name.trim(),
@@ -937,6 +1044,9 @@ export function AdminProducts() {
       mrp: Number(editing.mrp) || Number(editing.price) || 0,
       stock: Number(editing.stock) >= 0 ? Number(editing.stock) : 50,
       variants: cleanVariants,
+      hasSizes: !!editing.hasSizes && cleanSizes.length > 0,
+      sizes: cleanSizes,
+      hasCertificate: !!editing.hasCertificate,
       img: primaryImg,
       images: currentImages.length > 0 ? currentImages : [primaryImg],
       category: editing.category || "Rudraksha",
@@ -2344,6 +2454,381 @@ export function AdminProducts() {
                     })}
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* 📜 Lab Test Certification Option (लैब सर्टिफिकेट विकल्प) */}
+          <div style={{
+            background: editing.hasCertificate ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)' : '#fafafa',
+            border: editing.hasCertificate ? '1.5px solid #86efac' : '1px dashed #d1d5db',
+            borderRadius: '14px',
+            padding: '16px 20px',
+            marginBottom: '22px',
+            transition: 'all 0.2s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', color: editing.hasCertificate ? '#14532d' : '#374151', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800' }}>
+                  📜 Authentic Lab Testing &amp; Certificate (सरकारी लैब सर्टिफिकेट)
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: editing.hasCertificate ? '#166534' : '#6b7280', lineHeight: '1.4' }}>
+                  {editing.hasCertificate 
+                    ? "✓ Lab certificate is enabled for this product. Customers will see 'Govt. Lab Certified' badge on product page."
+                    : "⚪ Default is OFF. If enabled, customer sees authentic lab testing certificate badge. For non-certified items, leave this OFF."}
+                </p>
+              </div>
+
+              <label style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                fontWeight: '700',
+                fontSize: '13px',
+                color: editing.hasCertificate ? '#14532d' : '#4b5563',
+                background: editing.hasCertificate ? '#dcfce7' : '#fff',
+                padding: '7px 16px',
+                borderRadius: '30px',
+                border: editing.hasCertificate ? '1.5px solid #22c55e' : '1.5px solid #d1d5db',
+                userSelect: 'none'
+              }}>
+                <input 
+                  type="checkbox"
+                  checked={!!editing.hasCertificate}
+                  onChange={e => setEditing({ ...editing, hasCertificate: e.target.checked })}
+                  style={{ width: '17px', height: '17px', accentColor: '#16a34a', cursor: 'pointer' }}
+                />
+                {editing.hasCertificate ? "✓ Lab Certified Included" : "No Certificate (बिना सर्टिफिकेट)"}
+              </label>
+            </div>
+          </div>
+
+          {/* 📏 Product Sizes & Custom Pricing (उत्पाद साइज / माप विकल्प व मूल्य) */}
+          <div style={{
+            background: editing.hasSizes ? 'linear-gradient(135deg, #fdf8f4 0%, #fff7ed 100%)' : '#fafafa',
+            border: editing.hasSizes ? '1.5px solid #fdba74' : '1px dashed #d1d5db',
+            borderRadius: '14px',
+            padding: '20px',
+            marginBottom: '22px',
+            transition: 'all 0.2s ease',
+            boxShadow: editing.hasSizes ? '0 2px 10px rgba(234, 88, 12, 0.06)' : 'none'
+          }}>
+            {/* Header & Toggle */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: editing.hasSizes ? '16px' : '0', paddingBottom: editing.hasSizes ? '14px' : '0', borderBottom: editing.hasSizes ? '1px solid #fed7aa' : 'none' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', color: editing.hasSizes ? '#7c2d12' : '#374151', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800' }}>
+                  📏 Product Sizes &amp; Custom Prices (उत्पाद साइज / माप व अलग-अलग मूल्य)
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: editing.hasSizes ? '#78350f' : '#6b7280', lineHeight: '1.4' }}>
+                  Default is <strong>OFF</strong>. Turn this ON only if this product has size options (e.g. 6 mm, 8 mm, 10 mm or Small, Medium, Large). Set custom price &amp; MRP per size and pick which size is selected by default for customers!
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  color: editing.hasSizes ? '#9a3412' : '#4b5563',
+                  background: editing.hasSizes ? '#ffedd5' : '#fff',
+                  padding: '7px 16px',
+                  borderRadius: '30px',
+                  border: editing.hasSizes ? '1.5px solid #f97316' : '1.5px solid #d1d5db',
+                  userSelect: 'none'
+                }}>
+                  <input 
+                    type="checkbox"
+                    checked={!!editing.hasSizes}
+                    onChange={e => {
+                      const enabled = e.target.checked;
+                      setEditing(prev => ({
+                        ...prev,
+                        hasSizes: enabled,
+                        sizes: enabled && (!prev.sizes || prev.sizes.length === 0)
+                          ? [
+                              { id: `sz-1-${Date.now()}`, name: "6 mm", price: prev.price || "", mrp: prev.mrp || "", inStock: true, isDefault: true },
+                              { id: `sz-2-${Date.now()}`, name: "8 mm", price: prev.price || "", mrp: prev.mrp || "", inStock: true, isDefault: false }
+                            ]
+                          : prev.sizes
+                      }));
+                    }}
+                    style={{ width: '17px', height: '17px', accentColor: '#ea580c', cursor: 'pointer' }}
+                  />
+                  {editing.hasSizes ? "⚡ Sizes Active (साइज विकल्प चालू)" : "Sizes OFF (डिफ़ॉल्ट बंद)"}
+                </label>
+
+                {editing.hasSizes && (
+                  <button
+                    type="button"
+                    onClick={() => handleAddSize("")}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: '#ea580c',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '7px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                    }}
+                  >
+                    <Plus size={15} /> + Add Size (साइज जोड़ें)
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sizes Expanded Body */}
+            {editing.hasSizes && (
+              <div>
+                {/* Quick Presets */}
+                <div style={{ marginBottom: '14px' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#9a3412', display: 'block', marginBottom: '6px' }}>
+                    ⚡ 1-Click Quick Add Sizes (तुरंत साइज जोड़ें):
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[
+                      { name: "6 mm", offset: 0 },
+                      { name: "8 mm", offset: 200 },
+                      { name: "10 mm", offset: 400 },
+                      { name: "12 mm", offset: 600 },
+                      { name: "14 mm", offset: 800 },
+                      { name: "16 mm", offset: 1000 },
+                      { name: "Small (छोटा)", offset: 0 },
+                      { name: "Medium (मध्यम)", offset: 150 },
+                      { name: "Large (बड़ा)", offset: 300 },
+                      { name: "Standard (मानक)", offset: 0 }
+                    ].map((preset, pIdx) => {
+                      const isAdded = Array.isArray(editing.sizes) && editing.sizes.some(s => (s.name || "").trim().toLowerCase() === preset.name.toLowerCase());
+                      return (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          disabled={isAdded}
+                          onClick={() => handleQuickAddPresetSize(preset.name, preset.offset)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            fontSize: '11.5px',
+                            fontWeight: '600',
+                            border: isAdded ? '1px dashed #cbd5e1' : '1px solid #fdba74',
+                            background: isAdded ? '#f1f5f9' : '#fff',
+                            color: isAdded ? '#94a3b8' : '#9a3412',
+                            cursor: isAdded ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {isAdded ? "✓ " : "+ "}{preset.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Sizes Table / List */}
+                {(!editing.sizes || editing.sizes.length === 0) ? (
+                  <div style={{ background: '#fff', padding: '16px', borderRadius: '8px', border: '1px dashed #fdba74', textAlign: 'center', color: '#9a3412', fontSize: '13px' }}>
+                    Click <strong>"+ Add Size"</strong> or use quick buttons above to add sizes for this product.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '70px 2.2fr 1.3fr 1.3fr 90px 40px',
+                      gap: '8px',
+                      padding: '0 8px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      color: '#78350f',
+                      textTransform: 'uppercase'
+                    }}>
+                      <span title="The size selected by default when customer opens product">Default?</span>
+                      <span>Size / Measurement Name *</span>
+                      <span>Price (₹ विक्रय मूल्य)</span>
+                      <span>MRP (₹ मूल दाम)</span>
+                      <span>Stock Status</span>
+                      <span></span>
+                    </div>
+
+                    {editing.sizes.map((sz, szIdx) => (
+                      <div
+                        key={sz.id || szIdx}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '70px 2.2fr 1.3fr 1.3fr 90px 40px',
+                          gap: '8px',
+                          alignItems: 'center',
+                          background: sz.isDefault ? '#fffbf5' : '#fff',
+                          border: sz.isDefault ? '1.5px solid #f97316' : '1px solid #fed7aa',
+                          borderRadius: '8px',
+                          padding: '8px 10px'
+                        }}
+                      >
+                        {/* Radio for Default Size */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', gap: '2px' }} title="Set as default size shown to customer">
+                            <input
+                              type="radio"
+                              name="defaultProductSize"
+                              checked={!!sz.isDefault}
+                              onChange={() => handleSetDefaultSize(szIdx)}
+                              style={{ accentColor: '#ea580c', cursor: 'pointer', width: '16px', height: '16px' }}
+                            />
+                            <span style={{ fontSize: '9px', fontWeight: '700', color: sz.isDefault ? '#ea580c' : '#9ca3af' }}>
+                              {sz.isDefault ? "DEFAULT" : "Set Def"}
+                            </span>
+                          </label>
+                        </div>
+
+                        {/* Size Name */}
+                        <div>
+                          <input
+                            type="text"
+                            value={sz.name || ""}
+                            onChange={e => handleUpdateSize(szIdx, "name", e.target.value)}
+                            placeholder="e.g. 6 mm, 8 mm, Small, Free Size"
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12.5px',
+                              fontWeight: '700'
+                            }}
+                          />
+                        </div>
+
+                        {/* Price */}
+                        <div>
+                          <input
+                            type="number"
+                            value={sz.price !== undefined ? sz.price : ""}
+                            onChange={e => handleUpdateSize(szIdx, "price", e.target.value)}
+                            placeholder={`Base ₹${editing.price || 0}`}
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12.5px',
+                              fontWeight: '600'
+                            }}
+                          />
+                        </div>
+
+                        {/* MRP */}
+                        <div>
+                          <input
+                            type="number"
+                            value={sz.mrp !== undefined ? sz.mrp : ""}
+                            onChange={e => handleUpdateSize(szIdx, "mrp", e.target.value)}
+                            placeholder={`Base ₹${editing.mrp || 0}`}
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12.5px'
+                            }}
+                          />
+                        </div>
+
+                        {/* In Stock Toggle */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: sz.inStock !== false ? '#15803d' : '#dc2626', fontWeight: '600' }}>
+                            <input
+                              type="checkbox"
+                              checked={sz.inStock !== false}
+                              onChange={e => handleUpdateSize(szIdx, "inStock", e.target.checked)}
+                              style={{ accentColor: '#16a34a', cursor: 'pointer' }}
+                            />
+                            <span>{sz.inStock !== false ? "In Stock" : "Out"}</span>
+                          </label>
+                        </div>
+
+                        {/* Delete Size */}
+                        <div style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSize(szIdx)}
+                            title="Remove Size"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#dc2626',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Customer Website Live Preview */}
+                    <div style={{
+                      marginTop: '12px',
+                      background: '#fff',
+                      border: '1px solid #fed7aa',
+                      borderRadius: '10px',
+                      padding: '12px 16px'
+                    }}>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#9a3412', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
+                        👁️ Customer Website Preview (वेबसाइट पर ग्राहक को ऐसा दिखेगा):
+                      </span>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Select Size / Measurement (साइज चुनें):
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {editing.sizes.filter(s => s && s.name && s.name.trim()).map((s, sIdx) => {
+                          const isDef = !!s.isDefault;
+                          const sPrice = (s.price !== "" && s.price !== undefined && Number(s.price) > 0) ? Number(s.price) : (Number(editing.price) || 0);
+                          return (
+                            <div
+                              key={sIdx}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                border: isDef ? '2px solid #82270a' : '1px solid #cbd5e1',
+                                background: isDef ? '#fcf6f0' : '#fff',
+                                color: isDef ? '#82270a' : '#475569',
+                                fontWeight: isDef ? '700' : '600',
+                                fontSize: '12.5px',
+                                boxShadow: isDef ? '0 2px 4px rgba(130, 39, 10, 0.12)' : 'none'
+                              }}
+                            >
+                              {isDef && <Check size={13} strokeWidth={3} />}
+                              <span>{s.name}</span>
+                              {sPrice > 0 && (
+                                <span style={{
+                                  fontWeight: '700',
+                                  color: isDef ? '#923a13' : '#64748b',
+                                  fontSize: '11.5px'
+                                }}>
+                                  (₹{sPrice.toLocaleString("en-IN")})
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

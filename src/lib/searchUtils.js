@@ -190,12 +190,71 @@ export function matchProductQuery(product, rawQuery) {
     return 92; // Secondary match (e.g., 5 Mukhi Mala when searching "5 mukhi")
   }
 
-  // Check special cases like "gauri shankar"
-  if (/gauri\s*shankar/i.test(cleanQ)) {
-    if (/gauri\s*shankar/i.test(nameClean) || /gauri\s*shankar/i.test(mukhiClean) || /gauri\s*shankar/i.test(categoryClean)) {
-      return 150;
+  // Intelligent Semantic Intent Mapping (Hindi / Hinglish / English)
+  // Maps user spiritual intentions and life problems directly to corresponding Vedic beads & items
+  const VEDIC_SEMANTIC_INTENTS = [
+    {
+      keywords: ["nokri", "naukri", "job", "career", "promotion", "rozgar", "interview", "service", "नौकरी", "रोजगार", "कैरियर"],
+      matchMukhis: ["10", "7", "11"],
+      matchTerms: ["10 mukhi", "7 mukhi", "11 mukhi", "vishnu", "mahalakshmi", "hanuman"]
+    },
+    {
+      keywords: ["padhai", "study", "education", "vidya", "focus", "concentration", "exam", "memory", "student", "पढ़ाई", "विद्या", "शिक्षा", "स्मरण"],
+      matchMukhis: ["4", "6"],
+      matchTerms: ["4 mukhi", "6 mukhi", "brahma", "saraswati", "kartikeya", "buddhi"]
+    },
+    {
+      keywords: ["shani", "saturn", "saade saati", "sadesati", "dhaiya", "shani dosh", "शनि", "साढ़े साती", "ढैय्या"],
+      matchMukhis: ["7", "14"],
+      matchTerms: ["7 mukhi", "14 mukhi", "saturn", "shani", "deva mani", "mahalakshmi"]
+    },
+    {
+      keywords: ["shaadi", "marriage", "vivah", "vaivahik", "sukhi vaivahik", "relationship", "love", "patni", "pati", "विवाह", "शादी", "वैवाहिक", "सुखी"],
+      matchMukhis: ["2", "gauri-shankar"],
+      matchTerms: ["2 mukhi", "gauri shankar", "ardhanarishvara", "chandra", "marital"]
+    },
+    {
+      keywords: ["dhan", "money", "wealth", "business", "vyapar", "paisa", "laxmi", "lakshmi", "samriddhi", "kuber", "धन", "व्यापार", "लक्ष्मी", "समृद्धि"],
+      matchMukhis: ["7", "12", "21"],
+      matchTerms: ["7 mukhi", "12 mukhi", "21 mukhi", "mahalakshmi", "kuber", "shree yantra"]
+    },
+    {
+      keywords: ["spatik", "sphatik", "spatika", "crystal", "quartz", "sphatik mala", "स्फटिक", "क्रिस्टल"],
+      matchMukhis: [],
+      matchTerms: ["sphatik", "spatika", "crystal", "quartz", "spatika mala"]
+    },
+    {
+      keywords: ["shanti", "peace", "stress", "chinta", "calm", "cooling", "मन की शांति", "तनाव"],
+      matchMukhis: ["2", "5"],
+      matchTerms: ["sphatik mala", "5 mukhi", "2 mukhi", "chandra"]
+    },
+    {
+      keywords: ["santana", "child", "baby", "garbh", "putra", "संतान", "गर्भ"],
+      matchMukhis: ["garbh-gauri", "2", "ganesh"],
+      matchTerms: ["garbh gauri", "2 mukhi", "ganesh"]
+    },
+    {
+      keywords: ["shatru", "enemy", "court", "kanoon", "nazar", "bhoot", "protection", "शत्रु", "सुरक्षा", "नजर"],
+      matchMukhis: ["9", "11", "10"],
+      matchTerms: ["9 mukhi", "11 mukhi", "durga", "hanuman", "karungali"]
+    },
+    {
+      keywords: ["rahu", "ketu", "kaal sarp", "kaalsarp", "sarpa", "काल सर्प", "राहु", "केतु"],
+      matchMukhis: ["8", "9"],
+      matchTerms: ["8 mukhi", "9 mukhi", "ganesh", "durga"]
     }
-    return 0;
+  ];
+
+  for (const intent of VEDIC_SEMANTIC_INTENTS) {
+    const queryHasIntent = intent.keywords.some(k => cleanQ.includes(k) || cleanQ.startsWith(k));
+    if (queryHasIntent) {
+      if (prodMukhi && intent.matchMukhis.includes(prodMukhi)) {
+        return 138;
+      }
+      if (intent.matchTerms.some(term => nameClean.includes(term) || categoryClean.includes(term) || slugClean.includes(term))) {
+        return 135;
+      }
+    }
   }
 
   // Exact phrase match (Highest Priority)

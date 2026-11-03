@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
-import { ArrowLeft, Search, GripVertical, Check, X, ArrowUp, ArrowDown, Eye, Save, CloudUpload } from "lucide-react";
+import { ArrowLeft, Search, GripVertical, Check, X, ArrowUp, ArrowDown, Eye, Save, CloudUpload, Sparkles, Wand2 } from "lucide-react";
 import { ADMIN_BASE_PATH } from "../../lib/routes";
 import { db } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
 import { getProductPrimaryImage } from "../../lib/imageUtils";
 import { isPublicProduct } from "../../lib/db";
+import { isRudrakshaProduct } from "../../lib/productHelper";
 import { HomeProductShowcase } from "../../components/HomeProductShowcase";
 import "./admin-pages.css";
 
 export function AdminHomeProductManager() {
   const [allProducts, setAllProducts] = useState([]);
   const [draftLayout, setDraftLayout] = useState([]); // Array of product IDs
+  const [isAiAutoOrder, setIsAiAutoOrder] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -22,6 +24,9 @@ export function AdminHomeProductManager() {
     setAllProducts(products);
 
     const settings = db.getSettings();
+    if (settings?.homeProductLayout?.isAiAutoOrder !== undefined) {
+      setIsAiAutoOrder(!!settings.homeProductLayout.isAiAutoOrder);
+    }
     if (settings?.homeProductLayout?.draft) {
       setDraftLayout(settings.homeProductLayout.draft);
     } else if (settings?.homeProductLayout?.live) {
@@ -69,11 +74,39 @@ export function AdminHomeProductManager() {
     });
   };
 
+  const handleAiSmartRank = () => {
+    // Score products: prioritize Rudraksha, sales count, ratings, and popular tags
+    const ranked = [...allProducts]
+      .filter(p => p.showOnHome !== false)
+      .sort((a, b) => {
+        const isRudA = isRudrakshaProduct(a);
+        const isRudB = isRudrakshaProduct(b);
+        const scoreA = (isRudA ? 100 : 20) +
+                       ((Number(a.salesCount) || Number(a.timesPurchased) || 0) * 1.5) +
+                       ((Number(a.rating) || 4.8) * 20) +
+                       (a.isPopular ? 40 : 0) -
+                       ((Number(a.homeOrder) || 999) * 2);
+        const scoreB = (isRudB ? 100 : 20) +
+                       ((Number(b.salesCount) || Number(b.timesPurchased) || 0) * 1.5) +
+                       ((Number(b.rating) || 4.8) * 20) +
+                       (b.isPopular ? 40 : 0) -
+                       ((Number(b.homeOrder) || 999) * 2);
+        return scoreB - scoreA;
+      })
+      .map(p => String(p.id || p._id));
+    setDraftLayout(ranked);
+    emitToast("✨ AI Smart Ranking applied! Sacred Rudraksha and top-rated items ordered first.", "success");
+  };
+
   const handleSaveDraft = async () => {
     setIsSaving(true);
     try {
       const currentSettings = db.getSettings() || {};
-      const newLayout = { ...(currentSettings.homeProductLayout || {}), draft: draftLayout };
+      const newLayout = { 
+        ...(currentSettings.homeProductLayout || {}), 
+        draft: draftLayout,
+        isAiAutoOrder: !!isAiAutoOrder
+      };
       await db.saveSettings({ ...currentSettings, homeProductLayout: newLayout });
       emitToast("Draft saved successfully", "success");
     } catch (e) {
@@ -86,7 +119,11 @@ export function AdminHomeProductManager() {
     setIsSaving(true);
     try {
       const currentSettings = db.getSettings() || {};
-      const newLayout = { draft: draftLayout, live: draftLayout };
+      const newLayout = { 
+        draft: draftLayout, 
+        live: draftLayout,
+        isAiAutoOrder: !!isAiAutoOrder 
+      };
       await db.saveSettings({ ...currentSettings, homeProductLayout: newLayout });
       emitToast("Home products published to live site!", "success");
     } catch (e) {
@@ -189,6 +226,63 @@ export function AdminHomeProductManager() {
         
         {/* Right: Ordered Layout & Sequence Controls */}
         <div className="admin-card">
+          {/* ✨ AI Smart Ordering & Rudraksha Priority Card */}
+          <div style={{
+            background: isAiAutoOrder ? 'linear-gradient(135deg, #fef3c7 0%, #ffedd5 100%)' : '#faf7f2',
+            border: isAiAutoOrder ? '1.5px solid #d97706' : '1px solid #ebd8cb',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            marginBottom: '16px',
+            boxShadow: isAiAutoOrder ? '0 2px 8px rgba(217, 119, 6, 0.15)' : 'none'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={18} color="#b45309" />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#78350f' }}>
+                    AI Automatic Smart Ranking (AI ऑटोमैटिक रैंकिंग)
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#92400e' }}>
+                    Rudraksha products are prioritized, followed by highest ratings &amp; customer purchases.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleAiSmartRank}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: '#b45309',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '5px 10px',
+                    fontSize: '11.5px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                  title="Apply AI algorithm to rank products now"
+                >
+                  <Wand2 size={13} /> Rank Now (तुरंत सेट करें)
+                </button>
+
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700', color: isAiAutoOrder ? '#92400e' : '#6b7280' }}>
+                  <input
+                    type="checkbox"
+                    checked={isAiAutoOrder}
+                    onChange={e => setIsAiAutoOrder(e.target.checked)}
+                    style={{ accentColor: '#d97706', cursor: 'pointer', width: '15px', height: '15px' }}
+                  />
+                  <span>{isAiAutoOrder ? "AI Auto ON" : "AI Auto OFF"}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
             <h3 style={{ margin: "0", fontSize: "15px", color: "#2b170d" }}>
               Home Sequence Order ({draftLayout.length} Products)

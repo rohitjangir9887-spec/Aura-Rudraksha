@@ -424,13 +424,25 @@ export function classifyProductKind(cleanName = "", category = "") {
   const nameLower = (cleanName || "").toLowerCase();
   const catLower = (category || "").toLowerCase();
 
+  if (nameLower.includes("sphatik") || nameLower.includes("spatik") || nameLower.includes("spatika") || nameLower.includes("quartz") || catLower.includes("crystal") || catLower.includes("sphatik")) {
+    return "crystal";
+  }
+  if (nameLower.includes("parad") || nameLower.includes("mercury") || catLower.includes("parad")) {
+    return "parad";
+  }
+  if (nameLower.includes("karungali") || nameLower.includes("ebony") || catLower.includes("karungali")) {
+    return "karungali";
+  }
+  if (nameLower.includes("tulsi") || catLower.includes("tulsi")) {
+    return "tulsi";
+  }
   if (nameLower.includes("mala") || nameLower.includes("kantha") || nameLower.includes("japa") || nameLower.includes("108") || catLower.includes("mala")) {
     return "mala";
   }
   if (nameLower.includes("bracelet") || nameLower.includes("wristlet") || catLower.includes("bracelet")) {
     return "bracelet";
   }
-  if (catLower.includes("puja") || catLower.includes("samagri") || nameLower.includes("camphor") || nameLower.includes("kapoor") || nameLower.includes("dhoop") || nameLower.includes("agarbatti") || nameLower.includes("hawan") || nameLower.includes("chandan") || nameLower.includes("ghee") || nameLower.includes("diya") || nameLower.includes("incense") || nameLower.includes("attar")) {
+  if (catLower.includes("puja") || catLower.includes("samagri") || nameLower.includes("camphor") || nameLower.includes("kapoor") || nameLower.includes("dhoop") || nameLower.includes("agarbatti") || nameLower.includes("hawan") || nameLower.includes("chandan") || nameLower.includes("ghee") || nameLower.includes("diya") || nameLower.includes("incense") || nameLower.includes("attar") || nameLower.includes("sindoor")) {
     return "puja";
   }
   if (catLower.includes("yantra") || catLower.includes("idol") || nameLower.includes("yantra") || nameLower.includes("idol") || nameLower.includes("brass") || nameLower.includes("copper") || nameLower.includes("statue")) {
@@ -464,6 +476,56 @@ export function buildComprehensiveHtmlDescription({
   const planetText = beadKnowledge?.planet || "Jupiter (Brihaspati / Guru)";
   const deityText = beadKnowledge?.deity || "Lord Shiva (Paramshiva)";
   const mantraText = beadKnowledge?.beejMantra || "Om Namah Shivaya (ॐ नमः शिवाय)";
+
+  // 0. SPHATIK / NATURAL CRYSTAL QUARTZ (स्फटिक माला व रत्न)
+  if (kind === "crystal") {
+    if (isHindi) {
+      return `<h2>✨ उत्पाद विवरण (About Sphatik Product)</h2>
+<p>100% शुद्ध, प्राकृतिक एवं उच्च गुणवत्ता के स्फटिक (क्वार्ट्ज क्रिस्टल) से निर्मित <strong>${cleanName}</strong>। स्फटिक को शास्त्रों में साक्षात माँ भगवती और भगवान शिव का अत्यंत प्रिय रत्न माना गया है। यह अपने अद्वितीय शीतलता गुण, औरा शुद्धिकरण और ध्यान एकाग्रता के लिए विश्व प्रसिद्ध है।</p>
+<h2>💎 मुख्य विशेषताएं (Key Highlights)</h2>
+<ul>
+  <li><strong>100% प्राकृतिक शुद्ध स्फटिक:</strong> कांच या प्लास्टिक रहित, प्राकृतिक क्वार्ट्ज मिनरल।</li>
+  <li><strong>108+1 पारंपरिक मनके:</strong> मंत्र जप एवं ध्यान साधना हेतु शास्त्रीय अनुपात में हस्त-निर्मित।</li>
+  <li><strong>चंद्र एवं शुक्र ग्रह शांति:</strong> मानसिक चंचलता, तनाव एवं क्रोध को शांत कर आत्मिक शांति प्रदान करता है।</li>
+  <li><strong>वैदिक प्राण प्रतिष्ठा:</strong> हरिद्वार एवं काशी के आचार्यों द्वारा वैदिक मंत्रों से अभिमंत्रित।</li>
+</ul>
+<h2>🌿 आध्यात्मिक महत्व एवं लाभ (Spiritual Significance & Benefits)</h2>
+<p>प्राचीन शास्त्रों के अनुसार, स्फटिक माला धारण करने से मन में शांति आती है, शरीर की अतिरिक्त ऊष्मा (गर्मी) शांत होती है, एकाग्रता बढ़ती है और माँ लक्ष्मी की कृपा से आर्थिक समृद्धि प्राप्त होती है (पारंपरिक मान्यता — चिकित्सीय सलाह नहीं)।</p>
+<h2>🕉️ प्रयोग विधि एवं देखभाल (Usage & Care)</h2>
+<p><strong>प्रयोग विधि:</strong> सोमवार अथवा शुक्रवार को प्रातः स्नान के उपरांत गंगाजल से शुद्ध कर <em>"ॐ सोमाय नमः"</em> अथवा <em>"ॐ नमः शिवाय"</em> मंत्र का जप करते हुए धारण करें अथवा साधना हेतु प्रयुक्त करें।</p>
+<p><strong>देखभाल:</strong> मखमली थैली में रखें, कठोर धक्के से बचाएं तथा समय-समय पर स्वच्छ जल या गंगाजल से धोकर पूर्णिमा के चंद्र प्रकाश में रखकर पुनः चार्ज करें।</p>`;
+    }
+    if (isHinglish) {
+      return `<h2>✨ About Sphatik Product</h2>
+<p>100% natural, unheated aur pure quartz crystal se bani <strong>${cleanName}</strong>. Sphatik ko Lord Shiva aur Goddess Lakshmi ki divine energy ka sacred conductor maana jata hai, jo mind ko cool, stress-free aur deeply focused banata hai.</p>
+<h2>💎 Key Highlights</h2>
+<ul>
+  <li><strong>100% Natural Crystal Quartz:</strong> Synthetic glass ya plastic-free genuine gemstone quality.</li>
+  <li><strong>108+1 Sacred Count:</strong> Hand-knotted silk thread ke sath smooth japa & meditation standard.</li>
+  <li><strong>Cooling & Calming Bio-Resonance:</strong> High blood pressure, anger aur mental stress ko soothe karta hai.</li>
+  <li><strong>Vedic Consecration:</strong> Holy Ganga Jal aur Shiva/Lakshmi mantras se pre-energized.</li>
+</ul>
+<h2>🌿 Spiritual Benefits</h2>
+<p>Vedic astrological traditions ke mutabiq Sphatik Mala Chandra aur Shukra graha ke positive vibrations ko amplify karti hai, jisse sleep quality aur financial peace improve hoti hai (Traditional belief — not medical advice).</p>
+<h2>🕉️ Usage & Care</h2>
+<p><strong>Wearing Day:</strong> Monday ya Friday morning Ganga Jal se cleanse karke dharan karein.</p>
+<p><strong>Care:</strong> Soft dry cloth se clean karein aur direct impact se protect karein.</p>`;
+    }
+    return `<h2>✨ About Sphatik (Clear Quartz) Product</h2>
+<p>Experience profound inner peace, mental clarity, and energetic purification with 100% genuine, natural crystal quartz <strong>${cleanName}</strong>. Revered across Vedic traditions as a sacred conductor of pure sattvic energy, natural Sphatik radiates soothing, cooling bio-resonance associated with Lord Shiva and Goddess Mahalakshmi.</p>
+<h2>💎 Key Highlights</h2>
+<ul>
+  <li><strong>100% Natural Unheated Quartz:</strong> Completely free from synthetic glass, resins, or chemical dyes.</li>
+  <li><strong>108+1 Sacred Count:</strong> Traditional hand-knotted configuration ideal for mantra japa, dhyana meditation, or daily peaceful wear.</li>
+  <li><strong>Cooling Planetary Alignment:</strong> Harmonizes Moon (Chandra) and Venus (Shukra) cosmic frequencies, dissolving mental agitation and fatigue.</li>
+  <li><strong>Vedic Prana Pratishtha:</strong> Consecrated with sacred Ganga Jal and auspicious mantras prior to dispatch.</li>
+</ul>
+<h2>🌿 Spiritual Significance & Benefits</h2>
+<p>According to ancient texts, wearing authentic Sphatik beads dispels excess bodily heat, stabilizes blood pressure fluctuations, enhances memory concentration, and attracts auspicious wealth and serenity into your life (Traditional spiritual belief — not medical advice).</p>
+<h2>🕉️ Sacred Usage & Care</h2>
+<p><strong>How to Wear:</strong> Cleanse with holy water on a Monday or Friday morning. Chant <em>"Om Namah Shivaya"</em> or <em>"Om Shreem Mahalakshmiyei Namah"</em> with devotion before wearing.</p>
+<p><strong>Care:</strong> Store safely in a soft velvet pouch. Periodically place under Full Moon light to cleanse and recharge its natural crystal frequencies.</p>`;
+  }
 
   // 1. MALA & JAPA STRINGS
   if (kind === "mala") {
@@ -703,15 +765,36 @@ export function buildEmergencySafePayload(productInput = {}) {
   const keywords = generateNaturalKeywordsFromKnowledge(cleanName, category, productInput);
   const flatKw = keywords.map(k => (typeof k === "string" ? k : k.keyword)).filter(Boolean);
 
+  const isRudrakshaItem = (
+    cleanName.toLowerCase().includes("rudraksha") ||
+    cleanName.toLowerCase().includes("mukhi") ||
+    category.toLowerCase().includes("rudraksha") ||
+    category.toLowerCase().includes("mukhi") ||
+    !!beadKnowledge
+  );
+
+  const hasCert = Boolean(
+    productInput?.hasCertificate === true ||
+    (isRudrakshaItem && beadKnowledge && productInput?.hasCertificate !== false)
+  );
+
   const tags = Array.from(new Set([
     category,
-    beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
-    mukhiNum ? `${mukhiNum} Mukhi` : "",
+    isRudrakshaItem && beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
+    isRudrakshaItem && mukhiNum ? `${mukhiNum} Mukhi` : "",
     origin,
     "Authentic",
-    "Lab Certified",
+    hasCert ? "Lab Certified" : "100% Pure",
     "Prana Pratishtha"
   ])).filter(Boolean);
+
+  const metaTitle = isRudrakshaItem
+    ? `${cleanName} | 100% Original ${origin} Rudraksha`
+    : `${cleanName} | 100% Pure & Sanctified`;
+
+  const metaDesc = isRudrakshaItem
+    ? `Buy authentic ${cleanName} online at Aura Rudraksha. 100% Genuine, ${hasCert ? "Lab Certified, " : ""}X-Ray Tested & Pre-energized with Haridwar Vedic Mantras.`
+    : `Buy authentic ${cleanName} online at Aura Rudraksha. 100% Pure, authentic devotional grade & pre-energized with Vedic rituals.`;
 
   return {
     success: true,
@@ -721,32 +804,33 @@ export function buildEmergencySafePayload(productInput = {}) {
       productAnalysis: { confidence: "high", warnings: [] },
       searchEvidence: { provider: "NVIDIA NIM", searched: false, searchedAt: null },
       seo: {
-        recommendedTitle: `${cleanName} - Original ${origin} Lab Certified`,
-        metaTitle: `${cleanName} | 100% Original ${origin} Rudraksha`,
-        metaDescription: `Buy authentic ${cleanName} online at Aura Rudraksha. 100% Lab Certified, X-Ray Tested & Pre-energized with Haridwar Vedic Mantras.`,
+        recommendedTitle: `${cleanName} - 100% Genuine & Sanctified`,
+        metaTitle: metaTitle,
+        metaDescription: metaDesc,
         seoDescription: descHtml
       },
       classification: {
         category,
-        subCategory: beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
+        subCategory: isRudrakshaItem && beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
         productType: category,
-        isRudraksha: !!beadKnowledge
+        isRudraksha: isRudrakshaItem
       },
       keywords,
+      hasCertificate: hasCert,
       vedicAstrology: {
-        mukhi: mukhiNum ? `${mukhiNum} Mukhi` : "",
-        subCategory: beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
+        mukhi: isRudrakshaItem && mukhiNum ? `${mukhiNum} Mukhi` : "",
+        subCategory: isRudrakshaItem && beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
         origin,
-        rulingDeity: beadKnowledge?.deity || "Lord Shiva",
-        rulingPlanet: beadKnowledge?.planet || "Jupiter (Brihaspati / Guru)",
-        element: beadKnowledge?.element || "Space & Agni",
-        beejMantra: beadKnowledge?.beejMantra || "Om Namah Shivaya",
+        rulingDeity: beadKnowledge?.deity || (isRudrakshaItem ? "Lord Shiva" : ""),
+        rulingPlanet: beadKnowledge?.planet || (isRudrakshaItem ? "Jupiter (Brihaspati / Guru)" : ""),
+        element: beadKnowledge?.element || (isRudrakshaItem ? "Space & Agni" : "Sattvic Earth"),
+        beejMantra: beadKnowledge?.beejMantra || (isRudrakshaItem ? "Om Namah Shivaya" : ""),
         suitableRashi: beadKnowledge?.rashis || ["All Rashis (Universal)"],
-        traditionalSignificance: beadKnowledge?.traditionalSignificance || "Sacred Vedic bead traditionally worn for spiritual elevation and peace.",
+        traditionalSignificance: beadKnowledge?.traditionalSignificance || "Sacred Vedic item traditionally revered for spiritual peace and positivity.",
         traditionalBenefits: [beadKnowledge?.primaryBenefits || "Promotes peace and spiritual focus."],
-        wearingMethod: beadKnowledge?.dharanVidhi || "Purify with Ganga Jal on morning of wearing day and chant Beej Mantra 108 times.",
-        wearingDay: beadKnowledge?.bestDay || "Monday morning",
-        careInstructions: [beadKnowledge?.careGuidance || "Clean periodically with soft brush and condition with natural oil."]
+        wearingMethod: beadKnowledge?.dharanVidhi || "Purify with Ganga Jal on morning of wearing day and chant sacred mantra.",
+        wearingDay: beadKnowledge?.bestDay || (isRudrakshaItem ? "Monday morning" : "Daily / Auspicious Morning"),
+        careInstructions: [beadKnowledge?.careGuidance || "Keep clean and stored in a clean sacred space."]
       }
     },
     description: descHtml,
@@ -756,14 +840,15 @@ export function buildEmergencySafePayload(productInput = {}) {
     seoKeywordsDetails: keywords,
     category,
     productType: category,
-    subCategory: beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
-    mukhi: mukhiNum ? `${mukhiNum} Mukhi` : "",
-    rulingPlanet: beadKnowledge?.planet || "Jupiter (Brihaspati / Guru)",
-    deity: beadKnowledge?.deity || "Lord Shiva",
+    subCategory: isRudrakshaItem && beadKnowledge ? `${mukhiNum} Mukhi Rudraksha` : category,
+    mukhi: isRudrakshaItem && mukhiNum ? `${mukhiNum} Mukhi` : "",
+    rulingPlanet: beadKnowledge?.planet || "",
+    deity: beadKnowledge?.deity || "",
     origin,
     zodiac: beadKnowledge?.rashis || ["All Rashis (Universal)"],
     highlight: beadKnowledge?.primaryBenefits ? beadKnowledge.primaryBenefits.slice(0, 110) + "..." : "100% Authentic Vedic Consecration",
-    badge: "Best Seller"
+    badge: "Best Seller",
+    hasCertificate: hasCert
   };
 }
 
@@ -792,7 +877,7 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
       nakshatra = [],
       mantra = "",
       beejMantra = "",
-      hasCertificate = true,
+      hasCertificate = false,
       language = "both"
     } = productInput || {};
 
@@ -805,6 +890,14 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
   const beadKnowledge = mukhiNum && VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)]
     ? VEDIC_BEADS_KNOWLEDGE[String(mukhiNum)]
     : null;
+
+  const isRudrakshaItem = Boolean(
+    cleanName.toLowerCase().includes("rudraksha") ||
+    cleanName.toLowerCase().includes("mukhi") ||
+    category.toLowerCase().includes("rudraksha") ||
+    category.toLowerCase().includes("mukhi") ||
+    beadKnowledge
+  );
 
   const { sources, conflicts, missingData } = buildMultiSourceVedicReferences(
     productInput,
@@ -848,24 +941,12 @@ export async function generateSeoAndVedicDataWithNemotron(productInput) {
 
 CRITICAL KEYWORD GENERATION RULES:
 1. DISCOVER REAL HUMAN SEARCH PHRASES: Do NOT mechanically copy, repeat, or concatenate the product title.
-2. EXTRACT CORE HEAD TERM: First identify the core item subject (e.g., for "Buy Original 5 Mukhi Rudraksha (Nepali) Online | Lab Certified", the core term is "5 mukhi rudraksha").
-3. GENERATE 10 TO 15 HIGH-QUALITY, DISTINCT, NATURAL SEARCH QUERIES:
-   - CORE HEAD TERMS: e.g. "5 mukhi rudraksha", "5mukhi rudraksha", "panchmukhi rudraksha"
-   - COMMERCIAL / BUY: e.g. "buy 5 mukhi rudraksha", "buy 5 mukhi rudraksha online", "original 5 mukhi rudraksha", "nepali 5 mukhi rudraksha"
-   - PRICE: e.g. "5 mukhi rudraksha price", "original 5 mukhi rudraksha price in india"
-   - INFORMATIONAL / BENEFITS: e.g. "5 mukhi rudraksha benefits", "5 mukhi rudraksha ke fayde"
-   - AUTHENTICITY: e.g. "5 mukhi rudraksha asli kaise pehchane", "genuine 5 mukhi rudraksha"
+2. EXTRACT CORE HEAD TERM: First identify the core item subject (e.g., for "Buy Original 5 Mukhi Rudraksha (Nepali) Online | Lab Certified", the core term is "5 mukhi rudraksha", for "Spatika Mala with Knot 108 beads", the core term is "sphatik mala").
+3. GENERATE 10 TO 15 HIGH-QUALITY, DISTINCT, NATURAL SEARCH QUERIES.
 4. FORBIDDEN PATTERNS:
    - NEVER repeat words like "buy buy...", "original buy original..."
-   - NEVER create long title-concatenated strings like "buy original 5 mukhi rudraksha nepali online lab certified"
-   - NEVER stack more than 2 commercial modifiers in a single keyword phrase.
-   - Do NOT force 35 keywords. Quality over quantity.
-5. SEARCH EVIDENCE & TREND RULES:
-   - Set "evidenceType": "ai_suggestion" for all keywords.
-   - Set "trendLevel": "unknown" and "trendConfidence": "low". DO NOT fake search volume or trend percentages.
-   - Set "relevanceScore": an integer from 70 to 98 representing internal model relevance.
-   - Set "scoreType": "model_relevance".
-6. OUTPUT JSON ONLY matching this exact schema:
+   - NEVER call a non-rudraksha item (like crystal mala, camphor, yantra, idol) a Rudraksha or seed!
+5. OUTPUT JSON ONLY matching this exact schema:
 {
   "productAnalysis": {
     "confidence": "high",
@@ -878,9 +959,9 @@ CRITICAL KEYWORD GENERATION RULES:
   },
   "classification": {
     "category": "Identify one of: Rudraksha, Mala, Bracelet, Puja Samagri, Yantra, Gemstone, Idol, Incense, or create a natural category",
-    "subCategory": "Identify a specific subcategory (e.g. 5 Mukhi Rudraksha, Siddha Mala, Camphor)",
-    "productType": "Identify type: Rudraksha, Mala, Bracelet, Puja item, etc.",
-    "isRudraksha": true
+    "subCategory": "Identify a specific subcategory",
+    "productType": "Identify type",
+    "isRudraksha": ${isRudrakshaItem}
   },
   "seo": {
     "recommendedTitle": "Recommended SEO Title without clickbait",

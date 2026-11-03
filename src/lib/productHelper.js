@@ -9,30 +9,43 @@ export function isRudrakshaProduct(product) {
   if (!product) return false;
 
   const cat = (product.category || "").toLowerCase().trim();
+  const subCat = (product.subCategory || "").toLowerCase().trim();
   const name = (product.name || "").toLowerCase().trim();
   const type = (product.productType || "").toLowerCase().trim();
 
-  // 1. Explicit non-rudraksha indicators in Category, Name, or ProductType
-  const isNonRudrakshaCategoryOrName = 
+  // 1. Explicit flag on product object
+  if (product.isRudraksha === false) {
+    return false;
+  }
+
+  // 2. Clear non-rudraksha category keywords (unless name explicitly includes "rudraksha" or "mukhi")
+  const isExplicitNonRudraksha = 
     cat.includes("idol") || cat.includes("god") || cat.includes("statue") || cat.includes("murti") ||
     cat.includes("puja") || cat.includes("samagri") || cat.includes("hawan") || cat.includes("agarbatti") ||
     cat.includes("dhoop") || cat.includes("camphor") || cat.includes("kapoor") || cat.includes("diya") ||
     cat.includes("chandan") || cat.includes("essential") || cat.includes("book") || cat.includes("brass") ||
-    cat.includes("yantra") || cat.includes("copper") ||
-    name.includes("idol") || name.includes("statue") || name.includes("murti") || name.includes("camphor") ||
-    name.includes("kapoor") || name.includes("dhoop") || name.includes("agarbatti") || name.includes("incense") ||
-    name.includes("hawan") || name.includes("ganga jal") || name.includes("yantra") || name.includes("puja thali") ||
+    cat.includes("yantra") || cat.includes("copper") || cat.includes("crystal") || cat.includes("gemstone") ||
+    cat.includes("sphatik") || cat.includes("spatik") || cat.includes("karungali") ||
+    name.includes("sphatik") || name.includes("spatika") || name.includes("crystal mala") ||
+    name.includes("karungali") || name.includes("parad") || name.includes("kamakhya sindoor") ||
+    name.includes("ganga jal") || name.includes("idol") || name.includes("statue") || name.includes("murti") ||
+    name.includes("camphor") || name.includes("kapoor") || name.includes("dhoop") || name.includes("agarbatti") ||
+    name.includes("incense") || name.includes("hawan") || name.includes("yantra") || name.includes("puja thali") ||
     name.includes("cow ghee") || name.includes("chandan") || name.includes("brass") ||
-    ["puja_samagri", "general", "idol", "god_idol", "yantra"].includes(type);
+    ["puja_samagri", "general", "idol", "god_idol", "yantra", "gemstone", "crystal"].includes(type);
 
-  // If title or category indicates a non-rudraksha item and does NOT contain "rudraksha" or "mukhi", return FALSE immediately
-  if (isNonRudrakshaCategoryOrName && !name.includes("rudraksha") && !name.includes("mukhi")) {
+  if (isExplicitNonRudraksha && !name.includes("rudraksha") && !name.includes("mukhi")) {
     return false;
   }
 
-  // 2. Explicit flag on product object
-  if (product.isRudraksha === false) {
-    return false;
+  // If category is "Mala" or "Malas" or "Bracelets", check if it's explicitly a Rudraksha mala
+  const isGeneralMala = cat.includes("mala") || subCat.includes("mala") || cat.includes("bracelet");
+  if (isGeneralMala) {
+    // Only true if name or tags specifically say rudraksha or mukhi
+    const hasRudrakshaSignal = name.includes("rudraksha") || name.includes("mukhi") || name.includes("gauri shankar");
+    if (!hasRudrakshaSignal && !product.isRudraksha) {
+      return false;
+    }
   }
 
   // 3. Positive Rudraksha markers
@@ -41,6 +54,7 @@ export function isRudrakshaProduct(product) {
     name.includes("mukhi") ||
     name.includes("gauri shankar") ||
     name.includes("ganesh rudraksha") ||
+    name.includes("garbh gauri") ||
     cat.includes("rudraksha") ||
     cat.includes("mukhi") ||
     type === "rudraksha" ||
@@ -51,6 +65,45 @@ export function isRudrakshaProduct(product) {
 
   // Default to false for non-rudraksha items
   return false;
+}
+
+/**
+ * Interleave products so customers see a varied catalog:
+ * Rudraksha -> Other Category -> Rudraksha -> Other Category -> ...
+ * If other categories run out, continue with Rudraksha (and vice-versa).
+ */
+export function interleaveCatalogProducts(products = []) {
+  if (!Array.isArray(products) || products.length <= 1) return products;
+
+  const rudrakshas = [];
+  const others = [];
+
+  for (const p of products) {
+    if (isRudrakshaProduct(p)) {
+      rudrakshas.push(p);
+    } else {
+      others.push(p);
+    }
+  }
+
+  // If all products belong to only one type, return as-is
+  if (rudrakshas.length === 0) return others;
+  if (others.length === 0) return rudrakshas;
+
+  const interleaved = [];
+  let rIdx = 0;
+  let oIdx = 0;
+
+  while (rIdx < rudrakshas.length || oIdx < others.length) {
+    if (rIdx < rudrakshas.length) {
+      interleaved.push(rudrakshas[rIdx++]);
+    }
+    if (oIdx < others.length) {
+      interleaved.push(others[oIdx++]);
+    }
+  }
+
+  return interleaved;
 }
 
 /**

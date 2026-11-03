@@ -6,7 +6,7 @@ import { searchAndRankProducts } from "../lib/searchUtils";
 import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { ShopOfferBanner } from "../components/ShopOfferBanner";
 import { useCart } from "../hooks/useCart";
-import { sortProductsByCatalogOrder } from "../lib/productHelper";
+import { sortProductsByCatalogOrder, interleaveCatalogProducts } from "../lib/productHelper";
 import { useSeo } from "../hooks/useSeo";
 import { 
   ChevronLeft, 
@@ -378,6 +378,11 @@ export function Shop() {
     } else if (!q) {
       // Default: respect admin displayOrder / sortOrder followed by Mukhi / category ordering
       next = sortProductsByCatalogOrder(next);
+      // When browsing "all" products without a specific category filter, interleave Rudraksha and other categories
+      // (Rudraksha -> Other -> Rudraksha -> Other...) so customers discover diverse categories
+      if (chip === "all" && (!categoryParam || categoryParam === "all")) {
+        next = interleaveCatalogProducts(next);
+      }
     }
     
     return next;
