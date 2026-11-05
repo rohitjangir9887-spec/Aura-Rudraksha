@@ -1048,48 +1048,6 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
     console.warn("[Nemotron Engine] NIM call notice:", err?.message || err);
   }
 
-  // 1.1 Try Gemini fallback if NVIDIA NIM was not available or did not produce parsed JSON
-  if (!aiGenerationSuccess && process.env.GEMINI_API_KEY) {
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const geminiClient = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-      const fallbackModels = [process.env.GEMINI_MODEL, "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"].filter(Boolean);
-      for (const modelCandidate of fallbackModels) {
-        if (aiGenerationSuccess) break;
-        try {
-          const geminiPromise = geminiClient.models.generateContent({
-            model: modelCandidate,
-            contents: `${promptSystem}\n\nUser Request:\n${userPrompt}`,
-            config: {
-              temperature: 0.2,
-              responseMimeType: "application/json"
-            }
-          });
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini candidate timeout")), 5000));
-          const geminiResponse = await Promise.race([geminiPromise, timeoutPromise]);
-
-          const geminiText = geminiResponse.text || "";
-          aiOutputParsed = parseNemotronJsonResponse(geminiText);
-          if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
-            aiGenerationSuccess = true;
-            break;
-          }
-        } catch (mErr) {
-          console.warn(`[Nemotron Engine] Gemini candidate (${modelCandidate}) notice:`, mErr?.message || mErr);
-        }
-      }
-    } catch (geminiErr) {
-      console.warn("[Nemotron Engine] Gemini fallback notice:", geminiErr?.message || geminiErr);
-    }
-  }
-
   // 2. Fallback to verified Vedic Knowledge Base if external AI is unavailable or fails
   if (!aiGenerationSuccess || !aiOutputParsed) {
     const defaultDeity = deity || rulingDeity || beadKnowledge?.deity || "Lord Shiva";

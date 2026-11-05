@@ -82,35 +82,7 @@ STRICT MANDATES:
 
   const userPrompt = `Clean and polish this customer review while strictly preserving authentic sentiment:\n\nAuthor: ${author || "Customer"}\nProduct: ${productName || "Rudraksha"}\nRating: ${rating}/5\nLanguage: ${detectedLanguage}\nOriginal Review Text:\n"${cleaned}"`;
 
-  // 1. Try Gemini models first if available
-  const geminiClient = getGeminiClient();
-  if (geminiClient && !aiProcessed) {
-    for (const gModel of GEMINI_TEXT_MODELS) {
-      if (aiProcessed) break;
-      try {
-        const geminiRes = await geminiClient.models.generateContent({
-          model: gModel,
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.2,
-            maxOutputTokens: 600
-          }
-        });
-        const candidate = (geminiRes.text || "").trim().replace(/^["'\s]+|["'\s]+$/g, "").trim();
-        if (candidate.length >= 5) {
-          processedText = candidate;
-          aiProcessed = true;
-          aiModel = gModel;
-          break;
-        }
-      } catch (gErr) {
-        // continue to next model candidate
-      }
-    }
-  }
-
-  // 2. Try NVIDIA Nemotron if Gemini was not available or didn't succeed
+  // 1. Polish via NVIDIA NIM
   if (apiKey && !aiProcessed) {
     try {
       const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {

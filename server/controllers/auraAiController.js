@@ -1354,27 +1354,6 @@ SAFETY:
       }
     }
 
-    // 2. Fallback to Gemini if NVIDIA NIM was not available
-    if (geminiClient && !aiInterpretation) {
-      for (const gModel of GEMINI_TEXT_MODELS) {
-        if (aiInterpretation) break;
-        try {
-          const geminiRes = await geminiClient.models.generateContent({
-            model: gModel,
-            contents: [{ role: 'user', parts: [{ text: astroPrompt }] }],
-            config: {
-              systemInstruction: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide a deeply detailed, complete Vedic Kundali reading in warm Hindi explaining what problems are happening, why, since when, how, and when they will resolve.",
-              temperature: 0.35,
-              maxOutputTokens: 4096
-            }
-          });
-          aiInterpretation = geminiRes.text || "";
-        } catch (gErr) {
-          console.warn(`[Kundali Endpoint] Gemini notice (${gModel}):`, gErr?.message || gErr);
-        }
-      }
-    }
-
     if (!aiInterpretation.trim() || aiInterpretation.trim().length < 400) {
       aiInterpretation = kundaliData.astronomicalKundali.panditJiDiagnosis?.fullPanditJiReportMarkdown || aiInterpretation;
     }
@@ -1401,16 +1380,17 @@ SAFETY:
  * the customer bot answers meaningfully, intelligently, and contextually
  * instead of looping the initial default greeting!
  */
-export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], matchedCoupons = [], effectiveMode = "standard", calculatedKundaliData = null) {
-  const lower = String(message || "").toLowerCase().trim();
+export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], matchedCoupons = [], effectiveMode = "standard", calculatedKundaliData = null, allStoreProds = []) {
+  const cleanUserMsg = String(message || "").trim();
+  const lower = cleanUserMsg.toLowerCase();
 
   // If in Panditji mode and Kundali data exists:
   if (effectiveMode === "panditji" && calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
-    const astroIntent = determineAstrologicalIntent(message || "");
+    const astroIntent = determineAstrologicalIntent(cleanUserMsg || "");
     const isExplicitFullKundaliDump = (
       astroIntent.type === "full_kundali" &&
-      /(puri|poori|full|sampurna|sab kuch|पूरी|संपूर्ण|विस्तृत|फुल)/i.test(message || "") &&
-      !/(nokri|naukri|naukari|job|career|business|vyapar|shadi|shaadi|vivah|marriage|paisa|paise|dhan|karz|karza|health|bimari|swasthya)/i.test(message || "")
+      /(puri|poori|full|sampurna|sab kuch|पूरी|संपूर्ण|विस्तृत|फुल)/i.test(cleanUserMsg || "") &&
+      !/(nokri|naukri|naukari|job|career|business|vyapar|shadi|shaadi|vivah|marriage|paisa|paise|dhan|karz|karza|health|bimari|swasthya)/i.test(cleanUserMsg || "")
     );
 
     // If devotee specifically asks for full Kundali breakdown:
@@ -1419,7 +1399,7 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
     }
 
     // For specific topic questions (nokri/job, marriage, finance, health, etc.) or follow-ups:
-    const topicAnswer = generateKundaliTopicDiagnosis(calculatedKundaliData, astroIntent, message);
+    const topicAnswer = generateKundaliTopicDiagnosis(calculatedKundaliData, astroIntent, cleanUserMsg);
     if (topicAnswer) {
       return topicAnswer;
     }
@@ -1434,8 +1414,22 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
     return `🙏 **प्रणाम ${calculatedKundaliData.verifiedBirthData.name || 'भक्त'}! हर हर महादेव।**\n\nआपकी जन्म पत्रिका के प्रामाणिक वैदिक विंशोत्तरी दशा चक्र के अनुसार:\n- **वर्तमान महादशा:** **${currentMaha}**\n- **सक्रिय अंतर्दशा:** **${currentAntar}**\n- **जन्म लग्न:** ${calculatedKundaliData.astronomicalKundali.lagna.rashiHindi} (स्वामी: ${calculatedKundaliData.astronomicalKundali.lagna.lord})\n- **जन्म राशि:** ${calculatedKundaliData.astronomicalKundali.chandraRashi.rashiHindi} (स्वामी: ${calculatedKundaliData.astronomicalKundali.chandraRashi.lord})\n\n**कल्याणकारी उपाय व सिद्ध रुद्राक्ष:**\nवर्तमान ${currentMaha} के प्रभाव को अनुकूल बनाने एवं आत्मबल, शांति व समृद्धि हेतु **${recMukhi}** धारण करना आपके लिए परम कल्याणकारी रहेगा।\n\n[AURA_KEYWORDS]: महादशा उपाय | ${recMukhi} | जन्म कुंडली विश्लेषण | विंशोत्तरी दशा`;
   }
 
-  // 1. Specific Mukhi inquiries (1 to 21 Mukhi)
-  const mukhiMatch = lower.match(/(\d{1,2})\s*mukhi/i);
+  // Helper to find real products from catalog or matched products
+  const pool = (allStoreProds && allStoreProds.length > 0) ? allStoreProds : matchedProducts;
+  const findInCatalog = (regex) => pool.find(p => regex.test(p.name || "") || regex.test(p.slug || "") || regex.test(p.category || ""));
+
+  // 1. Spatika / Sphatik Mala / Crystal Mala
+  if (/sphatik|spatika|crystal|sphatika|स्फटिक/i.test(lower)) {
+    const sphatikProd = findInCatalog(/sphatik|spatika|crystal/i) || matchedProducts[0];
+    const pName = sphatikProd?.name || "Spatika Mala with Knot 108 beads";
+    const pPrice = sphatikProd?.price ? `₹${Number(sphatikProd.price).toLocaleString("en-IN")}` : "₹1,599";
+    const pSlug = sphatikProd?.slug || "spatika-mala-with-knot-108-beads";
+
+    return `🙏 **हर हर महादेव! शुद्ध स्फटिक माला (Natural Quartz Crystal Mala):**\n\n• ❄️ **प्रकृति व ऊर्जा:** स्फटिक साक्षात शुक्र ग्रह व चंद्र देव का शीतलता प्रदान करने वाला पवित्र रत्न है।\n• 📿 **उपयोग व लाभ:**\n  - दैनिक मंत्र जाप (विशेषकर माँ लक्ष्मी, सरस्वती व महामृत्युंजय मंत्र)।\n  - शरीर के तापमान व रक्तचाप का संतुलन, अत्यधिक क्रोध व मानसिक तनाव से मुक्ति।\n  - शरीर के चक्रों (Chakras) को संतुलित कर सकारात्मक ऊर्जा का संचार।\n• 💎 **स्टोर उत्पाद:** [${pName}](/product/${pSlug}) — ${pPrice}\n• 🎁 **विशेष लाभ:** 100% प्राकृतिक क्रिस्टल बीड्स, मजबूत गांठदार धागा, और निःशुल्क वैदिक प्राण-प्रतिष्ठा।\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** लगाकर 10% की अतिरिक्त बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: स्फटिक माला | Spatika Mala 108 beads | मानसिक शांति रत्न | आज का डिस्काउंट`;
+  }
+
+  // 2. Specific Mukhi inquiries (1 to 21 Mukhi)
+  const mukhiMatch = lower.match(/(\d{1,2})\s*mukhi/i) || lower.match(/(\d{1,2})\s*मुखी/i);
   if (mukhiMatch) {
     const num = mukhiMatch[1];
     const mukhiInfo = {
@@ -1455,61 +1449,68 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
       "14": { deity: "देव मणि (महादेव व हनुमान जी)", planet: "शनि (Saturn)", benefit: "आज्ञा चक्र जाग्रति, भविष्य दृष्टि व परम सुरक्षा", mantra: "ॐ नमः" }
     };
     const info = mukhiInfo[num] || { deity: "भगवान शिव", planet: "सर्व ग्रह", benefit: "आरोग्य, सुख-शांति व सुरक्षा", mantra: "ॐ नमः शिवाय" };
-    const matched = matchedProducts.find(p => String(p.mukhi).includes(num) || (p.name && p.name.includes(`${num} Mukhi`))) || matchedProducts[0];
-    const priceText = matched ? ` (₹${Number(matched.price).toLocaleString("en-IN")})` : "";
+    const matched = pool.find(p => String(p.mukhi || "").includes(num) || (p.name && new RegExp(`${num}\\s*mukhi`, "i").test(p.name))) || matchedProducts[0];
+    const priceText = matched?.price ? ` — ₹${Number(matched.price).toLocaleString("en-IN")}` : "";
+    const pSlug = matched?.slug || (matched?.id ? `product/${matched.id}` : "");
 
-    return `🙏 **हर हर महादेव! ${num} मुखी रुद्राक्ष का प्रामाणिक वैदिक विश्लेषण:**\n\n• 🔱 **अधिष्ठाता देवता:** ${info.deity}\n• 🪐 **शासक ग्रह:** ${info.planet}\n• 🌿 **मुख्य फल व लाभ:** ${info.benefit}\n• 📿 **दैनिक सिद्ध बीज मंत्र:** ${info.mantra} (108 बार जाप)\n\nऑरा रुद्राक्ष पर उपलब्ध सभी ${num} मुखी रुद्राक्ष 100% शुद्ध नेपाली हैं, जो काशी-हरिद्वार में वैदिक प्राण-प्रतिष्ठित और सरकारी मान्यता प्राप्त लैब (X-Ray व घनत्व परीक्षण) द्वारा प्रमाणित हैं${matched ? `।\n\n👇 **स्टोर में देखें:** [${matched.name}]${priceText}` : ""}।\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** (10% OFF) का उपयोग करें!\n\n[AURA_KEYWORDS]: ${num} मुखी रुद्राक्ष लाभ | ${num} मुखी धारण विधि | लैब टेस्टेड नेपाली रुद्राक्ष | आज का डिस्काउंट`;
+    return `🙏 **हर हर महादेव! ${num} मुखी रुद्राक्ष का प्रामाणिक वैदिक विश्लेषण:**\n\n• 🔱 **अधिष्ठाता देवता:** ${info.deity}\n• 🪐 **शासक ग्रह:** ${info.planet}\n• 🌿 **मुख्य फल व लाभ:** ${info.benefit}\n• 📿 **दैनिक सिद्ध बीज मंत्र:** ${info.mantra} (108 बार जाप)\n\nऑरा रुद्राक्ष पर उपलब्ध सभी ${num} मुखी रुद्राक्ष 100% शुद्ध नेपाली हैं, जो काशी-हरिद्वार में वैदिक प्राण-प्रतिष्ठित और सरकारी मान्यता प्राप्त लैब (X-Ray व घनत्व परीक्षण) द्वारा प्रमाणित हैं${matched ? `।\n\n👇 **स्टोर में देखें:** [${matched.name}](/${pSlug})${priceText}` : ""}।\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** (10% OFF) का उपयोग करें!\n\n[AURA_KEYWORDS]: ${num} मुखी रुद्राक्ष लाभ | ${num} मुखी धारण विधि | लैब टेस्टेड नेपाली रुद्राक्ष | आज का डिस्काउंट`;
   }
 
-  // 2. Gauri Shankar Rudraksha
-  if (/gauri|shankar|marriage|vivah|patni|pati|relationship|love/i.test(lower)) {
-    const matched = matchedProducts.find(p => /gauri/i.test(p.name)) || matchedProducts[0];
-    return `🙏 **हर हर महादेव! गौरी शंकर रुद्राक्ष (Gauri Shankar Rudraksha):**\n\nगौरी शंकर रुद्राक्ष साक्षात भगवान शिव और माता पार्वती का एकाकार स्वरूप है।\n• 🔱 **देवता:** शिव-पार्वती (सदाशिव व आदिशक्ति)\n• 🌙 **ग्रह:** चंद्र देव (मानसिक व भावनात्मक संतुलन)\n• ✨ **मुख्य लाभ:** दांपत्य जीवन में प्रेम व सामंजस्य, शीघ्र विवाह योग, पारिवारिक कलह का निवारण और सुख-शांति।\n• 📿 **बीज मंत्र:** ॐ गौरीशंकराय नमः\n\n${matched ? `👇 **स्टोर से ऑर्डर करें:** [${matched.name}] (₹${Number(matched.price).toLocaleString("en-IN")})` : "हमारे पास 100% प्राकृतिक जुड़ा हुआ नेपाली गौरी शंकर रुद्राक्ष उपलब्ध है।"}\n\n[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | विवाह योग | दांपत्य सुख | शिव पार्वती आशीर्वाद`;
+  // 3. Gauri Shankar Rudraksha
+  if (/\bgauri[-\s]*shankar\b|\bgauri\b|marriage|vivah|patni|pati|relationship|love|गौरी/i.test(lower)) {
+    const matched = findInCatalog(/gauri/i) || matchedProducts[0];
+    const pPrice = matched?.price ? `₹${Number(matched.price).toLocaleString("en-IN")}` : "₹2,999";
+    const pSlug = matched?.slug || "gauri-shankar-rudraksha";
+    return `🙏 **हर हर महादेव! गौरी शंकर रुद्राक्ष (Gauri Shankar Rudraksha):**\n\nगौरी शंकर रुद्राक्ष साक्षात भगवान शिव और माता पार्वती का एकाकार स्वरूप है।\n• 🔱 **देवता:** शिव-पार्वती (सदाशिव व आदिशक्ति)\n• 🌙 **ग्रह:** चंद्र देव (मानसिक व भावनात्मक संतुलन)\n• ✨ **मुख्य लाभ:** दांपत्य जीवन में प्रेम व सामंजस्य, शीघ्र विवाह योग, पारिवारिक कलह का निवारण और सुख-शांति।\n• 📿 **बीज मंत्र:** ॐ गौरीशंकराय नमः\n\n${matched ? `👇 **स्टोर से ऑर्डर करें:** [${matched.name}](/product/${pSlug}) (${pPrice})` : "हमारे पास 100% प्राकृतिक जुड़ा हुआ नेपाली गौरी शंकर रुद्राक्ष उपलब्ध है।"}\n\n[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | विवाह योग | दांपत्य सुख | शिव पार्वती आशीर्वाद`;
   }
 
-  // 3. Jaap Mala / 108+1 Beads
-  if (/mala|jaap|japa|string|kantha|108/i.test(lower)) {
-    return `🙏 **हर हर महादेव! 108+1 मनकों की सिद्ध रुद्राक्ष जप माला:**\n\n• 📿 **108+1 का रहस्य:** 108 मनके ब्रह्मांड के 27 नक्षत्रों के 4 चरणों (27 × 4 = 108) का प्रतिनिधित्व करते हैं, और 1 अतिरिक्त मनका 'सुमेरु' (ब्रह्म का प्रतीक) होता है।\n• 🔱 **नियम:** जप करते समय सुमेरु को कभी लांघा नहीं जाता, वहीं से माला पलट ली जाती है।\n• ✨ **लाभ:** रक्तचाप नियंत्रण, घबराहट व अनिद्रा से मुक्ति, और महामृत्युंजय या शिव पंचाक्षरी मंत्र जप के लिए सर्वश्रेष्ठ।\n\nहमारे सभी जप मालाएं प्राकृतिक 5 मुखी नेपाली व इंडोनेशियाई दानों से निर्मित एवं प्राण-प्रतिष्ठित हैं।\n\n[AURA_KEYWORDS]: 108 रुद्राक्ष माला | जप विधि | सुमेरु का नियम | मंत्र साधना`;
+  // 4. Jaap Mala / 108+1 Beads / Kantha
+  if (/mala|jaap|japa|string|kantha|108|माला|जाप/i.test(lower)) {
+    const malaProd = findInCatalog(/mala|108/i) || matchedProducts[0];
+    const pName = malaProd?.name || "108+1 Sacred Jaap Mala";
+    const pPrice = malaProd?.price ? `₹${Number(malaProd.price).toLocaleString("en-IN")}` : "₹1,299";
+    const pSlug = malaProd?.slug || "108-rudraksha-jaap-mala";
+    return `🙏 **हर हर महादेव! 108+1 मनकों की सिद्ध रुद्राक्ष जप माला:**\n\n• 📿 **108+1 का रहस्य:** 108 मनके ब्रह्मांड के 27 नक्षत्रों के 4 चरणों (27 × 4 = 108) का प्रतिनिधित्व करते हैं, और 1 अतिरिक्त मनका 'सुमेरु' (ब्रह्म का प्रतीक) होता है।\n• 🔱 **नियम:** जप करते समय सुमेरु को कभी लांघा नहीं जाता, वहीं से माला पलट ली जाती है।\n• ✨ **लाभ:** रक्तचाप नियंत्रण, घबराहट व अनिद्रा से मुक्ति, और महामृत्युंजय या शिव पंचाक्षरी मंत्र जप के लिए सर्वश्रेष्ठ।\n\n👇 **स्टोर में उपलब्ध:** [${pName}](/product/${pSlug}) — ${pPrice}\n\n[AURA_KEYWORDS]: 108 रुद्राक्ष माला | जप विधि | सुमेरु का नियम | मंत्र साधना`;
   }
 
-  // 4. Order tracking & Delivery
-  if (/track|order|delivery|dispatch|kab aayega|ship/i.test(lower)) {
+  // 5. Order tracking & Delivery
+  if (/track|order|delivery|dispatch|kab aayega|ship|कहाँ है|ऑर्डर|डिलीवरी/i.test(lower)) {
     return `📦 **ऑरा रुद्राक्ष ऑर्डर ट्रैकिंग व डिलीवरी जानकारी:**\n\n• 🚚 **डिलीवरी समय:** भारत भर में 2 से 4 कार्य दिवसों (Express Air Courier - BlueDart / DTDC / Delhivery) में सुरक्षित डिलीवरी।\n• 📲 **लाइव ट्रैकिंग:** आप अपना फोन नंबर या 6-अंकों का Order ID डालकर सीधे ट्रैक कर सकते हैं:\n👉 **[Track Your Order Here](/track-order)**\n• 🎁 **सुरक्षित पैकेजिंग:** हर पार्सल में प्राण-प्रतिष्ठित रुद्राक्ष, गंगाजल, रक्षा सूत्र, और ओरिजिनल लैब सर्टिफिकेट सीलबंद आता है।\n\n[AURA_KEYWORDS]: ऑर्डर ट्रैकिंग | एक्सप्रेस डिलीवरी | डिलीवरी स्थिति | ग्राहक सहायता`;
   }
 
-  // 5. Authenticity, Certificate, Lab Test
-  if (/fake|asli|nakli|original|certif|lab|test|x-ray|authenti/i.test(lower)) {
+  // 6. Authenticity, Certificate, Lab Test
+  if (/fake|asli|nakli|original|certif|lab|test|x-ray|authenti|असली|नकली|प्रमाणित|सर्टिफिकेट/i.test(lower)) {
     return `🛡️ **100% प्रामाणिक नेपाली रुद्राक्ष गारंटी (Zero Compromise):**\n\nऑरा रुद्राक्ष पर कोई भी काल्पनिक या नकली मनका नहीं बेचा जाता:\n1. 🔬 **व्यक्तिगत X-Ray जांच:** हर मनके के अंदर के प्राकृतिक कक्ष (Internal Seeds & Compartments) का एक्स-रे किया जाता है।\n2. 📜 **सरकारी मान्यता प्राप्त लैब सर्टिफिकेट:** प्रत्येक रुद्राक्ष के साथ एक यूनिक QR-कोडेड लैब सर्टिफिकेट मिलता है।\n3. 🔍 **ऑनलाइन वेरिफिकेशन:** आप वेबसाइट पर सर्टिफिकेट नंबर डालकर तुरंत रिपोर्ट देख सकते हैं:\n👉 **[Verify Certificate Online](/verify-certificate)**\n4. 💧 **प्राकृतिक घनत्व:** 100% भारी, कठोर व काष्ठयुक्त नेपाली दाने जो जीवन भर सुरक्षित रहते हैं।\n\n[AURA_KEYWORDS]: 100% असली रुद्राक्ष | लैब सर्टिफिकेट जांच | X-Ray रिपोर्ट | नेपाल रुद्राक्ष पहचान`;
   }
 
-  // 6. Discount & Coupons
-  if (/coupon|discount|offer|code|chhoot|kam karo/i.test(lower)) {
+  // 7. Discount & Coupons
+  if (/coupon|discount|offer|code|chhoot|kam karo|कूपन|छूट|ऑफर/i.test(lower)) {
     return `🎁 **आज के विशेष ऑरा रुद्राक्ष डिस्काउंट कूपन:**\n\n1. 🌟 **SHIVOHAM10** — फ्लैट 10% की अतिरिक्त छूट (सभी रुद्राक्ष व माला पर लागू)।\n2. 🔱 **MAHASHIVRATRI** — फ्लैट 15% की भव्य छूट (₹1,999 से अधिक के ऑर्डर्स पर)।\n3. 🚚 **मुफ्त डिलीवरी (Free Shipping):** ₹999 से अधिक के सभी प्रीपेड ऑर्डर्स पर संपूर्ण भारत में निशुल्क डिलीवरी!\n\nCheck out के समय 'Apply Coupon' में कोड दर्ज करें और तुरंत बचत प्राप्त करें!`;
   }
 
-  // 7. Price / Cost Queries
-  if (/price|cost|rate|kitne|kimat|keemat|paisa|rupaye|kharch/i.test(lower)) {
-    const listProds = matchedProducts.length > 0 ? matchedProducts : [];
-    return `💰 **ऑरा रुद्राक्ष मूल्य व प्रामाणिक रेट सूची:**\n\n${listProds.length > 0 ? listProds.slice(0, 4).map(p => `• **${p.name}** — ₹${Number(p.price).toLocaleString("en-IN")}${p.comparePrice ? ` (MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})` : ""}`).join("\n") : "• 1 मुखी से 14 मुखी सिद्ध नेपाली रुद्राक्ष ₹999 से आरंभ होते हैं।"}\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** लगाकर तुरंत 10% की अतिरिक्त बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत | ओरिजिनल रेट | आज का डिस्काउंट | लैब सर्टिफाइड रुद्राक्ष`;
+  // 8. Price / Cost Queries
+  if (/price|cost|rate|kitne|kimat|keemat|paisa|rupaye|kharch|मूल्य|कीमत|दाम|कितने/i.test(lower)) {
+    const listProds = (matchedProducts && matchedProducts.length > 0) ? matchedProducts : pool.slice(0, 4);
+    return `💰 **ऑरा रुद्राक्ष मूल्य व प्रामाणिक रेट सूची:**\n\n${listProds.length > 0 ? listProds.slice(0, 4).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}${p.comparePrice ? ` (MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})` : ""}`).join("\n") : "• 1 मुखी से 14 मुखी सिद्ध नेपाली रुद्राक्ष ₹999 से आरंभ होते हैं।"}\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** लगाकर तुरंत 10% की अतिरिक्त बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत | ओरिजिनल रेट | आज का डिस्काउंट | लैब सर्टिफाइड रुद्राक्ष`;
   }
 
-  // 8. Career, Job, Money, Wealth
-  if (/career|job|naukri|business|vyapar/i.test(lower)) {
+  // 9. Career, Job, Money, Wealth
+  if (/career|job|naukri|business|vyapar|dhan|money|paisa|नौकरी|व्यापार|कैरियर|धन/i.test(lower)) {
     return `💼 **करियर, व्यापार व धन वृद्धि हेतु सर्वश्रेष्ठ रुद्राक्ष:**\n\n1. 🪙 **7 मुखी रुद्राक्ष (माता महालक्ष्मी):** आर्थिक तंगी दूर करने, स्थिर धन प्राप्ति और कर्ज से मुक्ति के लिए सर्वश्रेष्ठ।\n2. 🌟 **10 मुखी रुद्राक्ष (भगवान विष्णु):** कार्यक्षेत्र में षड्यंत्रों से रक्षा व सभी 9 ग्रहों की अनुकूलता।\n3. 👑 **14 मुखी रुद्राक्ष (देव मणि):** उच्च पद, लीडरशिप, सही निर्णय क्षमता और शेयर मार्केट/व्यापार में सफलता।\n\nविशेष छूट के लिए **SHIVOHAM10** कूपन कोड का उपयोग करें!\n\n[AURA_KEYWORDS]: 7 मुखी धन रुद्राक्ष | व्यापार वृद्धि उपाय | महालक्ष्मी रुद्राक्ष | करियर में सफलता`;
   }
 
-  // 9. Returns, Refunds, Customer Support
-  if (/return|refund|exchange|cancel|support|contact|helpline|phone/i.test(lower)) {
+  // 10. Returns, Refunds, Customer Support
+  if (/return|refund|exchange|cancel|support|contact|helpline|phone|सपोर्ट|संपर्क|फोन/i.test(lower)) {
     return `🤝 **ऑरा रुद्राक्ष ग्राहक सेवा व 7-दिवसीय रिटर्न पॉलिसी:**\n\n• 🔄 **7 Days Easy Replacement:** यदि पार्सल में कोई भी समस्या आती है तो 7 दिनों के भीतर बिना किसी झंझट के रिप्लेसमेंट उपलब्ध है।\n• 📞 **व्हाट्सएप व कॉल हेल्पलाइन:** +91 9672996531 (सोम-शनि, 10 AM - 7 PM)\n• 📧 **ईमेल सहायता:** aurarudrakshaofficial@gmail.com\n\nहम 100% संतुष्टि और प्रामाणिकता की गारंटी देते हैं!`;
   }
 
-  // 10. General Products Match fallback
+  // 11. General Products Match fallback
   if (matchedProducts.length > 0) {
-    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **${p.name}** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध • वैदिक अभिमंत्रित • सुरक्षित डिलीवरी)*`).join("\n\n")}\n\nआप किसी भी आइटम पर क्लिक करके उसका संपूर्ण विवरण देख सकते हैं या कूपन **SHIVOHAM10** लगाकर 10% छूट प्राप्त कर सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | स्टोर चयन | आज के ऑफर्स | प्रामाणिक ऑरा रुद्राक्ष`;
+    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध • वैदिक अभिमंत्रित • सुरक्षित डिलीवरी)*`).join("\n\n")}\n\nआप किसी भी आइटम पर क्लिक करके उसका संपूर्ण विवरण देख सकते हैं या कूपन **SHIVOHAM10** लगाकर 10% छूट प्राप्त कर सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | स्टोर चयन | आज के ऑफर्स | प्रामाणिक ऑरा रुद्राक्ष`;
   }
 
-  // 11. Greeting & Default tailored reply
-  if (/^(hi|hello|hey|namaste|pranam|ram|radhe|har|shambhu)/i.test(lower)) {
+  // 12. Greeting & Default tailored reply
+  if (/^(hi|hello|hey|namaste|pranam|ram|radhe|har|shambhu|नमस्ते|प्रणाम|हर हर महादेव)/i.test(lower)) {
     return `🙏 **हर हर महादेव! नमस्ते! Main Aura AI hoon.**\n\nMain Aura Rudraksha ka 24/7 shopping assistant hoon. Main aapki in vishayon mein turant madad kar sakta hoon:\n• 📿 **1 se 21 Mukhi Nepali Rudraksha** aur unke labh\n• 🌸 **108+1 Jaap Mala, Sphatik aur Bracelets**\n• 🎁 **Active Discount Coupons** (Use: **SHIVOHAM10** for 10% OFF)\n• 🚚 **Order Status aur Live Tracking** (/track-order)\n\nAapko kis product ya jaankari ki aavashyakta hai?`;
   }
 
@@ -2092,16 +2093,8 @@ LINK FORMAT RULES:
       }
     }
 
-    // 6. Perform Google Search Grounding if query requires live research
+    // 6. Web research context placeholder (NVIDIA NIM handles knowledge directly)
     let webResearchResult = null;
-    if (message && shouldPerformWebResearch(message)) {
-      try {
-        const geminiKey = await resolveGeminiKey();
-        webResearchResult = await performGoogleSearchGrounding(message, geminiKey);
-      } catch (gErr) {
-        console.warn("[Aura AI] Research grounding notice:", gErr?.message);
-      }
-    }
 
     const astroIntent = determineAstrologicalIntent(message || "");
 
@@ -2478,164 +2471,66 @@ ${memoryContextText || "Guest shopper."}`;
       // Prune initial context messages if token count is near ~4000-5000 words limit
       const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 4000);
 
-      // 1. Primary Streaming Execution: Exclusively NVIDIA NIM nemotron-3-super-120b-a12b with Multi-turn Automatic Continuation (up to 10 passes)
+      // Fast streaming timeout (2.5 seconds max wait for first token to prevent any UI freeze)
+      const STREAM_INIT_TIMEOUT_MS = 2500;
+
+      // 1. Primary Streaming Execution: NVIDIA NIM nemotron-3-super-120b-a12b
       if (nvidiaClient && !clientDisconnected) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
           
-          let attempt = 0;
-          const MAX_CANDIDATE_ATTEMPTS = 2;
+          try {
+            const streamPromise = nvidiaClient.chat.completions.create(
+              {
+                model: modelCandidate,
+                messages: prunedNimMessages,
+                temperature: 0.35,
+                max_tokens: 4096,
+                stream: true
+              },
+              { signal: abortController.signal }
+            );
 
-          while (attempt < MAX_CANDIDATE_ATTEMPTS && !streamSucceeded && !clientDisconnected) {
-            attempt++;
-            try {
-              const streamCompletion = await nvidiaClient.chat.completions.create(
-                {
-                  model: modelCandidate,
-                  messages: prunedNimMessages,
-                  temperature: 0.35,
-                  max_tokens: 4096,
-                  stream: true
-                },
-                { signal: abortController.signal }
-              );
+            // Timeout race for first response connection
+            const streamCompletion = await Promise.race([
+              streamPromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error("NIM_STREAM_TIMEOUT")), STREAM_INIT_TIMEOUT_MS))
+            ]);
 
-              let lastFinishReason = "";
-              for await (const chunk of streamCompletion) {
-                if (clientDisconnected) break;
-                const deltaContent = chunk.choices?.[0]?.delta?.content || "";
-                const fReason = chunk.choices?.[0]?.finish_reason;
-                if (fReason) lastFinishReason = fReason;
-                if (deltaContent) {
-                  fullStreamedText += deltaContent;
-                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
-                  res.flush?.();
-                }
-              }
+            let lastFinishReason = "";
+            let receivedAnyChunk = false;
 
-              // Automatic Multi-Turn Continuation (up to 10 passes) if response hit token limits or was truncated
-              let passCount = 0;
-              const MAX_CONTINUATION_PASSES = 10;
-              while (!clientDisconnected && passCount < MAX_CONTINUATION_PASSES && isTextIncomplete(fullStreamedText, lastFinishReason, effectiveMode)) {
-                passCount++;
-                try {
-                  const continuationPrompt = effectiveMode === "panditji"
-                    ? "कृपया अपना वैदिक ज्योतिषीय विश्लेषण और मार्गदर्शन ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों, शीर्षकों या अभिवादन को दोबारा न दोहराएँ। शेष विश्लेषण, उपाय, मंत्र, सरल सारांश तालिका और अंत में [AURA_KEYWORDS] को शुद्ध एवं स्पष्ट देवनागरी हिंदी में पूर्ण करें।"
-                    : "कृपया अपना उत्तर ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों या अभिवादन को न दोहराएँ और शुद्ध हिंदी में उत्तर को पूर्ण करें।";
-
-                  // Limit assistant context tail to last 1200 words to ensure total input stays within token budget (~4000-5000 words)
-                  const wordsArr = fullStreamedText.trim().split(/\s+/);
-                  const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : fullStreamedText;
-
-                  const rawContinuationMsgs = [
-                    prunedNimMessages[0], // system prompt
-                    { role: "assistant", content: assistantTail },
-                    { role: "user", content: continuationPrompt }
-                  ];
-
-                  const continuationMessages = pruneMessagesForTokenLimit(rawContinuationMsgs, 4000);
-
-                  const continuationStream = await nvidiaClient.chat.completions.create(
-                    {
-                      model: modelCandidate,
-                      messages: continuationMessages,
-                      temperature: 0.35,
-                      max_tokens: 4096,
-                      stream: true
-                    },
-                    { signal: abortController.signal }
-                  );
-
-                  let thisPassText = "";
-                  lastFinishReason = "";
-                  for await (const chunk of continuationStream) {
-                    if (clientDisconnected) break;
-                    const deltaContent = chunk.choices?.[0]?.delta?.content || "";
-                    const fReason = chunk.choices?.[0]?.finish_reason;
-                    if (fReason) lastFinishReason = fReason;
-                    if (deltaContent) {
-                      thisPassText += deltaContent;
-                      res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
-                      res.flush?.();
-                    }
-                  }
-
-                  if (thisPassText.trim()) {
-                    fullStreamedText = mergeContinuation(fullStreamedText, thisPassText);
-                  } else {
-                    break;
-                  }
-                } catch (cErr) {
-                  console.warn(`[Aura AI Streaming Continuation] Pass ${passCount} notice:`, cErr?.message || cErr);
-                  break;
-                }
-              }
-
-              if (fullStreamedText.trim()) {
-                streamSucceeded = true;
-                break;
-              }
-            } catch (streamErr) {
-              if (streamErr.name === "AbortError" || clientDisconnected) {
-                clearInterval(heartbeatTimer);
-                return;
-              }
-              console.warn(`[Aura AI Streaming] NVIDIA NIM notice (${modelCandidate}, attempt ${attempt}):`, streamErr?.message || streamErr);
-              const isAuthErr = streamErr?.status === 401 || streamErr?.status === 403 || streamErr?.status === 404 || String(streamErr?.message).includes("API key");
-              if (isAuthErr) {
-                break; // Break out immediately to Gemini fallback
-              }
-              if (!fullStreamedText.trim() && attempt < MAX_CANDIDATE_ATTEMPTS) {
-                await new Promise((r) => setTimeout(r, 200 * attempt));
+            for await (const chunk of streamCompletion) {
+              if (clientDisconnected) break;
+              const deltaContent = chunk.choices?.[0]?.delta?.content || "";
+              const fReason = chunk.choices?.[0]?.finish_reason;
+              if (fReason) lastFinishReason = fReason;
+              if (deltaContent) {
+                receivedAnyChunk = true;
+                fullStreamedText += deltaContent;
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+                res.flush?.();
               }
             }
-          }
-          if (streamSucceeded) break;
-        }
-      }
 
-      // 2. Secondary Streaming Engine: Google Gemini if NVIDIA NIM was unavailable or did not produce output
-      if (!streamSucceeded && !clientDisconnected) {
-        await resolveGeminiKey();
-        const geminiClient = getGeminiClient();
-        if (geminiClient) {
-          const geminiContents = convertNimMessagesToGemini(prunedNimMessages);
-          for (const gModel of GEMINI_TEXT_MODELS) {
-            if (streamSucceeded || clientDisconnected) break;
-            try {
-              const streamRes = await geminiClient.models.generateContentStream({
-                model: gModel,
-                contents: geminiContents,
-                config: {
-                  systemInstruction: effectiveSystemPrompt,
-                  temperature: 0.35,
-                }
-              });
-
-              for await (const chunk of streamRes) {
-                if (clientDisconnected) break;
-                const textChunk = chunk.text || "";
-                if (textChunk) {
-                  fullStreamedText += textChunk;
-                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: textChunk })}\n\n`);
-                  res.flush?.();
-                }
-              }
-
-              if (fullStreamedText.trim()) {
-                streamSucceeded = true;
-                break;
-              }
-            } catch (gErr) {
-              console.warn(`[Aura AI Streaming] Gemini notice (${gModel}):`, gErr?.message || gErr);
+            if (receivedAnyChunk && fullStreamedText.trim()) {
+              streamSucceeded = true;
+              break;
             }
+          } catch (streamErr) {
+            if (streamErr.name === "AbortError" || clientDisconnected) {
+              clearInterval(heartbeatTimer);
+              return;
+            }
+            console.warn(`[Aura AI Streaming] NVIDIA NIM notice (${modelCandidate}):`, streamErr?.message || streamErr);
+            break; // Failover fast to Gemini or smart fallback
           }
         }
       }
 
       clearInterval(heartbeatTimer);
 
-      // If streaming could not produce output, generate fallback
+      // If streaming could not produce output, generate and stream instant smart customer fallback
       if (!streamSucceeded && !clientDisconnected) {
         let fallbackText = "";
         if (effectiveMode === "panditji") {
@@ -2658,12 +2553,21 @@ ${memoryContextText || "Guest shopper."}`;
             fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nमैं AI पंडित जी हूँ — Aura Rudraksha का प्रामाणिक वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।\n\nआप अपनी जन्म कुंडली विश्लेषण, वर्तमान महादशा, साढ़े साती, मांगलिक विचार या राशि अनुसार कल्याणकारी रुद्राक्ष के विषय में पूछ सकते हैं। आज मैं आपकी क्या सेवा करूँ?`;
           }
         } else {
-          fallbackText = generateSmartCustomerFallbackResponse(message, matchedProducts, matchedCoupons, effectiveMode, calculatedKundaliData);
+          fallbackText = generateSmartCustomerFallbackResponse(message, matchedProducts, matchedCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
         }
 
         fullStreamedText = fallbackText;
-        res.write(`data: ${JSON.stringify({ type: "chunk", delta: fallbackText })}\n\n`);
-        res.flush?.();
+        // Stream in natural word chunks with slight pause so customer sees immediate typing
+        const tokens = fallbackText.split(/(\s+)/);
+        for (let i = 0; i < tokens.length; i += 3) {
+          if (clientDisconnected) break;
+          const chunkStr = tokens.slice(i, i + 3).join("");
+          if (chunkStr) {
+            res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+            res.flush?.();
+            await new Promise((r) => setTimeout(r, 16));
+          }
+        }
       }
 
       const safeFinalStreamedText = cleanServerAiText(stripInternalJsonFromCustomerText(fullStreamedText));
@@ -2751,58 +2655,25 @@ ${memoryContextText || "Guest shopper."}`;
 
     // 1. Prioritize NVIDIA NIM models strictly
     const nonStreamNvidiaClient = getNvidiaClient();
+    const NON_STREAM_TIMEOUT_MS = 2500;
+
     if (nonStreamNvidiaClient) {
       for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
         if (generatedSuccessfully) break;
         try {
-          const completion = await nonStreamNvidiaClient.chat.completions.create({
+          const compPromise = nonStreamNvidiaClient.chat.completions.create({
             model: modelCandidate,
             messages: nonStreamPrunedMsgs,
             temperature: 0.35,
             max_tokens: 4096
           });
 
+          const completion = await Promise.race([
+            compPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("NIM_NONSTREAM_TIMEOUT")), NON_STREAM_TIMEOUT_MS))
+          ]);
+
           let outContent = completion.choices?.[0]?.message?.content || "";
-          let finishReason = completion.choices?.[0]?.finish_reason || "";
-
-          // Automatic Multi-Turn Continuation (up to 10 passes) if truncated
-          let nonStreamPass = 0;
-          const MAX_NONSTREAM_PASSES = 10;
-          while (nonStreamPass < MAX_NONSTREAM_PASSES && isTextIncomplete(outContent, finishReason, effectiveMode)) {
-            nonStreamPass++;
-            try {
-              const contPrompt = effectiveMode === "panditji"
-                ? "कृपया अपना वैदिक ज्योतिषीय विश्लेषण और मार्गदर्शन ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों, शीर्षकों या अभिवादन को दोबारा न दोहराएँ। शेष विश्लेषण, उपाय, मंत्र, सरल सारांश तालिका और अंत में [AURA_KEYWORDS] को शुद्ध एवं स्पष्ट देवनागरी हिंदी में पूर्ण करें।"
-                : "कृपया अपना उत्तर ठीक वहीं से आगे जारी रखें जहाँ आपने छोड़ा था। पहले लिखे गए वाक्यों या अभिवादन को न दोहराएँ और शुद्ध हिंदी में उत्तर को पूर्ण करें।";
-
-              const wordsArr = outContent.trim().split(/\s+/);
-              const assistantTail = wordsArr.length > 1200 ? "..." + wordsArr.slice(-1200).join(" ") : outContent;
-
-              const contMsgs = pruneMessagesForTokenLimit([
-                nonStreamPrunedMsgs[0],
-                { role: "assistant", content: assistantTail },
-                { role: "user", content: contPrompt }
-              ], 4000);
-
-              const contCompletion = await nonStreamNvidiaClient.chat.completions.create({
-                model: modelCandidate,
-                messages: contMsgs,
-                temperature: 0.35,
-                max_tokens: 4096
-              });
-
-              finishReason = contCompletion.choices?.[0]?.finish_reason || "";
-              const contText = contCompletion.choices?.[0]?.message?.content || "";
-              if (contText.trim()) {
-                outContent = mergeContinuation(outContent, contText);
-              } else {
-                break;
-              }
-            } catch (_) {
-              break;
-            }
-          }
-
           if (outContent.trim()) {
             aiResponseText = outContent;
             generatedSuccessfully = true;
@@ -2810,36 +2681,7 @@ ${memoryContextText || "Guest shopper."}`;
           }
         } catch (nimErr) {
           console.warn(`[Aura AI Non-Stream] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
-        }
-      }
-    }
-
-    // 2. Secondary Non-Streaming Engine: Google Gemini fallback
-    if (!generatedSuccessfully || !aiResponseText.trim()) {
-      await resolveGeminiKey();
-      const geminiClient = getGeminiClient();
-      if (geminiClient) {
-        const geminiContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
-        for (const gModel of GEMINI_TEXT_MODELS) {
-          if (generatedSuccessfully) break;
-          try {
-            const geminiRes = await geminiClient.models.generateContent({
-              model: gModel,
-              contents: geminiContents,
-              config: {
-                systemInstruction: effectiveSystemPrompt,
-                temperature: 0.35,
-              }
-            });
-            const gText = geminiRes.text || "";
-            if (gText.trim()) {
-              aiResponseText = gText;
-              generatedSuccessfully = true;
-              break;
-            }
-          } catch (geminiErr) {
-            console.warn(`[Aura AI Non-Stream] Gemini notice (${gModel}):`, geminiErr?.message || geminiErr);
-          }
+          break;
         }
       }
     }
@@ -2866,7 +2708,7 @@ ${memoryContextText || "Guest shopper."}`;
           aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nमैं AI पंडित जी हूँ — Aura Rudraksha का प्रामाणिक वैदिक ज्योतिष व आध्यात्मिक मार्गदर्शक।\n\nआप अपनी जन्म कुंडली विश्लेषण, वर्तमान महादशा, साढ़े साती, मांगलिक विचार या राशि अनुसार कल्याणकारी रुद्राक्ष के विषय में पूछ सकते हैं। आज मैं आपकी क्या सेवा करूँ?`;
         }
       } else {
-        aiResponseText = generateSmartCustomerFallbackResponse(message, matchedProducts, matchedCoupons, effectiveMode, calculatedKundaliData);
+        aiResponseText = generateSmartCustomerFallbackResponse(message, matchedProducts, matchedCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
       }
     }
 
@@ -3090,28 +2932,6 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
     { "action": "Action Name", "priority": "High" | "Medium" | "Low", "category": "Inventory" | "Marketing" | "Support" | "Pricing", "requiresAdminApproval": true }
   ]
 }`;
-
-    if (geminiClient && !aiExecutiveReport) {
-      for (const gModel of GEMINI_TEXT_MODELS) {
-        if (aiExecutiveReport) break;
-        try {
-          const geminiRes = await geminiClient.models.generateContent({
-            model: gModel,
-            contents: [{ role: 'user', parts: [{ text: adminPrompt }] }],
-            config: {
-              systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
-              temperature: 0.25,
-              responseMimeType: "application/json"
-            }
-          });
-          const rawText = geminiRes.text || "";
-          aiExecutiveReport = extractStructuredAiJson(rawText);
-          if (aiExecutiveReport) break;
-        } catch (geminiErr) {
-          console.warn(`[Admin AI Intelligence] Gemini analysis notice (${gModel}):`, geminiErr?.message || geminiErr);
-        }
-      }
-    }
 
     if (nvidiaClient && !aiExecutiveReport) {
       try {

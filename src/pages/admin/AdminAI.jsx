@@ -239,7 +239,7 @@ export function AdminAI() {
             className={`admin-ai-tab ${activeTab === "agent" ? "active" : ""}`}
             onClick={() => setActiveTab("agent")}
           >
-            <Sparkles size={16} /> Ask Agent
+            <Bot size={16} /> AI Chat Bot
           </button>
           <button 
             className={`admin-ai-tab ${activeTab === "overview" ? "active" : ""}`}

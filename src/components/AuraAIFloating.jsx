@@ -65,13 +65,17 @@ export function AuraAIFloating() {
   const [timeTheme, setTimeTheme] = useState("theme-classic");
   const [pillState, setPillState] = useState("default");
 
+  const handleSendRef = useRef(null);
+
   const executeQuickAction = (prompt) => {
     setShowQuickActions(false);
     setIsFullWindow(false);
     setIsOpen(true);
     if (prompt) {
       setTimeout(() => {
-        handleSend(prompt);
+        if (handleSendRef.current) {
+          handleSendRef.current(prompt);
+        }
       }, 50);
     }
   };
@@ -732,7 +736,9 @@ export function AuraAIFloating() {
       setIsOpen(true);
       if (prompt && prompt.trim()) {
         setTimeout(() => {
-          handleSend(prompt.trim());
+          if (handleSendRef.current) {
+            handleSendRef.current(prompt.trim());
+          }
         }, 150);
       }
     };
@@ -806,6 +812,19 @@ export function AuraAIFloating() {
     isNearBottomRef.current = true;
     setShowJumpToBottom(false);
 
+    const isAstroQuery = (
+      mode === "panditji" ||
+      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
+    );
+    const targetMode = isAstroQuery ? "panditji" : (mode || "standard");
+    const effectiveBirthDetails = targetMode === "panditji"
+      ? (customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null)
+      : null;
+
+    if (isAstroQuery && mode !== "panditji") {
+      setMode("panditji");
+    }
+
     const userMsg = {
       id: "msg_" + Date.now(),
       sender: "user",
@@ -813,7 +832,7 @@ export function AuraAIFloating() {
       timestamp: new Date().toISOString()
     };
 
-    const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
+    const currentMsgs = auraChatStore.appendMessage(userMsg, targetMode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
     userHasScrolledUpRef.current = false;
@@ -830,7 +849,7 @@ export function AuraAIFloating() {
     setLastUserQuery(textToSend ? textToSend.trim() : "Kundali Request");
     setErrorOccurred(false);
     autoContinuationCountRef.current = 0;
-    setStatusText(getDynamicThinkingStatus(0, mode));
+    setStatusText(getDynamicThinkingStatus(0, targetMode));
     setElapsedTime(0);
     setLoading(true);
 
@@ -838,7 +857,7 @@ export function AuraAIFloating() {
       setElapsedTime((prev) => {
         const next = prev + 1;
         if (!streamInitialized) {
-          setStatusText(getDynamicThinkingStatus(next, mode));
+          setStatusText(getDynamicThinkingStatus(next, targetMode));
         }
         return next;
       });
@@ -852,18 +871,6 @@ export function AuraAIFloating() {
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
       const notesContext = notesList.map(n => `${n.memoryKey}: ${n.memoryValue}`).join("; ");
-      const isAstroQuery = (
-        mode === "panditji" ||
-        /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
-      );
-      const targetMode = isAstroQuery ? "panditji" : (mode || "standard");
-      const effectiveBirthDetails = targetMode === "panditji"
-        ? (customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null)
-        : null;
-
-      if (isAstroQuery && mode !== "panditji") {
-        setMode("panditji");
-      }
 
       await auraAiClient.sendMessageStream({
         message: textToSend || "",
@@ -900,7 +907,7 @@ export function AuraAIFloating() {
               setActiveBirthDetails(verified);
             }
           }
-          setStatusText(mode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
+          setStatusText(targetMode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
           
           const liveMsg = {
             id: aiMsgId,
@@ -916,7 +923,7 @@ export function AuraAIFloating() {
           };
 
           // Save live stream chunk to in-memory store with debounced disk persistence
-          auraChatStore.upsertMessage(liveMsg, mode, false);
+          auraChatStore.upsertMessage(liveMsg, targetMode, false);
 
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
@@ -974,7 +981,7 @@ export function AuraAIFloating() {
             kundali: finalData.kundali || null,
             timestamp: new Date().toISOString()
           };
-          auraChatStore.upsertMessage(aiMsg, mode, true);
+          auraChatStore.upsertMessage(aiMsg, targetMode, true);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -988,7 +995,7 @@ export function AuraAIFloating() {
           setLoading(false);
 
           // Automated background continuation: If the AI cuts off mid-sentence or mid-analysis, automatically continue
-          const shouldAutoContinue = isAuraResponseIncomplete(cleanText, mode);
+          const shouldAutoContinue = isAuraResponseIncomplete(cleanText, targetMode);
           if (shouldAutoContinue) {
             autoContinuationCountRef.current = 1;
             setTimeout(() => {
@@ -1002,7 +1009,7 @@ export function AuraAIFloating() {
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           console.warn("Stream notice in floating assistant:", err);
-          const fallbackText = mode === "panditji"
+          const fallbackText = targetMode === "panditji"
             ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
             : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.";
           
@@ -1021,7 +1028,7 @@ export function AuraAIFloating() {
               requiresHuman: !hasStreamedText,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
-            auraChatStore.upsertMessage(updatedMsg, mode);
+            auraChatStore.upsertMessage(updatedMsg, targetMode);
             if (idx >= 0) {
               const clone = [...prev];
               clone[idx] = updatedMsg;
@@ -1043,7 +1050,7 @@ export function AuraAIFloating() {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      const fallbackText = mode === "panditji"
+      const fallbackText = targetMode === "panditji"
         ? "Namaste Devotee 🙏 Kshama karein, ek takneeki samasya aayi hai. Kripya punah prayas karein."
         : "Namaste 🙏 Kshama karein, ek takneeki samasya aayi. Kripya punah prayas karein ya WhatsApp par sampark karein.";
       
@@ -1058,7 +1065,7 @@ export function AuraAIFloating() {
           requiresHuman: true,
           timestamp: existing?.timestamp || new Date().toISOString()
         };
-        auraChatStore.upsertMessage(updatedMsg, mode);
+        auraChatStore.upsertMessage(updatedMsg, targetMode);
         if (idx >= 0) {
           const clone = [...prev];
           clone[idx] = updatedMsg;
@@ -1406,8 +1413,10 @@ export function AuraAIFloating() {
     setIsDismissed(false);
   };
 
-  // Aura AI must appear ONLY on the Home page ("/")
-  if (location.pathname !== "/") {
+  handleSendRef.current = handleSend;
+
+  // Floating pill shows on Home page ("/"), while open chat window works on any page
+  if (!isOpen && location.pathname !== "/") {
     return null;
   }
 
@@ -1415,7 +1424,7 @@ export function AuraAIFloating() {
     <>
       {/* 1. Floating Action Pill - Modern, compact, floating animated Aura AI pill */}
       <AnimatePresence>
-        {!isOpen && !isDismissed && (
+        {!isOpen && !isDismissed && location.pathname === "/" && (
           <motion.div
             id="aura-ai-floating-trigger"
             className="aura-ai-floating-btn-wrap"
@@ -1794,7 +1803,15 @@ export function AuraAIFloating() {
                 <button
                   onClick={() => {
                     triggerHaptic("light");
+                    auraAiClient.abortActiveStream();
+                    if (timerRef.current) {
+                      clearInterval(timerRef.current);
+                      timerRef.current = null;
+                    }
+                    setLoading(false);
+                    setErrorOccurred(false);
                     setMode("standard");
+                    setMessages(auraChatStore.getMessages("standard"));
                   }}
                   className={`aura-ai-mode-btn ${mode === "standard" ? "active" : ""}`}
                   type="button"
@@ -1814,7 +1831,15 @@ export function AuraAIFloating() {
                 <button
                   onClick={() => {
                     triggerHaptic("light");
+                    auraAiClient.abortActiveStream();
+                    if (timerRef.current) {
+                      clearInterval(timerRef.current);
+                      timerRef.current = null;
+                    }
+                    setLoading(false);
+                    setErrorOccurred(false);
                     setMode("panditji");
+                    setMessages(auraChatStore.getMessages("panditji"));
                   }}
                   className={`aura-ai-mode-btn ${mode === "panditji" ? "active" : ""}`}
                   type="button"

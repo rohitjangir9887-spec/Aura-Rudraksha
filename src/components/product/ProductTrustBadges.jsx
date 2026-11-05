@@ -8,14 +8,14 @@ export function ProductTrustBadges({ product }) {
 
   if (!product) return null;
 
-  const isRudraksha = isRudrakshaProduct(product);
   const catLower = (product.category || "").toLowerCase();
   const nameLower = (product.name || "").toLowerCase();
+  const isCrystalOrSphatik = nameLower.includes("sphatik") || nameLower.includes("spatika") || nameLower.includes("crystal") || catLower.includes("crystal");
   const isIdolOrYantra = catLower.includes("idol") || catLower.includes("god") || catLower.includes("statue") || catLower.includes("murti") || catLower.includes("yantra") || nameLower.includes("idol") || nameLower.includes("statue") || nameLower.includes("yantra");
   const isMala = catLower.includes("mala") || nameLower.includes("mala") || nameLower.includes("108");
-  const isCrystalOrSphatik = nameLower.includes("sphatik") || nameLower.includes("spatika") || nameLower.includes("crystal") || catLower.includes("crystal");
+  const isRudraksha = isRudrakshaProduct(product) && !isCrystalOrSphatik;
 
-  const hasCert = Boolean(
+  const hasCert = product.hasCertificate !== false && Boolean(
     product.hasCertificate === true || 
     (product.certificate && (product.certificate.url || product.certificate.number)) ||
     (product.labCertificate && product.labCertificate !== "")

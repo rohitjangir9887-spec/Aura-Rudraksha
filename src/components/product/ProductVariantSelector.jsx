@@ -200,7 +200,21 @@ export function ProductVariantSelector({
         const isIdolOrYantra = catL.includes("idol") || catL.includes("statue") || catL.includes("murti") || catL.includes("yantra") || nameL.includes("idol") || nameL.includes("yantra");
         const isPuja = catL.includes("puja") || catL.includes("samagri") || nameL.includes("camphor") || nameL.includes("kapoor") || nameL.includes("dhoop") || nameL.includes("agarbatti");
 
-        if (isRudraksha) {
+        if (isSphatik) {
+          return (
+            <div className="aura-natural-spec-chip">
+              <div className="spec-icon-box">💎</div>
+              <div className="spec-text-box">
+                <span className="spec-title">100% NATURAL SPHATIK (QUARTZ) SPECIFICATION</span>
+                <span className="spec-desc">
+                  <strong>{product.size || "108+1 Knotted Beads (6–8 mm)"}</strong> • Certified Natural Quartz • Calming Bio-Resonance
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (isRudraksha && !isSphatik) {
           const specTitle = selectedOrigin === "Indonesia"
             ? "AUTHENTIC JAVA / INDONESIAN BEAD SPECIFICATION"
             : "AUTHENTIC HIMALAYAN SEED SPECIFICATION";
@@ -214,20 +228,6 @@ export function ProductVariantSelector({
                 <span className="spec-title">{specTitle}</span>
                 <span className="spec-desc">
                   <strong>{specSize}</strong> • 100% Genuine, Natural & Energized
-                </span>
-              </div>
-            </div>
-          );
-        }
-
-        if (isSphatik) {
-          return (
-            <div className="aura-natural-spec-chip">
-              <div className="spec-icon-box">💎</div>
-              <div className="spec-text-box">
-                <span className="spec-title">100% NATURAL SPHATIK (QUARTZ) SPECIFICATION</span>
-                <span className="spec-desc">
-                  <strong>{product.size || "108+1 Knotted Beads (6–8 mm)"}</strong> • Certified Natural Quartz • Calming Bio-Resonance
                 </span>
               </div>
             </div>
