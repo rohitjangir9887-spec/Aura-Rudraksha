@@ -253,19 +253,24 @@
 /* Main 2-Column Product Grid */
 .aura-pdp-main-section {
   max-width: 1240px;
+  width: 100%;
   margin: 0 auto;
   padding: 24px 16px 36px 16px;
+  box-sizing: border-box;
 }
 
 .aura-pdp-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 32px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 @media (min-width: 960px) {
   .aura-pdp-grid {
-    grid-template-columns: 1.05fr 1fr;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
     gap: 48px;
     align-items: start;
   }
@@ -274,6 +279,9 @@
 /* Left Column: Gallery */
 .aura-pdp-gallery-col {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 @media (min-width: 960px) {
@@ -287,11 +295,18 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .aura-gallery-main-frame {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   aspect-ratio: 1 / 1;
   max-height: 480px;
   background: #ffffff;
@@ -303,6 +318,7 @@
   align-items: center;
   justify-content: center;
   touch-action: pan-y pinch-zoom;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
@@ -323,8 +339,11 @@
   }
 
   .aura-pdp-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
     overflow-x: hidden !important;
     gap: 18px !important;
@@ -333,6 +352,7 @@
   .aura-pdp-gallery-col {
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
   }
@@ -340,6 +360,7 @@
   .aura-pdp-info-col {
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
     overflow-x: hidden !important;
   }
@@ -347,7 +368,8 @@
   .aura-gallery-main-frame {
     width: 100% !important;
     max-width: 100% !important;
-    height: min(78vw, 340px) !important;
+    min-width: 0 !important;
+    height: min(82vw, 340px) !important;
     max-height: 340px !important;
     aspect-ratio: 1 / 1 !important;
     border-radius: 16px !important;
@@ -627,6 +649,10 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .aura-pdp-category-tag {
@@ -638,15 +664,23 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
+  max-width: 100%;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .aura-pdp-title {
-  font-size: 26px;
+  font-size: clamp(21px, 5.8vw, 26px);
   line-height: 1.25;
   font-weight: 700;
   color: var(--aura-brown-dark);
   font-family: 'Playfair Display', Georgia, serif;
   margin: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 768px) {
@@ -660,6 +694,11 @@
   line-height: 1.55;
   color: var(--aura-text-muted);
   margin: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Rating & SKU Bar */
@@ -671,22 +710,30 @@
   gap: 10px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--aura-border-light);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .aura-rating-trigger {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .aura-stars-row {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .aura-rating-score {
@@ -705,16 +752,18 @@
   font-size: 11.5px;
   color: #8c7b70;
   font-family: monospace;
+  word-break: break-all;
 }
 
 /* Product Trust Badges Row */
 .aura-product-trust-chips-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -725,44 +774,51 @@
   background: #ffffff;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 20px;
-  padding: 5px 11px;
-  font-size: 12px;
+  padding: 5px 10px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--aura-brown-dark);
   box-shadow: 0 1px 3px rgba(0,0,0,0.03);
   max-width: 100%;
   box-sizing: border-box;
   min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 
-.chip-icon.gold { color: var(--aura-gold-bright); }
-.chip-icon.green { color: var(--aura-green-dark); }
-.chip-icon.copper { color: #c2410c; }
+.chip-icon.gold { color: var(--aura-gold-bright); flex-shrink: 0; }
+.chip-icon.green { color: var(--aura-green-dark); flex-shrink: 0; }
+.chip-icon.copper { color: #c2410c; flex-shrink: 0; }
 
 /* Pricing Block */
 .aura-pricing-block {
   background: #ffffff;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 14px;
-  padding: 16px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .aura-pricing-main-row {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .aura-selling-price {
-  font-size: 30px;
+  font-size: clamp(24px, 6.5vw, 30px);
   font-weight: 800;
   color: var(--aura-brown-dark);
   font-variant-numeric: tabular-nums;
@@ -770,7 +826,7 @@
 }
 
 .aura-mrp-price {
-  font-size: 18px;
+  font-size: 16px;
   color: #9ca3af;
   text-decoration: line-through;
   font-variant-numeric: tabular-nums;
@@ -779,9 +835,9 @@
 .aura-discount-pill {
   background: #fee2e2;
   color: #b91c1c;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 3px 9px;
+  padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid #fecaca;
 }
@@ -794,17 +850,15 @@
   background: linear-gradient(135deg, #fff8f0 0%, #ffedd5 100%);
   border: 1.5px solid #fed7aa;
   color: #9a3412;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   padding: 4px 10px;
   border-radius: 999px;
   box-shadow: 0 2px 8px rgba(234, 88, 12, 0.12);
-  margin-left: auto;
   position: relative;
-  overflow: visible; /* Prevent clipping of flame icon or large digit badges */
+  overflow: visible;
   flex-shrink: 0;
-  width: auto;
-  min-width: max-content;
+  max-width: 100%;
   white-space: nowrap;
   animation: auraSalesPulse 2.8s infinite ease-in-out;
   user-select: none;
@@ -913,8 +967,11 @@
 .aura-savings-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .aura-savings-pill {
@@ -923,30 +980,39 @@
   gap: 4px;
   background: var(--aura-green-bg);
   color: var(--aura-green-dark);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--aura-green-border);
+  max-width: 100%;
 }
 
 .aura-tax-text {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--aura-text-muted);
+  word-break: break-word;
 }
 
 .aura-stock-row {
   margin-top: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .aura-stock-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .aura-stock-badge.in-stock {
@@ -980,6 +1046,7 @@
   flex-wrap: wrap;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -1007,6 +1074,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  word-break: break-word;
 }
 
 .aura-offer-heading {
@@ -1016,6 +1084,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .gold-sparkle { color: var(--aura-gold-bright); }
@@ -1023,6 +1092,7 @@
 .aura-offer-sub {
   font-size: 12px;
   color: var(--aura-text-muted);
+  word-break: break-word;
 }
 
 .aura-code-highlight {
@@ -1064,6 +1134,7 @@
   gap: 8px;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -1073,20 +1144,24 @@
   border-radius: 10px;
   padding: 12px 14px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
 .aura-origin-selector-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
 @media (max-width: 440px) {
   .aura-origin-selector-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
 }
@@ -1095,6 +1170,7 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--aura-brown-dark);
+  word-break: break-word;
 }
 
 .aura-variant-chips {
@@ -1104,6 +1180,7 @@
   flex-wrap: wrap;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -1111,17 +1188,22 @@
   background: #ffffff;
   border: 1.5px solid var(--aura-border-subtle);
   border-radius: 8px;
-  padding: 7px 14px;
+  padding: 7px 12px;
   font-size: 13px;
   font-weight: 600;
   color: var(--aura-brown-dark);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   transition: all 0.2s;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
 }
 
 .aura-variant-chip:hover {
@@ -1136,41 +1218,54 @@
 
 .variant-price {
   font-size: 11.5px;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .aura-natural-spec-chip {
   background: #ffffff;
   border: 1px solid var(--aura-border-subtle);
   border-radius: 10px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
 .spec-icon-box {
   font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1.2;
 }
 
 .spec-text-box {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .spec-title {
   font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
   color: var(--aura-gold-bright);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .spec-desc {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--aura-brown-dark);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 /* Delivery Checker */

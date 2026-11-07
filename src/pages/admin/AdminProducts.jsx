@@ -221,7 +221,8 @@ export function AdminProducts() {
         const detectedCategory = payload.classification?.category || data.category || "";
         const productType = payload.classification?.productType || data.productType || "";
 
-        const catName = detectedCategory || prev.category || "Rudraksha";
+        const existingCat = editing?.category || "Rudraksha";
+        const catName = detectedCategory || existingCat;
         const catLower = catName.toLowerCase();
         const calculatedType = catLower.includes("idol") || catLower.includes("god") || catLower.includes("statue") || catLower.includes("murti")
           ? "idol"
@@ -229,7 +230,7 @@ export function AdminProducts() {
           ? "puja_samagri"
           : catLower.includes("yantra")
           ? "yantra"
-          : productType || prev.productType || "Rudraksha";
+          : productType || editing?.productType || "Rudraksha";
 
         setEditing(prev => {
           if (!prev) return prev;
@@ -548,7 +549,7 @@ export function AdminProducts() {
             isDefault: !!s.isDefault
           };
         }) : [],
-        hasCertificate: p.hasCertificate !== undefined ? !!p.hasCertificate : (isRudrakshaProduct(p) && p.hasCertificate !== false)
+        hasCertificate: Boolean(p.hasCertificate)
       });
     } else {
       setEditing({

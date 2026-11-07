@@ -2,8 +2,8 @@ import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl, 
 import { OptimizedImage } from "./OptimizedImage";
 import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, Eye } from "lucide-react";
 import { motion } from "framer-motion";
 import { money, pct } from "../data";
@@ -30,12 +30,14 @@ export function ProductCardSkeleton() {
 
 function ProductCardComponent({ p, onAdd, isShop = false }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { add: fallbackAddToCart } = useCart();
   const { offer, isActive: hasOffer } = useActiveOffer(p);
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
   const [showQuickView, setShowQuickView] = useState(false);
+  const pointerDownRef = useRef(null);
 
   if (!p) return null;
 
@@ -50,14 +52,70 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
 
+  const handlePointerDown = (e) => {
+    pointerDownRef.current = {
+      x: e.clientX ?? 0,
+      y: e.clientY ?? 0,
+      time: Date.now()
+    };
+  };
+
   const handleCardClick = (e) => {
     if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots")) {
       return;
     }
+
+    // Block accidental ghost clicks / touch bleed-through right after Back navigation or route changes
+    const now = Date.now();
+    if (typeof window !== "undefined") {
+      if (now - (window.__auraLastBackNavTime || 0) < 600) {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        return;
+      }
+      if (now - (window.__auraLastRouteChangeTime || 0) < 400) {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        return;
+      }
+      if (now - (window.__auraLastCardClickTime || 0) < 450) {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        return;
+      }
+    }
+
+    // Ensure click was preceded by a clean tap on this card (not a swipe or leftover touch from previous page)
+    if (e?.type === "click" && e.detail > 0) {
+      if (!pointerDownRef.current) {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        return;
+      }
+      const dx = Math.abs((e.clientX ?? 0) - pointerDownRef.current.x);
+      const dy = Math.abs((e.clientY ?? 0) - pointerDownRef.current.y);
+      if (dx > 14 || dy > 14) {
+        pointerDownRef.current = null;
+        return;
+      }
+    }
+    pointerDownRef.current = null;
+
     const targetRoute = p?.slug || productId;
     if (targetRoute) {
+      if (typeof window !== "undefined") {
+        window.__auraLastCardClickTime = now;
+      }
       if (db.cacheProduct) db.cacheProduct(p);
-      navigate(`/product/${targetRoute}`, { state: { product: p } });
+      const isAlreadyOnProductPage = (location.pathname || "").startsWith("/product/");
+      const originPath = isAlreadyOnProductPage
+        ? (location.state?.from || "/shop")
+        : (location.pathname + (location.search || ""));
+
+      navigate(`/product/${encodeURIComponent(targetRoute)}`, {
+        replace: isAlreadyOnProductPage,
+        state: { product: p, from: originPath }
+      });
     }
   };
 
@@ -106,6 +164,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   return (
     <motion.div 
       className="aura-shop-card" 
+      onPointerDown={handlePointerDown}
       onClick={handleCardClick}
       onPointerEnter={handlePreload}
       role="link"
@@ -252,13 +311,9 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
 
           {/* Title */}
           <h3 className="aura-card-title">
-            <Link 
-              to={getProductRoute(p)}
-              onClick={(e) => e.stopPropagation()}
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
+            <span style={{ color: "inherit", textDecoration: "none" }}>
               {p.name}
-            </Link>
+            </span>
           </h3>
 
           {/* Rating & Sales */}

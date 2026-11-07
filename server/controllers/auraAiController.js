@@ -2471,8 +2471,8 @@ ${memoryContextText || "Guest shopper."}`;
       // Prune initial context messages if token count is near ~4000-5000 words limit
       const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 4000);
 
-      // Fast streaming timeout (2.5 seconds max wait for first token to prevent any UI freeze)
-      const STREAM_INIT_TIMEOUT_MS = 2500;
+      // Reliable streaming timeout (12 seconds wait for first token from NVIDIA NIM)
+      const STREAM_INIT_TIMEOUT_MS = 12000;
 
       // 1. Primary Streaming Execution: NVIDIA NIM nemotron-3-super-120b-a12b
       if (nvidiaClient && !clientDisconnected) {

@@ -208,9 +208,9 @@ export function AdminAI() {
               <Sparkles size={24} />
             </div>
             <div>
-              <h1 className="admin-ai-title" style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)", fontWeight: 800 }}>AURA AI Admin Agent</h1>
+              <h1 className="admin-ai-title" style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)", fontWeight: 800 }}>Aura AI Admin Chat Bot</h1>
               <p className="admin-ai-subtitle" style={{ margin: "2px 0 0", fontSize: "12px", color: "#806f62" }}>
-                Autonomous Catalog • Operations • Live Preview • Tasks
+                NVIDIA NIM AI Assistant • Catalog & Store Guidance
               </p>
             </div>
           </div>

@@ -604,11 +604,26 @@ export function Product() {
 
   const suggestedProducts = p ? allProducts.filter(x => String(x.id || x._id) !== String(p.id || p._id)).slice(0, 4) : [];
 
-  const handleBack = () => {
+  const handleBack = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (typeof window !== "undefined") {
+      window.__auraLastBackNavTime = Date.now();
+      window.__auraLastRouteChangeTime = Date.now();
+    }
+
+    const fromPath = location.state?.from;
+    if (fromPath && typeof fromPath === "string" && !fromPath.startsWith("/product/")) {
+      navigate(fromPath);
+      return;
+    }
+
     if (window.history && window.history.length > 1) {
       navigate(-1);
     } else {
-      navigate("/");
+      navigate("/shop");
     }
   };
 
@@ -788,7 +803,7 @@ export function Product() {
               />
 
               {/* Quantity Selector, CTA Action Buttons & Secure Payment Guarantee */}
-              <div>
+              <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
                 <ProductPurchaseActions
                   product={p}
                   qty={qty}
@@ -807,22 +822,26 @@ export function Product() {
                 <div style={{
                   marginTop: '16px',
                   background: '#fffdfa',
-                  border: isIndonesianActive ? '1.5px solid #fed7aa' : '1.5px solid #fed7aa',
+                  border: '1.5px solid #fed7aa',
                   borderRadius: '10px',
                   padding: '12px 14px',
-                  boxShadow: '0 2px 8px rgba(140, 43, 16, 0.05)'
+                  boxShadow: '0 2px 8px rgba(140, 43, 16, 0.05)',
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Sparkles size={14} style={{ color: '#c2410c' }} />
-                      Similar Origin Option (रुद्राक्ष दाना विकल्प):
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                      <Sparkles size={14} style={{ color: '#c2410c', flexShrink: 0 }} />
+                      <span>Similar Origin Option (रुद्राक्ष दाना विकल्प):</span>
                     </span>
-                    <span style={{ fontSize: '11px', background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                    <span style={{ fontSize: '11px', background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '700', flexShrink: 0 }}>
                       {isIndonesianActive ? "Nepal Available" : "Indonesia Available"}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>
                     <img
                       src={isIndonesianActive
                         ? (rawP.images?.[0] || rawP.img || "/images/placeholder.svg")
@@ -830,8 +849,8 @@ export function Product() {
                       }
                       alt="Similar Origin Bead"
                       style={{
-                        width: '64px',
-                        height: '64px',
+                        width: '60px',
+                        height: '60px',
                         borderRadius: '8px',
                         objectFit: 'cover',
                         border: '1px solid #ebdccb',
@@ -840,20 +859,20 @@ export function Product() {
                       }}
                     />
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ flex: 1, minWidth: '160px', maxWidth: '100%' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d', wordBreak: 'break-word', lineHeight: 1.3 }}>
                         {isIndonesianActive
                           ? `🇳🇵 ${rawP.name} (Nepal Origin)`
                           : `🇮🇩 ${rawP.indonesianTitle || `${rawP.name} (Indonesian Java)`}`
                         }
                       </div>
-                      <div style={{ fontSize: '11.5px', color: '#78685c', margin: '2px 0' }}>
+                      <div style={{ fontSize: '11.5px', color: '#78685c', margin: '3px 0', wordBreak: 'break-word' }}>
                         {isIndonesianActive
                           ? `Large Nepal Bead (${rawP.size || "18–22 mm"}) • Deep Mukhi Grooves`
                           : `Small Java Bead (${rawP.indonesianSize || "10–14 mm"}) • Budget Friendly`
                         }
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                         <span style={{ fontSize: '13px', fontWeight: '800', color: isIndonesianActive ? '#8c2b10' : '#b45309' }}>
                           ₹{(isIndonesianActive ? Number(rawP.price || 0) : Number(rawP.indonesianPrice || 0)).toLocaleString("en-IN")}
                         </span>
@@ -864,7 +883,6 @@ export function Product() {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
                           style={{
-                            marginLeft: 'auto',
                             background: isIndonesianActive ? '#8c2b10' : '#d97706',
                             color: '#fff',
                             border: 'none',

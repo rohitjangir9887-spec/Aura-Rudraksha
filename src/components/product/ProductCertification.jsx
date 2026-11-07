@@ -9,9 +9,15 @@ export function ProductCertification({ product }) {
   if (!product) return null;
 
   const isRudraksha = isRudrakshaProduct(product);
+  const hasCert = product.hasCertificate === true || Boolean(
+    product.hasCertificate !== false && (
+      (product.certificate && (product.certificate.url || product.certificate.number)) ||
+      (product.labCertificate && product.labCertificate !== "")
+    )
+  );
 
-  // If non-rudraksha Puja Samagri or user opted out of lab cert
-  if (!isRudraksha) {
+  // If non-rudraksha Puja Samagri or product does not include a lab certificate
+  if (!isRudraksha || !hasCert) {
     return (
       <div className="aura-lab-cert-showcase" style={{ background: '#fcfaf6', borderColor: '#e8dbce' }}>
         <div className="aura-lab-cert-header">

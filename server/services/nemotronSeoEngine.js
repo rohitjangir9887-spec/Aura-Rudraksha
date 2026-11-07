@@ -773,10 +773,7 @@ export function buildEmergencySafePayload(productInput = {}) {
     !!beadKnowledge
   );
 
-  const hasCert = Boolean(
-    productInput?.hasCertificate === true ||
-    (isRudrakshaItem && beadKnowledge && productInput?.hasCertificate !== false)
-  );
+  const hasCert = Boolean(productInput?.hasCertificate === true);
 
   const tags = Array.from(new Set([
     category,

@@ -1240,18 +1240,15 @@ export const db = {
       });
     }
 
-    // 2. Secondary fallback search in storeCache by slugified name or fuzzy match
+    // 2. Secondary fallback search in storeCache by exact slugified name
     if (!p) {
       p = storeCache.products.find(x => {
         if (!x) return false;
-        const xName = String(x.name || "").toLowerCase();
+        const xName = String(x.name || "").toLowerCase().trim();
         const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-        const xSlug = String(x.slug || "").toLowerCase();
 
         if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId)) return true;
-        if (xSlug && slugTarget.length >= 2 && (xSlug.includes(slugTarget) || slugTarget.includes(xSlug))) return true;
-        if (xSlugifiedName && slugTarget.length >= 2 && (xSlugifiedName.includes(slugTarget) || slugTarget.includes(xSlugifiedName))) return true;
-        if (xName && target.length >= 2 && (xName.includes(target) || target.includes(xName))) return true;
+        if (xName && (xName === target || xName === slugTarget)) return true;
         return false;
       });
     }

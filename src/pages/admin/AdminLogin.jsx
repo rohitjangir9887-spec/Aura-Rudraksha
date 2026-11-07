@@ -70,8 +70,8 @@ export function AdminLogin() {
       const token = await authClient.getToken(false, true);
       
       if (!token) {
-        setError("Access Denied: Session token not found.");
-        await authClient.signOut();
+        setError("Access Denied: Session token not found. Please log in with your administrator account.");
+        authClient.clearAdminCache();
         setLoading(false);
         return;
       }
@@ -85,7 +85,7 @@ export function AdminLogin() {
 
       if (!res || !res.ok) {
         setError("Access Denied: Only designated administrator accounts can access this portal.");
-        await authClient.signOut();
+        authClient.clearAdminCache();
         setLoading(false);
         return;
       }
@@ -93,7 +93,7 @@ export function AdminLogin() {
       const json = await res.json().catch(() => ({}));
       if (!json || !json.success || !json.authorized || json.role !== "admin") {
         setError("Access Denied: Only designated administrator accounts can access this portal.");
-        await authClient.signOut();
+        authClient.clearAdminCache();
         setLoading(false);
         return;
       }

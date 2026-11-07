@@ -17,20 +17,20 @@ export function ProductVariantSelector({
   const isRudraksha = isRudrakshaProduct(product);
   const hasIndonesian = isRudraksha && (!!product.hasIndonesianVariant || (Number(product.indonesianPrice) > 0));
   const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
-  const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+  const hasSizes = product.hasCustomSizes !== false && Array.isArray(product.sizes) && product.sizes.length > 0;
 
   const nepalPrice = Math.max(0, safePrice(product.price, 0));
   const indoPrice = Math.max(0, safePrice(product.indonesianPrice, 0));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '10px 0', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {/* 1. Origin Selector (Nepal vs Indonesian) - ONLY for Rudraksha beads */}
       {hasIndonesian && (
         <div className="aura-origin-selector-container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <label style={{ fontSize: '13px', fontWeight: '700', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Globe size={15} style={{ color: '#c2410c' }} />
-              Select Rudraksha Origin (उत्पत्ति चुनें):
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+            <label style={{ fontSize: '13px', fontWeight: '700', color: '#7c2d12', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+              <Globe size={15} style={{ color: '#c2410c', flexShrink: 0 }} />
+              <span>Select Rudraksha Origin (उत्पत्ति चुनें):</span>
             </label>
             <span style={{ fontSize: '11px', color: '#9a3412', fontWeight: '600' }}>
               {selectedOrigin === "Indonesia" ? "🇮🇩 Indonesian Selected" : "🇳🇵 Nepali Selected"}
@@ -57,7 +57,11 @@ export function ProductVariantSelector({
                 boxShadow: selectedOrigin !== "Indonesia" ? '0 2px 8px rgba(180, 75, 28, 0.15)' : 'none',
                 cursor: 'pointer',
                 position: 'relative',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                boxSizing: 'border-box'
               }}
             >
               {selectedOrigin !== "Indonesia" && (
@@ -69,15 +73,15 @@ export function ProductVariantSelector({
                   Popular Choice
                 </span>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginBottom: '4px' }}>
-                <span style={{ fontSize: '16px' }}>🇳🇵</span>
-                <span style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d' }}>Nepal Origin</span>
-                {selectedOrigin !== "Indonesia" && <Check size={14} style={{ marginLeft: 'auto', color: '#b44b1c' }} />}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginBottom: '4px', minWidth: 0 }}>
+                <span style={{ fontSize: '16px', flexShrink: 0 }}>🇳🇵</span>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d', wordBreak: 'break-word' }}>Nepal Origin</span>
+                {selectedOrigin !== "Indonesia" && <Check size={14} style={{ marginLeft: 'auto', color: '#b44b1c', flexShrink: 0 }} />}
               </div>
               <div style={{ fontSize: '13px', fontWeight: '800', color: '#8c2b10', marginBottom: '2px' }}>
                 ₹{nepalPrice.toLocaleString("en-IN")}
               </div>
-              <div style={{ fontSize: '11px', color: '#78685c' }}>
+              <div style={{ fontSize: '11px', color: '#78685c', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                 Large Mukhi • Deep Grooves (18–22 mm)
               </div>
             </button>
@@ -101,7 +105,11 @@ export function ProductVariantSelector({
                 boxShadow: selectedOrigin === "Indonesia" ? '0 2px 8px rgba(217, 119, 6, 0.15)' : 'none',
                 cursor: 'pointer',
                 position: 'relative',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                boxSizing: 'border-box'
               }}
             >
               {selectedOrigin === "Indonesia" && (
@@ -113,15 +121,15 @@ export function ProductVariantSelector({
                   Budget Friendly
                 </span>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginBottom: '4px' }}>
-                <span style={{ fontSize: '16px' }}>🇮🇩</span>
-                <span style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d' }}>Indonesian (Java)</span>
-                {selectedOrigin === "Indonesia" && <Check size={14} style={{ marginLeft: 'auto', color: '#d97706' }} />}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginBottom: '4px', minWidth: 0 }}>
+                <span style={{ fontSize: '16px', flexShrink: 0 }}>🇮🇩</span>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#2b170d', wordBreak: 'break-word' }}>Indonesian (Java)</span>
+                {selectedOrigin === "Indonesia" && <Check size={14} style={{ marginLeft: 'auto', color: '#d97706', flexShrink: 0 }} />}
               </div>
               <div style={{ fontSize: '13px', fontWeight: '800', color: '#b45309', marginBottom: '2px' }}>
                 ₹{indoPrice.toLocaleString("en-IN")}
               </div>
-              <div style={{ fontSize: '11px', color: '#78685c' }}>
+              <div style={{ fontSize: '11px', color: '#78685c', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                 {product.indonesianSize || "Small Java Bead (10–14 mm)"}
               </div>
             </button>
@@ -150,8 +158,8 @@ export function ProductVariantSelector({
                     onSelectVariant && onSelectVariant(vName);
                   }}
                 >
-                  {isSelected && <Check size={13} strokeWidth={2.5} />}
-                  <span>{vName}</span>
+                  {isSelected && <Check size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />}
+                  <span style={{ minWidth: 0, wordBreak: "break-word", whiteSpace: "normal" }}>{vName}</span>
                   {vPrice ? <span className="variant-price">₹{vPrice.toLocaleString("en-IN")}</span> : null}
                 </button>
               );
@@ -181,9 +189,9 @@ export function ProductVariantSelector({
                     onSelectSize && onSelectSize(sName);
                   }}
                 >
-                  {isSelected && <Check size={13} strokeWidth={2.5} />}
-                  <span>{sName}</span>
-                  {sPrice ? <span className="variant-price" style={{ marginLeft: "5px", color: isSelected ? "#8c2b10" : "#7c2d12", fontWeight: "700" }}>₹{sPrice.toLocaleString("en-IN")}</span> : null}
+                  {isSelected && <Check size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />}
+                  <span style={{ minWidth: 0, wordBreak: "break-word", whiteSpace: "normal" }}>{sName}</span>
+                  {sPrice ? <span className="variant-price" style={{ marginLeft: "4px", color: isSelected ? "#eed9b8" : "#7c2d12", fontWeight: "700" }}>₹{sPrice.toLocaleString("en-IN")}</span> : null}
                 </button>
               );
             })}
@@ -227,7 +235,7 @@ export function ProductVariantSelector({
               <div className="spec-text-box">
                 <span className="spec-title">{specTitle}</span>
                 <span className="spec-desc">
-                  <strong>{specSize}</strong> • 100% Genuine, Natural & Energized
+                  <strong>{specSize}</strong> • 100% Genuine, Natural &amp; Energized
                 </span>
               </div>
             </div>
@@ -239,7 +247,7 @@ export function ProductVariantSelector({
             <div className="aura-natural-spec-chip">
               <div className="spec-icon-box">📿</div>
               <div className="spec-text-box">
-                <span className="spec-title">SACRED JAPA & MEDITATION MALA SPECIFICATION</span>
+                <span className="spec-title">SACRED JAPA &amp; MEDITATION MALA SPECIFICATION</span>
                 <span className="spec-desc">
                   <strong>{product.size || "108+1 Consecrated Beads"}</strong> • Traditional Hand-Knotted • Pre-Energized
                 </span>
@@ -267,9 +275,9 @@ export function ProductVariantSelector({
             <div className="aura-natural-spec-chip">
               <div className="spec-icon-box">🌿</div>
               <div className="spec-text-box">
-                <span className="spec-title">100% SATTVIC & CHEMICAL-FREE ESSENTIAL</span>
+                <span className="spec-title">100% SATTVIC &amp; CHEMICAL-FREE ESSENTIAL</span>
                 <span className="spec-desc">
-                  <strong>{product.netWeight || product.size || "Auspicious Devotional Grade"}</strong> • Pure, Natural & Non-Toxic
+                  <strong>{product.netWeight || product.size || "Auspicious Devotional Grade"}</strong> • Pure, Natural &amp; Non-Toxic
                 </span>
               </div>
             </div>
@@ -280,9 +288,9 @@ export function ProductVariantSelector({
           <div className="aura-natural-spec-chip">
             <div className="spec-icon-box">🪔</div>
             <div className="spec-text-box">
-              <span className="spec-title">100% PURE & VEDIC SANCTIFIED SPECIFICATION</span>
+              <span className="spec-title">100% PURE &amp; VEDIC SANCTIFIED SPECIFICATION</span>
               <span className="spec-desc">
-                <strong>{product.netWeight || product.size || "Auspicious Devotional Grade"}</strong> • 100% Pure, Natural & Sanctified
+                <strong>{product.netWeight || product.size || "Auspicious Devotional Grade"}</strong> • 100% Pure, Natural &amp; Sanctified
               </span>
             </div>
           </div>
@@ -291,4 +299,5 @@ export function ProductVariantSelector({
     </div>
   );
 }
+
 

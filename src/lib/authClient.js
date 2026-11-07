@@ -571,7 +571,6 @@ export const authClient = {
     const unsub = onAuthStateChanged(auth, (user) => {
       try {
         localStorage.removeItem("aura_demo_user");
-        localStorage.removeItem("aura_admin_token");
       } catch (_) {}
       if (user) {
         saveCachedUser(user);

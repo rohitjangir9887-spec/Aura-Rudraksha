@@ -35,6 +35,7 @@ export function AdminLayout({ children }) {
       i.path === location.pathname ||
       (i.path !== ADMIN_BASE_PATH && location.pathname.startsWith(i.path + "/"))
   );
+  const isDedicatedAiPage = location.pathname === `${ADMIN_BASE_PATH}/ai`;
   const pageTitle = currentItem?.label || "Admin";
 
   if (loadingAuth) {
@@ -127,7 +128,7 @@ export function AdminLayout({ children }) {
           <Link
             to="/admin/ai"
             className="mobile-store-icon"
-            title="AURA AI - Admin Agent"
+            title="Aura AI Chat Bot"
             style={{
               display: "flex",
               alignItems: "center",
@@ -141,7 +142,7 @@ export function AdminLayout({ children }) {
               border: "1px solid #fecdd3"
             }}
           >
-            <Sparkles size={14} /> Agent
+            <Bot size={14} /> AI Bot
           </Link>
           <Link
             to="/"

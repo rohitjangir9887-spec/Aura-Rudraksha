@@ -229,14 +229,44 @@ export function matchProductQuery(product, rawQuery) {
       matchTerms: ["sphatik mala", "5 mukhi", "2 mukhi", "chandra"]
     },
     {
+      keywords: ["health", "bp", "blood pressure", "bimari", "swasthya", "sehat", "rog", "healing", "आयु", "स्वास्थ्य", "रोग", "बीपी"],
+      matchMukhis: ["3", "5"],
+      matchTerms: ["5 mukhi", "3 mukhi", "jaap mala", "108", "agni"]
+    },
+    {
+      keywords: ["shiv", "shiva", "mahadev", "bholenath", "rudra", "shanker", "भोलेनाथ", "शिव", "महादेव"],
+      matchMukhis: ["1", "14"],
+      matchTerms: ["1 mukhi", "14 mukhi", "108", "jaap mala", "siddha mala", "kantha"]
+    },
+    {
+      keywords: ["confidence", "leadership", "atma vishwas", "aatma", "surya", "tejas", "आत्मविश्वास", "नेतृत्व"],
+      matchMukhis: ["1", "12"],
+      matchTerms: ["1 mukhi", "12 mukhi", "surya", "aditya"]
+    },
+    {
+      keywords: ["tulsi", "krishna", "radha", "haridasa", "तुलसी"],
+      matchMukhis: [],
+      matchTerms: ["tulsi", "vaijayanti", "krishna"]
+    },
+    {
+      keywords: ["yantra", "shree yantra", "shri yantra", "kuber", "यंत्र", "श्री यंत्र"],
+      matchMukhis: [],
+      matchTerms: ["yantra", "shree yantra", "kuber"]
+    },
+    {
+      keywords: ["siddha", "sidh mala", "sarva siddha", "kantha", "सिद्ध माला"],
+      matchMukhis: [],
+      matchTerms: ["siddha mala", "kantha", "collector"]
+    },
+    {
       keywords: ["santana", "child", "baby", "garbh", "putra", "संतान", "गर्भ"],
       matchMukhis: ["garbh-gauri", "2", "ganesh"],
       matchTerms: ["garbh gauri", "2 mukhi", "ganesh"]
     },
     {
-      keywords: ["shatru", "enemy", "court", "kanoon", "nazar", "bhoot", "protection", "शत्रु", "सुरक्षा", "नजर"],
+      keywords: ["shatru", "enemy", "court", "kanoon", "nazar", "bhoot", "protection", "suraksha", "darr", "fear", "शत्रु", "सुरक्षा", "नजर", "भय"],
       matchMukhis: ["9", "11", "10"],
-      matchTerms: ["9 mukhi", "11 mukhi", "durga", "hanuman", "karungali"]
+      matchTerms: ["9 mukhi", "11 mukhi", "10 mukhi", "durga", "hanuman", "karungali"]
     },
     {
       keywords: ["rahu", "ketu", "kaal sarp", "kaalsarp", "sarpa", "काल सर्प", "राहु", "केतु"],

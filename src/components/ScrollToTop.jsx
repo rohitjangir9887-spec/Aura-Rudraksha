@@ -1,19 +1,56 @@
 import { useEffect, useLayoutEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
 
 export function ScrollToTop() {
-  const { pathname, hash } = useLocation();
+  const { pathname, search, hash } = useLocation();
+  const navType = useNavigationType();
 
-  // Set browser scroll restoration to manual globally
+  // Set browser scroll restoration to manual globally & track popstate (Back/Forward) timestamps
   useEffect(() => {
-    if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
-      try {
-        window.history.scrollRestoration = "manual";
-      } catch (_) {
-        // Ignore if restricted
+    if (typeof window !== "undefined") {
+      if ("scrollRestoration" in window.history) {
+        try {
+          window.history.scrollRestoration = "manual";
+        } catch (_) {
+          // Ignore if restricted
+        }
       }
+
+      const handlePopState = () => {
+        window.__auraLastBackNavTime = Date.now();
+        window.__auraLastRouteChangeTime = Date.now();
+      };
+
+      window.addEventListener("popstate", handlePopState, { passive: true });
+      return () => window.removeEventListener("popstate", handlePopState);
     }
   }, []);
+
+  // Save scroll position on listing pages (/ and /shop) so Back navigation returns smoothly to the same spot
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isListingPage = pathname === "/" || pathname === "/shop";
+    if (!isListingPage) return;
+
+    const key = `aura_scroll_${pathname}${search || ""}`;
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        window.requestAnimationFrame(() => {
+          try {
+            if (window.scrollY > 0) {
+              sessionStorage.setItem(key, String(Math.round(window.scrollY)));
+            }
+          } catch (_) {}
+          ticking = false;
+        });
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [pathname, search]);
 
   // SPA route change tracking for Google Tag GT-NNMV4H8
   useEffect(() => {
@@ -26,8 +63,15 @@ export function ScrollToTop() {
     }
   }, [pathname]);
 
-  // Instant scroll to top on route change without repeated delayed timer jumping
+  // Instant scroll handling on route change
   useLayoutEffect(() => {
+    if (typeof window !== "undefined") {
+      window.__auraLastRouteChangeTime = Date.now();
+      if (navType === "POP") {
+        window.__auraLastBackNavTime = Date.now();
+      }
+    }
+
     if (hash && hash !== "#" && hash !== "#about" && hash !== "#contact") {
       try {
         const element = document.querySelector(hash);
@@ -40,7 +84,19 @@ export function ScrollToTop() {
       }
     }
 
-    // Immediate instant reset
+    // When returning via Back (POP) to Home or Shop, restore previous scroll position so cards don't jump under finger
+    if (navType === "POP" && (pathname === "/" || pathname === "/shop")) {
+      try {
+        const key = `aura_scroll_${pathname}${search || ""}`;
+        const savedY = parseInt(sessionStorage.getItem(key) || "0", 10);
+        if (!isNaN(savedY) && savedY > 0) {
+          window.scrollTo({ top: savedY, left: 0, behavior: "instant" });
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Immediate instant reset to top for forward navigations
     try {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     } catch (_) {
@@ -48,10 +104,11 @@ export function ScrollToTop() {
     }
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
-  }, [pathname, hash]);
+  }, [pathname, search, hash, navType]);
 
   return null;
 }
+
 
 export default ScrollToTop;
 

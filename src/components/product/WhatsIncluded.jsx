@@ -13,8 +13,10 @@ export function WhatsIncluded({ product }) {
     },
     {
       icon: <Award size={22} className="inc-icon" />,
-      title: product?.hasCertificate !== false ? "1x Government Recognized Lab Certificate" : "1x Certificate of Authenticity",
-      desc: "Physical laminated card with unique specimen identification number and gemological testing stamp."
+      title: product?.hasCertificate === true ? "1x Government Recognized Lab Certificate" : "1x Vedic Authenticity & Quality Seal",
+      desc: product?.hasCertificate === true
+        ? "Physical laminated card with unique specimen identification number and gemological testing stamp."
+        : "Verified natural origin assurance card with sacred consecration seal."
     },
     {
       icon: <Droplets size={22} className="inc-icon" />,

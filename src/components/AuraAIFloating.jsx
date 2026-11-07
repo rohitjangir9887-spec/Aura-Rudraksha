@@ -126,12 +126,6 @@ export function AuraAIFloating() {
         if (rootEl && rootEl.style.pointerEvents) {
           rootEl.style.pointerEvents = "";
         }
-        // Remove any orphan modal backdrops if assistant is closing
-        document.querySelectorAll(".aura-ai-floating-backdrop, .aura-ai-order-modal-backdrop").forEach(el => {
-          if (el && !auraChatStore.isFloatingOpen()) {
-            try { el.remove(); } catch (_) {}
-          }
-        });
       } catch (_) {}
     }
   }, []);
@@ -505,35 +499,6 @@ export function AuraAIFloating() {
     }
   }, [location.pathname, location.search, unlockScreenAndTouch]);
 
-  // Handle hardware Back button, browser back, and swipe gestures smoothly
-  useEffect(() => {
-    if (isOpen) {
-      if (typeof window !== "undefined" && window.history && !window.history.state?.auraAiModal) {
-        window.history.pushState({ auraAiModal: true }, "");
-      }
-
-      const handlePopState = (e) => {
-        setIsOpenState(false);
-        auraChatStore.setFloatingOpen(false);
-        setIsFullWindow(false);
-        setShowChatHistoryModal(false);
-        setShowSavedKundaliModal(false);
-        setShowNotepad(false);
-        setShowBirthForm(false);
-        setOrderModalProduct(null);
-        unlockScreenAndTouch();
-      };
-
-      window.addEventListener("popstate", handlePopState);
-      return () => {
-        window.removeEventListener("popstate", handlePopState);
-        unlockScreenAndTouch();
-      };
-    } else {
-      unlockScreenAndTouch();
-    }
-  }, [isOpen, unlockScreenAndTouch]);
-
   // Dedicated clean close handler
   const handleCloseChat = useCallback((e) => {
     if (e && typeof e.stopPropagation === "function") {
@@ -555,11 +520,41 @@ export function AuraAIFloating() {
     setShowBirthForm(false);
     setOrderModalProduct(null);
     unlockScreenAndTouch();
-
-    if (typeof window !== "undefined" && window.history && window.history.state?.auraAiModal) {
-      try { window.history.back(); } catch (_) {}
-    }
   }, [unlockScreenAndTouch]);
+
+  // Cleanly handle Escape key, route transitions, and browser back
+  useEffect(() => {
+    if (!isOpen) {
+      unlockScreenAndTouch();
+      return;
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        handleCloseChat();
+      }
+    };
+
+    const handlePopState = () => {
+      setIsOpenState(false);
+      auraChatStore.setFloatingOpen(false);
+      setIsFullWindow(false);
+      setShowChatHistoryModal(false);
+      setShowSavedKundaliModal(false);
+      setShowNotepad(false);
+      setShowBirthForm(false);
+      setOrderModalProduct(null);
+      unlockScreenAndTouch();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("popstate", handlePopState);
+      unlockScreenAndTouch();
+    };
+  }, [isOpen, handleCloseChat, unlockScreenAndTouch]);
 
   // When chat window is open in full-window modal, clicking outside the window on the website closes it
   useEffect(() => {

@@ -193,7 +193,7 @@ export function Shell({children}) {
               <form className="search desktop-search" onSubmit={goSearch}>
                 <Search size={17}/>
                 <input 
-                  placeholder="Search Rudraksha (e.g. 5 Mukhi)..." 
+                  placeholder="Search in Hindi or English (e.g. 5 Mukhi, स्फटिक, नौकरी)..." 
                   value={q} 
                   onChange={(e) => {
                     setQ(e.target.value);
@@ -346,7 +346,7 @@ export function Shell({children}) {
               <Search size={18}/>
               <input 
                 autoFocus 
-                placeholder="Search Rudraksha (e.g. 5 Mukhi)..." 
+                placeholder="Search in Hindi or English (e.g. 5 Mukhi, स्फटिक, नौकरी)..." 
                 value={q} 
                 onChange={(e)=>setQ(e.target.value)} 
               />

@@ -103,10 +103,10 @@ export function ProductSpecifications({ product }) {
   specs.push({ label: "Color / Finish", value: product.color || "Natural Brown Himalayan Tone" });
   specs.push({ label: "Consecration (Siddhi)", value: "Prana Pratishtha with Ganga Jal, Bhasma & Vedic Mantras" });
   specs.push({ 
-    label: "Lab Certificate", 
-    value: product.hasCertificate !== false 
+    label: "Authenticity", 
+    value: product.hasCertificate === true 
       ? "Government Recognized Gemological Lab Certificate Included" 
-      : "100% Authenticity Guaranteed" 
+      : "100% Authentic & Vedic Energized Guarantee" 
   });
 
   return (
