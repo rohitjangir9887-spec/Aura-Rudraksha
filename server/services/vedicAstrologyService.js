@@ -1327,29 +1327,227 @@ export function calculateAuthenticKundali(params = {}) {
   // Calculate 12 Houses (Bhavas) relative to Lagna
   const lagnaRashiIndex = lagnaDetails.rashiIndex;
 
+  // Detailed Vedic Shastra Planet-in-House & Sign Phaladesh Engine (BPHS & Phaladeepika)
+  const PLANET_VEDIC_META = {
+    Sun: {
+      karaka: "आत्मा, पिता, आत्मबल, नेतृत्व, राजकीय सम्मान, सरकारी सेवा, हड्डियाँ व नेत्र ज्योति",
+      mantra: "ॐ ह्रां ह्रीं ह्रौं सः सूर्याय नमः (प्रतिदिन प्रातः 108 बार)",
+      upay: "प्रातः तांबे के लोटे में जल, लाल चंदन व गुड़ डालकर सूर्य देव को अर्घ्य दें तथा पिता व वरिष्ठों का सम्मान करें।",
+      houseEffects: {
+        1: "लग्न में सूर्य जातक को स्वाभिमानी, तेजस्वी, नेतृत्व क्षमता से युक्त और सिद्धांतवादी बनाता है।",
+        2: "द्वितीय भाव में सूर्य कुटुंब में प्रभावशाली वाणी और स्व-परिश्रम से धन संचय का सामर्थ्य देता है।",
+        3: "तृतीय भाव में सूर्य अदम्य साहस, पराक्रम, छोटे भाई-बहनों में श्रेष्ठता और शत्रुओं पर विजय देता है।",
+        4: "चतुर्थ भाव में सूर्य भूमि, वाहन व पैतृक प्रतिष्ठा देता है, किंतु मानसिक शांति के लिए धैर्य आवश्यक रखता है।",
+        5: "पंचम भाव में सूर्य तीक्ष्ण बुद्धि, उच्च प्रशासनिक ज्ञान, संतान से गौरव और पूर्व पुण्य का बल देता है।",
+        6: "षष्ठ भाव में सूर्य शत्रुहंता योग बनाता है—प्रतियोगिता, सरकारी सेवा और कोर्ट-कचहरी में विजय दिलाता है।",
+        7: "सप्तम भाव में सूर्य स्वतंत्र व्यापारिक सोच देता है, किंतु दांपत्य जीवन में अहंकार से बचने की सलाह देता है।",
+        8: "अष्टम भाव में सूर्य गूढ़ ज्ञान, शोध और आध्यात्मिक रुचि देता है; स्वास्थ्य व नेत्रों का ध्यान रखना चाहिए।",
+        9: "नवम (भाग्य) भाव में सूर्य धर्मपरायणता, पिता का आशीर्वाद, उच्च पद और समाज में कीर्ति प्रदान करता है।",
+        10: "दशम भाव में सूर्य 'दिग्बली' होकर सर्वोच्च राजयोग, सरकारी/प्रशासनिक अधिकार, यश और करियर में शिखर देता है।",
+        11: "एकादश भाव में सूर्य उच्चाधिकारियों से लाभ, स्थिर आय के स्रोत और बड़ी महत्वाकांक्षाओं की पूर्ति कराता है।",
+        12: "द्वादश भाव में सूर्य बाहरी स्थानों/विदेश से संबंध और आध्यात्मिक झुकाव देता है; अनावश्यक खर्चों से बचें।"
+      }
+    },
+    Moon: {
+      karaka: "मन, भावनाएं, माता, मानसिक शांति, स्मरण शक्ति, जल तत्व, तरल धन व सुख",
+      mantra: "ॐ श्रां श्रीं श्रौं सः चंद्रमसे नमः (सोमवार या प्रतिदिन 108 बार)",
+      upay: "सोमवार को शिवलिंग पर कच्चा दूध व गंगाजल अर्पित करें, माता का आशीर्वाद लें और चाँदी धारण करें।",
+      houseEffects: {
+        1: "लग्न में चंद्रमा जातक को सौम्य, संवेदनशील, आकर्षक व्यक्तित्व और कल्पनाशील मन प्रदान करता है।",
+        2: "द्वितीय भाव में चंद्रमा मधुर वाणी, परिवार के प्रति समर्पण और तरल धन/बचत में वृद्धि कराता है।",
+        3: "तृतीय भाव में चंद्रमा कलात्मक रुचि, छोटी यात्राओं से लाभ और संवाद कौशल देता है।",
+        4: "चतुर्थ भाव में चंद्रमा 'दिग्बली' होकर माता का भरपूर स्नेह, गृह सुख, वाहन और हृदय की पवित्रता देता है।",
+        5: "पंचम भाव में चंद्रमा सात्विक बुद्धि, रचनात्मकता, स्नेही स्वभाव और योग्य संतान सुख देता है।",
+        6: "षष्ठ भाव में चंद्रमा सेवा भाव देता है, किंतु मानसिक अति-चिंतन (Overthinking) और कफ/पाचन से बचाव रखें।",
+        7: "सप्तम भाव में चंद्रमा सुंदर व भावनात्मक जीवनसाथी तथा जनसंपर्क या व्यापार में लोकप्रियता दिलाता है।",
+        8: "अष्टम भाव में चंद्रमा गहरी अंतर्दृष्टि (Intuition) देता है, पर मन में अकारण भय या उतार-चढ़ाव से बचने हेतु शिव आराधना करें।",
+        9: "नवम भाव में चंद्रमा तीर्थ यात्रा, धर्म-कर्म में निष्ठा और भाग्योदय में मातृ-शक्ति का सहयोग देता है।",
+        10: "दशम भाव में चंद्रमा जन-सेवा, व्यापार, प्रबंधन और समाज में लोकप्रिय करियर प्रदान करता है।",
+        11: "एकादश भाव में चंद्रमा अनेक स्रोतों से धन लाभ, मित्रों का सहयोग और मनोकामना पूर्ति कराता है।",
+        12: "द्वादश भाव में चंद्रमा एकांत चिंतन, ध्यान व विदेश/दूरस्थ यात्रा देता है; रात्रि में अति-सोच से बचें।"
+      }
+    },
+    Mars: {
+      karaka: "ऊर्जा, साहस, पराक्रम, भूमि-भवन, छोटे भाई, रक्त बल, सेना/पुलिस/इंजीनियरिंग व निर्णय शक्ति",
+      mantra: "ॐ क्रां क्रीं क्रौं सः भौमाय नमः (मंगलवार को 108 बार)",
+      upay: "मंगलवार को श्री हनुमान चालीसा का पाठ करें, हनुमान जी को सिंदूर अर्पित करें और गुड़-चने का दान करें।",
+      houseEffects: {
+        1: "लग्न में मंगल जातक को निडर, ऊर्जावान, कर्मठ और स्वतंत्र निर्णय लेने वाला योद्धा स्वभाव देता है।",
+        2: "द्वितीय भाव में मंगल स्पष्टवादी (कभी-कभी तेज) वाणी और कठोर परिश्रम से संपत्ति निर्माण कराता है।",
+        3: "तृतीय भाव में मंगल प्रचंड पराक्रम, अदम्य साहस और अपने बाहुबल से भाग्य लिखने की शक्ति देता है।",
+        4: "चतुर्थ भाव में मंगल भूमि, मकान व रियल एस्टेट का सुख देता है; घर के वातावरण में शांति बनाए रखें।",
+        5: "पंचम भाव में मंगल त्वरित निर्णय क्षमता, तकनीकी/प्रबंधकीय बुद्धि और खेल/साहसिक क्षेत्रों में रुचि देता है।",
+        6: "षष्ठ भाव में मंगल विरोधियों, ऋण और बाधाओं को परास्त कर प्रतियोगिता में निश्चित विजय दिलाता है।",
+        7: "सप्तम भाव में मंगल व्यापारिक ऊर्जा देता है; वैवाहिक जीवन में क्रोध व जल्दबाजी से बचना हितकर है।",
+        8: "अष्टम भाव में मंगल आकस्मिक घटनाओं से जूझने की शक्ति और गुप्त विद्या देता है; वाहन सावधानी से चलाएं।",
+        9: "नवम भाव में मंगल धर्म की रक्षा, उच्च महत्वाकांक्षा और कर्मठता से भाग्योदय कराता है।",
+        10: "दशम भाव में मंगल 'दिग्बली' (कुलदीपक योग) होकर प्रशासन, व्यवसाय, भूमि व नेतृत्व में बड़ी सफलता देता है।",
+        11: "एकादश भाव में मंगल भूमि-संपत्ति से लाभ, साहसी कार्यों से आय और प्रभावशाली सामाजिक घेरा देता है।",
+        12: "द्वादश भाव में मंगल बाहरी कार्यों में ऊर्जा लगाता है; आवेश और अनावश्यक विवाद/खर्च से संयम रखें।"
+      }
+    },
+    Mercury: {
+      karaka: "बुद्धि, वाणी, व्यापार, गणित, संवाद, लेखन, तार्किक क्षमता, कॉमर्स व त्वचा/नसें",
+      mantra: "ॐ ब्रां ब्रीं ब्रौं सः बुधाय नमः (बुधवार को 108 बार)",
+      upay: "बुधवार को भगवान श्री गणेश को दूर्वा अर्पित करें, गौ माता को हरा चारा खिलाएं और पन्ना/4 मुखी रुद्राक्ष धारण करें।",
+      houseEffects: {
+        1: "लग्न में बुधदिग्बली होकर जातक को कुशाग्र बुद्धि, वाक्पटु (चतुर वक्ता), हँसमुख और व्यापारिक समझ वाला बनाता है।",
+        2: "द्वितीय भाव में बुध अपनी मीठी व तार्किक वाणी, बुद्धिमत्ता और सलाहकार/व्यापारिक कौशल से धन दिलाता है।",
+        3: "तृतीय भाव में बुध लेखन, मीडिया, आईटी, संचार और मार्केटिंग के क्षेत्र में विशेष निपुणता देता है।",
+        4: "चतुर्थ भाव में बुध उच्च शिक्षा, विद्वानों का संग और घर में बौद्धिक व सुखद वातावरण देता है।",
+        5: "पंचम भाव में बुध तीव्र स्मरण शक्ति, फाइनेंस/अकाउंट्स में दक्षता और नीतिगत निर्णय क्षमता देता है।",
+        6: "षष्ठ भाव में बुध तार्किक बहस में विजय देता है; नसों व पाचन तंत्र के स्वास्थ्य का ध्यान रखें।",
+        7: "सप्तम भाव में बुध व्यापार (Business), पार्टनरशिप, कंसल्टेंसी और बुद्धिमान जीवनसाथी का सुख देता है।",
+        8: "अष्टम भाव में बुध रिसर्च, ज्योतिष, डेटा विश्लेषण और गुप्त विषयों की गहरी समझ देता है।",
+        9: "नवम भाव में बुध उच्च डिग्री, शास्त्रों का ज्ञान, विदेश व्यापार और धर्म-दर्शन में रुचि देता है।",
+        10: "दशम भाव में बुध व्यापार, बैंकिंग, प्रबंधन, शिक्षा या तकनीक में मान-सम्मान और सफल करियर देता है।",
+        11: "एकादश भाव में बुध बौद्धिक कार्यों, व्यापारिक सौदों और नेटवर्क से निरंतर धन लाभ कराता है।",
+        12: "द्वादश भाव में बुध विदेशी कंपनियों, एक्सपोर्ट-इंपोर्ट या गुप्त योजनाओं में दिमाग चलाता है।"
+      }
+    },
+    Jupiter: {
+      karaka: "ज्ञान, धर्म, भाग्य, संतान, संचित धन (तिजोरी), गुरु कृपा, सदाचार, विवाह (कन्या हेतु) व आध्यात्मिकता",
+      mantra: "ॐ ग्रां ग्रीं ग्रौं सः गुरवे नमः (गुरुवार को 108 बार)",
+      upay: "गुरुवार को माथे पर केसर/हल्दी का तिलक लगाएं, केले के वृक्ष या पीपल की पूजा करें और चने की दाल व पीले वस्त्र दान करें।",
+      houseEffects: {
+        1: "लग्न में गुरु 'दिग्बली' होकर सवा लाख दोषों का शमन करता है—जातक को ज्ञानी, सात्विक, सम्मानित व दीर्घायु बनाता है।",
+        2: "द्वितीय भाव में गुरु कुटुंब में श्रेष्ठ संस्कार, सत्य वाणी और स्थायी धन-संपदा का संचय कराता है।",
+        3: "तृतीय भाव में गुरु धैर्यवान पराक्रम, दार्शनिक विचार और नीति-सम्मत प्रयासों से उन्नति देता है।",
+        4: "चतुर्थ भाव में गुरु विशाल हृदय, माता का सुख, उत्तम भवन-वाहन और समाज में निष्कलंक प्रतिष्ठा देता है।",
+        5: "पंचम भाव में गुरु प्रखर मेधा शक्ति, योग्य संतान, मंत्र सिद्धि और पूर्व जन्म के शुभ कर्मों का फल देता है।",
+        6: "षष्ठ भाव में गुरु शत्रुओं को भी मित्र बनाने की क्षमता देता है; खान-पान व लिवर/मधुमेह का ध्यान रखें।",
+        7: "सप्तम भाव में गुरु सुसंस्कृत व भाग्यशाली जीवनसाथी, सफल साझेदारी और विवाह के बाद भाग्योदय देता है।",
+        8: "अष्टम भाव में गुरु दीर्घायु, आध्यात्मिक रहस्य, वसीयत/अप्रत्याशित सहयोग और संकट में ईश्वरीय रक्षा देता है।",
+        9: "नवम (भाग्य) भाव में गुरु सर्वोच्च धर्म-कर्म, तीर्थ यात्रा, गुरु कृपा और अटूट भाग्योदय प्रदान करता है।",
+        10: "दशम भाव में गुरु उच्च पद, शिक्षा/न्याय/प्रबंधन/सलाहकार क्षेत्र में प्रतिष्ठा और निष्कलंक यश देता है।",
+        11: "एकादश भाव में गुरु प्रचुर धन लाभ, समृद्धि, बड़े भाई-बहनों व वरिष्ठों से सहयोग और इच्छापूर्ति कराता है।",
+        12: "द्वादश भाव में गुरु सात्विक दान-पुण्य, आध्यात्मिक मोक्ष मार्ग और शुभ कार्यों में धन का सदुपयोग कराता है।"
+      }
+    },
+    Venus: {
+      karaka: "प्रेम, विवाह, पत्नी/जीवनसाथी, वैभव, वाहन, कला, सौन्दर्य, आकर्षण, सुख-सुविधाएं व ऐश्वर्य",
+      mantra: "ॐ द्रां द्रीं द्रौं सः शुक्राय नमः (शुक्रवार को 108 बार)",
+      upay: "शुक्रवार को माता महालक्ष्मी की आराधना करें, स्वच्छ व सुगंधित वस्त्र पहनें और गाय को हरा चारा या सफेद मिठाई खिलाएं।",
+      houseEffects: {
+        1: "लग्न में शुक्र जातक को आकर्षक व्यक्तित्व, कलात्मक रुचि, सौम्य स्वभाव और सुख-सुविधाओं का प्रेमी बनाता है।",
+        2: "द्वितीय भाव में शुक्र मधुर वाणी, उत्तम खान-पान, पारिवारिक वैभव और रत्न-आभूषण का संचय देता है।",
+        3: "तृतीय भाव में शुक्र संगीत, कला, मीडिया, फैशन या क्रिएटिव क्षेत्रों में सफलता और लोकप्रियता देता है।",
+        4: "चतुर्थ भाव में शुक्र 'दिग्बली' होकर सुंदर घर, लग्जरी वाहन, मानसिक प्रसन्नता और पारिवारिक सुख देता है।",
+        5: "पंचम भाव में शुक्र प्रेम में सफलता, रचनात्मक प्रतिभा, मनोरंजन/कला से लाभ और कन्या रत्न से भाग्योदय देता है।",
+        6: "षष्ठ भाव में शुक्र सेवा क्षेत्र में लाभ देता है, किंतु रिश्तों में सामंजस्य और स्वास्थ्य का ध्यान रखना आवश्यक है।",
+        7: "सप्तम भाव में शुक्र प्रेममय दांपत्य जीवन, सुंदर जीवनसाथी और लग्जरी/व्यापारिक साझेदारी में लाभ देता है।",
+        8: "अष्टम भाव में शुक्र जीवनसाथी से आर्थिक सहयोग, गुप्त धन और रहस्यमयी आकर्षण प्रदान करता है।",
+        9: "नवम भाव में शुक्र भाग्य के साथ सुख-समृद्धि, विदेश यात्रा और धार्मिक-सांस्कृतिक कार्यों में रुचि देता है।",
+        10: "दशम भाव में शुक्र कला, व्यापार, कॉस्मेटिक्स, होटल, फाइनेंस या प्रशासन में लोकप्रियता और धन दिलाता है।",
+        11: "एकादश भाव में शुक्र ऐश्वर्य, उच्च सामाजिक संबंध और निरंतर आर्थिक लाभ व वैभव प्रदान करता है।",
+        12: "द्वादश भाव में शुक्र शयन सुख, भोग-विलास और विदेश यात्राओं पर खर्च व आनंद देता है।"
+      }
+    },
+    Saturn: {
+      karaka: "कर्म, न्याय, अनुशासन, धैर्य, दीर्घायु, सेवा, तकनीकी/मशीनरी, खनिज, जनसमूह व स्थायी सफलता",
+      mantra: "ॐ प्रां प्रीं प्रौं सः शनैश्चराय नमः (शनिवार को 108 बार)",
+      upay: "शनिवार को पीपल के वृक्ष के नीचे सरसों के तेल का दीपक जलाएं, हनुमान जी की उपासना करें और श्रमिकों/निर्धनों की सहायता करें।",
+      houseEffects: {
+        1: "लग्न में शनि जातक को गंभीर, अनुशासित, परिश्रमी और अपने अनुभव से धीरे-धीरे स्थायी शिखर छूने वाला बनाता है।",
+        2: "द्वितीय भाव में शनि स्पष्टवादी वाणी देता है और सिखाता है कि धन संचय के लिए नियमित अनुशासन आवश्यक है।",
+        3: "तृतीय भाव में शनि अद्भुत धैर्य, अटूट संघर्ष क्षमता और अपने परिश्रम से हर बाधा जीतने का बल देता है।",
+        4: "चतुर्थ भाव में शनि पुरानी या स्थायी संपत्ति देता है, किंतु जन्मस्थान से दूर जाकर अधिक भाग्योदय कराता है।",
+        5: "पंचम भाव में शनि गहन चिंतन, तकनीकी/कानूनी शिक्षा और गंभीर जीवन-दृष्टि देता है।",
+        6: "षष्ठ भाव में शनि शत्रुओं, रोगों और कर्ज को जड़ से समाप्त करने वाला प्रबल 'शत्रुहंता' योग बनाता है।",
+        7: "सप्तम भाव में शनि 'दिग्बली' होकर परिपक्व व जिम्मेदार जीवनसाथी तथा दीर्घकालिक व्यापारिक स्थिरता देता है।",
+        8: "अष्टम भाव में शनि 'आयुष्य कारक' होकर लंबी आयु और गहरे संकटों से उबरने की सहनशक्ति देता है।",
+        9: "नवम भाव में शनि पारंपरिक मूल्यों, तपस्या और 32-36 वर्ष की आयु के बाद अखंड भाग्योदय देता है।",
+        10: "दशम भाव में शनि 'कर्मेश' होकर कठिन परिश्रम के बाद विशाल साम्राज्य, उच्च पद और जन-नेतृत्व प्रदान करता है।",
+        11: "एकादश भाव में शनि भूमि, उद्योग, सेवा या बड़े प्रोजेक्ट्स से स्थायी और अथाह धन लाभ कराता है।",
+        12: "द्वादश भाव में शनि वैराग्य, सेवा-कार्य और बाहरी स्थानों से जुड़ाव देता है; जोड़ों/पैरों व नींद का ध्यान रखें।"
+      }
+    },
+    Rahu: {
+      karaka: "महत्वाकांक्षा, आकस्मिक उत्थान, विदेश योग, आधुनिक तकनीक (AI/IT), राजनीति, कूटनीति व लीक से हटकर सफलता",
+      mantra: "ॐ भ्रां भ्रीं भ्रौं सः राहवे नमः (बुधवार/शनिवार को 108 बार)",
+      upay: "भगवान श्री गणेश व माँ दुर्गा की उपासना करें, पक्षियों को सात प्रकार का अनाज (सप्तधान्य) डालें और 8 मुखी रुद्राक्ष धारण करें।",
+      houseEffects: {
+        1: "लग्न में राहु जातक को महत्वाकांक्षी, तीक्ष्ण बुद्धि और भीड़ से अलग पहचान बनाने वाला बनाता है; भ्रम से बचें।",
+        2: "द्वितीय भाव में राहु वाणी में प्रभाव और आकस्मिक धन योग देता है, पर पारिवारिक वाद-विवाद व अनावश्यक खर्च से बचें।",
+        3: "तृतीय भाव में राहु अत्यंत बली होकर अजेय साहस, शत्रुओं पर विजय और अपने दम पर बड़ा साम्राज्य खड़ा कराता है।",
+        4: "चतुर्थ भाव में राहु जन्मस्थान से दूर या विदेश में सफलता देता है; मानसिक शांति के लिए घर में शिव पूजा करें।",
+        5: "पंचम भाव में राहु तीक्ष्ण कूटनीतिक बुद्धि और शेयर/स्पेकुलेशन में रुचि देता है, किंतु भ्रम व अति-चिंता से बचें।",
+        6: "षष्ठ भाव में राहु गुप्त शत्रुओं का नाश करता है और कठिन से कठिन प्रतियोगिता/मुकदमे में विजय दिलाता है।",
+        7: "सप्तम भाव में राहु आधुनिक/व्यापारिक साझेदारी देता है; जीवनसाथी के साथ पारदर्शिता और विश्वास बनाए रखें।",
+        8: "अष्टम भाव में राहु गुप्त अनुसंधान व अचानक घटनाक्रम देता है; राहु शांति व अष्टमुखी रुद्राक्ष कवच अवश्य रखें।",
+        9: "नवम भाव में राहु विदेश यात्रा और लीक से हटकर विचार देता है; गुरु व कुल-परंपरा का सदैव सम्मान करें।",
+        10: "दशम भाव में राहु राजनीति, प्रशासन, मीडिया, आईटी या बड़े व्यापार में तेज उत्थान और प्रसिद्धि दिलाता है।",
+        11: "एकादश भाव में राहु आकस्मिक महाधन लाभ, बड़े संपर्कों से उन्नति और सभी भौतिक इच्छाओं की पूर्ति कराता है।",
+        12: "द्वादश भाव में राहु विदेश प्रवास/मल्टीनेशनल कार्य देता है, किंतु अनिद्रा और आकस्मिक व्यय पर नियंत्रण रखें।"
+      }
+    },
+    Ketu: {
+      karaka: "मोक्ष, अध्यात्म, अंतर्ज्ञान (Intuition), वैराग्य, सूक्ष्म शोध, पूर्व जन्म का ज्ञान व आकस्मिक रक्षक",
+      mantra: "ॐ स्रां स्रीं स्रौं सः केतवे नमः (मंगलवार/शनिवार को 108 बार)",
+      upay: "भगवान श्री गणेश व माँ नवदुर्गा की आराधना करें, कुत्तों को रोटी खिलाएं और 9 मुखी रुद्राक्ष धारण करें।",
+      houseEffects: {
+        1: "लग्न में केतु जातक को आध्यात्मिक, अंतर्मुखी, गहरी छठी इंद्रिय (Intuition) से युक्त और निस्वार्थ बनाता है।",
+        2: "द्वितीय भाव में केतु आध्यात्मिक वाणी देता है; धन संचय में उतार-चढ़ाव से बचने हेतु गणेश उपासना करें।",
+        3: "तृतीय भाव में केतु मानसिक दृढ़ता, गुप्त साहस और संकट के समय अचूक निर्णय शक्ति प्रदान करता है।",
+        4: "चतुर्थ भाव में केतु मन को संसार से अधिक आध्यात्मिक शांति की ओर मोड़ता है।",
+        5: "पंचम भाव में केतु मंत्र-सिद्धि, ज्योतिष, कोडिंग/रिसर्च और सूक्ष्म विषयों में विलक्षण मेधा देता है।",
+        6: "षष्ठ भाव में केतु शत्रुओं को स्वतः शांत करता है और गुप्त बाधाओं से रक्षा करता है।",
+        7: "सप्तम भाव में केतु जीवनसाथी में आध्यात्मिक गुण चाहता है; आपसी संवाद में स्पष्टता रखें।",
+        8: "अष्टम भाव में केतु गूढ़ साधना, कुंडलिनी शक्ति और रहस्यमयी विषयों का गहरा अनुभव देता है।",
+        9: "नवम भाव में केतु तीर्थ यात्रा, तपस्या, पूर्वजों का आशीर्वाद और धर्म के प्रति गहरा समर्पण देता है।",
+        10: "दशम भाव में केतु विशेषज्ञता, शोध, चिकित्सा या तकनीकी क्षेत्र में अनूठी पहचान दिलाता है।",
+        11: "एकादश भाव में केतु संतोष के साथ आकस्मिक आर्थिक लाभ और आध्यात्मिक मित्रों का संग देता है।",
+        12: "द्वादश (मोक्ष) भाव में केतु सर्वोच्च आध्यात्मिक मुक्ति, ध्यान-समाधि और ईश्वरीय सुरक्षा प्रदान करता है।"
+      }
+    }
+  };
+
+  const BHAVA_VEDIC_META = {
+    1: { title: "प्रथम भाव (तनु / लग्न भाव)", significance: "शरीर, व्यक्तित्व, आत्मबल, स्वास्थ्य, आकृति, यश व जीवन की मूल दिशा", karaka: "सूर्य देव (Sun)" },
+    2: { title: "द्वितीय भाव (धन व कुटुंब भाव)", significance: "संचित धन (बैंक बैलेंस), कुटुंब/परिवार, वाणी, खान-पान व पैतृक संस्कार", karaka: "गुरु बृहस्पति (Jupiter)" },
+    3: { title: "तृतीय भाव (सहज व पराक्रम भाव)", significance: "साहस, पराक्रम, छोटे भाई-बहन, संवाद कौशल, छोटी यात्राएं व स्वरोजगार प्रयास", karaka: "मंगल देव (Mars)" },
+    4: { title: "चतुर्थ भाव (सुख, माता, भूमि व वाहन भाव)", significance: "मानसिक शांति, माता का सुख, भूमि-भवन (प्रॉपर्टी), वाहन व पारिवारिक सुख", karaka: "चंद्रमा एवं बुध (Moon & Mercury)" },
+    5: { title: "पंचम भाव (संतान, विद्या, बुद्धि व पूर्व पुण्य भाव)", significance: "उच्च शिक्षा, मेधा शक्ति, संतान सुख, प्रेम संबंध, मंत्र सिद्धि व पूर्व जन्म पुण्य", karaka: "गुरु बृहस्पति (Jupiter)" },
+    6: { title: "षष्ठ भाव (रोग, ऋण, शत्रु व सेवा/नौकरी भाव)", significance: "दैनिक नौकरी/सेवा, प्रतियोगी परीक्षा, शत्रु विजय, कर्ज मुक्ति व रोग प्रतिरोधक क्षमता", karaka: "मंगल एवं शनि (Mars & Saturn)" },
+    7: { title: "सप्तम भाव (विवाह, दांपत्य व व्यापार भाव)", significance: "जीवनसाथी, विवाह सुख, व्यापारिक साझेदारी (Partnership), दैनिक व्यापार व सामाजिक छवि", karaka: "शुक्र देव (Venus)" },
+    8: { title: "अष्टम भाव (आयु, गुप्त विद्या व परिवर्तन भाव)", significance: "दीर्घायु, आकस्मिक धन/वसीयत, ससुराल पक्ष, गूढ़ शोध, ज्योतिष व जीवन के बड़े रूपांतरण", karaka: "शनि देव (Saturn)" },
+    9: { title: "नवम भाव (भाग्य, धर्म, गुरु व तीर्थ भाव)", significance: "भाग्योदय, धर्म-कर्म, गुरु व पिता की कृपा, उच्च ज्ञान, लंबी/विदेश यात्रा व ईश्वरीय आशीर्वाद", karaka: "गुरु बृहस्पति एवं सूर्य (Jupiter & Sun)" },
+    10: { title: "दशम भाव (कर्म, करियर, पद-प्रतिष्ठा व राज्य भाव)", significance: "आजीविका, करियर, व्यापार, सरकारी/प्रशासनिक सम्मान, प्रमोशन, अधिकार व कीर्ति", karaka: "सूर्य, बुध, गुरु एवं शनि" },
+    11: { title: "एकादश भाव (लाभ, आय व मनोकामना पूर्ति भाव)", significance: "नियमित आय (Income), धन लाभ, बड़ी इच्छाओं की पूर्ति, बड़े भाई-बहन व प्रभावशाली मित्र", karaka: "गुरु बृहस्पति (Jupiter)" },
+    12: { title: "द्वादश भाव (व्यय, विदेश यात्रा व मोक्ष भाव)", significance: "खर्च, निवेश, विदेश यात्रा/बसावट, दान-पुण्य, शयन सुख, एकांत साधना व मोक्ष", karaka: "शनि एवं केतु (Saturn & Ketu)" }
+  };
+
   function getHouseNumber(planetRashiIndex) {
     return ((planetRashiIndex - lagnaRashiIndex + 12) % 12) + 1;
   }
 
   // Planets Table with D9 Navamsha, Divisional Charts & Vargottama Detection
   const rawPlanets = [
-    { name: "Surya (Sun)", key: "Sun", english: "Sun", deg: sunSid, details: sunDetails, nak: sunNak, d9: sunNavamsha, vargas: calculateDivisionalCharts(sunSid) },
-    { name: "Chandra (Moon)", key: "Moon", english: "Moon", deg: moonSid, details: moonDetails, nak: moonNak, d9: moonNavamsha, vargas: calculateDivisionalCharts(moonSid) },
-    { name: "Mangal (Mars)", key: "Mars", english: "Mars", deg: marsSid, details: getRashiAndDegree(marsSid), nak: getNakshatraAndPada(marsSid), d9: calculateNavamshaRashi(marsSid), vargas: calculateDivisionalCharts(marsSid) },
-    { name: "Budha (Mercury)", key: "Mercury", english: "Mercury", deg: mercSid, details: getRashiAndDegree(mercSid), nak: getNakshatraAndPada(mercSid), d9: calculateNavamshaRashi(mercSid), vargas: calculateDivisionalCharts(mercSid) },
-    { name: "Guru (Jupiter)", key: "Jupiter", english: "Jupiter", deg: jupSid, details: getRashiAndDegree(jupSid), nak: getNakshatraAndPada(jupSid), d9: calculateNavamshaRashi(jupSid), vargas: calculateDivisionalCharts(jupSid) },
-    { name: "Shukra (Venus)", key: "Venus", english: "Venus", deg: venSid, details: getRashiAndDegree(venSid), nak: getNakshatraAndPada(venSid), d9: calculateNavamshaRashi(venSid), vargas: calculateDivisionalCharts(venSid) },
-    { name: "Shani (Saturn)", key: "Saturn", english: "Saturn", deg: satSid, details: getRashiAndDegree(satSid), nak: getNakshatraAndPada(satSid), d9: calculateNavamshaRashi(satSid), vargas: calculateDivisionalCharts(satSid) },
-    { name: "Rahu (North Node)", key: "Rahu", english: "Rahu", deg: rahuSid, details: getRashiAndDegree(rahuSid), nak: getNakshatraAndPada(rahuSid), d9: calculateNavamshaRashi(rahuSid), vargas: calculateDivisionalCharts(rahuSid) },
-    { name: "Ketu (South Node)", key: "Ketu", english: "Ketu", deg: ketuSid, details: getRashiAndDegree(ketuSid), nak: getNakshatraAndPada(ketuSid), d9: calculateNavamshaRashi(ketuSid), vargas: calculateDivisionalCharts(ketuSid) }
+    { name: "Surya (Sun)", hindiName: "सूर्य देव (Sun)", key: "Sun", english: "Sun", deg: sunSid, details: sunDetails, nak: sunNak, d9: sunNavamsha, vargas: calculateDivisionalCharts(sunSid) },
+    { name: "Chandra (Moon)", hindiName: "चंद्र देव (Moon)", key: "Moon", english: "Moon", deg: moonSid, details: moonDetails, nak: moonNak, d9: moonNavamsha, vargas: calculateDivisionalCharts(moonSid) },
+    { name: "Mangal (Mars)", hindiName: "मंगल देव (Mars)", key: "Mars", english: "Mars", deg: marsSid, details: getRashiAndDegree(marsSid), nak: getNakshatraAndPada(marsSid), d9: calculateNavamshaRashi(marsSid), vargas: calculateDivisionalCharts(marsSid) },
+    { name: "Budha (Mercury)", hindiName: "बुध देव (Mercury)", key: "Mercury", english: "Mercury", deg: mercSid, details: getRashiAndDegree(mercSid), nak: getNakshatraAndPada(mercSid), d9: calculateNavamshaRashi(mercSid), vargas: calculateDivisionalCharts(mercSid) },
+    { name: "Guru (Jupiter)", hindiName: "गुरु बृहस्पति (Jupiter)", key: "Jupiter", english: "Jupiter", deg: jupSid, details: getRashiAndDegree(jupSid), nak: getNakshatraAndPada(jupSid), d9: calculateNavamshaRashi(jupSid), vargas: calculateDivisionalCharts(jupSid) },
+    { name: "Shukra (Venus)", hindiName: "शुक्र देव (Venus)", key: "Venus", english: "Venus", deg: venSid, details: getRashiAndDegree(venSid), nak: getNakshatraAndPada(venSid), d9: calculateNavamshaRashi(venSid), vargas: calculateDivisionalCharts(venSid) },
+    { name: "Shani (Saturn)", hindiName: "शनि देव (Saturn)", key: "Saturn", english: "Saturn", deg: satSid, details: getRashiAndDegree(satSid), nak: getNakshatraAndPada(satSid), d9: calculateNavamshaRashi(satSid), vargas: calculateDivisionalCharts(satSid) },
+    { name: "Rahu (North Node)", hindiName: "राहु (Rahu)", key: "Rahu", english: "Rahu", deg: rahuSid, details: getRashiAndDegree(rahuSid), nak: getNakshatraAndPada(rahuSid), d9: calculateNavamshaRashi(rahuSid), vargas: calculateDivisionalCharts(rahuSid) },
+    { name: "Ketu (South Node)", hindiName: "केतु (Ketu)", key: "Ketu", english: "Ketu", deg: ketuSid, details: getRashiAndDegree(ketuSid), nak: getNakshatraAndPada(ketuSid), d9: calculateNavamshaRashi(ketuSid), vargas: calculateDivisionalCharts(ketuSid) }
   ];
 
   let calculatedPlanets = rawPlanets.map((p) => {
     const house = getHouseNumber(p.details.rashiIndex);
     const dignity = getPlanetaryDignity(p.key, p.details.rashiIndex);
     const isVargottama = p.details.rashiIndex === p.d9.rashiIndex;
+    const pMeta = PLANET_VEDIC_META[p.key] || {};
+    const houseEffect = pMeta.houseEffects?.[house] || `${p.hindiName} ${house}वें भाव में स्थित होकर अपने कारकत्व के अनुसार फल दे रहे हैं।`;
+    const d9Note = isVargottama
+      ? `नवमांश (D9) में भी **${p.d9.rashiName}** राशि में रहकर **वर्गोत्तम (Vargottama)** हैं, जिससे इस ग्रह की शुभता और आंतरिक शक्ति दोगुनी हो गई है।`
+      : `नवमांश कुंडली (D9) में यह ग्रह **${p.d9.rashiName}** राशि में तथा दशमांश (D10 - करियर चार्ट) में **${p.vargas?.d10?.rashiName || p.d9.rashiName}** राशि में स्थित है।`;
+    const signification = `${houseEffect} (कारक क्षेत्र: ${pMeta.karaka || "जीवन ऊर्जा"})। ${d9Note}`;
+
     return {
       name: p.name,
+      hindiName: p.hindiName,
       englishName: p.english,
       key: p.key,
       rashiHindi: p.details.rashiName,
@@ -1365,8 +1563,14 @@ export function calculateAuthenticKundali(params = {}) {
       dignity,
       navamshaRashiHindi: p.d9.rashiName,
       navamshaRashiEnglish: p.d9.rashiEnglish,
+      dashamshaRashiHindi: p.vargas?.d10?.rashiName || p.d9.rashiName,
       vargas: p.vargas,
-      isVargottama
+      isVargottama,
+      karaka: pMeta.karaka || "",
+      signification,
+      houseEffect,
+      mantra: pMeta.mantra || "ॐ नमः शिवाय",
+      upay: pMeta.upay || "शिव आराधना करें।"
     };
   });
 
@@ -1376,22 +1580,38 @@ export function calculateAuthenticKundali(params = {}) {
   // Calculate Planetary Aspects
   const planetaryAspects = calculatePlanetaryAspects(planets);
 
-  // Bhavas (Houses) distribution with Aspects & Lords
+  // Bhavas (Houses) distribution with Aspects, Lords, Significations & Detailed Bhava Phaladesh
   const houses = [];
   for (let h = 1; h <= 12; h++) {
     const houseRashiIdx = (lagnaRashiIndex + h - 1) % 12;
     const rashiObj = RASHIS[houseRashiIdx];
     const occupants = planets.filter((p) => p.houseNumber === h).map((p) => p.name);
     const aspectsOnHouse = planetaryAspects[h] || [];
+    const bMeta = BHAVA_VEDIC_META[h] || { title: `${h}वां भाव`, significance: "जीवन क्षेत्र", karaka: "सूर्य" };
+
+    // Find where the Lord of this house is placed
+    const lordKey = (rashiObj.lord || "").split(" ")[0];
+    const lordPlanet = planets.find(p => p.name.includes(lordKey) || p.englishName.toLowerCase().includes(lordKey.toLowerCase()));
+    const lordHousePlacement = lordPlanet ? `${lordPlanet.houseNumber}वें भाव (${lordPlanet.rashiHindi})` : "स्वभाव";
+
+    const bhavaPhaladesh = occupants.length > 0
+      ? `इस भाव में **${occupants.join(", ")}** विराजमान हैं तथा भावेश **${rashiObj.lord}** कुंडली के **${lordHousePlacement}** में स्थित हैं। इसके फलस्वरूप ${bMeta.significance} के क्षेत्र में इन ग्रहों का सीधा और सक्रिय प्रभाव रहेगा।`
+      : `इस भाव में कोई ग्रह प्रत्यक्ष नहीं बैठा है (शांत भाव), अतः इस भाव का संपूर्ण फल इसके स्वामी **${rashiObj.lord}** (जो **${lordHousePlacement}** में स्थित हैं) और इस पर पड़ने वाली ग्रह दृष्टियों (${aspectsOnHouse.length > 0 ? aspectsOnHouse.join(", ") : "सामान्य दृष्टि"}) के अनुसार प्राप्त होगा।`;
+
     houses.push({
       houseNumber: h,
+      houseTitle: bMeta.title,
+      significance: bMeta.significance,
+      karaka: bMeta.karaka,
       rashiHindi: rashiObj.name,
       rashiEnglish: rashiObj.english,
       rashiSymbol: rashiObj.symbol,
       lord: rashiObj.lord,
+      lordPlacement: lordHousePlacement,
       element: rashiObj.element,
-      occupants: occupants.length > 0 ? occupants : ["Shunya (No direct planet)"],
-      aspects: aspectsOnHouse
+      occupants: occupants.length > 0 ? occupants : ["Shunya (भावेश द्वारा संचालित)"],
+      aspects: aspectsOnHouse,
+      bhavaPhaladesh
     });
   }
 
@@ -1417,15 +1637,44 @@ export function calculateAuthenticKundali(params = {}) {
   const ketu = planets.find(p => p.key === "Ketu") || {};
   const kaalSarpInfo = getKaalSarpType(rahu.houseNumber || 1, ketu.houseNumber || 7, planets);
 
-  // Yogas
+  // Comprehensive Classical Parashari Yogas Detection
   const yogas = [];
-  const jup = planets.find(p => p.key === "Jupiter");
+  const sun = planets.find(p => p.key === "Sun");
   const moon = planets.find(p => p.key === "Moon");
+  const merc = planets.find(p => p.key === "Mercury");
+  const jup = planets.find(p => p.key === "Jupiter");
+  const ven = planets.find(p => p.key === "Venus");
+
   if (jup && moon) {
     const diff = ((jup.houseNumber - moon.houseNumber + 12) % 12) + 1;
     if ([1, 4, 7, 10].includes(diff)) {
-      yogas.push({ name: "Gajakesari Yoga", category: "Raja Yoga", description: "Guru-Chandra Kendra sthiti: Yash, vidya aur samman prapti." });
+      yogas.push({ name: "गजकेसरी राजयोग (Gajakesari Raja Yoga)", category: "Raja Yoga", description: "गुरु और चंद्रमा परस्पर केंद्र में स्थित हैं — यह योग जातक को समाज में मान-सम्मान, प्रखर बुद्धि, स्थायी संपत्ति और संकटों से ईश्वरीय रक्षा प्रदान करता है।" });
     }
+  }
+  if (sun && merc && sun.houseNumber === merc.houseNumber) {
+    yogas.push({ name: "बुधादित्य राजयोग (Budhaditya Yoga)", category: "Raja Yoga", description: `सूर्य और बुध की ${sun.houseNumber}वें भाव (${sun.rashiHindi}) में युति जातक को तीव्र बौद्धिक क्षमता, प्रशासनिक/व्यापारिक कौशल, वाणी का प्रभाव और यश प्रदान करती है।` });
+  }
+  if (moon && mars && moon.houseNumber === mars.houseNumber) {
+    yogas.push({ name: "चन्द्र-मंगल महालक्ष्मी धन योग (Chandra-Mangal Dhana Yoga)", category: "Dhana Yoga", description: `चंद्र और मंगल की ${moon.houseNumber}वें भाव में युति जातक को अपने साहस व उद्यम से प्रचुर धन अर्जित करने का सामर्थ्य देती है।` });
+  }
+  // Pancha Mahapurusha Yoga checks
+  if (mars && [1, 4, 7, 10].includes(mars.houseNumber) && (mars.dignity?.includes("Exalted") || mars.dignity?.includes("Own"))) {
+    yogas.push({ name: "रुचक पंचमहापुरुष राजयोग (Ruchaka Mahapurusha Yoga)", category: "Mahapurusha Yoga", description: "मंगल केंद्र में उच्च/स्वराशि में स्थित होकर अदम्य साहस, भूमि-भवन, नेतृत्व और उच्च प्रशासनिक सफलता प्रदान करता है।" });
+  }
+  if (merc && [1, 4, 7, 10].includes(merc.houseNumber) && (merc.dignity?.includes("Exalted") || merc.dignity?.includes("Own"))) {
+    yogas.push({ name: "भद्र पंचमहापुरुष राजयोग (Bhadra Mahapurusha Yoga)", category: "Mahapurusha Yoga", description: "बुध केंद्र में उच्च/स्वराशि में स्थित होकर कुशाग्र बुद्धि, व्यापारिक साम्राज्य और वाक्-सिद्धि प्रदान करता है।" });
+  }
+  if (jup && [1, 4, 7, 10].includes(jup.houseNumber) && (jup.dignity?.includes("Exalted") || jup.dignity?.includes("Own"))) {
+    yogas.push({ name: "हंस पंचमहापुरुष राजयोग (Hamsa Mahapurusha Yoga)", category: "Mahapurusha Yoga", description: "गुरु बृहस्पति केंद्र में उच्च/स्वराशि में स्थित होकर आध्यात्मिक तेज, ज्ञान, अथाह समृद्धि और समाज में सर्वोच्च सम्मान देते हैं।" });
+  }
+  if (ven && [1, 4, 7, 10].includes(ven.houseNumber) && (ven.dignity?.includes("Exalted") || ven.dignity?.includes("Own"))) {
+    yogas.push({ name: "मालव्य पंचमहापुरुष राजयोग (Malavya Mahapurusha Yoga)", category: "Mahapurusha Yoga", description: "शुक्र केंद्र में उच्च/स्वराशि में स्थित होकर वैभव, वाहन, सुंदर घर, कलात्मक सफलता और सुखमय दांपत्य जीवन देते हैं।" });
+  }
+  if (saturn && [1, 4, 7, 10].includes(saturn.houseNumber) && (saturn.dignity?.includes("Exalted") || saturn.dignity?.includes("Own"))) {
+    yogas.push({ name: "शश पंचमहापुरुष राजयोग (Shasha Mahapurusha Yoga)", category: "Mahapurusha Yoga", description: "शनि केंद्र में उच्च/स्वराशि में स्थित होकर जन-नेतृत्व, स्थायी साम्राज्य, भूमि और दीर्घकालिक उच्च पद प्रदान करते हैं।" });
+  }
+  if (yogas.length === 0) {
+    yogas.push({ name: "लग्न-त्रिकोण कर्म सहयोग योग (Kendra-Trikona Karma Yoga)", category: "Shubha Yoga", description: `लग्नेश ${lagnaDetails.lord} एवं भाग्येश ${houses[8]?.lord || "गुरु"} के संबंध से जातक अपने स्व-परिश्रम और धर्मनिष्ठा से जीवन में स्थायी उन्नति प्राप्त करता है।` });
   }
 
   // Vimshottari Dasha
@@ -1444,16 +1693,37 @@ export function calculateAuthenticKundali(params = {}) {
     }
   });
 
+  const MUKHI_SHASTRA_META = {
+    1: { beejMantra: "ॐ ह्रीं नमः", wearingDay: "रविवार या सोमवार प्रातः", deity: "भगवान परमशिव (सूर्य अधिपति)" },
+    2: { beejMantra: "ॐ नमः", wearingDay: "सोमवार प्रातः", deity: "भगवान अर्धनारीश्वर (चंद्र अधिपति)" },
+    3: { beejMantra: "ॐ क्लीं नमः", wearingDay: "मंगलवार प्रातः", deity: "अग्नि देव (मंगल अधिपति)" },
+    4: { beejMantra: "ॐ ह्रीं नमः", wearingDay: "बुधवार या गुरुवार प्रातः", deity: "भगवान ब्रह्मा व माँ सरस्वती (बुध अधिपति)" },
+    5: { beejMantra: "ॐ ह्रीं नमः", wearingDay: "गुरुवार या सोमवार प्रातः", deity: "भगवान कालाग्नि रुद्र (गुरु बृहस्पति अधिपति)" },
+    6: { beejMantra: "ॐ ह्रीं हुं नमः", wearingDay: "शुक्रवार प्रातः", deity: "भगवान कार्तिकेय (शुक्र अधिपति)" },
+    7: { beejMantra: "ॐ हुं नमः", wearingDay: "शुक्रवार या शनिवार प्रातः", deity: "माता महालक्ष्मी व सप्तर्षि (शनि/शुक्र अधिपति)" },
+    8: { beejMantra: "ॐ हुं नमः / ॐ गं गणपतये नमः", wearingDay: "बुधवार प्रातः", deity: "विघ्नहर्ता श्री गणेश (राहु अधिपति)" },
+    9: { beejMantra: "ॐ ह्रीं हुं नमः", wearingDay: "शुक्रवार या शनिवार प्रातः", deity: "माँ नवदुर्गा (केतु अधिपति)" },
+    10: { beejMantra: "ॐ ह्रीं नमः", wearingDay: "गुरुवार प्रातः", deity: "भगवान श्री हरि विष्णु (नवग्रह शांति)" },
+    11: { beejMantra: "ॐ ह्रीं हुं नमः", wearingDay: "मंगलवार या शनिवार प्रातः", deity: "एकादश रुद्र भगवान हनुमान" },
+    12: { beejMantra: "ॐ क्रौं क्षौं रौं नमः", wearingDay: "रविवार प्रातः", deity: "द्वादश आदित्य (सूर्य देव)" },
+    13: { beejMantra: "ॐ ह्रीं नमः", wearingDay: "शुक्रवार प्रातः", deity: "कामदेव व देवराज इंद्र (शुक्र अधिपति)" },
+    14: { beejMantra: "ॐ नमः", wearingDay: "मंगलवार या शनिवार प्रातः", deity: "देवमणि भगवान शिव व हनुमान (शनि/मंगल अधिपति)" }
+  };
+
   // Rudraksha recommendations: Entry 0 is ALWAYS the Immutable Canonical Primary Rudraksha
   const rudrakshaRecommendations = [];
+  const primaryMeta = MUKHI_SHASTRA_META[canonicalPrimary.mukhiNumber] || MUKHI_SHASTRA_META[5];
 
   // 1. Canonical Primary Life Rudraksha (Lagna Lord)
   rudrakshaRecommendations.push({
     role: "Canonical Primary Life Rudraksha (इष्ट व लग्न अधिपति)",
     significance: canonicalPrimary.significance,
+    reason: canonicalPrimary.significance,
     mukhi: canonicalPrimary.mukhi,
     mukhiNumber: canonicalPrimary.mukhiNumber,
-    beejMantra: canonicalPrimary.beejMantra,
+    beejMantra: canonicalPrimary.beejMantra || primaryMeta.beejMantra,
+    wearingDay: primaryMeta.wearingDay,
+    deity: primaryMeta.deity,
     isCanonicalPrimary: true
   });
 
@@ -1464,51 +1734,69 @@ export function calculateAuthenticKundali(params = {}) {
     "Dhanu": 5, "Makar": 7, "Kumbh": 7, "Meen": 5
   };
   const rashiMukhi = rashiRudrakshaMap[moonDetails.rashiName] || 5;
+  const rashiMeta = MUKHI_SHASTRA_META[rashiMukhi] || MUKHI_SHASTRA_META[5];
+  const rashiSig = `आपकी जन्म चंद्र राशि ${moonDetails.rashiName} (${moonDetails.rashiEnglish}) है, जिसके स्वामी ${moonDetails.lord} हैं। यह रुद्राक्ष मानसिक शांति, भावनात्मक संतुलन, अति-चिंतन (Overthinking) से मुक्ति और सही निर्णय क्षमता के लिए अत्यंत लाभकारी है।`;
   rudrakshaRecommendations.push({
     role: "Chandra Rashi Rudraksha (चंद्र राशि अधिपति)",
-    significance: `Aapki Janma Rashi ${moonDetails.rashiName} (${moonDetails.rashiEnglish}) hai, jiske Swami ${moonDetails.lord} hain. Yeh man ki shanti, emotional balance aur decision making ke liye labhkari hai.`,
+    significance: rashiSig,
+    reason: rashiSig,
     mukhi: `${rashiMukhi} Mukhi Rudraksha`,
     mukhiNumber: rashiMukhi,
+    beejMantra: rashiMeta.beejMantra,
+    wearingDay: rashiMeta.wearingDay,
+    deity: rashiMeta.deity,
     isCanonicalPrimary: false
   });
 
   // 3. Current Dasha Rudraksha
+  const dashaMukhiNum = parseInt(dashaInfo.recommendedDashaRudraksha, 10) || 5;
+  const dashaMeta = MUKHI_SHASTRA_META[dashaMukhiNum] || MUKHI_SHASTRA_META[5];
+  const dashaSig = `आपके जीवन में वर्तमान में ${dashaInfo.currentMahadashaHindi} की महादशा एवं ${dashaInfo.currentAntardashaHindi} की अंतर्दशा चल रही है। वर्तमान दशा के अशुभ प्रभाव को शांत करने तथा शुभ फलों को बढ़ाने हेतु ${dashaInfo.recommendedDashaRudraksha} सुरक्षा कवच का कार्य करता है।`;
   rudrakshaRecommendations.push({
     role: `Current Dasha Rudraksha (${dashaInfo.currentMahadasha} Mahadasha)`,
-    significance: `Aapke jeevan mein vartaman mein ${dashaInfo.currentMahadashaHindi} ki Mahadasha chal rahi hai. Is grah ke shubh prabhav ko badhane hetu ${dashaInfo.recommendedDashaRudraksha} anukul hai.`,
+    significance: dashaSig,
+    reason: dashaSig,
     mukhi: dashaInfo.recommendedDashaRudraksha,
-    mukhiNumber: parseInt(dashaInfo.recommendedDashaRudraksha, 10) || 5,
+    mukhiNumber: dashaMukhiNum,
+    beejMantra: dashaMeta.beejMantra,
+    wearingDay: dashaMeta.wearingDay,
+    deity: dashaMeta.deity,
     isCanonicalPrimary: false
   });
 
   // 4. Concern / Life Goal Complementary Focus (Explanation only - NEVER overrides Primary Mukhi)
   const concernMap = {
-    "all": { mukhi: "1 Mukhi / 5 Mukhi / 108 Jaap Mala", role: "Complete Life Guidance (संपूर्ण जीवन संरक्षण)", significance: "समस्त जीवन क्षेत्रों की समग्र उन्नति हेतु पूरक मार्गदर्शन।" },
-    "career": { mukhi: "7 Mukhi / 10 Mukhi / 14 Mukhi", role: "Career & Leadership (करियर व आजीविका पूरक)", significance: "करियर और व्यावसायिक उन्नति हेतु पूरक मार्गदर्शन।" },
-    "business": { mukhi: "7 Mukhi / 8 Mukhi / 12 Mukhi", role: "Business & Trade (व्यापार व व्यवसाय पूरक)", significance: "व्यापार विस्तार व नकदी प्रवाह हेतु पूरक मार्गदर्शन।" },
-    "education": { mukhi: "4 Mukhi / 5 Mukhi", role: "Education & Intellect (विद्या व एकाग्रता पूरक)", significance: "विद्या, स्मरण शक्ति व परीक्षा सफलता हेतु पूरक मार्गदर्शन।" },
-    "marriage": { mukhi: "2 Mukhi / Gauri Shankar", role: "Marriage & Harmony (विवाह व दांपत्य पूरक)", significance: "विवाह व संबंधों में सामंजस्य हेतु पूरक मार्गदर्शन।" },
-    "love": { mukhi: "2 Mukhi / 6 Mukhi / 13 Mukhi", role: "Love & Attraction (प्रेम संबंध पूरक)", significance: "आपसी आकर्षण व प्रेम में सामंजस्य हेतु पूरक मार्गदर्शन।" },
-    "family": { mukhi: "2 Mukhi / 3 Mukhi", role: "Family Peace (पारिवारिक शांति पूरक)", significance: "पारिवारिक शांति व सुख हेतु पूरक मार्गदर्शन।" },
-    "health": { mukhi: "3 Mukhi / 5 Mukhi / 11 Mukhi", role: "Health & Vitality (आरोग्य पूरक)", significance: "स्वास्थ्य, ऊर्जा व इम्युनिटी हेतु पूरक मार्गदर्शन।" },
-    "finance": { mukhi: "7 Mukhi / 13 Mukhi", role: "Wealth & Debt Relief (धन समृद्धि पूरक)", significance: "आर्थिक स्थिरता व समृद्धि हेतु पूरक मार्गदर्शन।" },
-    "children": { mukhi: "Garbh Gauri / 5 Mukhi", role: "Children & Progeny (संतान सुख पूरक)", significance: "संतान सुख व संतान कल्याण हेतु पूरक मार्गदर्शन।" },
-    "property": { mukhi: "3 Mukhi / 10 Mukhi", role: "Property & Assets (भूमि भवन पूरक)", significance: "भूमि, मकान व स्थायी संपत्ति हेतु पूरक मार्गदर्शन।" },
-    "spiritual": { mukhi: "1 Mukhi / 14 Mukhi / 108 Jaap Mala", role: "Spiritual Upliftment (आध्यात्मिक उन्नति पूरक)", significance: "साधना व मानसिक ध्यान हेतु पूरक मार्गदर्शन।" },
-    "foreign_travel": { mukhi: "8 Mukhi / 12 Mukhi", role: "Foreign Travel & Visa (विदेश योग पूरक)", significance: "विदेश यात्रा व विदेश योग हेतु पूरक मार्गदर्शन।" },
-    "legal": { mukhi: "8 Mukhi / 10 Mukhi / 11 Mukhi", role: "Legal Victory (कानूनी विजय पूरक)", significance: "कानूनी अड़चनों के निवारण हेतु पूरक मार्गदर्शन।" },
-    "shani_dosha": { mukhi: "7 Mukhi / 14 Mukhi / 11 Mukhi", role: "Dosha & Shani Shanti (शनि व ग्रह शांति पूरक)", significance: "ग्रह शांति व ग्रह दोष निवारण हेतु पूरक मार्गदर्शन।" },
-    "peace": { mukhi: "2 Mukhi / 5 Mukhi", role: "Mental Peace (मानसिक शांति पूरक)", significance: "मानसिक शांति व तनाव मुक्ति हेतु पूरक मार्गदर्शन।" },
-    "general": { mukhi: "5 Mukhi / 7 Mukhi", role: "General Auspiciousness (सर्वकल्याण पूरक)", significance: "सामान्य कल्याण हेतु पूरक मार्गदर्शन।" },
-    "custom": { mukhi: "1 Mukhi / 5 Mukhi / 11 Mukhi", role: "Special Purpose (विशेष संकल्प पूरक)", significance: customConcern ? `Devotee's custom concern: "${customConcern}".` : "Tailored solution for personal intention." }
+    "all": { mukhi: "1 Mukhi / 5 Mukhi / 108 Jaap Mala", role: "Complete Life Guidance (संपूर्ण जीवन संरक्षण)", significance: "समस्त जीवन क्षेत्रों की समग्र उन्नति, मानसिक शांति व आध्यात्मिक सुरक्षा हेतु पूरक मार्गदर्शन।" },
+    "career": { mukhi: "7 Mukhi / 10 Mukhi / 14 Mukhi", role: "Career & Leadership (करियर व आजीविका पूरक)", significance: "करियर में पदोन्नति, उच्चाधिकारियों से सहयोग और कार्यक्षेत्र की बाधाओं के निवारण हेतु पूरक मार्गदर्शन।" },
+    "business": { mukhi: "7 Mukhi / 8 Mukhi / 12 Mukhi", role: "Business & Trade (व्यापार व व्यवसाय पूरक)", significance: "व्यापार विस्तार, ग्राहक आकर्षण व निरंतर नकदी प्रवाह (Cash Flow) हेतु पूरक मार्गदर्शन।" },
+    "education": { mukhi: "4 Mukhi / 5 Mukhi", role: "Education & Intellect (विद्या व एकाग्रता पूरक)", significance: "विद्या, तीव्र स्मरण शक्ति, एकाग्रता व प्रतियोगी परीक्षा सफलता हेतु पूरक मार्गदर्शन।" },
+    "marriage": { mukhi: "2 Mukhi / Gauri Shankar", role: "Marriage & Harmony (विवाह व दांपत्य पूरक)", significance: "शीघ्र विवाह योग, जीवनसाथी से मधुर सामंजस्य व गृहस्थ सुख हेतु पूरक मार्गदर्शन।" },
+    "love": { mukhi: "2 Mukhi / 6 Mukhi / 13 Mukhi", role: "Love & Attraction (प्रेम संबंध पूरक)", significance: "आपसी आकर्षण, भावनात्मक विश्वास व प्रेम में सामंजस्य हेतु पूरक मार्गदर्शन।" },
+    "family": { mukhi: "2 Mukhi / 3 Mukhi", role: "Family Peace (पारिवारिक शांति पूरक)", significance: "पारिवारिक कलह निवारण, आपसी प्रेम व गृह-शांति हेतु पूरक मार्गदर्शन।" },
+    "health": { mukhi: "3 Mukhi / 5 Mukhi / 11 Mukhi", role: "Health & Vitality (आरोग्य पूरक)", significance: "स्वास्थ्य, शारीरिक ऊर्जा, रक्तचाप संतुलन व इम्युनिटी हेतु पूरक मार्गदर्शन।" },
+    "finance": { mukhi: "7 Mukhi / 13 Mukhi", role: "Wealth & Debt Relief (धन समृद्धि पूरक)", significance: "आर्थिक स्थिरता, फंसा हुआ धन प्राप्ति व कर्ज मुक्ति हेतु पूरक मार्गदर्शन।" },
+    "children": { mukhi: "Garbh Gauri / 5 Mukhi", role: "Children & Progeny (संतान सुख पूरक)", significance: "संतान सुख, सुरक्षित मातृत्व व संतान के उज्ज्वल भविष्य हेतु पूरक मार्गदर्शन।" },
+    "property": { mukhi: "3 Mukhi / 10 Mukhi", role: "Property & Assets (भूमि भवन पूरक)", significance: "भूमि, मकान, वाहन व स्थायी संपत्ति निर्माण हेतु पूरक मार्गदर्शन।" },
+    "spiritual": { mukhi: "1 Mukhi / 14 Mukhi / 108 Jaap Mala", role: "Spiritual Upliftment (आध्यात्मिक उन्नति पूरक)", significance: "ध्यान-साधना, आज्ञा चक्र जागृति व शिव कृपा हेतु पूरक मार्गदर्शन।" },
+    "foreign_travel": { mukhi: "8 Mukhi / 12 Mukhi", role: "Foreign Travel & Visa (विदेश योग पूरक)", significance: "विदेश यात्रा, वीजा बाधा निवारण व अंतर्राष्ट्रीय सफलता हेतु पूरक मार्गदर्शन।" },
+    "legal": { mukhi: "8 Mukhi / 10 Mukhi / 11 Mukhi", role: "Legal Victory (कानूनी विजय पूरक)", significance: "कानूनी अड़चनों, कोर्ट-कचहरी व गुप्त शत्रुओं से रक्षा हेतु पूरक मार्गदर्शन।" },
+    "shani_dosha": { mukhi: "7 Mukhi / 14 Mukhi / 11 Mukhi", role: "Dosha & Shani Shanti (शनि व ग्रह शांति पूरक)", significance: "शनि साढ़े साती, ढैया व राहु-केतु दोष निवारण हेतु पूरक मार्गदर्शन।" },
+    "peace": { mukhi: "2 Mukhi / 5 Mukhi", role: "Mental Peace (मानसिक शांति पूरक)", significance: "मानसिक शांति, अनिद्रा निवारण व तनाव मुक्ति हेतु पूरक मार्गदर्शन।" },
+    "general": { mukhi: "5 Mukhi / 7 Mukhi", role: "General Auspiciousness (सर्वकल्याण पूरक)", significance: "सामान्य सुख-शांति व सर्वकल्याण हेतु पूरक मार्गदर्शन।" },
+    "custom": { mukhi: "1 Mukhi / 5 Mukhi / 11 Mukhi", role: "Special Purpose (विशेष संकल्प पूरक)", significance: customConcern ? `जातक का विशेष संकल्प: "${customConcern}"।` : "विशेष मनोकामना पूर्ति हेतु पूरक मार्गदर्शन।" }
   };
 
   const selectedConcern = concernMap[concern] || concernMap["all"];
+  const concernSig = `${selectedConcern.significance} (आपका स्थायी मुख्य लग्न रुद्राक्ष ${canonicalPrimary.mukhi} ही रहेगा)।`;
   rudrakshaRecommendations.push({
     role: `Complementary Goal Focus (${selectedConcern.role})`,
-    significance: `${selectedConcern.significance} (Note: Your PRIMARY Rudraksha remains ${canonicalPrimary.mukhi}).`,
+    significance: concernSig,
+    reason: concernSig,
     mukhi: selectedConcern.mukhi,
     mukhiNumber: parseInt(selectedConcern.mukhi, 10) || canonicalPrimary.mukhiNumber,
+    beejMantra: "ॐ नमः शिवाय (108 बार)",
+    wearingDay: "सोमवार या प्रदोष व्रत",
+    deity: "देवाधिदेव महादेव",
     isCanonicalPrimary: false
   });
 
@@ -2429,111 +2717,152 @@ export function generatePanditJiLifeDiagnosis(kundaliData) {
   ];
 
   // Build Full Pandit Ji Report Markdown (Used as authoritative reference & instant fallback)
+  const shadbalaList = ak.shadbala?.planetShadbala || [];
   const planetsBulletMarkdown = planets.map(p => {
     const isGood = /Exalted|उच्च|Own|स्वगृही|Moolatrikona|मूलत्रिकोण|Friendly|मित्र/i.test(p.dignity || "") && ![6, 8, 12].includes(p.houseNumber);
-    return `• 📌 **${p.name}** — **भाव:** ${p.houseNumber}वां भाव | **राशि:** ${p.rashiHindi} (${p.degreeInSign}) | **नक्षत्र:** ${p.nakshatra} (चरण ${p.pada}) | **स्थिति:** **${p.dignity}** | **नवमांश (D9):** ${p.navamshaRashiHindi}${p.isVargottama ? " 🌟 *(वर्गोत्तम - अत्यंत बली)*" : ""}${p.isRetrograde ? " 🔄 *(वक्री)*" : ""}${p.isCombust ? " 🔥 *(अस्त)*" : ""}\n  - 💡 **पंडित जी का फलादेश:** ${p.signification || ""} ${isGood ? "यह ग्रह आपकी कुंडली में शुभ बल दे रहा है और सही दशा आने पर उच्च सफलता दिलाएगा।" : "इस ग्रह की पीड़ा/स्थान के कारण संबंधित क्षेत्र में संघर्ष व विलंब होता है, जिसके लिए रुद्राक्ष व मंत्र जाप आवश्यक है।"}`;
+    const sb = shadbalaList.find(s => (s.planet || "").includes((p.name || "").split(" ")[0]));
+    const sbText = sb ? ` | **षड्बल:** ${sb.totalRupas} रूपा (${sb.status})` : "";
+    return `• 📌 **${p.hindiName || p.name}** — **भाव:** ${p.houseNumber}वां भाव | **राशि:** ${p.rashiHindi} (${p.degreeInSign}) | **नक्षत्र:** ${p.nakshatra} (चरण ${p.pada}, स्वामी: ${p.nakshatraLord || "शुभ"}) | **स्थिति:** **${p.dignity}** | **नवमांश (D9):** ${p.navamshaRashiHindi} | **दशमांश (D10):** ${p.dashamshaRashiHindi || p.navamshaRashiHindi}${sbText}${p.isVargottama ? " 🌟 *(वर्गोत्तम - अत्यंत बली)*" : ""}${p.isRetrograde ? " 🔄 *(वक्री)*" : ""}${p.isCombust ? " 🔥 *(अस्त)*" : ""}\n  - 🎯 **कारक क्षेत्र:** ${p.karaka || "जीवन ऊर्जा व भाग्य"}\n  - 💡 **पंडित जी का विस्तृत फलादेश:** ${p.signification || ""} ${isGood ? "यह ग्रह आपकी कुंडली में शुभ बल दे रहा है और अपनी दशा-अंतर्दशा में मान-सम्मान व उच्च सफलता दिलाएगा।" : "इस ग्रह की भाव/अवस्था के कारण संबंधित जीवन क्षेत्र में थोड़ा अतिरिक्त परिश्रम और धैर्य अपेक्षित है।"}\n  - 🕉️ **ग्रह शांति मंत्र व उपाय:** \`${p.mantra || "ॐ नमः शिवाय"}\` — ${p.upay || "शिव आराधना करें।"}`;
   }).join("\n\n");
 
   const housesBulletMarkdown = houses.map(h => {
     const occText = h.occupants && h.occupants.length > 0 ? h.occupants.join(", ") : "कोई ग्रह नहीं (भावेश द्वारा संचालित)";
     const aspText = h.aspects && h.aspects.length > 0 ? h.aspects.join(", ") : "सामान्य दृष्टि";
-    return `• 🏛️ **${h.houseNumber}वां भाव (${h.significance || "जीवन क्षेत्र"})** — **राशि:** ${h.rashiHindi} | **स्वामी (भावेश):** ${h.lord} | **स्थित ग्रह:** ${occText} | **दृष्टि:** ${aspText}`;
-  }).join("\n");
+    return `• 🏛️ **${h.houseTitle || `${h.houseNumber}वां भाव`}** *(कारक: ${h.karaka || "सूर्य"})*\n  - **राशि:** ${h.rashiHindi} (${h.rashiEnglish}) | **स्वामी (भावेश):** **${h.lord}** (स्थित: ${h.lordPlacement || "कुंडली में"}) | **स्थित ग्रह:** ${occText} | **दृष्टि:** ${aspText}\n  - **महत्व व फलादेश:** *(${h.significance})* — ${h.bhavaPhaladesh || ""}`;
+  }).join("\n\n");
 
-  const lalKitabUpayMarkdown = (lalKitab.planets || []).slice(0, 5).map(lp =>
+  const lalKitabUpayMarkdown = (lalKitab.planets || []).map(lp =>
     `• 📕 **${lp.planet} (खाना नं. ${lp.houseNumber} - ${lp.status}):** ${lp.lalKitabUpay}`
   ).join("\n");
 
   const rudrakshaMarkdown = recs.map((r, idx) =>
-    `• 📿 **${idx + 1}. ${r.role}: ${r.mukhi}**\n  - **शास्त्रीय कारण:** ${r.reason}\n  - **सिद्ध बीज मंत्र:** \`${r.beejMantra || "ॐ नमः शिवाय"}\` (प्रतिदिन प्रातः 108 बार जाप)\n  - **धारण दिवस:** ${r.wearingDay || "सोमवार या प्रदोष व्रत"} (गंगाजल व कच्चे दूध से अभिषेक कर लाल/पीले रेशमी धागे या चाँदी में धारण करें)`
+    `• 📿 **${idx + 1}. ${r.role}: ${r.mukhi}** *(अधिष्ठाता देवता: ${r.deity || "भगवान शिव"})*\n  - **शास्त्रीय कारण व कुंडली प्रमाण:** ${r.reason || r.significance || "लग्न, चंद्र राशि व महादशा अनुकूलन हेतु।"}\n  - **सिद्ध बीज मंत्र:** \`${r.beejMantra || "ॐ नमः शिवाय"}\` (प्रतिदिन प्रातः स्नान के बाद 108 बार जाप)\n  - **धारण दिवस व संपूर्ण शिव पुराण विधि:** ${r.wearingDay || "सोमवार या प्रदोष व्रत"} को प्रातःकाल स्नान कर रुद्राक्ष को गंगाजल व कच्चे गोदुग्ध (पंचामृत) से स्नान कराएं, अष्टगंध/चंदन का तिलक लगाएं, धूप-दीप दिखाकर 108 बार बीज मंत्र का जाप करें और लाल/पीले रेशमी धागे अथवा चाँदी/सोने में कंठ या भुजा पर धारण करें।`
   ).join("\n\n");
+
+  const jaiminiKarakasList = ak.jaiminiKarakas || [];
+  const jaiminiMarkdown = jaiminiKarakasList.map(jk =>
+    `  - **${jk.karakaCode} (${jk.karakaName}):** **${jk.planetName}** (${jk.signName}, ${jk.degreeInSign}, ${jk.houseNumber}वां भाव) — *${jk.significance}*`
+  ).join("\n");
+
+  const h1 = houses[0] || {};
+  const h4 = houses[3] || {};
+  const h5 = houses[4] || {};
+  const h9 = houses[8] || {};
+  const h11 = houses[10] || {};
 
   const fullPanditJiReportMarkdown = `🙏 **श्री गणेशाय नमः! हर हर महादेव! प्रणाम ${vb.name || "भक्त"} जी।**
 
-मैं **AI पंडित जी (ज्योतिषाचार्य)** हूँ। मैंने महर्षि पाराशर के **बृहत्पाराशर होरा शास्त्र (BPHS)**, **फलदीपिका**, **जैमिनी सूत्र**, **लाल किताब** और **शिव पुराण** के शास्त्रीय नियमों तथा **लाहिड़ी चित्रापक्षीय अयनांश (${vb.ayanamsha || "Lahiri"})** के आधार पर आपकी जन्म कुंडली का सूक्ष्म गणितीय अध्ययन किया है।
+मैं **AI पंडित जी (वैदिक ज्योतिषाचार्य)** हूँ। मैंने महर्षि पाराशर के **बृहत्पाराशर होरा शास्त्र (BPHS)**, **फलदीपिका**, **सारावली**, **जैमिनी उपदेश सूत्र**, **लाल किताब** और **शिव पुराण (विद्येश्वर संहिता)** के अटल शास्त्रीय सिद्धांतों तथा **लाहिड़ी चित्रापक्षीय अयनांश (${vb.ayanamsha || "Lahiri"})** के आधार पर आपकी जन्म कुंडली का संपूर्ण, सूक्ष्म और 100% प्रामाणिक गणितीय अध्ययन किया है।
 
-एक सच्चे वैदिक ब्राह्मण व ज्योतिषी की भांति मैं बिना कुछ छिपाए आपको स्पष्ट शब्दों में बता रहा हूँ कि **अभी आपके जीवन में क्या-क्या परेशानी चल रही है, क्यों चल रही है, कब से चल रही है, कैसे चल रही है और यह कब पूरी तरह ठीक होगी:**
+एक सच्चे वैदिक ब्राह्मण व ज्योतिषी की भांति मैं बिना कुछ छिपाए आपको **पूरी डिटेल (संपूर्ण विवरण)** में बता रहा हूँ कि **अभी आपके जीवन में क्या-क्या परेशानी चल रही है, क्यों चल रही है, कब से चल रही है, कैसे चल रही है, यह कब पूरी तरह ठीक होगी, तथा आपके सभी 9 ग्रहों, 12 भावों, करियर, धन, विवाह, स्वास्थ्य, महादशा और सिद्ध रुद्राक्ष का संपूर्ण फलादेश क्या है:**
 
 ---
 
-### 1. 🔍 अभी आपके जीवन में क्या-क्या परेशानी चल रही है? (वर्तमान समस्याओं का सटीक निदान)
+### 1. 🔭 आपकी जन्म कुंडली का मूल पंचांग व अवकहड़ा चक्र (Complete Birth Chart & Avakahada Chakra)
+• **जातक का नाम:** ${vb.name || "भक्त"} | **जन्म तिथि:** ${vb.dob} | **जन्म समय:** ${vb.birthTime} | **जन्म स्थान:** ${vb.birthPlace} (अक्षांश: ${vb.coordinates?.lat || ""}°, देशांतर: ${vb.coordinates?.lon || ""}°)
+• **जन्म लग्न (Ascendant / Lagnasthana):** **${lagna.rashiHindi} (${lagna.rashiEnglish})** — अंश: ${lagna.degree} | **लग्नेश (Lagna Lord):** **${lagna.lord}** | **नक्षत्र:** ${lagna.nakshatra} (चरण ${lagna.pada}) | **नवमांश (D9 लग्न):** ${lagna.navamsha} | **तत्व:** ${lagna.element}
+• **जन्म चंद्र राशि (Moon Sign / Rashi):** **${chandra.rashiHindi} (${chandra.rashiEnglish})** — अंश: ${chandra.degree} | **राशि स्वामी:** **${chandra.lord}**
+• **जन्म नक्षत्र:** **${chandra.nakshatra}** (चरण ${chandra.pada}) | **सूर्य राशि (Sun Sign):** ${surya.rashiHindi} (${surya.rashiEnglish}, अंश: ${surya.degree}, नक्षत्र: ${surya.nakshatra})
+• **जन्म पंचांग (5 Pillars of Time):** वार: **${ak.panchanga?.vaar || "शुभ वार"}** (स्वामी: ${ak.panchanga?.vaarLord || ""}) | तिथि: **${ak.panchanga?.tithi || "शुभ तिथि"}** | योग: **${ak.panchanga?.yoga || "शुभ योग"}** | करण: **${ak.panchanga?.karana || "शुभ करण"}**
+• **अवकहड़ा चक्र:** पाया: **${ak.avakahadaChakra?.paya || "चाँदी"}** | वर्ण: **${ak.avakahadaChakra?.varna || "क्षत्रिय"}** | वश्य: **${ak.avakahadaChakra?.vashya || "मानव"}** | योनि: **${ak.avakahadaChakra?.yoni || "गौ"}** | गण: **${ak.avakahadaChakra?.gana || "देव"}** | नाड़ी: **${ak.avakahadaChakra?.nadi || "मध्य"}**
+• **अंक ज्योतिष व भाग्य संकेत:** मूलांक: **${ak.mulank}** | भाग्यांक: **${ak.avakahadaChakra?.bhagyank || ak.mulank}** | शुभ अंक: **${ak.avakahadaChakra?.shubhAnk || "1, 3, 9"}** | शुभ वार: **${ak.avakahadaChakra?.shubhDin || "सोमवार, गुरुवार"}** | शुभ धातु: **${ak.avakahadaChakra?.shubhDhatu || "सोना, चाँदी"}** | **प्रमुख भाग्योदय वर्ष:** **${ak.avakahadaChakra?.shubhVarsh || "24, 28, 32, 36 वर्ष"}**
+
+---
+
+### 2. 🔍 अभी आपके जीवन में क्या-क्या परेशानी चल रही है? (वर्तमान समस्याओं का सटीक निदान)
 ${currentProblems.map(item => `• ${item}`).join("\n\n")}
 
 ---
 
-### 2. ❓ यह परेशानी क्यों और कैसे चल रही है? (कुंडली के ग्रहों व भावों का प्रत्यक्ष शास्त्रीय कारण)
+### 3. ❓ यह परेशानी क्यों और कैसे चल रही है? (कुंडली के ग्रहों व भावों का प्रत्यक्ष शास्त्रीय कारण)
 ${whyAndHow.map(item => `• ${item}`).join("\n\n")}
 
 ---
 
-### 3. 📅 यह परेशानी कब से चल रही है? (सटीक तारीख व दशा प्रमाण)
+### 4. 📅 यह परेशानी कब से चल रही है? (सटीक तारीख व दशा प्रमाण)
 ${sinceWhen.map(item => `• ${item}`).join("\n\n")}
 
 ---
 
-### 4. ⏳ यह परेशानी कब ठीक होगी और आपका भाग्योदय कब होगा? (सटीक समय व समाधान काल)
+### 5. ⏳ यह परेशानी कब ठीक होगी और आपका भाग्योदय कब होगा? (सटीक समय व समाधान काल)
 ${whenWillItResolve.map(item => `• ${item}`).join("\n\n")}
 
 ---
 
-### 5. 🔭 आपकी जन्म कुंडली का मूल पंचांग व अवकहड़ा चक्र (Birth Chart Foundation)
-• **जातक का नाम:** ${vb.name || "भक्त"} | **जन्म तिथि:** ${vb.dob} | **जन्म समय:** ${vb.birthTime} | **जन्म स्थान:** ${vb.birthPlace}
-• **जन्म लग्न (Ascendant):** **${lagna.rashiHindi} (${lagna.rashiEnglish})** — अंश: ${lagna.degree} | **लग्नेश:** ${lagna.lord} | **नवमांश (D9):** ${lagna.navamsha}
-• **जन्म चंद्र राशि (Moon Sign):** **${chandra.rashiHindi} (${chandra.rashiEnglish})** — अंश: ${chandra.degree} | **राशि स्वामी:** ${chandra.lord}
-• **जन्म नक्षत्र:** **${chandra.nakshatra}** (चरण ${chandra.pada}) | **सूर्य राशि:** ${surya.rashiHindi} (${surya.rashiEnglish})
-• **पंचांग विवरण:** वार: ${ak.panchanga?.vaar || "शुभ वार"} | तिथि: ${ak.panchanga?.tithi || "शुभ तिथि"} | योग: ${ak.panchanga?.yoga || "शुभ योग"} | करण: ${ak.panchanga?.karana || "शुभ करण"}
-• **अवकहड़ा चक्र:** पाया: **${ak.avakahadaChakra?.paya || "चाँदी"}** | वर्ण: ${ak.avakahadaChakra?.varna || "क्षत्रिय"} | गण: ${ak.avakahadaChakra?.gana || "देव"} | नाड़ी: ${ak.avakahadaChakra?.nadi || "मध्य"} | मूलांक: **${ak.mulank}** | भाग्यांक: **${ak.avakahadaChakra?.bhagyank || ak.mulank}**
-• **शुभ अंक:** ${ak.avakahadaChakra?.shubhAnk || "1, 3, 9"} | **शुभ दिन:** ${ak.avakahadaChakra?.shubhDin || "सोमवार, गुरुवार"} | **भाग्योदय वर्ष:** ${ak.avakahadaChakra?.shubhVarsh || "24, 28, 32, 36 वर्ष"}
-
----
-
-### 6. 🪐 नवग्रहों की भाव-राशि स्थिति, उच्च/नीच विचार व विस्तृत फलादेश (All 9 Planets Detailed Reading)
+### 6. 🪐 नवग्रहों की भाव-राशि स्थिति, उच्च/नीच विचार, नवमांश (D9) व विस्तृत फलादेश (All 9 Planets Complete Reading)
 ${planetsBulletMarkdown}
 
 ---
 
-### 7. 🏛️ कुंडली के 12 भावों (Bhavas) का संपूर्ण विश्लेषण
+### 7. 🏛️ कुंडली के सभी 12 भावों (1st to 12th Bhavas) का संपूर्ण विश्लेषण
 ${housesBulletMarkdown}
 
 ---
 
-### 8. ✨ कुंडली के प्रमुख राजयोग, दोष एवं गोचर (Yogas, Doshas & Transits)
-• **प्रमुख शुभ योग:** ${yogas.length > 0 ? yogas.map(y => `**${y.name}** (${y.description})`).join(" | ") : "लग्न-त्रिकोण राजयोग एवं धर्म-कर्मधिपति सहयोग"}
-• **मांगलिक दोष विचार:** ${dosha.manglikNote}
-• **शनि साढ़े साती / ढैया स्थिति:** ${dosha.sadeSati?.phase || "साढ़े साती मुक्त"} — ${dosha.sadeSati?.description || ""}
-• **कालसर्प योग विचार:** ${dosha.kaalSarp?.type || "कालसर्प मुक्त"} — ${dosha.kaalSarp?.description || ""}
-• **ताजिक वर्षफल (मुंथा विचार - वर्ष ${ak.tajikVarshphal?.currentYear || new Date().getFullYear()}):** आपकी वार्षिक मुंथा **${ak.tajikVarshphal?.munthaHouse || 1}वें भाव (${ak.tajikVarshphal?.munthaRashi || lagna.rashiHindi})** में है — ${ak.tajikVarshphal?.munthaSignificance || ""}
+### 8. 📊 जीवन के प्रमुख क्षेत्रों का विशेष गहरा विश्लेषण (Career, Wealth, Marriage, Property & Health Deep-Dive)
+• 💼 **करियर, नौकरी व व्यापार (10th, 6th & 7th House + D10 Dashamsha):**
+  - दशम भाव (कर्म स्थान) **${h10.rashiHindi}** राशि में है जिसके स्वामी **${h10.lord}** हैं, और षष्ठ भाव (सेवा/नौकरी) के स्वामी **${h6.lord}** हैं।
+  - कर्म कारक **शनि देव ${satP.houseNumber}वें भाव (${satP.rashiHindi})** में और अधिकार कारक **सूर्य देव ${sunP.houseNumber}वें भाव (${sunP.rashiHindi})** में स्थित हैं।
+  - **पंडित जी का निर्णय:** आपकी कुंडली में बौद्धिक कौशल, प्रबंधन, स्वतंत्र व्यापार/कंसल्टेंसी और जिम्मेदारी वाले पदों पर कार्य करने के प्रबल योग हैं। वर्तमान अंतर्दशा (**${antarEnd}** तक) में धैर्य रखें; इसके बाद पदोन्नति और कार्य-विस्तार निश्चित है।
+• 💰 **धन, संपत्ति, मकान-वाहन व आर्थिक भविष्य (2nd, 4th, 9th & 11th House):**
+  - धन भाव (2nd) के स्वामी **${h2.lord}**, सुख-संपत्ति भाव (4th) के स्वामी **${h4.lord}**, भाग्येश (9th) **${h9.lord}** और लाभेश (11th) **${h11.lord}** हैं।
+  - जीवन के शुरुआती चरण में खर्चों की अधिकता रहती है, किंतु **${antarEnd}** के पश्चात संचित धन, भूमि-भवन (Property) और स्थायी बैंक बैलेंस में तीव्र वृद्धि होगी।
+• ❤️ **विवाह, जीवनसाथी का स्वभाव व गृहस्थ सुख (7th House & D9 Navamsha):**
+  - सप्तम भाव **${h7.rashiHindi}** राशि में है (स्वामी: **${h7.lord}**)। शुक्र देव **${venP.houseNumber}वें भाव** में और गुरु देव **${jupP.houseNumber}वें भाव** में हैं।
+  - जीवनसाथी विचारों से परिपक्व, परिवार का ध्यान रखने वाला और आपके भाग्य को बढ़ाने वाला होगा। वाणी में सौम्यता और आपसी संवाद से दांपत्य जीवन सुखमय रहेगा।
+• 🎓 **शिक्षा, संतान व आध्यात्मिक तेज (5th House & Purva Punya):**
+  - पंचम भाव (**${h5.rashiHindi}**, स्वामी: **${h5.lord}**) आपकी तीक्ष्ण अंतर्दृष्टि और पूर्व जन्म के शुभ कर्मों को दर्शाता है। संतान पक्ष से सुख व मान-सम्मान प्राप्त होगा।
 
 ---
 
-### 9. ⏱️ विंशोत्तरी महादशा, अंतर्दशा व आगामी समय सारिणी (Complete Dasha Timeline)
-• **सक्रिय 4-स्तरीय दशा सूत्र:** **${dasha.dashaChainSummary || `${mahaHindi} > ${antarHindi} > ${pratyantarHindi}`}**
+### 9. ✨ कुंडली के राजयोग, दोष विचार, जैमिनी चर कारक व गोचर (Yogas, Doshas, Jaimini & Transit)
+• **प्रमुख राजयोग व धन योग:**
+${yogas.map(y => `  - 🌟 **${y.name} (${y.category}):** ${y.description}`).join("\n")}
+• **मांगलिक दोष विचार:** ${dosha.manglikNote}
+• **शनि साढ़े साती / ढैया स्थिति:** **${dosha.sadeSati?.phase || "साढ़े साती मुक्त"}** — ${dosha.sadeSati?.description || ""}
+• **कालसर्प योग विचार:** **${dosha.kaalSarp?.type || "कालसर्प मुक्त"}** — ${dosha.kaalSarp?.description || ""}
+• **बाधकेश व मारकेश विचार:** ${ak.badhakaMarakaInfo?.badhaka?.note || ""} | ${ak.badhakaMarakaInfo?.maraka?.note || ""}
+• **जैमिनी सप्त चर कारक (Jaimini 7 Soul Significators):**
+${jaiminiMarkdown}
+• **अष्टकवर्ग बल (Sarvashtakvarga):** कुल बिंदु: **${ak.ashtakvarga?.totalSavPoints || 337}** (शुभ व संतुलित जीवन ऊर्जा)
+• **ताजिक वर्षफल (मुंथा विचार - वर्ष ${ak.tajikVarshphal?.currentYear || new Date().getFullYear()}):** आपकी वार्षिक मुंथा **${ak.tajikVarshphal?.munthaHouse || 1}वें भाव (${ak.tajikVarshphal?.munthaRashi || lagna.rashiHindi})** में है — ${ak.tajikVarshphal?.munthaSignificance || ""}
+• **वर्तमान ग्रह गोचर (चन्द्र राशि से):**
+${gochar.map(g => `  - **${g.planet}:** ${g.effectNote}`).join("\n")}
+
+---
+
+### 10. ⏱️ विंशोत्तरी महादशा, अंतर्दशा, प्रत्यंतर व योगिनी दशा समय सारिणी (Complete Dasha Timeline)
+• **सक्रिय 4-स्तरीय विंशोत्तरी दशा सूत्र:** **${dasha.dashaChainSummary || `${mahaHindi} > ${antarHindi} > ${pratyantarHindi}`}**
 • **वर्तमान महादशा:** **${mahaHindi}** (${mahaStart} से ${mahaEnd} तक)
 • **वर्तमान अंतर्दशा:** **${antarHindi}** (${antarStart} से ${antarEnd} तक)
 • **वर्तमान प्रत्यंतर दशा:** **${pratyantarHindi}** (${pratyantarStart} से ${pratyantarEnd} तक)
-• **अंतर्दशा समय चक्र (Antardasha Roadmap):**
-${(dasha.antardashasTimeline || []).map(a => `  - **${a.planetHindi}:** ${a.startDate} से ${a.endDate} तक ${a.isCurrent ? "👉 **[वर्तमान में सक्रिय]**" : ""}`).join("\n")}
+• **सक्रिय योगिनी दशा:** **${ak.yoginiDasha?.activeYogini || "सिद्धा"}** (स्वामी: ${ak.yoginiDasha?.activeLord || "शुक्र"}, प्रकृति: ${ak.yoginiDasha?.activeNature || "शुभ"}, ${ak.yoginiDasha?.startDate || ""} से ${ak.yoginiDasha?.endDate || ""} तक)
+• **वर्तमान महादशा की संपूर्ण अंतर्दशा समय-सारिणी (Antardasha Roadmap):**
+${(dasha.antardashasTimeline || []).map(a => `  - **${a.planetHindi} अंतर्दशा:** ${a.startDate} से ${a.endDate} तक ${a.isCurrent ? "👉 **[वर्तमान में सक्रिय]**" : ""}`).join("\n")}
+• **आगामी महादशाएं (Future Mahadashas):**
+${(dasha.upcomingMahadashas || []).map(m => `  - **${m.planetHindi} महादशा (${m.years} वर्ष):** ${m.startDate} से ${m.endDate} तक`).join("\n")}
 
 ---
 
-### 10. 📕 लाल किताब के अचूक उपाय व कुंडली-प्रमाणित सिद्ध नेपाली रुद्राक्ष (Remedies & Rudraksha)
-**क) लाल किताब व वैदिक घरेलू उपाय:**
+### 11. 📕 लाल किताब के अचूक उपाय व कुंडली-प्रमाणित सिद्ध नेपाली रुद्राक्ष कवच (Complete Remedies & Rudraksha Dharan Vidhi)
+**क) लाल किताब व वैदिक दैनिक उपाय (नियमपूर्वक करें):**
 ${lalKitabUpayMarkdown}
-• प्रतिदिन प्रातः तांबे के लोटे से सूर्य देव को जल अर्पित करें और शिवलिंग पर जल व काले तिल चढ़ाएं।
+• प्रतिदिन प्रातः तांबे के लोटे से भगवान सूर्य को अर्घ्य दें, शिवलिंग पर जल व काले तिल चढ़ाएं और नित्य 108 बार \`ॐ नमः शिवाय\` तथा \`महामृत्युंजय मंत्र\` का मानसिक जाप करें।
 
 **ख) आपकी जन्म कुंडली से 100% प्रमाणित सिद्ध नेपाली रुद्राक्ष कवच (शिव पुराण सम्मत):**
 ${rudrakshaMarkdown}
 
 ---
 
-### 🌟 पंडित जी का अनिवार्य सारांश (Key Takeaways)
-• **मुख्य समस्या का कारण:** **${mahaHindi}** महादशा में **${antarHindi}** अंतर्दशा (${antarStart} से सक्रिय) एवं त्रिक भाव/गोचर का दबाव।
-• **राहत कब मिलेगी:** पहली राहत **${pratyantarEnd}** के बाद और पूर्ण भाग्योदय **${antarEnd}** के पश्चात।
-• **सर्वश्रेष्ठ रक्षा कवच:** **${recs.map(r => r.mukhi).join(" + ")}** (100% शुद्ध नेपाली, लैब प्रमाणित व प्राण-प्रतिष्ठित)।
+### 🌟 पंडित जी का अनिवार्य निष्कर्ष व आशीर्वाद (Key Takeaways)
+• **आपकी कुंडली का मूल आधार:** **${lagna.rashiHindi} लग्न** (स्वामी: ${lagna.lord}) एवं **${chandra.rashiHindi} राशि** (स्वामी: ${chandra.lord}, नक्षत्र: ${chandra.nakshatra})।
+• **मुख्य समस्या का कारण:** **${mahaHindi}** महादशा में **${antarHindi}** अंतर्दशा (${antarStart} से सक्रिय) एवं त्रिक भाव/गोचर का अस्थायी दबाव।
+• **राहत व भाग्योदय कब होगा:** पहली राहत **${pratyantarEnd}** के तुरंत बाद और पूर्ण भाग्योदय व संकट मुक्ति **${antarEnd}** के पश्चात।
+• **सर्वश्रेष्ठ रक्षा कवच:** **${recs.slice(0, 3).map(r => r.mukhi).join(" + ")}** (100% शुद्ध नेपाली, सरकारी लैब एक्स-रे प्रमाणित व वैदिक प्राण-प्रतिष्ठित)।
 
-भगवान देवाधिदेव महादेव एवं माता अन्नपूर्णा आपके समस्त कष्टों का निवारण करें और आपके जीवन में सुख, शांति व अथाह समृद्धि प्रदान करें। **हर हर महादेव!** 🙏
+भगवान देवाधिदेव महादेव एवं माता अन्नपूर्णा आपके समस्त कष्टों का निवारण करें और आपके जीवन में आरोग्य, सुख, शांति व अथाह समृद्धि प्रदान करें। यदि आप करियर, विवाह, धन, स्वास्थ्य या किसी भी ग्रह के बारे में और गहराई से पूछना चाहते हैं, तो निःसंकोच पूछें! **हर हर महादेव!** 🙏
 
-[AURA_KEYWORDS]: ${recs[0]?.mukhi || "सिद्ध रुद्राक्ष"} धारण विधि | मेरी परेशानी कब ठीक होगी | ${mahaHindi} महादशा उपाय | नवग्रह शांति उपाय | संपूर्ण कुंडली फलादेश`;
+[AURA_KEYWORDS]: ${recs[0]?.mukhi || "सिद्ध रुद्राक्ष"} धारण विधि | मेरी परेशानी कब ठीक होगी | नौकरी व करियर विश्लेषण | धन व व्यापार योग | विवाह व दांपत्य विचार`;
 
   return {
     currentProblems,
@@ -2561,8 +2890,16 @@ export function determineAstrologicalIntent(userQuery = "") {
     return { type: "greeting", label: "Devotee Greeting" };
   }
 
-  // 2. Specific Astrological Topics (Checked FIRST to ensure targeted questions are never misclassified as full kundali dump)
+  // 2. Comprehensive Full Kundali + Life Problem Diagnosis Triggers (Checked BEFORE narrow topics if user asks for full/detailed/complete reading)
+  const isFullOrLifeDiagnosisRequest = (
+    /(पूरी\s*कुंडली|संपूर्ण\s*कुंडली|विस्तृत\s*कुंडली|फुल\s*कुंडली|कुंडली\s*विश्लेषण|जन्म\s*तिथि:|जन्म\s*समय:|जन्म\s*स्थान:|मुख्य\s*संकल्प|puri\s*kundali|poori\s*kundali|full\s*kundali|complete\s*kundli|complete\s*reading|sampurna\s*kundali|diteld|detailed|detail\s*me|sab\s*kuch|सब\s*कुछ|पूरी\s*जानकारी|विस्तार\s*से)/i.test(q) ||
+    /(pareshani|paresani|dikkat|problem|samasya|sankat|rukaawat|rukawat|kya\s*chal\s*raha|kyo\s*chal|kyu\s*chal|kab\s*se|kese\s*chal|kaise\s*chal|kab\s*sahi\s*hog|kab\s*thik\s*hog|kab\s*theek\s*hog|परेशानी|दिक्कत|समस्या|संकट|रुकावट|क्यों\s*चल|कब\s*से|कैसे\s*चल|कब\s*सही\s*होगी|कब\s*ठीक\s*होगी|पंडित\s*की\s*तरह|bandit\s*ki\s*tarh|pandit\s*ki\s*tarah)/i.test(q)
+  );
+  if (isFullOrLifeDiagnosisRequest) {
+    return { type: "full_kundali", label: "Sampurna Vedic Kundali & Pareshani Nivaran Vishleshan (What, Why, Since When, How & When Resolved)" };
+  }
 
+  // 3. Specific Astrological Topics
   // Career & Business (नौकरी, करियर, व्यापार, काम-धंधा, पदोन्नति)
   if (/career|job|naukri|nokri|naukari|rozgar|rojgar|business|vyapar|dhandha|promotion|success|kaam|profession|d10|dashamsha|sarkari|interview|transfer|office|service|work|कैरियर|नौकरी|व्यापार|रोजगार|काम|सरकारी नौकरी|पदोन्नति|स्थानांतरण/i.test(q)) {
     return { type: "career", label: "Career, Job & Business Analysis", houses: [10, 1, 6, 2, 11], karakas: ["Sun", "Mars", "Saturn", "Mercury", "AmK"], dChart: "D10 Dashamsha" };
@@ -2604,7 +2941,7 @@ export function determineAstrologicalIntent(userQuery = "") {
   }
 
   // Graha Specific (शनि, राहु, केतु, मंगल, सूर्य, चंद्र, गुरु, शुक्र, बुध)
-  if (/\b(shani|sade\s*sati|dhaiya|rahu|ketu|mangal|surya|chandra|budha|guru|brihaspati|shukra)\b|(?:^|\s|[।,!?])(शनि|साढ़े\s*साती|ढैया|राहु|केतु|मंगल|सूर्य|चन्द्र|चंद्र|बुध|गुरु|बृहस्पति|शुक्र|ग्रह\s*शांति)(?:\s|$|[।,!?])/i.test(q)) {
+  if (/\b(shani|sade\s*sati|dhaiya|rahu|ketu|mangal|surya|chandra|budha|guru|brihaspati|shukra|navagraha|9\s*planets|all\s*planets)\b|(?:^|\s|[।,!?])(शनि|साढ़े\s*साती|ढैया|राहु|केतु|मंगल|सूर्य|चन्द्र|चंद्र|बुध|गुरु|बृहस्पति|शुक्र|ग्रह\s*शांति|नवग्रह|सभी\s*ग्रह)(?:\s|$|[।,!?])/i.test(q)) {
     return { type: "graha_specific", label: "Graha Gochar & Planetary Impact Analysis" };
   }
 
@@ -2635,23 +2972,13 @@ export function determineAstrologicalIntent(userQuery = "") {
     };
   }
 
-  // 3. Comprehensive Full Kundali + Life Problem Diagnosis Triggers
-  // Triggers ONLY when user explicitly asks for the full kundali breakdown or general life diagnosis
-  const isFullOrLifeDiagnosisRequest = (
-    /(पूरी\s*कुंडली|संपूर्ण\s*कुंडली|विस्तृत\s*कुंडली|फुल\s*कुंडली|कुंडली\s*विश्लेषण|जन्म\s*तिथि:|जन्म\s*समय:|जन्म\s*स्थान:|मुख्य\s*संकल्प|puri\s*kundali|poori\s*kundali|full\s*kundali|complete\s*kundli|complete\s*reading|sampurna\s*kundali|diteld|detailed|sab\s*kuch|सब\s*कुछ)/i.test(q) ||
-    /(pareshani|paresani|dikkat|problem|samasya|sankat|rukaawat|rukawat|kya\s*chal\s*raha|kyo\s*chal|kyu\s*chal|kab\s*se|kese\s*chal|kaise\s*chal|kab\s*sahi\s*hog|kab\s*thik\s*hog|kab\s*theek\s*hog|परेशानी|दिक्कत|समस्या|संकट|रुकावट|क्यों\s*चल|कब\s*से|कैसे\s*चल|कब\s*सही\s*होगी|कब\s*ठीक\s*होगी|पंडित\s*की\s*तरह|bandit\s*ki\s*tarh|pandit\s*ki\s*tarah)/i.test(q)
-  );
-  if (isFullOrLifeDiagnosisRequest) {
-    return { type: "full_kundali", label: "Sampurna Vedic Kundali & Pareshani Nivaran Vishleshan (What, Why, Since When, How & When Resolved)" };
-  }
-
-  return { type: "specific_query", label: "Focused Astrological Guidance" };
+  return { type: "full_kundali", label: "Sampurna Vedic Kundali & Detailed Guidance" };
 }
 
 /**
- * Generate 100% Kundali-Grounded Targeted Topic Guidance for Follow-up Questions
- * Answers specifically what was asked (e.g. "nokri ke bare me", marriage, wealth, health)
- * without re-printing the full 9 planets or the entire 10-section Kundali dump!
+ * Generate 100% Kundali-Grounded Exhaustive Topic & Follow-up Guidance
+ * Provides deeply detailed multi-section Vedic analysis for any topic (career, marriage, finance,
+ * health, education, property, progeny, travel, graha_specific, dosha, dasha_timing, rudraksha)
  */
 export function generateKundaliTopicDiagnosis(kundaliData, astroIntent = null, userQuery = "") {
   if (!kundaliData || !kundaliData.astronomicalKundali) return "";
@@ -2667,16 +2994,23 @@ export function generateKundaliTopicDiagnosis(kundaliData, astroIntent = null, u
   const dosha = ak.doshaSummary || {};
   const recs = ak.rudrakshaRecommendations || [];
   const lalKitab = ak.lalKitab || {};
+  const yogas = ak.yogas || [];
+  const gochar = ak.gochar || [];
 
   const mahaHindi = dasha.currentMahadashaHindi || "बृहस्पति (गुरु)";
   const antarHindi = dasha.currentAntardashaHindi || "बुध (Mercury)";
   const pratyantarHindi = dasha.currentPratyantardashaHindi || antarHindi;
+  const mahaStart = dasha.mahadashaStartDate || "";
+  const mahaEnd = dasha.mahadashaEndDate || "";
+  const antarStart = dasha.antardashaStartDate || "";
   const antarEnd = dasha.antardashaEndDate || "निकट भविष्य";
+  const pratyantarStart = dasha.pratyantardashaStartDate || "";
   const pratyantarEnd = dasha.pratyantardashaEndDate || "शीघ्र";
 
   const timelineList = dasha.antardashasTimeline || [];
   const currentIdx = timelineList.findIndex(a => a.isCurrent);
   const nextAntar1 = currentIdx >= 0 && timelineList[currentIdx + 1] ? timelineList[currentIdx + 1] : timelineList[0];
+  const nextAntar2 = currentIdx >= 0 && timelineList[currentIdx + 2] ? timelineList[currentIdx + 2] : timelineList[1];
 
   const findPlanet = (key) => planets.find(p => (p.name || "").includes(key) || (p.englishName || "").toLowerCase().includes(key.toLowerCase())) || {};
   const sunP = findPlanet("Surya");
@@ -2691,6 +3025,7 @@ export function generateKundaliTopicDiagnosis(kundaliData, astroIntent = null, u
 
   const h1 = houses[0] || {};
   const h2 = houses[1] || {};
+  const h3 = houses[2] || {};
   const h4 = houses[3] || {};
   const h5 = houses[4] || {};
   const h6 = houses[5] || {};
@@ -2702,217 +3037,648 @@ export function generateKundaliTopicDiagnosis(kundaliData, astroIntent = null, u
   const h12 = houses[11] || {};
 
   const jaiminiKarakas = ak.jaiminiKarakas || [];
+  const akKaraka = jaiminiKarakas.find(k => k.karakaCode === "AK");
   const amk = jaiminiKarakas.find(k => k.karakaCode === "AmK");
   const dk = jaiminiKarakas.find(k => k.karakaCode === "DK");
+  const pk = jaiminiKarakas.find(k => k.karakaCode === "PK");
 
-  const primaryRec = recs[0] || { mukhi: "प्रामाणिक मुख्य रुद्राक्ष" };
+  const primaryRec = recs[0] || { mukhi: "प्रामाणिक मुख्य रुद्राक्ष", beejMantra: "ॐ नमः शिवाय" };
+  const rashiRec = recs[1] || primaryRec;
   const dashaRec = recs[2] || primaryRec;
 
-  const intentType = astroIntent?.type || "specific_query";
+  const intentType = astroIntent?.type || "full_kundali";
 
-  // 1. CAREER / JOB / BUSINESS (नौकरी, व्यापार, पदोन्नति)
+  // 1. CAREER / JOB / BUSINESS (नौकरी, व्यापार, पदोन्नति, सरकारी नौकरी)
   if (intentType === "career") {
     const isSaturnStrong = !/Debilitated|नीच/i.test(satP.dignity || "");
     const isSunStrong = !/Debilitated|नीच/i.test(sunP.dignity || "");
+    const d10Varga = (ak.shodashvarga || []).find(v => v.vargaCode === "D10");
     const jobSuitability = (h6.occupants && h6.occupants.length > 0 && !h6.occupants[0].includes("Shunya")) || /Service|Friendly|Exalted/i.test(satP.dignity || "")
-      ? "आपकी कुंडली में सेवा/नौकरी (Service/Job) का पक्ष अधिक अनुकूल और निरंतरता देने वाला है। नियमित पद पर कार्य करना आपके लिए सुरक्षित व फलदायी रहेगा।"
-      : "आपकी कुंडली में कर्म भाव (10th) व लाभ भाव (11th) का संबंध स्वतंत्र कार्य, व्यापार, कंसल्टेंसी या पार्टनरशिप में भी उत्तम सफलता का योग बनाता है।";
+      ? "आपकी कुंडली में षष्ठ भाव (सेवा स्थान) एवं शनि की स्थिति उच्च स्तरीय नौकरी/सेवा (Job, Corporate, Administration या Technical/Management Role) के लिए अत्यंत अनुकूल और स्थिरता देने वाली है। साथ ही 32 वर्ष की आयु के बाद आप स्वतंत्र कंसल्टेंसी या समानांतर व्यवसाय से भी अतिरिक्त लाभ अर्जित कर सकते हैं।"
+      : "आपकी कुंडली में दशम भाव (कर्म स्थान), सप्तम भाव (व्यापार स्थान) एवं लाभ भाव (11th House) का प्रबल संबंध स्वतंत्र कार्य, व्यापार (Business/Entrepreneurship), कंसल्टेंसी और उच्च नेतृत्व (Leadership) में असाधारण सफलता का योग बनाता है।";
 
-    return `🙏 **प्रणाम ${vb.name || "भक्त"}! हर हर महादेव।**
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपकी जन्म कुंडली (${lagna.rashiHindi} लग्न, ${chandra.rashiHindi} चंद्र राशि) के प्रत्यक्ष गणितीय विश्लेषण के आधार पर **नौकरी, करियर व आजीविका** का सटीक वैदिक फलादेश इस प्रकार है:
-
----
-
-### 🏛️ 1. दशम भाव (कर्म स्थान) व षष्ठ भाव (नौकरी/सेवा) की स्थिति
-• **दशम भाव (Karmasthana - करियर व पद):** आपकी कुंडली का 10वां भाव **${h10.rashiHindi}** राशि में है, जिसके भावेश **${h10.lord}** हैं। 
-  - स्थित ग्रह: **${h10.occupants ? h10.occupants.join(", ") : "भावेश द्वारा संचालित"}**
-  - दृष्टि संबंध: ${h10.aspects && h10.aspects.length > 0 ? h10.aspects.join(", ") : "सामान्य ग्रहीय प्रभाव"}
-• **षष्ठ भाव (6th House - सेवा, नौकरी व प्रतियोगिता):** 6वां भाव **${h6.rashiHindi}** राशि में है (स्वामी: **${h6.lord}**)। इसमें स्थित ग्रह: **${h6.occupants ? h6.occupants.join(", ") : "शुभ"}**।
-• **धन व लाभ समीकरण (2nd & 11th House):** धन भाव स्वामी **${h2.lord}** एवं लाभ भाव स्वामी **${h11.lord}** का प्रभाव कार्य के अनुपात में आय सुनिश्चित करता है।
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**, नक्षत्र: **${chandra.nakshatra}**) तथा **दशमांश कुंडली (D10 Dashamsha)** के सूक्ष्म गणितीय विश्लेषण के आधार पर **नौकरी, करियर, व्यापार व पदोन्नति** का संपूर्ण विस्तृत वैदिक फलादेश नीचे दिया गया है:
 
 ---
 
-### 🪐 2. मुख्य कर्म व अधिकार कारक ग्रहों का प्रभाव
-• 📌 **शनि देव (कर्म फलदाता):** शनि देव आपकी कुंडली के **${satP.houseNumber || 10}वें भाव** में **${satP.rashiHindi || ""}** राशि में (**${satP.dignity || "सामान्य"}**) स्थित हैं। ${isSaturnStrong ? "शनि देव आपके कर्मक्षेत्र को मजबूती दे रहे हैं, किंतु आरंभ में कड़ी मेहनत और धैर्य की परीक्षा लेते हैं।" : "शनि की वर्तमान स्थिति से बनते कार्यों में थोड़ा विलंब होता है, जिसके लिए कर्म में स्पष्टता और शनि शांति आवश्यक है।"}
-• 📌 **सूर्य देव (सरकारी नौकरी, प्रशासनिक मान-सम्मान व उच्चाधिकारी संबंध):** सूर्य देव **${sunP.houseNumber || 1}वें भाव** में **${sunP.rashiHindi || ""}** राशि में स्थित हैं। ${isSunStrong ? "सूर्य का बल आपको नेतृत्व क्षमता व उच्च पद दिलाने में सहायक है।" : "कार्यस्थल पर उच्चाधिकारियों से मतभेद से बचें और सूर्य को नियमित अर्घ्य दें।"}
-• 📌 **जैमिनी अमात्यकारक (AmK - आजीविका निर्देशक):** आपकी कुंडली में **${amk ? `${amk.planetName} (${amk.signName}, ${amk.houseNumber}वां भाव)` : "सूर्य देव"}** अमात्यकारक ग्रह हैं, जो बताते हैं कि आपका कार्यक्षेत्र बुद्धि, व्यवस्थापन और विशेषज्ञता से जुड़ा होना चाहिए।
+### 🏛️ 1. कुंडली के कर्म, सेवा, धन व लाभ भावों का गहरा विश्लेषण
+• **दशम भाव (10th House - कर्म, पद-प्रतिष्ठा व राज्य कृपा):**
+  - आपकी कुंडली का 10वां भाव **${h10.rashiHindi} (${h10.rashiEnglish})** राशि में है, जिसके स्वामी (दशमेश) **${h10.lord}** हैं (जो कुंडली के **${h10.lordPlacement || "शुभ भाव"}** में स्थित हैं)।
+  - दशम भाव में स्थित ग्रह: **${h10.occupants ? h10.occupants.join(", ") : "भावेश द्वारा संचालित"}** | दृष्टि संबंध: **${h10.aspects && h10.aspects.length > 0 ? h10.aspects.join(", ") : "सामान्य दृष्टि"}**।
+  - **दशमांश कुंडली (D10 - Career Divisional Chart):** दशमांश लग्न **${d10Varga?.lagnaRashiHindi || lagna.rashiHindi}** है, जो दर्शाता है कि आपके भीतर उच्च जिम्मेदारी संभालने की जन्मजात क्षमता है।
+• **षष्ठ भाव (6th House - दैनिक नौकरी, प्रतियोगिता परीक्षा व शत्रु विजय):**
+  - 6वां भाव **${h6.rashiHindi}** राशि में है, जिसके स्वामी **${h6.lord}** हैं। स्थित ग्रह: **${h6.occupants ? h6.occupants.join(", ") : "शुभ"}**। यह भाव प्रतियोगी परीक्षाओं और इंटरव्यू में निरंतर प्रयास से सफलता दिलाता है।
+• **सप्तम व तृतीय भाव (7th & 3rd House - व्यापार, साझेदारी व स्व-पराक्रम):**
+  - सप्तमेश **${h7.lord}** और तृतीयेश **${h3.lord}** आपके साहस और पब्लिक डीलिंग कौशल को मजबूत करते हैं।
+• **धन व लाभ भाव (2nd & 11th House - सैलरी, बचत व प्रमोशन):**
+  - धनेश **${h2.lord}** और लाभेश **${h11.lord}** के समीकरण से आपके परिश्रम का आर्थिक प्रतिफल स्थायी रूप से बढ़ने का योग है।
 
 ---
 
-### ⚖️ 3. नौकरी या व्यापार — आपके लिए क्या बेहतर है?
-• ${jobSuitability}
+### 🪐 2. करियर के 5 मुख्य कारक ग्रहों का आपकी कुंडली में प्रभाव
+• 📌 **शनि देव (मुख्य कर्म कारक व स्थायी करियर दाता):** शनि देव **${satP.houseNumber || 10}वें भाव** में **${satP.rashiHindi || ""}** राशि (${satP.degreeInSign || ""}, **${satP.dignity || "सामान्य"}**, D9: ${satP.navamshaRashiHindi || ""}) में स्थित हैं। ${isSaturnStrong ? "शनि देव आपको मेहनती, अनुशासित और अपने क्षेत्र में गहरा विशेषज्ञ बनाते हैं। शुरुआती संघर्ष के बाद ये अखंड पद-प्रतिष्ठा देते हैं।" : "शनि की वर्तमान स्थिति के कारण कार्यक्षेत्र में कभी-कभी श्रेय देर से मिलता है या काम रुक-रुक कर बनता है, जिसके लिए शनि शांति व 7/14 मुखी रुद्राक्ष अत्यंत आवश्यक है।"}
+• 📌 **सूर्य देव (सरकारी नौकरी, उच्च पद, अधिकार व बॉस से संबंध):** सूर्य देव **${sunP.houseNumber || 1}वें भाव** में **${sunP.rashiHindi || ""}** राशि (${sunP.degreeInSign || ""}, **${sunP.dignity || "सामान्य"}**) में हैं। ${isSunStrong ? "सूर्य का बल आपको प्रशासनिक क्षमता, आत्मविश्वास और सरकारी/उच्च कॉर्पोरेट क्षेत्र में सम्मान दिलाने वाला है।" : "वरिष्ठ अधिकारियों से वैचारिक मतभेद से बचें और प्रतिदिन प्रातः सूर्य को अर्घ्य दें।"}
+• 📌 **बुध देव (व्यापार, वाणी, आईटी, बैंकिंग व बौद्धिक कौशल):** बुध देव **${mercP.houseNumber || 1}वें भाव** (${mercP.rashiHindi || ""}) में रहकर आपकी विश्लेषणात्मक और संवाद शक्ति को प्रखर बना रहे हैं।
+• 📌 **गुरु बृहस्पति (भाग्य, सलाहकार क्षमता व पदोन्नति):** गुरु देव **${jupP.houseNumber || 9}वें भाव** (${jupP.rashiHindi || ""}) में रहकर ज्ञान, शिक्षा, फाइनेंस और वरिष्ठ प्रबंधन में उन्नति के मार्ग खोलते हैं।
+• 📌 **जैमिनी अमात्यकारक (AmK - आजीविका निर्देशक ग्रह):** आपकी कुंडली में **${amk ? `${amk.planetName} (${amk.signName}, ${amk.degreeInSign}, ${amk.houseNumber}वां भाव)` : "सूर्य देव"}** अमात्यकारक हैं। जैमिनी सूत्र के अनुसार यह ग्रह आपके करियर की मुख्य धुरी है।
 
 ---
 
-### ⏳ 4. नौकरी में रुकावट कब हटेगी और नई जॉब/प्रमोशन का समय?
-• **विंशोत्तरी दशा समय चक्र:** आप पर वर्तमान में **${mahaHindi} महादशा** के भीतर **${antarHindi} की अंतर्दशा** चल रही है।
-• **राहत की पहली किरण:** प्रत्यंतर दशा **${pratyantarEnd}** को समाप्त होने के साथ ही मानसिक दबाव कम होगा और इंटरव्यू/नए प्रस्ताव के अवसर बनने लगेंगे।
-• **बड़ा अनुकूल समय:** वर्तमान **${antarHindi} अंतर्दशा ${antarEnd}** को समाप्त होगी। ${nextAntar1 ? `इसके पश्चात **${nextAntar1.startDate} से ${nextAntar1.endDate}** तक चलने वाली **${nextAntar1.planetHindi} की अंतर्दशा** आपके करियर के लिए अत्यंत भाग्यवर्धक सिद्ध होगी, जिसमें नई नौकरी, पदोन्नति और आर्थिक स्थिरता का प्रबल योग है।` : `इसके पश्चात आपके कार्यक्षेत्र में स्थायी गति और प्रतिष्ठा का योग बनेगा।`}
+### ⚖️ 3. नौकरी या व्यापार — आपके लिए क्या सर्वश्रेष्ठ है और कौन से क्षेत्र शुभ हैं?
+• **निर्णय:** ${jobSuitability}
+• **आपके लिए सर्वाधिक शुभ कार्यक्षेत्र (Best Career Fields):** प्रशासन व प्रबंधन (Management/Admin), बैंकिंग व फाइनेंस, आईटी व टेक्नोलॉजी, शिक्षा व कंसल्टेंसी, रियल एस्टेट/इंजीनियरिंग तथा राजकीय/सरकारी संविदा या कॉर्पोरेट लीडरशिप।
 
 ---
 
-### 📿 5. करियर उन्नति हेतु सिद्ध नेपाली रुद्राक्ष व अचूक उपाय
-1. **${primaryRec.mukhi} (मुख्य लग्न रुद्राक्ष):** आपका आत्मविश्वास, एकाग्रता और व्यक्तित्व प्रभावशाली बनाने हेतु।
-2. **10 मुखी रुद्राक्ष (भगवान श्री हरि विष्णु) अथवा 7 मुखी रुद्राक्ष (माता महालक्ष्मी):** कार्यक्षेत्र में षड्यंत्रों से सुरक्षा, सभी 10 दिशाओं से अनुकूलता और करियर में स्थिर आय व पदोन्नति हेतु।
-3. **दैनिक वैदिक उपाय:** 
-   - नित्य प्रातः तांबे के लोटे में जल, थोड़ा सा गुड़ व लाल चंदन डालकर भगवान सूर्य को अर्घ्य दें और \`ॐ सूर्याय नमः\` का 11 बार जाप करें।
-   - शनिवार को पीपल के वृक्ष के नीचे सरसों के तेल का दीपक प्रज्वलित करें।
+### ⏳ 4. करियर में अभी रुकावट क्यों है और नई नौकरी/प्रमोशन का सटीक समय कब है?
+• **वर्तमान रुकावट का कारण:** अभी आप पर **${mahaHindi} की महादशा (${mahaStart} से ${mahaEnd})** के भीतर **${antarHindi} की अंतर्दशा (${antarStart} से ${antarEnd})** तथा **${pratyantarHindi} की प्रत्यंतर दशा (${pratyantarStart} से ${pratyantarEnd})** चल रही है। इस दशा संधि और गोचर के कारण आप जितनी मेहनत कर रहे हैं, उसका पूरा परिणाम मिलने में विलंब हो रहा है।
+• 🌤️ **पहली राहत व नए अवसर (Initial Breakthrough):** **${pratyantarEnd}** को वर्तमान प्रत्यंतर दशा समाप्त होते ही कार्यस्थल का तनाव कम होगा, इंटरव्यू/नए प्रोजेक्ट्स में सफलता मिलेगी और रुकी हुई बात आगे बढ़ेगी।
+• 🌅 **बड़ा प्रमोशन व स्वर्ण काल (Golden Career Window):** वर्तमान **${antarHindi} अंतर्दशा ${antarEnd}** को पूर्ण होगी। ${nextAntar1 ? `इसके तुरंत बाद **${nextAntar1.startDate} से ${nextAntar1.endDate}** तक चलने वाली **${nextAntar1.planetHindi} की अंतर्दशा** आपके करियर का सबसे बड़ा टर्निंग पॉइंट सिद्ध होगी—जिसमें मनचाही नौकरी, पदोन्नति (Promotion), वेतन वृद्धि और व्यापार विस्तार का प्रबल राजयोग बनेगा।` : `**${antarEnd}** के पश्चात आपके करियर में स्थायी उछाल और मान-सम्मान की प्राप्ति होगी।`}
 
-भगवान भोलेनाथ आपके कर्मक्षेत्र में सफलता और यश प्रदान करें। **हर हर महादेव!**
+---
 
-[AURA_KEYWORDS]: नौकरी में सफलता | करियर राशिफल | ${primaryRec.mukhi} | 10 मुखी रुद्राक्ष | महादशा उपाय`;
+### 📿 5. करियर व व्यापार में तुरंत उन्नति हेतु कुंडली-प्रमाणित रुद्राक्ष व लाल किताब उपाय
+1. **मुख्य लग्न रुद्राक्ष — ${primaryRec.mukhi}:** आपके लग्नेश (**${lagna.lord}**) को बल देने, आत्मविश्वास बढ़ाने और कार्यक्षेत्र में नेतृत्व क्षमता के लिए। (बीज मंत्र: \`${primaryRec.beejMantra || "ॐ नमः शिवाय"}\`)
+2. **दशा व कर्म रक्षक — ${dashaRec.mukhi} अथवा 10 मुखी / 7 मुखी नेपाली रुद्राक्ष:** कार्यक्षेत्र में गुप्त शत्रुओं व ऑफिस पॉलिटिक्स से रक्षा (10 मुखी - भगवान विष्णु) तथा स्थिर धन व प्रमोशन (7 मुखी - माता महालक्ष्मी) हेतु।
+3. **अचूक लाल किताब व वैदिक उपाय:**
+   - प्रतिदिन प्रातः तांबे के लोटे में जल, लाल चंदन, अक्षत व गुड़ डालकर भगवान सूर्य को अर्घ्य दें और \`ॐ घृणि सूर्याय नमः\` का 21 बार जाप करें।
+   - शनिवार को पीपल के वृक्ष के नीचे सरसों के तेल का चौमुखी दीपक जलाएं और श्री हनुमान चालीसा का पाठ करें।
+   - घर से किसी महत्वपूर्ण कार्य या इंटरव्यू के लिए निकलते समय थोड़ा सा गुड़ और जल ग्रहण करके निकलें।
+
+भगवान देवाधिदेव महादेव आपके कर्मक्षेत्र में अखंड सफलता और यश प्रदान करें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: ${primaryRec.mukhi} | 10 मुखी रुद्राक्ष | 7 मुखी रुद्राक्ष | सरकारी नौकरी व प्रमोशन योग | मेरी पूरी कुंडली दिखाएं`;
   }
 
-  // 2. MARRIAGE / RELATIONSHIPS (विवाह, दांपत्य, जीवनसाथी)
+  // 2. MARRIAGE / RELATIONSHIPS (विवाह, दांपत्य, जीवनसाथी, प्रेम विवाह vs अरेंज मैरिज)
   if (intentType === "marriage") {
     const isVenusStrong = !/Debilitated|नीच/i.test(venP.dignity || "");
+    const d9Varga = (ak.shodashvarga || []).find(v => v.vargaCode === "D9");
     const manglikText = dosha.isManglik
-      ? `आपकी कुंडली में मंगल **${marsP.houseNumber}वें भाव** में स्थित होने से मांगलिक प्रभाव उपस्थित है। ${dosha.manglikNote || ""}`
-      : `आपकी कुंडली मांगलिक दोष से मुक्त है (${dosha.manglikNote || "अनुकूल स्थिति"})।`;
+      ? `आपकी कुंडली में मंगल देव **${marsP.houseNumber}वें भाव (${marsP.rashiHindi})** में स्थित हैं, जिससे मांगलिक प्रभाव बन रहा है (${dosha.manglikNote || ""})। विवाह से पूर्व गुण-मिलान एवं मंगल शांति (या 3 मुखी / गौरी शंकर रुद्राक्ष धारण) करने से दांपत्य जीवन पूर्णतः सुखमय और निर्बाध रहेगा।`
+      : `आपकी कुंडली मांगलिक दोष से मुक्त है (${dosha.manglikNote || "मंगल की स्थिति दांपत्य जीवन के लिए अनुकूल है"})।`;
+    const loveOrArranged = (venP.houseNumber === 5 || venP.houseNumber === 7 || rahuP.houseNumber === 5 || rahuP.houseNumber === 7 || h5.lord === h7.lord)
+      ? "आपकी कुंडली में पंचम (प्रेम भाव) और सप्तम (विवाह भाव) अथवा शुक्र-राहु का संबंध होने से **प्रेम-सह-अरेंज विवाह (Love-cum-Arranged Marriage)** या अपनी पसंद के जीवनसाथी से परिवार की सहमति से विवाह होने के प्रबल संकेत हैं।"
+      : "आपकी कुंडली में गुरु और सप्तमेश के प्रभाव से **परिवार के आशीर्वाद व सुसंस्कृत परंपरा से विवाह (Arranged / Family-Blessed Marriage)** अत्यंत शुभ, स्थिर और भाग्यवर्धक रहेगा।";
 
-    return `🙏 **प्रणाम ${vb.name || "भक्त"}! हर हर महादेव।**
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपकी जन्म कुंडली (${lagna.rashiHindi} लग्न, ${chandra.rashiHindi} चंद्र राशि) के अनुसार **विवाह, जीवनसाथी व दांपत्य जीवन** का प्रामाणिक वैदिक विश्लेषण इस प्रकार है:
-
----
-
-### 🏛️ 1. सप्तम भाव (विवाह व साझेदारी) की स्थिति
-• **सप्तम भाव (7th House):** विवाह भाव **${h7.rashiHindi}** राशि में है, जिसके भावेश **${h7.lord}** हैं।
-  - स्थित ग्रह: **${h7.occupants ? h7.occupants.join(", ") : "शुभ"}**
-  - दृष्टि: ${h7.aspects && h7.aspects.length > 0 ? h7.aspects.join(", ") : "सामान्य दृष्टि"}
-• **द्वितीय भाव (कुटुंब व सामंजस्य):** कुटुंब भाव के स्वामी **${h2.lord}** हैं, जो वैवाहिक जीवन में पारिवारिक समर्थन को दर्शाते हैं।
-• **मांगलिक विचार:** ${manglikText}
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) एवं **नवमांश कुंडली (D9 Navamsha Chart — विवाह का मुख्य दर्पण)** के आधार पर **विवाह, जीवनसाथी के गुण, प्रेम और दांपत्य सुख** का संपूर्ण विस्तृत वैदिक विश्लेषण नीचे प्रस्तुत है:
 
 ---
 
-### 🪐 2. शुक्र व गुरु (विवाह कारक ग्रह) एवं दाराकारक
-• 📌 **शुक्र देव (दांपत्य व प्रेम कारक):** शुक्र देव **${venP.houseNumber || 7}वें भाव** में **${venP.rashiHindi || ""}** राशि में (**${venP.dignity || "सामान्य"}**) स्थित हैं। ${isVenusStrong ? "शुक्र की अनुकूलता जीवन में प्रेम, समझदारी और सुंदर दांपत्य सुख का संकेत देती है।" : "शुक्र की शांति व संबंधों में धैर्य रखना आवश्यक है।"}
-• 📌 **गुरु बृहस्पति (आशीर्वाद व स्थिरता):** गुरु देव **${jupP.houseNumber || 9}वें भाव** में स्थित हैं, जो विवाह में धर्म और संस्कार का संतुलन बनाते हैं।
-• 📌 **जैमिनी दाराकारक (DK - जीवनसाथी संकेतक):** आपकी कुंडली में **${dk ? `${dk.planetName} (${dk.signName}, ${dk.houseNumber}वां भाव)` : "शुक्र"}** दाराकारक ग्रह हैं, जो स्वभाव से सुलझे हुए और कर्तव्यनिष्ठ जीवनसाथी का संकेत देते हैं।
+### 🏛️ 1. सप्तम भाव (विवाह स्थान), कुटुंब भाव व नवमांश (D9) की स्थिति
+• **सप्तम भाव (7th House - जीवनसाथी व दांपत्य बंधन):**
+  - आपकी कुंडली का सप्तम भाव **${h7.rashiHindi} (${h7.rashiEnglish})** राशि में है, जिसके स्वामी (सप्तमेश) **${h7.lord}** हैं (जो **${h7.lordPlacement || "शुभ भाव"}** में स्थित हैं)।
+  - सप्तम भाव में स्थित ग्रह: **${h7.occupants ? h7.occupants.join(", ") : "कोई ग्रह नहीं (सप्तमेश द्वारा संचालित)"}** | दृष्टि संबंध: **${h7.aspects && h7.aspects.length > 0 ? h7.aspects.join(", ") : "सामान्य दृष्टि"}**।
+• **नवमांश कुंडली (D9 Chart - वैवाहिक आत्मा व आंतरिक सुख):**
+  - आपका नवमांश लग्न **${d9Varga?.lagnaRashiHindi || lagna.navamsha || lagna.rashiHindi}** है। वैदिक ज्योतिष में लग्न कुंडली शरीर है तो नवमांश कुंडली विवाह का प्राण है—नवमांश की यह स्थिति दीर्घकालिक वैवाहिक स्थिरता का संकेत देती है।
+• **द्वितीय व चतुर्थ भाव (2nd & 4th House - कुटुंब व गृहस्थ सुख):**
+  - कुटुंबेश **${h2.lord}** और चतुर्थेश **${h4.lord}** विवाह के पश्चात परिवार में सामंजस्य और सुख-सुविधाओं में वृद्धि को दर्शाते हैं।
+• **मांगलिक दोष सूक्ष्म विचार:**
+  - ${manglikText}
 
 ---
 
-### ⏳ 3. विवाह योग व रिश्तों में मधुरता का समय
-• **सक्रिय दशा:** वर्तमान में **${mahaHindi}** महादशा में **${antarHindi}** की अंतर्दशा चल रही है।
-• **विवाह व रिश्ते के योग:** वर्तमान अंतर्दशा समाप्त होने (${antarEnd}) से पूर्व ही योग्य रिश्ते की चर्चाएं और अनुकूल प्रस्ताव आने के योग बनते हैं। ${nextAntar1 ? `विशेषकर **${nextAntar1.startDate} से ${nextAntar1.endDate}** (${nextAntar1.planetHindi} अंतर्दशा) में विवाह का प्रबल मांगलिक योग बनेगा।` : ""}
+### 🪐 2. विवाह कारक ग्रहों (शुक्र, गुरु) एवं जैमिनी दाराकारक (DK) से जीवनसाथी का स्वरूप
+• 📌 **शुक्र देव (प्रेम, आकर्षण व दांपत्य कारक):** शुक्र देव **${venP.houseNumber || 7}वें भाव** में **${venP.rashiHindi || ""}** राशि (${venP.degreeInSign || ""}, **${venP.dignity || "सामान्य"}**, D9: ${venP.navamshaRashiHindi || ""}) में स्थित हैं। ${isVenusStrong ? "शुक्र का यह बल आपके वैवाहिक जीवन में प्रेम, आकर्षण, कलात्मकता और भौतिक सुख-वैभव प्रदान करता है।" : "शुक्र को बल देने से रिश्तों में आ रही ठंडक और गलतफहमी तुरंत दूर होगी।"}
+• 📌 **गुरु बृहस्पति (मांगलिक आशीर्वाद, पति कारक व संस्कार):** गुरु देव **${jupP.houseNumber || 9}वें भाव** में **${jupP.rashiHindi || ""}** राशि में स्थित हैं, जो दांपत्य बंधन को मर्यादा, आदर और ईश्वरीय सुरक्षा देते हैं।
+• 📌 **जैमिनी दाराकारक (DK - जीवनसाथी का मुख्य संकेतक ग्रह):** आपकी कुंडली में सबसे कम अंश वाला ग्रह **${dk ? `${dk.planetName} (${dk.signName}, ${dk.degreeInSign}, ${dk.houseNumber}वां भाव)` : "शुक्र देव"}** आपका **दाराकारक (Darakaraka)** है।
+  - **जीवनसाथी का स्वभाव व व्यक्तित्व:** आपके जीवनसाथी दिखने में सौम्य व आकर्षक, स्वभाव से बुद्धिमान, स्पष्टवादी, परिवार के प्रति जिम्मेदार और आपके करियर व कठिन समय में मजबूत स्तंभ की तरह साथ निभाने वाले होंगे।
+• **प्रेम विवाह या अरेंज विवाह:** ${loveOrArranged}
 
 ---
 
-### 📿 4. शीघ्र विवाह व दांपत्य सुख हेतु सिद्ध रुद्राक्ष व उपाय
-1. **गौरी शंकर रुद्राक्ष (साक्षात शिव-पार्वती स्वरूप):** शीघ्र व योग्य विवाह, आपसी प्रेम, दांपत्य कलह निवारण और सामंजस्य के लिए सर्वोच्च सिद्ध रुद्राक्ष।
-2. **2 मुखी नेपाली रुद्राक्ष (अर्घनारीश्वर):** मानसिक शांति व पति-पत्नी के बीच अटूट विश्वास हेतु।
-3. **वैदिक उपाय:** सोमवार को शिवलिंग पर कच्चा दूध, जल और बेलपत्र अर्पित करते हुए \`ॐ नमः शिवाय\` का जाप करें।
+### ⏳ 3. विवाह/रिश्ते में देरी या तनाव क्यों है और शुभ समय कब आएगा?
+• **वर्तमान स्थिति का कारण:** अभी आप पर **${mahaHindi} महादशा** में **${antarHindi} की अंतर्दशा (${antarStart} से ${antarEnd})** चल रही है। इसके प्रभाव से या तो अच्छे रिश्ते की बात अंतिम चरण में अटक जाती है, अथवा वर्तमान संबंध/दांपत्य में छोटी-छोटी बातों पर वैचारिक मतभेद हो जाता है।
+• 🌤️ **पहला शुभ संकेत:** **${pratyantarEnd}** के बाद से रिश्तों में संवाद मधुर होगा और यदि विवाह के लिए प्रयास कर रहे हैं तो अच्छे प्रस्ताव आने शुरू होंगे।
+• 💍 **प्रबल विवाह व मांगलिक योग (Peak Marriage & Harmony Window):** **${antarEnd}** के पश्चात ${nextAntar1 ? `**${nextAntar1.startDate} से ${nextAntar1.endDate}** तक चलने वाली **${nextAntar1.planetHindi} की अंतर्दशा** में शुभ विवाह संपन्न होने अथवा दांपत्य जीवन में पूर्ण सुख-शांति व भाग्योदय स्थापित होने का प्रबल योग है।` : "नई अंतर्दशा में मांगलिक कार्य निर्विघ्न संपन्न होंगे।"}
 
-[AURA_KEYWORDS]: विवाह योग | गौरी शंकर रुद्राक्ष | 2 मुखी रुद्राक्ष | दांपत्य सुख | मांगलिक विचार`;
+---
+
+### 📿 4. शीघ्र विवाह व अटूट दांपत्य सुख हेतु सिद्ध रुद्राक्ष व शास्त्रीय उपाय
+1. **गौरी शंकर सिद्ध नेपाली रुद्राक्ष (साक्षात शिव-पार्वती एकाकार स्वरूप):** विवाह में हो रहे विलंब को दूर करने, मनचाहा व योग्य जीवनसाथी प्राप्त करने और पति-पत्नी के बीच अटूट प्रेम व सामंजस्य स्थापित करने के लिए सर्वोच्च रुद्राक्ष। (बीज मंत्र: \`ॐ गौरी शंकराय नमः\`)
+2. **2 मुखी नेपाली रुद्राक्ष (अर्धनारीश्वर स्वरूप) एवं ${primaryRec.mukhi}:** चंद्र व भावनात्मक संतुलन तथा लग्न बल के लिए।
+3. **अचूक वैदिक व लाल किताब उपाय:**
+   - प्रत्येक सोमवार को शिव मंदिर में भगवान शिव और माता पार्वती का **गठबंधन** करें और शिवलिंग पर कच्चा दूध, शहद व बेलपत्र अर्पित करते हुए \`ॐ नमः शिवाय\` का 108 बार जाप करें।
+   - गुरुवार को केले के वृक्ष में जल व हल्दी अर्पित करें और शुक्रवार को माता लक्ष्मी को सफेद मिठाई/खीर का भोग लगाएं।
+
+भगवान भोलेनाथ एवं माता पार्वती आपके जीवन में अखंड सौभाग्य और मधुर प्रेम प्रदान करें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | 2 मुखी रुद्राक्ष | विवाह व जीवनसाथी योग | मांगलिक दोष निवारण | मेरी पूरी कुंडली दिखाएं`;
   }
 
-  // 3. WEALTH & FINANCE (धन, संपत्ति, कर्ज, आर्थिक स्थिति)
+  // 3. WEALTH, FINANCE & DEBT RELIEF (धन, संपत्ति, कर्ज मुक्ति, रुका हुआ पैसा, व्यापार लाभ)
   if (intentType === "finance") {
-    return `🙏 **प्रणाम ${vb.name || "भक्त"}! हर हर महादेव।**
+    const d2Varga = (ak.shodashvarga || []).find(v => v.vargaCode === "D2");
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपकी जन्म कुंडली (${lagna.rashiHindi} लग्न, ${chandra.rashiHindi} चंद्र राशि) के आधार पर **धन, आर्थिक स्थिति व कर्ज निवारण** का प्रामाणिक वैदिक विश्लेषण इस प्रकार है:
-
----
-
-### 🏛️ 1. धन (2nd House) व लाभ भाव (11th House) की स्थिति
-• **धन भाव (2nd House - संचित धन व बचत):** 2वां भाव **${h2.rashiHindi}** राशि में है, जिसके स्वामी **${h2.lord}** हैं। स्थित ग्रह: **${h2.occupants ? h2.occupants.join(", ") : "शुभ"}**।
-• **लाभ भाव (11th House - आय के स्रोत):** 11वां भाव **${h11.rashiHindi}** राशि में है (स्वामी: **${h11.lord}**)।
-• **व्यय भाव (12th House - खर्च व निवेश):** 12वें भाव के स्वामी **${h12.lord}** हैं। ${rahuP.houseNumber === 12 || ketuP.houseNumber === 12 ? "व्यय भाव में छाया ग्रह होने से अचानक अनपेक्षित खर्चों का दबाव बनता है।" : "खर्चों पर सुनियोजित नियंत्रण से बचत में वृद्धि होगी।"}
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) एवं **होरा कुंडली (D2 Hora — धन एवं संपदा चार्ट)** के गणितीय विश्लेषण के आधार पर **धन आगमन, बचत, फंसा हुआ पैसा और कर्ज मुक्ति** का संपूर्ण विस्तृत वैदिक फलादेश इस प्रकार है:
 
 ---
 
-### 🪐 2. धन कारक ग्रहों का प्रभाव
-• 📌 **गुरु बृहस्पति (स्थिर धन व समृद्धि):** गुरु देव **${jupP.houseNumber || 11}वें भाव** में स्थित हैं, जो स्थायी आर्थिक उन्नति के द्वार खोलते हैं।
-• 📌 **बुध व शुक्र (व्यापारिक लाभ व ऐश्वर्य):** बुध (${mercP.houseNumber}वां भाव) और शुक्र (${venP.houseNumber}वां भाव) धन के प्रवाह को बनाए रखने में सहायक हैं।
+### 🏛️ 1. कुंडली के धन भाव (2nd), लाभ भाव (11th), भाग्य भाव (9th) व व्यय भाव (12th) का समीकरण
+• **द्वितीय भाव (2nd House - संचित धन, बैंक बैलेंस व कुटुंब संपदा):**
+  - आपकी कुंडली का धन भाव **${h2.rashiHindi}** राशि में है, जिसके स्वामी (धनेश) **${h2.lord}** हैं (स्थित: **${h2.lordPlacement || "शुभ भाव"}**)।
+  - स्थित ग्रह: **${h2.occupants ? h2.occupants.join(", ") : "धनेश द्वारा संचालित"}** | दृष्टि: **${h2.aspects && h2.aspects.length > 0 ? h2.aspects.join(", ") : "सामान्य दृष्टि"}**।
+• **एकादश भाव (11th House - नियमित आय, बड़े लाभ व कैश-फ्लो):**
+  - लाभ भाव **${h11.rashiHindi}** राशि में है, जिसके स्वामी (लाभेश) **${h11.lord}** हैं। स्थित ग्रह: **${h11.occupants ? h11.occupants.join(", ") : "लाभेश द्वारा संचालित"}**।
+• **पंचम व नवम भाव (5th & 9th Lakshmi Sthanas - लक्ष्मी कृपा व भाग्य धन):**
+  - पंचमेश **${h5.lord}** और भाग्येश **${h9.lord}** आपके जीवन में पूर्व पुण्य और भाग्य से अचानक बड़े आर्थिक अवसर दिलाने वाले स्तंभ हैं।
+• **षष्ठ व द्वादश भाव (6th Debt & 12th Expense House - कर्ज व खर्च का कारण):**
+  - षष्ठेश **${h6.lord}** और व्ययेश **${h12.lord}** हैं। ${rahuP.houseNumber === 12 || ketuP.houseNumber === 12 || satP.houseNumber === 12 ? "व्यय भाव से पाप/छाया ग्रह का संबंध होने के कारण पैसा हाथ में आते ही किसी न किसी आकस्मिक काम या जिम्मेदारी में खर्च हो जाता है।" : "दशा के दबाव के कारण अभी आय के अनुपात में खर्च अधिक महसूस हो रहा है।"}
+• **होरा कुंडली (D2 Hora Chart):** होरा लग्न **${d2Varga?.lagnaRashiHindi || lagna.rashiHindi}** है, जो दर्शाता है कि स्व-अर्जित परिश्रम और सही निवेश से आप अपने जीवन में उत्तम संपत्ति का निर्माण करेंगे।
 
 ---
 
-### ⏳ 3. आर्थिक रुकावटें कब दूर होंगी और धन लाभ का समय?
-• **दशा प्रभाव:** वर्तमान **${mahaHindi} / ${antarHindi}** दशा में आय तो है, किंतु अनावश्यक खर्चों के कारण बचत कम हो पाती है।
-• **राहत काल:** **${pratyantarEnd}** के बाद से फंसा हुआ धन निकलने लगेगा और **${antarEnd}** के पश्चात नई अंतर्दशा में स्थायी धन वृद्धि और ऋण मुक्ति का मजबूत मार्ग प्रशस्त होगा।
+### 🪐 2. धन कारक ग्रहों (गुरु, शुक्र, बुध व शनि) की आपकी कुंडली में स्थिति
+• 📌 **गुरु बृहस्पति (महाधन व तिजोरी के कारक):** गुरु देव **${jupP.houseNumber || 9}वें भाव** में **${jupP.rashiHindi || ""}** राशि (${jupP.degreeInSign || ""}, **${jupP.dignity || "सामान्य"}**) में स्थित हैं। गुरु की शुभता आपको ईमानदारी और ज्ञान के बल पर स्थायी समृद्धि देती है।
+• 📌 **शुक्र देव (महालक्ष्मी कृपा, वैभव व लग्जरी):** शुक्र देव **${venP.houseNumber || 7}वें भाव** (${venP.rashiHindi || ""}) में हैं, जो जीवन में सुख-सुविधाओं, वाहन और ऐश्वर्य का कारक हैं।
+• 📌 **बुध देव (व्यापारिक बुद्धि व कैश रोटेशन):** बुध देव **${mercP.houseNumber || 1}वें भाव** (${mercP.rashiHindi || ""}) में रहकर वाणी और व्यापारिक सौदों से धन दिलाते हैं।
+• 📌 **प्रमुख धन योग:** ${yogas.map(y => `**${y.name}**`).join(", ") || "लग्न-लक्ष्मी धन सहयोग योग"}।
 
 ---
 
-### 📿 4. धन वृद्धि व कर्ज मुक्ति हेतु सिद्ध रुद्राक्ष व उपाय
-1. **7 मुखी सिद्ध नेपाली रुद्राक्ष (साक्षात माता महालक्ष्मी):** आर्थिक तंगी दूर करने, व्यापार में लाभ और स्थिर धन प्राप्ति हेतु सर्वश्रेष्ठ।
-2. **8 मुखी रुद्राक्ष (भगवान श्री गणेश):** धन आगमन के मार्ग में आने वाले सर्व विघ्नों के निवारण हेतु।
-3. **उपाय:** शुक्रवार को माता महालक्ष्मी को खीर या मिश्री का भोग लगाएं और कनकधारा स्तोत्र का पाठ करें।
+### ⏳ 3. पैसा क्यों अटक रहा है, कर्ज/तंगी कब खत्म होगी और महाधन लाभ कब होगा?
+• **वर्तमान आर्थिक अटकाव का कारण:** अभी आप पर **${mahaHindi} महादशा** में **${antarHindi} की अंतर्दशा (${antarStart} से ${antarEnd})** चल रही है। इस अवधि में या तो दिया हुआ पैसा फंसता है, या व्यापार/नौकरी में नकदी प्रवाह (Cash Flow) रुक-रुक कर आता है।
+• 🌤️ **राहत की शुरुआत (Initial Financial Relief):** **${pratyantarEnd}** को प्रत्यंतर दशा बदलते ही रुका हुआ धन किश्तों में वापस आने लगेगा और अनावश्यक खर्चों पर रोक लगेगी।
+• 💰 **ऋण मुक्ति व स्वर्ण धन काल (Major Wealth & Prosperity Period):** वर्तमान **${antarHindi} अंतर्दशा ${antarEnd}** को समाप्त होगी। ${nextAntar1 ? `इसके पश्चात **${nextAntar1.startDate} से ${nextAntar1.endDate}** तक चलने वाली **${nextAntar1.planetHindi} की अंतर्दशा** में आपकी आर्थिक स्थिति में बड़ा उछाल आएगा, कर्ज से मुक्ति मिलेगी और नई संपत्ति/निवेश का योग बनेगा।` : `**${antarEnd}** के बाद आपकी आय के नए स्रोत खुलेंगे और स्थायी बचत होगी।`}
 
-[AURA_KEYWORDS]: धन वृद्धि उपाय | 7 मुखी रुद्राक्ष | कर्ज मुक्ति | महालक्ष्मी योग`;
+---
+
+### 📿 4. अथाह धन वृद्धि व कर्ज मुक्ति हेतु सिद्ध नेपाली रुद्राक्ष व अचूक उपाय
+1. **7 मुखी सिद्ध नेपाली रुद्राक्ष (साक्षात माता महालक्ष्मी व सप्तर्षि स्वरूप):** आर्थिक तंगी को जड़ से काटने, कर्ज मुक्ति, रुका हुआ धन वापस पाने और व्यापार/नौकरी में निरंतर धन प्रवाह के लिए सर्वोच्च रुद्राक्ष। (बीज मंत्र: \`ॐ हुं नमः\` / \`ॐ श्रीं महालक्ष्म्यै नमः\`)
+2. **मुख्य लग्न रुद्राक्ष — ${primaryRec.mukhi} एवं 8 मुखी रुद्राक्ष (विघ्नहर्ता गणेश):** धन के मार्ग की रुकावटें हटाने हेतु।
+3. **अचूक लाल किताब व वैदिक धन उपाय:**
+   - शुक्रवार के दिन माता महालक्ष्मी के सम्मुख गाय के घी का दीपक जलाएं, श्री सूक्त या कनकधारा स्तोत्र का पाठ करें और कन्याओं को मिश्री/खीर भेंट करें।
+   - अपनी तिजोरी या धन रखने के स्थान पर लाल वस्त्र में **अभिमंत्रित 7 मुखी रुद्राक्ष** और 5 पीली कौड़ियां स्थापित करें।
+   - बुधवार को गाय को हरी घास खिलाएं और मंगलवार को कर्ज की पहली किश्त चुकाने का नियम बनाएं (मंगलवार को कर्ज देने से कर्ज जल्दी उतरता है, बुधवार को किसी को उधार न दें)।
+
+माता महालक्ष्मी एवं धनपति कुबेर आपके भंडार सदैव भरे रखें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: 7 मुखी महालक्ष्मी रुद्राक्ष | कर्ज मुक्ति व धन लाभ उपाय | ${primaryRec.mukhi} | महालक्ष्मी धन बंध | मेरी पूरी कुंडली दिखाएं`;
   }
 
-  // 4. HEALTH & VITALITY (स्वास्थ्य, मानसिक शांति, आरोग्य)
+  // 4. HEALTH & VITALITY (स्वास्थ्य, मानसिक शांति, रोग मुक्ति, आरोग्य)
   if (intentType === "health") {
-    return `🙏 **प्रणाम ${vb.name || "भक्त"}! हर हर महादेव।**
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपकी जन्म कुंडली (${lagna.rashiHindi} लग्न, ${chandra.rashiHindi} चंद्र राशि) के अनुसार **स्वास्थ्य, मानसिक संतुलन व आरोग्य** का वैदिक विश्लेषण इस प्रकार है:
-
----
-
-### 🏛️ 1. लग्न (शरीर), षष्ठ (रोग) व अष्टम भाव (आयु)
-• **प्रथम भाव (Lagna - शरीर व जीवन शक्ति):** लग्न राशि **${lagna.rashiHindi}** (स्वामी: **${lagna.lord}**)। आपका आत्मबल उत्तम है।
-• **षष्ठ भाव (6th House - दैनिक स्वास्थ्य व प्रतिरोधक क्षमता):** षष्ठेश **${h6.lord}** हैं।
-• **चंद्र देव (मानसिक शांति):** चंद्र देव **${moonP.houseNumber}वें भाव** (${moonP.rashiHindi}) में स्थित हैं। वर्तमान दशा के कारण कभी-कभी अत्यधिक सोच (Overthinking) व अनिद्रा का प्रभाव रहता है।
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**, नक्षत्र: **${chandra.nakshatra}**) के अनुसार **शारीरिक स्वास्थ्य, मानसिक शांति, रोग प्रतिरोधक क्षमता और दीर्घायु** का संपूर्ण वैदिक विश्लेषण इस प्रकार है:
 
 ---
 
-### ⏳ 2. स्वास्थ्य में सुधार व ऊर्जा का समय चक्र
-• वर्तमान प्रत्यंतर दशा **${pratyantarEnd}** को पूर्ण होते ही मानसिक भार हल्का होगा।
-• वर्तमान **${antarHindi} अंतर्दशा ${antarEnd}** तक संयमित दिनचर्या रखें; इसके पश्चात शारीरिक स्फूर्ति और स्वास्थ्य में उत्तम सुधार होगा।
+### 🏛️ 1. लग्न (शरीर), षष्ठ (रोग), अष्टम (आयु) व द्वादश भाव का विश्लेषण
+• **प्रथम भाव (Lagna - शारीरिक संरचना व इम्युनिटी):** आपका लग्न **${lagna.rashiHindi}** (${lagna.element} तत्व) है और लग्नेश **${lagna.lord}** कुंडली के **${h1.lordPlacement || "शुभ भाव"}** में हैं। यह आपको अंदरूनी जीवन-शक्ति (Vitality) और रोगों से लड़ने की प्रबल क्षमता देता है।
+• **षष्ठ भाव (6th House - पाचन व मौसमी विकार):** षष्ठ भाव **${h6.rashiHindi}** राशि में है (स्वामी: **${h6.lord}**)। स्थित ग्रह: **${h6.occupants ? h6.occupants.join(", ") : "कोई नहीं"}**।
+• **अष्टम भाव (8th House - आयुष्य बल व दीर्घकालिक स्वास्थ्य):** अष्टमेश **${h8.lord}** हैं और आयु कारक शनि देव **${satP.houseNumber}वें भाव** में रहकर दीर्घायु प्रदान कर रहे हैं।
+• **चंद्र व सूर्य बल (मानसिक शांति व प्राण ऊर्जा):** चंद्रमा **${moonP.houseNumber}वें भाव (${moonP.rashiHindi})** में और सूर्य **${sunP.houseNumber}वें भाव (${sunP.rashiHindi})** में हैं।
 
 ---
 
-### 📿 3. आरोग्य सुरक्षा हेतु सिद्ध नेपाली रुद्राक्ष व उपाय
-1. **5 मुखी नेपाली रुद्राक्ष (कालाग्नि रुद्र):** रक्तचाप संतुलन, मानसिक शांति और हृदय स्वास्थ्य हेतु।
-2. **3 मुखी अथवा 11 मुखी रुद्राक्ष:** शारीरिक ऊर्जा, आलस्य नाश और रोग प्रतिरोधक क्षमता में वृद्धि हेतु।
-3. **उपाय:** नित्य प्रातः महामृत्युंजय मंत्र (\`ॐ त्र्यम्बकं यजामहे...\`) का 11 या 108 बार जाप करें।
+### 🔍 2. अभी स्वास्थ्य व मन में क्या दिक्कत महसूस हो रही है और क्यों?
+• वर्तमान **${mahaHindi} महादशा / ${antarHindi} अंतर्दशा (${antarStart} से ${antarEnd})** के प्रभाव से:
+  - मानसिक अति-चिंतन (Overthinking), अकारण घबराहट, नींद में कमी या स्वप्न दोष/अनिद्रा।
+  - पाचन तंत्र (गैस/एसिडिटी), सिरदर्द/माइग्रेन, या कंधे, गर्दन व कमर/जोड़ों में थकान व जकड़न महसूस होना।
+  - नजर दोष या नकारात्मक वातावरण में जाने पर ऊर्जा में अचानक कमी लगना।
 
-[AURA_KEYWORDS]: स्वास्थ्य लाभ | 5 मुखी रुद्राक्ष | महामृत्युंजय मंत्र | मानसिक शांति`;
+---
+
+### ⏳ 3. स्वास्थ्य में पूर्ण सुधार कब होगा?
+• **पहली राहत:** **${pratyantarEnd}** के बाद से मानसिक तनाव और नींद की समस्या में स्पष्ट सुधार आएगा।
+• **पूर्ण आरोग्य काल:** **${antarEnd}** को वर्तमान अंतर्दशा समाप्त होते ही आपकी शारीरिक ऊर्जा, पाचन और मानसिक प्रसन्नता पूर्ण रूप से संतुलित हो जाएगी।
+
+---
+
+### 📿 4. आरोग्य सुरक्षा व मानसिक शांति हेतु सिद्ध नेपाली रुद्राक्ष व शास्त्रीय उपाय
+1. **5 मुखी सिद्ध नेपाली रुद्राक्ष (कालाग्नि रुद्र स्वरूप) / 108+1 जप माला:** रक्तचाप (BP) संतुलन, हृदय स्वास्थ्य, गहरी नींद और मानसिक तनाव से मुक्ति के लिए सर्वोच्च। (बीज मंत्र: \`ॐ ह्रीं नमः\`)
+2. **मुख्य लग्न रुद्राक्ष — ${primaryRec.mukhi} एवं 3 मुखी / 11 मुखी रुद्राक्ष:** पाचन अग्नि, शारीरिक ऊर्जा और एकादश रुद्र हनुमान जी के अभय आरोग्य कवच हेतु।
+3. **वैदिक आरोग्य उपाय:**
+   - प्रतिदिन प्रातः स्नान के बाद शिवलिंग पर जल अर्पित करें और **महामृत्युंजय मंत्र** (\`ॐ त्र्यम्बकं यजामहे सुगन्धिं पुष्टिवर्धनम् उर्वारुकमिव बन्धनान्मृत्योर्मुक्षीय मामृतात्\`) का 21 या 108 बार जाप करें।
+   - रात्रि में तांबे के पात्र में रखा जल प्रातः खाली पेट पिएं और सोने से पूर्व हाथ-पैर धोकर 11 बार हनुमान चालीसा या शिव पंचाक्षरी मंत्र का स्मरण करें।
+   - *(नोट: वैदिक ज्योतिष एवं रुद्राक्ष आध्यात्मिक व प्राणिक ऊर्जा संतुलन हेतु हैं; किसी भी शारीरिक समस्या के लिए योग्य चिकित्सक का परामर्श अवश्य लें।)*
+
+भगवान वैद्यनाथ महादेव आपको उत्तम आरोग्य एवं दीर्घायु प्रदान करें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: 5 मुखी रुद्राक्ष | महामृत्युंजय मंत्र | ${primaryRec.mukhi} | आरोग्य स्वास्थ्य बंध | मेरी पूरी कुंडली दिखाएं`;
   }
 
-  // 5. DASHA TIMING (महादशा, अंतर्दशा व समय चक्र)
+  // 5. EDUCATION, EXAMS & INTELLECT (शिक्षा, पढ़ाई, प्रतियोगी परीक्षा, स्मरण शक्ति)
+  if (intentType === "education") {
+    const d24Varga = (ak.shodashvarga || []).find(v => v.vargaCode === "D24");
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
+
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) एवं **चतुर्विंशांश कुंडली (D24 Chaturvimshamsha — विद्या एवं ज्ञान चार्ट)** के अनुसार **शिक्षा, एकाग्रता, स्मरण शक्ति और प्रतियोगी परीक्षा (Competitive Exams)** का विस्तृत विश्लेषण इस प्रकार है:
+
+---
+
+### 🏛️ 1. चतुर्थ (शिक्षा आधार), पंचम (मेधा/बुद्धि), षष्ठ (प्रतियोगिता) व नवम भाव (उच्च ज्ञान)
+• **पंचम भाव (5th House - बुद्धि, स्मरण शक्ति व परीक्षा):** पंचम भाव **${h5.rashiHindi}** राशि में है, जिसके स्वामी **${h5.lord}** हैं (स्थित: **${h5.lordPlacement || "शुभ भाव"}**)। स्थित ग्रह: **${h5.occupants ? h5.occupants.join(", ") : "पंचमेश द्वारा संचालित"}**।
+• **चतुर्थ व नवम भाव (4th & 9th House - डिग्री व उच्च शोध):** चतुर्थेश **${h4.lord}** और भाग्येश **${h9.lord}** उच्च शिक्षा और विशेषज्ञता में सफलता देते हैं।
+• **षष्ठ भाव (6th House - Competitive Exams जैसे UPSC, SSC, NEET, JEE, Banking, State PCS):** षष्ठेश **${h6.lord}** आपको कड़ी प्रतिस्पर्धा में टिके रहने का बल देते हैं।
+• **D24 विद्या चार्ट:** चतुर्विंशांश लग्न **${d24Varga?.lagnaRashiHindi || lagna.rashiHindi}** है।
+• **बुध व गुरु की स्थिति:** बुद्धि कारक बुध **${mercP.houseNumber}वें भाव (${mercP.rashiHindi})** में और ज्ञान कारक गुरु **${jupP.houseNumber}वें भाव (${jupP.rashiHindi})** में स्थित हैं।
+
+---
+
+### ⏳ 2. पढ़ाई में भटकाव क्यों है और परीक्षा में सफलता का समय कब है?
+• वर्तमान **${mahaHindi} / ${antarHindi}** दशा के कारण पढ़ते समय मन भटकना, पढ़ा हुआ अंतिम समय पर भूलना या मोबाइल/अति-सोच में समय नष्ट होने की समस्या बनती है।
+• **अनुकूल समय:** **${pratyantarEnd}** के बाद एकाग्रता बढ़ेगी और **${antarEnd}** के पश्चात आने वाली दशा परीक्षा परिणाम व करियर चयन के लिए अत्यंत शुभ रहेगी।
+
+---
+
+### 📿 3. तीव्र स्मरण शक्ति व परीक्षा में विजय हेतु सिद्ध रुद्राक्ष व उपाय
+1. **4 मुखी सिद्ध नेपाली रुद्राक्ष (भगवान ब्रह्मा व माँ सरस्वती स्वरूप):** एकाग्रता, तीव्र मेधा शक्ति, तार्किक क्षमता और परीक्षा में सफलता हेतु सर्वश्रेष्ठ। (बीज मंत्र: \`ॐ ह्रीं नमः\`)
+2. **5 मुखी रुद्राक्ष (गुरु बृहस्पति कृपा) एवं ${primaryRec.mukhi}:** ज्ञान की स्थिरता व आत्मविश्वास हेतु (सरस्वती विद्या बंध: 4 + 5 + 6 मुखी)।
+3. **दैनिक उपाय:** अध्ययन टेबल को पूर्व या उत्तर दिशा की ओर रखें, नित्य प्रातः गायत्री मंत्र एवं \`ॐ ऐं सरस्वत्यै नमः\` का 21 बार जाप करें और बुधवार को श्री गणेश को दूर्वा अर्पित करें।
+
+माँ शारदा एवं भगवान गणेश आपको प्रखर विद्या व सर्वोच्च सफलता प्रदान करें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: 4 मुखी सरस्वती रुद्राक्ष | 5 मुखी रुद्राक्ष | सरस्वती विद्या बंध | प्रतियोगी परीक्षा योग | मेरी पूरी कुंडली दिखाएं`;
+  }
+
+  // 6. PROPERTY, LAND & VEHICLES (मकान, जमीन, प्रॉपर्टी, वाहन सुख)
+  if (intentType === "property") {
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
+
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) तथा **चतुर्थांश (D4 - संपत्ति) व षोडशांश (D16 - वाहन) कुंडली** के अनुसार **स्वयं का मकान, भूमि, प्रॉपर्टी और वाहन सुख** का विस्तृत वैदिक विश्लेषण इस प्रकार है:
+
+---
+
+### 🏛️ 1. चतुर्थ भाव (भूमि, भवन, वाहन) व कारक ग्रहों (मंगल, शुक्र, शनि) की स्थिति
+• **चतुर्थ भाव (4th House):** 4था भाव **${h4.rashiHindi}** राशि में है, जिसके स्वामी **${h4.lord}** हैं (स्थित: **${h4.lordPlacement || "शुभ भाव"}**)। स्थित ग्रह: **${h4.occupants ? h4.occupants.join(", ") : "चतुर्थेश द्वारा संचालित"}**।
+• **भूमि कारक मंगल देव:** मंगल देव **${marsP.houseNumber}वें भाव (${marsP.rashiHindi}, ${marsP.dignity})** में स्थित हैं। मंगल भूमि, प्लॉट और मकान निर्माण का सीधा कारक है।
+• **भवन व वाहन कारक शुक्र देव:** शुक्र देव **${venP.houseNumber}वें भाव (${venP.rashiHindi})** में रहकर सुंदर घर के इंटीरियर और उत्तम वाहन सुख का योग बनाते हैं।
+• **स्थायी संपत्ति कारक शनि देव:** शनि देव **${satP.houseNumber}वें भाव (${satP.rashiHindi})** में रहकर दीर्घकालिक रियल एस्टेट संपत्ति देते हैं।
+
+---
+
+### ⏳ 2. मकान/प्रॉपर्टी या वाहन खरीदने का शुभ योग कब बनेगा?
+• वर्तमान **${antarHindi} अंतर्दशा (${antarEnd} तक)** में प्रॉपर्टी के कागजात और बजट की जांच सावधानी से करें।
+• **प्रबल संपत्ति योग:** **${antarEnd}** के बाद ${nextAntar1 ? `**${nextAntar1.startDate} से ${nextAntar1.endDate} (${nextAntar1.planetHindi} अंतर्दशा)**` : "आगामी शुभ अंतर्दशा"} में स्वयं का घर/भूमि खरीदने, गृह-प्रवेश करने या नया वाहन लेने का अत्यंत प्रबल और शुभ योग बनेगा।
+
+---
+
+### 📿 3. भूमि-भवन व वाहन सुख हेतु सिद्ध रुद्राक्ष व उपाय
+1. **3 मुखी रुद्राक्ष (मंगल देव - भूमि कारक) एवं 7 मुखी रुद्राक्ष (महालक्ष्मी):** प्रॉपर्टी खरीदने में आ रही आर्थिक व कागजी अड़चनें दूर करने हेतु।
+2. **मुख्य लग्न रुद्राक्ष — ${primaryRec.mukhi}:** स्थायी समृद्धि हेतु।
+3. **उपाय:** मंगलवार को श्री हनुमान जी को सिंदूर व चमेली का तेल अर्पित करें और घर के ईशान कोण (North-East) को सदैव स्वच्छ व हल्का रखें।
+
+[AURA_KEYWORDS]: 3 मुखी रुद्राक्ष | 7 मुखी रुद्राक्ष | भूमि व मकान योग | ${primaryRec.mukhi} | मेरी पूरी कुंडली दिखाएं`;
+  }
+
+  // 7. CHILDREN & PROGENY (संतान सुख, वंश वृद्धि, संतान का भविष्य)
+  if (intentType === "progeny") {
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
+
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) एवं **सप्तांश कुंडली (D7 Saptamsha)** के अनुसार **संतान सुख, संतान की उन्नति व वंश वृद्धि** का विस्तृत विश्लेषण इस प्रकार है:
+
+---
+
+### 🏛️ 1. पंचम भाव (संतान स्थान), गुरु बृहस्पति व पुत्रकारक (PK) की स्थिति
+• **पंचम भाव (5th House):** आपकी कुंडली का पंचम भाव **${h5.rashiHindi}** राशि में है, जिसके स्वामी **${h5.lord}** हैं (स्थित: **${h5.lordPlacement || "शुभ भाव"}**)। स्थित ग्रह: **${h5.occupants ? h5.occupants.join(", ") : "पंचमेश द्वारा संचालित"}**।
+• **संतान कारक गुरु बृहस्पति:** गुरु देव **${jupP.houseNumber}वें भाव (${jupP.rashiHindi}, ${jupP.dignity})** में विराजमान हैं।
+• **जैमिनी पुत्रकारक (PK):** आपकी कुंडली में **${pk ? `${pk.planetName} (${pk.signName}, ${pk.houseNumber}वां भाव)` : "गुरु देव"}** पुत्रकारक ग्रह हैं।
+• **फलादेश:** आपकी कुंडली में योग्य, आज्ञाकारी और कुल का नाम रोशन करने वाली संतान का सुख विद्यमान है। **${pratyantarEnd}** से **${antarEnd}** के पश्चात संतान संबंधी चिंताएं दूर होंगी और संतान के स्वास्थ्य व शिक्षा में उत्तम प्रगति होगी।
+
+---
+
+### 📿 2. संतान सुख व कल्याण हेतु सिद्ध रुद्राक्ष व उपाय
+1. **गर्भ गौरी रुद्राक्ष (माता पार्वती व बाल गणेश स्वरूप) एवं 5 मुखी रुद्राक्ष (गुरु बृहस्पति):** संतान प्राप्ति, सुरक्षित मातृत्व और संतान के उज्ज्वल भविष्य व रक्षा के लिए सर्वोच्च।
+2. **उपाय:** गुरुवार को भगवान श्री कृष्ण (बाल गोपाल) को माखन-मिश्री का भोग लगाएं और \`ॐ क्लीं कृष्णाय नमः\` अथवा संतान गोपाल मंत्र का जाप करें।
+
+[AURA_KEYWORDS]: गर्भ गौरी रुद्राक्ष | 5 मुखी रुद्राक्ष | संतान सुख योग | मेरी पूरी कुंडली दिखाएं`;
+  }
+
+  // 8. FOREIGN TRAVEL & SETTLEMENT (विदेश यात्रा, वीजा, जन्मस्थान से दूर भाग्योदय)
+  if (intentType === "travel") {
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
+
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) के अनुसार **विदेश यात्रा, वीजा सफलता, इम्पोर्ट-एक्सपोर्ट व जन्मस्थान से दूर भाग्योदय** का विस्तृत विश्लेषण इस प्रकार है:
+
+---
+
+### 🏛️ 1. द्वादश भाव (12th - विदेश स्थान), नवम भाव (9th - लंबी यात्रा) व राहु/चंद्र की स्थिति
+• **द्वादश भाव (12th House):** 12वां भाव **${h12.rashiHindi}** राशि में है (स्वामी: **${h12.lord}**, स्थित: **${h12.lordPlacement || "कुंडली में"}**)। स्थित ग्रह: **${h12.occupants ? h12.occupants.join(", ") : "द्वादशेश द्वारा संचालित"}**।
+• **नवम भाव (9th House):** नवम भाव **${h9.rashiHindi}** राशि में है (स्वामी: **${h9.lord}**)।
+• **विदेश कारक राहु व चंद्र:** राहु **${rahuP.houseNumber}वें भाव (${rahuP.rashiHindi})** में और चंद्रमा **${moonP.houseNumber}वें भाव (${moonP.rashiHindi})** में स्थित हैं।
+• **फलादेश:** आपकी कुंडली में जन्मस्थान से दूर जाकर या विदेशी/मल्टीनेशनल कंपनियों व बाहरी राज्यों/देशों से जुड़कर कार्य करने पर विशेष आर्थिक लाभ और भाग्योदय के प्रबल योग हैं। **${pratyantarEnd}** के बाद वीजा/यात्रा की रुकावटें दूर होंगी और **${antarEnd}** के पश्चात बाहरी कार्यों में बड़ी सफलता मिलेगी।
+
+---
+
+### 📿 2. विदेश योग व यात्रा सुरक्षा हेतु सिद्ध रुद्राक्ष व उपाय
+1. **8 मुखी रुद्राक्ष (विघ्नहर्ता गणेश - राहु व वीजा बाधा निवारण) एवं 11 मुखी रुद्राक्ष (हनुमान जी - यात्रा रक्षा कवच)।**
+2. **मुख्य लग्न रुद्राक्ष — ${primaryRec.mukhi}।**
+
+[AURA_KEYWORDS]: 8 मुखी रुद्राक्ष | 11 मुखी रुद्राक्ष | विदेश यात्रा योग | मेरी पूरी कुंडली दिखाएं`;
+  }
+
+  // 9. GRAHA SPECIFIC & DOSHA ANALYSIS (शनि, राहु, केतु, मंगल, सभी 9 ग्रह, साढ़े साती, मांगलिक, कालसर्प)
+  if (intentType === "graha_specific" || intentType === "dosha") {
+    const allPlanetsDetailed = planets.map(p =>
+      `• 📌 **${p.hindiName || p.name}** — **भाव:** ${p.houseNumber}वां भाव | **राशि:** ${p.rashiHindi} (${p.degreeInSign}) | **नक्षत्र:** ${p.nakshatra} (चरण ${p.pada}) | **अवस्था:** **${p.dignity}** | **D9 नवमांश:** ${p.navamshaRashiHindi}\n  - **प्रभाव:** ${p.signification}\n  - **मंत्र व उपाय:** \`${p.mantra}\` — ${p.upay}`
+    ).join("\n\n");
+
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
+
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**) के अनुसार **नवग्रहों (All 9 Planets) की भाव-राशि स्थिति, उच्च-नीच बल, मांगलिक/साढ़े साती/कालसर्प दोष विचार और अचूक उपाय** पूरे विस्तार में नीचे दिए गए हैं:
+
+---
+
+### 🪐 1. आपकी कुंडली के सभी 9 ग्रहों का विस्तृत फलादेश व उपाय
+${allPlanetsDetailed}
+
+---
+
+### ⚠️ 2. प्रमुख दोष विचार (मांगलिक, शनि साढ़े साती, कालसर्प व बाधक ग्रह)
+• **मांगलिक दोष विचार:** ${dosha.manglikNote}
+• **शनि साढ़े साती / ढैया स्थिति:** **${dosha.sadeSati?.phase || "साढ़े साती मुक्त"}** — ${dosha.sadeSati?.description || ""}
+• **कालसर्प योग विचार:** **${dosha.kaalSarp?.type || "कालसर्प मुक्त"}** — ${dosha.kaalSarp?.description || ""}
+• **बाधकेश व मारकेश विचार:** ${ak.badhakaMarakaInfo?.badhaka?.note || ""} | ${ak.badhakaMarakaInfo?.maraka?.note || ""}
+• **वर्तमान गोचर (चन्द्र राशि से):**
+${gochar.map(g => `  - **${g.planet}:** ${g.effectNote}`).join("\n")}
+
+---
+
+### 📿 3. नवग्रह शांति व दोष निवारण हेतु कुंडली-प्रमाणित रुद्राक्ष कवच
+1. **मुख्य लग्न रुद्राक्ष — ${primaryRec.mukhi}:** लग्नेश बल व आत्मरक्षा हेतु।
+2. **चंद्र राशि रुद्राक्ष — ${rashiRec.mukhi}:** मानसिक शांति व चंद्र बल हेतु।
+3. **महादशा व ग्रह शांति रुद्राक्ष — ${dashaRec.mukhi} (अथवा 10 मुखी सर्वग्रह शांति रुद्राक्ष):** वर्तमान **${mahaHindi} / ${antarHindi}** दशा और सभी नवग्रहों की पीड़ा शांत करने हेतु।
+
+भगवान नीलकंठ महादेव आपके समस्त ग्रह दोषों का निवारण करें। **हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: ${primaryRec.mukhi} | 10 मुखी नवग्रह शांति रुद्राक्ष | शनि साढ़े साती उपाय | मेरी पूरी कुंडली दिखाएं`;
+  }
+
+  // 10. DASHA TIMING (महादशा, अंतर्दशा, प्रत्यंतर दशा व समय चक्र)
   if (intentType === "dasha_timing") {
-    const nextAntar2 = currentIdx >= 0 && timelineList[currentIdx + 2] ? timelineList[currentIdx + 2] : null;
-    return `🙏 **प्रणाम ${vb.name || "भक्त"}! हर हर महादेव।**
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपकी जन्म कुंडली का **प्रामाणिक विंशोत्तरी दशा समय चक्र** इस प्रकार है:
-
-• **वर्तमान महादशा:** **${mahaHindi}** (${dasha.mahadashaStartDate || ""} से ${dasha.mahadashaEndDate || ""})
-• **सक्रिय अंतर्दशा:** **${antarHindi}** (${dasha.antardashaStartDate || ""} से **${antarEnd}**)
-• **सक्रिय प्रत्यंतर दशा:** **${pratyantarHindi}** (${dasha.pratyantardashaStartDate || ""} से **${pratyantarEnd}**)
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**, जन्म नक्षत्र: **${chandra.nakshatra}**) का **संपूर्ण 4-स्तरीय विंशोत्तरी महादशा, अंतर्दशा, प्रत्यंतर दशा एवं योगिनी दशा समय चक्र** पूरे विस्तार में इस प्रकार है:
 
 ---
 
-### ⏳ आगामी दशाओं का समय चक्र व भाग्योदय
-1. **पहली राहत:** **${pratyantarEnd}** के बाद वर्तमान मानसिक दबाव में स्पष्ट कमी आएगी।
-2. **संकट से मुक्ति:** **${antarEnd}** को वर्तमान **${antarHindi} अंतर्दशा** समाप्त होते ही रुकावटों का दौर समाप्त होगा।
-${nextAntar1 ? `3. **आगामी स्वर्ण काल:** **${nextAntar1.startDate} से ${nextAntar1.endDate}** तक **${nextAntar1.planetHindi} की अंतर्दशा** अत्यंत शुभ व उन्नति कारक रहेगी।` : ""}
-${nextAntar2 ? `4. **दीर्घकालिक उन्नति:** इसके पश्चात **${nextAntar2.startDate} से ${nextAntar2.endDate}** (${nextAntar2.planetHindi} अंतर्दशा) में स्थायी प्रतिष्ठा का योग बनेगा।` : ""}
+### ⏱️ 1. वर्तमान में सक्रिय दशाएं (Active Dasha Hierarchy)
+• **सक्रिय 4-स्तरीय दशा सूत्र:** **${dasha.dashaChainSummary || `${mahaHindi} > ${antarHindi} > ${pratyantarHindi}`}**
+• **वर्तमान महादशा:** **${mahaHindi}** — आरंभ: **${mahaStart}** | समाप्ति: **${mahaEnd}**
+• **सक्रिय अंतर्दशा:** **${antarHindi}** — आरंभ: **${antarStart}** | समाप्ति: **${antarEnd}**
+• **सक्रिय प्रत्यंतर दशा:** **${pratyantarHindi}** — आरंभ: **${pratyantarStart}** | समाप्ति: **${pratyantarEnd}**
+• **सक्रिय योगिनी दशा:** **${ak.yoginiDasha?.activeYogini || "सिद्धा"}** (स्वामी: ${ak.yoginiDasha?.activeLord || "शुक्र"}, प्रकृति: ${ak.yoginiDasha?.activeNature || "शुभ"}, ${ak.yoginiDasha?.startDate || ""} से ${ak.yoginiDasha?.endDate || ""} तक)
 
 ---
 
-### 📿 दशा अनुकूलन हेतु सिद्ध रुद्राक्ष
-वर्तमान दशा के अधिपति ग्रह की शांति व अनुकूलता हेतु **${primaryRec.mukhi}** एवं **${dashaRec.mukhi}** धारण करना आपके लिए रक्षा कवच सिद्ध होगा।
+### ⏳ 2. वर्तमान दशा का जीवन पर प्रभाव और भाग्योदय की सटीक तारीखें
+1. **कब से संघर्ष चल रहा है:** **${antarStart}** से जब **${mahaHindi} में ${antarHindi} की अंतर्दशा** शुरू हुई, तब से मानसिक दबाव, खर्च और बनते कार्यों में विलंब बढ़ा है।
+2. 🌤️ **पहली राहत (Initial Relief Date):** **${pratyantarEnd}** के तुरंत बाद प्रत्यंतर दशा बदलने से मानसिक शांति और कार्यों में गति आएगी।
+3. 🌅 **संकट से पूर्ण मुक्ति (Major Turnaround Date):** **${antarEnd}** को वर्तमान **${antarHindi} अंतर्दशा** समाप्त होते ही रुकावटों का दौर पूर्णतः समाप्त होगा।
+${nextAntar1 ? `4. 👑 **आगामी स्वर्ण काल (Golden Period 1):** **${nextAntar1.startDate} से ${nextAntar1.endDate}** तक **${nextAntar1.planetHindi} की अंतर्दशा** आपके करियर, धन और परिवार के लिए अत्यंत भाग्यवर्धक रहेगी।` : ""}
+${nextAntar2 ? `5. 🌟 **दीर्घकालिक उन्नति (Golden Period 2):** इसके पश्चात **${nextAntar2.startDate} से ${nextAntar2.endDate}** (${nextAntar2.planetHindi} अंतर्दशा) में स्थायी संपत्ति और प्रतिष्ठा में वृद्धि होगी।` : ""}
 
-[AURA_KEYWORDS]: विंशोत्तरी दशा चक्र | महादशा उपाय | ${mahaHindi} | शुभ समय`;
+---
+
+### 📅 3. वर्तमान महादशा की संपूर्ण अंतर्दशा समय-सारिणी (Full Antardasha Table)
+${(dasha.antardashasTimeline || []).map(a => `• **${a.planetHindi} अंतर्दशा:** ${a.startDate} से ${a.endDate} तक ${a.isCurrent ? "👉 **[वर्तमान में सक्रिय]**" : ""}`).join("\n")}
+
+---
+
+### 📿 4. दशा अनुकूलन हेतु सिद्ध नेपाली रुद्राक्ष व उपाय
+• **${primaryRec.mukhi} (लग्न कवच)** एवं **${dashaRec.mukhi} (दशा अधिपति कवच)** धारण करना तथा प्रतिदिन शिवलिंग पर जलाभिषेक कर \`ॐ नमः शिवाय\` का 108 बार जाप करना वर्तमान दशा को तुरंत आपके अनुकूल बनाएगा।
+
+[AURA_KEYWORDS]: ${dashaRec.mukhi} | ${primaryRec.mukhi} | विंशोत्तरी दशा उपाय | मेरी पूरी कुंडली दिखाएं`;
   }
 
-  // 6. DEFAULT TARGETED ASTROLOGICAL GUIDANCE
-  return `🙏 **प्रणाम ${vb.name || "भक्त"}! हर हर महादेव।**
+  // 11. RUDRAKSHA SELECTION & DHARAN VIDHI (कुंडली अनुसार रुद्राक्ष व संपूर्ण धारण विधि)
+  if (intentType === "rudraksha") {
+    const rudraDetails = recs.map((r, idx) =>
+      `• 📿 **${idx + 1}. ${r.role}: ${r.mukhi}**\n  - **अधिष्ठाता देवता:** ${r.deity || "भगवान शिव"}\n  - **कुंडली प्रमाण व लाभ:** ${r.reason || r.significance}\n  - **सिद्ध बीज मंत्र:** \`${r.beejMantra || "ॐ नमः शिवाय"}\` (108 बार)\n  - **धारण करने का शुभ दिन:** ${r.wearingDay || "सोमवार या प्रदोष व्रत"}`
+    ).join("\n\n");
 
-आपकी जन्म पत्रिका के अनुसार:
-• **जन्म लग्न:** ${lagna.rashiHindi} (स्वामी: ${lagna.lord})
-• **जन्म राशि:** ${chandra.rashiHindi} (स्वामी: ${chandra.lord})
-• **वर्तमान विंशोत्तरी दशा:** **${mahaHindi} महादशा** में **${antarHindi} अंतर्दशा** (सक्रियता: **${antarEnd}** तक)
+    return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपके पूछे गए प्रश्न ("${userQuery || "मार्गदर्शन"}") के संदर्भ में:
-कुंडली के अनुसार इस समय ग्रहों की ऊर्जा आपके कर्म और धैर्य की परीक्षा ले रही है। **${pratyantarEnd}** के बाद से परिस्थितियाँ आपके अनुकूल होने लगेंगी और **${antarEnd}** के पश्चात नई अंतर्दशा में रुका हुआ कार्य पूर्ण गति पकड़ेगा।
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**, सक्रिय महादशा: **${mahaHindi}**) के गणितीय अध्ययन एवं **शिव पुराण (विद्येश्वर संहिता)** के नियमों के अनुसार आपके लिए **100% कुंडली-प्रमाणित सिद्ध नेपाली रुद्राक्ष एवं संपूर्ण प्राण-प्रतिष्ठा धारण विधि** नीचे दी गई है:
 
-**कल्याणकारी उपाय व सिद्ध रुद्राक्ष:**
-वर्तमान ग्रह स्थिति को अनुकूल बनाने हेतु आपके लिए **${primaryRec.mukhi}** धारण करना परम शुभ रहेगा। साथ ही प्रातःकाल भगवान सूर्य को अर्घ्य दें और नित्य \`ॐ नमः शिवाय\` का जाप करें।
+---
 
-[AURA_KEYWORDS]: कुंडली फलादेश | ${primaryRec.mukhi} | विंशोत्तरी दशा | ग्रह शांति`;
+### 📿 1. आपकी जन्म कुंडली के 3 सर्वोच्च रक्षा-कवच रुद्राक्ष
+${rudraDetails}
+
+---
+
+### 🕉️ 2. शिव पुराण सम्मत संपूर्ण रुद्राक्ष धारण विधि (Step-by-Step Wearing Ritual)
+1. **शुभ मुहूर्त:** सोमवार, गुरुवार, प्रदोष व्रत या मासिक शिवरात्रि को प्रातःकाल (ब्रह्म मुहूर्त या सूर्योदय के बाद) स्नान कर स्वच्छ धुले हुए वस्त्र धारण करें।
+2. **अभिषेक व शुद्धिकरण:** तांबे या चाँदी के पात्र में रुद्राक्ष रखकर उसे **गंगाजल और कच्चे गोदुग्ध (पंचामृत)** से स्नान कराएं, फिर पुनः शुद्ध जल से धोकर स्वच्छ पीले/लाल वस्त्र पर रखें।
+3. **पूजन व प्राण-प्रतिष्ठा:** रुद्राक्ष पर अष्टगंध, लाल/पीला चंदन, अक्षत और बेलपत्र अर्पित करें। गाय के घी का दीपक और धूप प्रज्वलित करें।
+4. **मंत्र अभिमंत्रण:** रुद्राक्ष को दाहिने हाथ में लेकर या शिवलिंग से स्पर्श कराकर उपरोक्त **सिद्ध बीज मंत्र** तथा पंचाक्षरी मंत्र **\`ॐ नमः शिवाय\`** का कम से कम **108 बार** श्रद्धापूर्वक जाप करें।
+5. **धारण:** पूर्व या उत्तर दिशा की ओर मुख करके भगवान भोलेनाथ से कल्याण की प्रार्थना करते हुए रुद्राक्ष को **लाल/पीले रेशमी धागे अथवा चाँदी/सोने की कैपिंग** में कंठ (हृदय के पास स्पर्श करता हुआ) या दाहिनी भुजा/कलाई पर धारण करें।
+6. **पवित्र नियम (Precautions):**
+   - प्रतिदिन स्नान के समय साबुन/केमिकल शैंपू से बचाने के लिए इसे उतार सकते हैं और स्नान बाद पुनः मंत्र बोलकर पहनें।
+   - मांसाहार, मदिरा व अशुद्ध स्थानों (श्मशान/सूतक) में जाने से पूर्व रुद्राक्ष को पूजा स्थान में सुरक्षित रख दें।
+   - प्रत्येक 1–2 माह में रुद्राक्ष को गंगाजल से साफ कर शुद्ध चंदन या बादाम/सरसों के तेल की हल्की परत लगाएं जिससे मनका जीवन भर मजबूत व ऊर्जावान बना रहे।
+
+[AURA_KEYWORDS]: ${primaryRec.mukhi} | ${rashiRec.mukhi} | ${dashaRec.mukhi} | रुद्राक्ष नियम | मेरी पूरी कुंडली दिखाएं`;
+  }
+
+  // 12. DEFAULT: Return the COMPLETE 11-Section Exhaustive Pandit Ji Report so nothing is ever left out!
+  if (ak.panditJiDiagnosis?.fullPanditJiReportMarkdown) {
+    return ak.panditJiDiagnosis.fullPanditJiReportMarkdown;
+  }
+
+  return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**\n\nआपकी जन्म पत्रिका (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} राशि**) के अनुसार वर्तमान महादशा **${mahaHindi}** एवं अंतर्दशा **${antarHindi}** (${antarEnd} तक) है। आपके लिए सर्वोच्च कल्याणकारी रुद्राक्ष **${primaryRec.mukhi}** है।`;
+}
+
+/**
+ * Encyclopedic Vedic Shastra & Rudraksha Guidance for AI Pandit Ji when no Kundali birth details are provided yet.
+ * Ensures that even without a Kundali, if a devotee asks AI Pandit Ji about ANY Rudraksha (1-21 Mukhi, Gauri Shankar, Ganesh, Mala),
+ * Rashi, Graha, Dosha (Manglik, Sade Sati, Kaal Sarp), Mantra, Dharan Vidhi, Career, Marriage, or Wealth,
+ * AI Pandit Ji answers in full shastric detail and then invites their birth details for personal Kundali calculation!
+ */
+export function generateNonKundaliPanditJiGuidance(userQuery = "", allProducts = []) {
+  const q = String(userQuery || "").toLowerCase().trim();
+
+  // Check if a specific 1-21 Mukhi was asked
+  const mukhiMatch = q.match(/(\d{1,2})\s*(?:mukhi|muki|मुखी)/i);
+  const wordMukhiMap = {
+    "ek mukhi": 1, "एक मुखी": 1, "do mukhi": 2, "दो मुखी": 2, "teen mukhi": 3, "तीन मुखी": 3,
+    "char mukhi": 4, "chaar mukhi": 4, "चार मुखी": 4, "panch mukhi": 5, "paanch mukhi": 5, "पांच मुखी": 5, "पंचमुखी": 5,
+    "chhe mukhi": 6, "che mukhi": 6, "छह मुखी": 6, "छः मुखी": 6, "saat mukhi": 7, "sat mukhi": 7, "सात मुखी": 7,
+    "aath mukhi": 8, "ath mukhi": 8, "आठ मुखी": 8, "nau mukhi": 9, "नौ मुखी": 9, "das mukhi": 10, "दस मुखी": 10,
+    "gyarah mukhi": 11, "ग्यारह मुखी": 11, "barah mukhi": 12, "बारह मुखी": 12, "terah mukhi": 13, "तेरह मुखी": 13,
+    "chaudah mukhi": 14, "चौदह मुखी": 14, "pandrah mukhi": 15, "पंद्रह मुखी": 15, "solah mukhi": 16, "सोलह मुखी": 16,
+    "satrah mukhi": 17, "सत्रह मुखी": 17, "atharah mukhi": 18, "अठारह मुखी": 18, "unnis mukhi": 19, "उन्नीस मुखी": 19,
+    "bees mukhi": 20, "बीस मुखी": 20, "ikkis mukhi": 21, "इक्कीस मुखी": 21
+  };
+  let mukhiNum = mukhiMatch ? parseInt(mukhiMatch[1], 10) : null;
+  if (!mukhiNum) {
+    for (const [kWord, num] of Object.entries(wordMukhiMap)) {
+      if (q.includes(kWord)) {
+        mukhiNum = num;
+        break;
+      }
+    }
+  }
+
+  const MUKHI_ENCYCLOPEDIA = {
+    1: { name: "1 मुखी रुद्राक्ष (Ek Mukhi — साक्षात परमशिव स्वरूप)", deity: "देवाधिदेव महादेव (परमशिव)", planet: "सूर्य देव (Sun)", rashi: "सिंह राशि (Leo) एवं सभी नेतृत्वकर्ता", mantra: "ॐ ह्रीं नमः / ॐ नमः शिवाय", day: "रविवार या सोमवार प्रातः", benefits: "सर्वोच्च नेतृत्व क्षमता, राजकीय सम्मान, सूर्य दोष निवारण, प्रचंड आत्मबल, उच्च रक्तचाप व नेत्र/हृदय ऊर्जा संतुलन तथा ध्यान-समाधि व मोक्ष प्राप्ति।", shastra: "शिव पुराण (विद्येश्वर संहिता अध्याय 25) के अनुसार जहां एक मुखी रुद्राक्ष की पूजा होती है, वहां से माता लक्ष्मी कभी दूर नहीं जातीं और जातक राजा के समान तेजस्वी बनता है।" },
+    2: { name: "2 मुखी रुद्राक्ष (Do Mukhi — अर्धनारीश्वर स्वरूप)", deity: "भगवान अर्धनारीश्वर (शिव-पार्वती)", planet: "चंद्र देव (Moon)", rashi: "कर्क राशि (Cancer)", mantra: "ॐ नमः", day: "सोमवार प्रातः", benefits: "मानसिक शांति, अति-चिंतन (Overthinking) व डिप्रेशन से मुक्ति, पति-पत्नी व प्रेमी-प्रेमिका में अटूट प्रेम, शीघ्र विवाह योग और चंद्र दोष निवारण।", shastra: "शिव पुराण के अनुसार दो मुखी रुद्राक्ष देवेश्वर है जो समस्त कामनाओं को पूर्ण करता है और पारिवारिक कलह का नाश करता है।" },
+    3: { name: "3 मुखी रुद्राक्ष (Teen Mukhi — अग्नि देव स्वरूप)", deity: "अग्नि देव एवं त्रिदेव", planet: "मंगल देव (Mars)", rashi: "मेष (Aries) एवं वृश्चिक (Scorpio)", mantra: "ॐ क्लीं नमः", day: "मंगलवार प्रातः", benefits: "आलस्य, भय व हीन-भावना का नाश, मंगल दोष (मांगलिक प्रभाव) शांति, पाचन अग्नि व रक्त बल में वृद्धि, भूमि-प्रॉपर्टी लाभ और प्रतियोगी परीक्षाओं में विजय।", shastra: "जिस प्रकार अग्नि स्वर्ण को शुद्ध करती है, उसी प्रकार 3 मुखी रुद्राक्ष पूर्व जन्म व वर्तमान के संचित पापों व बाधाओं को भस्म कर तेज प्रदान करता है।" },
+    4: { name: "4 मुखी रुद्राक्ष (Chaar Mukhi — ब्रह्मा एवं सरस्वती स्वरूप)", deity: "चतुर्मुख भगवान ब्रह्मा व माँ सरस्वती", planet: "बुध देव (Mercury)", rashi: "मिथुन (Gemini) एवं कन्या (Virgo)", mantra: "ॐ ह्रीं नमः", day: "बुधवार या गुरुवार प्रातः", benefits: "तीव्र स्मरण शक्ति (Memory), प्रखर बुद्धि, वाक्-सिद्धि (प्रभावशाली वाणी), प्रतियोगी परीक्षाओं (UPSC/NEET/JEE/CA) में सफलता और व्यापारिक-बौद्धिक कौशल।", shastra: "शिव पुराण के अनुसार चार मुखी रुद्राक्ष के दर्शन व स्पर्श मात्र से धर्म, अर्थ, काम और मोक्ष — चारों पुरुषार्थों की प्राप्ति होती है।" },
+    5: { name: "5 मुखी रुद्राक्ष (Paanch Mukhi — कालाग्नि रुद्र स्वरूप)", deity: "भगवान कालाग्नि रुद्र (पंचानन शिव)", planet: "देवगुरु बृहस्पति (Jupiter)", rashi: "धनु (Sagittarius), मीन (Pisces) एवं सर्वजन (Universal)", mantra: "ॐ ह्रीं नमः / ॐ नमः शिवाय", day: "गुरुवार या सोमवार प्रातः", benefits: "मानसिक शांति, रक्तचाप (Blood Pressure) व हृदय स्वास्थ्य संतुलन, गुरु कृपा, ज्ञान वृद्धि, अकाल मृत्यु भय से रक्षा और सात्विक आभामंडल।", shastra: "शिव पुराण में पंचमुखी रुद्राक्ष को सबसे पवित्र व सार्वभौमिक (Universal) बताया गया है जिसे स्त्री-पुरुष, बालक व वृद्ध सभी धारण कर सकते हैं।" },
+    6: { name: "6 मुखी रुद्राक्ष (Chhe Mukhi — देवसेनापति कार्तिकेय स्वरूप)", deity: "भगवान कार्तिकेय (षण्मुख) एवं गणेश", planet: "शुक्र देव (Venus) एवं मंगल", rashi: "वृषभ (Taurus) एवं तुला (Libra)", mantra: "ॐ ह्रीं हुं नमः", day: "शुक्रवार या सोमवार प्रातः", benefits: "दृढ़ इच्छाशक्ति (Willpower), व्यक्तित्व में आकर्षण (Charisma), क्रोध व आवेश पर नियंत्रण, कला/मीडिया/प्रबंधन में सफलता और शुक्र दोष निवारण।", shastra: "शिव पुराण के अनुसार 6 मुखी रुद्राक्ष को दाहिनी भुजा या कंठ में धारण करने वाला जातक ब्रह्महत्या जैसे महापापों से भी मुक्त होकर अजेय बनता है।" },
+    7: { name: "7 मुखी रुद्राक्ष (Saat Mukhi — महालक्ष्मी एवं सप्तर्षि स्वरूप)", deity: "माता महालक्ष्मी एवं अनंग शिव", planet: "शनि देव (Saturn) एवं शुक्र", rashi: "मकर (Capricorn), कुंभ (Aquarius), वृषभ व तुला", mantra: "ॐ हुं नमः / ॐ श्रीं महालक्ष्म्यै नमः", day: "शुक्रवार या शनिवार प्रातः", benefits: "अथाह धन-समृद्धि, व्यापार व नौकरी में उन्नति, कर्ज मुक्ति, रुका हुआ धन वापस आना तथा शनि साढ़े साती व ढैया के कष्टों से पूर्ण रक्षा।", shastra: "शिव पुराण के अनुसार सप्तमुखी रुद्राक्ष धारण करने से दरिद्र से दरिद्र व्यक्ति भी ऐश्वर्यवान और लक्ष्मीवान बन जाता है।" },
+    8: { name: "8 मुखी रुद्राक्ष (Aath Mukhi — विघ्नहर्ता श्री गणेश व भैरव स्वरूप)", deity: "अष्टमूर्ति भगवान श्री गणेश एवं कालभैरव", planet: "राहु (Rahu)", rashi: "सभी राशियां (राहु व विघ्न निवारण हेतु)", mantra: "ॐ हुं नमः / ॐ गं गणपतये नमः", day: "बुधवार या शनिवार प्रातः", benefits: "हर कार्य में आने वाली रुकावटों (Obstacles) का नाश, राहु महादशा व कालसर्प दोष शांति, कोर्ट-कचहरी व शत्रुओं पर विजय और तीक्ष्ण निर्णय शक्ति।", shastra: "शिव पुराण के अनुसार आठ मुखी रुद्राक्ष साक्षात विनायक स्वरूप है जो अष्ट सिद्धियों और अखंड विजय का दाता है।" },
+    9: { name: "9 मुखी रुद्राक्ष (Nau Mukhi — माँ नवदुर्गा व भैरव स्वरूप)", deity: "माँ नवदुर्गा (आदिशक्ति) एवं कपिल मुनि", planet: "केतु (Ketu)", rashi: "सभी राशियां (शक्ति व केतु शांति हेतु)", mantra: "ॐ ह्रीं हुं नमः / ॐ ऐं ह्रीं क्लीं चामुण्डायै विच्चे", day: "शुक्रवार, शनिवार या नवरात्रि", benefits: "निडरता (Fearlessness), आत्मबल, नकारात्मक शक्तियों व नजर दोष से रक्षा, केतु दोष निवारण और साहसिक कार्यों में विजय।", shastra: "नौ मुखी रुद्राक्ष में नवदुर्गा की नौ शक्तियां निवास करती हैं जो भक्त को भक्ति और मुक्ति दोनों प्रदान करती हैं।" },
+    10: { name: "10 मुखी रुद्राक्ष (Das Mukhi — भगवान महाविष्णु स्वरूप)", deity: "भगवान श्री हरि विष्णु (दशावतार)", planet: "समस्त नवग्रह (All 9 Planets Pacifier)", rashi: "सभी 12 राशियां", mantra: "ॐ ह्रीं नमः / ॐ नमो भगवते वासुदेवाय", day: "गुरुवार या सोमवार प्रातः", benefits: "सभी 9 ग्रहों के दोषों की एक साथ शांति, दसों दिशाओं से सुरक्षा कवच, वास्तु दोष, तंत्र-बाधा व कोर्ट-कचहरी से रक्षा और करियर में स्थिरता।", shastra: "शिव पुराण के अनुसार दस मुखी रुद्राक्ष स्वयं जनार्दन (भगवान विष्णु) हैं; इसे धारण करने वाले पर किसी ग्रह या दुष्ट शक्ति का प्रभाव नहीं चलता।" },
+    11: { name: "11 मुखी रुद्राक्ष (Gyarah Mukhi — एकादश रुद्र भगवान हनुमान स्वरूप)", deity: "एकादश रुद्र एवं संकटमोचन श्री हनुमान जी", planet: "मंगल एवं शनि (Mars & Saturn)", rashi: "मेष, वृश्चिक, मकर, कुंभ व सभी राशियां", mantra: "ॐ ह्रीं हुं नमः / ॐ हनुमते नमः", day: "मंगलवार या शनिवार प्रातः", benefits: "अजेय साहस, शारीरिक बल व इम्युनिटी, शनि साढ़े साती व मंगल दोष का अचूक निवारण, यात्रा सुरक्षा, सही निर्णय क्षमता और ध्यान-साधना में सिद्धि।", shastra: "शिव पुराण के अनुसार 11 मुखी रुद्राक्ष को शिखा या कंठ में धारण करने से सहस्र अश्वमेध और वाजपेय यज्ञों के समान पुण्य व अजेय तेज मिलता है।" },
+    12: { name: "12 मुखी रुद्राक्ष (Barah Mukhi — द्वादश आदित्य सूर्य स्वरूप)", deity: "भगवान सूर्य नारायण (द्वादश आदित्य)", planet: "सूर्य देव (Sun)", rashi: "सिंह (Leo), मेष, धनु व प्रशासनिक अधिकारी", mantra: "ॐ क्रौं क्षौं रौं नमः", day: "रविवार प्रातः", benefits: "सूर्य के समान तेजस्वी आभामंडल, राजनीति, प्रशासन (IAS/IPS/Govt) व उच्च लीडरशिप में सफलता, मान-सम्मान, आत्मविश्वास और रोग मुक्ति।", shastra: "बारह मुखी रुद्राक्ष में बारह आदित्यों का तेज समाहित है; इसके धारक को कभी दरिद्रता, भय या अपमान का सामना नहीं करना पड़ता।" },
+    13: { name: "13 मुखी रुद्राक्ष (Terah Mukhi — कामदेव एवं देवराज इंद्र स्वरूप)", deity: "भगवान कामदेव एवं देवराज इंद्र", planet: "शुक्र देव (Venus)", rashi: "वृषभ, तुला एवं सभी व्यवसायी/कलाकार", mantra: "ॐ ह्रीं नमः", day: "शुक्रवार या सोमवार प्रातः", benefits: "सम्मोहन व चुंबकीय आकर्षण (Magnetic Charisma), मार्केटिंग, सेल्स, फिल्म/कला व लग्जरी व्यापार में अपार सफलता और समस्त भौतिक सुखों की प्राप्ति।", shastra: "शिव पुराण के अनुसार तेरह मुखी रुद्राक्ष विश्वेश्वर का स्वरूप है जो समस्त कामनाओं और रसायन सिद्धियों को देने वाला है।" },
+    14: { name: "14 मुखी रुद्राक्ष (Chaudah Mukhi — देवमणि / तृतीय नेत्र स्वरूप)", deity: "साक्षात भगवान शिव (त्रिनेत्र) एवं हनुमान जी", planet: "शनि देव एवं मंगल (Saturn & Mars)", rashi: "मकर, कुंभ, मेष, वृश्चिक व उच्च रणनीतिकार", mantra: "ॐ नमः / ॐ नमः शिवाय", day: "शनिवार या सोमवार प्रातः", benefits: "आज्ञा चक्र (Third Eye) और छठी इंद्रिय (Intuition / Future Foresight) का जागरण, शेयर मार्केट/व्यापार/निवेश में सटीक निर्णय, शनि साढ़े साती से परम रक्षा और राजयोग।", shastra: "शिव पुराण के अनुसार 14 मुखी रुद्राक्ष भगवान शिव के नेत्रों से उत्पन्न सर्वोच्च 'देवमणि' है, जिसके धारक का देवता भी सम्मान करते हैं।" },
+    15: { name: "15 मुखी रुद्राक्ष (Pandrah Mukhi — भगवान पशुपतिनाथ स्वरूप)", deity: "भगवान पशुपतिनाथ शिव", planet: "बुध एवं राहु", rashi: "सभी राशियां", mantra: "ॐ ह्रीं नमः", day: "सोमवार या बुधवार", benefits: "अनाहत (Heart) चक्र जागृति, करुणा, आध्यात्मिक शांति और व्यापक व्यापारिक समृद्धि।", shastra: "पशुपतिनाथ का यह दुर्लभ मनका अखंड धन और भावनात्मक मुक्ति प्रदान करता है।" },
+    16: { name: "16 मुखी रुद्राक्ष (Solah Mukhi — महामृत्युंजय एवं जय रुद्राक्ष)", deity: "भगवान श्री राम एवं महामृत्युंजय शिव", planet: "सूर्य एवं चंद्र", rashi: "सभी राशियां", mantra: "ॐ ह्रीं हुं नमः", day: "सोमवार", benefits: "गंभीर संकटों, कानूनी विवादों और रोगों पर विजय (जय रुद्राक्ष) तथा अभय सुरक्षा कवच।", shastra: "सोलह मुखी रुद्राक्ष का धारक काल और भय से सुरक्षित रहता है।" },
+    17: { name: "17 मुखी रुद्राक्ष (Satrah Mukhi — भगवान विश्वकर्मा एवं माँ कात्यायनी)", deity: "भगवान विश्वकर्मा एवं माता कात्यायनी", planet: "शनि एवं गुरु", rashi: "सभी राशियां", mantra: "ॐ ह्रीं हुं नमः", day: "शनिवार या शुक्रवार", benefits: "आकस्मिक महाधन लाभ, भूमि-भवन व विशाल प्रोजेक्ट्स में सफलता तथा धर्म-अर्थ-काम-मोक्ष सिद्धि।", shastra: "सत्रह मुखी रुद्राक्ष नई सृष्टि व विशाल साम्राज्य निर्माण की शक्ति देता है।" },
+    18: { name: "18 मुखी रुद्राक्ष (Atharah Mukhi — माता भूमि देवी स्वरूप)", deity: "माता वसुंधरा (भूमि देवी)", planet: "पृथ्वी तत्व एवं मंगल", rashi: "सभी राशियां", mantra: "ॐ ह्रीं श्रीं वसुधायै स्वाहा", day: "शुक्रवार या मंगलवार", benefits: "रियल एस्टेट, भूमि, खनन, कृषि और स्थायी संपत्ति में अपार उन्नति व मातृ-सुरक्षा।", shastra: "अठारह मुखी रुद्राक्ष पृथ्वी तत्व का सर्वोच्च आशीर्वाद है।" },
+    19: { name: "19 मुखी रुद्राक्ष (Unnis Mukhi — भगवान नारायण स्वरूप)", deity: "भगवान लक्ष्मी-नारायण", planet: "बुध एवं गुरु", rashi: "सभी राशियां", mantra: "ॐ नमो नारायणाय", day: "गुरुवार", benefits: "तनाव-मुक्त अथाह ऐश्वर्य, व्यापार में शीर्ष स्थान और पारिवारिक सुख-समृद्धि।", shastra: "उन्नीस मुखी रुद्राक्ष नारायण की कृपा से जीवन के समस्त अभावों को मिटाता है।" },
+    20: { name: "20 मुखी रुद्राक्ष (Bees Mukhi — परम ब्रह्म ज्ञान स्वरूप)", deity: "भगवान ब्रह्मा एवं त्रिदेव", planet: "समस्त ब्रह्मांडीय ऊर्जा", rashi: "सभी राशियां", mantra: "ॐ ह्रीं हुं नमः", day: "सोमवार या गुरुवार", benefits: "परा-विद्या, आध्यात्मिक सिद्धि, उच्च शोध और ब्रह्मांडीय चेतना का विकास।", shastra: "बीस मुखी रुद्राक्ष ऋषियों और उच्च साधकों का परम रत्न है।" },
+    21: { name: "21 मुखी रुद्राक्ष (Ikkis Mukhi — धनपति कुबेर स्वरूप)", deity: "भगवान कुबेर एवं महादेव", planet: "समस्त नवग्रह एवं कुबेर संपदा", rashi: "सभी राशियां", mantra: "ॐ यक्षाय कुबेराय वैश्रवणाय धनधान्याधिपतये नमः", day: "सोमवार या शुक्रवार", benefits: "ब्रह्मांड का सबसे दुर्लभ और सर्वोच्च रुद्राक्ष — पीढ़ियों तक चलने वाली अखंड कुबेर संपदा, राजसी वैभव और सर्वोच्च आध्यात्मिक रक्षा।", shastra: "इक्कीस मुखी रुद्राक्ष में स्वयं कुबेर और समस्त देवताओं का वास माना गया है।" }
+  };
+
+  if (mukhiNum && MUKHI_ENCYCLOPEDIA[mukhiNum]) {
+    const info = MUKHI_ENCYCLOPEDIA[mukhiNum];
+    const matchedProd = (allProducts || []).find(p => isExactMukhiProduct(p, mukhiNum));
+    const prodLine = matchedProd
+      ? `\n• 🛍️ **ऑरा रुद्राक्ष स्टोर में उपलब्धता:** **[${matchedProd.name}](/product/${matchedProd.slug || matchedProd.id})** — ₹${Number(matchedProd.price).toLocaleString("en-IN")} *(100% शुद्ध नेपाली • सरकारी लैब X-Ray प्रमाणित • हरिद्वार में वैदिक प्राण-प्रतिष्ठित)*`
+      : `\n• 🛍️ **ऑरा रुद्राक्ष स्टोर:** आप हमारे [Shop Catalog](/shop) पर 100% शुद्ध नेपाली व लैब-प्रमाणित रुद्राक्ष देख सकते हैं।`;
+
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+मैं **AI पंडित जी (ज्योतिषाचार्य)** हूँ। आपके द्वारा पूछे गए **${info.name}** का **शिव पुराण (विद्येश्वर संहिता)** एवं **वैदिक ज्योतिष** के अनुसार संपूर्ण विस्तृत विवरण इस प्रकार है:
+
+---
+
+### 📿 1. ${info.name} — शास्त्रीय परिचय व महत्व
+• 🔱 **अधिष्ठाता देवता:** **${info.deity}**
+• 🪐 **शासक ग्रह (Ruling Planet):** **${info.planet}**
+• ♈ **अनुकूल राशियां:** **${info.rashi}**
+• 📜 **शिव पुराण प्रमाण:** ${info.shastra}
+
+---
+
+### ✨ 2. प्रमुख वैदिक लाभ एवं किस उद्देश्य के लिए धारण करें?
+• **संपूर्ण लाभ:** ${info.benefits}
+• **कौन धारण करे:** जिन जातकों की कुंडली में **${info.planet}** कमजोर/पीड़ित हो, अथवा उस ग्रह की महादशा-अंतर्दशा चल रही हो, या जो अपने जीवन में उपरोक्त क्षेत्रों में उन्नति व रक्षा कवच चाहते हों।
+
+---
+
+### 🕉️ 3. सिद्ध बीज मंत्र एवं संपूर्ण धारण विधि (Shiva Purana Dharan Vidhi)
+• **सिद्ध बीज मंत्र:** \`${info.mantra}\` (प्रतिदिन 108 बार जाप)
+• **धारण करने का शुभ दिन:** **${info.day}** (अथवा प्रदोष व्रत / सोमवार)
+• **संपूर्ण विधि:**
+  1. शुभ दिन प्रातःकाल स्नान कर स्वच्छ वस्त्र पहनें और घर के मंदिर या शिवालय में पूर्व/उत्तर की ओर मुख करके बैठें।
+  2. तांबे या चाँदी के पात्र में रुद्राक्ष रखकर **गंगाजल और कच्चे गोदुग्ध (पंचामृत)** से अभिषेक करें।
+  3. रुद्राक्ष पर चंदन/अष्टगंध का तिलक लगाएं, अक्षत, सफेद पुष्प और बेलपत्र अर्पित करें तथा घी का दीपक जलाएं।
+  4. रुद्राक्ष को शिवलिंग से स्पर्श कराकर दाहिने हाथ में लें और \`${info.mantra}\` का **108 बार** जाप करें।
+  5. लाल या पीले रेशमी धागे अथवा चाँदी/सोने में मढ़वाकर कंठ (हृदय के पास) या दाहिनी भुजा पर धारण करें।${prodLine}
+
+---
+
+### 🔭 क्या यह रुद्राक्ष आपकी जन्म कुंडली के अनुसार 100% अनुकूल है?
+वैदिक नियम है कि सर्वोत्तम परिणाम के लिए रुद्राक्ष का चयन आपकी **जन्म लग्न, चंद्र राशि और वर्तमान महादशा** देखकर किया जाना चाहिए।
+👇 **अपनी व्यक्तिगत जन्म कुंडली जांचने के लिए कृपया चैट में या नीचे फॉर्म में लिखें:**
+• **जन्म तिथि (DOB)** — उदा. 15-08-1995
+• **जन्म समय (Birth Time)** — उदा. 10:30 AM
+• **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान
+
+**हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: ${mukhiNum} मुखी रुद्राक्ष लाभ | ${mukhiNum} मुखी धारण विधि | मेरी जन्म कुंडली बनाएं | 1 से 21 मुखी रुद्राक्ष गाइड`;
+  }
+
+  // Check if Gauri Shankar, Ganesh, Garbh Gauri, or 108 Jaap Mala was asked
+  if (/gauri\s*shankar|गौरी\s*शंकर/i.test(q)) {
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+मैं **AI पंडित जी (ज्योतिषाचार्य)** हूँ। **गौरी शंकर रुद्राक्ष (Gauri Shankar Rudraksha)** का शिव पुराण एवं वैदिक शास्त्र के अनुसार संपूर्ण विस्तृत विवरण इस प्रकार है:
+
+• 🔱 **अधिष्ठाता देवता:** साक्षात **भगवान शिव एवं माता पार्वती (अर्धनारीश्वर / उमा-महेश्वर)** का प्राकृतिक रूप से जुड़ा हुआ दिव्य स्वरूप।
+• 🪐 **शासक ग्रह:** **शुक्र देव (Venus) एवं चंद्र देव (Moon)** — सप्तम भाव (विवाह स्थान) एवं चतुर्थ भाव (गृह सुख) का सर्वोच्च रक्षक।
+• ✨ **मुख्य शास्त्रीय लाभ:**
+  1. **शीघ्र विवाह योग:** जिन युवक-युवतियों के विवाह में बार-बार अड़चन या विलंब हो रहा हो, उनके लिए यह अचूक वरदान है।
+  2. **अटूट दांपत्य प्रेम:** पति-पत्नी के बीच वैचारिक मतभेद, तनाव या गलतफहमी को समाप्त कर गहरा प्रेम और विश्वास स्थापित करता है।
+  3. **पारिवारिक शांति व वंश वृद्धि:** जिस घर के पूजा स्थान में या दंपत्ति के कंठ में गौरी शंकर रुद्राक्ष होता है, वहां कलह नहीं होती और लक्ष्मी-अन्नपूर्णा का वास रहता है।
+• 🕉️ **सिद्ध बीज मंत्र व धारण विधि:**
+  - **बीज मंत्र:** \`ॐ गौरी शंकराय नमः\` अथवा \`ॐ नमः शिवाय\` (108 बार जाप)
+  - **शुभ दिन:** सोमवार या शुक्रवार प्रातःकाल गंगाजल व कच्चे दूध से अभिषेक कर लाल/पीले धागे या चाँदी में कंठ में धारण करें।
+
+👇 **यदि आप अपनी कुंडली के सप्तम भाव (विवाह योग), मांगलिक दोष और जीवनसाथी के विषय में सटीक जानकारी चाहते हैं, तो कृपया अपनी जन्म तिथि (DOB), जन्म समय और जन्म स्थान बताएं!**
+
+[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | शीघ्र विवाह उपाय | दांपत्य सुख | मेरी जन्म कुंडली बनाएं`;
+  }
+
+  // Check if user asked for all 1 to 21 Mukhi Rudraksha overview
+  if (/1\s*to\s*21|1\s*se\s*21|1\s*से\s*21|1\s*से\s*14|sabhi\s*rudraksh|all\s*rudraksh|प्रकार|मुखी\s*रुद्राक्ष\s*की\s*जानकारी/i.test(q)) {
+    const listStr = Object.entries(MUKHI_ENCYCLOPEDIA).map(([m, d]) =>
+      `• 📿 **${m} मुखी:** *देवता:* ${d.deity} | *ग्रह:* **${d.planet}** | *मंत्र:* \`${d.mantra}\` — ${d.benefits}`
+    ).join("\n\n");
+
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+मैं **AI पंडित जी (ज्योतिषाचार्य)** हूँ। **शिव पुराण (विद्येश्वर संहिता)** एवं **बृहत्पाराशर होरा शास्त्र** के अनुसार **1 मुखी से 21 मुखी तक के सभी सिद्ध रुद्राक्षों** का देवता, शासक ग्रह, बीज मंत्र और लाभ सहित संपूर्ण विश्वकोश (Complete Encyclopedia) नीचे प्रस्तुत है:
+
+---
+
+${listStr}
+
+---
+
+• 📿 **गौरी शंकर रुद्राक्ष:** शिव-पार्वती स्वरूप (चंद्र व शुक्र) — शीघ्र विवाह व दांपत्य प्रेम हेतु।
+• 📿 **गणेश रुद्राक्ष:** विघ्नहर्ता गणेश स्वरूप (बुध व राहु) — बुद्धि, रिद्धि-सिद्धि व सर्व विघ्न निवारण हेतु।
+• 📿 **108+1 जप माला:** दैनिक मंत्र साधना, रक्तचाप संतुलन व प्राणिक रक्षा कवच हेतु।
+
+👇 **आपके लिए इनमें से कौन से 1 से 3 रुद्राक्ष आपकी जन्म कुंडली के लग्न, चंद्र राशि और महादशा के अनुसार 100% सटीक हैं, यह जानने के लिए कृपया अपनी जन्म तिथि (DOB), जन्म समय और जन्म स्थान दर्ज करें!**
+
+[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | 7 मुखी महालक्ष्मी रुद्राक्ष | 5 मुखी रुद्राक्ष | 11 मुखी हनुमान रुद्राक्ष`;
+  }
+
+  // Default comprehensive Pandit Ji guidance + Kundali invitation
+  return `🙏 **श्री गणेशाय नमः! हर हर महादेव! प्रणाम भक्त जी।**
+
+मैं **AI पंडित जी (वैदिक ज्योतिषाचार्य)** हूँ — **बृहत्पाराशर होरा शास्त्र**, **फलदीपिका**, **जैमिनी सूत्र**, **लाल किताब** और **शिव पुराण** के शास्त्रीय सिद्धांतों पर प्रशिक्षित आपका आध्यात्मिक मार्गदर्शक।
+
+आपके प्रश्न (**"${userQuery || "ज्योतिषीय परामर्श"}"**) के संदर्भ में शास्त्रीय मार्गदर्शन:
+
+---
+
+### 🪐 1. वैदिक ज्योतिष एवं नवग्रह-रुद्राक्ष संबंध (Shastra Reference)
+महर्षि पाराशर एवं शिव पुराण के अनुसार मनुष्य के जीवन में आने वाली हर समस्या (मानसिक तनाव, करियर में रुकावट, धन की कमी, विवाह में देरी या स्वास्थ्य कष्ट) का सीधा संबंध उसकी जन्म कुंडली के **लग्न, चंद्र राशि, 12 भावों और सक्रिय विंशोत्तरी महादशा-अंतर्दशा** से होता है:
+• **सूर्य (आत्मबल, सरकारी पद, नेतृत्व):** 1 मुखी अथवा 12 मुखी रुद्राक्ष (\`ॐ ह्रीं नमः\`)
+• **चंद्रमा (मानसिक शांति, भावनाएं, माता):** 2 मुखी अथवा गौरी शंकर रुद्राक्ष (\`ॐ नमः\`)
+• **मंगल (साहस, ऊर्जा, भूमि-भवन, मांगलिक शांति):** 3 मुखी अथवा 11 मुखी रुद्राक्ष (\`ॐ क्लीं नमः\`)
+• **बुध (बुद्धि, विद्या, व्यापार, वाणी):** 4 मुखी अथवा गणेश रुद्राक्ष (\`ॐ ह्रीं नमः\`)
+• **गुरु बृहस्पति (भाग्य, ज्ञान, धन, संतान, विवाह):** 5 मुखी रुद्राक्ष (\`ॐ ह्रीं नमः\`)
+• **शुक्र (वैभव, प्रेम, दांपत्य सुख, आकर्षण):** 6 मुखी अथवा 13 मुखी रुद्राक्ष (\`ॐ ह्रीं हुं नमः\`)
+• **शनि (कर्म, न्याय, साढ़े साती/ढैया मुक्ति, स्थिर धन):** 7 मुखी अथवा 14 मुखी देवमणि रुद्राक्ष (\`ॐ हुं नमः\`)
+• **राहु (आकस्मिक सफलता, विघ्न नाश, कालसर्प शांति):** 8 मुखी रुद्राक्ष (\`ॐ हुं नमः\`)
+• **केतु (मोक्ष, आध्यात्मिक शक्ति, गुप्त शत्रु नाश):** 9 मुखी रुद्राक्ष (\`ॐ ह्रीं हुं नमः\`)
+• **समस्त नवग्रह व वास्तु रक्षा कवच:** 10 मुखी महाविष्णु रुद्राक्ष (\`ॐ ह्रीं नमः\`)
+
+---
+
+### 🔭 2. अपनी संपूर्ण विस्तृत जन्म कुंडली अभी दिखाएं (100% प्रामाणिक गणना)
+बिना जन्म कुंडली देखे कोई भी सतही अनुमान लगाना उचित नहीं है। जब आप अपना जन्म विवरण देंगे, तो मैं आपको **पूरी डिटेल में (11 खंडों में)** बताऊँगा:
+1. 🔍 **अभी आपके जीवन में क्या-क्या परेशानी चल रही है?** (मानसिक, करियर, धन, परिवार व स्वास्थ्य)
+2. ❓ **यह परेशानी क्यों और कैसे चल रही है?** (महादशा, अंतर्दशा, त्रिक भाव व गोचर का प्रमाण)
+3. 📅 **यह परेशानी कब से चल रही है?** (सटीक तारीखों के साथ)
+4. ⏳ **यह परेशानी कब ठीक होगी और आपका भाग्योदय कब होगा?** (सटीक राहत तारीख व स्वर्ण काल)
+5. 🪐 **सभी 9 ग्रहों और 12 भावों का एक-एक करके संपूर्ण फलादेश, लाल किताब उपाय और कुंडली-प्रमाणित रुद्राक्ष।**
+
+👇 **कृपया नीचे दिए गए फॉर्म में या सीधे चैट में अपनी जानकारी लिखें:**
+• **जन्म तिथि (Date of Birth)** — उदा. 15-08-1995
+• **जन्म समय (Birth Time)** — उदा. 10:30 AM
+• **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान
+
+**हर हर महादेव!** 🙏
+
+[AURA_KEYWORDS]: जन्म विवरण दर्ज करें | 1 से 21 मुखी रुद्राक्ष की जानकारी | 7 मुखी धन रुद्राक्ष | गौरी शंकर विवाह रुद्राक्ष`;
 }
 
 /**
