@@ -59,23 +59,48 @@ if (typeof window !== "undefined") {
     }
   });
 
-  // Idle route prefetching for instant 0ms storefront page transitions
-  const prefetchCoreRoutes = () => {
+  // Network-aware, staggered idle route prefetching so first-time visitors experience zero lag
+  const scheduleStaggeredPrefetch = () => {
     try {
-      import("./pages/Shop").catch(() => {});
-      import("./pages/Wishlist").catch(() => {});
-      import("./pages/Product").catch(() => {});
-      import("./pages/Cart").catch(() => {});
-      import("./pages/account/Account").catch(() => {});
-      import("./pages/account/Orders").catch(() => {});
-      import("./pages/AuraAIPage").catch(() => {});
-      import("./pages/Checkout").catch(() => {});
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (conn && (conn.saveData || conn.effectiveType === "2g" || conn.effectiveType === "slow-2g")) {
+        return;
+      }
+      const routeQueue = [
+        () => import("./pages/Product"),
+        () => import("./pages/Shop"),
+        () => import("./pages/Cart"),
+        () => import("./pages/Checkout")
+      ];
+      let idx = 0;
+      const loadNext = () => {
+        if (idx >= routeQueue.length) return;
+        const loader = routeQueue[idx++];
+        try {
+          loader().catch(() => {});
+        } catch (_) {}
+        if (idx < routeQueue.length) {
+          setTimeout(() => {
+            if ("requestIdleCallback" in window) {
+              window.requestIdleCallback(loadNext, { timeout: 3000 });
+            } else {
+              loadNext();
+            }
+          }, 1100);
+        }
+      };
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(loadNext, { timeout: 4000 });
+      } else {
+        setTimeout(loadNext, 2000);
+      }
     } catch (_) {}
   };
-  if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(prefetchCoreRoutes, { timeout: 3000 });
+
+  if (document.readyState === "complete") {
+    setTimeout(scheduleStaggeredPrefetch, 2500);
   } else {
-    setTimeout(prefetchCoreRoutes, 1500);
+    window.addEventListener("load", () => setTimeout(scheduleStaggeredPrefetch, 2500), { once: true });
   }
 }
 

@@ -49,6 +49,12 @@ export default defineConfig(({ command, mode }) => {
           if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/") || id.includes("node_modules/react-router-dom/")) {
             return "react-vendor";
           }
+          if (id.includes("node_modules/xlsx")) {
+            return "xlsx-export";
+          }
+          if (id.includes("node_modules/jspdf") || id.includes("node_modules/html2canvas")) {
+            return "pdf-export";
+          }
           if (id.includes("node_modules/@tiptap")) {
             return "tiptap";
           }

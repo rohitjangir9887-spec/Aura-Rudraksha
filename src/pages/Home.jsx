@@ -74,7 +74,24 @@ export function Home() {
 
   const updateLocalState = () => {
     const freshProducts = db.getProducts().filter(isPublicProduct);
-    setProducts(freshProducts);
+    setProducts((prev) => {
+      if (
+        prev.length === freshProducts.length &&
+        prev.every(
+          (p, i) =>
+            p.id === freshProducts[i]?.id &&
+            p.price === freshProducts[i]?.price &&
+            p.stock === freshProducts[i]?.stock &&
+            p.homeOrder === freshProducts[i]?.homeOrder &&
+            p.showOnHome === freshProducts[i]?.showOnHome &&
+            p.isPopular === freshProducts[i]?.isPopular &&
+            p.reviews === freshProducts[i]?.reviews
+        )
+      ) {
+        return prev;
+      }
+      return freshProducts;
+    });
 
     const cachedBanners = db.getBanners();
     if (cachedBanners && cachedBanners.length > 0) {
@@ -114,7 +131,12 @@ export function Home() {
       return true;
     }).sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    setOffers(allOffers);
+    setOffers((prev) => {
+      if (prev.length === allOffers.length && prev.every((o, i) => o.id === allOffers[i]?.id && o.updatedAt === allOffers[i]?.updatedAt)) {
+        return prev;
+      }
+      return allOffers;
+    });
     if (freshProducts.length > 0) {
       setIsLoading(false);
     }
@@ -122,47 +144,29 @@ export function Home() {
 
   const loadHomeData = async () => {
     updateLocalState();
-    db.revalidateProducts(true).then(() => {
-      updateLocalState();
-      setIsLoading(false);
-    }).catch(() => {});
-    if (db.fetchCoupons) {
-      db.fetchCoupons().then(() => updateLocalState()).catch(() => {});
-    }
-    db.fetchHomeData(true).then(() => {
-      updateLocalState();
-      setIsLoading(false);
-    }).catch(() => {
-      setIsLoading(false);
-    });
+    // Join the in-flight initial hydration promise (or revalidate smoothly without duplicate request storm)
+    db.fetchHomeData(false)
+      .then(() => {
+        updateLocalState();
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setIsLoading(false);
+      });
   };
 
   useEffect(() => {
     loadHomeData();
-    db.logVisit();
-
-    const intervalId = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        db.revalidateProducts().catch(() => {});
-      }
-    }, 60000);
-
-    const handleFocus = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        db.revalidateProducts().catch(() => {});
-      }
-    };
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleFocus);
+    const visitTimer = setTimeout(() => {
+      db.logVisit();
+    }, 2200);
 
     const unsub = onStoreUpdate(() => {
       updateLocalState();
     });
 
     return () => {
-      clearInterval(intervalId);
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleFocus);
+      clearTimeout(visitTimer);
       unsub();
     };
   }, []);

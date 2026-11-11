@@ -398,15 +398,14 @@ export function CheckoutAddressCard({
 
             <div style={{ minWidth: 0 }}>
               <label style={{ display: "block", fontSize: "11.5px", fontWeight: "600", color: "#4a3528", marginBottom: "4px" }}>
-                Email Address <span style={{ color: "#dc2626" }}>*</span>
+                Email / Gmail ID <span style={{ color: "#8c7a6b", fontWeight: "500", fontSize: "10.5px" }}>(Optional)</span>
               </label>
               <input 
                 id="input-email"
                 name="email"
                 autoComplete="email"
-                placeholder="For order receipt & payment"
+                placeholder="Optional (for order updates)"
                 type="email"
-                required
                 value={formData.email || ""}
                 onChange={(e) => onInputChange("email", e.target.value)}
                 onInput={(e) => onInputChange("email", e.target.value)}

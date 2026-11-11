@@ -732,9 +732,9 @@ export function Checkout() {
       emitToast("Valid 10-digit mobile number is required", "error");
       return false;
     }
-    if (!dataToSave.email?.trim() || !emailRegex.test(dataToSave.email.trim())) {
+    if (dataToSave.email?.trim() && !emailRegex.test(dataToSave.email.trim())) {
       triggerHaptic("warning");
-      emitToast("Valid email address is required for order receipt & payment", "error");
+      emitToast("Please enter a valid email address or leave it blank", "error");
       return false;
     }
     if (!dataToSave.address?.trim()) {
@@ -762,7 +762,7 @@ export function Checkout() {
         lastName: dataToSave.lastName.trim(),
         name: `${dataToSave.firstName.trim()} ${dataToSave.lastName.trim()}`,
         phone: dataToSave.phone.trim(),
-        email: dataToSave.email.trim().toLowerCase(),
+        email: (dataToSave.email || "").trim().toLowerCase(),
         address: dataToSave.address.trim(),
         landmark: (dataToSave.landmark || "").trim(),
         locality: (dataToSave.locality || "").trim(),
@@ -874,10 +874,8 @@ export function Checkout() {
     if (!current.phone?.trim() || current.phone.trim().length < 10) {
       errors.phone = "Valid 10-digit phone number is required";
     }
-    if (!current.email?.trim()) {
-      errors.email = "Email address is required";
-    } else if (!emailRegex.test(current.email.trim())) {
-      errors.email = "Please enter a valid email address";
+    if (current.email?.trim() && !emailRegex.test(current.email.trim())) {
+      errors.email = "Please enter a valid email address or leave it blank";
     }
     if (!current.address?.trim()) errors.address = "Full address is required";
     if (!current.pincode?.trim() || current.pincode.trim().length < 6) {

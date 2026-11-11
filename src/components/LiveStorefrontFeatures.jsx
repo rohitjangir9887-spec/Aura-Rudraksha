@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Sparkles, X, ArrowRight, ShieldCheck } from "lucide-react";
+import { Sparkles, X, ArrowRight } from "lucide-react";
+import { db, onStoreUpdate } from "../lib/db";
 import {
   captureAdAttribution,
   initMetaPixel,
@@ -23,29 +24,34 @@ export function LiveStorefrontFeatures() {
   }, [location.pathname, location.search, isAdminRoute]);
 
   useEffect(() => {
-    let mounted = true;
-    const fetchFeatures = async () => {
+    const syncFromStoreSettings = () => {
       try {
-        const res = await fetch("/api/settings");
-        if (!res.ok) return;
-        const data = await res.json();
-        const settingsObj = data?.settings || data || {};
+        const settingsObj = db.getSettings() || {};
         if (settingsObj.metaPixelEnabled !== false && settingsObj.metaPixelId) {
           initMetaPixel(settingsObj.metaPixelId);
         }
         const list = settingsObj?.aiCustomFeatures || [];
-        if (mounted && Array.isArray(list)) {
-          setFeatures(list.filter(f => f && f.enabled !== false));
+        if (Array.isArray(list)) {
+          const activeList = list.filter(f => f && f.enabled !== false);
+          setFeatures(prev => {
+            if (prev.length === activeList.length && JSON.stringify(prev) === JSON.stringify(activeList)) {
+              return prev;
+            }
+            return activeList;
+          });
         }
       } catch (_) {}
     };
-    fetchFeatures();
-    const interval = setInterval(fetchFeatures, 12000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [location.pathname]);
+
+    syncFromStoreSettings();
+    const unsub = onStoreUpdate((detail, _payload, type) => {
+      const evType = String(type || detail?.type || "");
+      if (!evType || evType === "batch:synced" || evType === "home:synced" || evType.includes("settings")) {
+        syncFromStoreSettings();
+      }
+    });
+    return () => unsub();
+  }, []);
 
   if (isAdminRoute || !features.length) return null;
 

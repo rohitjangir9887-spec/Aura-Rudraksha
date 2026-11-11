@@ -7,9 +7,36 @@ import { normalizeKeywordItems } from "./keywordUtils.js";
 import { resolveCartProduct } from "./productResolver.js";
 import { defaultProducts } from "./defaultProducts.js";
 
+// Non-blocking idle writer for large cache keys so JSON.stringify never stalls 60-90 FPS scrolling
+const pendingStorageWrites = new Map();
+let storageIdleId = null;
+
+function flushPendingStorageWrites() {
+  storageIdleId = null;
+  if (typeof window === "undefined" || !window.localStorage) return;
+  const entries = Array.from(pendingStorageWrites.entries());
+  pendingStorageWrites.clear();
+  for (const [k, v] of entries) {
+    try {
+      window.localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
+    } catch (_) {}
+  }
+}
+
 // Safe localStorage wrapper to prevent QuotaExceededError or security exceptions from halting execution
 export function safeLocalStorageSet(key, value) {
   if (typeof window === "undefined" || !window.localStorage) return false;
+  if (key && key.endsWith("_cache")) {
+    pendingStorageWrites.set(key, value);
+    if (!storageIdleId) {
+      if (typeof window.requestIdleCallback === "function") {
+        storageIdleId = window.requestIdleCallback(flushPendingStorageWrites, { timeout: 1000 });
+      } else {
+        storageIdleId = setTimeout(flushPendingStorageWrites, 80);
+      }
+    }
+    return true;
+  }
   try {
     window.localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
     return true;
@@ -90,13 +117,14 @@ export const emitStoreUpdate = (type, payload) => {
   if (typeof window === "undefined") return;
   const detail = { type, payload, timestamp: Date.now() };
 
-  // For background synchronization events, coalesce them into a single animation frame
+  // For background synchronization events, coalesce them into a single batch render pass
+  // without serializing megabytes of JSON into cross-tab localStorage
   if (type.endsWith(":synced") || type === "home:synced") {
     if (!pendingSyncEvents) pendingSyncEvents = [];
     pendingSyncEvents.push(detail);
 
     if (!syncRafId) {
-      syncRafId = window.requestAnimationFrame(() => {
+      syncRafId = setTimeout(() => {
         syncRafId = null;
         const events = pendingSyncEvents || [];
         pendingSyncEvents = null;
@@ -104,13 +132,7 @@ export const emitStoreUpdate = (type, payload) => {
         window.dispatchEvent(
           new CustomEvent("aura:store-updated", { detail: batchDetail })
         );
-        if (syncBroadcastChannel) {
-          try { syncBroadcastChannel.postMessage(batchDetail); } catch (_) {}
-        }
-        try {
-          localStorage.setItem("aura_cross_tab_signal", JSON.stringify(batchDetail));
-        } catch (_) {}
-      });
+      }, 40);
     }
     return;
   }
@@ -769,8 +791,8 @@ export async function revalidateProducts(force = false) {
         storeCache.products = normalized;
         invalidateEnrichedProductsCache();
         lastProductFetchTime = Date.now();
+        safeLocalStorageSet("aura_products_cache", storeCache.products);
         try {
-          localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
           localStorage.setItem("aura_last_product_fetch_time", String(lastProductFetchTime));
           localStorage.setItem("aura_cache_hydrated", "true");
         } catch (_) {}
@@ -875,7 +897,6 @@ export async function fetchHomeData(force = false) {
             storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
             invalidateEnrichedProductsCache();
             safeLocalStorageSet("aura_reviews_cache", storeCache.reviews);
-            db.recalculateAllProductsReviewStats();
             emitStoreUpdate("reviews:synced", storeCache.reviews);
           }
         } catch (e) {

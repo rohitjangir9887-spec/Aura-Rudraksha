@@ -243,14 +243,13 @@ export async function initiatePayuPayment(req, res, next) {
       nestedCustomer.email ||
       nestedShipping.email ||
       req.user?.email ||
-      (cleanDigitsPhone.length >= 10 ? `${cleanDigitsPhone.slice(-10)}@auracustomer.in` : "")
+      (cleanDigitsPhone.length >= 10 ? `${cleanDigitsPhone.slice(-10)}@auracustomer.in` : "devotee@aurarudraksha.bond")
     ).toLowerCase();
 
     if (!email || !email.includes("@")) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid customer email is required to initiate payment."
-      });
+      email = cleanDigitsPhone.length >= 10
+        ? `${cleanDigitsPhone.slice(-10)}@auracustomer.in`
+        : "devotee@aurarudraksha.bond";
     }
 
     const shippingAddress = {

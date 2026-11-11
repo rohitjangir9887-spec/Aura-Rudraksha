@@ -200,21 +200,34 @@ export function useActiveOffer(product = null, options = {}) {
 
     const newTime = calculateTimeRemaining(getExpiryDate(resolvedOffer));
     setTimeLeft(prev => {
+      if (!withTimer) {
+        if (prev.isExpired === newTime.isExpired) return prev;
+        return newTime;
+      }
       if (prev.totalSeconds === newTime.totalSeconds && prev.isExpired === newTime.isExpired && prev.seconds === newTime.seconds) {
         return prev;
       }
       return newTime;
     });
-  }, [productId, customOfferJson]);
+  }, [productId, customOfferJson, withTimer]);
 
-  // Subscribe to central DB / store updates
+  // Subscribe to central DB / store updates (filtered to offer/product events)
   useEffect(() => {
     refreshOffer();
-    const unsub = onStoreUpdate(() => {
-      refreshOffer();
+    const unsub = onStoreUpdate((detail, _payload, type) => {
+      const evType = String(type || detail?.type || "");
+      if (
+        !evType ||
+        evType === "batch:synced" ||
+        evType === "home:synced" ||
+        evType.includes("offer") ||
+        (productId && evType.includes("product"))
+      ) {
+        refreshOffer();
+      }
     });
     return () => unsub();
-  }, [refreshOffer]);
+  }, [refreshOffer, productId]);
 
   // Live 1000ms countdown timer that automatically halts when expired (only run if withTimer is true)
   useEffect(() => {
