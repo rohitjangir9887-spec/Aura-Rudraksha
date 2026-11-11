@@ -335,6 +335,19 @@ export const CATEGORIES_SEO_REGISTRY = {
     ],
     intro: "Use our interactive Vedic astrological calculator to discover the sacred Mukhi beads specifically aligned with your birth date, planetary vibrations, and current spiritual or career focus."
   },
+  "/rudraksha-recommendation": {
+    h1: "Free Vedic Rudraksha Recommendation & Astrological Consultation",
+    title: "Free Vedic Rudraksha Recommendation — Rashi & Horoscope Matching | Aura Rudraksha",
+    description: "Get personalized authentic Rudraksha recommendations matched to your Janma Rashi, birth Nakshatra, and current life goals by Vedic astrology principles.",
+    categoryName: "Astrology Recommendation",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Rudraksha Recommendation", path: "/rudraksha-recommendation" }
+    ],
+    intro: "Discover the exact Rudraksha beads aligned with your horoscope, planetary periods (Dasha), and spiritual growth with our 100% free Vedic recommendation system."
+  },
   "/how-to-wear-rudraksha": {
     h1: "How to Wear Rudraksha — Consecration, Mantras & Rules",
     title: "How to Wear Rudraksha — Consecration, Mantras & Rules | Aura Rudraksha",
@@ -528,6 +541,78 @@ export const CATEGORIES_SEO_REGISTRY = {
     breadcrumbs: [
       { name: "Home", path: "/" },
       { name: "Categories", path: "/categories" }
+    ]
+  },
+  "/verify-certificate": {
+    h1: "Verify Rudraksha Lab Authenticity Certificate Online",
+    title: "Verify Lab Certificate Online — 100% Authentic Rudraksha | Aura Rudraksha",
+    description: "Verify the authenticity and gemological lab certificate of your Aura Rudraksha bead or Japa Mala online using your Certificate ID or Order ID.",
+    categoryName: "Lab Verification",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Verify Certificate", path: "/verify-certificate" }
+    ]
+  },
+  "/japa": {
+    h1: "Sacred Vedic 108 Mantra Japa Counter & Beej Mantra Sadhana",
+    title: "Free Online 108 Japa Mala Counter & Rudraksha Beej Mantras | Aura Rudraksha",
+    description: "Chant Om Namah Shivaya and sacred Rudraksha Beej Mantras with our free interactive 108-bead digital Japa Mala counter for daily sadhana.",
+    categoryName: "Spiritual Tool",
+    changefreq: "weekly",
+    priority: "0.75",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "108 Japa Counter", path: "/japa" }
+    ]
+  },
+  "/compare": {
+    h1: "Compare Nepali vs Indonesian Rudraksha & Mukhi Beads",
+    title: "Compare Rudraksha Beads — Nepali vs Indonesian, Mukhi & Benefits | Aura Rudraksha",
+    description: "Side-by-side comparison of 1 to 21 Mukhi Rudraksha beads: ruling deity, planet, Beej Mantra, origin, and spiritual benefits.",
+    categoryName: "Comparison Guide",
+    changefreq: "weekly",
+    priority: "0.75",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Compare Rudraksha", path: "/compare" }
+    ]
+  },
+  "/pran-pratishtha": {
+    h1: "Vedic Pran Pratishtha & Rudraksha Energization Vidhi",
+    title: "Rudraksha Pran Pratishtha & Energization Process | Aura Rudraksha",
+    description: "Learn how every Aura Rudraksha bead is purified with Panchamrit, holy Ganga Jal, Bhasma, and 108 Vedic Beej Mantra recitations before dispatch.",
+    categoryName: "Vedic Rituals",
+    changefreq: "monthly",
+    priority: "0.8",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Pran Pratishtha", path: "/pran-pratishtha" }
+    ]
+  },
+  "/vedic-tools": {
+    h1: "Free Vedic Astrology, Rashi & Rudraksha Spiritual Tools",
+    title: "Free Vedic Rudraksha Tools — Rashi Calculator, Japa Counter & Certificate Check | Aura Rudraksha",
+    description: "100% free public Vedic spiritual tools: Rashi & Nakshatra Rudraksha calculator, 108 Japa Mala counter, bead comparison, and lab certificate verification.",
+    categoryName: "Vedic Tools",
+    changefreq: "weekly",
+    priority: "0.85",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Vedic Tools", path: "/vedic-tools" }
+    ]
+  },
+  "/wholesale": {
+    h1: "Wholesale & Bulk Authentic Nepali Rudraksha Supply",
+    title: "Wholesale Authentic Rudraksha & Temple Supply | Aura Rudraksha",
+    description: "Bulk and wholesale lab-certified Nepali and Indonesian Rudraksha beads and 108+1 Japa Malas for temples, acharyas, astrologers, and spiritual stores.",
+    categoryName: "Wholesale",
+    changefreq: "monthly",
+    priority: "0.7",
+    breadcrumbs: [
+      { name: "Home", path: "/" },
+      { name: "Wholesale", path: "/wholesale" }
     ]
   }
 };
@@ -861,7 +946,9 @@ export async function generateMerchantFeedXml(req) {
     const slugOrId = p.slug || p.id || p._id;
     if (!slugOrId) continue;
     const prodUrl = `${baseUrl}/product/${slugOrId}`;
-    const imgList = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || SEO_BRAND.defaultImage];
+    const rawImgList = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || SEO_BRAND.defaultImage];
+    const rasterImgs = rawImgList.filter(url => typeof url === "string" && url && !url.toLowerCase().endsWith(".svg") && !url.includes("placeholder.svg"));
+    const imgList = rasterImgs.length > 0 ? rasterImgs : [SEO_BRAND.defaultImage];
     const primaryImg = imgList[0];
     const fullPrimaryImg = primaryImg.startsWith("http") ? primaryImg : `${baseUrl}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
     const inStock = (p.stock === undefined || Number(p.stock) > 0) && p.status !== "Out of Stock";
@@ -933,6 +1020,49 @@ export async function generateMerchantFeedXml(req) {
 export function generateRobotsTxt(req) {
   const baseUrl = getSiteBaseUrl(req);
   const lines = [
+    "# Aura Rudraksha — Official Search Engine & Ad Crawler Directives",
+    "User-agent: Googlebot",
+    "Allow: /",
+    "",
+    "User-agent: Googlebot-Image",
+    "Allow: /",
+    "",
+    "User-agent: Storebot-Google",
+    "Allow: /",
+    "",
+    "User-agent: AdsBot-Google",
+    "Allow: /",
+    "",
+    "User-agent: AdsBot-Google-Mobile",
+    "Allow: /",
+    "",
+    "User-agent: Bingbot",
+    "Allow: /",
+    "",
+    "User-agent: BraveSearch",
+    "Allow: /",
+    "",
+    "User-agent: DuckDuckBot",
+    "Allow: /",
+    "",
+    "User-agent: Applebot",
+    "Allow: /",
+    "",
+    "User-agent: Slurp",
+    "Allow: /",
+    "",
+    "User-agent: Yandex",
+    "Allow: /",
+    "",
+    "User-agent: facebookexternalhit",
+    "Allow: /",
+    "",
+    "User-agent: meta-externalagent",
+    "Allow: /",
+    "",
+    "User-agent: Facebot",
+    "Allow: /",
+    "",
     "User-agent: *",
     "Allow: /",
     "Disallow: /admin",
@@ -955,6 +1085,7 @@ export function generateRobotsTxt(req) {
     "Disallow: /customer/",
     "Disallow: /api/",
     "",
+    `Host: ${baseUrl}`,
     `Sitemap: ${baseUrl}/sitemap.xml`,
     ""
   ];
@@ -996,23 +1127,37 @@ export async function resolveSeoData(pathname, req) {
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
+        "@id": `${baseUrl}/#website`,
         "name": SEO_BRAND.name,
         "alternateName": "Aura Rudraksha Official Store",
-        "url": baseUrl,
+        "url": `${baseUrl}/`,
         "potentialAction": {
           "@type": "SearchAction",
-          "target": `${baseUrl}/shop?q={search_term_string}`,
+          "target": `${baseUrl}/shop?search={search_term_string}`,
           "query-input": "required name=search_term_string"
         }
       },
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
+        "@type": ["Organization", "OnlineStore"],
+        "@id": `${baseUrl}/#organization`,
         "name": SEO_BRAND.name,
         "legalName": SEO_BRAND.legalName,
-        "url": baseUrl,
+        "url": `${baseUrl}/`,
         "logo": SEO_BRAND.logo,
         "image": SEO_BRAND.defaultImage,
+        "description": SEO_BRAND.description,
+        "telephone": SEO_BRAND.supportPhone,
+        "email": SEO_BRAND.supportEmail,
+        "priceRange": "₹299 - ₹85,000",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Near Kalyan Circle, Station Road",
+          "addressLocality": "Sikar",
+          "addressRegion": "Rajasthan",
+          "postalCode": "332001",
+          "addressCountry": "IN"
+        },
         "contactPoint": {
           "@type": "ContactPoint",
           "telephone": SEO_BRAND.supportPhone,
@@ -1302,12 +1447,13 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   if (seo.canonical) {
     headInjections += `  <link rel="canonical" href="${escapeXml(seo.canonical)}" />\n`;
   }
+  headInjections += `  <link rel="sitemap" type="application/xml" title="Sitemap" href="${escapeXml(baseUrl)}/sitemap.xml" />\n`;
 
   if (googleSiteVerification) {
     headInjections += `  <meta name="google-site-verification" content="${escapeXml(googleSiteVerification)}" />\n`;
   }
 
-  // OpenGraph Tags formatted for WhatsApp, Facebook, Telegram, iMessage
+  // OpenGraph Tags formatted for WhatsApp, Facebook, Instagram, Telegram, iMessage
   let rawOgImage = seo.ogImage || SEO_BRAND.defaultImage;
   if (rawOgImage && !rawOgImage.startsWith("http")) {
     rawOgImage = `${baseUrl}${rawOgImage.startsWith("/") ? "" : "/"}${rawOgImage}`;
@@ -1339,7 +1485,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   headInjections += `  <meta name="twitter:description" content="${escapeXml(seo.description)}" />\n`;
   headInjections += `  <meta name="twitter:image" content="${safeOgImage}" />\n`;
 
-  // Rich Product Meta Tags for WhatsApp / Facebook Commerce Catalog Preview
+  // Rich Product Meta Tags for WhatsApp / Facebook / Instagram Commerce Catalog Preview
   if (seo.product) {
     const prodPrice = Number(seo.product.price || 0);
     const prodInStock = (seo.product.stock === undefined || Number(seo.product.stock) > 0) && seo.product.status !== "Out of Stock";
@@ -1349,6 +1495,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     }
     headInjections += `  <meta property="product:availability" content="${prodInStock ? "in stock" : "out of stock"}" />\n`;
     headInjections += `  <meta property="product:brand" content="${escapeXml(SEO_BRAND.name)}" />\n`;
+    headInjections += `  <meta property="product:condition" content="new" />\n`;
   }
 
   // Structured Data (JSON-LD)
@@ -1363,6 +1510,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   result = result.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']canonical["'][^>]*>/gi, "");
+  result = result.replace(/<link\s+rel=["']sitemap["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']image_src["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+itemprop=["']image["'][^>]*>/gi, "");
   result = result.replace(/<script\s+type=["']application\/ld\+json["']>[\s\S]*?<\/script>/gi, "");
@@ -1374,10 +1522,10 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     result = result.replace("<head>", `<head>\n${headInjections}`);
   }
 
-  // 3. Pre-render Crawlable Semantic HTML inside <div id="root"></div> for non-JS search crawlers
-  // When React mounts in a real user browser, <div id="root"></div> remains clean so React mounts with 0ms stall.
+  // 3. Pre-render Crawlable Semantic HTML inside <div id="root"></div> for search & social crawlers
+  // Covers Googlebot, Brave Search, Bingbot, DuckDuckBot, Applebot, Yandex, Yahoo Slurp, Meta/Instagram/Facebook Ads crawlers, etc.
   const userAgent = (req?.headers?.["user-agent"] || "").toLowerCase();
-  const isBot = /bot|crawl|spider|facebookexternalhit|whatsapp|telegram|twitter|slack|linkedin|bing|google/i.test(userAgent);
+  const isBot = /bot|crawl|spider|facebookexternalhit|meta-externalagent|facebot|instagram|whatsapp|telegram|twitter|slack|linkedin|bing|google|brave|duckduck|slurp|yandex|baidu|applebot|pinterest|adsbot|mediapartners|inspectiontool|lighthouse|pagespeed/i.test(userAgent);
 
   if (isBot && seo.h1 && !seo.noindex) {
     let crawlableHtml = `<div id="root">\n  <main style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:960px;margin:30px auto;padding:0 24px;color:#1a100b;line-height:1.6;">\n`;
@@ -1427,7 +1575,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
       }
 
       crawlableHtml += `        <p style="margin:8px 0;color:${inStock ? '#166534' : '#991b1b'};font-weight:600;">\n`;
-      crawlableHtml += `          ● ${inStock ? 'In Stock — Dispatched within 24 Hours with Insurance' : 'Currently Out of Stock'}\n`;
+      crawlableHtml += `          ● ${inStock ? 'In Stock — Dispatched within 24 Hours with Insurance (COD & Online Available)' : 'Currently Out of Stock'}\n`;
       crawlableHtml += `        </p>\n`;
 
       crawlableHtml += `        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">\n`;
@@ -1462,9 +1610,51 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
 
       crawlableHtml += `    <section style="margin-top:28px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:18px;">\n`;
       crawlableHtml += `      <h3 style="font-size:16px;font-weight:700;color:#1f2937;margin:0 0 8px 0;">🛡️ Aura Rudraksha Trust &amp; Shipping Guarantee</h3>\n`;
-      crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0 0 6px 0;">✓ <strong>Free Express Shipping:</strong> Fast insured delivery across India within 3–5 business days.</p>\n`;
+      crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0 0 6px 0;">✓ <strong>Free Express Shipping:</strong> Fast insured delivery across India within 3–5 business days (Cash on Delivery &amp; Prepaid UPI/Cards).</p>\n`;
       crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0 0 6px 0;">✓ <strong>Authenticity Lab Certificate:</strong> Physical identification card verifying bead density, natural seed lines, and purity.</p>\n`;
       crawlableHtml += `      <p style="font-size:14px;color:#4b5563;margin:0;">✓ <strong>7-Day Sacred Return Policy:</strong> 100% money-back guarantee if unsatisfied with the sanctified bead.</p>\n`;
+      crawlableHtml += `    </section>\n`;
+    } else {
+      // Render complete crawlable product catalog & category internal links for Google, Brave, Bing, DuckDuckGo & Meta crawlers
+      const publicProducts = await getPublicProductsForSeo();
+      crawlableHtml += `    <section style="margin-top:28px;">\n`;
+      crawlableHtml += `      <h2 style="font-size:22px;font-weight:700;color:#2a160d;border-bottom:2px solid #8c3e1e;padding-bottom:6px;margin-bottom:16px;">Authentic Lab-Certified Rudraksha &amp; Sacred Mala Catalog</h2>\n`;
+      crawlableHtml += `      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">\n`;
+      for (const item of (publicProducts || []).slice(0, 40)) {
+        if (!item) continue;
+        const itemSlug = item.slug || item.id || item._id;
+        if (!itemSlug) continue;
+        const itemUrl = `${baseUrl}/product/${itemSlug}`;
+        const itemPrice = Number(item.price) || 0;
+        crawlableHtml += `        <article style="background:#fff9f4;border:1px solid #ebdccb;border-radius:10px;padding:14px;">\n`;
+        crawlableHtml += `          <h3 style="font-size:16px;margin:0 0 6px 0;"><a href="${escapeXml(itemUrl)}" style="color:#8c3e1e;text-decoration:none;">${escapeXml(item.name || "Sacred Rudraksha")}</a></h3>\n`;
+        if (itemPrice > 0) {
+          crawlableHtml += `          <p style="font-weight:700;color:#1e4620;margin:0 0 6px 0;">₹${itemPrice.toLocaleString("en-IN")} — Lab Certified</p>\n`;
+        }
+        crawlableHtml += `          <p style="font-size:13px;color:#4a3b32;margin:0;">${escapeXml(String(item.highlight || item.description || "100% Genuine Lab-Certified Nepali Rudraksha").slice(0, 140))}</p>\n`;
+        crawlableHtml += `        </article>\n`;
+      }
+      crawlableHtml += `      </div>\n`;
+      crawlableHtml += `    </section>\n`;
+
+      crawlableHtml += `    <section style="margin-top:32px;">\n`;
+      crawlableHtml += `      <h2 style="font-size:20px;font-weight:700;color:#2a160d;margin-bottom:12px;">Explore 1 to 21 Mukhi Rudraksha &amp; Vedic Guides</h2>\n`;
+      crawlableHtml += `      <ul style="columns:2;gap:24px;padding-left:20px;font-size:14px;">\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/shop">Shop All Authentic Rudraksha Beads</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/rudraksha">Complete 1–21 Mukhi Rudraksha Guide</a></li>\n`;
+      for (let m = 1; m <= 21; m++) {
+        crawlableHtml += `        <li><a href="${baseUrl}/rudraksha/${m}-mukhi">${m} Mukhi Rudraksha — Benefits, Mantra &amp; Price</a></li>\n`;
+      }
+      crawlableHtml += `        <li><a href="${baseUrl}/rudraksha/gauri-shankar">Gauri Shankar Rudraksha</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/rudraksha/ganesh-rudraksha">Ganesh Rudraksha</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/rudraksha/mala">108+1 Japa Malas &amp; Siddha Malas</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/verify-certificate">Verify Lab Certificate Online</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/rudraksha-recommendation">Free Rashi &amp; Nakshatra Rudraksha Recommendation</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/about">About Aura Rudraksha</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/contact">Contact Customer Care (+91 9672996531)</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/shipping-policy">Free Insured Shipping Policy</a></li>\n`;
+      crawlableHtml += `        <li><a href="${baseUrl}/return-policy">7-Day Sacred Return Policy</a></li>\n`;
+      crawlableHtml += `      </ul>\n`;
       crawlableHtml += `    </section>\n`;
     }
 
@@ -1477,11 +1667,7 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     }
 
     crawlableHtml += `  </main>\n</div>`;
-    if (result.includes('<div id="root"></div>')) {
-      result = result.replace('<div id="root"></div>', crawlableHtml);
-    } else {
-      result = result.replace(/<div\s+id=["']root["']>[\s\S]*?<\/div>/i, crawlableHtml);
-    }
+    result = result.replace(/<div\s+id=["']root["']>[\s\S]*?<\/div>/i, crawlableHtml);
   }
 
   return result;

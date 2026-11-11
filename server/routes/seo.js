@@ -5,7 +5,7 @@ import {
   generateRobotsTxt,
   getPublicProductsForSeo
 } from "../services/seoService.js";
-import { getIndexNowKey } from "../services/indexNowService.js";
+import { getIndexNowKey, submitToIndexNow } from "../services/indexNowService.js";
 import { connectDB, isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 
@@ -80,9 +80,7 @@ function filterSitemapToLiveProducts(xml, catalog) {
 }
 
 function stripUnsupportedMerchantAttributes(xml) {
-  // Google Merchant Center has flagged the previous custom country_of_origin
-  // feed field. Origin remains available in product content, while the feed
-  // emits only the attributes supported by its selected source format.
+  // Google Merchant Center & Meta Commerce Manager feed compatibility
   return xml.replace(/\s*<g:country_of_origin>[\s\S]*?<\/g:country_of_origin>/gi, "");
 }
 
@@ -102,7 +100,16 @@ router.get(["/sitemap.xml", "/api/sitemap.xml"], async (req, res, next) => {
   }
 });
 
-router.get(["/google-merchant-feed.xml", "/merchant-feed.xml", "/api/google-merchant-feed.xml", "/api/merchant-feed.xml"], async (req, res, next) => {
+router.get([
+  "/google-merchant-feed.xml",
+  "/merchant-feed.xml",
+  "/facebook-catalog-feed.xml",
+  "/meta-catalog-feed.xml",
+  "/api/google-merchant-feed.xml",
+  "/api/merchant-feed.xml",
+  "/api/facebook-catalog-feed.xml",
+  "/api/meta-catalog-feed.xml"
+], async (req, res, next) => {
   try {
     const catalog = await getPublishedCatalogKeys();
     if (!catalog) {
@@ -123,6 +130,59 @@ router.get(["/robots.txt", "/api/robots.txt"], (req, res) => {
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=86400");
   return res.send(txt);
+});
+
+router.get("/api/seo/status", async (req, res) => {
+  try {
+    const products = await getPublicProductsForSeo();
+    return res.json({
+      success: true,
+      indexedProducts: Array.isArray(products) ? products.length : 0,
+      sitemapUrl: "https://aurarudraksha.bond/sitemap.xml",
+      robotsUrl: "https://aurarudraksha.bond/robots.txt",
+      googleMerchantFeedUrl: "https://aurarudraksha.bond/google-merchant-feed.xml",
+      metaCatalogFeedUrl: "https://aurarudraksha.bond/facebook-catalog-feed.xml",
+      indexNowKey: getIndexNowKey(),
+      searchEnginesReady: ["Google", "Brave Search", "Bing", "DuckDuckGo", "Yahoo", "Yandex"],
+      adsPlatformsReady: ["Instagram Ads", "Facebook Ads", "Meta Advantage+ Catalog", "Google Shopping"]
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err?.message || "SEO status check failed" });
+  }
+});
+
+router.post("/api/seo/ping", async (req, res) => {
+  try {
+    const products = await getPublicProductsForSeo();
+    const baseUrl = "https://aurarudraksha.bond";
+    const urls = [
+      `${baseUrl}/`,
+      `${baseUrl}/shop`,
+      `${baseUrl}/rudraksha`,
+      `${baseUrl}/categories`,
+      `${baseUrl}/verify-certificate`,
+      `${baseUrl}/rudraksha-recommendation`,
+      `${baseUrl}/about`,
+      `${baseUrl}/contact`
+    ];
+    for (let m = 1; m <= 21; m++) {
+      urls.push(`${baseUrl}/rudraksha/${m}-mukhi`);
+    }
+    if (Array.isArray(products)) {
+      for (const p of products) {
+        const slugOrId = p?.slug || p?.id || p?._id;
+        if (slugOrId) urls.push(`${baseUrl}/product/${slugOrId}`);
+      }
+    }
+    submitToIndexNow(urls, req).catch(() => {});
+    return res.json({
+      success: true,
+      urlCount: urls.length,
+      message: "Submitted live URLs to IndexNow (Bing, Yandex, Brave/Seznam ecosystem) and refreshed sitemap."
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err?.message || "SEO ping failed" });
+  }
 });
 
 router.get(["/indexnow-key.txt", "/api/indexnow-key.txt", "/:key.txt", "/api/:key.txt"], (req, res, next) => {

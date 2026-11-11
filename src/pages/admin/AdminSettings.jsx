@@ -31,11 +31,11 @@ export function AdminSettings() {
     }).catch(() => {});
 
     const unsub = onStoreUpdate((e) => {
-      const action = e?.detail?.action || "";
-      if (action === "settings:saved" || action === "settings:synced") {
+      const action = e?.type || e?.detail?.action || "";
+      if (action === "settings:saved" || action === "settings:synced" || action === "settings:updated") {
         setSettings(db.getSettings());
         setPolicies(db.getPolicies());
-      } else if (action === "policies:saved") {
+      } else if (action === "policies:saved" || action === "policies:updated") {
         setPolicies(db.getPolicies());
       } else if (action.startsWith("ticket")) {
         setTickets(db.getTickets());
@@ -300,22 +300,50 @@ export function AdminSettings() {
           </div>
         </div>
 
-        {/* 📢 META ADS (FACEBOOK & INSTAGRAM PIXEL) CONFIGURATION */}
+        {/* 📢 META ADS (FACEBOOK & INSTAGRAM PIXEL) & SEARCH ENGINE INDEXING */}
         <div style={{ marginTop: "28px", borderTop: "2px solid var(--line)", paddingTop: "24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
             <div>
               <h2 className="admin-section-heading" style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, fontSize: "18px", color: "#2b170d" }}>
-                <Megaphone size={20} color="#1877F2" /> Meta Ads & Facebook / Instagram Pixel (मेटा विज्ञापन ट्रैकिंग)
+                <Megaphone size={20} color="#1877F2" /> Meta Ads (Instagram / Facebook Pixel) & Search Engine Indexing
               </h2>
               <p style={{ fontSize: "12.5px", color: "var(--muted)", margin: "4px 0 0" }}>
-                Automatically tracks <b>PageView</b>, <b>ViewContent</b>, <b>AddToCart</b>, <b>InitiateCheckout</b>, and <b>Purchase</b> (both Online & COD) for high-ROAS Meta Ads campaigns.
+                Automatically tracks <b>PageView</b>, <b>ViewContent</b>, <b>AddToCart</b>, <b>InitiateCheckout</b>, and <b>Purchase</b> (both Online & COD) for Instagram & Facebook Ads.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/seo/ping", { method: "POST" });
+                  const data = await res.json();
+                  if (data && data.success) {
+                    emitToast(`Pinged Google, Brave, Bing & IndexNow with ${data.urlCount || "all"} live URLs!`, "success");
+                  } else {
+                    emitToast("Search engine sitemap ping completed!", "success");
+                  }
+                } catch (_) {
+                  emitToast("Search engine index ping triggered!", "info");
+                }
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid #1877F2",
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                fontWeight: "700",
+                fontSize: "12px",
+                cursor: "pointer"
+              }}
+            >
+              🚀 Ping Google, Brave & Bing Search Now
+            </button>
           </div>
 
           <div className="admin-form-row">
             <div className="admin-form-group">
-              <label htmlFor="metaPixelId" style={{ fontWeight: "700" }}>Meta Pixel ID (Dataset ID)</label>
+              <label htmlFor="metaPixelId" style={{ fontWeight: "700" }}>Meta Pixel ID (Instagram & Facebook Dataset ID)</label>
               <input
                 id="metaPixelId"
                 type="text"
@@ -335,11 +363,26 @@ export function AdminSettings() {
                   checked={settings.metaPixelEnabled !== false}
                   onChange={(e) => handleInstantToggleSetting("metaPixelEnabled", e.target.checked, "Meta Pixel Tracking")}
                 />
-                <span>Enable Meta Ads Conversion Tracking & Attribution (fbclid / UTM)</span>
+                <span>Enable Meta Ads Conversion Tracking & Attribution (fbclid / igshid / UTM)</span>
               </label>
               <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", marginLeft: "24px", display: "block" }}>
-                Guest checkout without forced login is active so visitors from Instagram/Facebook ads can buy via COD or Online in 1 step.
+                1-Step Guest Checkout (Optional Email + COD + UPI) is active for Instagram & Facebook ad traffic.
               </small>
+            </div>
+          </div>
+
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px", marginTop: "8px", fontSize: "12px", color: "#334155", display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "space-between" }}>
+            <div>
+              <strong>📦 Meta Commerce / Instagram Shop Product Feed XML:</strong>{" "}
+              <a href="/facebook-catalog-feed.xml" target="_blank" rel="noopener noreferrer" style={{ color: "#1d4ed8", textDecoration: "underline" }}>
+                https://aurarudraksha.bond/facebook-catalog-feed.xml
+              </a>
+            </div>
+            <div>
+              <strong>🔍 Google & Brave Search Sitemap XML:</strong>{" "}
+              <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" style={{ color: "#1d4ed8", textDecoration: "underline" }}>
+                https://aurarudraksha.bond/sitemap.xml
+              </a>
             </div>
           </div>
         </div>

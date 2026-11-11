@@ -22,7 +22,7 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate, max-age=0"
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
@@ -96,6 +96,8 @@
     { "source": "/robots.txt", "destination": "/api/index.js" },
     { "source": "/google-merchant-feed.xml", "destination": "/api/index.js" },
     { "source": "/merchant-feed.xml", "destination": "/api/index.js" },
+    { "source": "/facebook-catalog-feed.xml", "destination": "/api/index.js" },
+    { "source": "/meta-catalog-feed.xml", "destination": "/api/index.js" },
     { "source": "/api/(.*)", "destination": "/api/index.js" },
     { "source": "/((?!assets/|images/|favicon\\.jpg|apple-touch-icon\\.png|manifest\\.json|sw\\.js|.*\\.(?:jpg|jpeg|png|gif|svg|webp|ico|woff2?|css|js|map)).*)", "destination": "/api/index.js" }
   ]

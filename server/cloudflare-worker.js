@@ -11,8 +11,18 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Proxy `/api/*` requests to the backend server if BACKEND_URL is configured
-    if (url.pathname.startsWith("/api/")) {
+    const isSeoOrFeedRoute =
+      url.pathname === "/sitemap.xml" ||
+      url.pathname === "/robots.txt" ||
+      url.pathname === "/google-merchant-feed.xml" ||
+      url.pathname === "/merchant-feed.xml" ||
+      url.pathname === "/facebook-catalog-feed.xml" ||
+      url.pathname === "/meta-catalog-feed.xml" ||
+      url.pathname === "/indexnow-key.txt" ||
+      url.pathname === "/65afe1e2dec4bf210d1a3ce75cb3c7a0.txt";
+
+    // Proxy `/api/*` and live SEO/Catalog XML routes to the backend server if BACKEND_URL is configured
+    if (url.pathname.startsWith("/api/") || isSeoOrFeedRoute) {
       const backendOrigin = env.BACKEND_URL || env.API_BASE_URL || env.VITE_API_BASE_URL;
       if (backendOrigin) {
         try {
@@ -20,24 +30,29 @@ export default {
           const headers = new Headers(request.headers);
           headers.set("Host", new URL(backendOrigin).host);
 
-          return await fetch(targetUrl.toString(), {
+          const backendRes = await fetch(targetUrl.toString(), {
             method: request.method,
             headers,
             body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
             redirect: "follow",
           });
+          if (backendRes.ok || url.pathname.startsWith("/api/")) {
+            return backendRes;
+          }
         } catch (err) {
-          return new Response(
-            JSON.stringify({
-              error: "Backend proxy error",
-              message: "Failed to connect to backend server.",
-              details: err?.message || String(err),
-            }),
-            {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
+          if (url.pathname.startsWith("/api/")) {
+            return new Response(
+              JSON.stringify({
+                error: "Backend proxy error",
+                message: "Failed to connect to backend server.",
+                details: err?.message || String(err),
+              }),
+              {
+                status: 502,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
+          }
         }
       }
     }

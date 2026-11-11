@@ -40,6 +40,7 @@ const CUSTOMER_ORDER_FIELDS = {
   paymentMode: "string",
   orderSource: "string",
   source: "string",
+  adAttribution: "object",
   idempotencyKey: "string"
 };
 
@@ -556,8 +557,9 @@ export async function createOrder(req, res, next) {
       totalSavings: totals.totalSavings,
       status: initialOrderStatus,
       orderStatus: initialOrderStatus,
-      orderSource: data.orderSource || data.source || "website",
-      source: data.orderSource || data.source || "website",
+      orderSource: data.orderSource || data.source || data.adAttribution?.utmSource || "website",
+      source: data.orderSource || data.source || data.adAttribution?.utmSource || "website",
+      adAttribution: data.adAttribution && typeof data.adAttribution === "object" ? data.adAttribution : null,
       paymentStatus: initialPaymentStatus,
       paymentMethod: resolvedPaymentMethod,
       paymentMode: isCodOrder ? "COD" : (data.paymentMode || ""),

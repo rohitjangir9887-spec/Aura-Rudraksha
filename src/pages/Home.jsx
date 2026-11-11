@@ -79,13 +79,22 @@ export function Home() {
         prev.length === freshProducts.length &&
         prev.every(
           (p, i) =>
-            p.id === freshProducts[i]?.id &&
+            p === freshProducts[i] ||
+            (p.id === freshProducts[i]?.id &&
+            p.name === freshProducts[i]?.name &&
             p.price === freshProducts[i]?.price &&
+            p.mrp === freshProducts[i]?.mrp &&
+            p.img === freshProducts[i]?.img &&
             p.stock === freshProducts[i]?.stock &&
             p.homeOrder === freshProducts[i]?.homeOrder &&
+            p.sortOrder === freshProducts[i]?.sortOrder &&
+            p.displayOrder === freshProducts[i]?.displayOrder &&
             p.showOnHome === freshProducts[i]?.showOnHome &&
             p.isPopular === freshProducts[i]?.isPopular &&
-            p.reviews === freshProducts[i]?.reviews
+            p.homeBadge === freshProducts[i]?.homeBadge &&
+            p.badge === freshProducts[i]?.badge &&
+            p.reviews === freshProducts[i]?.reviews &&
+            p.updatedAt === freshProducts[i]?.updatedAt)
         )
       ) {
         return prev;

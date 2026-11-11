@@ -52,6 +52,7 @@ const orderSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     orderSource: { type: String, default: "website" },
     source: { type: String, default: "website" },
+    adAttribution: { type: mongoose.Schema.Types.Mixed, default: null },
     trackingNumber: { type: String, default: "" },
     trackingId: { type: String, default: "" },
     courierName: { type: String, default: "" },

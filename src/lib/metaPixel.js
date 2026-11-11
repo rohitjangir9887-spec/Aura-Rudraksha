@@ -5,28 +5,33 @@
  */
 
 let initializedPixelId = null;
+let lastTrackedPageViewPath = "";
 const firedPurchaseOrderIds = new Set();
 
 /**
- * Capture UTM parameters & fbclid from Meta Ads clicks for order attribution
+ * Capture UTM parameters, fbclid & igshid from Meta (Facebook / Instagram) Ads clicks for order attribution
  */
 export function captureAdAttribution() {
   if (typeof window === "undefined") return;
   try {
     const params = new URLSearchParams(window.location.search);
     const fbclid = params.get("fbclid") || "";
+    const igshid = params.get("igshid") || params.get("igsh") || "";
     const utmSource = params.get("utm_source") || "";
     const utmMedium = params.get("utm_medium") || "";
     const utmCampaign = params.get("utm_campaign") || "";
     const utmContent = params.get("utm_content") || "";
+    const utmTerm = params.get("utm_term") || "";
 
-    if (fbclid || utmSource || utmCampaign) {
+    if (fbclid || igshid || utmSource || utmCampaign) {
       const attribution = {
-        fbclid,
-        utmSource: utmSource || (fbclid ? "meta_ads" : ""),
-        utmMedium: utmMedium || (fbclid ? "paid_social" : ""),
+        fbclid: fbclid || igshid,
+        igshid,
+        utmSource: utmSource || (igshid ? "instagram_ads" : fbclid ? "facebook_ads" : ""),
+        utmMedium: utmMedium || ((fbclid || igshid) ? "paid_social" : ""),
         utmCampaign,
         utmContent,
+        utmTerm,
         landingPage: window.location.pathname,
         timestamp: new Date().toISOString()
       };
@@ -101,6 +106,7 @@ export function initMetaPixel(customPixelId = null, settings = null) {
         t = b.createElement(e);
         t.async = !0;
         t.src = v;
+        t.onerror = function () {};
         s = b.getElementsByTagName(e)[0];
         if (s && s.parentNode) s.parentNode.insertBefore(t, s);
       })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
@@ -110,6 +116,12 @@ export function initMetaPixel(customPixelId = null, settings = null) {
     if (initializedPixelId !== pixelId) {
       window.fbq("init", pixelId);
       initializedPixelId = pixelId;
+      // Ensure first-visit PageView is fired immediately even if settings loaded asynchronously after initial render
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      if (lastTrackedPageViewPath !== currentPath) {
+        window.fbq("track", "PageView");
+        lastTrackedPageViewPath = currentPath;
+      }
     }
     return true;
   } catch (_) {
@@ -125,7 +137,11 @@ export function trackMetaPageView() {
   try {
     captureAdAttribution();
     if (initMetaPixel() && typeof window.fbq === "function") {
-      window.fbq("track", "PageView");
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      if (lastTrackedPageViewPath !== currentPath) {
+        window.fbq("track", "PageView");
+        lastTrackedPageViewPath = currentPath;
+      }
     }
   } catch (_) {}
 }

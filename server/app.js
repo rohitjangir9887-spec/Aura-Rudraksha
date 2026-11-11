@@ -148,12 +148,12 @@ export function createApp(options = {}) {
 
     const cspDirectives = [
       "default-src 'self' https: data: blob:",
-      `script-src 'self' 'unsafe-inline' blob: ${isDev ? "'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in`,
+      `script-src 'self' 'unsafe-inline' blob: ${isDev ? "'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://connect.facebook.net https://*.facebook.com https://*.facebook.net https://instant.page https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in`,
       "style-src 'self' 'unsafe-inline' https: data:",
       "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https:",
+      "img-src 'self' data: blob: https: http:",
       "connect-src 'self' https: http: wss: ws:",
-      "frame-src 'self' https: http: https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
+      "frame-src 'self' https: http: https://www.facebook.com https://web.facebook.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
       "object-src 'none'",
       "base-uri 'self'",
       "frame-ancestors *"
@@ -366,7 +366,7 @@ export function createApp(options = {}) {
           return res.redirect(301, redirectUrl);
         }
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
         return res.status(status).send(html);
       } catch (err) {
         console.warn("[SSR Page Rendering Notice]:", err?.message || err);

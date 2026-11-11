@@ -1,11 +1,67 @@
+# Aura Rudraksha — Official Search Engine & Ad Crawler Directives
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Storebot-Google
+Allow: /
+
+User-agent: AdsBot-Google
+Allow: /
+
+User-agent: AdsBot-Google-Mobile
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: BraveSearch
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: Yandex
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: Facebot
+Allow: /
+
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /admin/
 Disallow: /account
+Disallow: /account/
 Disallow: /checkout
+Disallow: /checkout/
 Disallow: /cart
+Disallow: /cart/
 Disallow: /orders
+Disallow: /orders/
 Disallow: /payment
+Disallow: /payment/
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /wishlist
+Disallow: /customer
+Disallow: /customer/
 Disallow: /api/
 
+Host: https://aurarudraksha.bond
 Sitemap: https://aurarudraksha.bond/sitemap.xml

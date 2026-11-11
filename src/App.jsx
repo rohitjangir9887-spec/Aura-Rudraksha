@@ -190,6 +190,8 @@ export function App() {
 
           {/* Vedic Astrological Guides & Mukhi Calculator */}
           <Route path="/rudraksha-calculator" element={<RudrakshaCalculator />} />
+          <Route path="/rudraksha-recommendation" element={<RudrakshaCalculator />} />
+          <Route path="/recommendation" element={<Navigate to="/rudraksha-recommendation" replace />} />
           <Route path="/rudraksha-for-rashi" element={<RudrakshaCalculator />} />
           <Route path="/how-to-wear-rudraksha" element={<RudrakshaGuide />} />
           <Route path="/rudraksha-benefits" element={<RudrakshaGuide />} />

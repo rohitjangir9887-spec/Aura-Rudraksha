@@ -58,7 +58,7 @@ async function startServer() {
         transformedHtml = transformedHtml.replace(/<script\s+type=["']module["']\s+src=["']\/@vite\/client["']><\/script>\s*/gi, "");
         const finalHtml = await safeInjectSeo(transformedHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
         return res.status(200).send(finalHtml);
       } catch (err: any) {
         console.warn("[Dev HTML Render Notice]:", err?.message || err);
@@ -79,11 +79,11 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath, {
+      index: false, // Let GET / fall through to safeInjectSeo so Homepage always has dynamic SEO & JSON-LD
       maxAge: '7d', // Cache static assets for 7 days
       setHeaders: (res, filePath) => {
         if (filePath.endsWith('.html')) {
-          // Do not cache HTML files to ensure always fresh SPA entry
-          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
         } else if (/\.(jpg|jpeg|png|gif|svg|webp|ico|avif)$/i.test(filePath)) {
           // High-performance image caching with stale-while-revalidate
           res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
@@ -114,7 +114,7 @@ async function startServer() {
         }
         const finalHtml = await safeInjectSeo(cachedDistHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
         return res.status(200).send(finalHtml);
       } catch (err) {
         console.warn("[Prod SEO HTML Fallback Notice]:", err);
