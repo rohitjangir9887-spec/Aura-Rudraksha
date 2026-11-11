@@ -35,7 +35,7 @@ router.route("/my/payment-alert")
 
 router.route("/")
   .get(requireAdmin, getOrders)
-  .post(requireAuth, createOrder);
+  .post(optionalAuth, createOrder);
 
 router.route("/:id")
   .get(optionalAuth, getOrderById)

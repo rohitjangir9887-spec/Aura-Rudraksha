@@ -1,6 +1,7 @@
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
+import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { recordProductSalesIncrement } from "./productController.js";
@@ -35,6 +36,8 @@ const CUSTOMER_ORDER_FIELDS = {
   notes: "string",
   couponCode: "string",
   coupon: "string",
+  paymentMethod: "string",
+  paymentMode: "string",
   orderSource: "string",
   source: "string",
   idempotencyKey: "string"
@@ -345,11 +348,30 @@ export async function createOrder(req, res, next) {
   }
 
   const data = pickFields(req.body, CUSTOMER_ORDER_FIELDS);
-  const authUserId = req.user.authUserId;
+  const authUserId = req.user?.authUserId || null;
+  const isGuest = !authUserId;
+  const guestToken = isGuest ? crypto.randomBytes(24).toString("hex") : "";
+  const effectiveAuthUserId = authUserId || `guest_${data.phone || data.customerPhone || data.customerEmail || req.ip || Date.now()}`;
 
   const rawLines = data.lines || data.items || [];
   if (!Array.isArray(rawLines) || rawLines.length === 0) {
     return res.status(400).json({ success: false, message: "Order must contain valid items" });
+  }
+
+  const rawPaymentMethod = String(data.paymentMethod || data.paymentMode || "").trim();
+  const isCodOrder = rawPaymentMethod.toUpperCase().includes("COD") || rawPaymentMethod.toLowerCase().includes("cash on delivery");
+
+  let storeSettings = null;
+  try {
+    storeSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+  } catch (_) {}
+
+  const enableCod = storeSettings?.enableCod !== undefined ? Boolean(storeSettings.enableCod) : true;
+  if (isCodOrder && !enableCod) {
+    return res.status(400).json({
+      success: false,
+      message: "Cash on Delivery (COD) is currently disabled by store administrator. Please use Online Payment."
+    });
   }
 
   // Persistent & in-memory Idempotency Guard
@@ -357,9 +379,9 @@ export async function createOrder(req, res, next) {
   if (idempotencyKey) {
     const idempResult = await checkOrAcquireIdempotency({
       key: idempotencyKey,
-      userId: authUserId,
+      userId: effectiveAuthUserId,
       action: "create_order",
-      payload: { rawLines, couponCode: data.couponCode || data.coupon || "" }
+      payload: { rawLines, couponCode: data.couponCode || data.coupon || "", isCodOrder }
     });
 
     if (idempResult.status === "COMPLETED") {
@@ -375,7 +397,7 @@ export async function createOrder(req, res, next) {
 
   // In-flight debounce protection
   cleanRecentSubmissions();
-  const submissionKey = `${authUserId}:${JSON.stringify(rawLines)}:${data.couponCode || data.coupon || ""}`;
+  const submissionKey = `${effectiveAuthUserId}:${JSON.stringify(rawLines)}:${data.couponCode || data.coupon || ""}:${isCodOrder ? "COD" : "ONLINE"}`;
   const existingSubmission = recentOrderSubmissions.get(submissionKey);
   if (existingSubmission && (Date.now() - existingSubmission.time < 5000)) {
     if (existingSubmission.order) {
@@ -392,7 +414,7 @@ export async function createOrder(req, res, next) {
     const totals = await calculateOrderTotals({
       lines: rawLines,
       couponCode: couponCodeToValidate,
-      authUserId
+      authUserId: effectiveAuthUserId
     });
 
     if (!totals.items || totals.items.length === 0) {
@@ -431,7 +453,6 @@ export async function createOrder(req, res, next) {
     }
 
     // If coupon code was provided, verify it is APPLIED
-    let validCouponDoc = null;
     if (couponCodeToValidate) {
       if (totals.couponStatus !== "APPLIED" || !totals.couponValid) {
         recentOrderSubmissions.delete(submissionKey);
@@ -442,7 +463,6 @@ export async function createOrder(req, res, next) {
           message: totals.couponReason || "The applied coupon is invalid or expired. Please review your order."
         });
       }
-      validCouponDoc = await Coupon.findOne({ code: String(couponCodeToValidate).trim().toUpperCase() });
     }
 
     // Server always generates the permanent sequential order ID from MongoDB atomic counter
@@ -473,27 +493,45 @@ export async function createOrder(req, res, next) {
        lastName: data.lastName || ""
     };
 
-    const email = (data.customerEmail || req.user.email || "").trim().toLowerCase();
-    const phone = (data.customerPhone || data.phone || req.user.phoneNumber || "").trim();
-    const name = data.customerName || (data.firstName ? `${data.firstName} ${data.lastName || ''}`.trim() : (req.user.name || "Customer"));
+    const rawPhone = (data.customerPhone || data.phone || shippingAddress.phone || req.user?.phoneNumber || "").trim();
+    const cleanDigitsPhone = rawPhone.replace(/\D/g, "");
+    const email = (
+      data.customerEmail ||
+      shippingAddress.email ||
+      req.user?.email ||
+      (cleanDigitsPhone.length >= 10 ? `${cleanDigitsPhone.slice(-10)}@auracustomer.in` : "")
+    ).trim().toLowerCase();
+    const phone = rawPhone;
+    const name = data.customerName || (data.firstName ? `${data.firstName} ${data.lastName || ''}`.trim() : (shippingAddress.fullName || shippingAddress.firstName || req.user?.name || "Customer"));
+
+    const codFeeAmount = isCodOrder && storeSettings?.codFee && !isNaN(Number(storeSettings.codFee))
+      ? Math.max(0, Number(storeSettings.codFee))
+      : 0;
+    const finalOrderTotal = Math.max(0, (totals.finalTotal || 0) + codFeeAmount);
+    const initialOrderStatus = isCodOrder ? ORDER_STATES.CONFIRMED : ORDER_STATES.PENDING;
+    const initialPaymentStatus = isCodOrder ? PAYMENT_STATES.COD : PAYMENT_STATES.PENDING;
+    const resolvedPaymentMethod = isCodOrder
+      ? "Cash on Delivery (COD)"
+      : (data.paymentMethod || "PayU Hosted Checkout (UPI / Cards / NetBanking)");
 
     // Server-authoritative Order Payload (P0: NEVER allow client-controlled payment/order state)
     const orderPayload = {
       id,
       orderId: id,
       orderNumber: id,
-      authUserId,
-      customerId: authUserId,
+      authUserId: effectiveAuthUserId,
+      customerId: effectiveAuthUserId,
+      guestToken,
       customerName: name,
       customerEmail: email,
       customerPhone: phone,
       phone,
-      firstName: data.firstName || "",
-      lastName: data.lastName || "",
-      address: data.address || "",
-      city: data.city || "",
-      state: data.state || "",
-      pincode: data.pincode || "",
+      firstName: data.firstName || shippingAddress.firstName || "",
+      lastName: data.lastName || shippingAddress.lastName || "",
+      address: data.address || shippingAddress.address || "",
+      city: data.city || shippingAddress.city || "",
+      state: data.state || shippingAddress.state || "",
+      pincode: data.pincode || shippingAddress.pincode || "",
       shippingAddress,
       notes: data.notes || "",
       date: now,
@@ -506,29 +544,31 @@ export async function createOrder(req, res, next) {
       couponDiscount: totals.couponDiscount,
       couponCode: totals.appliedCoupon?.code || "",
       appliedCoupon: totals.appliedCoupon,
-      shipping: totals.shipping,
-      shippingFee: totals.shipping,
+      shipping: totals.shipping + codFeeAmount,
+      shippingFee: totals.shipping + codFeeAmount,
+      codFee: codFeeAmount,
       shippingDiscount: totals.shippingDiscount,
       tax: 0,
-      amount: totals.finalTotal,
-      total: totals.finalTotal,
-      finalAmount: totals.finalTotal,
+      amount: finalOrderTotal,
+      total: finalOrderTotal,
+      finalAmount: finalOrderTotal,
       savings: totals.totalSavings,
       totalSavings: totals.totalSavings,
-      status: ORDER_STATES.PENDING,
-      orderStatus: ORDER_STATES.PENDING,
+      status: initialOrderStatus,
+      orderStatus: initialOrderStatus,
       orderSource: data.orderSource || data.source || "website",
       source: data.orderSource || data.source || "website",
-      paymentStatus: PAYMENT_STATES.PENDING, // Strictly PENDING on creation!
-      paymentMethod: data.paymentMethod || "PayU Hosted Checkout (UPI / Cards / NetBanking)",
+      paymentStatus: initialPaymentStatus,
+      paymentMethod: resolvedPaymentMethod,
+      paymentMode: isCodOrder ? "COD" : (data.paymentMode || ""),
       inventoryDeducted: true, // Atomically deducted on order placement
       history: [
         createStateHistoryEntry({
           fromStatus: "NONE",
-          toStatus: ORDER_STATES.PENDING,
-          actor: authUserId,
+          toStatus: initialOrderStatus,
+          actor: effectiveAuthUserId,
           actorRole: "customer",
-          reason: "Order created",
+          reason: isCodOrder ? "Cash on Delivery (COD) order confirmed" : "Order created",
           source: "checkout"
         })
       ]
@@ -580,7 +620,7 @@ export async function createOrder(req, res, next) {
       // Auto update/create customer record in MongoDB
       try {
         await recordCustomerOrder({
-          authUserId,
+          authUserId: effectiveAuthUserId,
           email,
           phone,
           name,
@@ -591,7 +631,7 @@ export async function createOrder(req, res, next) {
         console.warn("Could not sync customer on order:", custErr.message);
       }
 
-      const responsePayload = { success: true, data: created };
+      const responsePayload = { success: true, data: created, guestToken };
 
       if (idempotencyKey) {
         await commitIdempotency({

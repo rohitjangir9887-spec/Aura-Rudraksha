@@ -7,6 +7,7 @@ import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
+import { trackMetaPurchase } from "../lib/metaPixel";
 
 export function PaymentResult() {
   const { clear } = useCart();
@@ -52,13 +53,23 @@ export function PaymentResult() {
       }
       try {
         let res = await db.verifyPayment(orderId || txnid, txnid || orderId, guestToken);
+        const checkIsPaidOrCod = (ord) => {
+          if (!ord) return false;
+          if (ord.paymentStatus === "Paid") return true;
+          const isCod =
+            ord.paymentStatus === "COD" ||
+            (ord.paymentMethod || "").toLowerCase().includes("cod") ||
+            (ord.paymentMode || "").toLowerCase() === "cod";
+          return isCod && ord.status !== "Cancelled";
+        };
+
         // If query param indicated success or processing, but server state transition is mid-flight, poll quickly
-        if (res?.data?.paymentStatus !== "Paid" && (status === "success" || status === "processing")) {
+        if (!checkIsPaidOrCod(res?.data) && (status === "success" || status === "processing")) {
           const delays = [500, 1000]; // drastically reduced wait times
           for (const delay of delays) {
             await new Promise((r) => setTimeout(r, delay));
             res = await db.verifyPayment(orderId || txnid, txnid || orderId, guestToken);
-            if (res?.data?.paymentStatus === "Paid") break;
+            if (checkIsPaidOrCod(res?.data)) break;
           }
         }
 
@@ -81,11 +92,12 @@ export function PaymentResult() {
               localStorage.setItem(`aura_order_txnid_${oId}`, tId);
             }
           }
-          // Only clear cart once payment is verified as Paid so cancelled/failed users keep their cart
-          if (res.data.paymentStatus === "Paid") {
+          // Clear cart and fire Meta Pixel Purchase once verified as Paid or Confirmed COD
+          if (checkIsPaidOrCod(res.data)) {
             try {
               sessionStorage.removeItem("aura_buy_now_intent");
               clear();
+              trackMetaPurchase(res.data);
             } catch (_) {}
           }
         }
@@ -111,8 +123,13 @@ export function PaymentResult() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  // Authoritative server-verified payment success
-  const isVerifiedSuccess = order?.paymentStatus === "Paid";
+  // Authoritative server-verified payment or COD order success
+  const isCodOrder =
+    order?.paymentStatus === "COD" ||
+    (order?.paymentMethod || "").toLowerCase().includes("cod") ||
+    (order?.paymentMode || "").toLowerCase() === "cod";
+  const isVerifiedSuccess =
+    order?.paymentStatus === "Paid" || (isCodOrder && order?.status !== "Cancelled");
 
   // Safe navigation on Back button so user never lands on an expired PayU POST form page
   useEffect(() => {
@@ -278,15 +295,19 @@ export function PaymentResult() {
       <Shell>
         <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto" }}>
           <div style={{ textAlign: "center", padding: "40px 16px" }}>
-            <OrderSuccessAnimation orderNum={orderNum} txnid={finalTxnid} />
+            <OrderSuccessAnimation orderNum={orderNum} txnid={isCodOrder ? "COD-CONFIRMED" : finalTxnid} />
             <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#eef6f0", color: "#166534", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "700", marginBottom: "12px" }}>
-              <ShieldCheck size={14} /> PayU Payment Verified & Paid
+              <ShieldCheck size={14} />{" "}
+              {isCodOrder
+                ? "Cash on Delivery (COD) Confirmed • Pay at Doorstep"
+                : "PayU Payment Verified & Paid"}
             </div>
             <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: "36px", fontWeight: "700", color: "#2b170d", margin: "0 0 8px" }}>
               Sacred Order Confirmed!
             </h1>
             <p style={{ fontSize: "15px", color: "#2b170d", margin: "0 0 20px" }}>
-              Thank you! Your sacred order <b>#{orderNum}</b> has been securely received and confirmed.
+              Thank you! Your sacred order <b>#{orderNum}</b> has been securely received and confirmed
+              {isCodOrder ? " via Cash on Delivery (COD)." : "."}
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link to={orderDetailLink} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>

@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
+import { Setting } from "../models/Setting.js";
 import { PaymentTransaction } from "../models/PaymentTransaction.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
 import { isDbConnected } from "../config/db.js";
@@ -137,6 +138,16 @@ export async function initiatePayuPayment(req, res, next) {
         message: "Payment service temporarily unavailable. Please try again."
       });
     }
+
+    try {
+      const storeSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+      if (storeSettings && storeSettings.enableOnlinePayment === false) {
+        return res.status(400).json({
+          success: false,
+          message: "Online payment is currently disabled by store administrator. Please select Cash on Delivery (COD)."
+        });
+      }
+    } catch (_) {}
 
     const { key, salt, paymentUrl, isConfigured } = getPayuConfig();
 
@@ -1112,8 +1123,9 @@ export async function verifyPaymentStatus(req, res, next) {
       return res.status(403).json({ success: false, message: "Access Denied" });
     }
 
-    // If order is already confirmed as Paid, return immediately with authoritative data
-    if (order.paymentStatus === "Paid") {
+    // If order is already confirmed as Paid or COD, return immediately with authoritative data
+    const isCodOrder = order.paymentStatus === "COD" || (order.paymentMethod || "").toLowerCase().includes("cod") || order.paymentMode === "COD";
+    if (order.paymentStatus === "Paid" || (isCodOrder && order.status !== "Cancelled")) {
       return res.status(200).json({ success: true, data: order });
     }
 

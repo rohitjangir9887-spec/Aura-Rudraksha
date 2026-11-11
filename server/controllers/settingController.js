@@ -17,7 +17,9 @@ const SETTING_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
-  enableProductShipping: "boolean", featuredProductId: "string", featuredProductEnabled: "boolean", homeProductLayout: "object",
+  enableProductShipping: "boolean", enableCod: "boolean", enableOnlinePayment: "boolean",
+  codFee: "number", metaPixelId: "string", metaPixelEnabled: "boolean",
+  featuredProductId: "string", featuredProductEnabled: "boolean", homeProductLayout: "object",
   pcloudAccessToken: "string", pcloudFolderId: "string",
   imagekitPublicKey: "string", imagekitPrivateKey: "string", imagekitUrlEndpoint: "string"
 };
@@ -56,6 +58,10 @@ export function clearSettingsCache() {
   settingsCacheTime = 0;
 }
 
+export async function getAuthoritativeStoreSettings() {
+  return await fetchStoreSettings();
+}
+
 async function fetchStoreSettings() {
   const now = Date.now();
   if (settingsCache && now - settingsCacheTime < CACHE_TTL_MS) {
@@ -65,8 +71,6 @@ async function fetchStoreSettings() {
   let settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
   if (!settings) {
     settings = await Setting.create(defaultSettings);
-    // If it was just created, it might be a mongoose document instead of plain object,
-    // so we can lean it if we fetched again, or we can just use toObject if it's a doc.
     if (settings && typeof settings.toObject === 'function') {
       settings = settings.toObject();
     }
@@ -83,6 +87,11 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   
   copy.featuredProductId = (copy.featuredProductId !== undefined && copy.featuredProductId !== null && copy.featuredProductId !== "") ? copy.featuredProductId : "14";
   copy.featuredProductEnabled = copy.featuredProductEnabled !== undefined ? Boolean(copy.featuredProductEnabled) : true;
+  copy.enableCod = copy.enableCod !== undefined ? Boolean(copy.enableCod) : true;
+  copy.enableOnlinePayment = copy.enableOnlinePayment !== undefined ? Boolean(copy.enableOnlinePayment) : true;
+  copy.codFee = copy.codFee !== undefined && !isNaN(Number(copy.codFee)) ? Math.max(0, Number(copy.codFee)) : 0;
+  copy.metaPixelId = typeof copy.metaPixelId === "string" ? copy.metaPixelId.trim() : "";
+  copy.metaPixelEnabled = copy.metaPixelEnabled !== undefined ? Boolean(copy.metaPixelEnabled) : true;
 
   if (!isAdmin) {
     delete copy.pcloudAccessToken;

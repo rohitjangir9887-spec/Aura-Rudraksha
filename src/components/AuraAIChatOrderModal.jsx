@@ -18,6 +18,7 @@ import { DeliveryForm } from "./aura-ai-order-modal/DeliveryForm";
 import { PaymentMethod } from "./aura-ai-order-modal/PaymentMethod";
 import { OrderSummary } from "./aura-ai-order-modal/OrderSummary";
 import { SuccessView } from "./aura-ai-order-modal/SuccessView";
+import { trackMetaPurchase } from "../lib/metaPixel";
 
 class OrderModalErrorBoundary extends React.Component {
   constructor(props) {
@@ -82,7 +83,14 @@ export function AuraAIChatOrderModal({
   const [couponCode, setCouponCode] = useState(prefilledCoupon || "");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("PAYU");
+  const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || {});
+  const enableCod = storeSettings?.enableCod !== false;
+  const enableOnlinePayment = storeSettings?.enableOnlinePayment !== false;
+  const codFee = Number(storeSettings?.codFee) || 0;
+  const [paymentMethod, setPaymentMethod] = useState(() => {
+    const s = db.getSettings?.() || {};
+    return s.enableOnlinePayment === false && s.enableCod !== false ? "COD" : "ONLINE";
+  });
   
   // Delivery details
   const [name, setName] = useState("");
@@ -167,7 +175,8 @@ export function AuraAIChatOrderModal({
     }
   }
 
-  const finalAmount = Math.max(0, subtotal - discountAmount);
+  const activeCodFee = paymentMethod === "COD" && enableCod ? codFee : 0;
+  const finalAmount = Math.max(0, subtotal - discountAmount) + activeCodFee;
 
   const applyCoupon = async (codeToApply) => {
     setCouponError("");
@@ -269,6 +278,63 @@ export function AuraAIChatOrderModal({
       try {
         sessionStorage.setItem("aura_buy_now_intent", JSON.stringify(buyNowPayload));
       } catch (_) {}
+
+      // If user selected Cash on Delivery (COD)
+      if (paymentMethod === "COD" && enableCod) {
+        const codOrderPayload = {
+          customerEmail,
+          customerName: name.trim(),
+          phone: phone.trim(),
+          address: `${address.trim()}, ${city.trim() || "India"} - ${pincode.trim()}`,
+          shippingAddress: {
+            firstName: name.trim().split(/\s+/)[0] || name.trim(),
+            lastName: name.trim().split(/\s+/).slice(1).join(" ") || "",
+            name: name.trim(),
+            phone: phone.trim(),
+            email: customerEmail,
+            address: address.trim(),
+            city: city.trim() || "India",
+            pincode: pincode.trim()
+          },
+          couponCode: appliedCoupon ? appliedCoupon.code : "",
+          lines: buyNowPayload.lines,
+          snapshotItems: [
+            {
+              id: product.id || product._id || product.slug,
+              productId: product.productId || product.id || product._id || product.slug,
+              name: product.name,
+              price: unitPrice,
+              mrp: unitMrp,
+              quantity: qty,
+              qty: qty,
+              img: getProductPrimaryImage(product)
+            }
+          ],
+          paymentMethod: "Cash on Delivery (COD)",
+          paymentMode: "COD",
+          paymentStatus: "COD",
+          status: "Confirmed",
+          subtotal,
+          mrpTotal,
+          discountAmount,
+          codFee: activeCodFee,
+          amount: finalAmount,
+          total: finalAmount,
+          finalAmount,
+          orderSource: "aura_ai",
+          notes: "Placed via Aura AI Chat Assistant (COD)"
+        };
+
+        const savedOrder = await db.saveOrder(codOrderPayload);
+        try {
+          sessionStorage.removeItem("aura_buy_now_intent");
+          trackMetaPurchase(savedOrder);
+        } catch (_) {}
+
+        setOrderComplete(savedOrder);
+        if (onOrderSuccess) onOrderSuccess(savedOrder);
+        return;
+      }
 
       // Initiate authoritative payment
       const paymentIntentPayload = {
@@ -438,7 +504,13 @@ export function AuraAIChatOrderModal({
                   />
 
                   {/* Payment Method */}
-                  <PaymentMethod />
+                  <PaymentMethod
+                    paymentMethod={paymentMethod}
+                    onSelectPaymentMethod={setPaymentMethod}
+                    enableCod={enableCod}
+                    enableOnlinePayment={enableOnlinePayment}
+                    codFee={codFee}
+                  />
 
                   {/* Price Breakdown */}
                   <OrderSummary
@@ -462,7 +534,11 @@ export function AuraAIChatOrderModal({
                     disabled={submitting}
                     className="aura-ai-order-btn-primary"
                   >
-                    {submitting ? "Placing Sacred Order..." : `Confirm & Place Order • ₹${(finalAmount || 0).toLocaleString('en-IN')}`}
+                    {submitting
+                      ? "Placing Sacred Order..."
+                      : paymentMethod === "COD"
+                      ? `Place COD Order • ₹${(finalAmount || 0).toLocaleString("en-IN")}`
+                      : `Pay Online & Place Order • ₹${(finalAmount || 0).toLocaleString("en-IN")}`}
                   </button>
 
                   <div className="aura-ai-order-guarantee">

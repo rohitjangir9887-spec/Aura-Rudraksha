@@ -19,7 +19,7 @@ import {
   ShoppingBag, DollarSign, Users, Boxes, Clock, Eye, Plus, Megaphone,
   TicketPercent, ChevronRight, TrendingUp, Sparkles, RefreshCw, CheckCircle2,
   MessageSquare, Database, WifiOff, Cloud, HardDrive, Video, Image as ImageIcon,
-  LogOut, ShieldCheck, AlertCircle, Bot
+  LogOut, ShieldCheck, AlertCircle, Bot, Banknote, CreditCard
 } from "lucide-react";
 
 export function Admin() {
@@ -48,6 +48,26 @@ export function Admin() {
 
   const [stats, setStats] = useState(getInitialStats);
   const [recentOrders, setRecentOrders] = useState(() => (db.getOrders() || []).slice(0, 5));
+  const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || { enableCod: true, enableOnlinePayment: true });
+  const [togglingPaymentKey, setTogglingPaymentKey] = useState(null);
+
+  const handleTogglePaymentSetting = async (key, label) => {
+    if (togglingPaymentKey) return;
+    setTogglingPaymentKey(key);
+    const currentVal = storeSettings?.[key] !== false;
+    const nextVal = !currentVal;
+    const nextSettings = { ...storeSettings, [key]: nextVal };
+    setStoreSettings(nextSettings);
+    try {
+      await db.saveSettings(nextSettings);
+      emitToast(`${label} turned ${nextVal ? "ON (Active)" : "OFF (Disabled)"}`, "success");
+    } catch (err) {
+      setStoreSettings(storeSettings);
+      emitToast(err?.message || `Could not update ${label}`, "error");
+    } finally {
+      setTogglingPaymentKey(null);
+    }
+  };
   const [mediaStats, setMediaStats] = useState({
     serverStorage: "Puter Cloud Storage",
     imagesCount: null,
@@ -332,7 +352,10 @@ export function Admin() {
         db.fetchOrders(),
         db.fetchCustomers(),
         db.fetchAnalytics(),
-        auraAiClient.getAnalytics().catch(() => ({ totalConvos: 0 }))
+        auraAiClient.getAnalytics().catch(() => ({ totalConvos: 0 })),
+        db.fetchSettings?.().then(s => {
+          if (mountedRef.current && s) setStoreSettings(s);
+        }).catch(() => {})
       ]);
 
       if (!mountedRef.current) return;
@@ -548,6 +571,134 @@ export function Admin() {
               setDbStatus(diag.isConnected ? "connected" : "disconnected");
             }
           }} />
+        </div>
+
+        {/* QUICK PAYMENT MODE CONTROL: CASH ON DELIVERY (COD) & ONLINE PAYMENT ON/OFF */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #fffdf9 0%, #f9f2e8 100%)",
+            border: "1.5px solid #e6d3be",
+            borderRadius: "14px",
+            padding: "16px 20px",
+            marginBottom: "20px",
+            boxShadow: "0 4px 16px rgba(43, 23, 13, 0.04)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "14px"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                background: "#166534",
+                color: "#ffffff",
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0
+              }}
+            >
+              <Banknote size={20} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: "15.5px", fontWeight: 800, margin: 0, color: "#2b170d", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span>Checkout Payment Controls (Online & COD On/Off)</span>
+                <span style={{ fontSize: "10.5px", background: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: "99px", fontWeight: 800 }}>
+                  Meta Ads Ready
+                </span>
+              </h3>
+              <p style={{ fontSize: "12px", color: "#6e5a4c", margin: "2px 0 0" }}>
+                Toggle Cash on Delivery (COD) or Online Payment ON/OFF instantly for all store visitors.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            {/* COD Quick Toggle Button */}
+            <button
+              type="button"
+              disabled={togglingPaymentKey === "enableCod"}
+              onClick={() => handleTogglePaymentSetting("enableCod", "Cash on Delivery (COD)")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "9px 14px",
+                borderRadius: "10px",
+                border: storeSettings?.enableCod !== false ? "1.5px solid #16a34a" : "1.5px solid #dc2626",
+                background: storeSettings?.enableCod !== false ? "#f0fdf4" : "#fef2f2",
+                color: storeSettings?.enableCod !== false ? "#166534" : "#991b1b",
+                fontSize: "12.5px",
+                fontWeight: "800",
+                cursor: togglingPaymentKey === "enableCod" ? "wait" : "pointer"
+              }}
+            >
+              <Banknote size={15} />
+              <span>COD: {storeSettings?.enableCod !== false ? "ON (Active)" : "OFF"}</span>
+              <span
+                style={{
+                  padding: "2px 7px",
+                  borderRadius: "6px",
+                  background: storeSettings?.enableCod !== false ? "#16a34a" : "#dc2626",
+                  color: "#ffffff",
+                  fontSize: "10px"
+                }}
+              >
+                {storeSettings?.enableCod !== false ? "Turn OFF" : "Turn ON"}
+              </span>
+            </button>
+
+            {/* Online Payment Quick Toggle Button */}
+            <button
+              type="button"
+              disabled={togglingPaymentKey === "enableOnlinePayment"}
+              onClick={() => handleTogglePaymentSetting("enableOnlinePayment", "Online Payment")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "9px 14px",
+                borderRadius: "10px",
+                border: storeSettings?.enableOnlinePayment !== false ? "1.5px solid #b88a58" : "1.5px solid #dc2626",
+                background: storeSettings?.enableOnlinePayment !== false ? "#fdf8f2" : "#fef2f2",
+                color: storeSettings?.enableOnlinePayment !== false ? "#7c3114" : "#991b1b",
+                fontSize: "12.5px",
+                fontWeight: "800",
+                cursor: togglingPaymentKey === "enableOnlinePayment" ? "wait" : "pointer"
+              }}
+            >
+              <CreditCard size={15} />
+              <span>Online Pay: {storeSettings?.enableOnlinePayment !== false ? "ON (Active)" : "OFF"}</span>
+              <span
+                style={{
+                  padding: "2px 7px",
+                  borderRadius: "6px",
+                  background: storeSettings?.enableOnlinePayment !== false ? "#9d5a2b" : "#dc2626",
+                  color: "#ffffff",
+                  fontSize: "10px"
+                }}
+              >
+                {storeSettings?.enableOnlinePayment !== false ? "Turn OFF" : "Turn ON"}
+              </span>
+            </button>
+
+            <Link
+              to="/admin/settings"
+              style={{
+                fontSize: "12px",
+                fontWeight: "700",
+                color: "#a54d2b",
+                textDecoration: "none",
+                padding: "8px 10px"
+              }}
+            >
+              COD Fee & Meta Pixel →
+            </Link>
+          </div>
         </div>
 
         {/* ADMIN SECURITY SHIELD & VEDIC AI ENGINE STATUS BANNER */}

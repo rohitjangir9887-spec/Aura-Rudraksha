@@ -528,6 +528,11 @@ const storeCache = {
     standardShippingFee: 0,
     freeShippingThreshold: 0,
     enableProductShipping: true,
+    enableCod: true,
+    enableOnlinePayment: true,
+    codFee: 0,
+    metaPixelId: "",
+    metaPixelEnabled: true,
     featuredProductId: "14",
     featuredProductEnabled: true,
     instagramUrl: "https://instagram.com/aurarudraksha",
@@ -1851,6 +1856,10 @@ export const db = {
     }
 
     const savedData = res.data;
+    const guestToken = res.guestToken || savedData.guestToken || "";
+    if (guestToken) {
+      savedData.guestToken = guestToken;
+    }
     const finalId = String(savedData.id || savedData.orderId || savedData.orderNumber || "");
     const idx = storeCache.orders.findIndex(x => String(x.id) === finalId || String(x.orderId) === finalId);
     if (idx >= 0) {
@@ -1868,6 +1877,14 @@ export const db = {
     }
 
     try {
+      if (guestToken && typeof window !== "undefined") {
+        sessionStorage.setItem("aura_guest_token", guestToken);
+        localStorage.setItem("aura_guest_token", guestToken);
+        if (finalId) {
+          sessionStorage.setItem(`aura_order_token_${finalId}`, guestToken);
+          localStorage.setItem(`aura_order_token_${finalId}`, guestToken);
+        }
+      }
       localStorage.setItem("aura_orders_cache", JSON.stringify(storeCache.orders.slice(0, 50)));
       const myCacheKey = db.getUserScopedKey("aura_cached_my_orders");
       if (myCacheKey && typeof window !== "undefined") {

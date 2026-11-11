@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Sparkles, X, ArrowRight, ShieldCheck } from "lucide-react";
+import {
+  captureAdAttribution,
+  initMetaPixel,
+  trackMetaPageView
+} from "../lib/metaPixel";
 
 export function LiveStorefrontFeatures() {
   const location = useLocation();
@@ -10,13 +15,25 @@ export function LiveStorefrontFeatures() {
   const isAdminRoute = (location.pathname || "").toLowerCase().startsWith("/admin");
 
   useEffect(() => {
+    // Capture Meta / UTM ad attribution parameters (fbclid, utm_source, etc.) and fire PageView
+    captureAdAttribution();
+    if (!isAdminRoute) {
+      trackMetaPageView();
+    }
+  }, [location.pathname, location.search, isAdminRoute]);
+
+  useEffect(() => {
     let mounted = true;
     const fetchFeatures = async () => {
       try {
         const res = await fetch("/api/settings");
         if (!res.ok) return;
         const data = await res.json();
-        const list = data?.settings?.aiCustomFeatures || data?.aiCustomFeatures || [];
+        const settingsObj = data?.settings || data || {};
+        if (settingsObj.metaPixelEnabled !== false && settingsObj.metaPixelId) {
+          initMetaPixel(settingsObj.metaPixelId);
+        }
+        const list = settingsObj?.aiCustomFeatures || [];
         if (mounted && Array.isArray(list)) {
           setFeatures(list.filter(f => f && f.enabled !== false));
         }

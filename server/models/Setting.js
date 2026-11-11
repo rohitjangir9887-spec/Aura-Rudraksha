@@ -26,6 +26,11 @@ const settingSchema = new mongoose.Schema(
     standardShippingFee: { type: Number, default: 0 }, // Default FREE shipping (₹0), admin can update from dashboard
     freeShippingThreshold: { type: Number, default: 0 }, // Default FREE shipping threshold (₹0)
     enableProductShipping: { type: Boolean, default: true }, // Product-specific shipping rules toggle
+    enableCod: { type: Boolean, default: true }, // Cash on Delivery enabled by default
+    enableOnlinePayment: { type: Boolean, default: true }, // Online Payment enabled by default
+    codFee: { type: Number, default: 0 }, // Optional COD handling charge (₹0 default)
+    metaPixelId: { type: String, default: "", trim: true }, // Meta / Facebook Ads Pixel ID
+    metaPixelEnabled: { type: Boolean, default: true }, // Meta Pixel active toggle
     featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
     featuredProductEnabled: { type: Boolean, default: true },
     homeProductLayout: { type: Object, default: { draft: [], live: [] } },

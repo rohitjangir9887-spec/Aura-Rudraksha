@@ -42,6 +42,12 @@ import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimat
 import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
 import { PayuRedirectModal } from "../components/checkout/PayuRedirectModal";
 import { triggerHaptic } from "../lib/haptics";
+import {
+  initMetaPixel,
+  trackMetaInitiateCheckout,
+  trackMetaPurchase,
+  getAdAttribution
+} from "../lib/metaPixel";
 // Helper to immediately resolve saved delivery address from local cache with 0ms lag
 function getInitialCheckoutAddress() {
   try {
@@ -228,6 +234,27 @@ export function Checkout() {
     return !initialAddrState.hasCachedData;
   });
   const [storeSettings, setStoreSettings] = useState(() => db.getSettings?.() || {});
+  const enableCod = storeSettings?.enableCod !== false;
+  const enableOnlinePayment = storeSettings?.enableOnlinePayment !== false;
+  const codFeeSetting = Number(storeSettings?.codFee) || 0;
+
+  // Payment method state: both ONLINE and COD are enabled by default; user can switch freely
+  const [paymentMethod, setPaymentMethod] = useState(() => {
+    const initialSettings = db.getSettings?.() || {};
+    if (initialSettings.enableOnlinePayment === false && initialSettings.enableCod !== false) {
+      return "COD";
+    }
+    return "ONLINE";
+  });
+
+  // Keep selected paymentMethod valid if admin toggles one off
+  useEffect(() => {
+    if (paymentMethod === "ONLINE" && !enableOnlinePayment && enableCod) {
+      setPaymentMethod("COD");
+    } else if (paymentMethod === "COD" && !enableCod && enableOnlinePayment) {
+      setPaymentMethod("ONLINE");
+    }
+  }, [enableOnlinePayment, enableCod, paymentMethod]);
 
   // PayU Redirect Modal State
   const [payuModalOpen, setPayuModalOpen] = useState(false);
@@ -253,9 +280,21 @@ export function Checkout() {
     db.fetchSettings?.().then(res => {
       if (mounted && res) {
         setStoreSettings(res);
+        if (res.metaPixelEnabled !== false && res.metaPixelId) {
+          initMetaPixel(res.metaPixelId);
+        }
       }
     }).catch(() => {});
-    return () => { mounted = false; };
+    const onSettingsSync = (e) => {
+      if (mounted && e?.detail) setStoreSettings(e.detail);
+    };
+    window.addEventListener("aura:store:settings:synced", onSettingsSync);
+    window.addEventListener("aura:store:settings:updated", onSettingsSync);
+    return () => {
+      mounted = false;
+      window.removeEventListener("aura:store:settings:synced", onSettingsSync);
+      window.removeEventListener("aura:store:settings:updated", onSettingsSync);
+    };
   }, []);
 
   // Determine active checkout items (Buy Now intent vs normal cart lines)
@@ -334,8 +373,21 @@ export function Checkout() {
   const productSavings = effectiveTotals.productSavings;
   const couponDiscount = effectiveTotals.couponDiscount;
   const shippingFee = subtotal === 0 ? 0 : effectiveTotals.shipping;
-  const finalTotal = effectiveTotals.finalTotal;
+  const activeCodFee = subtotal > 0 && paymentMethod === "COD" && enableCod ? codFeeSetting : 0;
+  const finalTotal = effectiveTotals.finalTotal + activeCodFee;
   const totalSavings = effectiveTotals.totalSavings;
+
+  // Fire Meta Pixel InitiateCheckout event once when checkout page loads with items
+  const initiateTrackedRef = useRef(false);
+  useEffect(() => {
+    if (!initiateTrackedRef.current && effectiveLines.length > 0 && finalTotal > 0) {
+      initiateTrackedRef.current = true;
+      trackMetaInitiateCheckout({
+        lines: effectiveLines,
+        total: finalTotal
+      });
+    }
+  }, [effectiveLines, finalTotal]);
 
   // Detect Unresolved Payment Attempt (Back button from PayU / bfcache restoration)
   const isVerifyingRef = useRef(false);
@@ -863,13 +915,17 @@ export function Checkout() {
     form.submit();
   };
 
-  // Live PayU Hosted Checkout Submission Flow
+  // Live Order Submission Flow (Supports both Cash on Delivery (COD) & PayU Online Payment)
   const executeOrderSubmission = async () => {
+    const isCodOrder = paymentMethod === "COD" && enableCod;
+
     setLoading(true);
-    setPayuModalOpen(true);
-    setPaymentState("INITIATING");
-    setPayuTimeout(false);
-    setPayuError(null);
+    if (!isCodOrder) {
+      setPayuModalOpen(true);
+      setPaymentState("INITIATING");
+      setPayuTimeout(false);
+      setPayuError(null);
+    }
 
     const currentForm = getLatestFormData(formData);
     const { firstName, lastName, phone, email, address, landmark, locality, pincode, city, state } = currentForm;
@@ -892,7 +948,7 @@ export function Checkout() {
 
     // Save address in background if user checked it
     if (saveAddressCheck) {
-      // Fire and forget, don't block payment redirect
+      // Fire and forget, don't block order/payment flow
       db.saveAddress(addressObj).catch(() => {});
     }
 
@@ -905,6 +961,7 @@ export function Checkout() {
     if (unresolvable) {
       setLoading(false);
       setPayuModalOpen(false);
+      isSubmittingRef.current = false;
       emitToast("One or more items in your cart could not be verified. Please review your cart.", "error");
       return;
     }
@@ -927,6 +984,8 @@ export function Checkout() {
       };
     });
 
+    const adAttribution = getAdAttribution();
+
     const paymentPayload = {
       customerEmail: cleanEmail,
       customerName: fullName,
@@ -938,9 +997,63 @@ export function Checkout() {
       couponCode: appliedCoupon?.code || couponCode || "",
       items: linesToProcess.flatMap(l => Array.from({ length: l.qty || 1 }, () => l.id)),
       lines: linesToProcess,
-      snapshotItems: snapshotItems
+      snapshotItems: snapshotItems,
+      orderSource: adAttribution ? "meta_ads" : "website",
+      adAttribution: adAttribution || null
     };
 
+    // --- BRANCH 1: CASH ON DELIVERY (COD) ---
+    if (isCodOrder) {
+      try {
+        const codOrderPayload = {
+          ...paymentPayload,
+          paymentMethod: "Cash on Delivery (COD)",
+          paymentMode: "COD",
+          paymentStatus: "COD",
+          status: "Confirmed",
+          subtotal,
+          mrpTotal: totalMrp,
+          productSavings,
+          couponDiscount,
+          discountAmount: couponDiscount,
+          shippingFee,
+          codFee: activeCodFee,
+          amount: finalTotal,
+          total: finalTotal,
+          finalAmount: finalTotal
+        };
+
+        const savedOrder = await db.saveOrder(codOrderPayload);
+        const createdOrderId = savedOrder?.id || savedOrder?.orderId || savedOrder?.orderNumber || "";
+        const createdGuestToken = savedOrder?.guestToken || sessionStorage.getItem("aura_guest_token") || "";
+
+        try {
+          sessionStorage.removeItem("aura_buy_now_intent");
+          sessionStorage.removeItem("aura_pending_orderId");
+          sessionStorage.removeItem("aura_pending_txnid");
+          sessionStorage.removeItem("aura_pending_timestamp");
+        } catch (_) {}
+
+        clear();
+        triggerHaptic("success");
+        trackMetaPurchase(savedOrder);
+        emitToast("Cash on Delivery (COD) Order Confirmed!", "success");
+
+        const gQuery = createdGuestToken ? `&guestToken=${encodeURIComponent(createdGuestToken)}` : "";
+        navigate(`/payment-result?status=success&mode=cod&orderId=${encodeURIComponent(createdOrderId)}${gQuery}`, {
+          replace: true
+        });
+        return;
+      } catch (err) {
+        triggerHaptic("warning");
+        emitToast(err?.message || "Could not place COD order. Please try again.", "error");
+        setLoading(false);
+        isSubmittingRef.current = false;
+        return;
+      }
+    }
+
+    // --- BRANCH 2: ONLINE PAYMENT (PayU Gateway) ---
     try {
       const res = await db.initiatePayment(paymentPayload);
 
@@ -1188,13 +1301,21 @@ export function Checkout() {
             couponSuccessMsg={couponSuccessMsg}
           />
 
-          {/* 4. PAYMENT SECTION (Logos above Pay Now + Pay Now Button + Secure Payment Icons below) */}
+          {/* 4. PAYMENT SECTION (Online Payment & Cash on Delivery - COD) */}
           <CheckoutCompactPayment
             finalTotal={finalTotal}
             loading={loading}
             onPayNow={handlePlaceOrder}
             disabled={effectiveLines.length === 0 || subtotal === 0}
             totalSavings={totalSavings}
+            paymentMethod={paymentMethod}
+            onSelectPaymentMethod={(method) => {
+              triggerHaptic("selection");
+              setPaymentMethod(method);
+            }}
+            enableCod={enableCod}
+            enableOnlinePayment={enableOnlinePayment}
+            codFee={codFeeSetting}
           />
         </div>
 

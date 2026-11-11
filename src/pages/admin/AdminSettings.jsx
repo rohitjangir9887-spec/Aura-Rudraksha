@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/AdminLayout";
 import { db, onStoreUpdate } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
-import { Save, Instagram, Facebook, Youtube, Share2, FileText, Truck, RotateCcw, ShieldCheck, Headphones, Star, ArrowRight, Search, CheckCircle2, PackageCheck } from "lucide-react";
+import { Save, Instagram, Facebook, Youtube, Share2, FileText, Truck, RotateCcw, ShieldCheck, Headphones, Star, ArrowRight, Search, CheckCircle2, PackageCheck, CreditCard, Banknote, Megaphone } from "lucide-react";
 import "./admin-pages.css";
 
 export function AdminSettings() {
@@ -41,6 +41,17 @@ export function AdminSettings() {
 
   const updateSettings = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
   const updatePolicy = (key, value) => setPolicies((current) => ({ ...current, [key]: value }));
+
+  const handleInstantToggleSetting = async (key, nextValue, label) => {
+    const updated = { ...settings, [key]: nextValue };
+    setSettings(updated);
+    try {
+      await db.saveSettings(updated);
+      emitToast(`${label} turned ${nextValue ? "ON" : "OFF"} successfully!`, "success");
+    } catch (err) {
+      emitToast(err.message || `Failed to update ${label}`, "error");
+    }
+  };
 
   const handleTicketStatusChange = async (id, status) => {
     const t = tickets.find(x => x.id === id);
@@ -121,6 +132,208 @@ export function AdminSettings() {
               <option value="INR">INR (₹)</option>
               <option value="USD">USD ($)</option>
             </select>
+          </div>
+        </div>
+
+        {/* 💳 PAYMENT METHODS CONTROL (ONLINE PAYMENT & CASH ON DELIVERY - COD) */}
+        <div style={{ marginTop: "32px", borderTop: "2px solid var(--line)", paddingTop: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h2 className="admin-section-heading" style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, fontSize: "18px", color: "#2b170d" }}>
+                <CreditCard size={20} color="#a54d2b" /> Payment Methods: Online & Cash on Delivery (COD ऑन/ऑफ कंट्रोल)
+              </h2>
+              <p style={{ fontSize: "12.5px", color: "var(--muted)", margin: "4px 0 0" }}>
+                Both Online Payment and Cash on Delivery (COD) are enabled by default. Turn either payment mode ON or OFF anytime.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "18px" }}>
+            {/* Cash on Delivery (COD) Toggle Card */}
+            <div
+              style={{
+                background: settings.enableCod !== false ? "#f0fdf4" : "#fef2f2",
+                border: `1.5px solid ${settings.enableCod !== false ? "#86efac" : "#fecaca"}`,
+                borderRadius: "12px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: "12px"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                  <Banknote size={22} color={settings.enableCod !== false ? "#15803d" : "#b91c1c"} style={{ marginTop: "2px", flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontWeight: "800", fontSize: "15px", color: "#2b170d", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span>Cash on Delivery (COD)</span>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "800",
+                          padding: "2px 8px",
+                          borderRadius: "99px",
+                          background: settings.enableCod !== false ? "#15803d" : "#b91c1c",
+                          color: "#ffffff"
+                        }}
+                      >
+                        {settings.enableCod !== false ? "ACTIVE (ON)" : "DISABLED (OFF)"}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: "12px", color: "#574a40", margin: "4px 0 0", lineHeight: "1.4" }}>
+                      Allow customers to place Cash on Delivery (कैश ऑन डिलीवरी) orders and pay at their doorstep.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInstantToggleSetting("enableCod", settings.enableCod === false, "Cash on Delivery (COD)")}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "99px",
+                    border: "none",
+                    fontWeight: "800",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    background: settings.enableCod !== false ? "#16a34a" : "#dc2626",
+                    color: "#ffffff",
+                    flexShrink: 0,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
+                  }}
+                >
+                  {settings.enableCod !== false ? "Turn OFF" : "Turn ON"}
+                </button>
+              </div>
+
+              <div style={{ borderTop: "1px dashed rgba(0,0,0,0.1)", paddingTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                <label htmlFor="codFee" style={{ fontSize: "12px", fontWeight: "700", color: "#2b170d", margin: 0 }}>
+                  Optional Extra COD Handling Charge (₹):
+                </label>
+                <input
+                  id="codFee"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={settings.codFee ?? 0}
+                  onChange={(e) => updateSettings("codFee", Math.max(0, Number(e.target.value) || 0))}
+                  style={{
+                    width: "90px",
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                    background: "#ffffff"
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Online Payment Toggle Card */}
+            <div
+              style={{
+                background: settings.enableOnlinePayment !== false ? "#fdf8f2" : "#fef2f2",
+                border: `1.5px solid ${settings.enableOnlinePayment !== false ? "#d4a373" : "#fecaca"}`,
+                borderRadius: "12px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                gap: "12px"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                  <CreditCard size={22} color={settings.enableOnlinePayment !== false ? "#9d5a2b" : "#b91c1c"} style={{ marginTop: "2px", flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontWeight: "800", fontSize: "15px", color: "#2b170d", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span>Online Payment (UPI / Cards)</span>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "800",
+                          padding: "2px 8px",
+                          borderRadius: "99px",
+                          background: settings.enableOnlinePayment !== false ? "#9d5a2b" : "#b91c1c",
+                          color: "#ffffff"
+                        }}
+                      >
+                        {settings.enableOnlinePayment !== false ? "ACTIVE (ON)" : "DISABLED (OFF)"}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: "12px", color: "#574a40", margin: "4px 0 0", lineHeight: "1.4" }}>
+                      Accept instant prepaid payments via PayU Gateway (UPI, GPay, PhonePe, Paytm, Cards, NetBanking).
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInstantToggleSetting("enableOnlinePayment", settings.enableOnlinePayment === false, "Online Payment")}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "99px",
+                    border: "none",
+                    fontWeight: "800",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    background: settings.enableOnlinePayment !== false ? "#9d5a2b" : "#dc2626",
+                    color: "#ffffff",
+                    flexShrink: 0,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
+                  }}
+                >
+                  {settings.enableOnlinePayment !== false ? "Turn OFF" : "Turn ON"}
+                </button>
+              </div>
+              <div style={{ borderTop: "1px dashed rgba(0,0,0,0.1)", paddingTop: "10px", fontSize: "11.5px", color: "#6e5a4c" }}>
+                ✅ Default: Both <b>Online Payment</b> and <b>COD</b> stay ON so customers can choose either at checkout.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 📢 META ADS (FACEBOOK & INSTAGRAM PIXEL) CONFIGURATION */}
+        <div style={{ marginTop: "28px", borderTop: "2px solid var(--line)", paddingTop: "24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h2 className="admin-section-heading" style={{ display: "flex", alignItems: "center", gap: "8px", margin: 0, fontSize: "18px", color: "#2b170d" }}>
+                <Megaphone size={20} color="#1877F2" /> Meta Ads & Facebook / Instagram Pixel (मेटा विज्ञापन ट्रैकिंग)
+              </h2>
+              <p style={{ fontSize: "12.5px", color: "var(--muted)", margin: "4px 0 0" }}>
+                Automatically tracks <b>PageView</b>, <b>ViewContent</b>, <b>AddToCart</b>, <b>InitiateCheckout</b>, and <b>Purchase</b> (both Online & COD) for high-ROAS Meta Ads campaigns.
+              </p>
+            </div>
+          </div>
+
+          <div className="admin-form-row">
+            <div className="admin-form-group">
+              <label htmlFor="metaPixelId" style={{ fontWeight: "700" }}>Meta Pixel ID (Dataset ID)</label>
+              <input
+                id="metaPixelId"
+                type="text"
+                placeholder="e.g. 123456789012345"
+                value={settings.metaPixelId || ""}
+                onChange={(e) => updateSettings("metaPixelId", e.target.value.trim())}
+              />
+              <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
+                Paste your 15-16 digit Meta Pixel ID from Meta Events Manager. Click Save Settings below to activate.
+              </small>
+            </div>
+
+            <div className="admin-form-group" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: "700", fontSize: "13.5px", color: "#2b170d", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={settings.metaPixelEnabled !== false}
+                  onChange={(e) => handleInstantToggleSetting("metaPixelEnabled", e.target.checked, "Meta Pixel Tracking")}
+                />
+                <span>Enable Meta Ads Conversion Tracking & Attribution (fbclid / UTM)</span>
+              </label>
+              <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", marginLeft: "24px", display: "block" }}>
+                Guest checkout without forced login is active so visitors from Instagram/Facebook ads can buy via COD or Online in 1 step.
+              </small>
+            </div>
           </div>
         </div>
 

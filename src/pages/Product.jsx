@@ -19,6 +19,7 @@ import { ProductCard } from "../components/ProductCard";
 import { ProductReviews } from "../components/ProductReviews";
 import { useSeo } from "../hooks/useSeo";
 import { addRecentlyViewedProduct } from "../lib/recentlyViewed";
+import { trackMetaViewContent, trackMetaAddToCart } from "../lib/metaPixel";
 
 // Dedicated Modular PDP Components
 import { ProductGallery } from "../components/product/ProductGallery";
@@ -220,6 +221,7 @@ export function Product() {
   useEffect(() => {
     if (product?.id || product?._id) {
       addRecentlyViewedProduct(product.id || product._id || product.slug);
+      trackMetaViewContent(product);
     }
   }, [product?.id, product?._id, product?.slug]);
 
@@ -398,6 +400,7 @@ export function Product() {
       variant: finalVariantStr,
       isIndonesian: isIndonesianActive
     }, qty);
+    trackMetaAddToCart(p, qty);
     setAdded(true);
     emitToast(`${p.name} added to your cart ❤️`, "success");
     setTimeout(() => setAdded(false), 2000);
@@ -410,6 +413,7 @@ export function Product() {
       ? `Indonesian Origin (${p.size || '10-14mm'})`
       : ([selectedVariant, selectedSize].filter(Boolean).join(" • ") || "Authentic Consecrated");
 
+    trackMetaAddToCart(p, qty);
     if (buyNow) {
       buyNow({
         id: cartItemId,

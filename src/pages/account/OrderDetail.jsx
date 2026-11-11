@@ -546,134 +546,210 @@ export function OrderDetail() {
           </div>
         )}
         
-        {/* PayU Payment Details & Retry Banner */}
-        <div 
-           
-           
-          
-          style={{
-            background: order.paymentStatus === "Paid" ? "#f2f8f3" : (order.paymentStatus === "Failed" ? "#fef2f2" : "#fdf8f4"),
-            border: `1.5px solid ${order.paymentStatus === "Paid" ? "#cbe6d2" : (order.paymentStatus === "Failed" ? "#fecaca" : "#ebdccb")}`,
-            borderRadius: "14px",
-            padding: "16px 18px",
-            marginBottom: "24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "14px"
-          }}
-        >
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-              <ShieldCheck size={18} color={order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#991b1b" : "#b85d25")} />
-              <span style={{ 
-                fontSize: "14px", 
-                fontWeight: "700", 
-                color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#991b1b" : "#2b170d") 
-              }}>
-                {order.paymentStatus === "Paid" 
-                  ? "PayU Live Payment Confirmed" 
-                  : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "PayU Payment Incomplete / Cancelled" : "PayU Payment Pending")}
-              </span>
-              <span 
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  padding: "2px 8px",
-                  borderRadius: "4px",
-                  background: order.paymentStatus === "Paid" ? "#dcfce7" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#fee2e2" : "#fef3c7"),
-                  color: order.paymentStatus === "Paid" ? "#166534" : (order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled" ? "#991b1b" : "#b45309")
-                }}
-              >
-                {order.paymentStatus || "Pending"}
-              </span>
-            </div>
+        {/* Payment Details & Retry Banner (Supports both PayU Online & Cash on Delivery - COD) */}
+        {(() => {
+          const isCodOrder =
+            order.paymentStatus === "COD" ||
+            (order.paymentMethod || "").toLowerCase().includes("cod") ||
+            (order.paymentMode || "").toLowerCase() === "cod";
+          const isPaid = order.paymentStatus === "Paid";
+          const isFailedOrCancelled = order.paymentStatus === "Failed" || order.paymentStatus === "Cancelled";
+          const isPositiveBanner = isPaid || (isCodOrder && !isFailedOrCancelled);
 
-            <div style={{ fontSize: "12px", color: "#665a51", display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "4px" }}>
-              <span>Method: <b>PayU Hosted Checkout</b></span>
-              {order.txnid && (
-                <span>Merchant Txn ID: <code style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9" }}>{order.txnid}</code></span>
-              )}
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  PayU Payment ID:
-                  {order.mihpayid ? (
-                    <code 
-                      onClick={() => {
-                        navigator.clipboard.writeText(order.mihpayid);
-                        emitToast("PayU Payment ID copied to clipboard!", "success");
-                      }}
-                      title="Click to copy"
-                      style={{ fontFamily: "monospace", background: "#ffffff", padding: "1px 5px", borderRadius: "4px", border: "1px solid #e8dac9", cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2 }}
-                    >
-                      {order.mihpayid} <Copy size={10} />
-                    </code>
-                  ) : (
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>N/A (Not Captured)</span>
-                  )}
-                </span>
-              {order.paymentMode && (
-                <span>Mode: <b>{order.paymentMode}</b></span>
-              )}
-              {(order.paymentDetails?.verifiedAt || (order.paymentStatus === "Paid" && (order.date || order.createdAt))) && (
-                <span>Paid Date: <b>{formatDetailDate(order.paymentDetails?.verifiedAt || order.date || order.createdAt, { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
-              )}
-            </div>
-
-            {/* Refund history / status banner */}
-            {order.amountRefunded > 0 && (
-              <div style={{ marginTop: 8, padding: '8px 12px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 8, fontSize: 12, color: '#1e40af' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                  <span>PayU Refund Processed:</span>
-                  <span>-₹{Number(order.amountRefunded).toLocaleString('en-IN')} ({order.paymentStatus})</span>
+          return (
+            <div
+              style={{
+                background: isPositiveBanner ? "#f2f8f3" : isFailedOrCancelled ? "#fef2f2" : "#fdf8f4",
+                border: `1.5px solid ${isPositiveBanner ? "#cbe6d2" : isFailedOrCancelled ? "#fecaca" : "#ebdccb"}`,
+                borderRadius: "14px",
+                padding: "16px 18px",
+                marginBottom: "24px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "14px"
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+                  <ShieldCheck
+                    size={18}
+                    color={isPositiveBanner ? "#166534" : isFailedOrCancelled ? "#991b1b" : "#b85d25"}
+                  />
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      color: isPositiveBanner ? "#166534" : isFailedOrCancelled ? "#991b1b" : "#2b170d"
+                    }}
+                  >
+                    {isPaid
+                      ? "PayU Live Payment Confirmed"
+                      : isCodOrder
+                      ? "Cash on Delivery (COD) — Pay on Delivery"
+                      : isFailedOrCancelled
+                      ? "PayU Payment Incomplete / Cancelled"
+                      : "PayU Payment Pending"}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      background: isPositiveBanner ? "#dcfce7" : isFailedOrCancelled ? "#fee2e2" : "#fef3c7",
+                      color: isPositiveBanner ? "#166534" : isFailedOrCancelled ? "#991b1b" : "#b45309"
+                    }}
+                  >
+                    {isCodOrder && !isPaid ? "COD (Pay on Delivery)" : order.paymentStatus || "Pending"}
+                  </span>
                 </div>
-                {Array.isArray(order.refundHistory) && order.refundHistory.length > 0 && (
-                  <div style={{ marginTop: 4, fontSize: 11, color: '#3b82f6' }}>
-                    {order.refundHistory.map((r, idx) => (
-                      <div key={idx}>• Ref ID: <code>{r.refundId || r.refundToken}</code> — ₹{Number(r.amount).toLocaleString('en-IN')} on {formatDetailDate(r.date)}</div>
-                    ))}
+
+                <div style={{ fontSize: "12px", color: "#665a51", display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "4px" }}>
+                  <span>
+                    Method: <b>{isCodOrder && !isPaid ? "Cash on Delivery (COD)" : order.paymentMethod || "PayU Hosted Checkout"}</b>
+                  </span>
+                  {order.txnid && (
+                    <span>
+                      Merchant Txn ID:{" "}
+                      <code
+                        style={{
+                          fontFamily: "monospace",
+                          background: "#ffffff",
+                          padding: "1px 5px",
+                          borderRadius: "4px",
+                          border: "1px solid #e8dac9"
+                        }}
+                      >
+                        {order.txnid}
+                      </code>
+                    </span>
+                  )}
+                  {!isCodOrder && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      PayU Payment ID:
+                      {order.mihpayid ? (
+                        <code
+                          onClick={() => {
+                            navigator.clipboard.writeText(order.mihpayid);
+                            emitToast("PayU Payment ID copied to clipboard!", "success");
+                          }}
+                          title="Click to copy"
+                          style={{
+                            fontFamily: "monospace",
+                            background: "#ffffff",
+                            padding: "1px 5px",
+                            borderRadius: "4px",
+                            border: "1px solid #e8dac9",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 2
+                          }}
+                        >
+                          {order.mihpayid} <Copy size={10} />
+                        </code>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>N/A (Not Captured)</span>
+                      )}
+                    </span>
+                  )}
+                  {order.paymentMode && (
+                    <span>
+                      Mode: <b>{order.paymentMode}</b>
+                    </span>
+                  )}
+                  {(order.paymentDetails?.verifiedAt || (order.paymentStatus === "Paid" && (order.date || order.createdAt))) && (
+                    <span>
+                      Paid Date:{" "}
+                      <b>
+                        {formatDetailDate(order.paymentDetails?.verifiedAt || order.date || order.createdAt, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric"
+                        })}
+                      </b>
+                    </span>
+                  )}
+                </div>
+
+                {/* Refund history / status banner */}
+                {order.amountRefunded > 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: "8px 12px",
+                      background: "#eff6ff",
+                      border: "1px solid #dbeafe",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      color: "#1e40af"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600 }}>
+                      <span>PayU Refund Processed:</span>
+                      <span>
+                        -₹{Number(order.amountRefunded).toLocaleString("en-IN")} ({order.paymentStatus})
+                      </span>
+                    </div>
+                    {Array.isArray(order.refundHistory) && order.refundHistory.length > 0 && (
+                      <div style={{ marginTop: 4, fontSize: 11, color: "#3b82f6" }}>
+                        {order.refundHistory.map((r, idx) => (
+                          <div key={idx}>
+                            • Ref ID: <code>{r.refundId || r.refundToken}</code> — ₹
+                            {Number(r.amount).toLocaleString("en-IN")} on {formatDetailDate(r.date)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* If unpaid and not seller-cancelled, provide live Retry PayU button */}
-          {(!isCancelled || order?.cancelledBy !== "Seller") && order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Refunded" && (
-            <button
-              type="button"
-              id="btn-order-retry-payu"
-              disabled={retryingPayment}
-              onClick={handlePayuRetry}
-              style={{
-                background: retryingPayment ? "#a05b38" : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "8px",
-                padding: "10px 18px",
-                fontSize: "13.5px",
-                fontWeight: "700",
-                cursor: retryingPayment ? "wait" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                boxShadow: "0 3px 10px rgba(165, 77, 43, 0.25)"
-              }}
-            >
-              {retryingPayment ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  <span>Connecting to PayU...</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={15} />
-                  <span>Complete Payment with PayU</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
+              {/* If unpaid online order and not seller-cancelled, provide live Retry PayU button */}
+              {(!isCancelled || order?.cancelledBy !== "Seller") &&
+                !isCodOrder &&
+                order?.paymentStatus !== "Paid" &&
+                order?.paymentStatus !== "Refunded" && (
+                  <button
+                    type="button"
+                    id="btn-order-retry-payu"
+                    disabled={retryingPayment}
+                    onClick={handlePayuRetry}
+                    style={{
+                      background: retryingPayment
+                        ? "#a05b38"
+                        : "linear-gradient(135deg, #a54d2b 0%, #7c3114 100%)",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "10px 18px",
+                      fontSize: "13.5px",
+                      fontWeight: "700",
+                      cursor: retryingPayment ? "wait" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      boxShadow: "0 3px 10px rgba(165, 77, 43, 0.25)"
+                    }}
+                  >
+                    {retryingPayment ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Connecting to PayU...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={15} />
+                        <span>Complete Payment with PayU</span>
+                      </>
+                    )}
+                  </button>
+                )}
+            </div>
+          );
+        })()}
 
         {!isCancelled && (
           <div className="timeline-container"    style={{
