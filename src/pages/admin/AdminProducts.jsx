@@ -9,12 +9,13 @@ import { compressImage, uploadMedia, uploadMediaBatch } from "../../lib/imageUti
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
-import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp, Download, Copy, Loader2 } from "lucide-react";
+import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp, Download, Copy, Loader2, FileSpreadsheet, FileText } from "lucide-react";
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
 import { AdminFeaturedProductManager } from "../../components/admin/AdminFeaturedProductManager";
 import { HomeProductShowcase } from "../../components/HomeProductShowcase";
 import { downloadAllProductImages, copyProductTitleToClipboard } from "../../lib/downloadProductUtils";
+import { exportProductsToXLSX, exportProductsToPDF } from "../../lib/exportCatalogUtils";
 
 export function AdminProducts() {
   const [searchParams] = useSearchParams();
@@ -67,6 +68,54 @@ export function AdminProducts() {
     } finally {
       setDownloadingProductId(null);
       setDownloadProgress({ current: 0, total: 0 });
+    }
+  };
+
+  // Catalog Export States (XLSX & PDF)
+  const [isExportingXLSX, setIsExportingXLSX] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  const handleExportXLSX = (targetList = null) => {
+    const listToExport = Array.isArray(targetList) && targetList.length > 0 
+      ? targetList 
+      : (filteredProducts.length > 0 ? filteredProducts : products);
+    
+    if (listToExport.length === 0) {
+      emitToast("No products available to export", "error");
+      return;
+    }
+    setIsExportingXLSX(true);
+    try {
+      const dateStr = new Date().toISOString().split("T")[0];
+      const filename = `Aura_Rudraksha_Products_${dateStr}.xlsx`;
+      exportProductsToXLSX(listToExport, filename);
+    } catch (err) {
+      console.error("Export XLSX error:", err);
+      emitToast("Error exporting Excel: " + err.message, "error");
+    } finally {
+      setIsExportingXLSX(false);
+    }
+  };
+
+  const handleExportPDF = (targetList = null) => {
+    const listToExport = Array.isArray(targetList) && targetList.length > 0 
+      ? targetList 
+      : (filteredProducts.length > 0 ? filteredProducts : products);
+    
+    if (listToExport.length === 0) {
+      emitToast("No products available to export", "error");
+      return;
+    }
+    setIsExportingPDF(true);
+    try {
+      const dateStr = new Date().toISOString().split("T")[0];
+      const filename = `Aura_Rudraksha_Catalog_${dateStr}.pdf`;
+      exportProductsToPDF(listToExport, filename);
+    } catch (err) {
+      console.error("Export PDF error:", err);
+      emitToast("Error exporting PDF: " + err.message, "error");
+    } finally {
+      setIsExportingPDF(false);
     }
   };
 
@@ -3265,7 +3314,61 @@ export function AdminProducts() {
           <h1>Product Catalog &amp; Home Showcase</h1>
           <p className="admin-page-subtitle">Manage store products, publish or save drafts, stock levels, pricing, and home showcase</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button 
+            type="button"
+            className="admin-btn secondary"
+            onClick={() => handleExportXLSX()}
+            disabled={isExportingXLSX || loading || products.length === 0}
+            style={{ 
+              background: '#f0fdf4', 
+              border: '1.5px solid #86efac', 
+              color: '#166534', 
+              fontWeight: '700',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: isExportingXLSX ? 'not-allowed' : 'pointer'
+            }}
+            title="Download full product catalog in Excel XLSX spreadsheet format"
+          >
+            {isExportingXLSX ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <FileSpreadsheet size={16} />
+            )}
+            <span>{isExportingXLSX ? "Exporting..." : "Download XLSX"}</span>
+          </button>
+
+          <button 
+            type="button"
+            className="admin-btn secondary"
+            onClick={() => handleExportPDF()}
+            disabled={isExportingPDF || loading || products.length === 0}
+            style={{ 
+              background: '#fef2f2', 
+              border: '1.5px solid #fca5a5', 
+              color: '#991b1b', 
+              fontWeight: '700',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: isExportingPDF ? 'not-allowed' : 'pointer'
+            }}
+            title="Download complete product catalog in printable PDF format"
+          >
+            {isExportingPDF ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <FileText size={16} />
+            )}
+            <span>{isExportingPDF ? "Exporting..." : "Download PDF"}</span>
+          </button>
+
           <button 
             type="button"
             className="admin-btn secondary"
@@ -3274,8 +3377,9 @@ export function AdminProducts() {
             style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#9a3412', fontWeight: '700' }}
             title="Increment 1-10 daily sales right now across all auto-increment products"
           >
-            <TrendingUp size={16} /> {isIncrementingSales ? "Updating..." : "⚡ Run Daily Sales Growth (+1-10)"}
+            <TrendingUp size={16} /> {isIncrementingSales ? "Updating..." : "⚡ Daily Sales (+1-10)"}
           </button>
+          
           <button className="admin-btn" onClick={() => handleEdit(null)}>
             <Plus size={16} /> Add Product
           </button>
@@ -3494,6 +3598,73 @@ export function AdminProducts() {
           ))}
         </div>
       </div>
+
+      {/* QUICK EXPORT BAR FOR XLSX & PDF */}
+      {!loading && filteredProducts.length > 0 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '10px',
+          background: '#fff',
+          border: '1px solid #e7dcce',
+          borderRadius: '10px',
+          padding: '10px 16px',
+          marginBottom: '16px'
+        }}>
+          <div style={{ fontSize: '13px', color: '#6d2812', fontWeight: '600' }}>
+            Showing <b>{filteredProducts.length}</b> {filteredProducts.length === 1 ? 'product' : 'products'} {selectedCategory !== 'All' ? `in "${selectedCategory}"` : ''} {searchTerm ? `matching "${searchTerm}"` : ''}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: '#8c7d72', fontWeight: '500' }}>Download Catalog:</span>
+            <button
+              type="button"
+              onClick={() => handleExportXLSX(filteredProducts)}
+              disabled={isExportingXLSX}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                borderRadius: '6px',
+                border: '1px solid #86efac',
+                background: '#f0fdf4',
+                color: '#166534',
+                cursor: isExportingXLSX ? 'not-allowed' : 'pointer'
+              }}
+              title="Download visible filtered products in XLSX Excel format"
+            >
+              {isExportingXLSX ? <Loader2 size={13} className="animate-spin" /> : <FileSpreadsheet size={13} />}
+              <span>{isExportingXLSX ? "Exporting..." : "XLSX Excel"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportPDF(filteredProducts)}
+              disabled={isExportingPDF}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                borderRadius: '6px',
+                border: '1px solid #fca5a5',
+                background: '#fef2f2',
+                color: '#991b1b',
+                cursor: isExportingPDF ? 'not-allowed' : 'pointer'
+              }}
+              title="Download visible filtered products in PDF Catalog format"
+            >
+              {isExportingPDF ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+              <span>{isExportingPDF ? "Exporting..." : "PDF Catalog"}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="admin-loading">Loading products...</div>
