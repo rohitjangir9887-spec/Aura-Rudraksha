@@ -9,11 +9,12 @@ import { compressImage, uploadMedia, uploadMediaBatch } from "../../lib/imageUti
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
-import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp } from "lucide-react";
+import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp, Download, Copy, Loader2 } from "lucide-react";
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
 import { AdminFeaturedProductManager } from "../../components/admin/AdminFeaturedProductManager";
 import { HomeProductShowcase } from "../../components/HomeProductShowcase";
+import { downloadAllProductImages, copyProductTitleToClipboard } from "../../lib/downloadProductUtils";
 
 export function AdminProducts() {
   const [searchParams] = useSearchParams();
@@ -43,6 +44,31 @@ export function AdminProducts() {
   const [indonesianUrlInput, setIndonesianUrlInput] = useState("");
   const [isUploadingIndonesian, setIsUploadingIndonesian] = useState(false);
   const [uploadIndonesianProgressMsg, setUploadIndonesianProgressMsg] = useState("");
+
+  // Product Image Download & Title Auto-copy State
+  const [downloadingProductId, setDownloadingProductId] = useState(null);
+  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
+
+  const handleDownloadAllImages = async (p, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!p) return;
+    setDownloadingProductId(p.id);
+    setDownloadProgress({ current: 0, total: 0 });
+    try {
+      await downloadAllProductImages(p, (curr, tot) => {
+        setDownloadProgress({ current: curr, total: tot });
+      });
+    } catch (err) {
+      console.error("Failed to download product images:", err);
+      emitToast("Error downloading images: " + err.message, "error");
+    } finally {
+      setDownloadingProductId(null);
+      setDownloadProgress({ current: 0, total: 0 });
+    }
+  };
 
   useEffect(() => {
     load();
@@ -1111,8 +1137,43 @@ export function AdminProducts() {
         <button className="admin-back-link" onClick={() => setEditing(null)}>
           <ArrowLeft size={16} /> Back to Products
         </button>
-        <div className="admin-page-header">
+        <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <h1>{editing.id ? `Edit Product: ${editing.name}` : "Add New Product"}</h1>
+          {editing.id && (
+            <button
+              type="button"
+              onClick={(e) => handleDownloadAllImages(editing, e)}
+              disabled={downloadingProductId === editing.id}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: '700',
+                borderRadius: '8px',
+                border: '1px solid #bfdbfe',
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                cursor: downloadingProductId === editing.id ? 'not-allowed' : 'pointer',
+                boxShadow: '0 1px 3px rgba(29, 78, 216, 0.1)',
+                transition: 'all 0.15s ease'
+              }}
+              title="Download all photos for this product and copy title to clipboard"
+            >
+              {downloadingProductId === editing.id ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>{downloadProgress.total > 0 ? `Downloading ${downloadProgress.current}/${downloadProgress.total}...` : "Downloading..."}</span>
+                </>
+              ) : (
+                <>
+                  <Download size={16} />
+                  <span>Download All Images & Copy Title</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {formError && (
@@ -3549,6 +3610,37 @@ export function AdminProducts() {
                     <div className="mobile-card-actions" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <button
                         type="button"
+                        onClick={(e) => handleDownloadAllImages(p, e)}
+                        disabled={downloadingProductId === p.id}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          borderRadius: '6px',
+                          border: '1px solid #bfdbfe',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: downloadingProductId === p.id ? 'not-allowed' : 'pointer'
+                        }}
+                        title="Download all product images & auto-copy title"
+                      >
+                        {downloadingProductId === p.id ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" />
+                            {downloadProgress.total > 0 ? `${downloadProgress.current}/${downloadProgress.total}` : "Saving..."}
+                          </>
+                        ) : (
+                          <>
+                            <Download size={13} />
+                            All Images
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleGenerateAiKeywords(p)}
                         disabled={generatingKeywordId === p.id}
                         style={{
@@ -3616,7 +3708,39 @@ export function AdminProducts() {
                           <div>
                             <strong>{p.name}</strong>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
-                              <small>{p.reviews || 0} reviews • {p.images?.length || 1} images</small>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDownloadAllImages(p, e)}
+                                disabled={downloadingProductId === p.id}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '2px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  borderRadius: '4px',
+                                  border: '1px solid #bfdbfe',
+                                  background: downloadingProductId === p.id ? '#dbeafe' : '#eff6ff',
+                                  color: '#1d4ed8',
+                                  cursor: downloadingProductId === p.id ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                title="Download all images & copy product title to clipboard"
+                              >
+                                {downloadingProductId === p.id ? (
+                                  <>
+                                    <Loader2 size={12} className="animate-spin" />
+                                    <span>{downloadProgress.total > 0 ? `Saving ${downloadProgress.current}/${downloadProgress.total}...` : "Downloading..."}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download size={12} />
+                                    <span>Download All Images ({p.images?.length || 1})</span>
+                                  </>
+                                )}
+                              </button>
+                              <small>{p.reviews || 0} reviews</small>
                               {p.origin && (
                                 <span style={{ fontSize: '10px', background: p.hasIndonesianVariant ? '#fef3c7' : '#f1f5f9', color: p.hasIndonesianVariant ? '#92400e' : '#334155', border: '1px solid #e2e8f0', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
                                   {p.hasIndonesianVariant ? "🇳🇵 Nepal + 🇮🇩 Java" : (p.origin.includes("Java") || p.origin.includes("Indonesia") ? "🇮🇩 Indonesia" : `🇳🇵 ${p.origin}`)}
@@ -3768,6 +3892,24 @@ export function AdminProducts() {
                       </td>
                       <td>
                         <div className="admin-actions-cell">
+                          <button 
+                            type="button"
+                            className="admin-icon-btn" 
+                            onClick={(e) => handleDownloadAllImages(p, e)} 
+                            disabled={downloadingProductId === p.id}
+                            title="Download All Images & Copy Title to Clipboard"
+                            style={{ 
+                              color: '#1d4ed8', 
+                              background: '#eff6ff', 
+                              border: '1px solid #bfdbfe'
+                            }}
+                          >
+                            {downloadingProductId === p.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Download size={16} />
+                            )}
+                          </button>
                           <button 
                             className="admin-icon-btn" 
                             onClick={() => handleGenerateAiKeywords(p)} 
