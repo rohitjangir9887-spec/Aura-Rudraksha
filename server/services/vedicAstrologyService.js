@@ -2754,7 +2754,7 @@ export function generatePanditJiLifeDiagnosis(kundaliData) {
 
 मैं **AI पंडित जी (वैदिक ज्योतिषाचार्य)** हूँ। मैंने महर्षि पाराशर के **बृहत्पाराशर होरा शास्त्र (BPHS)**, **फलदीपिका**, **सारावली**, **जैमिनी उपदेश सूत्र**, **लाल किताब** और **शिव पुराण (विद्येश्वर संहिता)** के अटल शास्त्रीय सिद्धांतों तथा **लाहिड़ी चित्रापक्षीय अयनांश (${vb.ayanamsha || "Lahiri"})** के आधार पर आपकी जन्म कुंडली का संपूर्ण, सूक्ष्म और 100% प्रामाणिक गणितीय अध्ययन किया है।
 
-एक सच्चे वैदिक ब्राह्मण व ज्योतिषी की भांति मैं बिना कुछ छिपाए आपको **पूरी डिटेल (संपूर्ण विवरण)** में बता रहा हूँ कि **अभी आपके जीवन में क्या-क्या परेशानी चल रही है, क्यों चल रही है, कब से चल रही है, कैसे चल रही है, यह कब पूरी तरह ठीक होगी, तथा आपके सभी 9 ग्रहों, 12 भावों, करियर, धन, विवाह, स्वास्थ्य, महादशा और सिद्ध रुद्राक्ष का संपूर्ण फलादेश क्या है:**
+एक सच्चे वैदिक ब्राह्मण व ज्योतिषी की भांति मैं बिना कुछ छिपाए आपको **पूरी डिटेल (संपूर्ण विवरण)** में बता रहा हूँ कि **अभी आपके जीवन में क्या-क्या परेशानी चल रही है, क्यों चल रही है, कब से चल रही है, कैसे चल रही है, यह कब पूरी तरह ठीक होगी, तथा आपके सभी 9 ग्रहों, 12 भावों, करियर, धन, विवाह, स्वास्थ्य, महादशा और सिद्ध रुद्राक्ष का संपूर्ण कुंडली फलादेश क्या है:**
 
 ---
 
@@ -2890,10 +2890,13 @@ export function determineAstrologicalIntent(userQuery = "") {
     return { type: "greeting", label: "Devotee Greeting" };
   }
 
-  // 2. Comprehensive Full Kundali + Life Problem Diagnosis Triggers (Checked BEFORE narrow topics if user asks for full/detailed/complete reading)
+  // Check if query is explicitly asking about a specific domain (job, marriage, wealth, health, education, etc.)
+  const hasSpecificDomain = /(career|job|naukri|nokri|naukari|rozgar|rojgar|business|vyapar|dhandha|promotion|office|service|work|marriage|shaadi|shadi|vivah|love|relationship|husband|wife|spouse|partner|wealth|dhan|money|paisa|paise|finance|debt|karza|karz|loan|health|roog|rog|illness|disease|hospital|bimari|swasthya|study|padhai|padai|exam|foreign|abroad|travel|visa|santan|bachha|property|makaan|makan|ghar|कैरियर|नौकरी|व्यापार|काम|शादी|विवाह|पति|पत्नी|प्रेम|धन|पैसा|कर्ज|स्वास्थ्य|बीमारी|रोग|पढ़ाई|शिक्षा|परीक्षा|विदेश|संतान|मकान|घर)/i.test(q);
+
+  // 2. Comprehensive Full Kundali + Life Problem Diagnosis Triggers (Checked BEFORE narrow topics ONLY if user asks for full/detailed/complete reading or has no specific domain)
   const isFullOrLifeDiagnosisRequest = (
     /(पूरी\s*कुंडली|संपूर्ण\s*कुंडली|विस्तृत\s*कुंडली|फुल\s*कुंडली|कुंडली\s*विश्लेषण|जन्म\s*तिथि:|जन्म\s*समय:|जन्म\s*स्थान:|मुख्य\s*संकल्प|puri\s*kundali|poori\s*kundali|full\s*kundali|complete\s*kundli|complete\s*reading|sampurna\s*kundali|diteld|detailed|detail\s*me|sab\s*kuch|सब\s*कुछ|पूरी\s*जानकारी|विस्तार\s*से)/i.test(q) ||
-    /(pareshani|paresani|dikkat|problem|samasya|sankat|rukaawat|rukawat|kya\s*chal\s*raha|kyo\s*chal|kyu\s*chal|kab\s*se|kese\s*chal|kaise\s*chal|kab\s*sahi\s*hog|kab\s*thik\s*hog|kab\s*theek\s*hog|परेशानी|दिक्कत|समस्या|संकट|रुकावट|क्यों\s*चल|कब\s*से|कैसे\s*चल|कब\s*सही\s*होगी|कब\s*ठीक\s*होगी|पंडित\s*की\s*तरह|bandit\s*ki\s*tarh|pandit\s*ki\s*tarah)/i.test(q)
+    (!hasSpecificDomain && /(pareshani|paresani|dikkat|problem|samasya|sankat|rukaawat|rukawat|kya\s*chal\s*raha|kyo\s*chal|kyu\s*chal|kab\s*se|kese\s*chal|kaise\s*chal|kab\s*sahi\s*hog|kab\s*thik\s*hog|kab\s*theek\s*hog|परेशानी|दिक्कत|समस्या|संकट|रुकावट|क्यों\s*चल|कब\s*से|कैसे\s*चल|कब\s*सही\s*होगी|कब\s*ठीक\s*होगी|पंडित\s*की\s*तरह|bandit\s*ki\s*tarh|pandit\s*ki\s*tarah)/i.test(q))
   );
   if (isFullOrLifeDiagnosisRequest) {
     return { type: "full_kundali", label: "Sampurna Vedic Kundali & Pareshani Nivaran Vishleshan (What, Why, Since When, How & When Resolved)" };
@@ -3059,7 +3062,7 @@ export function generateKundaliTopicDiagnosis(kundaliData, astroIntent = null, u
 
     return `🙏 **प्रणाम ${vb.name || "भक्त"} जी! हर हर महादेव।**
 
-आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**, नक्षत्र: **${chandra.nakshatra}**) तथा **दशमांश कुंडली (D10 Dashamsha)** के सूक्ष्म गणितीय विश्लेषण के आधार पर **नौकरी, करियर, व्यापार व पदोन्नति** का संपूर्ण विस्तृत वैदिक फलादेश नीचे दिया गया है:
+आपकी जन्म कुंडली (**${lagna.rashiHindi} लग्न**, **${chandra.rashiHindi} चंद्र राशि**, नक्षत्र: **${chandra.nakshatra}**) तथा **दशमांश कुंडली (D10 Dashamsha)** के सूक्ष्म गणितीय विश्लेषण के आधार पर **नौकरी, करियर व आजीविका (व्यापार, पदोन्नति व कार्यक्षेत्र)** का संपूर्ण विस्तृत वैदिक फलादेश नीचे दिया गया है:
 
 ---
 
@@ -3093,7 +3096,7 @@ export function generateKundaliTopicDiagnosis(kundaliData, astroIntent = null, u
 ---
 
 ### ⏳ 4. करियर में अभी रुकावट क्यों है और नई नौकरी/प्रमोशन का सटीक समय कब है?
-• **वर्तमान रुकावट का कारण:** अभी आप पर **${mahaHindi} की महादशा (${mahaStart} से ${mahaEnd})** के भीतर **${antarHindi} की अंतर्दशा (${antarStart} से ${antarEnd})** तथा **${pratyantarHindi} की प्रत्यंतर दशा (${pratyantarStart} से ${pratyantarEnd})** चल रही है। इस दशा संधि और गोचर के कारण आप जितनी मेहनत कर रहे हैं, उसका पूरा परिणाम मिलने में विलंब हो रहा है।
+• **वर्तमान रुकावट का कारण:** अभी आप पर **विंशोत्तरी महादशा चक्र** के अनुसार **${mahaHindi} की महादशा (${mahaStart} से ${mahaEnd})** के भीतर **${antarHindi} की अंतर्दशा (${antarStart} से ${antarEnd})** तथा **${pratyantarHindi} की प्रत्यंतर दशा (${pratyantarStart} से ${pratyantarEnd})** चल रही है। इस दशा संधि और गोचर के कारण आप जितनी मेहनत कर रहे हैं, उसका पूरा परिणाम मिलने में विलंब हो रहा है।
 • 🌤️ **पहली राहत व नए अवसर (Initial Breakthrough):** **${pratyantarEnd}** को वर्तमान प्रत्यंतर दशा समाप्त होते ही कार्यस्थल का तनाव कम होगा, इंटरव्यू/नए प्रोजेक्ट्स में सफलता मिलेगी और रुकी हुई बात आगे बढ़ेगी।
 • 🌅 **बड़ा प्रमोशन व स्वर्ण काल (Golden Career Window):** वर्तमान **${antarHindi} अंतर्दशा ${antarEnd}** को पूर्ण होगी। ${nextAntar1 ? `इसके तुरंत बाद **${nextAntar1.startDate} से ${nextAntar1.endDate}** तक चलने वाली **${nextAntar1.planetHindi} की अंतर्दशा** आपके करियर का सबसे बड़ा टर्निंग पॉइंट सिद्ध होगी—जिसमें मनचाही नौकरी, पदोन्नति (Promotion), वेतन वृद्धि और व्यापार विस्तार का प्रबल राजयोग बनेगा।` : `**${antarEnd}** के पश्चात आपके करियर में स्थायी उछाल और मान-सम्मान की प्राप्ति होगी।`}
 
