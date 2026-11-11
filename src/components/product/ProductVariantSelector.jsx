@@ -17,7 +17,7 @@ export function ProductVariantSelector({
   const isRudraksha = isRudrakshaProduct(product);
   const hasIndonesian = isRudraksha && (!!product.hasIndonesianVariant || (Number(product.indonesianPrice) > 0));
   const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
-  const hasSizes = product.hasCustomSizes !== false && Array.isArray(product.sizes) && product.sizes.length > 0;
+  const hasSizes = product.hasSizes !== false && product.hasCustomSizes !== false && Array.isArray(product.sizes) && product.sizes.length > 0;
 
   const nepalPrice = Math.max(0, safePrice(product.price, 0));
   const indoPrice = Math.max(0, safePrice(product.indonesianPrice, 0));

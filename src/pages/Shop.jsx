@@ -184,9 +184,12 @@ export function Shop() {
     schema: shopSchema
   });
 
+  const [layoutIds, setLayoutIds] = useState(() => db.getSettings()?.homeProductLayout?.live || []);
+
   const updateProductsState = () => {
     const freshProducts = db.getProducts().filter(isPublicProduct);
     setProducts(freshProducts);
+    setLayoutIds(db.getSettings()?.homeProductLayout?.live || []);
     if (freshProducts.length > 0) {
       setIsLoading(false);
     }
@@ -376,17 +379,12 @@ export function Shop() {
     } else if (filter === "popular") {
       next.sort((a,b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
     } else if (!q) {
-      // Default: respect admin displayOrder / sortOrder followed by Mukhi / category ordering
-      next = sortProductsByCatalogOrder(next);
-      // When browsing "all" products without a specific category filter, interleave Rudraksha and other categories
-      // (Rudraksha -> Other -> Rudraksha -> Other...) so customers discover diverse categories
-      if (chip === "all" && (!categoryParam || categoryParam === "all")) {
-        next = interleaveCatalogProducts(next);
-      }
+      // Default: strictly respect admin sequence (#1, #2, #3...) followed by Mukhi / category ordering
+      next = sortProductsByCatalogOrder(next, layoutIds);
     }
     
     return next;
-  }, [products, filter, chip, priceRange, q, categoryParam]);
+  }, [products, filter, chip, priceRange, q, categoryParam, layoutIds]);
 
   return (
     <Shell>

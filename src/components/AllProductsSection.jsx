@@ -1,18 +1,27 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
-import { isPublicProduct } from "../lib/db";
+import { db, isPublicProduct, onStoreUpdate } from "../lib/db";
 import { sortProductsByCatalogOrder } from "../lib/productHelper";
 
 export function AllProductsSection({ products = [], isLoading = false }) {
   const { add } = useCart();
+  const [layoutIds, setLayoutIds] = useState(() => db.getSettings()?.homeProductLayout?.live || []);
 
-  // All active products from catalog (newly added products prioritized first)
+  useEffect(() => {
+    setLayoutIds(db.getSettings()?.homeProductLayout?.live || []);
+    const unsub = onStoreUpdate(() => {
+      setLayoutIds(db.getSettings()?.homeProductLayout?.live || []);
+    });
+    return () => unsub();
+  }, []);
+
+  // All active products from catalog respecting Admin sequence (#1, #2, #3...) first
   const allActiveProducts = React.useMemo(() => {
-    return sortProductsByCatalogOrder((products || []).filter(isPublicProduct));
-  }, [products]);
+    return sortProductsByCatalogOrder((products || []).filter(isPublicProduct), layoutIds);
+  }, [products, layoutIds]);
 
   return (
     <section className="section all-products-section" style={{ paddingTop: '25px', paddingBottom: '45px' }}>

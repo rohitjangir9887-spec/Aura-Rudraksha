@@ -123,10 +123,10 @@ export async function getSettings(req, res, next) {
       isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
     }
 
-    if (isAdmin) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-    } else {
-      res.setHeader("Cache-Control", "no-cache, must-revalidate");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+
+    if (req.query?._t || isAdmin) {
+      clearSettingsCache();
     }
 
     if (!isDbConnected()) {
@@ -152,31 +152,33 @@ export async function saveSettings(req, res, next) {
       delete data.pcloudAccessToken;
     }
 
-    // Validate featuredProductId if provided
+    // Validate featuredProductId softly without blocking other setting updates (categories, layout, zodiacs, COD, etc.)
     if (data.featuredProductId && data.featuredProductId.trim()) {
       const prodId = data.featuredProductId.trim();
-      let exists = false;
       if (isDbConnected()) {
+        const isMongoId = /^[0-9a-fA-F]{24}$/.test(prodId);
         const prod = await Product.findOne({
           $or: [
             { id: prodId },
-            { slug: prodId }
+            ...(/^\d+$/.test(prodId) ? [{ id: Number(prodId) }] : []),
+            { slug: prodId },
+            ...(isMongoId ? [{ _id: prodId }] : [])
           ]
-        }).lean();
-        if (prod) exists = true;
-      }
-      if (!exists) {
-        return res.status(400).json({ success: false, message: "Selected featured product does not exist in catalog" });
+        }).lean().catch(() => null);
+        if (!prod && req.body && Object.keys(req.body).length === 1 && req.body.featuredProductId) {
+          return res.status(400).json({ success: false, message: "Selected featured product does not exist in catalog" });
+        }
       }
     }
+
+    Object.assign(defaultSettings, data);
+    clearSettingsCache();
 
     if (!isDbConnected()) {
       await connectDB().catch(() => {});
     }
 
     if (!isDbConnected()) {
-      Object.assign(defaultSettings, data);
-      clearSettingsCache();
       return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings, true) });
     }
 

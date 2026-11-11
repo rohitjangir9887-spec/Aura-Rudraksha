@@ -57,8 +57,8 @@ export function AdminOffers() {
     return () => clearInterval(timer);
   }, []);
 
-  const load = async (force = false) => {
-    if (!db.getActiveOffer() && db.fetchOffers) {
+  const load = async (force = false, allowNetwork = true) => {
+    if (allowNetwork && !db.getActiveOffer() && db.fetchOffers) {
       try { await db.fetchOffers(); } catch(e) {}
     }
     const fresh = db.getActiveOffer();
@@ -70,13 +70,16 @@ export function AdminOffers() {
   };
 
   useEffect(() => {
-    load();
+    load(false, true);
     loadDeals();
-    const unsub = onStoreUpdate(() => {
-      if (!isDirtyRef.current) {
-        load();
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (!action || action.includes("offer") || action.includes("coupon")) {
+        if (!isDirtyRef.current) {
+          load(false, false);
+        }
+        loadDeals();
       }
-      loadDeals();
     });
     return () => unsub();
   }, []);

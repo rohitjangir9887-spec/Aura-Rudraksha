@@ -4,19 +4,70 @@ import { RotateCcw, AlertTriangle, ArrowLeft } from "lucide-react";
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = {
+      hasError: false,
+      error: null,
+      retryCount: 0,
+      lastPath: typeof window !== "undefined" ? window.location.pathname + window.location.search : ""
+    };
+    this._autoRetryTimer = null;
   }
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
 
+  componentDidMount() {
+    if (typeof window !== "undefined") {
+      window.addEventListener("popstate", this.handleRouteCheck);
+    }
+  }
+
+  componentDidUpdate() {
+    this.handleRouteCheck();
+  }
+
+  componentWillUnmount() {
+    if (this._autoRetryTimer) {
+      clearTimeout(this._autoRetryTimer);
+    }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("popstate", this.handleRouteCheck);
+    }
+  }
+
+  handleRouteCheck = () => {
+    if (typeof window === "undefined") return;
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath !== this.state.lastPath) {
+      if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
+      this.setState({
+        hasError: false,
+        error: null,
+        retryCount: 0,
+        lastPath: currentPath
+      });
+    }
+  };
+
   componentDidCatch(error, errorInfo) {
-    console.error("Aura Rudraksha caught UI exception:", error, errorInfo);
+    console.warn("Aura Rudraksha handled UI exception:", error, errorInfo);
+    // Automatically recover from transient hydration/render glitches without locking the view
+    if (this.state.retryCount < 2) {
+      if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
+      this._autoRetryTimer = setTimeout(() => {
+        this.setState((prev) => ({
+          hasError: false,
+          error: null,
+          retryCount: prev.retryCount + 1
+        }));
+      }, 50);
+    }
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
+    this.setState({ hasError: false, error: null, retryCount: 0 });
     if (this.props.onReset) {
       try {
         this.props.onReset();
@@ -25,8 +76,9 @@ export class ErrorBoundary extends React.Component {
   };
 
   handleResetAndGoHome = () => {
+    if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
     try {
-      this.setState({ hasError: false, error: null });
+      this.setState({ hasError: false, error: null, retryCount: 0 });
     } catch (_) {}
     if (typeof window !== "undefined") {
       window.location.href = "/";

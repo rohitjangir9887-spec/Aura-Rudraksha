@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
   ChevronRight, 
@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { ProductCard, ProductCardSkeleton } from "./ProductCard";
 import { useCart } from "../hooks/useCart";
-import { db, isPublicProduct } from "../lib/db";
+import { db, isPublicProduct, onStoreUpdate } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
 import { sortProductsByHomeOrder, isRudrakshaProduct } from "../lib/productHelper";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
@@ -250,6 +250,18 @@ function MandalaCornerWatermark() {
 export function HomeProductShowcase({ products = [], isLoading = false, overrideLayout = false }) {
   const { add } = useCart();
   const [activeTab, setActiveTab] = useState("all");
+  const [layoutConfig, setLayoutConfig] = useState(() => db.getSettings()?.homeProductLayout || null);
+
+  useEffect(() => {
+    setLayoutConfig(db.getSettings()?.homeProductLayout || null);
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (!action || action.startsWith("settings") || action.startsWith("product")) {
+        setLayoutConfig(db.getSettings()?.homeProductLayout || null);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Handler to open Aura AI Pandit Ji chat assistant
   const handleOpenAiPandit = () => {
@@ -274,10 +286,12 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
   const homeProducts = useMemo(() => {
     const list = Array.isArray(products) ? products.filter(p => p && isPublicProduct(p)) : [];
     if (overrideLayout) {
-      return sortProductsByHomeOrder(list);
+      return list;
     }
-    const settings = db.getSettings();
-    if (settings?.homeProductLayout?.isAiAutoOrder) {
+    const settingsLayout = layoutConfig || db.getSettings()?.homeProductLayout;
+    const liveIds = Array.isArray(settingsLayout?.live) ? settingsLayout.live.map(String) : [];
+
+    if (settingsLayout?.isAiAutoOrder) {
       // AI Automatic Ranking: Prioritizes sacred Rudrakshas, sales volume, top rating, and popular picks
       const activeHomeProds = list.filter(p => p.showOnHome !== false && isPublicProduct(p));
       return [...activeHomeProds].sort((a, b) => {
@@ -297,33 +311,9 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
       });
     }
 
-    if (settings && settings.homeProductLayout && settings.homeProductLayout.live && settings.homeProductLayout.live.length > 0) {
-      const liveOrder = settings.homeProductLayout.live;
-      const orderedProducts = [];
-      const addedIds = new Set();
-      for (const id of liveOrder) {
-        const prod = list.find(p => String(p.id || p._id) === String(id) || String(p.slug) === String(id));
-        if (prod && isPublicProduct(prod) && prod.showOnHome !== false) {
-          orderedProducts.push(prod);
-          addedIds.add(String(prod.id || prod._id));
-        }
-      }
-      const unindexed = list.filter(p => p && p.showOnHome !== false && isPublicProduct(p) && !addedIds.has(String(p.id || p._id)));
-      const newlyAdded = sortProductsByHomeOrder(
-        unindexed.filter(p => String(p.id || "").startsWith("prod_") || /^\d{10,}$/.test(String(p.id || "")))
-      );
-      const newlyAddedIds = new Set(newlyAdded.map(p => String(p.id || p._id)));
-      const otherRemaining = sortProductsByHomeOrder(
-        unindexed.filter(p => !newlyAddedIds.has(String(p.id || p._id)))
-      );
-      const combined = [...newlyAdded, ...orderedProducts, ...otherRemaining];
-      if (combined.length > 0) return combined;
-    }
-    
-    // Fallback if no layout is set
     const activeHomeProds = list.filter(p => p.showOnHome !== false && isPublicProduct(p));
-    return sortProductsByHomeOrder(activeHomeProds.length > 0 ? activeHomeProds : list);
-  }, [products, overrideLayout]);
+    return sortProductsByHomeOrder(activeHomeProds.length > 0 ? activeHomeProds : list, liveIds);
+  }, [products, overrideLayout, layoutConfig]);
 
   // Compute sub-filters for easy user discovery
   const popularProducts = useMemo(() => {

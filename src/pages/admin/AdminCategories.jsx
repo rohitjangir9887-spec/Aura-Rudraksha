@@ -41,20 +41,28 @@ export function AdminCategories() {
   const [isSavingProducts, setIsSavingProducts] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
+    const syncFromStore = (includeCategories = true) => {
+      if (includeCategories) {
+        const settings = db.getSettings() || {};
+        if (settings.shopCategories && settings.shopCategories.length > 0) {
+          setCategories(settings.shopCategories);
+        }
+      }
+      setProducts(db.getProducts() || []);
+    };
+    syncFromStore(true);
+    db.fetchSettings().then(() => syncFromStore(true)).catch(() => {});
     if ((db.getProducts() || []).length === 0) {
-      try { await db.fetchProducts(); } catch(e) {}
+      db.fetchProducts().then(() => syncFromStore(false)).catch(() => {});
     }
-    const settings = db.getSettings() || {};
-    if (settings.shopCategories && settings.shopCategories.length > 0) {
-      setCategories(settings.shopCategories);
-    }
-    setProducts(db.getProducts() || []);
-  };
-    load();
-    db.fetchSettings().then(load);
-    db.fetchProducts().then(load);
-    const unsub = onStoreUpdate(load);
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (action === "settings:saved" || action === "settings:synced") {
+        syncFromStore(true);
+      } else if (action.startsWith("product")) {
+        syncFromStore(false);
+      }
+    });
     return () => unsub();
   }, []);
 

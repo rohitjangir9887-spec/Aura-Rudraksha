@@ -18,16 +18,26 @@ export function AdminZodiac() {
   const fileInputRefs = useRef({});
 
   useEffect(() => {
-    const load = () => {
-      const settings = db.getSettings();
-      setZodiacs(settings.zodiacs || initialZodiacs);
+    const syncFromStore = (includeZodiacs = true) => {
+      if (includeZodiacs) {
+        const settings = db.getSettings();
+        if (settings?.zodiacs && settings.zodiacs.length > 0) {
+          setZodiacs(settings.zodiacs);
+        }
+      }
       setProducts(db.getProducts().filter(isPublicProduct));
     };
-    load();
-    // Fresh fetch from MongoDB so admin sees the currently saved zodiac content
-    db.fetchSettings().then(load);
-    db.fetchProducts().then(load);
-    const unsub = onStoreUpdate(load);
+    syncFromStore(true);
+    db.fetchSettings().then(() => syncFromStore(true)).catch(() => {});
+    db.fetchProducts().then(() => syncFromStore(false)).catch(() => {});
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (action === "settings:saved" || action === "settings:synced") {
+        syncFromStore(true);
+      } else if (action.startsWith("product")) {
+        syncFromStore(false);
+      }
+    });
     return () => unsub();
   }, []);
 

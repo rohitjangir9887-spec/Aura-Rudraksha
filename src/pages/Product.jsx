@@ -205,12 +205,34 @@ export function Product() {
     loadData(true);
 
     const unsub = onStoreUpdate((eventOrType, maybePayload) => {
-      const type = typeof eventOrType === "string" ? eventOrType : (eventOrType?.type || "");
-      const payload = maybePayload !== undefined ? maybePayload : eventOrType?.payload;
+      const type = typeof eventOrType === "string"
+        ? eventOrType
+        : (eventOrType?.detail?.action || eventOrType?.type || "");
+      const payload = maybePayload !== undefined
+        ? maybePayload
+        : (eventOrType?.detail?.data ?? eventOrType?.payload);
+
       if (type === "product:saved" || type === "product:updated" || type === "products:synced" || type === "product:synced") {
         const targetId = String(id || "").toLowerCase();
-        if (type === "products:synced" || (payload && (String(payload.id || "").toLowerCase() === targetId || String(payload._id || "").toLowerCase() === targetId || String(payload.slug || "").toLowerCase() === targetId))) {
-          loadData(true);
+        const matchesTarget =
+          type === "products:synced" ||
+          !payload ||
+          String(payload.id || "").toLowerCase() === targetId ||
+          String(payload._id || "").toLowerCase() === targetId ||
+          String(payload.slug || "").toLowerCase() === targetId;
+
+        if (matchesTarget) {
+          const updatedInMem = db.getProduct(id);
+          if (updatedInMem) {
+            setProduct(updatedInMem);
+            setReviews(db.getReviews(updatedInMem.id || updatedInMem._id));
+          }
+          setAllProducts(db.getProducts().filter(isPublicProduct));
+        }
+      } else if (type === "reviews:synced" || type.startsWith("review:")) {
+        const currentProd = db.getProduct(id);
+        if (currentProd) {
+          setReviews(db.getReviews(currentProd.id || currentProd._id));
         }
       }
     });
@@ -317,7 +339,8 @@ export function Product() {
   const isFav = p ? isWishlisted(rawP?.id || rawP?._id || p.id || p._id) : false;
 
   // Dynamic SEO & OpenGraph Meta Tag Synchronization for Social Sharing Previews
-  const primaryImg = p?.img || (p?.images && p?.images[0]) || "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+  const rawPrimaryImg = p?.img || (Array.isArray(p?.images) && p?.images[0]) || "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png";
+  const primaryImg = typeof rawPrimaryImg === "string" ? rawPrimaryImg : String(rawPrimaryImg?.url || "https://i.ibb.co/Q3C3gZTd/file-00000000fb188211907f8ce113ccb17a.png");
   const siteOrigin = (typeof window !== "undefined" && window.location.origin) ? window.location.origin : "https://aurarudraksha.bond";
   const ogImgUrl = primaryImg.startsWith("http") 
     ? primaryImg 
@@ -330,10 +353,10 @@ export function Product() {
       {
         "@context": "https://schema.org",
         "@type": "Product",
-        "name": p.name,
+        "name": String(p.name || "Aura Rudraksha"),
         "image": ogImgUrl,
-        "description": (p.highlight || p.description || "").replace(/<[^>]*>/g, " ").slice(0, 300),
-        "sku": String(p.id),
+        "description": String(p.highlight || p.description || "").replace(/<[^>]*>/g, " ").slice(0, 300),
+        "sku": String(p.id || id || ""),
         "brand": {
           "@type": "Brand",
           "name": "Aura Rudraksha"

@@ -7,7 +7,7 @@ import { db } from "../../lib/db";
 import { emitToast } from "../../context/ToastContext";
 import { getProductPrimaryImage } from "../../lib/imageUtils";
 import { isPublicProduct } from "../../lib/db";
-import { isRudrakshaProduct } from "../../lib/productHelper";
+import { isRudrakshaProduct, sortProductsByCatalogOrder } from "../../lib/productHelper";
 import { HomeProductShowcase } from "../../components/HomeProductShowcase";
 import "./admin-pages.css";
 
@@ -20,22 +20,21 @@ export function AdminHomeProductManager() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const products = db.getProducts().filter(isPublicProduct);
+    const settings = db.getSettings();
+    const liveIds = settings?.homeProductLayout?.live || [];
+    const products = sortProductsByCatalogOrder(db.getProducts().filter(isPublicProduct), liveIds);
     setAllProducts(products);
 
-    const settings = db.getSettings();
     if (settings?.homeProductLayout?.isAiAutoOrder !== undefined) {
       setIsAiAutoOrder(!!settings.homeProductLayout.isAiAutoOrder);
     }
-    if (settings?.homeProductLayout?.draft) {
-      setDraftLayout(settings.homeProductLayout.draft);
-    } else if (settings?.homeProductLayout?.live) {
-      setDraftLayout(settings.homeProductLayout.live);
+    if (Array.isArray(settings?.homeProductLayout?.draft) && settings.homeProductLayout.draft.length > 0) {
+      setDraftLayout(settings.homeProductLayout.draft.map(String));
+    } else if (Array.isArray(settings?.homeProductLayout?.live) && settings.homeProductLayout.live.length > 0) {
+      setDraftLayout(settings.homeProductLayout.live.map(String));
     } else {
-      // Fallback: use existing logic of homeOrder
-      const defaultIds = [...products]
+      const defaultIds = products
         .filter(p => p.showOnHome !== false)
-        .sort((a, b) => (Number(a.homeOrder || 0) || 999) - (Number(b.homeOrder || 0) || 999))
         .map(p => String(p.id || p._id));
       setDraftLayout(defaultIds);
     }
@@ -105,10 +104,13 @@ export function AdminHomeProductManager() {
       const newLayout = { 
         ...(currentSettings.homeProductLayout || {}), 
         draft: draftLayout,
+        live: draftLayout,
         isAiAutoOrder: !!isAiAutoOrder
       };
+      await db.reorderProducts(draftLayout);
       await db.saveSettings({ ...currentSettings, homeProductLayout: newLayout });
-      emitToast("Draft saved successfully", "success");
+      setAllProducts(sortProductsByCatalogOrder(db.getProducts().filter(isPublicProduct), draftLayout));
+      emitToast("✅ Product order saved and synced to All Products & Home UI!", "success");
     } catch (e) {
       emitToast("Failed to save draft", "error");
     }
@@ -124,8 +126,10 @@ export function AdminHomeProductManager() {
         live: draftLayout,
         isAiAutoOrder: !!isAiAutoOrder 
       };
+      await db.reorderProducts(draftLayout);
       await db.saveSettings({ ...currentSettings, homeProductLayout: newLayout });
-      emitToast("Home products published to live site!", "success");
+      setAllProducts(sortProductsByCatalogOrder(db.getProducts().filter(isPublicProduct), draftLayout));
+      emitToast("✅ Product sequence published to Home & All Products!", "success");
     } catch (e) {
       emitToast("Failed to publish", "error");
     }

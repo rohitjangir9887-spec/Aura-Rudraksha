@@ -11,6 +11,48 @@ import { logAuditEvent } from "../services/auditService.js";
 import { submitToIndexNow } from "../services/indexNowService.js";
 import { generateProductSeoMetadata } from "../services/keywordIntelligenceService.js";
 import { matchProductQuery } from "../../src/lib/searchUtils.js";
+import { clearSettingsCache } from "./settingController.js";
+
+function getEffectiveOrderValue(p, layoutIndexMap = null) {
+  if (!p) return Number.MAX_SAFE_INTEGER;
+  const hOrder = Number(p.homeOrder);
+  const sOrder = Number(p.sortOrder);
+  const dOrder = Number(p.displayOrder);
+  if (!isNaN(hOrder) && hOrder > 0) return hOrder;
+  if (!isNaN(sOrder) && sOrder > 0) return sOrder;
+  if (!isNaN(dOrder) && dOrder > 0) return dOrder;
+  if (layoutIndexMap) {
+    const pid = String(p.id || p._id || "");
+    if (pid && layoutIndexMap.has(pid)) {
+      return layoutIndexMap.get(pid) + 1;
+    }
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function sortProductsByAdminSequence(products = [], layoutIds = []) {
+  if (!Array.isArray(products)) return [];
+  const layoutIndexMap = Array.isArray(layoutIds) && layoutIds.length > 0
+    ? new Map(layoutIds.map((id, idx) => [String(id), idx]))
+    : null;
+
+  return [...products].sort((a, b) => {
+    const orderA = getEffectiveOrderValue(a, layoutIndexMap);
+    const orderB = getEffectiveOrderValue(b, layoutIndexMap);
+    if (orderA !== orderB) return orderA - orderB;
+
+    if (layoutIndexMap) {
+      const idxA = layoutIndexMap.has(String(a?.id || a?._id || "")) ? layoutIndexMap.get(String(a?.id || a?._id || "")) : Number.MAX_SAFE_INTEGER;
+      const idxB = layoutIndexMap.has(String(b?.id || b?._id || "")) ? layoutIndexMap.get(String(b?.id || b?._id || "")) : Number.MAX_SAFE_INTEGER;
+      if (idxA !== idxB) return idxA - idxB;
+    }
+
+    const timeA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (timeA !== timeB && !isNaN(timeA) && !isNaN(timeB)) return timeB - timeA;
+    return String(a?.id || "").localeCompare(String(b?.id || ""), undefined, { numeric: true });
+  });
+}
 
 function applySearchQueryFilter(items = [], rawSearch = "") {
   const q = String(rawSearch || "").trim();
@@ -215,7 +257,17 @@ export async function getProducts(req, res, next) {
       };
     }
 
-    const products = await Product.find(filter).sort({ sortOrder: 1, homeOrder: 1, createdAt: -1 }).lean();
+    const rawProducts = await Product.find(filter).lean();
+    let liveLayoutIds = [];
+    try {
+      const { Setting } = await import("../models/Setting.js");
+      const settingDoc = await Setting.findOne({ id: "STORE_SETTINGS" }).select("homeProductLayout").lean();
+      if (Array.isArray(settingDoc?.homeProductLayout?.live)) {
+        liveLayoutIds = settingDoc.homeProductLayout.live.map(String);
+      }
+    } catch (_) {}
+
+    const products = sortProductsByAdminSequence(rawProducts, liveLayoutIds);
     if (Array.isArray(products) && products.length > 0 && !isAdmin && !req.query.status && !req.query.category) {
       inMemoryStore.products = products;
     }
@@ -419,6 +471,14 @@ export async function createProduct(req, res, next) {
       ? Boolean(data.hasCertificate) 
       : false;
 
+    const explicitOrder = Number(data.homeOrder) > 0
+      ? Number(data.homeOrder)
+      : Number(data.sortOrder) > 0
+      ? Number(data.sortOrder)
+      : Number(data.displayOrder) > 0
+      ? Number(data.displayOrder)
+      : 0;
+
     const productPayload = {
       ...data,
       id,
@@ -428,6 +488,9 @@ export async function createProduct(req, res, next) {
       hasCertificate: hasCertificateDetected,
       productType: data.productType || (isRudrakshaDetected ? "rudraksha" : "general"),
       showOnHome: data.showOnHome !== undefined ? Boolean(data.showOnHome) : true,
+      homeOrder: explicitOrder,
+      sortOrder: explicitOrder,
+      displayOrder: explicitOrder,
       isPopular: data.isPopular !== undefined ? Boolean(data.isPopular) : true,
       homeBadge: data.homeBadge || data.badge || "New Arrival",
       badge: data.badge || data.homeBadge || "New Arrival",
@@ -485,20 +548,24 @@ export async function createProduct(req, res, next) {
       else inMemoryStore.products.unshift(freshDoc);
     }
 
-    // If Home Product Layout is active in Settings and showOnHome is enabled, prepend new product ID so it immediately shows on Home UI
+    // If Home Product Layout is active in Settings and showOnHome is enabled, insert new product ID at its homeOrder position (or end if unset)
     if (productPayload.showOnHome !== false) {
       try {
         const { Setting } = await import("../models/Setting.js");
         const settingDoc = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
         if (settingDoc?.homeProductLayout) {
-          const liveArr = Array.isArray(settingDoc.homeProductLayout.live) ? settingDoc.homeProductLayout.live : [];
-          const draftArr = Array.isArray(settingDoc.homeProductLayout.draft) ? settingDoc.homeProductLayout.draft : [];
-          const nextLive = [cleanId, ...liveArr.filter(x => String(x) !== cleanId)];
-          const nextDraft = [cleanId, ...draftArr.filter(x => String(x) !== cleanId)];
+          const liveArr = Array.isArray(settingDoc.homeProductLayout.live) ? settingDoc.homeProductLayout.live.map(String) : [];
+          const draftArr = Array.isArray(settingDoc.homeProductLayout.draft) ? settingDoc.homeProductLayout.draft.map(String) : [];
+          const filteredLive = liveArr.filter(x => x !== cleanId);
+          const filteredDraft = draftArr.filter(x => x !== cleanId);
+          const insertIdx = explicitOrder > 0 ? Math.max(0, Math.min(explicitOrder - 1, filteredLive.length)) : filteredLive.length;
+          filteredLive.splice(insertIdx, 0, cleanId);
+          filteredDraft.splice(Math.min(insertIdx, filteredDraft.length), 0, cleanId);
           await Setting.updateOne(
             { id: "STORE_SETTINGS" },
-            { $set: { "homeProductLayout.live": nextLive, "homeProductLayout.draft": nextDraft } }
+            { $set: { "homeProductLayout.live": filteredLive, "homeProductLayout.draft": filteredDraft } }
           );
+          clearSettingsCache();
         }
       } catch (_) {}
     }
@@ -586,6 +653,16 @@ export async function updateProduct(req, res, next) {
     if (data.sizes !== undefined) {
       updatePayload.sizes = Array.isArray(data.sizes) ? data.sizes : [];
     }
+    if (data.homeOrder !== undefined || data.sortOrder !== undefined || data.displayOrder !== undefined) {
+      const nextOrder = data.homeOrder !== undefined
+        ? Math.max(0, Number(data.homeOrder) || 0)
+        : data.sortOrder !== undefined
+        ? Math.max(0, Number(data.sortOrder) || 0)
+        : Math.max(0, Number(data.displayOrder) || 0);
+      updatePayload.homeOrder = nextOrder;
+      updatePayload.sortOrder = nextOrder;
+      updatePayload.displayOrder = nextOrder;
+    }
 
     if (!isDbConnected()) {
       return res.status(503).json({
@@ -631,6 +708,33 @@ export async function updateProduct(req, res, next) {
       if (exIdx >= 0) inMemoryStore.products[exIdx] = freshDoc;
       else inMemoryStore.products.unshift(freshDoc);
     }
+
+    // If order or showOnHome changed, keep Setting.homeProductLayout synchronized
+    if (updatePayload.homeOrder !== undefined || updatePayload.showOnHome !== undefined) {
+      try {
+        const { Setting } = await import("../models/Setting.js");
+        const settingDoc = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+        if (settingDoc?.homeProductLayout) {
+          const prodIdStr = String(updated.id || cleanId);
+          let liveArr = Array.isArray(settingDoc.homeProductLayout.live) ? settingDoc.homeProductLayout.live.map(String) : [];
+          let draftArr = Array.isArray(settingDoc.homeProductLayout.draft) ? settingDoc.homeProductLayout.draft.map(String) : [];
+          liveArr = liveArr.filter(x => x !== prodIdStr && x !== cleanId);
+          draftArr = draftArr.filter(x => x !== prodIdStr && x !== cleanId);
+          if (updated.showOnHome !== false) {
+            const targetOrder = Number(updated.homeOrder);
+            const targetIdx = targetOrder > 0 ? Math.max(0, Math.min(targetOrder - 1, liveArr.length)) : liveArr.length;
+            liveArr.splice(targetIdx, 0, prodIdStr);
+            draftArr.splice(Math.min(targetIdx, draftArr.length), 0, prodIdStr);
+          }
+          await Setting.updateOne(
+            { id: "STORE_SETTINGS" },
+            { $set: { "homeProductLayout.live": liveArr, "homeProductLayout.draft": draftArr } }
+          );
+          clearSettingsCache();
+        }
+      } catch (_) {}
+    }
+
     invalidateRagCache();
     invalidateProductCache();
 
@@ -812,24 +916,86 @@ export async function reorderProducts(req, res, next) {
       return res.status(400).json({ error: "Invalid items array for reordering" });
     }
 
-    const updates = [];
-    for (const item of items) {
-      if (!item || !item.id) continue;
-      const cleanId = String(item.id).trim();
-      const updateData = {};
-      if (typeof item.sortOrder === "number") updateData.sortOrder = item.sortOrder;
-      if (typeof item.displayOrder === "number") updateData.displayOrder = item.displayOrder;
-      if (typeof item.homeOrder === "number") updateData.homeOrder = item.homeOrder;
-      if (typeof item.showOnHome === "boolean") updateData.showOnHome = item.showOnHome;
+    const bulkOps = [];
+    const orderedHomeIds = [];
 
-      if (Object.keys(updateData).length > 0) {
-        updates.push(
-          Product.findOneAndUpdate({ id: cleanId }, { $set: updateData }, { returnDocument: "after" })
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      if (!item || (item.id === undefined && item._id === undefined)) continue;
+      const cleanId = String(item.id ?? item._id).trim();
+      if (!cleanId) continue;
+
+      const seqNum = typeof item.homeOrder === "number" && item.homeOrder > 0
+        ? item.homeOrder
+        : typeof item.sortOrder === "number" && item.sortOrder > 0
+        ? item.sortOrder
+        : typeof item.displayOrder === "number" && item.displayOrder > 0
+        ? item.displayOrder
+        : idx + 1;
+
+      const updateData = {
+        sortOrder: seqNum,
+        displayOrder: seqNum,
+        homeOrder: seqNum,
+        updatedAt: new Date().toISOString()
+      };
+      if (typeof item.showOnHome === "boolean") {
+        updateData.showOnHome = item.showOnHome;
+      }
+
+      if (item.showOnHome !== false) {
+        orderedHomeIds.push({ id: cleanId, order: seqNum });
+      }
+
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+      const numericIdFilter = /^\d+$/.test(cleanId) ? [{ id: Number(cleanId) }] : [];
+
+      bulkOps.push({
+        updateOne: {
+          filter: {
+            $or: [
+              { id: cleanId },
+              ...numericIdFilter,
+              { slug: cleanId },
+              ...(isMongoId ? [{ _id: cleanId }] : [])
+            ]
+          },
+          update: { $set: updateData }
+        }
+      });
+
+      if (inMemoryStore.products && Array.isArray(inMemoryStore.products)) {
+        const memItem = inMemoryStore.products.find(
+          p => String(p.id) === cleanId || String(p._id) === cleanId || String(p.slug) === cleanId
         );
+        if (memItem) {
+          Object.assign(memItem, updateData);
+        }
       }
     }
 
-    await Promise.all(updates);
+    if (bulkOps.length > 0 && isDbConnected()) {
+      await Product.bulkWrite(bulkOps);
+    }
+
+    if (orderedHomeIds.length > 0 && isDbConnected()) {
+      try {
+        orderedHomeIds.sort((a, b) => a.order - b.order);
+        const sortedIds = orderedHomeIds.map(x => x.id);
+        const { Setting } = await import("../models/Setting.js");
+        const settingDoc = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+        const existingLive = Array.isArray(settingDoc?.homeProductLayout?.live) ? settingDoc.homeProductLayout.live.map(String) : [];
+        const remainingIds = existingLive.filter(id => !sortedIds.includes(id));
+        const finalLayout = [...sortedIds, ...remainingIds];
+        await Setting.findOneAndUpdate(
+          { id: "STORE_SETTINGS" },
+          { $set: { "homeProductLayout.live": finalLayout, "homeProductLayout.draft": finalLayout } },
+          { upsert: true }
+        );
+        clearSettingsCache();
+      } catch (_) {}
+    }
+
     invalidateRagCache();
     invalidateProductCache();
 
@@ -908,7 +1074,8 @@ export async function triggerDailySalesIncrement(req, res, next) {
     invalidateProductCache();
     invalidateRagCache();
 
-    const freshProducts = await Product.find({}).sort({ displayOrder: 1, sortOrder: 1, createdAt: -1 }).lean();
+    const rawFreshProducts = await Product.find({}).lean();
+    const freshProducts = sortProductsByAdminSequence(rawFreshProducts);
 
     return res.json({
       success: true,

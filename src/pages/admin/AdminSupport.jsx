@@ -21,18 +21,25 @@ export function AdminSupport() {
   const [activeMediaPreview, setActiveMediaPreview] = useState(null);
 
   useEffect(() => {
-    load();
-    const unsub = onStoreUpdate(() => load());
+    load(true);
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (!action || action.startsWith("ticket")) {
+        const list = db.getTickets() || [];
+        setTickets(list);
+      }
+    });
     return () => unsub();
   }, []);
 
-  const load = async () => {
-    try {
-      await db.fetchTickets();
-    } catch (_) {}
-    const list = db.getTickets();
+  const load = async (fetchRemote = false) => {
+    if (fetchRemote) {
+      try {
+        await db.fetchTickets();
+      } catch (_) {}
+    }
+    const list = db.getTickets() || [];
     setTickets(list);
-    setFilteredTickets(list);
   };
 
   useEffect(() => {

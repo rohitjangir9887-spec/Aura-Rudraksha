@@ -47,12 +47,19 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
   const [showMyTickets, setShowMyTickets] = useState(false);
 
   useEffect(() => {
-    loadTickets();
-    const unsub = onStoreUpdate ? onStoreUpdate(() => loadTickets()) : () => {};
+    loadTickets(true);
+    const unsub = onStoreUpdate
+      ? onStoreUpdate((e) => {
+          const action = e?.detail?.action || "";
+          if (!action || action.startsWith("ticket")) {
+            loadTickets(false);
+          }
+        })
+      : () => {};
     return () => unsub();
   }, [user]);
 
-  const loadTickets = async () => {
+  const loadTickets = async (fetchRemote = false) => {
     try {
       const u = authClient.getUser();
       const userEmail = (u?.email || "").toLowerCase().trim();
@@ -61,7 +68,9 @@ export function AuraAISupportAssistant({ defaultTopic = "orders", compact = fals
         setCustomerTickets([]);
         return;
       }
-      await db.fetchTickets();
+      if (fetchRemote) {
+        await db.fetchTickets();
+      }
       const all = db.getTickets() || [];
       const mine = all.filter(t => {
         const ticketEmail = (t.email || t.userEmail || "").toLowerCase().trim();

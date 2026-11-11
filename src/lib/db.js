@@ -692,11 +692,20 @@ export function loadCacheFromLocalStorage() {
 const PRODUCT_FRESHNESS_LIMIT = 5 * 1000; // 5 seconds window for fresh product updates
 let lastProductFetchTime = Number((typeof localStorage !== "undefined" && localStorage.getItem("aura_last_product_fetch_time")) || 0);
 let inFlightProductsPromise = null;
+let lastMutationTime = 0;
+let _enrichedProductsCache = null;
+let _enrichedProductsRef = null;
+let _enrichedReviewsRef = null;
+
+function invalidateEnrichedProductsCache() {
+  _enrichedProductsCache = null;
+}
 
 export function invalidateLocalProductCache() {
   lastProductFetchTime = 0;
   hasFetchedFreshData = false;
   inFlightProductsPromise = null;
+  invalidateEnrichedProductsCache();
   try {
     localStorage.setItem("aura_last_product_fetch_time", "0");
   } catch (_) {}
@@ -718,29 +727,47 @@ export async function revalidateProducts(force = false) {
     return storeCache.products;
   }
 
+  const requestStartTime = Date.now();
+
   inFlightProductsPromise = (async () => {
     try {
-      const url = shouldForce ? `/products?_t=${now}` : "/products";
+      const url = shouldForce ? `/products?_t=${requestStartTime}` : "/products";
       const res = await apiRequest(url, shouldForce ? { noCache: true } : {});
       if (res?.success && Array.isArray(res.data)) {
+        // Ignore stale background response if an admin mutation occurred while this GET was in flight
+        if (!force && lastMutationTime > requestStartTime) {
+          return storeCache.products;
+        }
         setStoreDbStatus("connected");
         hasFetchedFreshData = true;
         const deletedProductIds = getDeletedProductIds();
         const normalized = res.data
           .filter(p => p && !deletedProductIds.has(String(p.id)) && !deletedProductIds.has(String(p._id)) && !deletedProductIds.has(String(p.slug)))
-          .map(p => ({
-            ...p,
-            id: String(p.id || p._id),
-            showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
-            isPopular: !!p.isPopular,
-            homeOrder: Number(p.homeOrder) || 0,
-            homeBadge: p.homeBadge || p.badge || "",
-            mrp: p.mrp || p.comparePrice || p.price,
-            comparePrice: p.comparePrice || p.mrp || p.price,
-            images: getProductGalleryImages(p)
-          }));
+          .map(p => {
+            const ord = Number(p.homeOrder) > 0
+              ? Number(p.homeOrder)
+              : Number(p.sortOrder) > 0
+              ? Number(p.sortOrder)
+              : Number(p.displayOrder) > 0
+              ? Number(p.displayOrder)
+              : 0;
+            return {
+              ...p,
+              id: String(p.id || p._id),
+              showOnHome: p.showOnHome !== undefined ? p.showOnHome : true,
+              isPopular: !!p.isPopular,
+              homeOrder: ord,
+              sortOrder: ord,
+              displayOrder: ord,
+              homeBadge: p.homeBadge || p.badge || "",
+              mrp: p.mrp || p.comparePrice || p.price,
+              comparePrice: p.comparePrice || p.mrp || p.price,
+              images: getProductGalleryImages(p)
+            };
+          });
 
         storeCache.products = normalized;
+        invalidateEnrichedProductsCache();
         lastProductFetchTime = Date.now();
         try {
           localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
@@ -770,9 +797,6 @@ export async function fetchHomeData(force = false) {
   if (globalThis.__aura_fetching_home && !force) {
     return globalThis.__aura_fetching_home_promise;
   }
-  if (force) {
-    revalidateProducts(true).catch(() => {});
-  }
 
   // Check background freshness limit for secondary resources (banners, offers, reviews, settings)
   const lastFetch = Number(localStorage.getItem("aura_last_fetch_time") || 0);
@@ -783,6 +807,9 @@ export async function fetchHomeData(force = false) {
     if (hydrationResolver) hydrationResolver(true);
     return;
   }
+
+  const reqOpts = force ? { noCache: true } : {};
+  const requestStartTime = Date.now();
 
   const fetchPromise = (async () => {
     try {
@@ -795,8 +822,8 @@ export async function fetchHomeData(force = false) {
 
       const fetchActiveOffer = async () => {
         try {
-          const res = await apiRequest("/active-offer");
-          if (res?.success && res.data) {
+          const res = await apiRequest("/active-offer", reqOpts);
+          if (res?.success && res.data && (force || lastMutationTime <= requestStartTime)) {
             const expiresAt = res.data.expiresAt || res.data.expiry;
             const startDate = res.data.startDate || res.data.startAt;
             storeCache.activeOffer = { 
@@ -816,8 +843,8 @@ export async function fetchHomeData(force = false) {
 
       const fetchOffers = async () => {
         try {
-          const res = await apiRequest("/offers");
-          if (res?.success && Array.isArray(res.data)) {
+          const res = await apiRequest("/offers", reqOpts);
+          if (res?.success && Array.isArray(res.data) && (force || lastMutationTime <= requestStartTime)) {
             storeCache.offers = res.data;
             safeLocalStorageSet("aura_offers_cache", storeCache.offers);
             emitStoreUpdate("offers:synced", storeCache.offers);
@@ -829,8 +856,8 @@ export async function fetchHomeData(force = false) {
 
       const fetchBanners = async () => {
         try {
-          const res = await apiRequest("/banners");
-          if (res?.success && Array.isArray(res.data)) {
+          const res = await apiRequest("/banners", reqOpts);
+          if (res?.success && Array.isArray(res.data) && (force || lastMutationTime <= requestStartTime)) {
             storeCache.banners = res.data;
             safeLocalStorageSet("aura_banners_cache", storeCache.banners);
             emitStoreUpdate("banners:synced", storeCache.banners);
@@ -842,10 +869,11 @@ export async function fetchHomeData(force = false) {
 
       const fetchReviews = async () => {
         try {
-          const res = await apiRequest("/reviews");
-          if (res?.success && Array.isArray(res.data)) {
+          const res = await apiRequest("/reviews", reqOpts);
+          if (res?.success && Array.isArray(res.data) && (force || lastMutationTime <= requestStartTime)) {
             const deletedIds = getDeletedReviewIds();
             storeCache.reviews = res.data.filter(r => !deletedIds.has(String(r.id)) && r.status !== "deleted");
+            invalidateEnrichedProductsCache();
             safeLocalStorageSet("aura_reviews_cache", storeCache.reviews);
             db.recalculateAllProductsReviewStats();
             emitStoreUpdate("reviews:synced", storeCache.reviews);
@@ -857,8 +885,9 @@ export async function fetchHomeData(force = false) {
 
       const fetchSettings = async () => {
         try {
-          const res = await apiRequest("/settings");
-          if (res?.success && res.data) {
+          const url = force ? `/settings?_t=${requestStartTime}` : "/settings";
+          const res = await apiRequest(url, reqOpts);
+          if (res?.success && res.data && (force || lastMutationTime <= requestStartTime)) {
             storeCache.settings = { ...storeCache.settings, ...res.data };
             safeLocalStorageSet("aura_settings_cache", storeCache.settings);
             emitStoreUpdate("settings:synced", storeCache.settings);
@@ -870,8 +899,8 @@ export async function fetchHomeData(force = false) {
 
       const fetchReviewSettings = async () => {
         try {
-          const res = await apiRequest("/reviews/settings");
-          if (res?.success && res.data) {
+          const res = await apiRequest("/reviews/settings", reqOpts);
+          if (res?.success && res.data && (force || lastMutationTime <= requestStartTime)) {
             storeCache.reviewSettings = { ...storeCache.reviewSettings, ...res.data };
             safeLocalStorageSet("aura_review_settings_cache", storeCache.reviewSettings);
             emitStoreUpdate("review-settings:synced", storeCache.reviewSettings);
@@ -883,8 +912,8 @@ export async function fetchHomeData(force = false) {
 
       const fetchCoupons = async () => {
         try {
-          const res = await apiRequest("/coupons");
-          if (res?.success && Array.isArray(res.data)) {
+          const res = await apiRequest("/coupons", reqOpts);
+          if (res?.success && Array.isArray(res.data) && (force || lastMutationTime <= requestStartTime)) {
             const deletedIds = getDeletedCouponIds();
             const deletedCodes = getDeletedCouponCodes();
             storeCache.coupons = res.data.filter(c => 
@@ -1170,6 +1199,7 @@ export const db = {
         reviews: stats.count > 0 ? stats.count : (current.reviews !== undefined ? current.reviews : 0),
         reviewCount: stats.count > 0 ? stats.count : (current.reviewCount !== undefined ? current.reviewCount : 0)
       };
+      invalidateEnrichedProductsCache();
       emitStoreUpdate("product:updated", storeCache.products[idx]);
     }
     emitStoreUpdate("products:synced", storeCache.products);
@@ -1177,27 +1207,68 @@ export const db = {
 
   recalculateAllProductsReviewStats: () => {
     if (!Array.isArray(storeCache.products) || !Array.isArray(storeCache.reviews)) return;
-    storeCache.products = storeCache.products.map(p => {
-      const pId = String(p.id || p._id || "");
-      const stats = db.getProductReviewStats(pId);
-      return {
-        ...p,
-        rating: stats.rating !== null ? stats.rating : (Number(p.rating) || 4.9),
-        reviews: stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0),
-        reviewCount: stats.count > 0 ? stats.count : (p.reviewCount !== undefined ? p.reviewCount : 0)
-      };
-    });
+    invalidateEnrichedProductsCache();
     emitStoreUpdate("products:synced", storeCache.products);
   },
 
-  // PRODUCTS
+  // PRODUCTS (Memoized to prevent O(N*M) review scans & localStorage JSON.parse on every render)
   getProducts: () => {
-    let prods = storeCache.products || [];
-    return prods.map(p => {
+    const prods = storeCache.products || [];
+    const revs = storeCache.reviews || [];
+    if (
+      _enrichedProductsCache &&
+      _enrichedProductsRef === prods &&
+      _enrichedReviewsRef === revs
+    ) {
+      return _enrichedProductsCache;
+    }
+
+    // Build O(1) review stats lookup map in a single pass over reviews
+    const deletedIds = getDeletedReviewIds();
+    const statsByProductId = new Map();
+    const statsByProductName = new Map();
+
+    for (let i = 0; i < revs.length; i++) {
+      const r = revs[i];
+      if (!r || deletedIds.has(String(r.id))) continue;
+      const status = String(r.status || "Approved").toLowerCase();
+      if (status !== "approved" && status !== "published") continue;
+      if (r.source === "ai_draft" || r.publicDisplay === false) continue;
+
+      const ratingVal = Number(r.rating) || 5;
+      const rPid = String(r.productId || "").trim().toLowerCase().replace(/^(product-card-|product-)/, "");
+      if (rPid) {
+        const prev = statsByProductId.get(rPid) || { sum: 0, count: 0 };
+        prev.sum += ratingVal;
+        prev.count += 1;
+        statsByProductId.set(rPid, prev);
+      }
+      const rName = r.productName ? String(r.productName).trim().toLowerCase() : "";
+      if (rName) {
+        const prevN = statsByProductName.get(rName) || { sum: 0, count: 0 };
+        prevN.sum += ratingVal;
+        prevN.count += 1;
+        statsByProductName.set(rName, prevN);
+      }
+    }
+
+    _enrichedProductsRef = prods;
+    _enrichedReviewsRef = revs;
+    _enrichedProductsCache = prods.map(p => {
+      if (!p) return p;
       const pId = String(p.id || p._id || "");
-      const stats = db.getProductReviewStats(pId);
-      const liveReviews = stats.count > 0 ? stats.count : (p.reviews !== undefined ? p.reviews : 0);
-      const liveRating = stats.rating !== null ? stats.rating : (Number(p.rating) || 4.9);
+      const pIdLower = pId.toLowerCase();
+      const slugLower = String(p.slug || "").toLowerCase();
+      const nameLower = p.name ? String(p.name).trim().toLowerCase() : "";
+
+      const statEntry =
+        statsByProductId.get(pIdLower) ||
+        (slugLower && statsByProductId.get(slugLower)) ||
+        (nameLower && statsByProductName.get(nameLower)) ||
+        null;
+
+      const liveReviews = statEntry && statEntry.count > 0 ? statEntry.count : (p.reviews !== undefined ? p.reviews : 0);
+      const liveRating = statEntry && statEntry.count > 0 ? Number((statEntry.sum / statEntry.count).toFixed(1)) : (Number(p.rating) || 4.9);
 
       return {
         ...p,
@@ -1211,6 +1282,8 @@ export const db = {
         images: getProductGalleryImages(p)
       };
     });
+
+    return _enrichedProductsCache;
   },
 
   getProduct: (idOrSlug) => {
@@ -1361,6 +1434,14 @@ export const db = {
     const rawStatus = p.status || "Published";
     const normalizedStatus = (rawStatus === "Draft" || rawStatus === "draft" || rawStatus === "Inactive" || rawStatus === "inactive") ? "Draft" : "Published";
 
+    const explicitOrder = Number(p.homeOrder) > 0
+      ? Number(p.homeOrder)
+      : Number(p.sortOrder) > 0
+      ? Number(p.sortOrder)
+      : Number(p.displayOrder) > 0
+      ? Number(p.displayOrder)
+      : 0;
+
     const finalProduct = {
       ...p,
       id,
@@ -1397,7 +1478,9 @@ export const db = {
       status: normalizedStatus,
       showOnHome: p.showOnHome !== undefined ? !!p.showOnHome : true,
       isPopular: !!p.isPopular,
-      homeOrder: Number(p.homeOrder) || 0,
+      homeOrder: explicitOrder,
+      sortOrder: explicitOrder,
+      displayOrder: explicitOrder,
       homeBadge: p.homeBadge || p.badge || "",
       totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
       salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
@@ -1408,6 +1491,7 @@ export const db = {
       dailySalesMax: 0
     };
 
+    lastMutationTime = Date.now();
     const isExisting = Boolean(finalProduct.id && finalProduct.id !== "new" && !String(finalProduct.id).startsWith("TEMP-"));
     const endpoint = isExisting ? `/products/${encodeURIComponent(finalProduct.id)}` : "/products";
     const method = isExisting ? "PUT" : "POST";
@@ -1415,14 +1499,16 @@ export const db = {
     let res = await apiRequest(endpoint, {
       method,
       body: JSON.stringify(finalProduct),
-      requiresAuth: true
+      requiresAuth: true,
+      noCache: true
     });
 
     if (!res?.success && isExisting) {
       res = await apiRequest("/products", {
         method: "POST",
         body: JSON.stringify(finalProduct),
-        requiresAuth: true
+        requiresAuth: true,
+        noCache: true
       });
     }
 
@@ -1430,6 +1516,7 @@ export const db = {
       throw new Error(res?.message || "Failed to save product. Database is unavailable.");
     }
 
+    lastMutationTime = Date.now();
     const savedData = res.data || finalProduct;
     const strId = String(savedData.id || id);
     const mongoId = savedData._id ? String(savedData._id) : null;
@@ -1442,9 +1529,14 @@ export const db = {
       String(x.id) === strId || (mongoId && String(x._id) === mongoId) || (x.slug && x.slug === savedData.slug)
     );
 
+    const savedOrder = Number(savedData.homeOrder ?? savedData.sortOrder ?? savedData.displayOrder ?? explicitOrder) || 0;
+
     const normalizedSaved = {
       ...savedData,
       id: String(savedData.id || savedData._id || id),
+      homeOrder: savedOrder,
+      sortOrder: savedOrder,
+      displayOrder: savedOrder,
       tags: normalizeKeywordItems(savedData.tags || finalProduct.tags),
       keywords: normalizeKeywordItems(savedData.keywords || finalProduct.keywords),
       searchKeywords: normalizeKeywordItems(savedData.keywords || finalProduct.keywords),
@@ -1483,18 +1575,41 @@ export const db = {
       storeCache.products.unshift(normalizedSaved);
     }
 
-    lastProductFetchTime = 0;
+    // Keep storeCache.settings.homeProductLayout in sync immediately
+    if (storeCache.settings?.homeProductLayout) {
+      const prodIdStr = String(normalizedSaved.id);
+      let liveArr = Array.isArray(storeCache.settings.homeProductLayout.live)
+        ? storeCache.settings.homeProductLayout.live.map(String).filter(x => x !== prodIdStr)
+        : [];
+      let draftArr = Array.isArray(storeCache.settings.homeProductLayout.draft)
+        ? storeCache.settings.homeProductLayout.draft.map(String).filter(x => x !== prodIdStr)
+        : [];
+      if (normalizedSaved.showOnHome !== false) {
+        const insertIdx = savedOrder > 0 ? Math.max(0, Math.min(savedOrder - 1, liveArr.length)) : liveArr.length;
+        liveArr.splice(insertIdx, 0, prodIdStr);
+        draftArr.splice(Math.min(insertIdx, draftArr.length), 0, prodIdStr);
+      }
+      storeCache.settings = {
+        ...storeCache.settings,
+        homeProductLayout: {
+          ...storeCache.settings.homeProductLayout,
+          live: liveArr,
+          draft: draftArr
+        }
+      };
+      safeLocalStorageSet("aura_settings_cache", storeCache.settings);
+    }
+
+    invalidateEnrichedProductsCache();
+    lastProductFetchTime = Date.now();
     try {
       localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       localStorage.setItem("aura_cache_hydrated", "true");
-      localStorage.setItem("aura_last_fetch_time", "0"); // Invalidate freshness for re-sync
-      localStorage.setItem("aura_last_product_fetch_time", "0");
+      localStorage.setItem("aura_last_product_fetch_time", String(lastProductFetchTime));
     } catch (_) {}
 
     emitStoreUpdate("product:saved", normalizedSaved);
     emitStoreUpdate("products:synced", storeCache.products);
-    revalidateProducts(true).catch(() => {});
-    fetchHomeData(true).catch(() => {}); // Force background sync across app
     return normalizedSaved;
   },
 
@@ -1503,6 +1618,95 @@ export const db = {
     const existing = db.getProduct(strId) || {};
     const merged = { ...existing, ...updates, id: strId };
     return await db.saveProduct(merged);
+  },
+
+  reorderProducts: async (itemsOrIds = []) => {
+    if (!Array.isArray(itemsOrIds) || itemsOrIds.length === 0) return storeCache.products;
+    lastMutationTime = Date.now();
+
+    const normalizedItems = itemsOrIds.map((entry, idx) => {
+      if (typeof entry === "string" || typeof entry === "number") {
+        return {
+          id: String(entry),
+          homeOrder: idx + 1,
+          sortOrder: idx + 1,
+          displayOrder: idx + 1,
+          showOnHome: true
+        };
+      }
+      const seq = Number(entry.homeOrder ?? entry.sortOrder ?? entry.displayOrder) > 0
+        ? Number(entry.homeOrder ?? entry.sortOrder ?? entry.displayOrder)
+        : idx + 1;
+      return {
+        id: String(entry.id ?? entry._id ?? ""),
+        homeOrder: seq,
+        sortOrder: seq,
+        displayOrder: seq,
+        showOnHome: entry.showOnHome !== undefined ? Boolean(entry.showOnHome) : true
+      };
+    }).filter(x => x.id);
+
+    const orderMap = new Map(normalizedItems.map(item => [item.id, item]));
+
+    storeCache.products = (storeCache.products || []).map(p => {
+      const pid = String(p.id || p._id || "");
+      const matched = orderMap.get(pid);
+      if (matched) {
+        return {
+          ...p,
+          homeOrder: matched.homeOrder,
+          sortOrder: matched.sortOrder,
+          displayOrder: matched.displayOrder,
+          showOnHome: matched.showOnHome
+        };
+      }
+      return p;
+    });
+
+    const sortedOrderedIds = [...normalizedItems]
+      .filter(x => x.showOnHome !== false)
+      .sort((a, b) => a.homeOrder - b.homeOrder)
+      .map(x => x.id);
+
+    const existingLive = Array.isArray(storeCache.settings?.homeProductLayout?.live)
+      ? storeCache.settings.homeProductLayout.live.map(String)
+      : [];
+    const remainingLive = existingLive.filter(id => !sortedOrderedIds.includes(id));
+    const nextLayoutIds = [...sortedOrderedIds, ...remainingLive];
+
+    storeCache.settings = {
+      ...storeCache.settings,
+      homeProductLayout: {
+        ...(storeCache.settings?.homeProductLayout || {}),
+        live: nextLayoutIds,
+        draft: nextLayoutIds
+      }
+    };
+
+    invalidateEnrichedProductsCache();
+    lastProductFetchTime = Date.now();
+    try {
+      localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+      localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+      localStorage.setItem("aura_last_product_fetch_time", String(lastProductFetchTime));
+    } catch (_) {}
+
+    emitStoreUpdate("products:synced", storeCache.products);
+    emitStoreUpdate("settings:saved", storeCache.settings);
+
+    const res = await apiRequest("/products/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ items: normalizedItems }),
+      requiresAuth: true,
+      noCache: true
+    });
+
+    if (!res?.success) {
+      throw new Error(res?.message || "Failed to save product sequence.");
+    }
+
+    lastMutationTime = Date.now();
+    return storeCache.products;
   },
 
   searchProducts: (query, options = {}) => {
@@ -1540,29 +1744,31 @@ export const db = {
       if (existingP.slug) recordDeletedProductId(existingP.slug);
     }
 
+    lastMutationTime = Date.now();
     const res = await apiRequest(`/products/${encodeURIComponent(strId)}`, {
       method: "DELETE",
-      requiresAuth: true
+      requiresAuth: true,
+      noCache: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to delete product. Database is unavailable.");
     }
+    lastMutationTime = Date.now();
     storeCache.products = storeCache.products.filter(p =>
       String(p.id) !== strId && String(p._id) !== strId && p.slug !== strId &&
       (!existingP || (String(p.id) !== String(existingP.id) && String(p._id) !== String(existingP._id)))
     );
 
-    lastProductFetchTime = 0;
+    invalidateEnrichedProductsCache();
+    lastProductFetchTime = Date.now();
     try {
       localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       localStorage.setItem("aura_cache_hydrated", "true");
-      localStorage.setItem("aura_last_fetch_time", "0"); // Invalidate freshness for re-sync
-      localStorage.setItem("aura_last_product_fetch_time", "0");
+      localStorage.setItem("aura_last_product_fetch_time", String(lastProductFetchTime));
     } catch (_) {}
 
     emitStoreUpdate("product:deleted", strId);
-    revalidateProducts(true).catch(() => {});
-    fetchHomeData(true).catch(() => {}); // Force background sync across app
+    emitStoreUpdate("products:synced", storeCache.products);
     return true;
   },
 
@@ -2241,14 +2447,6 @@ export const db = {
       throw new Error(res?.message || "Database unavailable");
     }
     return db.getCustomers();
-  },
-  fetchTickets: async () => {
-    const res = await apiRequest("/tickets");
-    if (res?.success && Array.isArray(res.data)) {
-      storeCache.tickets = res.data;
-      // emitStoreUpdate (removed to prevent infinite fetch loop)
-    }
-    return storeCache.tickets;
   },
   fetchBanners: async () => {
     const res = await apiRequest("/banners");
@@ -3713,22 +3911,47 @@ export const db = {
   // STORE SETTINGS & POLICIES
   getSettings: () => storeCache.settings,
   saveSettings: async (settings) => {
+    lastMutationTime = Date.now();
+    // Optimistically update in-memory settings immediately so Home UI and Admin never flicker or revert
+    storeCache.settings = { ...storeCache.settings, ...settings };
+    if (Array.isArray(settings?.homeProductLayout?.live) && settings.homeProductLayout.live.length > 0) {
+      const liveIds = settings.homeProductLayout.live.map(String);
+      const liveIdxMap = new Map(liveIds.map((id, idx) => [id, idx + 1]));
+      storeCache.products = (storeCache.products || []).map(p => {
+        const pid = String(p.id || p._id || "");
+        if (liveIdxMap.has(pid)) {
+          const ord = liveIdxMap.get(pid);
+          return { ...p, homeOrder: ord, sortOrder: ord, displayOrder: ord, showOnHome: true };
+        }
+        return p;
+      });
+      invalidateEnrichedProductsCache();
+      try {
+        localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
+      } catch (_) {}
+    }
+    try {
+      localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
+    } catch (_) {}
+
     const res = await apiRequest("/settings", {
       method: "PUT",
       body: JSON.stringify(settings),
-      requiresAuth: true
+      requiresAuth: true,
+      noCache: true
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to save settings. Database is unavailable.");
     }
+    lastMutationTime = Date.now();
     const saved = res.data || settings;
-    storeCache.settings = { ...storeCache.settings, ...saved };
+    storeCache.settings = { ...storeCache.settings, ... settings, ...saved };
     try {
       localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
-      localStorage.setItem("aura_last_fetch_time", "0");
+      localStorage.setItem("aura_last_fetch_time", String(Date.now()));
     } catch (_) {}
     emitStoreUpdate("settings:saved", storeCache.settings);
-    fetchHomeData(true).catch(() => {});
+    emitStoreUpdate("products:synced", storeCache.products);
     return storeCache.settings;
   },
 

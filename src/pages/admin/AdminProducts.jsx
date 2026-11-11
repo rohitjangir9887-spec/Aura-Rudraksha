@@ -9,13 +9,14 @@ import { compressImage, uploadMedia, uploadMediaBatch } from "../../lib/imageUti
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { emitToast } from "../../context/ToastContext";
 import { authClient } from "../../lib/authClient";
-import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp, Download, Copy, Loader2, FileSpreadsheet, FileText } from "lucide-react";
+import { Edit, Trash2, Plus, Search, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Upload, Link as LinkIcon, Star, X, Check, Sparkles, Tag, Key, Globe, Layers, Hash, TrendingUp, Download, Copy, Loader2, FileSpreadsheet, FileText } from "lucide-react";
 import "./admin-pages.css";
 import { RichTextEditor } from "../../components/RichTextEditor";
 import { AdminFeaturedProductManager } from "../../components/admin/AdminFeaturedProductManager";
 import { HomeProductShowcase } from "../../components/HomeProductShowcase";
 import { downloadAllProductImages, copyProductTitleToClipboard } from "../../lib/downloadProductUtils";
 import { exportProductsToXLSX, exportProductsToPDF } from "../../lib/exportCatalogUtils";
+import { sortProductsByCatalogOrder, getExplicitProductOrder } from "../../lib/productHelper";
 
 export function AdminProducts() {
   const [searchParams] = useSearchParams();
@@ -120,9 +121,17 @@ export function AdminProducts() {
   };
 
   useEffect(() => {
-    load();
-    const unsub = onStoreUpdate(() => {
-      load();
+    load(true);
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (
+        !action ||
+        action.startsWith("product") ||
+        action.startsWith("settings") ||
+        action.startsWith("reviews")
+      ) {
+        setProducts(db.getProducts() || []);
+      }
     });
     return () => unsub();
   }, []);
@@ -134,7 +143,8 @@ export function AdminProducts() {
   }, [searchParams]);
 
   useEffect(() => {
-    let result = products;
+    const liveLayoutIds = db.getSettings()?.homeProductLayout?.live || [];
+    let result = sortProductsByCatalogOrder(products, liveLayoutIds);
     if (searchTerm) {
       const q = searchTerm.toLowerCase().trim();
       result = result.filter(p => 
@@ -167,18 +177,85 @@ export function AdminProducts() {
     const initialList = db.getProducts() || [];
     if (initialList.length > 0) {
       setProducts(initialList);
-      setFilteredProducts(initialList);
+    }
+    if (!force && initialList.length > 0) {
+      setLoading(false);
+      return;
     }
     try {
       if (initialList.length === 0) setLoading(true);
       await db.revalidateProducts(true);
       const freshList = db.getProducts() || [];
       setProducts(freshList);
-      setFilteredProducts(freshList);
     } catch (e) {
       console.warn("Notice loading fresh products:", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMoveProductSequence = async (productId, direction) => {
+    const liveLayoutIds = db.getSettings()?.homeProductLayout?.live || [];
+    const currentSorted = sortProductsByCatalogOrder(products, liveLayoutIds);
+    const currentIndex = currentSorted.findIndex(p => String(p.id || p._id) === String(productId));
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= currentSorted.length) return;
+
+    const reordered = [...currentSorted];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    const payload = reordered.map((item, idx) => ({
+      id: String(item.id || item._id),
+      homeOrder: idx + 1,
+      sortOrder: idx + 1,
+      displayOrder: idx + 1,
+      showOnHome: item.showOnHome !== false
+    }));
+
+    try {
+      await db.reorderProducts(payload);
+      setProducts(db.getProducts() || []);
+      emitToast(`✅ "${moved.name}" moved to position #${targetIndex + 1}`, "success");
+    } catch (err) {
+      emitToast("Failed to update product sequence", "error");
+    }
+  };
+
+  const handleSetProductPosition = async (productId, rawNewPosition) => {
+    const liveLayoutIds = db.getSettings()?.homeProductLayout?.live || [];
+    const currentSorted = sortProductsByCatalogOrder(products, liveLayoutIds);
+    const currentIndex = currentSorted.findIndex(p => String(p.id || p._id) === String(productId));
+    if (currentIndex === -1) return;
+
+    const parsedPos = parseInt(String(rawNewPosition), 10);
+    if (isNaN(parsedPos) || parsedPos < 1) return;
+
+    const targetIndex = Math.max(0, Math.min(parsedPos - 1, currentSorted.length - 1));
+    if (targetIndex === currentIndex && getExplicitProductOrder(currentSorted[currentIndex]) === parsedPos) {
+      return;
+    }
+
+    const reordered = [...currentSorted];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    const payload = reordered.map((item, idx) => ({
+      id: String(item.id || item._id),
+      homeOrder: idx + 1,
+      sortOrder: idx + 1,
+      displayOrder: idx + 1,
+      showOnHome: item.showOnHome !== false
+    }));
+
+    try {
+      await db.reorderProducts(payload);
+      setProducts(db.getProducts() || []);
+      emitToast(`✅ "${moved.name}" placed at #${targetIndex + 1} across All Products & Home!`, "success");
+    } catch (err) {
+      emitToast("Failed to update product position", "error");
     }
   };
 
@@ -194,8 +271,8 @@ export function AdminProducts() {
         ...p,
         status: nextStatus
       });
+      setProducts(db.getProducts() || []);
       emitToast(nextStatus === "Published" ? `✅ "${p.name}" is now Published to store` : `📝 "${p.name}" moved to Drafts (Admin only)`, "success");
-      load(true);
     } catch (err) {
       emitToast("Failed to update product status", "error");
     }
@@ -209,8 +286,8 @@ export function AdminProducts() {
     const nextVal = p.showOnHome === false ? true : false;
     try {
       await db.toggleProductHomeShowcase(p.id, nextVal);
+      setProducts(db.getProducts() || []);
       emitToast(nextVal ? `⭐ "${p.name}" added to Home Showcase!` : `"${p.name}" hidden from Home Showcase`, "success");
-      load(true);
     } catch (err) {
       emitToast("Failed to update Home Showcase status", "error");
     }
@@ -220,9 +297,9 @@ export function AdminProducts() {
     if (!deleteId) return;
     try {
       await db.deleteProduct(deleteId);
+      setProducts(db.getProducts() || []);
       emitToast("Product deleted successfully", "success");
       setDeleteId(null);
-      load(true);
     } catch (err) {
       emitToast(err.message || "Failed to delete product from database", "error");
     }
@@ -3544,30 +3621,60 @@ export function AdminProducts() {
           </div>
           
           <div style={{ marginBottom: '20px', background: '#fff', border: '1px solid #eadecd', borderRadius: '12px', padding: '12px' }}>
-            <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#7c2d12' }}>Quick Edit Home Order (Lower number = shown first)</h4>
+            <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#7c2d12' }}>Quick Edit Display Sequence (#1 shown first, #2 shown second across Home & All Products)</h4>
             <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
-              {filteredProducts.sort((a,b) => (a.homeOrder || 0) - (b.homeOrder || 0)).map(p => (
-                <div key={p.id} style={{ minWidth: '160px', background: '#fff9f4', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#9a3412' }}>{p.name}</div>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#7a6a5e' }}>Order:</span>
-                    <input 
-                      type="number" 
-                      defaultValue={p.homeOrder || 0}
-                      onBlur={async (e) => {
-                        const newOrder = Number(e.target.value);
-                        if (newOrder !== (p.homeOrder || 0)) {
-                          await db.saveProduct({ ...p, homeOrder: newOrder });
-                          load();
-                        }
-                      }}
-                      style={{ width: '50px', padding: '2px 4px', fontSize: '12px', border: '1px solid #eadecd', borderRadius: '4px' }}
-                    />
+              {filteredProducts.map((p, idx) => (
+                <div key={p.id} style={{ minWidth: '175px', background: '#fff9f4', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#9a3412' }}>
+                    #{idx + 1} • {p.name}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: '#7a6a5e' }}>Pos:</span>
+                      <input 
+                        key={`quick-order-${p.id}-${idx + 1}`}
+                        type="number" 
+                        min="1"
+                        defaultValue={p.homeOrder > 0 ? p.homeOrder : idx + 1}
+                        onBlur={(e) => {
+                          const newOrder = Number(e.target.value);
+                          if (newOrder > 0 && newOrder !== (idx + 1)) {
+                            handleSetProductPosition(p.id, newOrder);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        style={{ width: '48px', padding: '2px 4px', fontSize: '12px', fontWeight: '700', border: '1px solid #eadecd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '3px' }}>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveProductSequence(p.id, "up")}
+                        title="Move Earlier"
+                        style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #fed7aa', background: idx === 0 ? '#f5f5f4' : '#fff', cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === filteredProducts.length - 1}
+                        onClick={() => handleMoveProductSequence(p.id, "down")}
+                        title="Move Later"
+                        style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #fed7aa', background: idx === filteredProducts.length - 1 ? '#f5f5f4' : '#fff', cursor: idx === filteredProducts.length - 1 ? 'not-allowed' : 'pointer' }}
+                      >
+                        →
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: '11px', color: '#a8a29e', margin: '8px 0 0' }}>Tip: Change the order number and click outside to save. Live preview below will update.</p>
+            <p style={{ fontSize: '11px', color: '#a8a29e', margin: '8px 0 0' }}>Tip: Change the position number or use arrows to reorder. Both Home UI and All Products update immediately.</p>
           </div>
 
           <div style={{ pointerEvents: 'none', transform: 'scale(0.95)', transformOrigin: 'top center', background: '#fff', border: '1px solid #eadecd', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
@@ -3680,11 +3787,12 @@ export function AdminProducts() {
       ) : (
         <>
           <div className="admin-mobile-cards">
-            {filteredProducts.map(p => {
+            {filteredProducts.map((p, idx) => {
               const displayImg = getProductPrimaryImage(p);
               const imgCount = p.images?.length || (p.img ? 1 : 0);
               const isShownOnHome = p.showOnHome !== false;
               const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
+              const currentPos = p.homeOrder > 0 ? p.homeOrder : idx + 1;
 
               return (
                 <div key={p.id} className="admin-mobile-card">
@@ -3697,7 +3805,7 @@ export function AdminProducts() {
                         onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
                       />
                       <div>
-                        <span className="mobile-card-title">{p.name}</span>
+                        <span className="mobile-card-title">#{idx + 1} • {p.name}</span>
                         <div className="mobile-card-sub">
                           {p.category || "Rudraksha"} {p.mukhi ? `• ${p.mukhi}` : ''} • Stock: <b>{p.stock}</b>
                         </div>
@@ -3741,7 +3849,7 @@ export function AdminProducts() {
                     </button>
                   </div>
                   
-                  {/* Home Showcase Switch on Mobile */}
+                  {/* Home Showcase & Sequence Switch on Mobile */}
                   <div style={{
                     margin: '10px 0',
                     padding: '8px 12px',
@@ -3750,11 +3858,57 @@ export function AdminProducts() {
                     borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between'
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px'
                   }}>
-                    <span style={{ fontSize: '12px', fontWeight: '600', color: isShownOnHome ? '#92400e' : '#6b7280' }}>
-                      {isShownOnHome ? '⭐ Visible on Home Page' : '⚪ Hidden on Home'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#7c2d12' }}>Order #:</span>
+                      <input
+                        key={`mob-order-${p.id}-${currentPos}`}
+                        type="number"
+                        min="1"
+                        defaultValue={currentPos}
+                        onBlur={(e) => {
+                          const val = Number(e.target.value);
+                          if (val > 0 && val !== currentPos) {
+                            handleSetProductPosition(p.id, val);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                        style={{
+                          width: '48px',
+                          padding: '3px 6px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          border: '1px solid #d97706',
+                          borderRadius: '6px',
+                          background: '#fff',
+                          color: '#7c2d12',
+                          textAlign: 'center'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveProductSequence(p.id, "up")}
+                        style={{ padding: '3px 7px', borderRadius: '6px', border: '1px solid #fcd34d', background: '#fff', cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.4 : 1 }}
+                        title="Move Up"
+                      >
+                        <ArrowUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === filteredProducts.length - 1}
+                        onClick={() => handleMoveProductSequence(p.id, "down")}
+                        style={{ padding: '3px 7px', borderRadius: '6px', border: '1px solid #fcd34d', background: '#fff', cursor: idx === filteredProducts.length - 1 ? 'not-allowed' : 'pointer', opacity: idx === filteredProducts.length - 1 ? 0.4 : 1 }}
+                        title="Move Down"
+                      >
+                        <ArrowDown size={13} />
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={(e) => handleToggleHomeShowcase(p, e)}
@@ -3769,7 +3923,7 @@ export function AdminProducts() {
                         cursor: 'pointer'
                       }}
                     >
-                      {isShownOnHome ? 'Toggle OFF' : 'Show on Home'}
+                      {isShownOnHome ? '⭐ On Home' : 'Show on Home'}
                     </button>
                   </div>
 
@@ -3849,6 +4003,7 @@ export function AdminProducts() {
             <table className="admin-table">
               <thead>
                 <tr>
+                  <th style={{ width: '98px', textAlign: 'center' }}>Order #</th>
                   <th>Product</th>
                   <th>Category</th>
                   <th>Price</th>
@@ -3861,14 +4016,80 @@ export function AdminProducts() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map(p => {
+                {filteredProducts.map((p, idx) => {
                   const displayImg = getProductPrimaryImage(p);
                   const isShownOnHome = p.showOnHome !== false;
                   const isDraft = p.status === "Draft" || p.status === "draft" || p.status === "Inactive" || p.status === "inactive";
                   const salesCountNum = Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
+                  const currentPos = p.homeOrder > 0 ? p.homeOrder : idx + 1;
 
                   return (
                     <tr key={p.id}>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                          <input
+                            key={`tbl-order-${p.id}-${currentPos}`}
+                            type="number"
+                            min="1"
+                            defaultValue={currentPos}
+                            title="Set display order (#1 shown first across All Products & Home)"
+                            onBlur={(e) => {
+                              const val = Number(e.target.value);
+                              if (val > 0 && val !== currentPos) {
+                                handleSetProductPosition(p.id, val);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                            }}
+                            style={{
+                              width: '50px',
+                              padding: '3px 4px',
+                              fontSize: '12px',
+                              fontWeight: '800',
+                              color: '#7c2d12',
+                              background: '#fff7ed',
+                              border: '1px solid #fdba74',
+                              borderRadius: '6px',
+                              textAlign: 'center'
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '3px' }}>
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveProductSequence(p.id, "up")}
+                              title="Move Up"
+                              style={{
+                                padding: '2px 5px',
+                                borderRadius: '4px',
+                                border: '1px solid #e7dcce',
+                                background: idx === 0 ? '#f5f5f4' : '#fff',
+                                cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                                opacity: idx === 0 ? 0.4 : 1
+                              }}
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === filteredProducts.length - 1}
+                              onClick={() => handleMoveProductSequence(p.id, "down")}
+                              title="Move Down"
+                              style={{
+                                padding: '2px 5px',
+                                borderRadius: '4px',
+                                border: '1px solid #e7dcce',
+                                background: idx === filteredProducts.length - 1 ? '#f5f5f4' : '#fff',
+                                cursor: idx === filteredProducts.length - 1 ? 'not-allowed' : 'pointer',
+                                opacity: idx === filteredProducts.length - 1 ? 0.4 : 1
+                              }}
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td>
                         <div className="admin-product-cell">
                           <img 

@@ -69,17 +69,68 @@ export function isRudrakshaProduct(product) {
 }
 
 /**
- * Interleave products so customers see a varied catalog:
- * Rudraksha -> Other Category -> Rudraksha -> Other Category -> ...
- * If other categories run out, continue with Rudraksha (and vice-versa).
+ * Get explicit positive order number configured by Admin (1, 2, 3...)
+ * Returns 0 if no explicit order is set.
  */
-export function interleaveCatalogProducts(products = []) {
+export function getExplicitProductOrder(p, layoutIndexMap = null) {
+  if (!p) return 0;
+  const hOrder = Number(p.homeOrder);
+  if (!isNaN(hOrder) && hOrder > 0) return hOrder;
+  const sOrder = Number(p.sortOrder);
+  if (!isNaN(sOrder) && sOrder > 0) return sOrder;
+  const dOrder = Number(p.displayOrder);
+  if (!isNaN(dOrder) && dOrder > 0) return dOrder;
+  if (layoutIndexMap) {
+    const pid = String(p.id ?? p._id ?? "");
+    if (pid && layoutIndexMap.has(pid)) {
+      return layoutIndexMap.get(pid) + 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Interleave products so customers see a varied catalog while strictly preserving
+ * any explicit Admin sequence (#1, #2, #3...) at the front.
+ */
+export function interleaveCatalogProducts(products = [], layoutIds = []) {
   if (!Array.isArray(products) || products.length <= 1) return products;
+
+  const layoutIndexMap = Array.isArray(layoutIds) && layoutIds.length > 0
+    ? new Map(layoutIds.map((id, idx) => [String(id), idx]))
+    : null;
+
+  const pinnedAdminOrdered = [];
+  const remaining = [];
+
+  for (const p of products) {
+    if (getExplicitProductOrder(p, layoutIndexMap) > 0) {
+      pinnedAdminOrdered.push(p);
+    } else {
+      remaining.push(p);
+    }
+  }
+
+  pinnedAdminOrdered.sort((a, b) => {
+    const ordA = getExplicitProductOrder(a, layoutIndexMap);
+    const ordB = getExplicitProductOrder(b, layoutIndexMap);
+    if (ordA !== ordB) return ordA - ordB;
+    if (layoutIndexMap) {
+      const idxA = layoutIndexMap.has(String(a?.id ?? a?._id ?? "")) ? layoutIndexMap.get(String(a?.id ?? a?._id ?? "")) : 999999;
+      const idxB = layoutIndexMap.has(String(b?.id ?? b?._id ?? "")) ? layoutIndexMap.get(String(b?.id ?? b?._id ?? "")) : 999999;
+      if (idxA !== idxB) return idxA - idxB;
+    }
+    return 0;
+  });
+
+  if (remaining.length <= 1) {
+    return [...pinnedAdminOrdered, ...remaining];
+  }
 
   const rudrakshas = [];
   const others = [];
 
-  for (const p of products) {
+  for (const p of remaining) {
     if (isRudrakshaProduct(p)) {
       rudrakshas.push(p);
     } else {
@@ -87,9 +138,8 @@ export function interleaveCatalogProducts(products = []) {
     }
   }
 
-  // If all products belong to only one type, return as-is
-  if (rudrakshas.length === 0) return others;
-  if (others.length === 0) return rudrakshas;
+  if (rudrakshas.length === 0) return [...pinnedAdminOrdered, ...others];
+  if (others.length === 0) return [...pinnedAdminOrdered, ...rudrakshas];
 
   const interleaved = [];
   let rIdx = 0;
@@ -104,7 +154,7 @@ export function interleaveCatalogProducts(products = []) {
     }
   }
 
-  return interleaved;
+  return [...pinnedAdminOrdered, ...interleaved];
 }
 
 /**
@@ -156,33 +206,49 @@ export function getProductCreatedTimestamp(p) {
 }
 
 /**
- * Sort products for Shop / Catalog view based on:
- * 1. Newly created products (Admin / AI Agent uploads) first by newest timestamp
- * 2. Explicit admin `sortOrder` / `displayOrder` (> 0)
+ * Sort products for All Products / Shop / Admin Catalog view based on:
+ * 1. Explicit admin sequence (`homeOrder`, `sortOrder`, `displayOrder` > 0, or `layoutIds` position) FIRST (#1, #2, #3...)
+ * 2. Newly created products (if no explicit sequence is set)
  * 3. Natural category & Mukhi sequence (1 Mukhi -> 14 Mukhi -> Special Beads -> Malas -> Puja Samagri -> Others)
  * 4. Rating & Creation time
  */
-export function sortProductsByCatalogOrder(products = []) {
+export function sortProductsByCatalogOrder(products = [], layoutIds = []) {
   if (!Array.isArray(products)) return [];
 
+  const layoutIndexMap = Array.isArray(layoutIds) && layoutIds.length > 0
+    ? new Map(layoutIds.map((id, idx) => [String(id), idx]))
+    : null;
+
   return [...products].sort((a, b) => {
+    // 1. Explicit admin order ALWAYS wins first (#1, #2, #3...)
+    const orderA = getExplicitProductOrder(a, layoutIndexMap);
+    const orderB = getExplicitProductOrder(b, layoutIndexMap);
+
+    if (orderA > 0 && orderB > 0 && orderA !== orderB) {
+      return orderA - orderB;
+    }
+    if (orderA > 0 && orderB === 0) return -1;
+    if (orderA === 0 && orderB > 0) return 1;
+
+    if (layoutIndexMap) {
+      const idxA = layoutIndexMap.has(String(a?.id ?? a?._id ?? "")) ? layoutIndexMap.get(String(a?.id ?? a?._id ?? "")) : -1;
+      const idxB = layoutIndexMap.has(String(b?.id ?? b?._id ?? "")) ? layoutIndexMap.get(String(b?.id ?? b?._id ?? "")) : -1;
+      if (idxA >= 0 && idxB >= 0 && idxA !== idxB) return idxA - idxB;
+      if (idxA >= 0 && idxB < 0) return -1;
+      if (idxA < 0 && idxB >= 0) return 1;
+    }
+
+    // 2. For products without explicit order, prioritize newly created products
     const isNewA = isNewlyCreatedProduct(a);
     const isNewB = isNewlyCreatedProduct(b);
     if (isNewA && isNewB) {
-      return getProductCreatedTimestamp(b) - getProductCreatedTimestamp(a);
+      const diff = getProductCreatedTimestamp(b) - getProductCreatedTimestamp(a);
+      if (diff !== 0) return diff;
     }
     if (isNewA && !isNewB) return -1;
     if (!isNewA && isNewB) return 1;
 
-    // 1. Explicit sort order
-    const orderA = Number(a.sortOrder || a.displayOrder || 0);
-    const orderB = Number(b.sortOrder || b.displayOrder || 0);
-
-    if (orderA > 0 && orderB > 0) return orderA - orderB;
-    if (orderA > 0) return -1;
-    if (orderB > 0) return 1;
-
-    // 2. Rudraksha beads sorted by Mukhi
+    // 3. Rudraksha beads sorted by Mukhi
     const isRudrakshaA = isRudrakshaProduct(a);
     const isRudrakshaB = isRudrakshaProduct(b);
 
@@ -192,45 +258,60 @@ export function sortProductsByCatalogOrder(products = []) {
       if (mukhiA !== mukhiB) return mukhiA - mukhiB;
     }
 
-    // 3. Keep rudrakshas before general puja samagri if no explicit order
+    // 4. Keep rudrakshas before general puja samagri if no explicit order
     if (isRudrakshaA && !isRudrakshaB) return -1;
     if (!isRudrakshaA && isRudrakshaB) return 1;
 
-    // 4. Alphabetical or rating
-    return (b.rating || 0) - (a.rating || 0);
+    // 5. Rating or ID
+    return (Number(b?.rating) || 0) - (Number(a?.rating) || 0);
   });
 }
 
 /**
  * Sort products for Home Showcase based on:
- * 1. Newly created products (Admin / AI Agent uploads) first
- * 2. Explicit `homeOrder` (> 0)
+ * 1. Explicit Admin `homeOrder` / `sortOrder` / `displayOrder` (> 0) or `layoutIds` position FIRST (#1, #2, #3...)
+ * 2. Newly created products (if no explicit order is set)
  * 3. Popularity / Featured
  * 4. Shop Catalog order
  */
-export function sortProductsByHomeOrder(products = []) {
+export function sortProductsByHomeOrder(products = [], layoutIds = []) {
   if (!Array.isArray(products)) return [];
 
+  const layoutIndexMap = Array.isArray(layoutIds) && layoutIds.length > 0
+    ? new Map(layoutIds.map((id, idx) => [String(id), idx]))
+    : null;
+
   return [...products].sort((a, b) => {
+    const orderA = getExplicitProductOrder(a, layoutIndexMap);
+    const orderB = getExplicitProductOrder(b, layoutIndexMap);
+
+    if (orderA > 0 && orderB > 0 && orderA !== orderB) {
+      return orderA - orderB;
+    }
+    if (orderA > 0 && orderB === 0) return -1;
+    if (orderA === 0 && orderB > 0) return 1;
+
+    if (layoutIndexMap) {
+      const idxA = layoutIndexMap.has(String(a?.id ?? a?._id ?? "")) ? layoutIndexMap.get(String(a?.id ?? a?._id ?? "")) : -1;
+      const idxB = layoutIndexMap.has(String(b?.id ?? b?._id ?? "")) ? layoutIndexMap.get(String(b?.id ?? b?._id ?? "")) : -1;
+      if (idxA >= 0 && idxB >= 0 && idxA !== idxB) return idxA - idxB;
+      if (idxA >= 0 && idxB < 0) return -1;
+      if (idxA < 0 && idxB >= 0) return 1;
+    }
+
     const isNewA = isNewlyCreatedProduct(a);
     const isNewB = isNewlyCreatedProduct(b);
     if (isNewA && isNewB) {
-      return getProductCreatedTimestamp(b) - getProductCreatedTimestamp(a);
+      const diff = getProductCreatedTimestamp(b) - getProductCreatedTimestamp(a);
+      if (diff !== 0) return diff;
     }
     if (isNewA && !isNewB) return -1;
     if (!isNewA && isNewB) return 1;
 
-    const homeOrderA = Number(a.homeOrder || 0);
-    const homeOrderB = Number(b.homeOrder || 0);
+    if (a?.isPopular && !b?.isPopular) return -1;
+    if (!a?.isPopular && b?.isPopular) return 1;
 
-    if (homeOrderA > 0 && homeOrderB > 0) return homeOrderA - homeOrderB;
-    if (homeOrderA > 0) return -1;
-    if (homeOrderB > 0) return 1;
-
-    if (a.isPopular && !b.isPopular) return -1;
-    if (!a.isPopular && b.isPopular) return 1;
-
-    return sortProductsByCatalogOrder([a, b])[0] === a ? -1 : 1;
+    return sortProductsByCatalogOrder([a, b], layoutIds)[0] === a ? -1 : 1;
   });
 }
 

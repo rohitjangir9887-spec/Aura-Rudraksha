@@ -22,19 +22,26 @@ export function AdminSettings() {
     db.fetchSettings().then(() => {
       setSettings(db.getSettings());
       setPolicies(db.getPolicies());
-    });
+    }).catch(() => {});
     db.fetchTickets().then(() => {
       setTickets(db.getTickets());
-    });
+    }).catch(() => {});
     db.fetchProducts().then(() => {
       setProducts(db.getProducts());
-    });
+    }).catch(() => {});
 
-    const unsub = onStoreUpdate(() => {
-      setSettings(db.getSettings());
-      setPolicies(db.getPolicies());
-      setTickets(db.getTickets());
-      setProducts(db.getProducts());
+    const unsub = onStoreUpdate((e) => {
+      const action = e?.detail?.action || "";
+      if (action === "settings:saved" || action === "settings:synced") {
+        setSettings(db.getSettings());
+        setPolicies(db.getPolicies());
+      } else if (action === "policies:saved") {
+        setPolicies(db.getPolicies());
+      } else if (action.startsWith("ticket")) {
+        setTickets(db.getTickets());
+      } else if (action.startsWith("product")) {
+        setProducts(db.getProducts());
+      }
     });
     return () => unsub();
   }, []);

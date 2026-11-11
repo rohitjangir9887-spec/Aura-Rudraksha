@@ -458,10 +458,35 @@ export function Admin() {
     const unsubStore = onStoreUpdate(() => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        if (mountedRef.current) {
-          refreshDashboard();
-        }
-      }, 300);
+        if (!mountedRef.current) return;
+        const realProducts = db.getProducts() || [];
+        const realOrders = db.getOrders() || [];
+        const realCustomers = db.getCustomers() || [];
+        const currentSettings = db.getSettings();
+        if (currentSettings) setStoreSettings(currentSettings);
+
+        const revenue = realOrders
+          .filter(o => o.status !== "Cancelled")
+          .reduce((sum, o) => sum + (Number(o.finalAmount) || Number(o.amount) || 0), 0);
+        const pending = realOrders.filter(o => o.status === "Pending").length;
+        const completed = realOrders.filter(o => o.status === "Delivered").length;
+
+        setStats(prev => ({
+          ...prev,
+          totalOrders: realOrders.length,
+          revenue,
+          totalCustomers: realCustomers.length,
+          totalProducts: realProducts.length,
+          pendingOrders: pending,
+          completedOrders: completed,
+          hasData: realOrders.length > 0 || prev.views > 0
+        }));
+
+        setRecentOrders([...realOrders]
+          .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0))
+          .slice(0, 5));
+        setTopProducts(realProducts.slice(0, 5));
+      }, 250);
     });
 
     const handleMessage = (event) => {
