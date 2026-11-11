@@ -4,7 +4,7 @@
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { emitToast } from "../context/ToastContext";
+import { emitToast } from "../context/ToastContext.jsx";
 
 /**
  * Format currency in INR

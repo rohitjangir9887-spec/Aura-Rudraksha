@@ -2,7 +2,7 @@
  * Helper to download all images for a product and copy the product title to clipboard
  */
 import { getProductGalleryImages } from "./imageUtils";
-import { emitToast } from "../context/ToastContext";
+import { emitToast } from "../context/ToastContext.jsx";
 
 /**
  * Sanitize filename
