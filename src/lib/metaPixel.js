@@ -5,20 +5,11 @@
  */
 
 export const DEFAULT_META_PIXEL_ID = "1485640013424198";
-const LEGACY_RETIRED_PIXEL_IDS = new Set(["1030324403433300"]);
 
-function normalizePixelId(candidate) {
-  const cleaned = String(candidate || "").trim();
-  if (!cleaned || LEGACY_RETIRED_PIXEL_IDS.has(cleaned)) return "";
-  return /^\d{6,25}$/.test(cleaned) ? cleaned : "";
-}
-
-// If index.html already initialized window.fbq('init', '1485640013424198') and fired initial 'PageView',
-// record that state immediately so React mount does not re-init or fire a duplicate initial PageView.
-let initializedPixelId =
-  typeof window !== "undefined" && typeof window.fbq === "function"
-    ? DEFAULT_META_PIXEL_ID
-    : null;
+// index.html initializes window.fbq('init', '1485640013424198') and fires the initial 'PageView'.
+// Record the initial path immediately so React mount never fires a duplicate initial PageView.
+let initialized =
+  typeof window !== "undefined" && typeof window.fbq === "function";
 
 let lastTrackedPageViewPath =
   typeof window !== "undefined" && typeof window.fbq === "function"
@@ -76,41 +67,18 @@ export function getAdAttribution() {
 }
 
 /**
- * Resolve active Meta Pixel ID from settings, environment, or official default (1485640013424198)
+ * Always returns the single official Meta Pixel ID (1485640013424198)
  */
-export function getActiveMetaPixelId(settings = null) {
-  if (typeof window === "undefined") return DEFAULT_META_PIXEL_ID;
-  try {
-    const fromSettings = normalizePixelId(settings?.metaPixelId);
-    if (fromSettings) return fromSettings;
-
-    const cachedSettingsRaw = localStorage.getItem("aura_settings_cache");
-    if (cachedSettingsRaw) {
-      const parsed = JSON.parse(cachedSettingsRaw);
-      const fromCache = normalizePixelId(parsed?.metaPixelId);
-      if (fromCache) return fromCache;
-    }
-    const envPixel =
-      typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_META_PIXEL_ID
-        ? normalizePixelId(import.meta.env.VITE_META_PIXEL_ID)
-        : "";
-    if (envPixel) return envPixel;
-
-    return DEFAULT_META_PIXEL_ID;
-  } catch (_) {
-    return DEFAULT_META_PIXEL_ID;
-  }
+export function getActiveMetaPixelId() {
+  return DEFAULT_META_PIXEL_ID;
 }
 
 /**
- * Initialize Meta Pixel base script if not already initialized in index.html
+ * Ensure Meta Pixel (1485640013424198) is ready (initialized in index.html)
  */
-export function initMetaPixel(customPixelId = null, settings = null) {
+export function initMetaPixel() {
   if (typeof window === "undefined") return false;
   captureAdAttribution();
-
-  const pixelId = normalizePixelId(customPixelId) || getActiveMetaPixelId(settings);
-  if (!pixelId) return false;
 
   try {
     if (!window.fbq) {
@@ -128,21 +96,14 @@ export function initMetaPixel(customPixelId = null, settings = null) {
         t = b.createElement(e);
         t.async = !0;
         t.src = v;
-        t.onerror = function () {};
         s = b.getElementsByTagName(e)[0];
         if (s && s.parentNode) s.parentNode.insertBefore(t, s);
       })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
       /* eslint-enable */
-    }
-
-    if (initializedPixelId !== pixelId) {
-      window.fbq("init", pixelId);
-      initializedPixelId = pixelId;
-      const currentPath = `${window.location.pathname}${window.location.search}`;
-      if (lastTrackedPageViewPath !== currentPath) {
-        window.fbq("track", "PageView");
-        lastTrackedPageViewPath = currentPath;
-      }
+      window.fbq("init", DEFAULT_META_PIXEL_ID);
+      initialized = true;
+    } else if (!initialized) {
+      initialized = true;
     }
     return true;
   } catch (_) {

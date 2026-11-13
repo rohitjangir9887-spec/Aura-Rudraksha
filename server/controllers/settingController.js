@@ -90,8 +90,7 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   copy.enableCod = copy.enableCod !== undefined ? Boolean(copy.enableCod) : true;
   copy.enableOnlinePayment = copy.enableOnlinePayment !== undefined ? Boolean(copy.enableOnlinePayment) : true;
   copy.codFee = copy.codFee !== undefined && !isNaN(Number(copy.codFee)) ? Math.max(0, Number(copy.codFee)) : 0;
-  const rawPixelId = typeof copy.metaPixelId === "string" ? copy.metaPixelId.trim() : "";
-  copy.metaPixelId = (!rawPixelId || rawPixelId === "1030324403433300") ? "1485640013424198" : rawPixelId;
+  copy.metaPixelId = "1485640013424198";
   copy.metaPixelEnabled = copy.metaPixelEnabled !== undefined ? Boolean(copy.metaPixelEnabled) : true;
 
   if (!isAdmin) {

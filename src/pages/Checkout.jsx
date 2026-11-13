@@ -43,7 +43,6 @@ import { PlaceOrderButton } from "../components/checkout/PlaceOrderButton";
 import { PayuRedirectModal } from "../components/checkout/PayuRedirectModal";
 import { triggerHaptic } from "../lib/haptics";
 import {
-  initMetaPixel,
   trackMetaInitiateCheckout,
   trackMetaPurchase,
   getAdAttribution
@@ -280,9 +279,6 @@ export function Checkout() {
     db.fetchSettings?.().then(res => {
       if (mounted && res) {
         setStoreSettings(res);
-        if (res.metaPixelEnabled !== false && res.metaPixelId) {
-          initMetaPixel(res.metaPixelId);
-        }
       }
     }).catch(() => {});
     const onSettingsSync = (e) => {

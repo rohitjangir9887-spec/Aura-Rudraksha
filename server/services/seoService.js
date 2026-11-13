@@ -1517,11 +1517,6 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   result = result.replace(/<meta\s+itemprop=["']image["'][^>]*>/gi, "");
   result = result.replace(/<script\s+type=["']application\/ld\+json["']>[\s\S]*?<\/script>/gi, "");
 
-  // Ensure active Meta Pixel ID (1485640013424198) is always present in rendered HTML
-  if (result.includes("1030324403433300")) {
-    result = result.replace(/1030324403433300/g, "1485640013424198");
-  }
-
   // Inject assembled tags near the top of <head> right after viewport for fast crawler ingestion
   if (result.includes('name="viewport"')) {
     result = result.replace(/(<meta\s+name=["']viewport["'][^>]*>)/i, `$1\n${headInjections}`);
@@ -1759,6 +1754,15 @@ export function getHtmlTemplate() {
       gtag('js', new Date());
       gtag('config', 'GT-NNMVH4H8');
     </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6f3518" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
+    <link rel="manifest" href="/manifest.json?v=2" />
+    <title>Aura Rudraksha — 100% Authentic Nepal &amp; Indonesian Rudraksha | Lab Certified</title>
     <!-- Meta Pixel Code -->
     <script>
     !function(f,b,e,v,n,t,s)
@@ -1772,21 +1776,12 @@ export function getHtmlTemplate() {
     fbq('init', '1485640013424198');
     fbq('track', 'PageView');
     </script>
-    <!-- End Meta Pixel Code -->
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#6f3518" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
-    <link rel="manifest" href="/manifest.json?v=2" />
-    <title>Aura Rudraksha — 100% Authentic Nepal &amp; Indonesian Rudraksha | Lab Certified</title>
-  </head>
-  <body>
     <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=1485640013424198&ev=PageView&noscript=1"
     /></noscript>
+    <!-- End Meta Pixel Code -->
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

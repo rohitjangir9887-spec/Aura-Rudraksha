@@ -4,7 +4,6 @@ import { Sparkles, X, ArrowRight } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
 import {
   captureAdAttribution,
-  initMetaPixel,
   trackMetaPageView
 } from "../lib/metaPixel";
 
@@ -27,9 +26,6 @@ export function LiveStorefrontFeatures() {
     const syncFromStoreSettings = () => {
       try {
         const settingsObj = db.getSettings() || {};
-        if (settingsObj.metaPixelEnabled !== false && settingsObj.metaPixelId) {
-          initMetaPixel(settingsObj.metaPixelId);
-        }
         const list = settingsObj?.aiCustomFeatures || [];
         if (Array.isArray(list)) {
           const activeList = list.filter(f => f && f.enabled !== false);
