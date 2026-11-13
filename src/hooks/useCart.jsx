@@ -6,6 +6,7 @@ import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { triggerHaptic } from "../lib/haptics";
 import { isCustomMalaLine, sanitizeCustomMalaConfig } from "../../shared/customMalaCatalog";
+import { trackMetaAddToCart } from "../lib/metaPixel";
 
 const CartContext = createContext(null);
 
@@ -507,12 +508,29 @@ export function CartProvider({ children }) {
         }
         if (pid && pid !== "[object Object]" && pid !== "undefined" && pid !== "null") {
           const prev = map.get(pid);
-          map.set(pid, {
+          const nextEntry = {
             ...(prev || {}),
             id: pid,
             qty: (prev?.qty || 0) + qty,
             ...customMeta
-          });
+          };
+          map.set(pid, nextEntry);
+          try {
+            const catalog = (db && typeof db.getProducts === "function" ? db.getProducts() : []) || [];
+            const resolvedProduct = resolveCartProduct(catalog, {
+              ...(typeof item === "object" ? item : {}),
+              ...nextEntry,
+              id: pid
+            });
+            trackMetaAddToCart(
+              resolvedProduct || {
+                id: pid,
+                name: (typeof item === "object" && item.name) || customMeta.name || "Sacred Rudraksha",
+                price: Number((typeof item === "object" && item.price) || customMeta.price || 0)
+              },
+              qty
+            );
+          } catch (_) {}
         }
       }
       
