@@ -18564,5 +18564,36 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   }
 }
 
+@keyframes auraInstantWindowIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes auraInstantFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.aura-instant-window-in > .aura-ai-panel {
+  animation: auraInstantWindowIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.aura-instant-fade-in {
+  animation: auraInstantFadeIn 0.18s ease-out both;
+}
+
+
 
 
