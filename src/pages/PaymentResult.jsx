@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
 import { AlertCircle, ShieldCheck, RefreshCw, Loader2, Clock, Award, Sparkles } from "lucide-react";
 import { SacredPujaCertificateModal } from "../components/SacredPujaCertificateModal";
@@ -13,6 +13,7 @@ export function PaymentResult() {
   const { clear } = useCart();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const status = (searchParams.get("status") || searchParams.get("payment_status") || "processing").toLowerCase();
   const rawOrderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1") || "";
   const rawTxnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id") || "";
@@ -33,9 +34,26 @@ export function PaymentResult() {
       localStorage.setItem("aura_guest_token", guestToken);
     } catch (_) {}
   }
-  
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
+
+  const initialOrder = (() => {
+    const stateOrder = location?.state?.order;
+    if (stateOrder && (!orderId || stateOrder.id === orderId || stateOrder.orderId === orderId || stateOrder.orderNumber === orderId)) {
+      return stateOrder;
+    }
+    try {
+      const cachedRaw = sessionStorage.getItem("aura_last_confirmed_order");
+      if (cachedRaw) {
+        const parsed = JSON.parse(cachedRaw);
+        if (parsed && (!orderId || parsed.id === orderId || parsed.orderId === orderId || parsed.orderNumber === orderId)) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return null;
+  })();
+
+  const [order, setOrder] = useState(initialOrder);
+  const [loading, setLoading] = useState(!initialOrder);
   const [retrying, setRetrying] = useState(false);
   const [rechecking, setRechecking] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
@@ -45,6 +63,34 @@ export function PaymentResult() {
     // Clear pending payment state when returning to result page
     sessionStorage.removeItem("aura_pending_txnid");
     sessionStorage.removeItem("aura_pending_orderId");
+
+    if (initialOrder) {
+      const isInitialConfirmed =
+        initialOrder.paymentStatus === "Paid" ||
+        initialOrder.paymentStatus === "COD" ||
+        (initialOrder.paymentMethod || "").toLowerCase().includes("cod") ||
+        (initialOrder.paymentMode || "").toLowerCase() === "cod";
+      if (isInitialConfirmed && initialOrder.status !== "Cancelled") {
+        try {
+          const oId = initialOrder.orderNumber || initialOrder.id || initialOrder._id || orderId;
+          const gTok = initialOrder.guestToken || guestToken;
+          if (typeof window !== "undefined" && gTok) {
+            sessionStorage.setItem("aura_guest_token", gTok);
+            localStorage.setItem("aura_guest_token", gTok);
+            if (oId) {
+              sessionStorage.setItem(`aura_order_token_${oId}`, gTok);
+              localStorage.setItem(`aura_order_token_${oId}`, gTok);
+            }
+          }
+          sessionStorage.removeItem("aura_buy_now_intent");
+          clear();
+          trackMetaPurchase(initialOrder);
+        } catch (_) {}
+        setLoading(false);
+        verifyAttempted.current = true;
+        return;
+      }
+    }
 
     const verify = async () => {
       if (!orderId && !txnid) {

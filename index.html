@@ -4,7 +4,11 @@
     <script>
       // Global error shield to prevent benign third-party/iframe cross-origin script errors from crashing the app
       window.addEventListener('error', function(event) {
-        if (event && (event.message === 'Script error.' || !event.filename || !event.filename.includes(window.location.host))) {
+        var fn = (event && event.filename) ? String(event.filename) : '';
+        if (fn.indexOf('facebook.') !== -1 || fn.indexOf('fbcdn.') !== -1 || fn.indexOf('fbevents') !== -1) {
+          return false;
+        }
+        if (event && event.message === 'Script error.') {
           if (event.stopImmediatePropagation) event.stopImmediatePropagation();
           return true;
         }

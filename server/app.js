@@ -138,6 +138,8 @@ export function createApp(options = {}) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    // Allow Meta Event Setup Tool (eventsmanager.facebook.com) to communicate with the opened tab via window.opener
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     const isDev = process.env.NODE_ENV !== "production";
     const isHttps = Boolean(req.secure || req.headers["x-forwarded-proto"] === "https");
@@ -149,12 +151,12 @@ export function createApp(options = {}) {
 
     const cspDirectives = [
       "default-src 'self' https: data: blob:",
-      `script-src 'self' 'unsafe-inline' blob: ${isDev ? "'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://connect.facebook.net https://*.facebook.com https://*.facebook.net https://instant.page https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in`,
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://connect.facebook.net https://*.facebook.com https://*.facebook.net https://*.fbcdn.net https://static.xx.fbcdn.net https://instant.page https://apis.google.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://static.payu.in https://js.payu.in",
       "style-src 'self' 'unsafe-inline' https: data:",
-      "font-src 'self' https://fonts.gstatic.com data:",
+      "font-src 'self' https: https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https: http:",
       "connect-src 'self' https: http: wss: ws:",
-      "frame-src 'self' https: http: https://www.facebook.com https://web.facebook.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
+      "frame-src 'self' https: http: https://www.facebook.com https://web.facebook.com https://business.facebook.com https://eventsmanager.facebook.com https://connect.facebook.net https://*.facebook.com https://accounts.google.com https://checkout.razorpay.com https://sdk.cashfree.com https://test.cashfree.com https://secure.payu.in https://test.payu.in",
       "object-src 'none'",
       "base-uri 'self'",
       "frame-ancestors *"

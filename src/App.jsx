@@ -20,7 +20,7 @@ const Wishlist = lazy(() => import("./pages/Wishlist").then(m => ({ default: m.W
 const Product = lazy(() => import("./pages/Product").then(m => ({ default: m.Product })));
 const Cart = lazy(() => import("./pages/Cart").then(m => ({ default: m.Cart })));
 const Checkout = lazy(() => import("./pages/Checkout").then(m => ({ default: m.Checkout })));
-const PaymentResult = lazy(() => import("./pages/PaymentResult").then(m => ({ default: m.PaymentResult })));
+import { PaymentResult } from "./pages/PaymentResult";
 const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
 const Policies = lazy(() => import("./pages/Policies").then(m => ({ default: m.Policies })));
 const NotFound = lazy(() => import("./pages/NotFound").then(m => ({ default: m.NotFound })));

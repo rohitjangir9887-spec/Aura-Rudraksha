@@ -74,22 +74,23 @@ export function getAdAttribution() {
 export function getActiveMetaPixelId(settings = null) {
   if (typeof window === "undefined") return DEFAULT_META_PIXEL_ID;
   try {
-    if (settings && settings.metaPixelEnabled === false) return "";
-    if (settings && settings.metaPixelId && String(settings.metaPixelId).trim()) {
+    if (settings && settings.metaPixelId && /^\d{6,25}$/.test(String(settings.metaPixelId).trim())) {
       return String(settings.metaPixelId).trim();
     }
     const cachedSettingsRaw = localStorage.getItem("aura_settings_cache");
     if (cachedSettingsRaw) {
       const parsed = JSON.parse(cachedSettingsRaw);
-      if (parsed && parsed.metaPixelEnabled === false) return "";
-      if (parsed && parsed.metaPixelId && String(parsed.metaPixelId).trim()) {
+      if (parsed && parsed.metaPixelId && /^\d{6,25}$/.test(String(parsed.metaPixelId).trim())) {
         return String(parsed.metaPixelId).trim();
       }
     }
     const envPixel = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_META_PIXEL_ID)
       ? String(import.meta.env.VITE_META_PIXEL_ID).trim()
       : "";
-    return envPixel || DEFAULT_META_PIXEL_ID;
+    if (envPixel && /^\d{6,25}$/.test(envPixel)) {
+      return envPixel;
+    }
+    return DEFAULT_META_PIXEL_ID;
   } catch (_) {
     return DEFAULT_META_PIXEL_ID;
   }

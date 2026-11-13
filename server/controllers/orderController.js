@@ -594,17 +594,21 @@ export async function createOrder(req, res, next) {
     }
 
     try {
-      if (bulkOps.length > 0) {
-        await Product.bulkWrite(bulkOps);
-        stockDecremented = true;
-      }
-      if (totals.appliedCoupon && totals.appliedCoupon.code) {
-        await Coupon.updateOne(
-          { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
-          { $inc: { usage: 1 } }
-        );
-        couponUsageIncremented = true;
-      }
+      await Promise.all([
+        bulkOps.length > 0
+          ? Product.bulkWrite(bulkOps).then(() => {
+              stockDecremented = true;
+            })
+          : Promise.resolve(),
+        totals.appliedCoupon && totals.appliedCoupon.code
+          ? Coupon.updateOne(
+              { code: String(totals.appliedCoupon.code).trim().toUpperCase() },
+              { $inc: { usage: 1 } }
+            ).then(() => {
+              couponUsageIncremented = true;
+            })
+          : Promise.resolve()
+      ]);
 
       const created = await Order.findOneAndUpdate(
         { id: orderPayload.id },
@@ -612,29 +616,8 @@ export async function createOrder(req, res, next) {
         { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
 
-      // Automatically increment buyer counter and totalSold for purchased products in MongoDB
-      try {
-        await recordProductSalesIncrement(totals.items);
-      } catch (salesIncErr) {
-        console.warn("[Order] Could not increment product sales count:", salesIncErr?.message || salesIncErr);
-      }
-
-      // Save in deduplication cache
+      // Save in deduplication cache immediately
       recentOrderSubmissions.set(submissionKey, { time: Date.now(), order: created });
-
-      // Auto update/create customer record in MongoDB
-      try {
-        await recordCustomerOrder({
-          authUserId: effectiveAuthUserId,
-          email,
-          phone,
-          name,
-          address: orderPayload.address,
-          amount: orderPayload.finalAmount
-        });
-      } catch (custErr) {
-        console.warn("Could not sync customer on order:", custErr.message);
-      }
 
       const responsePayload = { success: true, data: created, guestToken };
 
@@ -647,7 +630,29 @@ export async function createOrder(req, res, next) {
           resourceId: created.id
         });
       }
-      
+
+      // Run non-blocking analytics / customer record synchronization in background
+      // so the checkout screen transitions to Order Confirmed immediately
+      setImmediate(async () => {
+        try {
+          await recordProductSalesIncrement(totals.items);
+        } catch (salesIncErr) {
+          console.warn("[Order] Could not increment product sales count:", salesIncErr?.message || salesIncErr);
+        }
+        try {
+          await recordCustomerOrder({
+            authUserId: effectiveAuthUserId,
+            email,
+            phone,
+            name,
+            address: orderPayload.address,
+            amount: orderPayload.finalAmount
+          });
+        } catch (custErr) {
+          console.warn("Could not sync customer on order:", custErr.message);
+        }
+      });
+
       return res.status(201).json(responsePayload);
     } catch (dbErr) {
       // Fail closed: rollback stock and coupon increments if DB operation fails

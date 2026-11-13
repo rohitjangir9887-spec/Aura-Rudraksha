@@ -221,8 +221,10 @@ export const authClient = {
         }
       }
 
-      if (auth.authStateReady) {
-        const timeoutMs = waitForAuth ? 4000 : 2500;
+      // Only wait for Firebase authStateReady when caller explicitly requests waitForAuth
+      // or when we have a cached signed-in user snapshot that might still be hydrating.
+      if (auth.authStateReady && (waitForAuth || inMemoryCachedUser)) {
+        const timeoutMs = waitForAuth ? 1500 : 200;
         await Promise.race([
           auth.authStateReady(),
           new Promise((resolve) => setTimeout(resolve, timeoutMs))

@@ -1038,17 +1038,25 @@ export function Checkout() {
           sessionStorage.removeItem("aura_pending_orderId");
           sessionStorage.removeItem("aura_pending_txnid");
           sessionStorage.removeItem("aura_pending_timestamp");
+          if (savedOrder) {
+            sessionStorage.setItem("aura_last_confirmed_order", JSON.stringify(savedOrder));
+          }
         } catch (_) {}
 
-        clear();
         triggerHaptic("success");
         trackMetaPurchase(savedOrder);
         emitToast("Cash on Delivery (COD) Order Confirmed!", "success");
 
         const gQuery = createdGuestToken ? `&guestToken=${encodeURIComponent(createdGuestToken)}` : "";
         navigate(`/payment-result?status=success&mode=cod&orderId=${encodeURIComponent(createdOrderId)}${gQuery}`, {
-          replace: true
+          replace: true,
+          state: { order: savedOrder }
         });
+        setTimeout(() => {
+          try {
+            clear();
+          } catch (_) {}
+        }, 0);
         return;
       } catch (err) {
         triggerHaptic("warning");
