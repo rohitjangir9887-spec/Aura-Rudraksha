@@ -153,5 +153,51 @@ describe("Custom Rudraksha Mala Catalog & Authoritative Pricing", () => {
     expect(totals.items[0].isCustomMala).toBe(true);
     expect(totals.items[0].unitPrice).toBeGreaterThan(100);
     expect(totals.subtotal).toBe(totals.items[0].unitPrice);
+    expect(Array.isArray(totals.items[0].customMalaItems)).toBe(true);
+    expect(totals.items[0].customMalaItems.length).toBe(1);
+    expect(totals.items[0].customMalaItems[0].qty).toBe(2);
+  });
+
+  it("includes ALL selected Rudraksha varieties (even > 4) without truncation and preserves historical snapshot", () => {
+    const storePool = [
+      { id: "p1", name: "Nepali 1 Mukhi", price: 2100, mrp: 2800, img: "https://ik.imagekit.io/demo/p1.jpg", status: "Active" },
+      { id: "p2", name: "Nepali 3 Mukhi", price: 650, mrp: 900, img: "https://ik.imagekit.io/demo/p2.jpg", status: "Active" },
+      { id: "p3", name: "Nepali 5 Mukhi", price: 450, mrp: 700, img: "https://ik.imagekit.io/demo/p3.jpg", status: "Active" },
+      { id: "p4", name: "Nepali 7 Mukhi", price: 950, mrp: 1300, img: "https://ik.imagekit.io/demo/p4.jpg", status: "Active" },
+      { id: "p5", name: "Gauri Shankar Rudraksha", price: 3200, mrp: 4200, img: "https://ik.imagekit.io/demo/p5.jpg", status: "Active" },
+      { id: "p6", name: "Ganesh Rudraksha", price: 1150, mrp: 1600, img: "https://ik.imagekit.io/demo/p6.jpg", status: "Active" }
+    ];
+
+    const payload = buildCustomMalaItemPayload(
+      {
+        products: [
+          { productId: "p1", qty: 1 },
+          { productId: "p2", qty: 2 },
+          { productId: "p3", qty: 5 },
+          { productId: "p4", qty: 1 },
+          { productId: "p5", qty: 1 },
+          { productId: "p6", qty: 2 }
+        ],
+        thread: "red-silk",
+        capping: "none"
+      },
+      null,
+      storePool
+    );
+
+    expect(Array.isArray(payload.customMalaItems)).toBe(true);
+    expect(payload.customMalaItems.length).toBe(6);
+    expect(payload.customDescription).toContain("Nepali 1 Mukhi");
+    expect(payload.customDescription).toContain("Gauri Shankar Rudraksha");
+    expect(payload.customDescription).toContain("Ganesh Rudraksha");
+    expect(payload.customDescription).not.toContain("+2 more");
+
+    // Even if later productPool is empty or missing a discontinued product, display falls back to saved snapshot
+    const displayWithoutPool = buildCustomMalaDisplay(payload, []);
+    expect(displayWithoutPool.isCustomMala).toBe(true);
+    expect(displayWithoutPool.totalBeads).toBe(12);
+    expect(displayWithoutPool.beadsList.length).toBe(6);
+    expect(displayWithoutPool.beadsList[5].name).toBe("Ganesh Rudraksha");
+    expect(displayWithoutPool.beadsList[5].qty).toBe(2);
   });
 });

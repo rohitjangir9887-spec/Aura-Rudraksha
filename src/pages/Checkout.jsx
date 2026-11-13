@@ -980,6 +980,11 @@ export function Checkout() {
         isIndonesian: !!p.isIndonesian,
         isCustomMala: !!p.isCustomMala || !!line.isCustomMala,
         ...(p.customMala || line.customMala ? { customMala: p.customMala || line.customMala } : {}),
+        ...(Array.isArray(p.customMalaItems) && p.customMalaItems.length > 0
+          ? { customMalaItems: p.customMalaItems }
+          : Array.isArray(line.customMalaItems) && line.customMalaItems.length > 0
+            ? { customMalaItems: line.customMalaItems }
+            : {}),
         ...(p.customDescription || line.customDescription ? { customDescription: p.customDescription || line.customDescription } : {}),
         img: getProductPrimaryImage(p)
       };

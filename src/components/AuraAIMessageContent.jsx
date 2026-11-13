@@ -20,9 +20,12 @@ import {
   Check,
   Grid,
   Table as TableIcon,
-  Compass
+  Compass,
+  ArrowUpRight
 } from "lucide-react";
 import { VedicKundaliChart, RASHI_MAP } from "./VedicKundaliChart";
+import { db } from "../lib/db";
+import { getProductPrimaryImage, getOptimizedImageUrl } from "../lib/imageUtils";
 
 /**
  * Universal Aura AI Message Renderer & Kundali Presentation Engine
@@ -182,8 +185,101 @@ function extractInternalRoute(rawUrl) {
   return null;
 }
 
+// Resolve a catalog product object from an internal /product/:slugOrId route
+function resolveProductFromRoute(internalRoute, passedProducts = []) {
+  if (!internalRoute || typeof internalRoute !== "string") return null;
+  const match = internalRoute.match(/^\/product\/([^?#]+)/i);
+  if (!match) return null;
+
+  let rawTarget = match[1] || "";
+  try {
+    rawTarget = decodeURIComponent(rawTarget);
+  } catch (_) {}
+  rawTarget = rawTarget.replace(/\/+$/, "").trim();
+  if (!rawTarget) return null;
+
+  const targetLower = rawTarget.toLowerCase();
+  const normKey = (v) => String(v || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const normTarget = normKey(rawTarget);
+
+  const catalogList = [];
+  if (Array.isArray(passedProducts) && passedProducts.length > 0) {
+    catalogList.push(...passedProducts);
+  }
+  try {
+    if (db && typeof db.getProducts === "function") {
+      const storeProds = db.getProducts();
+      if (Array.isArray(storeProds) && storeProds.length > 0) {
+        catalogList.push(...storeProds);
+      }
+    }
+  } catch (_) {}
+
+  const found = catalogList.find((p) => {
+    if (!p) return false;
+    const pSlug = String(p.slug || "").trim().toLowerCase();
+    const pId = String(p.id || p._id || "").trim().toLowerCase();
+    const nameSlug = String(p.name || "").toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+    return (
+      pSlug === targetLower ||
+      pId === targetLower ||
+      nameSlug === targetLower ||
+      (normTarget && (normKey(pSlug) === normTarget || normKey(pId) === normTarget || normKey(nameSlug) === normTarget))
+    );
+  });
+
+  return found || null;
+}
+
+// Inline-safe visual product photo badge/card rendered inside chat links to /product/...
+function InlineProductPhotoLink({ route, product, fallbackLabel, idxKey }) {
+  const rawImg = getProductPrimaryImage(product);
+  const optimizedImg = getOptimizedImageUrl(rawImg, { width: 140, quality: 82 });
+  const title = product.name || fallbackLabel || "Sacred Rudraksha";
+  const priceNum = Number(product.price) || 0;
+  const compareNum = Number(product.comparePrice || product.mrp) || 0;
+
+  return (
+    <Link
+      key={idxKey}
+      to={route}
+      className="aura-ai-chat-product-card"
+      onClick={(e) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent("aura-ai-navigate"));
+      }}
+    >
+      <span className="aura-ai-chat-product-thumb-wrap">
+        <img
+          src={optimizedImg}
+          alt={title}
+          className="aura-ai-chat-product-thumb"
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.src = "/images/placeholder.svg";
+          }}
+        />
+      </span>
+      <span className="aura-ai-chat-product-meta">
+        <span className="aura-ai-chat-product-title">{title}</span>
+        {priceNum > 0 && (
+          <span className="aura-ai-chat-product-price-row">
+            <span className="aura-ai-chat-product-price">₹{priceNum.toLocaleString("en-IN")}</span>
+            {compareNum > priceNum && (
+              <span className="aura-ai-chat-product-mrp">₹{compareNum.toLocaleString("en-IN")}</span>
+            )}
+          </span>
+        )}
+      </span>
+      <span className="aura-ai-chat-product-cta" aria-hidden="true">
+        <ArrowUpRight size={13} />
+      </span>
+    </Link>
+  );
+}
+
 // Tokenize a line of text for inline formatting, links & keyword badges
-export function renderInlineContent(text) {
+export function renderInlineContent(text, products = []) {
   if (text === null || text === undefined || text === "") return null;
   const str = typeof text === "string" ? text : String(text);
   if (!str) return null;
@@ -204,6 +300,19 @@ export function renderInlineContent(text) {
         const internalRoute = extractInternalRoute(rawUrl);
 
         if (internalRoute) {
+          const matchedProd = resolveProductFromRoute(internalRoute, products);
+          if (matchedProd) {
+            return (
+              <InlineProductPhotoLink
+                key={idx}
+                idxKey={idx}
+                route={internalRoute}
+                product={matchedProd}
+                fallbackLabel={label}
+              />
+            );
+          }
+
           return (
             <Link
               key={idx}
@@ -236,6 +345,19 @@ export function renderInlineContent(text) {
       const internalRoute = extractInternalRoute(part);
       if (internalRoute) {
         const displayLabel = cleanRawUrl(part);
+        const matchedProd = resolveProductFromRoute(internalRoute, products);
+        if (matchedProd) {
+          return (
+            <InlineProductPhotoLink
+              key={idx}
+              idxKey={idx}
+              route={internalRoute}
+              product={matchedProd}
+              fallbackLabel={displayLabel}
+            />
+          );
+        }
+
         return (
           <Link
             key={idx}
@@ -370,7 +492,7 @@ export function renderStatusBadge(status = "") {
 }
 
 // Individual Planet Card component
-export function PlanetCard({ planetName = "", house = "", rashi = "", status = "", interpretation = "" }) {
+export function PlanetCard({ planetName = "", house = "", rashi = "", status = "", interpretation = "", products = [] }) {
   const cleanName = planetName.replace(/^\*{1,2}/, "").replace(/\*{1,2}$/, "").trim();
   const cleanHouse = house.replace(/\*\*/g, "").trim();
   const cleanRashi = rashi.replace(/\*\*/g, "").trim();
@@ -392,7 +514,7 @@ export function PlanetCard({ planetName = "", house = "", rashi = "", status = "
       )}
       {interpretation && (
         <div className="aura-ai-planet-interp">
-          {renderInlineContent(interpretation)}
+          {renderInlineContent(interpretation, products)}
         </div>
       )}
     </div>
@@ -407,7 +529,8 @@ export function ResponsivePlanetaryReport({
   detectedLagna = 1,
   showChart = true,
   birthData = null,
-  fullKundaliData = null
+  fullKundaliData = null,
+  products = []
 }) {
   const planetList = planets && planets.length > 0
     ? planets
@@ -468,7 +591,7 @@ export function ResponsivePlanetaryReport({
                   </div>
                   {pInterp && (
                     <div className="text-[13.5px] text-[#2b1408] pl-5 leading-normal">
-                      {renderInlineContent(pInterp)}
+                      {renderInlineContent(pInterp, products)}
                     </div>
                   )}
                 </div>
@@ -639,7 +762,7 @@ function isHeadingLine(line) {
   return false;
 }
 
-export function AuraAIMessageContent({ text, content, sender = "ai", className = "", fullKundaliData = null, birthData = null }) {
+export function AuraAIMessageContent({ text, content, sender = "ai", className = "", fullKundaliData = null, birthData = null, products = [] }) {
   const actualText = text !== undefined && text !== null && text !== "" ? text : content;
 
   // Render glowing thinking badge if AI message text is empty during reasoning phase
@@ -934,7 +1057,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           return (
             <p key={idx} className="font-semibold text-[#8c2b10] text-[15px] my-1 leading-relaxed">
               <span className="mr-1.5">🙏</span>
-              {renderInlineContent(block.text)}
+              {renderInlineContent(block.text, products)}
             </p>
           );
         }
@@ -951,7 +1074,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           return (
             <h3 key={idx} className="text-[15px] font-bold text-[#8c2b10] mt-3.5 mb-1.5 flex items-center gap-1.5">
               <Sparkles size={14} className="text-[#8c2b10] flex-shrink-0" />
-              <span>{renderInlineContent(block.text)}</span>
+              <span>{renderInlineContent(block.text, products)}</span>
             </h3>
           );
         }
@@ -972,6 +1095,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
               showChart={shouldShowChart}
               fullKundaliData={fullKundaliData}
               birthData={birthData}
+              products={products}
             />
           );
         }
@@ -984,7 +1108,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
               <strong className="text-[#8c2b10] font-bold">{planetName}</strong>
               {house && <span className="ml-1 text-[#6e2008] font-semibold">({house}{rashi ? `, ${rashi}` : ""}):</span>}
               {status && <span className="ml-1 font-semibold">{status} -</span>}
-              <span className="ml-1">{renderInlineContent(interpretation)}</span>
+              <span className="ml-1">{renderInlineContent(interpretation, products)}</span>
             </div>
           );
         }
@@ -1006,7 +1130,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
                   >
                     <div className="font-bold text-[#8c2b10] flex items-baseline gap-1.5 text-[13.5px]">
                       <span className="text-[#d4af37] text-xs">✦</span>
-                      <span>{renderInlineContent(titleCell)}</span>
+                      <span>{renderInlineContent(titleCell, products)}</span>
                     </div>
                     {otherCells.map((cell, cIdx) => {
                       const headerCell = headers[cIdx + 1];
@@ -1016,7 +1140,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
                       return (
                         <div key={cIdx} className="text-[#3b1b08] pl-3 flex flex-wrap items-baseline gap-1">
                           {headerLabel && <span className="text-[#8c2b10] font-semibold text-[12px] opacity-90">{headerLabel}:</span>}
-                          <span>{renderInlineContent(cell)}</span>
+                          <span>{renderInlineContent(cell, products)}</span>
                         </div>
                       );
                     })}
@@ -1037,7 +1161,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
           return (
             <p key={idx} className="my-2 text-[#991b1b] font-medium text-[13.5px] leading-relaxed flex items-start gap-1.5">
               <AlertTriangle size={15} className="text-[#dc2626] flex-shrink-0 mt-0.5" />
-              <span>{renderInlineContent(block.text)}</span>
+              <span>{renderInlineContent(block.text, products)}</span>
             </p>
           );
         }
@@ -1052,7 +1176,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
                   <span className="text-[#8c2b10] font-bold">✦</span>
                   <div>
                     <strong className="text-[#8c2b10] font-semibold">{item?.key || ""}:</strong>{" "}
-                    <span>{renderInlineContent(item?.value || "")}</span>
+                    <span>{renderInlineContent(item?.value || "", products)}</span>
                   </div>
                 </div>
               ))}
@@ -1071,7 +1195,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
                     {block.isNumbered ? `${itemIdx + 1}.` : "•"}
                   </span>
                   <div className="flex-1 text-[#2d211b]">
-                    {renderInlineContent(itemText)}
+                    {renderInlineContent(itemText, products)}
                   </div>
                 </div>
               ))}
@@ -1082,7 +1206,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
         // Regular Paragraph
         return (
           <p key={idx} className="aura-ai-para">
-            {renderInlineContent(block.text)}
+            {renderInlineContent(block.text, products)}
           </p>
         );
       })}

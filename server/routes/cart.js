@@ -6,6 +6,22 @@ import { isCustomMalaLine, sanitizeCustomMalaConfig } from "../../shared/customM
 
 const router = express.Router();
 
+function sanitizeCustomBeadItems(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  return rawList
+    .slice(0, 50)
+    .filter((b) => b && typeof b === "object" && (b.name || b.productId || b.id))
+    .map((b) => ({
+      id: String(b.id || b.productId || "").slice(0, 120),
+      productId: String(b.productId || b.id || "").slice(0, 120),
+      name: String(b.name || b.shortName || "Sacred Rudraksha").slice(0, 160),
+      qty: Math.max(1, Math.floor(Number(b.qty || b.quantity) || 1)),
+      unitPrice: Math.max(0, Math.round(Number(b.unitPrice ?? b.price) || 0)),
+      lineTotal: Math.max(0, Math.round(Number(b.lineTotal) || 0)),
+      ...(b.img ? { img: String(b.img).slice(0, 500) } : {})
+    }));
+}
+
 function sanitizeCartLines(lines) {
   if (!Array.isArray(lines)) return [];
   const map = new Map();
@@ -22,12 +38,16 @@ function sanitizeCartLines(lines) {
       id = String(rawId).trim();
       qty = Math.max(1, Math.floor(Number(item.qty || item.quantity) || 1));
       if (isCustomMalaLine(item)) {
+        const sanitizedBeads = sanitizeCustomBeadItems(item.customMalaItems);
         customPayload = {
           isCustomMala: true,
           customMala: sanitizeCustomMalaConfig(item.customMala),
+          ...(sanitizedBeads.length > 0 ? { customMalaItems: sanitizedBeads } : {}),
           ...(item.name ? { name: String(item.name).slice(0, 160) } : {}),
-          ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 260) } : {}),
-          ...(item.img ? { img: String(item.img).slice(0, 500) } : {})
+          ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 2000) } : {}),
+          ...(item.img ? { img: String(item.img).slice(0, 500) } : {}),
+          ...(item.size ? { size: String(item.size).slice(0, 100) } : {}),
+          ...(item.variant ? { variant: String(item.variant).slice(0, 100) } : {})
         };
       }
     }
@@ -39,9 +59,12 @@ function sanitizeCartLines(lines) {
       ...(prev?.isCustomMala ? {
         isCustomMala: true,
         customMala: prev.customMala,
+        ...(Array.isArray(prev.customMalaItems) && prev.customMalaItems.length > 0 ? { customMalaItems: prev.customMalaItems } : {}),
         ...(prev.name ? { name: prev.name } : {}),
         ...(prev.customDescription ? { customDescription: prev.customDescription } : {}),
-        ...(prev.img ? { img: prev.img } : {})
+        ...(prev.img ? { img: prev.img } : {}),
+        ...(prev.size ? { size: prev.size } : {}),
+        ...(prev.variant ? { variant: prev.variant } : {})
       } : {}),
       ...(customPayload || {})
     });

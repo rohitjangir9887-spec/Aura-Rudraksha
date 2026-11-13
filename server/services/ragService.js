@@ -1,9 +1,11 @@
 import { AuraAIRagDocument } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
+import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import { VEDIC_BEADS_KNOWLEDGE, VEDIC_SHASTRA_KNOWLEDGE } from "./vedicKnowledgeService.js";
 
 // Global in-memory cache for ultra-fast RAG retrieval
@@ -127,22 +129,40 @@ export async function buildStoreRagIndex() {
     });
   }
 
-  // 4. Index Live Active Coupons from MongoDB
+  // 4. Index Live Active Coupons & Admin Offers from MongoDB (never expired/deleted)
   let activeCoupons = [];
+  const nowTime = Date.now();
   if (isDbConnected()) {
     try {
-      activeCoupons = await Coupon.find({ status: "Active" }).lean();
-    } catch (cErr) {
+      const [dbCoupons, dbOffers] = await Promise.all([
+        Coupon.find({ status: "Active" }).lean().catch(() => []),
+        ActiveOffer.find({ enabled: true, status: "Active" }).lean().catch(() => [])
+      ]);
+      for (const c of (dbCoupons || [])) {
+        const code = String(c.code || "").trim().toUpperCase();
+        if (!code || inMemoryStore.deletedCouponCodes?.has(code)) continue;
+        if (c.expiry && !isNaN(new Date(c.expiry).getTime()) && new Date(c.expiry).getTime() < nowTime) continue;
+        activeCoupons.push({ code, discount: c.discount, type: c.type || "percentage", minAmount: c.minAmount || c.minOrderValue || 0 });
+      }
+      for (const ao of (dbOffers || [])) {
+        const code = String(ao.couponCode || "").trim().toUpperCase();
+        if (!code || inMemoryStore.deletedCouponCodes?.has(code)) continue;
+        if (!ao.neverExpires && (ao.expiresAt || ao.expiry) && new Date(ao.expiresAt || ao.expiry).getTime() < nowTime) continue;
+        if (!activeCoupons.some(x => x.code === code)) {
+          activeCoupons.push({ code, discount: ao.discountValue, type: ao.discountType || "fixed", minAmount: 0 });
+        }
+      }
+    } catch (_) {
       activeCoupons = [];
     }
   }
 
-  for (const c of (activeCoupons || [])) {
+  for (const c of activeCoupons) {
     docs.push({
       docId: `coupon_${c.code}`,
       docType: "coupon",
       title: `Coupon Code: ${c.code}`,
-      content: `Coupon Code '${c.code}': Offers ${c.type === 'percentage' ? c.discount + '%' : '₹' + c.discount} OFF. Minimum order amount: ₹${c.minPurchase || 0}. Valid code for checkout.`,
+      content: `Coupon Code '${c.code}': Offers ${c.type === "percentage" ? `${c.discount}%` : `₹${c.discount}`} OFF. Minimum order amount: ₹${c.minAmount || 0}. Verified active admin code.`,
       metadata: { code: c.code, discount: c.discount, type: c.type }
     });
   }

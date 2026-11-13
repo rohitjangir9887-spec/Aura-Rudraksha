@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 import { Trash2, Heart, ShieldCheck, Plus, Minus } from "lucide-react";
 import { motion } from "framer-motion";
 import { money } from "../../data";
+import { db } from "../../lib/db";
+import { buildCustomMalaDisplay } from "../../../shared/customMalaCatalog";
 
 export function CartItemCard({
   id,
@@ -26,6 +28,9 @@ export function CartItemCard({
 
   const imageSrc = getProductPrimaryImage(product);
   const itemHref = product.isCustomMala ? "/#customize-your-mala-section" : getProductRoute(product);
+  const malaDisplay = product.isCustomMala
+    ? buildCustomMalaDisplay(product, db && typeof db.getProducts === "function" ? db.getProducts() : null)
+    : null;
 
   return (
     <motion.div
@@ -87,6 +92,32 @@ export function CartItemCard({
 
       {/* Product Content Details */}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+        {product.isCustomMala && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "8px",
+              background: "linear-gradient(90deg, #78270b 0%, #a54d2b 100%)",
+              color: "#fffaf3",
+              padding: "4px 9px",
+              borderRadius: "6px",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase"
+            }}
+          >
+            <span>Mala Customize · Hand-Strung</span>
+            {malaDisplay?.totalBeads > 0 && (
+              <span style={{ opacity: 0.95 }}>
+                {malaDisplay.beadsList.length > 0 ? `${malaDisplay.beadsList.length} Items · ` : ""}
+                {malaDisplay.totalBeads} Beads
+              </span>
+            )}
+          </div>
+        )}
         {/* Title and Delete Button */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
           <Link
@@ -148,9 +179,67 @@ export function CartItemCard({
           </span>
         </div>
 
-        {product.isCustomMala && product.customDescription && (
-          <div style={{ fontSize: "11.5px", color: "#5c483b", background: "#fbf6ef", border: "1px solid #efe0ce", borderRadius: "6px", padding: "5px 8px", lineHeight: "1.4" }}>
-            {product.customDescription}
+        {product.isCustomMala && (
+          <div style={{ background: "#fbf6ef", border: "1px solid #ead8c2", borderRadius: "8px", padding: "7px 8px" }}>
+            <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#78270b", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "5px" }}>
+              Selected Rudraksha in This Mala ({malaDisplay?.beadsList?.length || 0}):
+            </div>
+            {malaDisplay?.beadsList && malaDisplay.beadsList.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                {malaDisplay.beadsList.map((bead, bIdx) => {
+                  const beadImg = bead.img && !String(bead.img).includes("placeholder.svg") ? bead.img : "/images/placeholder.svg";
+                  const beadPrice = Number(bead.lineTotal) || Number(bead.unitPrice || 0) * (Number(bead.qty) || 1);
+                  return (
+                    <div
+                      key={`${bead.productId || bead.id || bIdx}-${bIdx}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: "#ffffff",
+                        border: "1px solid #efe2d1",
+                        borderRadius: "6px",
+                        padding: "4px 7px"
+                      }}
+                    >
+                      <img
+                        src={beadImg}
+                        alt={bead.name}
+                        loading="lazy"
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "5px",
+                          objectFit: beadImg.includes("placeholder.svg") ? "contain" : "cover",
+                          background: "#faf4ec",
+                          border: "1px solid #ebd9c4",
+                          flexShrink: 0
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#2b170d", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {bead.name}
+                        </div>
+                        <div style={{ fontSize: "10.5px", color: "#7a5e4d", fontWeight: 600 }}>
+                          {bead.qty} pcs{bead.unitPrice > 0 ? ` × ${money(bead.unitPrice)}` : ""}
+                        </div>
+                      </div>
+                      {beadPrice > 0 && (
+                        <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#78270b", flexShrink: 0 }}>
+                          {money(beadPrice)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              product.customDescription && (
+                <div style={{ fontSize: "11.5px", color: "#5c483b", lineHeight: "1.4" }}>
+                  {product.customDescription}
+                </div>
+              )
+            )}
           </div>
         )}
 

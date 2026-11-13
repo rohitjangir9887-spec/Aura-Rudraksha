@@ -2995,6 +2995,11 @@ export const db = {
         isIndonesian: !!p?.isIndonesian,
         isCustomMala: !!p?.isCustomMala || !!l?.isCustomMala,
         ...(p?.customMala || l?.customMala ? { customMala: p?.customMala || l?.customMala } : {}),
+        ...(Array.isArray(p?.customMalaItems) && p.customMalaItems.length > 0
+          ? { customMalaItems: p.customMalaItems }
+          : Array.isArray(l?.customMalaItems) && l.customMalaItems.length > 0
+            ? { customMalaItems: l.customMalaItems }
+            : {}),
         ...(p?.customDescription || l?.customDescription ? { customDescription: p?.customDescription || l?.customDescription } : {}),
         ...(p?.size || l?.size ? { size: p?.size || l?.size } : {}),
         ...(p?.variant || l?.variant ? { variant: p?.variant || l?.variant } : {}),
@@ -4088,8 +4093,12 @@ export const db = {
   // HELPERS FOR ORDERS & CUSTOMER PROFILES
   getOrderItemImage: (item) => {
     if (!item) return "/images/placeholder.svg";
-    if (item.img && typeof item.img === "string" && item.img.trim()) return item.img;
-    if (item.image && typeof item.image === "string" && item.image.trim()) return item.image;
+    if (item.img && typeof item.img === "string" && item.img.trim() && !item.img.includes("placeholder.svg")) return item.img;
+    if (item.image && typeof item.image === "string" && item.image.trim() && !item.image.includes("placeholder.svg")) return item.image;
+    if (Array.isArray(item.customMalaItems) && item.customMalaItems.length > 0) {
+      const beadWithImg = item.customMalaItems.find((b) => b?.img && typeof b.img === "string" && !b.img.includes("placeholder.svg"));
+      if (beadWithImg) return beadWithImg.img;
+    }
     if (item.id) {
       const p = db.getProduct(item.id);
       if (p) {
@@ -4118,6 +4127,7 @@ export const db = {
             discount: item.discount || 0,
             isCustomMala: Boolean(item.isCustomMala || String(id).startsWith("custom-mala-")),
             customMala: item.customMala || null,
+            customMalaItems: Array.isArray(item.customMalaItems) ? item.customMalaItems : [],
             customDescription: item.customDescription || "",
             size: item.size || "",
             variant: item.variant || ""
@@ -4151,6 +4161,7 @@ export const db = {
             img: img,
             isCustomMala: typeof it === "object" && it !== null ? Boolean(it.isCustomMala || strId.startsWith("custom-mala-")) : false,
             customMala: typeof it === "object" && it !== null ? (it.customMala || null) : null,
+            customMalaItems: typeof it === "object" && it !== null && Array.isArray(it.customMalaItems) ? it.customMalaItems : [],
             customDescription: typeof it === "object" && it !== null ? (it.customDescription || "") : "",
             size: typeof it === "object" && it !== null ? (it.size || "") : "",
             variant: typeof it === "object" && it !== null ? (it.variant || "") : ""

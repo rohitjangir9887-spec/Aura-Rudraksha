@@ -23,14 +23,31 @@ function getUserCouponStorageKey(user) {
 
 function extractCustomLineMeta(item) {
   if (!item || typeof item !== "object" || !isCustomMalaLine(item)) return {};
+  const cleanItems = Array.isArray(item.customMalaItems)
+    ? item.customMalaItems
+        .slice(0, 50)
+        .filter((b) => b && typeof b === "object" && (b.name || b.productId || b.id))
+        .map((b) => ({
+          id: String(b.id || b.productId || "").slice(0, 120),
+          productId: String(b.productId || b.id || "").slice(0, 120),
+          name: String(b.name || b.shortName || "Sacred Rudraksha").slice(0, 160),
+          qty: Math.max(1, Math.floor(Number(b.qty || b.quantity) || 1)),
+          unitPrice: Math.max(0, Math.round(Number(b.unitPrice ?? b.price) || 0)),
+          lineTotal: Math.max(0, Math.round(Number(b.lineTotal) || 0)),
+          ...(b.img ? { img: String(b.img).slice(0, 500) } : {})
+        }))
+    : [];
   return {
     isCustomMala: true,
     customMala: sanitizeCustomMalaConfig(item.customMala || {}),
+    ...(cleanItems.length > 0 ? { customMalaItems: cleanItems } : {}),
     ...(item.name ? { name: String(item.name).slice(0, 160) } : {}),
-    ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 260) } : {}),
+    ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 2000) } : {}),
     ...(item.img ? { img: String(item.img).slice(0, 500) } : {}),
     ...(item.size ? { size: String(item.size).slice(0, 100) } : {}),
-    ...(item.variant ? { variant: String(item.variant).slice(0, 100) } : {})
+    ...(item.variant ? { variant: String(item.variant).slice(0, 100) } : {}),
+    ...(Number(item.price) > 0 ? { price: Number(item.price) } : {}),
+    ...(Number(item.mrp) > 0 ? { mrp: Number(item.mrp) } : {})
   };
 }
 
@@ -147,16 +164,21 @@ export function CartProvider({ children }) {
           if (guestLines.length > 0) {
             const mergedMap = new Map();
             for (const item of userLines) {
-              mergedMap.set(item.id, item.qty);
+              mergedMap.set(item.id, { ...item });
             }
             for (const item of guestLines) {
               if (mergedMap.has(item.id)) {
-                mergedMap.set(item.id, Math.max(mergedMap.get(item.id), item.qty));
+                const existing = mergedMap.get(item.id);
+                mergedMap.set(item.id, {
+                  ...existing,
+                  ...item,
+                  qty: Math.max(existing.qty, item.qty)
+                });
               } else {
-                mergedMap.set(item.id, item.qty);
+                mergedMap.set(item.id, { ...item });
               }
             }
-            const mergedLines = Array.from(mergedMap.entries()).map(([id, qty]) => ({ id, qty }));
+            const mergedLines = sanitizeLines(Array.from(mergedMap.values()));
             const userKey = getUserCartStorageKey(currUser);
 
             try {

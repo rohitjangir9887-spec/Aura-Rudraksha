@@ -11,6 +11,7 @@ import { SacredPujaCertificateModal } from "../components/SacredPujaCertificateM
 import { db } from "../lib/db";
 import { emitToast } from "../context/ToastContext";
 import { useSeo } from "../hooks/useSeo";
+import { buildCustomMalaDisplay } from "../../shared/customMalaCatalog";
 
 export function TrackOrder() {
   useSeo({
@@ -408,30 +409,53 @@ export function TrackOrder() {
                         const qty = Number(item.quantity || item.qty || 1);
                         const unitPrice = Number(item.price || (item.total ? item.total / qty : 0));
                         const itemTotal = Number(item.total || unitPrice * qty || 0);
+                        const isCustom = Boolean(item.isCustomMala || String(item.id || "").startsWith("custom-mala-"));
+                        const malaDisplay = isCustom ? buildCustomMalaDisplay(item, db.getProducts()) : null;
 
                         return (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fdfbf7", padding: "10px 14px", borderRadius: "8px", border: "1px solid #f2e6da" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                              {item.img && (
-                                <img 
-                                  src={item.img} 
-                                  alt={item.name || item.title} 
-                                  style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", border: "1px solid #ebdccb" }} 
-                                  onError={(e) => { e.target.style.display = 'none'; }}
-                                />
-                              )}
-                              <div>
-                                <span style={{ fontSize: "13.5px", color: "#2b170d", fontWeight: 600, display: "block" }}>
-                                  {item.name || item.title || "Sacred Rudraksha"}
-                                </span>
-                                <span style={{ fontSize: "12px", color: "#806f62" }}>
-                                  Qty: {qty} {unitPrice > 0 ? `× ₹${unitPrice.toLocaleString("en-IN")}` : ""}
-                                </span>
+                          <div key={i} style={{ background: isCustom ? "#fffaf2" : "#fdfbf7", padding: "10px 14px", borderRadius: "8px", border: isCustom ? "1.5px solid #dcb98a" : "1px solid #f2e6da" }}>
+                            {isCustom && (
+                              <div style={{ display: "inline-block", background: "#78270b", color: "#fffaf3", fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px", marginBottom: "6px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                Mala Customize · Hand-Strung
                               </div>
+                            )}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                {item.img && (
+                                  <img 
+                                    src={item.img} 
+                                    alt={item.name || item.title} 
+                                    style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", border: "1px solid #ebdccb" }} 
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                )}
+                                <div>
+                                  <span style={{ fontSize: "13.5px", color: "#2b170d", fontWeight: 600, display: "block" }}>
+                                    {item.name || item.title || "Sacred Rudraksha"}
+                                  </span>
+                                  <span style={{ fontSize: "12px", color: "#806f62" }}>
+                                    Qty: {qty} {unitPrice > 0 ? `× ₹${unitPrice.toLocaleString("en-IN")}` : ""}
+                                  </span>
+                                </div>
+                              </div>
+                              <strong style={{ fontSize: "14px", color: "#a54d2b" }}>
+                                ₹{itemTotal > 0 ? itemTotal.toLocaleString("en-IN") : (orderResult.finalAmount ? Number(orderResult.finalAmount).toLocaleString("en-IN") : "—")}
+                              </strong>
                             </div>
-                            <strong style={{ fontSize: "14px", color: "#a54d2b" }}>
-                              ₹{itemTotal > 0 ? itemTotal.toLocaleString("en-IN") : (orderResult.finalAmount ? Number(orderResult.finalAmount).toLocaleString("en-IN") : "—")}
-                            </strong>
+                            {isCustom && malaDisplay?.beadsList?.length > 0 && (
+                              <div style={{ marginTop: "8px", paddingTop: "6px", borderTop: "1px dashed #e6d2ba", display: "flex", flexDirection: "column", gap: "4px" }}>
+                                {malaDisplay.beadsList.map((b, bIdx) => (
+                                  <div key={bIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: "11.5px", color: "#3b2316" }}>
+                                    <span>• {b.name} <b>({b.qty} pcs)</b></span>
+                                    {(b.lineTotal > 0 || b.unitPrice > 0) && (
+                                      <span style={{ fontWeight: 700, color: "#78270b" }}>
+                                        ₹{(Number(b.lineTotal) || Number(b.unitPrice) * (Number(b.qty) || 1)).toLocaleString("en-IN")}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

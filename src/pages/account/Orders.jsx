@@ -16,6 +16,7 @@ import { AuraAISupportAssistant } from "../../components/AuraAISupportAssistant"
 import { WriteReviewModal } from "../../components/reviews/WriteReviewModal";
 import { SacredPujaCertificateModal } from "../../components/SacredPujaCertificateModal";
 import { emitToast } from "../../context/ToastContext";
+import { buildCustomMalaDisplay } from "../../../shared/customMalaCatalog";
 
 
 export function getOrderProducts(o) {
@@ -807,7 +808,12 @@ export function Orders() {
                               )}
                             </div>
                             
-                            <div>
+                            <div style={{ minWidth: 0 }}>
+                              {parsedItems.some((it) => Boolean(it.isCustomMala || String(it.id || "").startsWith("custom-mala-"))) && (
+                                <span style={{ display: 'inline-block', background: '#78270b', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.03em', marginBottom: 4 }}>
+                                  MALA CUSTOMIZE · HAND-STRUNG
+                                </span>
+                              )}
                               <b style={{ fontSize: 13.5, color: '#2b170d', display: 'block' }}>
                                 {parsedItems[0]?.name ? (
                                   parsedItems.length > 1 ? `${parsedItems[0].name} (+${parsedItems.length - 1} more)` : parsedItems[0].name
@@ -815,6 +821,15 @@ export function Orders() {
                                   `${uniqueProducts} Product${uniqueProducts > 1 ? 's' : ''} • ${totalItems} Item${totalItems > 1 ? 's' : ''}`
                                 )}
                               </b>
+                              {parsedItems.filter((it) => Boolean(it.isCustomMala || String(it.id || "").startsWith("custom-mala-"))).map((cmItem, cIdx) => {
+                                const cmDisp = buildCustomMalaDisplay(cmItem, db.getProducts());
+                                if (!cmDisp?.beadsList?.length) return null;
+                                return (
+                                  <div key={cIdx} style={{ fontSize: 11, color: '#78270b', fontWeight: 600, marginTop: 3, lineHeight: 1.35 }}>
+                                    {cmDisp.beadsList.map((b) => `${b.qty}× ${b.name}`).join(" + ")}
+                                  </div>
+                                );
+                              })}
                               <div style={{ fontSize: 11.5, color: '#806f62', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                                 <span>Total: {totalItems} Item{totalItems > 1 ? 's' : ''}</span>
                                 {o.address && <span>• Ship to: {o.address.slice(0, 24)}...</span>}

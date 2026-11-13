@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import "./admin-pages.css";
 import { getOrderProducts } from "../account/Orders";
+import { buildCustomMalaDisplay } from "../../../shared/customMalaCatalog";
 
 const POPULAR_COURIERS = [
   { id: "delhivery", name: "Delhivery", urlTpl: (awb) => `https://www.delhivery.com/track/package/${encodeURIComponent(awb)}` },
@@ -268,11 +269,13 @@ export function AdminOrders() {
           }
         }
 
-        // Product Names
+        // Product Names & Custom Mala Bead Names
         const items = db.normalizeOrderItems(o);
         for (const it of items) {
           if ((it?.name || "").toLowerCase().includes(term)) return true;
           if (String(it?.id || "").toLowerCase().includes(term)) return true;
+          if ((it?.customDescription || "").toLowerCase().includes(term)) return true;
+          if (Array.isArray(it?.customMalaItems) && it.customMalaItems.some((b) => (b?.name || "").toLowerCase().includes(term))) return true;
         }
 
         // Shipping Tracking AWB & Courier & Address
@@ -1005,39 +1008,144 @@ export function AdminOrders() {
             {parsedItems.map((item, i) => {
               const itemImg = getProductPrimaryImage(item);
               const isCustom = Boolean(item.isCustomMala || String(item.id || "").startsWith("custom-mala-"));
+              const malaDisplay = isCustom ? buildCustomMalaDisplay(item, db.getProducts()) : null;
+
               return (
-                <div key={i} style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
-                  <img
-                    src={itemImg}
-                    alt={item.name}
-                    style={{
-                      width: 54,
-                      height: 54,
-                      borderRadius: 8,
-                      objectFit: String(itemImg).includes("placeholder.svg") ? 'contain' : 'cover',
-                      padding: String(itemImg).includes("placeholder.svg") ? 4 : 0,
-                      border: '1px solid #e8e0d8',
-                      background: '#faf7f2',
-                      flexShrink: 0
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ margin: '0 0 4px', fontSize: '14px', color: '#2b170d' }}>
-                      {item.name}
-                      {isCustom && (
-                        <span style={{ marginLeft: 8, fontSize: 11, color: '#78270b', fontWeight: 700 }}>
-                          [Custom Hand-Strung Mala]
-                        </span>
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    padding: isCustom ? '14px' : '4px 0',
+                    borderRadius: isCustom ? '10px' : 0,
+                    background: isCustom ? '#fffbf3' : 'transparent',
+                    border: isCustom ? '1.5px solid #d97706' : 'none'
+                  }}
+                >
+                  {isCustom && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        background: 'linear-gradient(90deg, #9a3412 0%, #c2410c 100%)',
+                        color: '#ffffff',
+                        padding: '7px 12px',
+                        borderRadius: '7px',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}
+                    >
+                      <span>MALA BANANI HAI · Custom Mala Assembly Required</span>
+                      <span>
+                        {malaDisplay?.beadsList?.length || 0} Varieties · {malaDisplay?.totalBeads || 0} Total Beads
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+                    <img
+                      src={itemImg}
+                      alt={item.name}
+                      style={{
+                        width: 54,
+                        height: 54,
+                        borderRadius: 8,
+                        objectFit: String(itemImg).includes("placeholder.svg") ? 'contain' : 'cover',
+                        padding: String(itemImg).includes("placeholder.svg") ? 4 : 0,
+                        border: '1px solid #e8e0d8',
+                        background: '#faf7f2',
+                        flexShrink: 0
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ margin: '0 0 4px', fontSize: '14px', color: '#2b170d' }}>
+                        {item.name}
+                        {isCustom && (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: '#9a3412', fontWeight: 700 }}>
+                            [Custom Mala · Hand-Strung]
+                          </span>
+                        )}
+                      </h4>
+                      {(item.customDescription || item.size || item.variant) && !isCustom && (
+                        <div style={{ fontSize: '12px', color: '#5c483b', marginBottom: 4, lineHeight: 1.45 }}>
+                          {item.customDescription || [item.size, item.variant].filter(Boolean).join(" · ")}
+                        </div>
                       )}
-                    </h4>
-                    {(item.customDescription || item.size || item.variant) && (
-                      <div style={{ fontSize: '12px', color: '#5c483b', marginBottom: 4, lineHeight: 1.45 }}>
-                        {item.customDescription || [item.size, item.variant].filter(Boolean).join(" · ")}
+                      <div style={{ fontSize: '12px', color: '#806f62' }}>
+                        Mala Qty: <b>{item.qty || 1}</b> × ₹{Number(item.price || 0).toLocaleString()}
                       </div>
-                    )}
-                    <div style={{ fontSize: '12px', color: '#806f62' }}>₹{Number(item.price || 0).toLocaleString()} × {item.qty || 1}</div>
+                    </div>
+                    <b style={{ fontSize: '15px', color: '#2b170d' }}>₹{(Number(item.price || 0) * (item.qty || 1)).toLocaleString()}</b>
                   </div>
-                  <b style={{ fontSize: '15px', color: '#2b170d' }}>₹{(Number(item.price || 0) * (item.qty || 1)).toLocaleString()}</b>
+
+                  {isCustom && (
+                    <div style={{ background: '#ffffff', border: '1px solid #eed6b8', borderRadius: '8px', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#78270b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>
+                        Mala Recipe — Ye Sabhi Rudraksha Ek Mala Me Pirone Hain:
+                      </div>
+                      {malaDisplay?.beadsList && malaDisplay.beadsList.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {malaDisplay.beadsList.map((bead, bIdx) => {
+                            const bImg = bead.img && !String(bead.img).includes("placeholder.svg") ? bead.img : "/images/placeholder.svg";
+                            const bTotal = Number(bead.lineTotal) || Number(bead.unitPrice || 0) * (Number(bead.qty) || 1);
+                            return (
+                              <div
+                                key={`${bead.productId || bead.id || bIdx}-${bIdx}`}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  background: '#fdfaf5',
+                                  border: '1px solid #f0e1ce',
+                                  borderRadius: '6px',
+                                  padding: '6px 10px'
+                                }}
+                              >
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#9a3412', minWidth: '20px' }}>#{bIdx + 1}</span>
+                                <img
+                                  src={bImg}
+                                  alt={bead.name}
+                                  style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '6px',
+                                    objectFit: bImg.includes("placeholder.svg") ? 'contain' : 'cover',
+                                    border: '1px solid #e6d5c1',
+                                    background: '#ffffff',
+                                    flexShrink: 0
+                                  }}
+                                />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#2b170d' }}>{bead.name}</div>
+                                  {bead.unitPrice > 0 && (
+                                    <div style={{ fontSize: '11px', color: '#806f62' }}>
+                                      Unit Rate: ₹{Number(bead.unitPrice).toLocaleString()}
+                                    </div>
+                                  )}
+                                </div>
+                                <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 800 }}>
+                                  {bead.qty} pcs
+                                </span>
+                                {bTotal > 0 && (
+                                  <b style={{ fontSize: '12.5px', color: '#2b170d', minWidth: '64px', textAlign: 'right' }}>
+                                    ₹{bTotal.toLocaleString()}
+                                  </b>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#5c483b', lineHeight: 1.45 }}>
+                          {item.customDescription || "Custom Assembled Rudraksha Mala"}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1528,13 +1636,32 @@ export function AdminOrders() {
                       </small>
                     </td>
                     <td>
-                      <div style={{ maxWidth: 180, fontSize: 12, lineHeight: 1.3 }}>
-                        {items.slice(0, 2).map((it, idx) => (
-                          <div key={idx} style={{ color: '#2b170d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            • {it.name} <span style={{ color: '#806f62' }}>({it.qty}x)</span>
+                      <div style={{ maxWidth: 230, fontSize: 12, lineHeight: 1.35 }}>
+                        {items.some((it) => Boolean(it.isCustomMala || String(it.id || "").startsWith("custom-mala-"))) && (
+                          <div style={{ marginBottom: 4 }}>
+                            <span style={{ display: 'inline-block', background: '#9a3412', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: '0.03em' }}>
+                              MALA BANANI HAI · CUSTOM MALA
+                            </span>
                           </div>
-                        ))}
-                        {items.length > 2 && (
+                        )}
+                        {items.map((it, idx) => {
+                          const isCustomIt = Boolean(it.isCustomMala || String(it.id || "").startsWith("custom-mala-"));
+                          const malaDisp = isCustomIt ? buildCustomMalaDisplay(it, db.getProducts()) : null;
+                          if (!isCustomIt && idx >= 2) return null;
+                          return (
+                            <div key={idx} style={{ color: '#2b170d', marginBottom: isCustomIt ? 3 : 0 }}>
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                • {it.name} <span style={{ color: '#806f62' }}>({it.qty}x)</span>
+                              </div>
+                              {isCustomIt && malaDisp?.beadsList?.length > 0 && (
+                                <div style={{ paddingLeft: 10, fontSize: 10.5, color: '#78270b', fontWeight: 600 }}>
+                                  {malaDisp.beadsList.map((b) => `${b.qty}× ${b.name}`).join(" + ")}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {!items.some((it) => it.isCustomMala) && items.length > 2 && (
                           <small style={{ color: '#a54d2b', fontWeight: 600 }}>+{items.length - 2} more item(s)</small>
                         )}
                       </div>
@@ -1681,10 +1808,28 @@ export function AdminOrders() {
                 </div>
 
                 {/* Items preview */}
-                <div style={{ fontSize: 12, color: '#665a51', background: '#fdfbf7', padding: '6px 10px', borderRadius: 6 }}>
-                  {items.map((it, idx) => (
-                    <div key={idx}>• {it.name} ({it.qty}x)</div>
-                  ))}
+                <div style={{ fontSize: 12, color: '#665a51', background: '#fdfbf7', padding: '8px 10px', borderRadius: 6 }}>
+                  {items.some((it) => Boolean(it.isCustomMala || String(it.id || "").startsWith("custom-mala-"))) && (
+                    <div style={{ marginBottom: 4 }}>
+                      <span style={{ display: 'inline-block', background: '#9a3412', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                        MALA BANANI HAI · CUSTOM MALA
+                      </span>
+                    </div>
+                  )}
+                  {items.map((it, idx) => {
+                    const isCustomIt = Boolean(it.isCustomMala || String(it.id || "").startsWith("custom-mala-"));
+                    const malaDisp = isCustomIt ? buildCustomMalaDisplay(it, db.getProducts()) : null;
+                    return (
+                      <div key={idx} style={{ marginBottom: isCustomIt ? 4 : 0 }}>
+                        <div>• {it.name} ({it.qty}x)</div>
+                        {isCustomIt && malaDisp?.beadsList?.length > 0 && (
+                          <div style={{ paddingLeft: 10, fontSize: 11, color: '#78270b', fontWeight: 600 }}>
+                            {malaDisp.beadsList.map((b) => `${b.qty}× ${b.name}`).join(" + ")}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {hasTracking && (

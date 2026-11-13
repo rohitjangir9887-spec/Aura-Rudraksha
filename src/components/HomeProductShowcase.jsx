@@ -877,7 +877,7 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
           </div>
         ) : (
           displayedProducts.map(p => (
-            <ProductCard key={p.id} p={p} onAdd={add} hideQuickView={true} />
+            <ProductCard key={p.id} p={p} onAdd={add} />
           ))
         )}
       </div>

@@ -5,6 +5,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Plus, Minus, Trash2, ShieldCheck, Edit3 } from "lucide-react";
 import { money } from "../../data";
+import { buildCustomMalaDisplay } from "../../../shared/customMalaCatalog";
 
 export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem }) {
   const totalItemCount = lines.reduce((acc, l) => acc + l.qty, 0);
@@ -104,6 +105,8 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
           const unitSavings = hasDiscount ? (mrpPrice - sellingPrice) : 0;
           const lineTotal = sellingPrice * line.qty;
 
+          const malaDisplay = p.isCustomMala ? buildCustomMalaDisplay(p, products) : null;
+
           return (
             <div 
               key={line.id}
@@ -112,9 +115,9 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                 display: "flex",
                 gap: "10px",
                 padding: "10px 12px",
-                background: "#fcf9f4",
+                background: p.isCustomMala ? "#fffaf2" : "#fcf9f4",
                 borderRadius: "12px",
-                border: "1px solid #efe4d5",
+                border: p.isCustomMala ? "1.5px solid #dcb98a" : "1px solid #efe4d5",
                 position: "relative",
                 boxShadow: "0 2px 6px rgba(43, 23, 13, 0.02)",
                 boxSizing: "border-box",
@@ -146,13 +149,57 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
               {/* Product Info */}
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
+                  {p.isCustomMala && (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: "#78270b",
+                        color: "#fffaf3",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        padding: "2px 7px",
+                        borderRadius: "4px",
+                        marginBottom: "4px"
+                      }}
+                    >
+                      <span>Mala Customize</span>
+                      {malaDisplay?.totalBeads > 0 && <span>· {malaDisplay.totalBeads} Beads</span>}
+                    </div>
+                  )}
                   <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#2b170d", lineHeight: "1.3", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                     {p.name}
                   </div>
-                  {p.isCustomMala && p.customDescription && (
-                    <div style={{ fontSize: "11px", color: "#6b5546", lineHeight: "1.35", marginBottom: "4px" }}>
-                      {p.customDescription}
-                    </div>
+                  {p.isCustomMala && (
+                    malaDisplay?.beadsList && malaDisplay.beadsList.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "6px", background: "#ffffff", border: "1px solid #ecdcc8", borderRadius: "6px", padding: "5px 7px" }}>
+                        {malaDisplay.beadsList.map((bead, bIdx) => (
+                          <div key={`${bead.productId || bead.id || bIdx}-${bIdx}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", fontSize: "11px", color: "#3b2316" }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: "5px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {bead.img && !String(bead.img).includes("placeholder.svg") && (
+                                <img src={bead.img} alt={bead.name} style={{ width: "18px", height: "18px", borderRadius: "3px", objectFit: "cover", flexShrink: 0 }} />
+                              )}
+                              <strong style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{bead.name}</strong>
+                              <span style={{ color: "#806f62", flexShrink: 0 }}>× {bead.qty} pcs</span>
+                            </span>
+                            {(bead.lineTotal > 0 || bead.unitPrice > 0) && (
+                              <span style={{ fontWeight: 700, color: "#78270b", flexShrink: 0 }}>
+                                {money(Number(bead.lineTotal) || Number(bead.unitPrice) * (Number(bead.qty) || 1))}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      p.customDescription && (
+                        <div style={{ fontSize: "11px", color: "#6b5546", lineHeight: "1.35", marginBottom: "4px" }}>
+                          {p.customDescription}
+                        </div>
+                      )
+                    )
                   )}
 
                   {/* Price and MRP */}

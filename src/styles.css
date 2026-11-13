@@ -12985,6 +12985,103 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: #047857;
 }
 
+/* Inline Visual Product Photo Link Card rendered inside Aura AI Chat prose */
+.aura-ai-chat-product-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 4px 2px;
+  padding: 5px 9px 5px 5px;
+  background: linear-gradient(135deg, #fffdf9 0%, #faf1e4 100%);
+  border: 1px solid #e6cdb3;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #2b1408;
+  vertical-align: middle;
+  box-shadow: 0 2px 6px rgba(140, 43, 16, 0.08);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.aura-ai-chat-product-card:hover {
+  transform: translateY(-1px);
+  border-color: #8c2b10;
+  box-shadow: 0 4px 10px rgba(140, 43, 16, 0.14);
+}
+
+.aura-ai-chat-product-thumb-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f5ede2;
+  border: 1px solid #ebdccb;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aura-ai-chat-product-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.aura-ai-chat-product-meta {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+  text-align: left;
+}
+
+.aura-ai-chat-product-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5c1c0a;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.aura-ai-chat-product-price-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1.2;
+}
+
+.aura-ai-chat-product-price {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8c2b10;
+}
+
+.aura-ai-chat-product-mrp {
+  font-size: 10px;
+  color: #8a7566;
+  text-decoration: line-through;
+}
+
+.aura-ai-chat-product-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #8c2b10;
+  color: #ffffff;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
 /* Authentic In-Chat Kundali Card */
 .aura-ai-kundali-card {
   margin-top: 5px;

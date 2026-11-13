@@ -36,6 +36,10 @@ export function resolveCartProduct(products = [], lineOrId) {
       ? lineObj.img
       : fallbackPoolImg;
 
+    const fallbackItems = Array.isArray(lineObj.customMalaItems) ? lineObj.customMalaItems : [];
+    const resolvedMalaItems = calc.items.length > 0 ? calc.items : fallbackItems;
+    const resolvedBeadCount = resolvedMalaItems.reduce((s, b) => s + Math.max(1, Number(b?.qty) || 1), 0) || calc.totalBeads;
+
     return {
       id: rawId,
       productId: rawId,
@@ -47,14 +51,15 @@ export function resolveCartProduct(products = [], lineOrId) {
       isIndonesian: false,
       isCustomMala: true,
       customMala: calc.config,
+      customMalaItems: resolvedMalaItems,
       customDescription: calc.totalBeads > 0 ? calc.customDescription : (lineObj.customDescription || calc.customDescription),
       price: calc.totalBeads > 0 ? calc.unitPrice : (Number(lineObj.price) || 0),
       mrp: calc.totalBeads > 0 ? calc.mrp : (Number(lineObj.mrp) || Number(lineObj.price) || 0),
       img: itemImg,
       images: [itemImg],
-      size: hasStoreProducts ? `${calc.totalBeads} Sacred Bead${calc.totalBeads === 1 ? "" : "s"}` : calc.sizeObj.label,
+      size: hasStoreProducts ? `${resolvedBeadCount} Sacred Bead${resolvedBeadCount === 1 ? "" : "s"}` : calc.sizeObj.label,
       variant: hasStoreProducts
-        ? `${calc.items.length} Product${calc.items.length === 1 ? "" : "s"} • Hand-Strung`
+        ? `${resolvedMalaItems.length} Product${resolvedMalaItems.length === 1 ? "" : "s"} • Hand-Strung`
         : `${calc.threadObj.shortLabel} • ${calc.cappingObj.shortLabel}`,
       stock: 99
     };

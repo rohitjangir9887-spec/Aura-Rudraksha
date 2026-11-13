@@ -384,9 +384,7 @@
     height: 100% !important;
     max-height: 440px !important;
     overflow: hidden !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    display: block !important;
     background: #f7f2eb !important;
     box-sizing: border-box !important;
     position: relative !important;
@@ -429,11 +427,20 @@
   height: 100%;
   cursor: crosshair;
   overflow: hidden;
+  display: block;
+  background: #f7f2eb;
+  position: relative;
+}
+
+.aura-gallery-slide-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f7f2eb;
-  position: relative;
+  will-change: transform, opacity;
 }
 
 .aura-gallery-hero-img {
@@ -627,8 +634,9 @@
   overflow: hidden;
   padding: 0;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, opacity 0.22s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  opacity: 0.78;
 }
 
 .aura-thumb-btn img {
@@ -639,11 +647,15 @@
 
 .aura-thumb-btn:hover {
   border-color: var(--aura-gold-light);
+  opacity: 1;
+  transform: translateY(-1px);
 }
 
 .aura-thumb-btn.active {
   border-color: var(--aura-gold-bright);
-  box-shadow: 0 0 0 1px var(--aura-gold-bright);
+  box-shadow: 0 2px 8px rgba(200, 138, 61, 0.35), 0 0 0 1px var(--aura-gold-bright);
+  opacity: 1;
+  transform: scale(1.04);
 }
 
 /* Right Column: Product Info & Purchase */
@@ -2746,12 +2758,22 @@
   align-items: center;
 }
 
+.aura-lightbox-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  max-width: 85vw;
+  max-height: 75vh;
+}
+
 .aura-lightbox-image {
   max-width: 85vw;
   max-height: 75vh;
   object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  will-change: transform, opacity;
 }
 
 .aura-lightbox-close-btn {

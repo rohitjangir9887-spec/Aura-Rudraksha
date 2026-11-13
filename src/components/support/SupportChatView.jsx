@@ -36,7 +36,7 @@ export function SupportChatView({ chatMessages, loadingAi, input, setInput, hand
                 boxShadow: "0 1px 4px rgba(43, 20, 8, 0.04)"
               }}
             >
-              <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} />
+              <AuraAIMessageContent text={customerSafeAiText(m.text)} sender={m.sender} products={m.products} />
             </div>
           ))}
           {loadingAi && (

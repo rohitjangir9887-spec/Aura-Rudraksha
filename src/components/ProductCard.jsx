@@ -4,7 +4,7 @@ import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { money, pct } from "../data";
 import { db } from "../lib/db";
@@ -12,7 +12,6 @@ import { useWishlist } from "../hooks/useWishlist";
 import { useCart } from "../hooks/useCart";
 import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 import { emitToast } from "../context/ToastContext";
-import { ProductQuickViewModal } from "./ProductQuickViewModal";
 
 const CARD_SLIDE_VARIANTS = {
   enter: (dir) => ({
@@ -46,7 +45,7 @@ export function ProductCardSkeleton() {
   );
 }
 
-function ProductCardComponent({ p, onAdd, isShop = false, hideQuickView = false }) {
+function ProductCardComponent({ p, onAdd, isShop = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -55,13 +54,9 @@ function ProductCardComponent({ p, onAdd, isShop = false, hideQuickView = false 
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
   const [imgDirection, setImgDirection] = useState(1);
-  const [showQuickView, setShowQuickView] = useState(false);
   const pointerDownRef = useRef(null);
 
   if (!p) return null;
-
-  const isHomeRoute = location.pathname === "/";
-  const showQuickViewBtn = !hideQuickView && !isHomeRoute;
 
   const productId = String(p?.id || p?._id || p?.slug || "");
   const isSaved = isWishlisted(productId);
@@ -319,42 +314,6 @@ function ProductCardComponent({ p, onAdd, isShop = false, hideQuickView = false 
           <Heart size={15} fill={isSaved ? "#a54d2b" : "none"} strokeWidth={2.2} />
         </button>
 
-        {/* Quick View Button (Hidden on Home UI) */}
-        {showQuickViewBtn && (
-          <button
-            type="button"
-            className="aura-card-quickview-btn"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowQuickView(true);
-            }}
-            style={{
-              position: "absolute",
-              bottom: "8px",
-              right: "8px",
-              background: "rgba(255, 255, 255, 0.92)",
-              backdropFilter: "blur(4px)",
-              border: "1px solid rgba(226, 210, 193, 0.8)",
-              borderRadius: "20px",
-              padding: "4px 9px",
-              fontSize: "11px",
-              fontWeight: 700,
-              color: "#7c2d12",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              cursor: "pointer",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-              zIndex: 4,
-              touchAction: "manipulation"
-            }}
-            title="क्विक व्यू (Quick View)"
-          >
-            <Eye size={12} /> Quick View
-          </button>
-        )}
-
         {/* Interactive Gallery Dots (if multiple images available) */}
         {images.length > 1 && (
           <div className="aura-card-gallery-dots">
@@ -459,14 +418,6 @@ function ProductCardComponent({ p, onAdd, isShop = false, hideQuickView = false 
           )}
         </button>
       </div>
-
-      {/* Quick View Modal */}
-      {showQuickView && (
-        <ProductQuickViewModal
-          product={p}
-          onClose={() => setShowQuickView(false)}
-        />
-      )}
     </motion.div>
   );
 }

@@ -326,6 +326,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
         isIndonesian: false,
         isCustomMala: true,
         customMala: calc.config,
+        customMalaItems: calc.items,
         customDescription: calc.customDescription,
         price: calc.unitPrice,
         unitPrice: calc.unitPrice,

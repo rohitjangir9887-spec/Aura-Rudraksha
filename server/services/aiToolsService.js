@@ -1,8 +1,11 @@
+import mongoose from "mongoose";
 import { Product } from "../models/Product.js";
 import { Order } from "../models/Order.js";
 import { Coupon } from "../models/Coupon.js";
+import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
+import { inMemoryStore } from "../data/inMemoryStore.js";
 import { extractMukhiNumber } from "./vedicKnowledgeService.js";
 
 /**
@@ -62,7 +65,7 @@ export const GEMINI_TOOL_DECLARATIONS = [
     parameters: {
       type: "OBJECT",
       properties: {
-        code: { type: "STRING", description: "Coupon code entered by user e.g. 'FESTIVE10'" },
+        code: { type: "STRING", description: "Coupon code entered by user from Admin offers" },
         cartTotal: { type: "NUMBER", description: "Total cart value in INR" }
       },
       required: ["code"]
@@ -283,19 +286,99 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
       }
 
       case "getActiveOffers": {
-        let coupons = [];
+        const nowTime = Date.now();
+        const couponMap = new Map();
+        const isNotExpired = (expVal, neverExpires = false) => {
+          if (neverExpires || !expVal) return true;
+          const ts = new Date(expVal).getTime();
+          return isNaN(ts) || ts >= nowTime;
+        };
+        const isNotDeleted = (code) => !inMemoryStore.deletedCouponCodes?.has(code);
+
         if (isDbConnected()) {
-          coupons = await Coupon.find({ status: "Active" }).lean();
+          const [dbCoupons, dbActiveOffers, dbPromotions, dbOffers] = await Promise.all([
+            Coupon.find({ status: { $nin: ["Inactive", "inactive", "Expired", "expired", "Disabled", "disabled"] } }).lean().catch(() => []),
+            ActiveOffer.find({ enabled: true, status: { $nin: ["Inactive", "inactive", "Expired", "expired", "Disabled", "disabled"] } }).lean().catch(() => []),
+            Promotion.find({ isActive: { $ne: false }, status: { $nin: ["Inactive", "inactive", "Expired", "expired", "Disabled", "disabled"] } }).lean().catch(() => []),
+            Offer.find({ status: { $nin: ["Inactive", "inactive", "Expired", "expired", "Disabled", "disabled"] } }).lean().catch(() => [])
+          ]);
+
+          for (const c of dbCoupons) {
+            const code = String(c.code || "").trim().toUpperCase();
+            if (!code || !isNotDeleted(code) || !isNotExpired(c.expiry)) continue;
+            couponMap.set(code, {
+              code,
+              discount: Number(c.discount || 0),
+              type: c.type || "percentage",
+              minPurchase: Number(c.minAmount || c.minOrderValue || 0)
+            });
+          }
+          for (const o of dbActiveOffers) {
+            const code = String(o.couponCode || o.code || "").trim().toUpperCase();
+            if (!code || !isNotDeleted(code) || !isNotExpired(o.expiresAt || o.expiry, o.neverExpires)) continue;
+            if (!couponMap.has(code)) {
+              couponMap.set(code, {
+                code,
+                discount: Number(o.discountValue || 0),
+                type: o.discountType === "percentage" ? "percentage" : "fixed",
+                minPurchase: 0
+              });
+            }
+          }
+          for (const p of dbPromotions) {
+            const code = String(p.couponCode || p.code || "").trim().toUpperCase();
+            if (!code || !isNotDeleted(code) || !isNotExpired(p.expiresAt || p.expiry)) continue;
+            if (!couponMap.has(code)) {
+              couponMap.set(code, {
+                code,
+                discount: Number(p.discountValue || 0),
+                type: p.discountType === "percentage" ? "percentage" : "fixed",
+                minPurchase: 0
+              });
+            }
+          }
+          for (const of of dbOffers) {
+            const code = String(of.couponCode || of.code || "").trim().toUpperCase();
+            if (!code || !isNotDeleted(code)) continue;
+            if (!couponMap.has(code)) {
+              couponMap.set(code, {
+                code,
+                discount: Number(of.discountValue || 0),
+                type: String(of.type || "").toLowerCase() === "fixed" ? "fixed" : "percentage",
+                minPurchase: 0
+              });
+            }
+          }
+        } else {
+          for (const c of (inMemoryStore.coupons || [])) {
+            const code = String(c.code || "").trim().toUpperCase();
+            const st = String(c.status || "Active").toLowerCase();
+            if (!code || ["inactive", "expired", "disabled"].includes(st) || !isNotDeleted(code) || !isNotExpired(c.expiry)) continue;
+            couponMap.set(code, {
+              code,
+              discount: Number(c.discount || 0),
+              type: c.type || "percentage",
+              minPurchase: Number(c.minAmount || c.minOrderValue || 0)
+            });
+          }
+          const ao = inMemoryStore.activeOffer;
+          if (ao && ao.enabled && ao.couponCode && isNotExpired(ao.expiresAt || ao.expiry, ao.neverExpires)) {
+            const code = String(ao.couponCode).trim().toUpperCase();
+            if (isNotDeleted(code) && !couponMap.has(code)) {
+              couponMap.set(code, {
+                code,
+                discount: Number(ao.discountValue || 0),
+                type: ao.discountType === "percentage" ? "percentage" : "fixed",
+                minPurchase: 0
+              });
+            }
+          }
         }
 
+        const activeList = Array.from(couponMap.values());
         return {
-          activeCoupons: coupons.map(c => ({
-            code: c.code,
-            discount: c.discount,
-            type: c.type,
-            minPurchase: c.minPurchase || c.minAmount || 0
-          })),
-          freeShipping: "FREE Express Delivery on all prepaid & COD orders across India"
+          activeCoupons: activeList,
+          message: activeList.length === 0 ? "No active discount coupon codes are currently configured in Admin Dashboard." : undefined
         };
       }
 
@@ -305,9 +388,40 @@ export async function executeAiToolCall(toolName, args = {}, authContext = {}) {
 
         const upperCode = code.toUpperCase().trim();
         let coupon = null;
+        const nowTime = Date.now();
 
-        if (isDbConnected()) {
-          coupon = await Coupon.findOne({ code: upperCode, status: "Active" }).lean();
+        if (!inMemoryStore.deletedCouponCodes?.has(upperCode)) {
+          if (isDbConnected()) {
+            const dbC = await Coupon.findOne({ code: upperCode, status: "Active" }).lean().catch(() => null);
+            if (dbC && (!dbC.expiry || new Date(dbC.expiry).getTime() >= nowTime)) {
+              coupon = {
+                code: upperCode,
+                discount: Number(dbC.discount || 0),
+                type: dbC.type || "percentage",
+                minPurchase: Number(dbC.minAmount || dbC.minOrderValue || 0)
+              };
+            } else {
+              const dbAo = await ActiveOffer.findOne({ couponCode: upperCode, enabled: true, status: "Active" }).lean().catch(() => null);
+              if (dbAo && (dbAo.neverExpires || !dbAo.expiresAt || new Date(dbAo.expiresAt).getTime() >= nowTime)) {
+                coupon = {
+                  code: upperCode,
+                  discount: Number(dbAo.discountValue || 0),
+                  type: dbAo.discountType === "percentage" ? "percentage" : "fixed",
+                  minPurchase: 0
+                };
+              }
+            }
+          } else {
+            const memC = (inMemoryStore.coupons || []).find(c => String(c.code || "").toUpperCase() === upperCode && String(c.status || "Active") === "Active");
+            if (memC) {
+              coupon = {
+                code: upperCode,
+                discount: Number(memC.discount || 0),
+                type: memC.type || "percentage",
+                minPurchase: Number(memC.minAmount || memC.minOrderValue || 0)
+              };
+            }
+          }
         }
 
         if (!coupon) {

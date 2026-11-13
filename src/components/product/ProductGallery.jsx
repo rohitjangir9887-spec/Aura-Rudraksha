@@ -11,9 +11,27 @@ import { pct } from "../../data";
 
 const GALLERY_SLIDE_VARIANTS = {
   enter: (dir) => ({
-    x: dir > 0 ? 52 : -52,
+    x: dir > 0 ? "100%" : "-100%",
+    opacity: 0.25,
+    scale: 0.96
+  }),
+  center: {
+    x: "0%",
+    opacity: 1,
+    scale: 1
+  },
+  exit: (dir) => ({
+    x: dir > 0 ? "-38%" : "38%",
     opacity: 0,
-    scale: 0.97
+    scale: 0.96
+  })
+};
+
+const LIGHTBOX_SLIDE_VARIANTS = {
+  enter: (dir) => ({
+    x: dir > 0 ? 72 : -72,
+    opacity: 0,
+    scale: 0.96
   }),
   center: {
     x: 0,
@@ -21,9 +39,9 @@ const GALLERY_SLIDE_VARIANTS = {
     scale: 1
   },
   exit: (dir) => ({
-    x: dir > 0 ? -52 : 52,
+    x: dir > 0 ? -72 : 72,
     opacity: 0,
-    scale: 0.97
+    scale: 0.96
   })
 };
 
@@ -248,38 +266,42 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
           </button>
         )}
 
-        {/* Viewport for Desktop Hover Zoom */}
+        {/* Viewport for Desktop Hover Zoom & Animated Photo Sliding */}
         <div 
           className="aura-gallery-viewport"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
-          <AnimatePresence mode="popLayout" initial={false} custom={slideDirection}>
-            <motion.img
-              key={`img-${safeIdx}-${currentImg}`}
-              src={getOptimizedImageUrl(currentImg, { width: 800, quality: 84 })}
-              alt={`${product.name} - Sacred View ${activeIndex + 1}`}
-              className="aura-gallery-hero-img"
-              loading="eager"
-              decoding="async"
-              fetchpriority="high"
+          <AnimatePresence initial={false} custom={slideDirection}>
+            <motion.div
+              key={`slide-${safeIdx}-${currentImg}`}
+              className="aura-gallery-slide-layer"
               custom={slideDirection}
               variants={GALLERY_SLIDE_VARIANTS}
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              style={{
-                transformOrigin: `${zoomTransform.originX} ${zoomTransform.originY}`,
-                transform: isHoverZooming ? `scale(${zoomTransform.scale})` : undefined,
-                transition: isHoverZooming ? "transform 0.05s ease-out" : undefined
-              }}
-              onError={(e) => {
-                if (!e.target.src.includes("placeholder.svg")) {
-                  e.target.src = "/images/placeholder.svg";
-                }
-              }}
-            />
+              transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <img
+                src={getOptimizedImageUrl(currentImg, { width: 800, quality: 84 })}
+                alt={`${product.name} - Sacred View ${activeIndex + 1}`}
+                className="aura-gallery-hero-img"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+                style={{
+                  transformOrigin: `${zoomTransform.originX} ${zoomTransform.originY}`,
+                  transform: isHoverZooming ? `scale(${zoomTransform.scale})` : "scale(1)",
+                  transition: isHoverZooming ? "transform 0.06s ease-out" : "transform 0.25s ease-out"
+                }}
+                onError={(e) => {
+                  if (!e.target.src.includes("placeholder.svg")) {
+                    e.target.src = "/images/placeholder.svg";
+                  }
+                }}
+              />
+            </motion.div>
           </AnimatePresence>
         </div>
       </div>
@@ -352,21 +374,23 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                 </>
               )}
 
-              <AnimatePresence mode="wait" initial={false} custom={slideDirection}>
-                <motion.img
-                  key={`lb-${safeIdx}-${currentImg}`}
-                  src={currentImg}
-                  alt={product.name}
-                  className="aura-lightbox-image"
-                  decoding="async"
-                  custom={slideDirection}
-                  variants={GALLERY_SLIDE_VARIANTS}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                />
-              </AnimatePresence>
+              <div className="aura-lightbox-stage">
+                <AnimatePresence mode="wait" initial={false} custom={slideDirection}>
+                  <motion.img
+                    key={`lb-${safeIdx}-${currentImg}`}
+                    src={currentImg}
+                    alt={product.name}
+                    className="aura-lightbox-image"
+                    decoding="async"
+                    custom={slideDirection}
+                    variants={LIGHTBOX_SLIDE_VARIANTS}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </AnimatePresence>
+              </div>
 
               <div className="aura-lightbox-footer">
                 <span className="aura-lb-title">{product.name}</span>

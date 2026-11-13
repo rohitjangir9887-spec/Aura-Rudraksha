@@ -18,6 +18,7 @@ import { emitToast } from "../../context/ToastContext";
 import { useCart } from "../../hooks/useCart";
 import { OrderSummaryCard } from "../../components/checkout/OrderSummaryCard";
 import { WriteReviewModal } from "../../components/reviews/WriteReviewModal";
+import { buildCustomMalaDisplay } from "../../../shared/customMalaCatalog";
 
 function formatDetailDate(raw, opts) {
   if (!raw) return "Recently";
@@ -807,6 +808,7 @@ export function OrderDetail() {
                 const itemImg = getProductPrimaryImage(item) || db.getOrderItemImage(item);
                 const itemTarget = isCustom ? "/#customize-your-mala-section" : (productExists ? `/product/${item.id}` : "#");
                 const isDelivered = order.status === "Delivered";
+                const malaDisplay = isCustom ? buildCustomMalaDisplay(item, db.getProducts()) : null;
 
                 return (
                   <div key={i} style={{
@@ -814,8 +816,8 @@ export function OrderDetail() {
                     gap: 16, 
                     padding: '20px', 
                     borderBottom: i !== parsedItems.length - 1 ? '1px solid #eee1cf' : 'none',
-                    alignItems: 'center',
-                    background: '#fff',
+                    alignItems: 'flex-start',
+                    background: isCustom ? '#fffcf6' : '#fff',
                     transition: 'background 0.2s'
                   }}>
                     <Link to={itemTarget} style={{ display: 'block', textDecoration: 'none', cursor: (productExists || isCustom) ? 'pointer' : 'default' }}>
@@ -835,16 +837,31 @@ export function OrderDetail() {
                         />
                       </div>
                     </Link>
-                    <div style={{flex: 1}}>
+                    <div style={{flex: 1, minWidth: 0}}>
+                      {isCustom && (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          background: 'linear-gradient(90deg, #78270b 0%, #a54d2b 100%)',
+                          color: '#fffaf3',
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          marginBottom: 6
+                        }}>
+                          <span>Mala Customize · Hand-Strung</span>
+                          {malaDisplay?.totalBeads > 0 && <span>· {malaDisplay.totalBeads} Beads</span>}
+                        </div>
+                      )}
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap'}}>
                         <Link to={itemTarget} style={{ textDecoration: 'none', color: 'inherit', cursor: (productExists || isCustom) ? 'pointer' : 'default' }}>
                           <h3 style={{margin: '0 0 4px', fontSize: 16, color: '#2b170d', fontFamily: 'Cormorant Garamond, serif', fontWeight: 600}}>{item.name}</h3>
                         </Link>
-                        {isCustom ? (
-                          <span style={{fontSize: 10.5, background: '#fbf1e6', color: '#78270b', border: '1px solid #e6d1ba', padding: '3px 8px', borderRadius: 4, fontWeight: 600}}>
-                            Custom Hand-Strung Mala
-                          </span>
-                        ) : !productExists && (
+                        {!isCustom && !productExists && (
                           <span style={{fontSize: 10, background: '#f4ece5', color: '#806f62', padding: '3px 8px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4}}>
                             <AlertCircle size={10} /> Product no longer available
                           </span>
@@ -872,9 +889,42 @@ export function OrderDetail() {
                           </button>
                         )}
                       </div>
-                      {isCustom && (item.customDescription || item.size || item.variant) && (
-                        <div style={{ fontSize: 12, color: '#665a51', lineHeight: 1.45, marginBottom: 6 }}>
-                          {item.customDescription || [item.size, item.variant].filter(Boolean).join(" · ")}
+                      {isCustom && (
+                        <div style={{ background: '#fbf6ef', border: '1px solid #ead8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 8, marginTop: 4 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#78270b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                            Included Rudraksha in This Mala ({malaDisplay?.beadsList?.length || 0}):
+                          </div>
+                          {malaDisplay?.beadsList && malaDisplay.beadsList.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              {malaDisplay.beadsList.map((bead, bIdx) => {
+                                const bImg = bead.img && !String(bead.img).includes("placeholder.svg") ? bead.img : "/images/placeholder.svg";
+                                const bTotal = Number(bead.lineTotal) || Number(bead.unitPrice || 0) * (Number(bead.qty) || 1);
+                                return (
+                                  <div key={`${bead.productId || bead.id || bIdx}-${bIdx}`} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ffffff', border: '1px solid #efe2d1', borderRadius: 6, padding: '5px 8px' }}>
+                                    <img
+                                      src={bImg}
+                                      alt={bead.name}
+                                      style={{ width: 26, height: 26, borderRadius: 5, objectFit: bImg.includes("placeholder.svg") ? 'contain' : 'cover', border: '1px solid #e6d5c1', flexShrink: 0 }}
+                                    />
+                                    <div style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: '#2b170d' }}>
+                                      {bead.name} <span style={{ color: '#806f62', fontWeight: 600 }}>× {bead.qty} pcs</span>
+                                    </div>
+                                    {bTotal > 0 && (
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: '#78270b' }}>
+                                        ₹{bTotal.toLocaleString('en-IN')}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            (item.customDescription || item.size || item.variant) && (
+                              <div style={{ fontSize: 12, color: '#665a51', lineHeight: 1.45 }}>
+                                {item.customDescription || [item.size, item.variant].filter(Boolean).join(" · ")}
+                              </div>
+                            )
+                          )}
                         </div>
                       )}
                       <p style={{margin: '0 0 8px', fontSize: 12, color: '#806f62'}}>Quantity: <b>{item.qty}</b></p>

@@ -1203,6 +1203,7 @@ export function AuraAIPage() {
                               sender={m.sender} 
                               fullKundaliData={m.kundali}
                               birthData={m.kundali?.verifiedBirthData}
+                              products={m.products}
                             />
                           )}
                         </div>

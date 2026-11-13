@@ -1377,15 +1377,144 @@ SAFETY:
   }
 }
 
+const KNOWN_FAKE_COUPON_CODES = [
+  "SHIVOHAM10",
+  "MAHASHIVRATRI",
+  "SHIV10",
+  "SHIVA10",
+  "DISCOUNT50",
+  "FIRST100",
+  "FESTIVAL20",
+  "FESTIVE10",
+  "AURA10",
+  "AURA20",
+  "DIWALI10",
+  "DIWALI20",
+  "WELCOME10",
+  "FLAT10",
+  "SAVE10"
+];
+
+export function sanitizeFakeCouponsInResponse(text = "", activeCoupons = []) {
+  if (!text || typeof text !== "string") return text;
+  const activeCodeSet = new Set(
+    (activeCoupons || [])
+      .map(c => String(c?.code || c?.couponCode || "").trim().toUpperCase())
+      .filter(Boolean)
+  );
+
+  const inactiveFakeCodes = KNOWN_FAKE_COUPON_CODES.filter(code => !activeCodeSet.has(code));
+  if (inactiveFakeCodes.length === 0) return text;
+
+  const fakeRegex = new RegExp(`\\b(${inactiveFakeCodes.join("|")})\\b`, "gi");
+  if (!fakeRegex.test(text)) return text;
+
+  const lines = text.split("\n");
+  const cleanedLines = [];
+  let removedCouponLine = false;
+
+  for (const line of lines) {
+    const lineHasFake = new RegExp(`\\b(${inactiveFakeCodes.join("|")})\\b`, "i").test(line);
+    if (!lineHasFake) {
+      cleanedLines.push(line);
+      continue;
+    }
+    removedCouponLine = true;
+    // If line is purely a coupon/discount pitch line, omit it cleanly
+    if (/(कूपन|coupon|कोड|code|discount|छूट|बचत|OFF|promo)/i.test(line)) {
+      continue;
+    }
+    // Otherwise remove only the fake code token cleanly
+    const strippedLine = line
+      .replace(new RegExp(`\\*{0,2}\x60?\\b(${inactiveFakeCodes.join("|")})\\b\x60?\\*{0,2}`, "gi"), "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (strippedLine) cleanedLines.push(strippedLine);
+  }
+
+  let result = cleanedLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!result && removedCouponLine) {
+    if (activeCoupons.length > 0) {
+      const listText = activeCoupons.map((c, idx) =>
+        `${idx + 1}. 🌟 **${c.code}** — ${c.type === "fixed" ? `Flat ₹${c.discount} की छूट` : `फ्लैट ${c.discount}% की छूट`}${c.minAmount > 0 ? ` (न्यूनतम ऑर्डर ₹${Number(c.minAmount).toLocaleString("en-IN")})` : ""}${c.description ? ` • ${c.description}` : ""}`
+      ).join("\n");
+      result = `🎁 **ऑरा रुद्राक्ष के सक्रिय एडमिन डिस्काउंट कूपन:**\n\n${listText}\n\nचेकआउट के समय 'Apply Coupon' में उपरोक्त कोड दर्ज करें।`;
+    } else {
+      result = `🎁 **ऑरा रुद्राक्ष ऑफर्स एवं कूपन अपडेट:**\n\nवर्तमान में कोई अलग डिस्काउंट कूपन कोड सक्रिय नहीं है। यदि एडमिन डैशबोर्ड से कोई नया कूपन कोड या ऑफर सक्रिय किया जाता है, तो वह तुरंत यहाँ और चेकआउट पेज पर उपलब्ध हो जाएगा।\n\n• 🔱 **निःशुल्क सेवा:** हर सिद्ध रुद्राक्ष के साथ निःशुल्क वैदिक प्राण-प्रतिष्ठा पूजा व लैब सर्टिफिकेट।`;
+    }
+  }
+  return result;
+}
+
+export function extractMentionedCatalogProducts(text = "", existingMatched = [], allStoreProds = []) {
+  const result = [];
+  const seenIds = new Set();
+
+  for (const prod of (existingMatched || [])) {
+    if (!prod) continue;
+    const pId = String(prod.id || prod._id || prod.slug || "");
+    if (!pId || seenIds.has(pId)) continue;
+    seenIds.add(pId);
+    result.push(prod);
+  }
+
+  if (!text || !Array.isArray(allStoreProds) || allStoreProds.length === 0) {
+    return result.slice(0, 6);
+  }
+
+  const normalizeKey = (val) => String(val || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const linkRegex = /\/product\/([^)\s"'<>#?]+)/gi;
+  let m;
+  while ((m = linkRegex.exec(text)) !== null) {
+    let rawSlug = m[1] || "";
+    try {
+      rawSlug = decodeURIComponent(rawSlug);
+    } catch (_) {}
+    const cleanTarget = rawSlug.trim().toLowerCase();
+    const normTarget = normalizeKey(rawSlug);
+    if (!cleanTarget) continue;
+
+    const found = allStoreProds.find(p => {
+      if (!p) return false;
+      const pId = String(p.id || p._id || "").trim().toLowerCase();
+      const pSlug = String(p.slug || "").trim().toLowerCase();
+      const nameSlug = String(p.name || "").toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      return pSlug === cleanTarget || pId === cleanTarget || nameSlug === cleanTarget ||
+        (normTarget && (normalizeKey(pSlug) === normTarget || normalizeKey(pId) === normTarget || normalizeKey(nameSlug) === normTarget));
+    });
+
+    if (found) {
+      const formatted = formatProductForResponse(found);
+      if (formatted && !seenIds.has(formatted.id)) {
+        seenIds.add(formatted.id);
+        result.push(formatted);
+      }
+    }
+    if (result.length >= 6) break;
+  }
+
+  return result.slice(0, 6);
+}
+
+function buildActiveCouponsFooter(activeCoupons = []) {
+  if (!Array.isArray(activeCoupons) || activeCoupons.length === 0) return "";
+  const formatted = activeCoupons.slice(0, 3).map(c =>
+    `**${c.code}** (${c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`}${c.minAmount > 0 ? `, Min ₹${Number(c.minAmount).toLocaleString("en-IN")}` : ""})`
+  ).join(" | ");
+  return `\n\n🎁 **सक्रिय एडमिन कूपन कोड:** ${formatted}`;
+}
+
 /**
  * Smart Vedic & Customer Store Fallback Engine
  * Guarantees that when external LLM connections are down or timing out,
  * the customer bot answers meaningfully, intelligently, and contextually
- * instead of looping the initial default greeting!
+ * using ONLY real catalog products and real active admin coupons!
  */
-export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], matchedCoupons = [], effectiveMode = "standard", calculatedKundaliData = null, allStoreProds = []) {
+export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], activeCoupons = [], effectiveMode = "standard", calculatedKundaliData = null, allStoreProds = []) {
   const cleanUserMsg = String(message || "").trim();
   const lower = cleanUserMsg.toLowerCase();
+  const realCoupons = Array.isArray(activeCoupons) ? activeCoupons.filter(c => c && c.code) : [];
+  const couponFooter = buildActiveCouponsFooter(realCoupons);
 
   // If in Panditji mode:
   if (effectiveMode === "panditji") {
@@ -1418,10 +1547,13 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
   if (/sphatik|spatika|crystal|sphatika|स्फटिक/i.test(lower)) {
     const sphatikProd = findInCatalog(/sphatik|spatika|crystal/i) || matchedProducts[0];
     const pName = sphatikProd?.name || "Spatika Mala with Knot 108 beads";
-    const pPrice = sphatikProd?.price ? `₹${Number(sphatikProd.price).toLocaleString("en-IN")}` : "₹1,599";
-    const pSlug = sphatikProd?.slug || "spatika-mala-with-knot-108-beads";
+    const pPrice = sphatikProd?.price ? ` — ₹${Number(sphatikProd.price).toLocaleString("en-IN")}` : "";
+    const pSlug = sphatikProd?.slug || sphatikProd?.id || "";
+    const productLine = sphatikProd && pSlug
+      ? `\n• 💎 **स्टोर उत्पाद:** [${pName}](/product/${pSlug})${pPrice}`
+      : `\n• 💎 **स्टोर कैटलॉग:** [सभी मालाएं देखें](/shop)`;
 
-    return `🙏 **हर हर महादेव! शुद्ध स्फटिक माला (Natural Quartz Crystal Mala):**\n\n• ❄️ **प्रकृति व ऊर्जा:** स्फटिक साक्षात शुक्र ग्रह व चंद्र देव का शीतलता प्रदान करने वाला पवित्र रत्न है।\n• 📿 **उपयोग व लाभ:**\n  - दैनिक मंत्र जाप (विशेषकर माँ लक्ष्मी, सरस्वती व महामृत्युंजय मंत्र)।\n  - शरीर के तापमान व रक्तचाप का संतुलन, अत्यधिक क्रोध व मानसिक तनाव से मुक्ति।\n  - शरीर के चक्रों (Chakras) को संतुलित कर सकारात्मक ऊर्जा का संचार।\n• 💎 **स्टोर उत्पाद:** [${pName}](/product/${pSlug}) — ${pPrice}\n• 🎁 **विशेष लाभ:** 100% प्राकृतिक क्रिस्टल बीड्स, मजबूत गांठदार धागा, और निःशुल्क वैदिक प्राण-प्रतिष्ठा।\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** लगाकर 10% की अतिरिक्त बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: स्फटिक माला | Spatika Mala 108 beads | मानसिक शांति रत्न | आज का डिस्काउंट`;
+    return `🙏 **हर हर महादेव! शुद्ध स्फटिक माला (Natural Quartz Crystal Mala):**\n\n• ❄️ **प्रकृति व ऊर्जा:** स्फटिक साक्षात शुक्र ग्रह व चंद्र देव का शीतलता प्रदान करने वाला पवित्र रत्न है।\n• 📿 **उपयोग व लाभ:**\n  - दैनिक मंत्र जाप (विशेषकर माँ लक्ष्मी, सरस्वती व महामृत्युंजय मंत्र)।\n  - शरीर के तापमान व रक्तचाप का संतुलन, अत्यधिक क्रोध व मानसिक तनाव से मुक्ति।\n  - शरीर के चक्रों (Chakras) को संतुलित कर सकारात्मक ऊर्जा का संचार।${productLine}\n• 🎁 **विशेष लाभ:** 100% प्राकृतिक क्रिस्टल बीड्स, मजबूत गांठदार धागा, और निःशुल्क वैदिक प्राण-प्रतिष्ठा।${couponFooter}\n\n[AURA_KEYWORDS]: स्फटिक माला | Spatika Mala 108 beads | मानसिक शांति रत्न | लैब टेस्टेड उत्पाद`;
   }
 
   // 2. Specific Mukhi inquiries (1 to 21 Mukhi)
@@ -1445,33 +1577,44 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
       "14": { deity: "देव मणि (महादेव व हनुमान जी)", planet: "शनि (Saturn)", benefit: "आज्ञा चक्र जाग्रति, भविष्य दृष्टि व परम सुरक्षा", mantra: "ॐ नमः" }
     };
     const info = mukhiInfo[num] || { deity: "भगवान शिव", planet: "सर्व ग्रह", benefit: "आरोग्य, सुख-शांति व सुरक्षा", mantra: "ॐ नमः शिवाय" };
-    const matched = pool.find(p => String(p.mukhi || "").includes(num) || (p.name && new RegExp(`${num}\\s*mukhi`, "i").test(p.name))) || matchedProducts[0];
+    const matched = pool.find(p => isExactMukhiProduct(p, num)) ||
+      pool.find(p => String(p.mukhi || "").trim() === String(num) || (p.name && new RegExp(`(?:^|[^0-9])${num}\\s*mukhi`, "i").test(p.name))) ||
+      matchedProducts[0];
     const priceText = matched?.price ? ` — ₹${Number(matched.price).toLocaleString("en-IN")}` : "";
-    const pSlug = matched?.slug || (matched?.id ? `product/${matched.id}` : "");
+    const pSlug = matched?.slug || matched?.id || "";
+    const productLinkBlock = matched && pSlug
+      ? `।\n\n👇 **स्टोर में देखें:** [${matched.name}](/product/${pSlug})${priceText}`
+      : "।";
 
-    return `🙏 **हर हर महादेव! ${num} मुखी रुद्राक्ष का प्रामाणिक वैदिक विश्लेषण:**\n\n• 🔱 **अधिष्ठाता देवता:** ${info.deity}\n• 🪐 **शासक ग्रह:** ${info.planet}\n• 🌿 **मुख्य फल व लाभ:** ${info.benefit}\n• 📿 **दैनिक सिद्ध बीज मंत्र:** ${info.mantra} (108 बार जाप)\n\nऑरा रुद्राक्ष पर उपलब्ध सभी ${num} मुखी रुद्राक्ष 100% शुद्ध नेपाली हैं, जो काशी-हरिद्वार में वैदिक प्राण-प्रतिष्ठित और सरकारी मान्यता प्राप्त लैब (X-Ray व घनत्व परीक्षण) द्वारा प्रमाणित हैं${matched ? `।\n\n👇 **स्टोर में देखें:** [${matched.name}](/${pSlug})${priceText}` : ""}।\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** (10% OFF) का उपयोग करें!\n\n[AURA_KEYWORDS]: ${num} मुखी रुद्राक्ष लाभ | ${num} मुखी धारण विधि | लैब टेस्टेड नेपाली रुद्राक्ष | आज का डिस्काउंट`;
+    return `🙏 **हर हर महादेव! ${num} मुखी रुद्राक्ष का प्रामाणिक वैदिक विश्लेषण:**\n\n• 🔱 **अधिष्ठाता देवता:** ${info.deity}\n• 🪐 **शासक ग्रह:** ${info.planet}\n• 🌿 **मुख्य फल व लाभ:** ${info.benefit}\n• 📿 **दैनिक सिद्ध बीज मंत्र:** ${info.mantra} (108 बार जाप)\n\nऑरा रुद्राक्ष पर उपलब्ध सभी ${num} मुखी रुद्राक्ष 100% शुद्ध नेपाली हैं, जो काशी-हरिद्वार में वैदिक प्राण-प्रतिष्ठित और सरकारी मान्यता प्राप्त लैब (X-Ray व घनत्व परीक्षण) द्वारा प्रमाणित हैं${productLinkBlock}${couponFooter}\n\n[AURA_KEYWORDS]: ${num} मुखी रुद्राक्ष लाभ | ${num} मुखी धारण विधि | लैब टेस्टेड नेपाली रुद्राक्ष | स्टोर कैटलॉग`;
   }
 
   // 3. Gauri Shankar Rudraksha
   if (/\bgauri[-\s]*shankar\b|\bgauri\b|marriage|vivah|patni|pati|relationship|love|गौरी/i.test(lower)) {
     const matched = findInCatalog(/gauri/i) || matchedProducts[0];
-    const pPrice = matched?.price ? `₹${Number(matched.price).toLocaleString("en-IN")}` : "₹2,999";
-    const pSlug = matched?.slug || "gauri-shankar-rudraksha";
-    return `🙏 **हर हर महादेव! गौरी शंकर रुद्राक्ष (Gauri Shankar Rudraksha):**\n\nगौरी शंकर रुद्राक्ष साक्षात भगवान शिव और माता पार्वती का एकाकार स्वरूप है।\n• 🔱 **देवता:** शिव-पार्वती (सदाशिव व आदिशक्ति)\n• 🌙 **ग्रह:** चंद्र देव (मानसिक व भावनात्मक संतुलन)\n• ✨ **मुख्य लाभ:** दांपत्य जीवन में प्रेम व सामंजस्य, शीघ्र विवाह योग, पारिवारिक कलह का निवारण और सुख-शांति।\n• 📿 **बीज मंत्र:** ॐ गौरीशंकराय नमः\n\n${matched ? `👇 **स्टोर से ऑर्डर करें:** [${matched.name}](/product/${pSlug}) (${pPrice})` : "हमारे पास 100% प्राकृतिक जुड़ा हुआ नेपाली गौरी शंकर रुद्राक्ष उपलब्ध है।"}\n\n[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | विवाह योग | दांपत्य सुख | शिव पार्वती आशीर्वाद`;
+    const pPrice = matched?.price ? ` (₹${Number(matched.price).toLocaleString("en-IN")})` : "";
+    const pSlug = matched?.slug || matched?.id || "";
+    const linkSection = matched && pSlug
+      ? `👇 **स्टोर से ऑर्डर करें:** [${matched.name}](/product/${pSlug})${pPrice}`
+      : `हमारे पास 100% प्राकृतिक जुड़ा हुआ नेपाली गौरी शंकर रुद्राक्ष [स्टोर कैटलॉग](/shop) में उपलब्ध है।`;
+    return `🙏 **हर हर महादेव! गौरी शंकर रुद्राक्ष (Gauri Shankar Rudraksha):**\n\nगौरी शंकर रुद्राक्ष साक्षात भगवान शिव और माता पार्वती का एकाकार स्वरूप है।\n• 🔱 **देवता:** शिव-पार्वती (सदाशिव व आदिशक्ति)\n• 🌙 **ग्रह:** चंद्र देव (मानसिक व भावनात्मक संतुलन)\n• ✨ **मुख्य लाभ:** दांपत्य जीवन में प्रेम व सामंजस्य, शीघ्र विवाह योग, पारिवारिक कलह का निवारण और सुख-शांति।\n• 📿 **बीज मंत्र:** ॐ गौरीशंकराय नमः\n\n${linkSection}${couponFooter}\n\n[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | विवाह योग | दांपत्य सुख | शिव पार्वती आशीर्वाद`;
   }
 
   // 4. Jaap Mala / 108+1 Beads / Kantha
   if (/mala|jaap|japa|string|kantha|108|माला|जाप/i.test(lower)) {
     const malaProd = findInCatalog(/mala|108/i) || matchedProducts[0];
     const pName = malaProd?.name || "108+1 Sacred Jaap Mala";
-    const pPrice = malaProd?.price ? `₹${Number(malaProd.price).toLocaleString("en-IN")}` : "₹1,299";
-    const pSlug = malaProd?.slug || "108-rudraksha-jaap-mala";
-    return `🙏 **हर हर महादेव! 108+1 मनकों की सिद्ध रुद्राक्ष जप माला:**\n\n• 📿 **108+1 का रहस्य:** 108 मनके ब्रह्मांड के 27 नक्षत्रों के 4 चरणों (27 × 4 = 108) का प्रतिनिधित्व करते हैं, और 1 अतिरिक्त मनका 'सुमेरु' (ब्रह्म का प्रतीक) होता है।\n• 🔱 **नियम:** जप करते समय सुमेरु को कभी लांघा नहीं जाता, वहीं से माला पलट ली जाती है।\n• ✨ **लाभ:** रक्तचाप नियंत्रण, घबराहट व अनिद्रा से मुक्ति, और महामृत्युंजय या शिव पंचाक्षरी मंत्र जप के लिए सर्वश्रेष्ठ।\n\n👇 **स्टोर में उपलब्ध:** [${pName}](/product/${pSlug}) — ${pPrice}\n\n[AURA_KEYWORDS]: 108 रुद्राक्ष माला | जप विधि | सुमेरु का नियम | मंत्र साधना`;
+    const pPrice = malaProd?.price ? ` — ₹${Number(malaProd.price).toLocaleString("en-IN")}` : "";
+    const pSlug = malaProd?.slug || malaProd?.id || "";
+    const malaLink = malaProd && pSlug
+      ? `👇 **स्टोर में उपलब्ध:** [${pName}](/product/${pSlug})${pPrice}`
+      : `👇 **सभी मालाएं देखें:** [Shop Malas](/shop)`;
+    return `🙏 **हर हर महादेव! 108+1 मनकों की सिद्ध रुद्राक्ष जप माला:**\n\n• 📿 **108+1 का रहस्य:** 108 मनके ब्रह्मांड के 27 नक्षत्रों के 4 चरणों (27 × 4 = 108) का प्रतिनिधित्व करते हैं, और 1 अतिरिक्त मनका 'सुमेरु' (ब्रह्म का प्रतीक) होता है।\n• 🔱 **नियम:** जप करते समय सुमेरु को कभी लांघा नहीं जाता, वहीं से माला पलट ली जाती है।\n• ✨ **लाभ:** रक्तचाप नियंत्रण, घबराहट व अनिद्रा से मुक्ति, और महामृत्युंजय या शिव पंचाक्षरी मंत्र जप के लिए सर्वश्रेष्ठ।\n\n${malaLink}${couponFooter}\n\n[AURA_KEYWORDS]: 108 रुद्राक्ष माला | जप विधि | सुमेरु का नियम | मंत्र साधना`;
   }
 
   // 5. Order tracking & Delivery
   if (/track|order|delivery|dispatch|kab aayega|ship|कहाँ है|ऑर्डर|डिलीवरी/i.test(lower)) {
-    return `📦 **ऑरा रुद्राक्ष ऑर्डर ट्रैकिंग व डिलीवरी जानकारी:**\n\n• 🚚 **डिलीवरी समय:** भारत भर में 2 से 4 कार्य दिवसों (Express Air Courier - BlueDart / DTDC / Delhivery) में सुरक्षित डिलीवरी।\n• 📲 **लाइव ट्रैकिंग:** आप अपना फोन नंबर या 6-अंकों का Order ID डालकर सीधे ट्रैक कर सकते हैं:\n👉 **[Track Your Order Here](/track-order)**\n• 🎁 **सुरक्षित पैकेजिंग:** हर पार्सल में प्राण-प्रतिष्ठित रुद्राक्ष, गंगाजल, रक्षा सूत्र, और ओरिजिनल लैब सर्टिफिकेट सीलबंद आता है।\n\n[AURA_KEYWORDS]: ऑर्डर ट्रैकिंग | एक्सप्रेस डिलीवरी | डिलीवरी स्थिति | ग्राहक सहायता`;
+    return `📦 **ऑरा रुद्राक्ष ऑर्डर ट्रैकिंग व डिलीवरी जानकारी:**\n\n• 🚚 **डिलीवरी समय:** भारत भर में 2 से 4 कार्य दिवसों (Express Air Courier - BlueDart / DTDC / Delhivery) में सुरक्षित डिलीवरी।\n• 📲 **लाइव ट्रैकिंग:** आप अपना फोन नंबर या Order ID डालकर सीधे ट्रैक कर सकते हैं:\n👉 **[Track Your Order Here](/track-order)**\n• 🎁 **सुरक्षित पैकेजिंग:** हर पार्सल में प्राण-प्रतिष्ठित रुद्राक्ष, गंगाजल, रक्षा सूत्र, और ओरिजिनल लैब सर्टिफिकेट सीलबंद आता है।\n\n[AURA_KEYWORDS]: ऑर्डर ट्रैकिंग | एक्सप्रेस डिलीवरी | डिलीवरी स्थिति | ग्राहक सहायता`;
   }
 
   // 6. Authenticity, Certificate, Lab Test
@@ -1479,20 +1622,41 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
     return `🛡️ **100% प्रामाणिक नेपाली रुद्राक्ष गारंटी (Zero Compromise):**\n\nऑरा रुद्राक्ष पर कोई भी काल्पनिक या नकली मनका नहीं बेचा जाता:\n1. 🔬 **व्यक्तिगत X-Ray जांच:** हर मनके के अंदर के प्राकृतिक कक्ष (Internal Seeds & Compartments) का एक्स-रे किया जाता है।\n2. 📜 **सरकारी मान्यता प्राप्त लैब सर्टिफिकेट:** प्रत्येक रुद्राक्ष के साथ एक यूनिक QR-कोडेड लैब सर्टिफिकेट मिलता है।\n3. 🔍 **ऑनलाइन वेरिफिकेशन:** आप वेबसाइट पर सर्टिफिकेट नंबर डालकर तुरंत रिपोर्ट देख सकते हैं:\n👉 **[Verify Certificate Online](/verify-certificate)**\n4. 💧 **प्राकृतिक घनत्व:** 100% भारी, कठोर व काष्ठयुक्त नेपाली दाने जो जीवन भर सुरक्षित रहते हैं।\n\n[AURA_KEYWORDS]: 100% असली रुद्राक्ष | लैब सर्टिफिकेट जांच | X-Ray रिपोर्ट | नेपाल रुद्राक्ष पहचान`;
   }
 
-  // 7. Discount & Coupons
-  if (/coupon|discount|offer|code|chhoot|kam karo|कूपन|छूट|ऑफर/i.test(lower)) {
-    return `🎁 **आज के विशेष ऑरा रुद्राक्ष डिस्काउंट कूपन:**\n\n1. 🌟 **SHIVOHAM10** — फ्लैट 10% की अतिरिक्त छूट (सभी रुद्राक्ष व माला पर लागू)।\n2. 🔱 **MAHASHIVRATRI** — फ्लैट 15% की भव्य छूट (₹1,999 से अधिक के ऑर्डर्स पर)।\n3. 🚚 **मुफ्त डिलीवरी (Free Shipping):** ₹999 से अधिक के सभी प्रीपेड ऑर्डर्स पर संपूर्ण भारत में निशुल्क डिलीवरी!\n\nCheck out के समय 'Apply Coupon' में कोड दर्ज करें और तुरंत बचत प्राप्त करें!`;
+  // 7. Discount & Coupons (STRICTLY ONLY REAL ACTIVE ADMIN COUPONS)
+  if (/coupon|discount|offer|code|promo|voucher|chhoot|chhut|kam karo|कूपन|छूट|ऑफर/i.test(lower)) {
+    if (realCoupons.length > 0) {
+      const couponLines = realCoupons.map((c, idx) => {
+        const valStr = c.type === "fixed" ? `फ्लैट ₹${Number(c.discount).toLocaleString("en-IN")} की छूट` : `फ्लैट ${c.discount}% की छूट`;
+        const minStr = Number(c.minAmount) > 0 ? ` (₹${Number(c.minAmount).toLocaleString("en-IN")} से अधिक के ऑर्डर पर)` : "";
+        const descStr = c.description ? ` — ${c.description}` : "";
+        return `${idx + 1}. 🌟 **${c.code}** — ${valStr}${minStr}${descStr}`;
+      }).join("\n");
+
+      return `🎁 **वर्तमान में सक्रिय ऑरा रुद्राक्ष डिस्काउंट कूपन (Admin Verified):**\n\n${couponLines}\n\n• 🔱 **निःशुल्क सेवा:** हर ऑर्डर पर काशी-हरिद्वार वैदिक प्राण-प्रतिष्ठा पूजा व लैब सर्टिफिकेट।\n\nचेकआउट के समय 'Apply Coupon' में उपरोक्त कोड दर्ज करें और तुरंत बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: सक्रिय कूपन कोड | लाइव स्टोर ऑफर | लैब प्रमाणित रुद्राक्ष`;
+    }
+
+    return `🎁 **ऑरा रुद्राक्ष कूपन एवं ऑफर अपडेट:**\n\nवर्तमान में स्टोर में कोई अलग डिस्काउंट कूपन कोड सक्रिय नहीं है।\n\n• 🔱 **निःशुल्क विशेष सेवाएं:** आपको हर प्रामाणिक नेपाली रुद्राक्ष के साथ काशी-हरिद्वार वैदिक प्राण-प्रतिष्ठा पूजा व X-Ray लैब सर्टिफिकेट निःशुल्क मिलता है।\n• 🛍️ **ताज़ा ऑफर्स देखने के लिए:** [Shop Catalog](/shop) पर उत्पाद के लाइव प्राइस और छूट देख सकते हैं।\n\nजब भी एडमिन डैशबोर्ड से कोई नया कूपन कोड सक्रिय किया जाएगा, मैं आपको तुरंत वही सक्रिय कोड बताऊँगा।\n\n[AURA_KEYWORDS]: स्टोर कैटलॉग | असली नेपाली रुद्राक्ष | निःशुल्क प्राण-प्रतिष्ठा`;
   }
 
   // 8. Price / Cost Queries
   if (/price|cost|rate|kitne|kimat|keemat|paisa|rupaye|kharch|मूल्य|कीमत|दाम|कितने/i.test(lower)) {
     const listProds = (matchedProducts && matchedProducts.length > 0) ? matchedProducts : pool.slice(0, 4);
-    return `💰 **ऑरा रुद्राक्ष मूल्य व प्रामाणिक रेट सूची:**\n\n${listProds.length > 0 ? listProds.slice(0, 4).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}${p.comparePrice ? ` (MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})` : ""}`).join("\n") : "• 1 मुखी से 14 मुखी सिद्ध नेपाली रुद्राक्ष ₹999 से आरंभ होते हैं।"}\n\nविशेष छूट के लिए कूपन कोड **SHIVOHAM10** लगाकर तुरंत 10% की अतिरिक्त बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत | ओरिजिनल रेट | आज का डिस्काउंट | लैब सर्टिफाइड रुद्राक्ष`;
+    const listText = listProds.length > 0
+      ? listProds.slice(0, 4).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}${p.comparePrice && Number(p.comparePrice) > Number(p.price) ? ` (MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})` : ""}`).join("\n")
+      : "• संपूर्ण मूल्य सूची देखने के लिए [Shop Catalog](/shop) पर जाएं।";
+    return `💰 **ऑरा रुद्राक्ष मूल्य व प्रामाणिक रेट सूची:**\n\n${listText}${couponFooter}\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत | ओरिजिनल रेट | लैब सर्टिफाइड रुद्राक्ष`;
   }
 
   // 9. Career, Job, Money, Wealth
   if (/career|job|naukri|business|vyapar|dhan|money|paisa|नौकरी|व्यापार|कैरियर|धन/i.test(lower)) {
-    return `💼 **करियर, व्यापार व धन वृद्धि हेतु सर्वश्रेष्ठ रुद्राक्ष:**\n\n1. 🪙 **7 मुखी रुद्राक्ष (माता महालक्ष्मी):** आर्थिक तंगी दूर करने, स्थिर धन प्राप्ति और कर्ज से मुक्ति के लिए सर्वश्रेष्ठ।\n2. 🌟 **10 मुखी रुद्राक्ष (भगवान विष्णु):** कार्यक्षेत्र में षड्यंत्रों से रक्षा व सभी 9 ग्रहों की अनुकूलता।\n3. 👑 **14 मुखी रुद्राक्ष (देव मणि):** उच्च पद, लीडरशिप, सही निर्णय क्षमता और शेयर मार्केट/व्यापार में सफलता।\n\nविशेष छूट के लिए **SHIVOHAM10** कूपन कोड का उपयोग करें!\n\n[AURA_KEYWORDS]: 7 मुखी धन रुद्राक्ष | व्यापार वृद्धि उपाय | महालक्ष्मी रुद्राक्ष | करियर में सफलता`;
+    const p7 = pool.find(p => isExactMukhiProduct(p, 7));
+    const p10 = pool.find(p => isExactMukhiProduct(p, 10));
+    const p14 = pool.find(p => isExactMukhiProduct(p, 14));
+    const link7 = p7 ? ` — [${p7.name}](/product/${p7.slug || p7.id}) (₹${Number(p7.price).toLocaleString("en-IN")})` : "";
+    const link10 = p10 ? ` — [${p10.name}](/product/${p10.slug || p10.id}) (₹${Number(p10.price).toLocaleString("en-IN")})` : "";
+    const link14 = p14 ? ` — [${p14.name}](/product/${p14.slug || p14.id}) (₹${Number(p14.price).toLocaleString("en-IN")})` : "";
+
+    return `💼 **करियर, व्यापार व धन वृद्धि हेतु सर्वश्रेष्ठ रुद्राक्ष:**\n\n1. 🪙 **7 मुखी रुद्राक्ष (माता महालक्ष्मी):** आर्थिक तंगी दूर करने, स्थिर धन प्राप्ति और कर्ज से मुक्ति के लिए सर्वश्रेष्ठ${link7}।\n2. 🌟 **10 मुखी रुद्राक्ष (भगवान विष्णु):** कार्यक्षेत्र में षड्यंत्रों से रक्षा व सभी 9 ग्रहों की अनुकूलता${link10}।\n3. 👑 **14 मुखी रुद्राक्ष (देव मणि):** उच्च पद, लीडरशिप, सही निर्णय क्षमता और व्यापार में सफलता${link14}।${couponFooter}\n\n[AURA_KEYWORDS]: 7 मुखी धन रुद्राक्ष | व्यापार वृद्धि उपाय | महालक्ष्मी रुद्राक्ष | करियर में सफलता`;
   }
 
   // 10. Returns, Refunds, Customer Support
@@ -1502,15 +1666,18 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
 
   // 11. General Products Match fallback
   if (matchedProducts.length > 0) {
-    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध • वैदिक अभिमंत्रित • सुरक्षित डिलीवरी)*`).join("\n\n")}\n\nआप किसी भी आइटम पर क्लिक करके उसका संपूर्ण विवरण देख सकते हैं या कूपन **SHIVOHAM10** लगाकर 10% छूट प्राप्त कर सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | स्टोर चयन | आज के ऑफर्स | प्रामाणिक ऑरा रुद्राक्ष`;
+    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध • वैदिक अभिमंत्रित • सुरक्षित डिलीवरी)*`).join("\n\n")}${couponFooter}\n\nआप किसी भी उत्पाद की फोटो कार्ड पर क्लिक करके उसका संपूर्ण विवरण देख सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | स्टोर चयन | प्रामाणिक ऑरा रुद्राक्ष`;
   }
 
   // 12. Greeting & Default tailored reply
   if (/^(hi|hello|hey|namaste|pranam|ram|radhe|har|shambhu|नमस्ते|प्रणाम|हर हर महादेव)/i.test(lower)) {
-    return `🙏 **हर हर महादेव! नमस्ते! Main Aura AI hoon.**\n\nMain Aura Rudraksha ka 24/7 shopping assistant hoon. Main aapki in vishayon mein turant madad kar sakta hoon:\n• 📿 **1 se 21 Mukhi Nepali Rudraksha** aur unke labh\n• 🌸 **108+1 Jaap Mala, Sphatik aur Bracelets**\n• 🎁 **Active Discount Coupons** (Use: **SHIVOHAM10** for 10% OFF)\n• 🚚 **Order Status aur Live Tracking** (/track-order)\n\nAapko kis product ya jaankari ki aavashyakta hai?`;
+    const couponBullet = realCoupons.length > 0
+      ? `• 🎁 **Active Discount Coupons:** ${realCoupons.slice(0, 2).map(c => `**${c.code}**`).join(", ")}`
+      : `• 🛍️ **Sacred Store Catalog:** [Shop All Rudraksha](/shop)`;
+    return `🙏 **हर हर महादेव! नमस्ते! Main Aura AI hoon.**\n\nMain Aura Rudraksha ka 24/7 shopping assistant hoon. Main aapki in vishayon mein turant madad kar sakta hoon:\n• 📿 **1 se 21 Mukhi Nepali Rudraksha** aur unke labh\n• 🌸 **108+1 Jaap Mala, Sphatik aur Bracelets**\n${couponBullet}\n• 🚚 **Order Status aur Live Tracking** (/track-order)\n\nAapko kis product ya jaankari ki aavashyakta hai?`;
   }
 
-  return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'जानकारी'}" के संदर्भ में:**\n\nऑरा रुद्राक्ष पर सभी पवित्र मनके, जप मालाएं और वैदिक वस्तुएं 100% शुद्ध, प्राकृतिक और काशी-हरिद्वार में प्राण-प्रतिष्ठित हैं।\n\n• 📿 आप [Shop Catalog](/shop) पर संपूर्ण संग्रह देख सकते हैं।\n• 🎁 कूपन **SHIVOHAM10** का उपयोग करके 10% अतिरिक्त छूट प्राप्त कर सकते हैं।\n• 🚚 ₹999 से अधिक के ऑर्डर्स पर संपूर्ण भारत में निशुल्क डिलीवरी उपलब्ध है।\n\nयदि आप किसी विशिष्ट मनके, माला या आभूषण की कीमत या धारण विधि जानना चाहते हैं, तो कृपया उसका नाम लिखें!`;
+  return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'जानकारी'}" के संदर्भ में:**\n\nऑरा रुद्राक्ष पर सभी पवित्र मनके, जप मालाएं और वैदिक वस्तुएं 100% शुद्ध, प्राकृतिक और काशी-हरिद्वार में प्राण-प्रतिष्ठित हैं।\n\n• 📿 आप [Shop Catalog](/shop) पर संपूर्ण संग्रह देख सकते हैं।${couponFooter}\n\nयदि आप किसी विशिष्ट मनके, माला या आभूषण की कीमत या धारण विधि जानना चाहते हैं, तो कृपया उसका नाम लिखें!`;
 }
 
 /**
@@ -1723,6 +1890,16 @@ export async function chatAuraAI(req, res, next) {
     // 4. Fetch Live Catalog Products, Active Coupons & Admin Deals/Promotions
     let allStoreProds = [];
     let allStoreCoupons = [];
+    const couponMap = new Map();
+    const nowTime = Date.now();
+    const isNotDeletedCoupon = (code, id) => {
+      const upper = String(code || "").trim().toUpperCase();
+      const strId = String(id || "").trim();
+      if (upper && inMemoryStore.deletedCouponCodes.has(upper)) return false;
+      if (strId && inMemoryStore.deletedCouponIds.has(strId)) return false;
+      return true;
+    };
+
     if (isDbConnected()) {
       try {
         allStoreProds = await Product.find({ status: { $nin: ["Draft", "draft", "Inactive", "inactive"] } }).lean();
@@ -1737,19 +1914,17 @@ export async function chatAuraAI(req, res, next) {
           Offer.find({ status: { $nin: ["Inactive", "inactive", "Disabled", "disabled", "Expired", "expired"] } }).lean()
         ]);
 
-        const couponMap = new Map();
-        const nowTime = Date.now();
-
         // 1. Process standard Coupons from Admin Coupons section
         (dbCoupons || []).forEach(c => {
           const code = (c.code || "").trim().toUpperCase();
-          if (!code) return;
+          const cId = c.id || String(c._id || "");
+          if (!code || !isNotDeletedCoupon(code, cId)) return;
           if (c.expiry) {
             const exp = new Date(c.expiry).getTime();
             if (!isNaN(exp) && exp < nowTime) return;
           }
           couponMap.set(code, {
-            id: c.id || String(c._id),
+            id: cId,
             code,
             discount: Number(c.discount || c.value || 0),
             type: c.type || "percentage",
@@ -1764,15 +1939,16 @@ export async function chatAuraAI(req, res, next) {
         // 2. Process ActiveOffers from Admin Deals / Active Offer section
         (dbActiveOffers || []).forEach(o => {
           const code = (o.couponCode || o.code || "").trim().toUpperCase();
-          if (!code) return;
+          const oId = o.id || String(o._id || "");
+          if (!code || !isNotDeletedCoupon(code, oId)) return;
           const expiry = o.expiresAt || o.expiry;
-          if (expiry) {
+          if (expiry && !o.neverExpires) {
             const exp = new Date(expiry).getTime();
             if (!isNaN(exp) && exp < nowTime) return;
           }
           if (!couponMap.has(code)) {
             couponMap.set(code, {
-              id: o.id || String(o._id),
+              id: oId,
               code,
               discount: Number(o.discountValue || 0),
               type: o.discountType === "percentage" ? "percentage" : "fixed",
@@ -1788,7 +1964,8 @@ export async function chatAuraAI(req, res, next) {
         // 3. Process Promotions from Admin Promotions section
         (dbPromotions || []).forEach(p => {
           const code = (p.couponCode || p.code || "").trim().toUpperCase();
-          if (!code) return;
+          const pId = p.id || String(p._id || "");
+          if (!code || !isNotDeletedCoupon(code, pId)) return;
           const expiry = p.expiresAt || p.expiry;
           if (expiry) {
             const exp = new Date(expiry).getTime();
@@ -1796,7 +1973,7 @@ export async function chatAuraAI(req, res, next) {
           }
           if (!couponMap.has(code)) {
             couponMap.set(code, {
-              id: p.id || String(p._id),
+              id: pId,
               code,
               discount: Number(p.discountValue || p.value || 0),
               type: p.discountType === "percentage" || p.type === "percentage" ? "percentage" : "fixed",
@@ -1809,13 +1986,14 @@ export async function chatAuraAI(req, res, next) {
           }
         });
 
-        // 4. Process Offers from Admin Banner Deals section
+        // 4. Process Offers from Admin Banner Deals section (only if explicit couponCode set)
         (dbOffers || []).forEach(of => {
           const code = (of.couponCode || of.code || "").trim().toUpperCase();
-          if (!code) return;
+          const ofId = of.id || String(of._id || "");
+          if (!code || !isNotDeletedCoupon(code, ofId)) return;
           if (!couponMap.has(code)) {
             couponMap.set(code, {
-              id: of.id || String(of._id),
+              id: ofId,
               code,
               discount: Number(of.discountValue || 0),
               type: of.type?.toLowerCase() === "fixed" ? "fixed" : "percentage",
@@ -1833,6 +2011,70 @@ export async function chatAuraAI(req, res, next) {
         console.warn("Error fetching store coupons/promotions in AI controller:", err.message);
         allStoreCoupons = [];
       }
+    } else {
+      allStoreProds = (inMemoryStore.products || []).filter(
+        p => p && !["Draft", "draft", "Inactive", "inactive"].includes(String(p.status || "Active"))
+      );
+      (inMemoryStore.coupons || []).forEach(c => {
+        if (!c || ["Inactive", "inactive", "Expired", "expired", "Disabled", "disabled"].includes(String(c.status || "Active"))) return;
+        const code = (c.code || "").trim().toUpperCase();
+        const cId = String(c.id || c._id || "");
+        if (!code || !isNotDeletedCoupon(code, cId)) return;
+        if (c.expiry) {
+          const exp = new Date(c.expiry).getTime();
+          if (!isNaN(exp) && exp < nowTime) return;
+        }
+        couponMap.set(code, {
+          id: cId,
+          code,
+          discount: Number(c.discount || c.value || 0),
+          type: c.type || "percentage",
+          minAmount: Number(c.minAmount || c.minOrderValue || 0),
+          maxDiscount: Number(c.maxDiscount || 0),
+          expiry: c.expiry || null,
+          description: c.description || (c.type === "fixed" ? `Flat ₹${c.discount} OFF` : `${c.discount}% OFF`),
+          source: "Admin Coupon"
+        });
+      });
+      const memAo = inMemoryStore.activeOffer;
+      if (memAo && memAo.enabled && memAo.couponCode && !["Inactive", "inactive", "Disabled", "disabled"].includes(String(memAo.status || "Active"))) {
+        const code = String(memAo.couponCode).trim().toUpperCase();
+        if (code && isNotDeletedCoupon(code, memAo.id) && !couponMap.has(code)) {
+          const expiry = memAo.expiresAt || memAo.expiry;
+          const notExp = !expiry || memAo.neverExpires || isNaN(new Date(expiry).getTime()) || new Date(expiry).getTime() >= nowTime;
+          if (notExp) {
+            couponMap.set(code, {
+              id: memAo.id || "ACTIVE_OFFER",
+              code,
+              discount: Number(memAo.discountValue || 0),
+              type: memAo.discountType === "percentage" ? "percentage" : "fixed",
+              minAmount: 0,
+              maxDiscount: 0,
+              expiry: expiry || null,
+              description: memAo.subtitle || memAo.title || `Special Deal Offer: ${code}`,
+              source: "Admin Active Deal"
+            });
+          }
+        }
+      }
+      (inMemoryStore.promotions || []).forEach(p => {
+        if (!p || p.isActive === false || ["Inactive", "inactive", "Disabled", "disabled"].includes(String(p.status || "Active"))) return;
+        const code = (p.couponCode || p.code || "").trim().toUpperCase();
+        const pId = String(p.id || p._id || "");
+        if (!code || !isNotDeletedCoupon(code, pId) || couponMap.has(code)) return;
+        couponMap.set(code, {
+          id: pId,
+          code,
+          discount: Number(p.discountValue || p.value || 0),
+          type: p.discountType === "percentage" || p.type === "percentage" ? "percentage" : "fixed",
+          minAmount: Number(p.minOrderValue || p.minAmount || 0),
+          maxDiscount: 0,
+          expiry: p.expiresAt || p.expiry || null,
+          description: p.description || p.subtitle || p.title || `Promo Offer: ${code}`,
+          source: "Admin Promotion"
+        });
+      });
+      allStoreCoupons = Array.from(couponMap.values());
     }
 
     const activeCoupons = (allStoreCoupons || []).filter(c => {
@@ -2514,12 +2756,12 @@ ${memoryContextText || "Guest shopper."}`;
             fallbackText = precomputedPanditJiReference || generateNonKundaliPanditJiGuidance(message, allStoreProds);
           }
         } else {
-          fallbackText = generateSmartCustomerFallbackResponse(message, matchedProducts, matchedCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
+          fallbackText = generateSmartCustomerFallbackResponse(message, matchedProducts, activeCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
         }
 
-        fullStreamedText = fallbackText;
+        fullStreamedText = sanitizeFakeCouponsInResponse(fallbackText, activeCoupons);
         // Stream in natural word chunks with slight pause so customer sees immediate typing
-        const tokens = fallbackText.split(/(\s+)/);
+        const tokens = fullStreamedText.split(/(\s+)/);
         for (let i = 0; i < tokens.length; i += 3) {
           if (clientDisconnected) break;
           const chunkStr = tokens.slice(i, i + 3).join("");
@@ -2531,7 +2773,11 @@ ${memoryContextText || "Guest shopper."}`;
         }
       }
 
-      const safeFinalStreamedText = cleanServerAiText(stripInternalJsonFromCustomerText(fullStreamedText));
+      const safeFinalStreamedText = sanitizeFakeCouponsInResponse(
+        cleanServerAiText(stripInternalJsonFromCustomerText(fullStreamedText)),
+        activeCoupons
+      );
+      const finalStreamedProducts = extractMentionedCatalogProducts(safeFinalStreamedText, matchedProducts, allStoreProds);
 
       // Background Memory Update
       extractAndUpdateMemories({
@@ -2553,7 +2799,7 @@ ${memoryContextText || "Guest shopper."}`;
         id: `msg_${Date.now()}_a`,
         sender: "ai",
         text: safeFinalStreamedText,
-        products: matchedProducts,
+        products: finalStreamedProducts,
         coupons: matchedCoupons,
         kundali: calculatedKundaliData,
         timestamp: new Date()
@@ -2577,7 +2823,7 @@ ${memoryContextText || "Guest shopper."}`;
             $set: {
               updatedAt: new Date(),
               lastMessageText: safeFinalStreamedText.slice(0, 150),
-              productsRecommended: matchedProducts.map(p => p.id),
+              productsRecommended: finalStreamedProducts.map(p => p.id),
               ...(activeBirthDetails ? { verifiedBirthDetails: activeBirthDetails } : {}),
               ...(calculatedKundaliData ? { authoritativeKundali: calculatedKundaliData } : {})
             }
@@ -2591,7 +2837,7 @@ ${memoryContextText || "Guest shopper."}`;
           type: "final",
           data: {
             text: safeFinalStreamedText,
-            products: matchedProducts,
+            products: finalStreamedProducts,
             coupons: matchedCoupons,
             kundali: calculatedKundaliData,
             showBirthForm: shouldPromptBirthForm,
@@ -2673,11 +2919,15 @@ ${memoryContextText || "Guest shopper."}`;
           aiResponseText = precomputedPanditJiReference || generateNonKundaliPanditJiGuidance(message, allStoreProds);
         }
       } else {
-        aiResponseText = generateSmartCustomerFallbackResponse(message, matchedProducts, matchedCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
+        aiResponseText = generateSmartCustomerFallbackResponse(message, matchedProducts, activeCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
       }
     }
 
-    const safeFinalText = cleanServerAiText(stripInternalJsonFromCustomerText(aiResponseText));
+    const safeFinalText = sanitizeFakeCouponsInResponse(
+      cleanServerAiText(stripInternalJsonFromCustomerText(aiResponseText)),
+      activeCoupons
+    );
+    const finalMatchedProducts = extractMentionedCatalogProducts(safeFinalText, matchedProducts, allStoreProds);
 
     // Update Mem0-style long-term user memory in background
     extractAndUpdateMemories({
@@ -2699,7 +2949,7 @@ ${memoryContextText || "Guest shopper."}`;
       id: `msg_${Date.now()}_a`,
       sender: "ai",
       text: safeFinalText,
-      products: matchedProducts,
+      products: finalMatchedProducts,
       coupons: matchedCoupons,
       kundali: calculatedKundaliData,
       timestamp: new Date()
@@ -2724,7 +2974,7 @@ ${memoryContextText || "Guest shopper."}`;
             $set: {
               updatedAt: new Date(),
               lastMessageText: safeFinalText.slice(0, 150),
-              productsRecommended: matchedProducts.map(p => p.id),
+              productsRecommended: finalMatchedProducts.map(p => p.id),
               ...(activeBirthDetails ? { verifiedBirthDetails: activeBirthDetails } : {}),
               ...(calculatedKundaliData ? { authoritativeKundali: calculatedKundaliData } : {})
             }
@@ -2740,7 +2990,7 @@ ${memoryContextText || "Guest shopper."}`;
       success: true,
       data: {
         text: safeFinalText,
-        products: matchedProducts,
+        products: finalMatchedProducts,
         coupons: matchedCoupons,
         kundali: calculatedKundaliData,
         showBirthForm: shouldPromptBirthForm,

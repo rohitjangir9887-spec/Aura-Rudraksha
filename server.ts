@@ -42,6 +42,7 @@ async function startServer() {
         req.path.startsWith("/api") ||
         req.path.startsWith("/@") ||
         req.path.startsWith("/src/") ||
+        req.path.startsWith("/shared/") ||
         req.path.startsWith("/node_modules/")
       ) {
         return next();

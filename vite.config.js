@@ -14,6 +14,8 @@ export default defineConfig(({ command, mode }) => {
     "process.env.NODE_ENV": JSON.stringify(isDev ? "development" : "production"),
   },
   optimizeDeps: {
+    entries: ["index.html", "src/main.jsx"],
+    exclude: ["vitest", "mongodb-memory-server"],
     include: [
       "react",
       "react-dom",
@@ -25,6 +27,19 @@ export default defineConfig(({ command, mode }) => {
       "lucide-react",
       "dompurify",
       "canvas-confetti",
+      "firebase/app",
+      "firebase/auth",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-color",
+      "@tiptap/extension-highlight",
+      "@tiptap/extension-link",
+      "@tiptap/extension-text-align",
+      "@tiptap/extension-text-style",
+      "@tiptap/extension-underline",
+      "jspdf",
+      "jspdf-autotable",
+      "xlsx",
     ],
   },
   server: {
