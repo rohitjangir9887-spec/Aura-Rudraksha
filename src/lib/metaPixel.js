@@ -622,12 +622,7 @@ export function trackMetaPurchase(order) {
         firedPurchaseOrderIds.add(orderId);
         return;
       }
-      firedPurchaseOrderIds.add(orderId);
-      sessionStorage.setItem(storageKey, "1");
-      localStorage.setItem(storageKey, "1");
-    } catch (_) {
-      firedPurchaseOrderIds.add(orderId);
-    }
+    } catch (_) {}
 
     // Sync customer matching parameters from confirmed order before firing Purchase for high Event Match Quality
     const cust = order.customer || {};
@@ -681,6 +676,12 @@ export function trackMetaPurchase(order) {
       const eventId = `PURCHASE_${orderId}`;
       window.fbq("track", "Purchase", payload, { eventID: eventId });
       relayServerCapiEvent("Purchase", eventId, payload, customerInfo);
+      // Mark only after the browser Pixel accepted the event, so init failures can retry.
+      firedPurchaseOrderIds.add(orderId);
+      try {
+        sessionStorage.setItem(storageKey, "1");
+        localStorage.setItem(storageKey, "1");
+      } catch (_) {}
     }
   } catch (_) {}
 }
