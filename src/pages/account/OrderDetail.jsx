@@ -413,31 +413,52 @@ export function OrderDetail() {
       <main className="page" style={{ maxWidth: 850, margin: '0 auto', paddingBottom: 80 }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-          <button 
-            type="button" 
-            className="back-btn" 
-            onClick={() => {
-              if (window.history && window.history.length > 2) {
-                navigate(-1);
-              } else {
-                navigate("/account/orders");
-              }
-            }} 
-            style={{
-              background: 'none', 
-              border: 'none', 
-              cursor: 'pointer',
-              display: 'inline-flex', 
-              gap: 5, 
-              alignItems: 'center', 
-              color: '#a54d2b', 
-              fontSize: 13, 
-              fontWeight: 600,
-              padding: 0
-            }}
-          >
-            <ChevronLeft size={16}/> Back
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              className="back-btn" 
+              onClick={() => {
+                if (window.history && window.history.length > 2) {
+                  navigate(-1);
+                } else {
+                  navigate("/");
+                }
+              }} 
+              style={{
+                background: 'none', 
+                border: 'none', 
+                cursor: 'pointer',
+                display: 'inline-flex', 
+                gap: 5, 
+                alignItems: 'center', 
+                color: '#a54d2b', 
+                fontSize: 13, 
+                fontWeight: 600,
+                padding: 0
+              }}
+            >
+              <ChevronLeft size={16}/> Back
+            </button>
+
+            <Link
+              to="/"
+              style={{
+                display: 'inline-flex',
+                gap: 5,
+                alignItems: 'center',
+                textDecoration: 'none',
+                color: '#4a3223',
+                background: '#fdf7f0',
+                border: '1px solid #e5d8cc',
+                borderRadius: 8,
+                padding: '5px 11px',
+                fontSize: 12.5,
+                fontWeight: 600
+              }}
+            >
+              🏠 Back to Home
+            </Link>
+          </div>
 
           <Link 
             to="/account/orders" 

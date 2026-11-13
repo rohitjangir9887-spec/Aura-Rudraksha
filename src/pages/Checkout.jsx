@@ -7,7 +7,7 @@ import { Shell } from "../components/Shell";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
 import { money } from "../data";
-import { db } from "../lib/db";
+import { db, onStoreUpdate } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { 
@@ -320,16 +320,36 @@ export function Checkout() {
   });
 
   useEffect(() => {
+    if (!buyNowLines || buyNowLines.length === 0) {
+      setBuyNowTotals(null);
+      return;
+    }
+
+    let cancelled = false;
+    const activeCode = appliedCoupon?.code || couponCode || "";
+
     try {
-      if (buyNowLines && buyNowLines.length > 0 && db && typeof db.calculateCartSync === "function") {
-        const calc = db.calculateCartSync(buyNowLines, appliedCoupon?.code || couponCode);
+      if (typeof db.calculateCartSync === "function") {
+        const calc = db.calculateCartSync(buyNowLines, activeCode);
         if (calc?.success && calc.data) {
           setBuyNowTotals(calc.data);
-          return;
         }
       }
     } catch (_) {}
-    setBuyNowTotals(null);
+
+    if (typeof db.calculateCart === "function") {
+      db.calculateCart(buyNowLines, activeCode)
+        .then((res) => {
+          if (!cancelled && res?.success && res.data && Number(res.data.subtotal) > 0) {
+            setBuyNowTotals(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      cancelled = true;
+    };
   }, [buyNowLines, appliedCoupon, couponCode]);
 
   const activeTotals = buyNowTotals || cartTotals;
@@ -481,9 +501,17 @@ export function Checkout() {
   }, [clear, navigate]);
 
   useEffect(() => {
-    setProducts(db.getProducts());
-    setActiveOffer(db.getActiveOffer());
-    setAvailableCoupons(db.getCoupons().filter(c => c && c.status === "Active" && c.showOnCart !== false));
+    const syncCatalogAndPromos = () => {
+      setProducts(db.getProducts());
+      setActiveOffer(db.getActiveOffer());
+      setAvailableCoupons(db.getCoupons().filter(c => c && c.status === "Active" && c.showOnCart !== false));
+    };
+
+    syncCatalogAndPromos();
+    if (db.getCoupons().length === 0 && typeof db.fetchHomeData === "function") {
+      db.fetchHomeData(true).catch(() => {});
+    }
+    const unsubStore = onStoreUpdate(syncCatalogAndPromos);
 
     async function loadUserData() {
       const user = authClient.getUser();
@@ -583,7 +611,10 @@ export function Checkout() {
         loadUserData();
       }
     });
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+      if (typeof unsubStore === "function") unsubStore();
+    };
   }, []);
 
   // Fire celebratory confetti animation on successful order confirmation
@@ -826,8 +857,11 @@ export function Checkout() {
     setValidatingCoupon(true);
 
     try {
-      const res = await applyCoupon(code);
+      const res = await applyCoupon(code, activeLines);
       if (res.valid) {
+        if (buyNowLines && res.totals) {
+          setBuyNowTotals(res.totals);
+        }
         triggerHaptic("success");
         setCouponInput("");
         setCouponSuccessMsg(res.message || `Coupon '${code}' applied successfully!`);
@@ -1306,7 +1340,7 @@ export function Checkout() {
             totalMrp={totalMrp}
             subtotal={subtotal}
             productSavings={productSavings}
-            appliedCoupon={appliedCoupon}
+            appliedCoupon={buyNowLines ? (buyNowTotals?.appliedCoupon ?? appliedCoupon) : appliedCoupon}
             couponDiscount={couponDiscount}
             shippingFee={shippingFee}
             finalTotal={finalTotal}

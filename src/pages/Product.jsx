@@ -429,7 +429,6 @@ export function Product() {
       variant: finalVariantStr,
       isIndonesian: isIndonesianActive
     }, qty);
-    trackMetaAddToCart(p, qty);
     setAdded(true);
     emitToast(`${p.name} added to your cart ❤️`, "success");
     setTimeout(() => setAdded(false), 2000);
@@ -442,7 +441,6 @@ export function Product() {
       ? `Indonesian Origin (${p.size || '10-14mm'})`
       : ([selectedVariant, selectedSize].filter(Boolean).join(" • ") || "Authentic Consecrated");
 
-    trackMetaAddToCart(p, qty);
     if (buyNow) {
       buyNow({
         id: cartItemId,
@@ -455,6 +453,7 @@ export function Product() {
         isIndonesian: isIndonesianActive
       }, qty);
     } else {
+      trackMetaAddToCart(p, qty);
       try {
         sessionStorage.setItem("aura_buy_now_intent", JSON.stringify([{ id: String(cartItemId), qty }]));
       } catch (_) {}

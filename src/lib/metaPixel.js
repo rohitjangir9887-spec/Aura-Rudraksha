@@ -93,7 +93,7 @@ export function getMetaAdvancedMatchingData(extra = {}) {
       if (rawMeta) {
         stored = JSON.parse(rawMeta) || {};
       }
-      const rawUser = storage.getItem("aura_user") || storage.getItem("aura_customer_me_cache");
+      const rawUser = storage.getItem("aura_user") || storage.getItem("aura_customer_me_cache") || storage.getItem("aura_cached_user");
       if (rawUser) {
         const u = JSON.parse(rawUser);
         if (u && typeof u === "object") {
@@ -103,7 +103,7 @@ export function getMetaAdvancedMatchingData(extra = {}) {
             email: stored.em || stored.email || u.email,
             phone: stored.ph || stored.phone || u.phone || u.phoneNumber,
             name: stored.name || u.name || u.displayName,
-            userId: stored.external_id || u.id || u._id
+            userId: stored.external_id || u.id || u._id || u.uid || u.authUserId
           };
         }
       }
@@ -361,8 +361,9 @@ export function trackMetaAddToCart(product, qty = 1) {
     if (!productId) return;
 
     const now = Date.now();
-    const dedupKey = `${productId}:${cleanQty}`;
-    if (lastAddToCartKey === dedupKey && now - lastAddToCartTime < 500) {
+    const baseDedupId = productId.replace(/-indo$|_indo$/i, "");
+    const dedupKey = `${baseDedupId}:${cleanQty}`;
+    if (lastAddToCartKey === dedupKey && now - lastAddToCartTime < 800) {
       return;
     }
 

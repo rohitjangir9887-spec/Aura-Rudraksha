@@ -393,6 +393,16 @@ export function Admin() {
     if (isManualRefresh) setRefreshing(true);
     setFetchError(null);
     try {
+      if (isManualRefresh) {
+        db.checkDbHealth()
+          .then(h => {
+            if (mountedRef.current) {
+              setDbStatus(h.connected ? "connected" : "disconnected");
+            }
+          })
+          .catch(() => {});
+      }
+
       // Fresh live data from MongoDB
       const [productsRes, ordersRes, customersRes, analyticsRes, aiMetricsRes] = await Promise.allSettled([
         db.fetchProducts(),
@@ -407,9 +417,9 @@ export function Admin() {
 
       if (!mountedRef.current) return;
 
-      const dbRejection = [productsRes, ordersRes, customersRes, analyticsRes].find(r => r.status === "rejected");
-      if (dbRejection) {
-        setFetchError(dbRejection.reason?.message || "Database unavailable. Could not sync dashboard metrics.");
+      const rejectedStatuses = [productsRes, ordersRes, customersRes, analyticsRes].filter(r => r.status === "rejected");
+      if (rejectedStatuses.length === 4) {
+        setFetchError(rejectedStatuses[0].reason?.message || "Database unavailable. Could not sync dashboard metrics.");
       }
 
       const realProducts = (productsRes.status === "fulfilled" && Array.isArray(productsRes.value)) ? productsRes.value : (db.getProducts() || []);
@@ -595,7 +605,7 @@ export function Admin() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <button
-                onClick={refreshDashboard}
+                onClick={() => refreshDashboard(true)}
                 disabled={refreshing}
                 style={{
                   display: 'flex',

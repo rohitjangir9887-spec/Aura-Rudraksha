@@ -396,11 +396,20 @@ export function CartProvider({ children }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleStoreSync = (e) => {
-      const type = e?.detail?.type || "";
-      if (type === "active-offer:saved") {
+      const detail = e?.detail || {};
+      const type = detail.type || "";
+      const eventTypes = type === "batch:synced" && Array.isArray(detail.events)
+        ? detail.events.map((ev) => ev?.type).filter(Boolean)
+        : [type];
+
+      if (eventTypes.includes("active-offer:saved") || eventTypes.includes("active-offer:synced")) {
         autoOfferDismissedRef.current = false;
         fetchAuthoritativeTotals(lines, couponCode);
-      } else if (type === "products:synced" || type === "product:deleted" || type === "coupons:synced" || type === "coupon:saved" || type === "coupon:deleted") {
+      } else if (
+        eventTypes.some((t) =>
+          ["products:synced", "product:saved", "product:deleted", "coupons:synced", "coupon:saved", "coupon:deleted", "home:synced"].includes(t)
+        )
+      ) {
         const validLines = filterValidCatalogLines(lines);
         if (validLines.length !== lines.length) {
           persistLines(validLines);
@@ -413,26 +422,29 @@ export function CartProvider({ children }) {
     return () => window.removeEventListener("aura:store-updated", handleStoreSync);
   }, [lines, couponCode, persistLines, fetchAuthoritativeTotals]);
 
-  // Apply Coupon method
-  const applyCoupon = useCallback(async (code) => {
+  // Apply Coupon method (supports optional overrideLines for Buy Now checkout)
+  const applyCoupon = useCallback(async (code, overrideLines = null) => {
     const cleanCode = (code || "").trim().toUpperCase();
     if (!cleanCode) {
       return { success: false, valid: false, message: "Please enter a coupon code" };
     }
 
+    const hasOverrideLines = Array.isArray(overrideLines) && overrideLines.length > 0;
+    const targetLines = hasOverrideLines ? overrideLines : lines;
+
     try {
       setLoadingTotals(true);
-      const res = await db.validateCartCoupon(cleanCode, lines);
+      const res = await db.validateCartCoupon(cleanCode, targetLines);
 
       if (res?.success) {
         // Save coupon code in state and localStorage
         persistCouponCode(cleanCode);
         
-        if (res.totals && (res.totals.subtotal > 0 || lines.length === 0)) {
+        if (res.totals && (res.totals.subtotal > 0 || targetLines.length === 0)) {
           setTotals(res.totals);
         } else {
           // Trigger full calculation with new coupon
-          await fetchAuthoritativeTotals(lines, cleanCode);
+          await fetchAuthoritativeTotals(targetLines, cleanCode);
         }
 
         if (res.valid) {
@@ -446,7 +458,8 @@ export function CartProvider({ children }) {
           valid: res.valid,
           status: res.status || (res.valid ? "APPLIED" : "INVALID"),
           message: res.message || (res.valid ? `Coupon '${cleanCode}' applied!` : "Coupon condition not met"),
-          data: res.data
+          data: res.data,
+          totals: res.totals || null
         };
       } else {
         triggerHaptic("warning");
@@ -455,19 +468,20 @@ export function CartProvider({ children }) {
         if (status === "EXPIRED" || status === "NOT_ELIGIBLE") {
           persistCouponCode(cleanCode);
         }
-        await fetchAuthoritativeTotals(lines, cleanCode);
+        await fetchAuthoritativeTotals(targetLines, cleanCode);
 
         return {
           success: false,
           valid: false,
           status: status,
           message: res?.message || `Coupon '${cleanCode}' could not be applied.`,
-          data: res?.data
+          data: res?.data,
+          totals: res?.totals || null
         };
       }
     } catch (err) {
       persistCouponCode(cleanCode);
-      await fetchAuthoritativeTotals(lines, cleanCode);
+      await fetchAuthoritativeTotals(targetLines, cleanCode);
       return {
         success: false,
         valid: false,

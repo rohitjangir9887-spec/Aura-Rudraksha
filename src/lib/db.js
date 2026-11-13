@@ -999,16 +999,18 @@ export async function fetchHomeData(force = false) {
 export async function fetchAdminData() {
   try {
     const [ordersRes, customersRes, couponsRes] = await Promise.all([
-      apiRequest("/orders"),
-      apiRequest("/customers"),
+      apiRequest("/orders", { requiresAuth: true, noCache: true }),
+      apiRequest("/customers", { requiresAuth: true, noCache: true }),
       apiRequest("/coupons?scope=admin", { requiresAuth: true, noCache: true })
     ]);
 
     if (ordersRes?.success && Array.isArray(ordersRes.data)) {
       storeCache.orders = ordersRes.data;
+      if (!ordersRes.isFallback) setStoreDbStatus("connected");
     }
     if (customersRes?.success && Array.isArray(customersRes.data)) {
       storeCache.customers = customersRes.data;
+      if (!customersRes.isFallback) setStoreDbStatus("connected");
     }
     if (couponsRes?.success && Array.isArray(couponsRes.data)) {
       const deletedIds = getDeletedCouponIds();
@@ -1111,9 +1113,11 @@ export const db = {
 
   // Check Database Health
   checkDbHealth: async () => {
-    const res = await apiRequest("/health");
+    const res = await apiRequest("/health", { noCache: true });
+    const connected = res?.database === "connected";
+    setStoreDbStatus(connected ? "connected" : "disconnected");
     return {
-      connected: res?.database === "connected",
+      connected,
       status: res?.status || "unavailable",
       message: res?.message || ""
     };
@@ -1125,6 +1129,9 @@ export const db = {
       requiresAuth: true,
       noCache: true
     });
+    if (res?.success && res?.data) {
+      setStoreDbStatus(res.data.isConnected ? "connected" : "disconnected");
+    }
     return res;
   },
 
@@ -2143,6 +2150,7 @@ export const db = {
   fetchOrders: async () => {
     const res = await apiRequest("/orders", { requiresAuth: true, noCache: true });
     if (res?.success && Array.isArray(res.data)) {
+      if (!res.isFallback) setStoreDbStatus("connected");
       storeCache.orders = res.data;
       try {
         localStorage.setItem("aura_admin_orders_cache", JSON.stringify(res.data));
@@ -2548,8 +2556,9 @@ export const db = {
 
   // Explicit fresh fetches (admin pages) - revalidates cache from MongoDB
   fetchCustomers: async () => {
-    const res = await apiRequest("/customers");
+    const res = await apiRequest("/customers", { requiresAuth: true, noCache: true });
     if (res?.success && Array.isArray(res.data)) {
+      if (!res.isFallback) setStoreDbStatus("connected");
       storeCache.customers = res.data;
       try {
         localStorage.setItem("aura_admin_customers_cache", JSON.stringify(res.data));
@@ -2752,8 +2761,9 @@ export const db = {
   // ANALYTICS
   getAnalytics: () => storeCache.analytics,
   fetchAnalytics: async () => {
-    const res = await apiRequest("/analytics");
+    const res = await apiRequest("/analytics", { requiresAuth: true, noCache: true });
     if (res?.success && res.data) {
+      if (!res.isFallback) setStoreDbStatus("connected");
       storeCache.analytics = {
         ...storeCache.analytics,
         ...res.data,
@@ -3170,11 +3180,15 @@ export const db = {
           const targetType = coup.targetType || "all";
 
           validItems.forEach(it => {
-            const pid = String(it.productId || it.id || it._id || "");
+            const rawPId = String(it.productId || "").trim();
+            const rawId = String(it.id || "").trim();
+            const basePId = rawPId.replace(/-indo$|_indo$/i, "");
+            const baseId = rawId.replace(/-indo$|_indo$/i, "");
+            const matchIds = [rawPId, rawId, basePId, baseId, String(it._id || "")].filter(Boolean);
             let isItemEligible = true;
 
-            if (excIds.length > 0 && excIds.includes(pid)) isItemEligible = false;
-            if (targetType === "selected" && selIds.length > 0 && !selIds.includes(pid)) isItemEligible = false;
+            if (excIds.length > 0 && matchIds.some(mid => excIds.includes(mid))) isItemEligible = false;
+            if (targetType === "selected" && selIds.length > 0 && !matchIds.some(mid => selIds.includes(mid))) isItemEligible = false;
 
             if (isItemEligible) {
               eligibleSubtotal += Number(it.price * (it.qty || 1)) || 0;
@@ -3225,7 +3239,7 @@ export const db = {
     } else if (couponCode !== false) {
       // Automatic Store-wide Live Offer application when enabled and in automatic mode
       const liveOffer = storeCache.activeOffer;
-      if (liveOffer && liveOffer.status === "Active" && liveOffer.enabled !== false && liveOffer.autoApply !== false) {
+      if (liveOffer && liveOffer.status === "Active" && liveOffer.enabled !== false && (liveOffer.autoApply !== false || !String(liveOffer.couponCode || "").trim())) {
         const isNeverExpire = liveOffer.neverExpires === true || liveOffer.timerEnabled === false;
         const expiryDate = liveOffer.expiry || liveOffer.expiresAt || null;
         const isExpired = !isNeverExpire && expiryDate && (new Date(expiryDate) < new Date());
@@ -3238,11 +3252,11 @@ export const db = {
             const excProds = (liveOffer.excludedProducts || []).map(String);
             let eligibleSubtotal = 0;
             validItems.forEach(it => {
-              const pid = String(it.productId || it.id || "");
+              const ids = [String(it.productId || ""), String(it.id || ""), String(it.productId || "").replace(/-indo$|_indo$/i, ""), String(it.id || "").replace(/-indo$|_indo$/i, "")].filter(Boolean);
               let eligible = true;
-              if (tType === "selected" && selProds.length > 0) eligible = selProds.includes(pid);
-              else if (tType === "excluded" && excProds.length > 0) eligible = !excProds.includes(pid);
-              else if (tType === "all" && excProds.length > 0) eligible = !excProds.includes(pid);
+              if (tType === "selected" && selProds.length > 0) eligible = ids.some(mid => selProds.includes(mid));
+              else if (tType === "excluded" && excProds.length > 0) eligible = !ids.some(mid => excProds.includes(mid));
+              else if (tType === "all" && excProds.length > 0) eligible = !ids.some(mid => excProds.includes(mid));
               if (eligible) eligibleSubtotal += Number(it.price * (it.qty || 1)) || 0;
             });
             if (eligibleSubtotal > 0) {
@@ -3366,19 +3380,20 @@ export const db = {
     }
 
     const isExp = coup.expiry && new Date(coup.expiry).getTime() < Date.now();
-    const isDisabled = coup.status === "Inactive" || coup.status === "Disabled";
+    const isDisabled = coup.status === "Inactive" || coup.status === "Disabled" || coup.active === false;
     if (isDisabled || isExp) {
       return {
         success: false,
         valid: false,
-        status: "EXPIRED",
+        status: isExp ? "EXPIRED" : "INVALID",
         message: `Coupon '${clean}' is ${isExp ? "expired" : "disabled"}.`
       };
     }
 
-    // Compute cart subtotal
-    const subtotal = lines.reduce((sum, l) => sum + ((l.price || l.product?.price || 0) * (l.qty || 1)), 0);
-    const minSpend = Number(coup.minAmount || coup.minOrderValue || 0);
+    // Compute cart subtotal reliably from resolved catalog products when inline price is omitted
+    const syncCalc = db.calculateCartSync(lines, clean);
+    const subtotal = Number(syncCalc?.data?.subtotal ?? lines.reduce((sum, l) => sum + ((l.price || l.product?.price || 0) * (l.qty || 1)), 0));
+    const minSpend = Number(coup.minAmount || coup.minOrderValue || coup.minOrder || 0);
 
     if (minSpend > 0 && subtotal < minSpend) {
       return {
@@ -3396,9 +3411,11 @@ export const db = {
 
     if (lines.length > 0) {
       const eligibleItems = lines.filter(l => {
-        const pid = String(l.productId || l.product?.id || l.product?._id || l.id || "");
-        if (excIds.length > 0 && excIds.includes(pid)) return false;
-        if (targetType === "selected" && selIds.length > 0 && !selIds.includes(pid)) return false;
+        const rawPId = String(l.productId || l.product?.id || l.product?._id || "").trim();
+        const rawId = String(l.id || "").trim();
+        const ids = [rawPId, rawId, rawPId.replace(/-indo$|_indo$/i, ""), rawId.replace(/-indo$|_indo$/i, "")].filter(Boolean);
+        if (excIds.length > 0 && ids.some(mid => excIds.includes(mid))) return false;
+        if (targetType === "selected" && selIds.length > 0 && !ids.some(mid => selIds.includes(mid))) return false;
         return true;
       });
 
@@ -3417,7 +3434,8 @@ export const db = {
       valid: true,
       status: "APPLIED",
       message: `Coupon '${clean}' applied successfully!`,
-      data: coup
+      data: syncCalc?.data?.appliedCoupon || coup,
+      totals: syncCalc?.data || null
     };
   },
 

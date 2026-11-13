@@ -179,7 +179,7 @@ export async function connectDB() {
   cached.lastAttempt = new Date().toISOString();
 
   let targetUri = configuredUri;
-  if (!targetUri || memoryServerInstance) {
+  if (!targetUri) {
     targetUri = await getOrStartMemoryMongo();
   }
 
@@ -214,23 +214,22 @@ export async function connectDB() {
 
   // Throttle rapid failed bursts to prevent hanging consecutive serverless requests
   const now = Date.now();
-  const failureCooldown = isVercelServerless ? 15000 : 5000;
+  const failureCooldown = isVercelServerless ? 2500 : 2000;
   if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (now - cached.lastFailedAttempt < failureCooldown)) {
     return false;
   }
 
   if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
-    // Fast fail on connection: never hang requests for 15s or 150s. Cap to 5000ms.
     const configuredTimeout = Number(process.env.MONGO_TIMEOUT_MS);
-    const timeoutVal = configuredTimeout > 0 ? Math.min(configuredTimeout, 6000) : (isVercelServerless ? 3500 : 5000);
+    const timeoutVal = configuredTimeout > 0 ? Math.min(configuredTimeout, 12000) : (isVercelServerless ? 8000 : 10000);
     
-    // High-resilience options: fast serverSelectionTimeout, large pool, continuous keep-alive
+    // High-resilience options: reliable Atlas handshake timeout, connection pool, continuous keep-alive
     const opts = {
       serverSelectionTimeoutMS: timeoutVal,
       connectTimeoutMS: timeoutVal,
-      socketTimeoutMS: isVercelServerless ? 6000 : 15000,
-      maxIdleTimeMS: isVercelServerless ? 10000 : 60000,
-      maxPoolSize: isVercelServerless ? 2 : 20,
+      socketTimeoutMS: isVercelServerless ? 20000 : 25000,
+      maxIdleTimeMS: isVercelServerless ? 15000 : 60000,
+      maxPoolSize: isVercelServerless ? 5 : 20,
       minPoolSize: 0,
       heartbeatFrequencyMS: 10000,
       family: 4, // IPv4 preference prevents DNS resolution delays on cloud networks

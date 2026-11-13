@@ -91,6 +91,8 @@ export async function saveActiveOffer(req, res, next) {
       ? data.applicableProducts
       : (Array.isArray(data.selectedProducts) ? data.selectedProducts : []);
 
+    const normalizedCouponCode = String(data.couponCode ?? req.body.couponCode ?? "").trim().toUpperCase();
+
     const payload = {
       ...(inMemoryStore.activeOffer || defaultActiveOffer),
       ...data,
@@ -98,10 +100,10 @@ export async function saveActiveOffer(req, res, next) {
       enabled,
       status,
       title: resolvedTitle || "Special Offer",
-      couponCode: String(data.couponCode ?? req.body.couponCode ?? "").trim().toUpperCase(),
+      couponCode: normalizedCouponCode,
       discountValue: discountVal,
       neverExpires,
-      autoApply: data.autoApply !== false,
+      autoApply: !normalizedCouponCode ? true : (data.autoApply !== false),
       selectedProducts: resolvedSelectedProducts,
       applicableProducts: resolvedSelectedProducts,
       expiry: neverExpires ? "" : expiry,

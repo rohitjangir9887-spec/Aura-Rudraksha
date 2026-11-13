@@ -239,7 +239,7 @@ export async function getAuthoritativeCoupon(couponCode) {
 
   if (inMemoryStore) {
     const list = inMemoryStore.coupons || [];
-    const found = list.find(c => String(c.code || "").trim().toUpperCase() === cleanCode && c.status !== "Inactive" && c.status !== "Disabled");
+    const found = list.find(c => String(c.code || "").trim().toUpperCase() === cleanCode && c.status !== "Inactive" && c.status !== "Disabled" && c.active !== false);
     if (found) return found;
 
     const memOffer = inMemoryStore.activeOffer;
@@ -487,7 +487,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       const expiryDate = coupon.expiry || coupon.expiresAt || null;
       const isExpiredByDate = expiryDate ? (new Date(expiryDate) < now) : false;
       const isStatusExpired = coupon.status === "Expired";
-      const isInactive = coupon.status === "Inactive";
+      const isInactive = coupon.status === "Inactive" || coupon.status === "Disabled" || coupon.active === false;
       const isLimitReached = Boolean(coupon.limit && (coupon.usage || 0) >= Number(coupon.limit));
       const minOrder = Number(coupon.minAmount || coupon.minOrder || coupon.minOrderValue || 0);
       const discountVal = Number(coupon.discount || coupon.value || 0);
@@ -498,31 +498,49 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       let eligibleSubtotal = 0;
       let excludedItemsCount = 0;
       const tType = coupon.targetType || "all";
-      const selProds = coupon.selectedProducts || [];
-      const excProds = coupon.excludedProducts || [];
-      const tCats = coupon.targetCategories || [];
-      const tSubCats = coupon.targetSubcategories || [];
+      const selProds = (coupon.selectedProducts || []).map((x) => String(x).trim()).filter(Boolean);
+      const excProds = (coupon.excludedProducts || []).map((x) => String(x).trim()).filter(Boolean);
+      const tCats = (coupon.targetCategories || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+      const tSubCats = (coupon.targetSubcategories || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+
+      const getItemMatchIds = (item) => {
+        const rawPId = String(item.productId || "").trim();
+        const rawId = String(item.id || "").trim();
+        const basePId = rawPId.replace(/-indo$|_indo$/i, "");
+        const baseId = rawId.replace(/-indo$|_indo$/i, "");
+        return Array.from(new Set([rawPId, rawId, basePId, baseId].filter(Boolean)));
+      };
 
       for (const item of validatedItems) {
-        let eligible = false;
-        if (tType === "all") {
-          eligible = true;
-        } else if (tType === "selected") {
-          eligible = selProds.includes(item.productId);
+        const itemMatchIds = getItemMatchIds(item);
+        const prodObj = fetchedProducts.find(p =>
+          itemMatchIds.includes(String(p.id || "")) ||
+          itemMatchIds.includes(String(p._id || "")) ||
+          itemMatchIds.includes(String(p.slug || ""))
+        );
+        if (prodObj) {
+          if (prodObj.id) itemMatchIds.push(String(prodObj.id));
+          if (prodObj._id) itemMatchIds.push(String(prodObj._id));
+          if (prodObj.slug) itemMatchIds.push(String(prodObj.slug));
+        }
+
+        let eligible = true;
+        if (tType === "selected") {
+          eligible = selProds.length === 0 || itemMatchIds.some(mid => selProds.includes(mid));
         } else if (tType === "excluded") {
-          eligible = !excProds.includes(item.productId);
+          eligible = excProds.length === 0 || !itemMatchIds.some(mid => excProds.includes(mid));
         } else if (tType === "category") {
-          const prodObj = fetchedProducts.find(p => String(p.id) === item.productId || String(p._id) === item.productId);
-          eligible = item.isCustomMala
-            ? tCats.some(c => ["mala", "custom sacred mala", "rudraksha"].includes(String(c || "").toLowerCase()))
-            : (prodObj && tCats.includes(prodObj.category));
+          eligible = tCats.length === 0 || (
+            item.isCustomMala
+              ? tCats.some(c => ["mala", "custom sacred mala", "rudraksha"].includes(c))
+              : Boolean(prodObj && prodObj.category && tCats.includes(String(prodObj.category).trim().toLowerCase()))
+          );
         } else if (tType === "subcategory") {
-          const prodObj = fetchedProducts.find(p => String(p.id) === item.productId || String(p._id) === item.productId);
-          eligible = prodObj && tSubCats.includes(prodObj.subcategory);
+          eligible = tSubCats.length === 0 || Boolean(prodObj && prodObj.subcategory && tSubCats.includes(String(prodObj.subcategory).trim().toLowerCase()));
         }
 
         if (tType === "all" && excProds.length > 0) {
-           if (excProds.includes(item.productId)) eligible = false;
+          if (itemMatchIds.some(mid => excProds.includes(mid))) eligible = false;
         }
 
         if (eligible) {
@@ -571,6 +589,18 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
           discountAmount: 0,
           type: couponType,
           reason: "This coupon usage limit has been reached."
+        };
+      } else if (validatedItems.length === 0) {
+        couponStatus = "NOT_ELIGIBLE";
+        couponRejection = {
+          id: coupon.id || coupon._id,
+          code: coupon.code,
+          status: "NOT_ELIGIBLE",
+          valid: false,
+          discount: discountVal,
+          discountAmount: 0,
+          type: couponType,
+          reason: "Add at least 1 product to your cart to apply this coupon."
         };
       } else if (eligibleSubtotal === 0) {
         couponStatus = "NOT_ELIGIBLE";
@@ -639,7 +669,7 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       if (!liveOffer && inMemoryStore.activeOffer?.status === "Active" && inMemoryStore.activeOffer?.enabled !== false) {
         liveOffer = inMemoryStore.activeOffer;
       }
-      if (liveOffer && liveOffer.autoApply !== false) {
+      if (liveOffer && (liveOffer.autoApply !== false || !String(liveOffer.couponCode || "").trim())) {
         const isNeverExpire = liveOffer.neverExpires === true || liveOffer.timerEnabled === false;
         const expiryDate = liveOffer.expiry || liveOffer.expiresAt || null;
         const isExpired = !isNeverExpire && expiryDate && (new Date(expiryDate) < new Date());
@@ -650,16 +680,17 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
           
           if (discountVal > 0) {
             const tType = liveOffer.targetType || "all";
-            const selProds = liveOffer.applicableProducts || liveOffer.selectedProducts || [];
-            const excProds = liveOffer.excludedProducts || [];
+            const selProds = (liveOffer.applicableProducts || liveOffer.selectedProducts || []).map(x => String(x).trim()).filter(Boolean);
+            const excProds = (liveOffer.excludedProducts || []).map(x => String(x).trim()).filter(Boolean);
             let eligibleSubtotal = 0;
 
             for (const item of validatedItems) {
+              const ids = [String(item.productId || ""), String(item.id || ""), String(item.productId || "").replace(/-indo$|_indo$/i, ""), String(item.id || "").replace(/-indo$|_indo$/i, "")].filter(Boolean);
               let eligible = true;
               if (tType === "selected" && selProds.length > 0) {
-                eligible = selProds.includes(item.productId);
-              } else if (tType === "excluded" && excProds.length > 0) {
-                eligible = !excProds.includes(item.productId);
+                eligible = ids.some(mid => selProds.includes(mid));
+              } else if ((tType === "excluded" || tType === "all") && excProds.length > 0) {
+                eligible = !ids.some(mid => excProds.includes(mid));
               }
               if (eligible) eligibleSubtotal += item.itemTotal;
             }

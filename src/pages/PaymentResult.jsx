@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
-import { AlertCircle, ShieldCheck, RefreshCw, Loader2, Clock, Award, Sparkles } from "lucide-react";
+import { AlertCircle, ShieldCheck, RefreshCw, Loader2, Clock, Award, Sparkles, Home, ShoppingBag } from "lucide-react";
 import { SacredPujaCertificateModal } from "../components/SacredPujaCertificateModal";
 import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
@@ -177,16 +177,25 @@ export function PaymentResult() {
   const isVerifiedSuccess =
     order?.paymentStatus === "Paid" || (isCodOrder && order?.status !== "Cancelled");
 
-  // Safe navigation on Back button so user never lands on an expired PayU POST form page
+  // Safe navigation on Back button so user never lands on an expired PayU POST form page or gets trapped
+  const isVerifiedSuccessRef = useRef(isVerifiedSuccess);
+  useEffect(() => {
+    isVerifiedSuccessRef.current = isVerifiedSuccess;
+  }, [isVerifiedSuccess]);
+
+  const guardPushedRef = useRef(false);
   useEffect(() => {
     if (!orderId && !txnid) return;
 
-    try {
-      window.history.pushState({ auraPaymentResultGuard: true }, "", window.location.href);
-    } catch (_) {}
+    if (!guardPushedRef.current) {
+      guardPushedRef.current = true;
+      try {
+        window.history.pushState({ auraPaymentResultGuard: true }, "", window.location.href);
+      } catch (_) {}
+    }
 
     const handlePopState = () => {
-      if (isVerifiedSuccess) {
+      if (isVerifiedSuccessRef.current) {
         navigate("/", { replace: true });
       } else {
         navigate("/checkout", { replace: true });
@@ -197,7 +206,7 @@ export function PaymentResult() {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [isVerifiedSuccess, orderId, txnid, navigate]);
+  }, [orderId, txnid, navigate]);
 
   const handleRetry = async () => {
     const targetOrderId = order?.orderNumber || order?.id || orderId;
@@ -269,7 +278,11 @@ export function PaymentResult() {
           }
         }
         if (res.data.paymentStatus === "Paid" || status === "success") {
-          clear();
+          try {
+            sessionStorage.removeItem("aura_buy_now_intent");
+            clear();
+            trackMetaPurchase(res.data);
+          } catch (_) {}
           emitToast("Payment confirmed successfully!", "success");
         } else {
           emitToast("Payment is still processing with gateway. Please wait a moment.", "info");
@@ -313,7 +326,10 @@ export function PaymentResult() {
               No recent payment session or transaction ID was found for this link. If you were attempting to place an order, you can review your cart or explore our sacred Rudraksha catalog.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "16px" }}>
-              <Link to="/shop" className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
+              <Link to="/" className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Home size={15} /> Back to Home
+              </Link>
+              <Link to="/shop" className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none" }}>
                 Explore Rudraksha Catalog
               </Link>
               <Link to="/cart" className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none" }}>
@@ -358,6 +374,42 @@ export function PaymentResult() {
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link to={orderDetailLink} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
                 Go to My Order (View Order Details)
+              </Link>
+              <Link
+                to="/"
+                className="outline-btn"
+                style={{
+                  padding: "12px 20px",
+                  fontSize: "14px",
+                  background: "#ffffff",
+                  border: "1.5px solid #d6c5b3",
+                  color: "#4a3223",
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  textDecoration: "none"
+                }}
+              >
+                <Home size={15} /> Back to Home
+              </Link>
+              <Link
+                to="/shop"
+                className="outline-btn"
+                style={{
+                  padding: "12px 20px",
+                  fontSize: "14px",
+                  background: "#fffdf9",
+                  border: "1.5px solid #e5d8cc",
+                  color: "#6b4730",
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  textDecoration: "none"
+                }}
+              >
+                <ShoppingBag size={15} /> Continue Shopping
               </Link>
               <button
                 type="button"
@@ -475,6 +527,13 @@ export function PaymentResult() {
                 >
                   View Order Details
                 </button>
+                <Link
+                  to="/"
+                  className="outline-btn"
+                  style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+                >
+                  <Home size={15} /> Back to Home
+                </Link>
               </div>
             )}
           </div>
@@ -574,6 +633,13 @@ export function PaymentResult() {
                 View Order Details
               </button>
             )}
+            <Link
+              to="/"
+              className="outline-btn"
+              style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Home size={15} /> Back to Home
+            </Link>
           </div>
         </div>
       </main>

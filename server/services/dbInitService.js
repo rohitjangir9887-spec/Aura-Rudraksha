@@ -147,17 +147,7 @@ export async function ensureDatabaseInitialized() {
       summary.bannersSeeded = bannerDocs.length;
     }
 
-    // 5. Clean up any legacy mock coupon codes (AURA10, AURA20, SHRAWAN200) from MongoDB
-    try {
-      const mockCodes = ["AURA10", "AURA20", "SHRAWAN200", "SHIV10"];
-      await Coupon.deleteMany({ code: { $in: mockCodes } });
-      await ActiveOffer.updateMany({ couponCode: { $in: mockCodes } }, { $set: { couponCode: "" } });
-      await Promotion.deleteMany({ code: { $in: mockCodes } });
-      await Offer.updateMany({ couponCode: { $in: mockCodes } }, { $set: { couponCode: "" } });
-      console.log("🧹 [DB Init] Successfully cleaned legacy mock coupons from database.");
-    } catch (e) {
-      console.warn("Notice on cleaning mock coupons:", e?.message);
-    }
+    // 5. Ensure coupons are initialized only on first setup without deleting admin coupons
 
     const alreadySeededCoupons = Boolean(initState?.couponsInitialized);
     if (!alreadySeededCoupons && Array.isArray(defaultCoupons) && defaultCoupons.length > 0) {

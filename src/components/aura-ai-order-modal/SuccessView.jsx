@@ -1,5 +1,6 @@
 import React from "react";
-import { CheckCircle2, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CheckCircle2, Home, ShieldCheck, Sparkles, Truck } from "lucide-react";
 
 export function SuccessView({ orderComplete, product, qty = 1, finalAmount = 0, address, city, pincode, onClose }) {
   const safeFinal = Math.max(0, Number(finalAmount) || 0);
@@ -41,13 +42,34 @@ export function SuccessView({ orderComplete, product, qty = 1, finalAmount = 0, 
         <span><Truck size={12} /> Dispatches in 24h</span>
       </div>
 
-      <button
-        onClick={onClose}
-        className="aura-ai-order-btn-primary"
-        style={{ marginTop: 14 }}
-      >
-        Continue Chatting with Aura AI
-      </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        <Link
+          to="/"
+          onClick={onClose}
+          className="aura-ai-order-btn-primary"
+          style={{
+            flex: 1,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            textDecoration: "none",
+            background: "#fff",
+            color: "#8c2b10",
+            border: "1.5px solid #d4af37"
+          }}
+        >
+          <Home size={14} /> Back to Home
+        </Link>
+        <button
+          type="button"
+          onClick={onClose}
+          className="aura-ai-order-btn-primary"
+          style={{ flex: 1 }}
+        >
+          Continue Shopping
+        </button>
+      </div>
     </div>
   );
 }

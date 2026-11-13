@@ -104,7 +104,7 @@ export async function validateCoupon(req, res, next) {
       });
     }
 
-    if (coupon.status === "Inactive") {
+    if (coupon.status === "Inactive" || coupon.status === "Disabled" || coupon.active === false) {
       return res.status(400).json({
         success: false,
         valid: false,
