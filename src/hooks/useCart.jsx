@@ -86,11 +86,48 @@ function sanitizeLines(rawLines) {
   }));
 }
 
+function filterValidCatalogLines(sanitizedLines) {
+  if (!Array.isArray(sanitizedLines) || sanitizedLines.length === 0) return [];
+  try {
+    const catalog = (db && typeof db.getProducts === "function" ? db.getProducts() : []) || [];
+    if (!Array.isArray(catalog) || catalog.length === 0) return sanitizedLines;
+    return sanitizedLines.filter((line) => {
+      const resolved = resolveCartProduct(catalog, line);
+      return Boolean(resolved && Number(resolved.price) > 0);
+    });
+  } catch {
+    return sanitizedLines;
+  }
+}
+
 function readStoredCart(user) {
   try {
+    if (typeof window !== "undefined") {
+      // One-time cleanup of phantom cart items previously caused by Buy Now / default mala prefill
+      const cleanedFlag = localStorage.getItem("aura_cart_clean_v3");
+      if (cleanedFlag !== "1") {
+        localStorage.setItem("aura_cart_clean_v3", "1");
+        try {
+          sessionStorage.removeItem("aura_buy_now_intent");
+          Object.keys(localStorage).forEach((k) => {
+            if (k.startsWith("aura-cart-") || k === "aura_cart_lines") {
+              localStorage.removeItem(k);
+            }
+          });
+        } catch (_) {}
+        return [];
+      }
+    }
     const key = getUserCartStorageKey(user);
     const raw = JSON.parse(localStorage.getItem(key) || "[]");
-    return sanitizeLines(raw);
+    const sanitized = sanitizeLines(raw);
+    const valid = filterValidCatalogLines(sanitized);
+    if (valid.length !== sanitized.length) {
+      try {
+        localStorage.setItem(key, JSON.stringify(valid));
+      } catch (_) {}
+    }
+    return valid;
   } catch {
     return [];
   }
@@ -363,13 +400,18 @@ export function CartProvider({ children }) {
       if (type === "active-offer:saved") {
         autoOfferDismissedRef.current = false;
         fetchAuthoritativeTotals(lines, couponCode);
-      } else if (type === "products:synced" || type === "coupons:synced" || type === "coupon:saved" || type === "coupon:deleted") {
+      } else if (type === "products:synced" || type === "product:deleted" || type === "coupons:synced" || type === "coupon:saved" || type === "coupon:deleted") {
+        const validLines = filterValidCatalogLines(lines);
+        if (validLines.length !== lines.length) {
+          persistLines(validLines);
+          return;
+        }
         fetchAuthoritativeTotals(lines, couponCode);
       }
     };
     window.addEventListener("aura:store-updated", handleStoreSync);
     return () => window.removeEventListener("aura:store-updated", handleStoreSync);
-  }, [lines, couponCode, fetchAuthoritativeTotals]);
+  }, [lines, couponCode, persistLines, fetchAuthoritativeTotals]);
 
   // Apply Coupon method
   const applyCoupon = useCallback(async (code) => {
@@ -474,8 +516,9 @@ export function CartProvider({ children }) {
   }, [lines, persistCouponCode, fetchAuthoritativeTotals]);
 
   const value = useMemo(() => {
-    const cart = lines.flatMap((l) => Array.from({ length: l.qty }, () => l.id));
-    const count = lines.reduce((n, l) => n + l.qty, 0);
+    const validLines = filterValidCatalogLines(lines);
+    const cart = validLines.flatMap((l) => Array.from({ length: l.qty }, () => l.id));
+    const count = validLines.reduce((n, l) => n + l.qty, 0);
 
     const addBatch = (itemsArray) => {
       if (!Array.isArray(itemsArray) || itemsArray.length === 0) return;
@@ -566,7 +609,7 @@ export function CartProvider({ children }) {
     const buyNow = (idOrObj, qty = 1) => {
       triggerHaptic("medium");
       let pid = null;
-      let count = Math.max(1, Number(qty) || 1);
+      let itemQty = Math.max(1, Number(qty) || 1);
       let customMeta = {};
       if (idOrObj && typeof idOrObj === "object") {
         let rawId = idOrObj.id || idOrObj.productId || idOrObj._id;
@@ -577,7 +620,7 @@ export function CartProvider({ children }) {
           pid = String(rawId).trim();
         }
         if (idOrObj.qty || idOrObj.quantity) {
-          count = Math.max(1, Number(qty || idOrObj.qty || idOrObj.quantity) || 1);
+          itemQty = Math.max(1, Number(qty || idOrObj.qty || idOrObj.quantity) || 1);
         }
         customMeta = extractCustomLineMeta(idOrObj);
       } else if (idOrObj !== undefined && idOrObj !== null) {
@@ -585,12 +628,27 @@ export function CartProvider({ children }) {
       }
       if (!pid || pid === "[object Object]" || pid === "undefined" || pid === "null") return;
 
-      const buyNowIntent = [{ id: pid, qty: count, ...customMeta }];
-      
-      // 1. Add item to persistent cart state so cart badge & cart page stay in sync
-      addBatch(buyNowIntent);
+      const buyNowIntent = [{ id: pid, qty: itemQty, ...customMeta }];
 
-      // 2. Set buy now intent for direct checkout focus
+      // Track Meta AddToCart for Buy Now without polluting the persistent Shopping Cart
+      try {
+        const catalog = (db && typeof db.getProducts === "function" ? db.getProducts() : []) || [];
+        const resolvedProduct = resolveCartProduct(catalog, {
+          ...(typeof idOrObj === "object" ? idOrObj : {}),
+          ...customMeta,
+          id: pid
+        });
+        trackMetaAddToCart(
+          resolvedProduct || {
+            id: pid,
+            name: (typeof idOrObj === "object" && idOrObj.name) || customMeta.name || "Sacred Rudraksha",
+            price: Number((typeof idOrObj === "object" && idOrObj.price) || customMeta.price || 0)
+          },
+          itemQty
+        );
+      } catch (_) {}
+
+      // Set buy now intent in sessionStorage for direct checkout without modifying persistent cart
       try {
         sessionStorage.setItem("aura_buy_now_intent", JSON.stringify(buyNowIntent));
       } catch (_) {}
@@ -628,7 +686,7 @@ export function CartProvider({ children }) {
 
     return {
       cart,
-      lines,
+      lines: validLines,
       count,
       add,
       addBatch,

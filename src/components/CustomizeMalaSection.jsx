@@ -50,29 +50,20 @@ export function CustomizeMalaSection({ products = [] }) {
     return map;
   }, [storeProducts]);
 
-  // Dynamic list of Rudraksha boxes — default 1 box with first real Admin product & 1 pcs
+  // Dynamic list of Rudraksha boxes — starts empty until user clicks Add Rudraksha
   const [rows, setRows] = useState([]);
-  const [nextUid, setNextUid] = useState(2);
+  const [nextUid, setNextUid] = useState(1);
   const [isChooserOpen, setIsChooserOpen] = useState(false);
   const [chooserQuery, setChooserQuery] = useState("");
   const [addedFeedback, setAddedFeedback] = useState(false);
 
-  // Sync rows once store products load or if an admin removes/replaces a product
+  // Prune any row whose product was removed by Admin (never auto-insert a default product)
   useEffect(() => {
     if (storeProducts.length === 0) return;
-    const defaultPid = getStoreProductId(storeProducts[0]);
-
     setRows((prev) => {
-      if (prev.length === 0) {
-        return [{ uid: 1, productId: defaultPid, qty: 1 }];
-      }
-      let changed = false;
-      const synced = prev.map((r) => {
-        if (productById.has(r.productId)) return r;
-        changed = true;
-        return { ...r, productId: defaultPid };
-      });
-      return changed ? synced : prev;
+      if (prev.length === 0) return prev;
+      const filtered = prev.filter((r) => productById.has(r.productId));
+      return filtered.length === prev.length ? prev : filtered;
     });
   }, [storeProducts, productById]);
 
@@ -150,7 +141,7 @@ export function CustomizeMalaSection({ products = [] }) {
   };
 
   const handleRemoveBox = (uid) => {
-    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.uid !== uid)));
+    setRows((prev) => prev.filter((r) => r.uid !== uid));
   };
 
   const handleChangeProduct = (uid, nextProductId) => {
@@ -258,16 +249,14 @@ export function CustomizeMalaSection({ products = [] }) {
                           <span className="inline-flex items-center gap-1 rounded bg-[#faf2e8] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78270b] tabular-nums">
                             Bead #{idx + 1} · {row.qty} pcs
                           </span>
-                          {rows.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveBox(row.uid)}
-                              aria-label={`Remove Bead Box ${idx + 1}`}
-                              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[#8c7566] transition hover:bg-[#fdeceb] hover:text-[#b91c1c]"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBox(row.uid)}
+                            aria-label={`Remove Bead Box ${idx + 1}`}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[#8c7566] transition hover:bg-[#fdeceb] hover:text-[#b91c1c]"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
 
                         {/* Left: 1:1 Product Photo | Right: Real Admin Product Name & Dropdown */}
@@ -375,10 +364,12 @@ export function CustomizeMalaSection({ products = [] }) {
                     onClick={handleOpenChooser}
                     className="group flex min-h-[126px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-[#cca076] bg-gradient-to-b from-[#fdf8f0] to-[#f8ecdc] p-3 text-center transition-all duration-200 hover:border-[#78270b] hover:from-[#fbf2e4] hover:to-[#f4e2ca]"
                   >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#78270b] to-[#a84e2b] text-white shadow-sm transition-transform duration-200 group-hover:scale-105">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#78270b] to-[#a84e2b] text-white shadow-sm transition-transform duration-200 group-hover:scale-105">
                       <Plus className="h-4 w-4" />
                     </span>
-                    <span className="text-xs font-bold text-[#2b170d]">Add More Rudraksha</span>
+                    <span className="text-xs font-bold text-[#2b170d]">
+                      {rows.length === 0 ? "Add Rudraksha" : "Add More Rudraksha"}
+                    </span>
                     <span className="text-[10.5px] font-medium text-[#7c6150]">
                       Click to choose product
                     </span>
@@ -470,36 +461,40 @@ export function CustomizeMalaSection({ products = [] }) {
 
               {/* Compact Bottom Itemized Price List + Final Price + Add to Cart & Buy Now */}
               <div className="mt-3 rounded-xl border border-[#e1cbb2] bg-gradient-to-r from-[#fbf1e3] via-[#fdf7ee] to-[#fffaf3] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                <div className="mb-2.5 space-y-1 border-b border-[#e8d5bf] pb-2">
-                  {rows.map((row, idx) => {
-                    const prod = productById.get(row.productId) || storeProducts[0];
-                    const unitPrice = Math.max(0, Math.round(Number(prod?.price) || 0));
-                    const rowTotal = unitPrice * (Number(row.qty) || 1);
-                    return (
-                      <div
-                        key={`summary-${row.uid}`}
-                        className="flex items-center justify-between gap-2 text-[11.5px] text-[#3b2316]"
-                      >
-                        <span className="truncate font-medium">
-                          <span className="font-bold text-[#78270b] tabular-nums">#{idx + 1}</span>{" "}
-                          {prod?.name} × <span className="font-semibold tabular-nums">{row.qty} pcs</span>
-                        </span>
-                        <span className="shrink-0 font-bold text-[#2b170d] tabular-nums">
-                          {money(rowTotal)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {rows.length > 0 && (
+                  <div className="mb-2.5 space-y-1 border-b border-[#e8d5bf] pb-2">
+                    {rows.map((row, idx) => {
+                      const prod = productById.get(row.productId) || storeProducts[0];
+                      const unitPrice = Math.max(0, Math.round(Number(prod?.price) || 0));
+                      const rowTotal = unitPrice * (Number(row.qty) || 1);
+                      return (
+                        <div
+                          key={`summary-${row.uid}`}
+                          className="flex items-center justify-between gap-2 text-[11.5px] text-[#3b2316]"
+                        >
+                          <span className="truncate font-medium">
+                            <span className="font-bold text-[#78270b] tabular-nums">#{idx + 1}</span>{" "}
+                            {prod?.name} × <span className="font-semibold tabular-nums">{row.qty} pcs</span>
+                          </span>
+                          <span className="shrink-0 font-bold text-[#2b170d] tabular-nums">
+                            {money(rowTotal)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-[11px] font-semibold text-[#6b5546] tabular-nums">
-                      Final Price · {pricing.totalBeads} Bead{pricing.totalBeads === 1 ? "" : "s"}
+                      {pricing.totalBeads > 0
+                        ? `Final Price · ${pricing.totalBeads} Bead${pricing.totalBeads === 1 ? "" : "s"}`
+                        : "Click 'Add Rudraksha' above to select beads for your mala"}
                     </div>
                     <div className="flex flex-wrap items-baseline gap-2">
                       <span className="text-2xl font-extrabold text-[#78270b] tabular-nums">
-                        {money(pricing.unitPrice)}
+                        {money(pricing.totalBeads > 0 ? pricing.unitPrice : 0)}
                       </span>
                       {savings > 0 && (
                         <>

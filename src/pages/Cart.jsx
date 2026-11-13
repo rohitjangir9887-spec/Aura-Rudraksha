@@ -38,6 +38,9 @@ export function Cart() {
   };
 
   useEffect(() => {
+    try {
+      sessionStorage.removeItem("aura_buy_now_intent");
+    } catch (_) {}
     loadProducts();
     const unsub = onStoreUpdate(() => loadProducts());
     return () => unsub();
@@ -76,8 +79,33 @@ export function Cart() {
 
   const { isWishlisted, toggleWishlist } = useWishlist();
 
-  const lineIds = new Set(lines.map((line) => String(line.id)));
-  const cartItemCount = lines.reduce((n, l) => n + l.qty, 0);
+  const resolvedCartItems = (lines || [])
+    .map((line) => {
+      const id = line.id;
+      const qty = Math.max(1, Number(line.qty) || 1);
+      const serverItem = Array.isArray(totals?.items)
+        ? totals.items.find((it) => String(it.id) === String(id))
+        : null;
+      const resolvedLine = serverItem
+        ? {
+            ...line,
+            ...serverItem,
+            qty,
+            customMala: serverItem.customMala || line.customMala,
+            customMalaItems:
+              Array.isArray(serverItem.customMalaItems) && serverItem.customMalaItems.length > 0
+                ? serverItem.customMalaItems
+                : line.customMalaItems
+          }
+        : line;
+      const p = resolveCartProduct(products, resolvedLine);
+      if (!p || !(Number(p.price) > 0)) return null;
+      return { id, qty, line: resolvedLine, product: p };
+    })
+    .filter(Boolean);
+
+  const lineIds = new Set(resolvedCartItems.map((entry) => String(entry.id)));
+  const cartItemCount = resolvedCartItems.reduce((n, entry) => n + entry.qty, 0);
 
   const confirmRemove = () => {
     if (!deleteTargetId) return;
@@ -123,6 +151,9 @@ export function Cart() {
   };
 
   const handleCheckout = () => {
+    try {
+      sessionStorage.removeItem("aura_buy_now_intent");
+    } catch (_) {}
     navigate("/checkout");
   };
   
@@ -130,7 +161,7 @@ export function Cart() {
     .filter(p => !lineIds.has(String(p.id)) && p.status !== "Out of Stock")
     .slice(0, 6);
 
-  const isEmpty = !lines || lines.length === 0;
+  const isEmpty = resolvedCartItems.length === 0;
 
   return (
     <Shell>
@@ -271,31 +302,8 @@ export function Cart() {
                   width: "100%"
                 }}
               >
-                {lines.map((line, index) => {
-                  const id = line.id;
-                  const qty = line.qty || 1;
-                  const serverItem = Array.isArray(totals?.items)
-                    ? totals.items.find((it) => String(it.id) === String(id))
-                    : null;
-                  const resolvedLine = serverItem
-                    ? {
-                        ...line,
-                        ...serverItem,
-                        qty,
-                        customMala: serverItem.customMala || line.customMala,
-                        customMalaItems:
-                          Array.isArray(serverItem.customMalaItems) && serverItem.customMalaItems.length > 0
-                            ? serverItem.customMalaItems
-                            : line.customMalaItems
-                      }
-                    : line;
-                  const p = resolveCartProduct(products, resolvedLine);
-                  if (!p) return null;
-
-                  return (
-                    <div
-                      key={id}
-                    >
+                {resolvedCartItems.map(({ id, qty, product: p }, index) => (
+                  <div key={id}>
                     <CartItemCard
                       key={id}
                       id={id}
@@ -307,9 +315,8 @@ export function Cart() {
                       onToggleWishlist={toggleWishlist}
                       isWishlisted={isWishlisted(p.productId || p.id || p._id)}
                     />
-                    </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
 
               {/* 3. Temple Consecration & Lab Guarantee Trust Banner */}

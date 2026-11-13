@@ -2978,16 +2978,17 @@ export const db = {
     (lines || []).forEach(l => {
       const p = resolveCartProduct(prods, l)
         || prods.find(x => String(x.id) === String(l.id) || String(x._id) === String(l.id) || String(x.slug) === String(l.id))
-        || resolveCartProduct(defaultProducts, l)
-        || defaultProducts.find(x => String(x.id) === String(l.id) || String(x.slug) === String(l.id));
-      const price = p ? Number(p.price) : (Number(l.price) || 0);
-      const mrp = p ? Number(p.mrp || p.comparePrice || price) : (Number(l.mrp || l.comparePrice || price) || price);
+        || (prods.length === 0 ? resolveCartProduct(defaultProducts, l) : null);
+      if (!p) return;
+      const price = Number(p.price) || 0;
+      if (price <= 0) return;
+      const mrp = Number(p.mrp || p.comparePrice || price) || price;
       subtotal += price * (l.qty || 1);
       totalMrp += mrp * (l.qty || 1);
       validItems.push({
         id: l.id,
-        productId: p ? (p.productId || p.id) : l.id,
-        name: p ? p.name : "Sacred Rudraksha Item",
+        productId: p.productId || p.id || l.id,
+        name: p.name || "Sacred Rudraksha Item",
         price,
         mrp,
         quantity: l.qty || 1,
@@ -2997,14 +2998,14 @@ export const db = {
         ...(p?.customMala || l?.customMala ? { customMala: p?.customMala || l?.customMala } : {}),
         ...(Array.isArray(p?.customMalaItems) && p.customMalaItems.length > 0
           ? { customMalaItems: p.customMalaItems }
-          : Array.isArray(l?.customMalaItems) && l.customMalaItems.length > 0
+          : Array.isArray(l?.customMalaItems) && l?.customMalaItems.length > 0
             ? { customMalaItems: l.customMalaItems }
             : {}),
         ...(p?.customDescription || l?.customDescription ? { customDescription: p?.customDescription || l?.customDescription } : {}),
         ...(p?.size || l?.size ? { size: p?.size || l?.size } : {}),
         ...(p?.variant || l?.variant ? { variant: p?.variant || l?.variant } : {}),
         origin: p?.origin || (p?.isIndonesian ? "Java / Indonesia" : "Nepal"),
-        img: p ? getProductPrimaryImage(p) : null
+        img: getProductPrimaryImage(p)
       });
     });
 
@@ -3017,7 +3018,7 @@ export const db = {
     let productShippingFees = 0;
     if (enableProductShipping) {
       (lines || []).forEach(l => {
-        const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id)) || resolveCartProduct(defaultProducts, l);
+        const p = resolveCartProduct(prods, l) || prods.find(x => String(x.id) === String(l.id));
         if (p && p.freeShipping === false && Number(p.shippingFee) > 0) {
           productShippingFees += Number(p.shippingFee) * (l.qty || 1);
         }

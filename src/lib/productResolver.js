@@ -66,6 +66,14 @@ export function resolveCartProduct(products = [], lineOrId) {
       ? calc.mrp
       : Math.max(resolvedPrice, Number(lineObj.mrp || lineObj.comparePrice) || 0, calc.mrp || 0);
 
+    if (
+      resolvedBeadCount <= 0 ||
+      resolvedPrice <= 0 ||
+      (productPool.length > 0 && Array.isArray(calc.missingProductIds) && calc.missingProductIds.length > 0)
+    ) {
+      return null;
+    }
+
     return {
       id: rawId,
       productId: rawId,
@@ -120,6 +128,7 @@ export function resolveCartProduct(products = [], lineOrId) {
   }
 
   if (!baseProduct) return null;
+  if (baseProduct.status === "Inactive" || baseProduct.status === "Draft") return null;
 
   if (!isIndo) {
     return {
