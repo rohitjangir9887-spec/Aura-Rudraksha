@@ -21,6 +21,144 @@ let lastAddToCartKey = "";
 let lastAddToCartTime = 0;
 const firedPurchaseOrderIds = new Set();
 
+function makeEventId(prefix = "EV") {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+/**
+ * Normalize customer fields for Meta Advanced Matching (Event Match Quality 10/10)
+ * fbevents.js automatically SHA-256 hashes normalized em, ph, fn, ln, ct, st, zp, country, external_id.
+ */
+function normalizeAdvancedMatching(raw = {}) {
+  const result = { country: "in" };
+  try {
+    const storage = (typeof window !== "undefined" && window.localStorage)
+      ? window.localStorage
+      : (typeof localStorage !== "undefined" ? localStorage : null);
+    if (storage) {
+      let extId = storage.getItem("aura_external_id") || "";
+      if (!extId) {
+        extId = `aura_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+        storage.setItem("aura_external_id", extId);
+      }
+      result.external_id = String(raw.external_id || raw.userId || extId).trim();
+    }
+
+    const email = String(raw.em || raw.email || raw.customerEmail || "").trim().toLowerCase();
+    if (email && email.includes("@")) {
+      result.em = email;
+    }
+
+    const rawPhone = String(raw.ph || raw.phone || raw.customerPhone || "").replace(/\D/g, "");
+    if (rawPhone.length >= 10) {
+      const clean10 = rawPhone.slice(-10);
+      result.ph = `91${clean10}`;
+    }
+
+    let firstName = String(raw.fn || raw.firstName || "").trim().toLowerCase();
+    let lastName = String(raw.ln || raw.lastName || "").trim().toLowerCase();
+    const fullName = String(raw.name || raw.customerName || "").trim().toLowerCase();
+    if (!firstName && fullName) {
+      const parts = fullName.split(/\s+/);
+      firstName = parts[0] || "";
+      if (!lastName && parts.length > 1) {
+        lastName = parts.slice(1).join(" ");
+      }
+    }
+    if (firstName) result.fn = firstName.replace(/[^a-z\u0900-\u097f]/g, "");
+    if (lastName) result.ln = lastName.replace(/[^a-z\u0900-\u097f]/g, "");
+
+    const city = String(raw.ct || raw.city || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (city) result.ct = city;
+
+    const state = String(raw.st || raw.state || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (state) result.st = state;
+
+    const zip = String(raw.zp || raw.pincode || raw.zip || "").replace(/\D/g, "");
+    if (zip.length >= 5) result.zp = zip;
+  } catch (_) {}
+  return result;
+}
+
+/**
+ * Retrieve and merge all available customer matching parameters from localStorage & current session
+ */
+export function getMetaAdvancedMatchingData(extra = {}) {
+  if (typeof window === "undefined") return { country: "in" };
+  try {
+    let stored = {};
+    const storage = window.localStorage || (typeof localStorage !== "undefined" ? localStorage : null);
+    if (storage) {
+      const rawMeta = storage.getItem("aura_meta_user_data");
+      if (rawMeta) {
+        stored = JSON.parse(rawMeta) || {};
+      }
+      const rawUser = storage.getItem("aura_user") || storage.getItem("aura_customer_me_cache");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (u && typeof u === "object") {
+          stored = {
+            ...u,
+            ...stored,
+            email: stored.em || stored.email || u.email,
+            phone: stored.ph || stored.phone || u.phone || u.phoneNumber,
+            name: stored.name || u.name || u.displayName,
+            userId: stored.external_id || u.id || u._id
+          };
+        }
+      }
+    }
+    const cleanExtra = {};
+    if (extra && typeof extra === "object") {
+      for (const [k, v] of Object.entries(extra)) {
+        if (v !== undefined && v !== null && String(v).trim() !== "") {
+          cleanExtra[k] = v;
+        }
+      }
+    }
+    const merged = normalizeAdvancedMatching({ ...stored, ...cleanExtra });
+    if (storage) {
+      storage.setItem("aura_meta_user_data", JSON.stringify(merged));
+    }
+    return merged;
+  } catch (_) {
+    return { country: "in" };
+  }
+}
+
+/**
+ * Update Meta Pixel Advanced Matching parameters dynamically when customer enters/updates info
+ */
+export function syncMetaUserMatching(customerData = {}) {
+  if (typeof window === "undefined") return;
+  try {
+    const userData = getMetaAdvancedMatchingData(customerData);
+    if (typeof window.fbq === "function") {
+      window.fbq("init", DEFAULT_META_PIXEL_ID, userData);
+    }
+  } catch (_) {}
+}
+
+/**
+ * Ensure first-party _fbp and _fbc cookies are set for high Event Match Quality
+ */
+function ensureFirstPartyMetaCookies(fbclid = "") {
+  if (typeof document === "undefined") return;
+  try {
+    const now = Date.now();
+    const cookies = document.cookie || "";
+    const maxAge = 90 * 24 * 60 * 60; // 90 days
+    if (!cookies.includes("_fbp=")) {
+      const fbp = `fb.1.${now}.${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+      document.cookie = `_fbp=${fbp}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    }
+    if (fbclid) {
+      const fbc = `fb.1.${now}.${fbclid}`;
+      document.cookie = `_fbc=${fbc}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    }
+  } catch (_) {}
+}
+
 /**
  * If an older Service Worker controller was still attached on first load,
  * send a direct keepalive fetch beacon (destination === "") which bypasses
@@ -37,7 +175,7 @@ function sendDirectPixelBeaconIfSwActive(eventName, customData = null) {
     const params = new URLSearchParams({
       id: DEFAULT_META_PIXEL_ID,
       ev: eventName,
-      dl: window.location.href,
+      dl: `${window.location.origin}${window.location.pathname}`,
       rl: document.referrer || "",
       if: "false",
       ts: String(Date.now()),
@@ -82,6 +220,8 @@ export function captureAdAttribution() {
     const utmContent = params.get("utm_content") || "";
     const utmTerm = params.get("utm_term") || "";
 
+    ensureFirstPartyMetaCookies(fbclid);
+
     if (fbclid || igshid || utmSource || utmCampaign) {
       const attribution = {
         fbclid: fbclid || igshid,
@@ -120,13 +260,14 @@ export function getActiveMetaPixelId() {
 }
 
 /**
- * Ensure Meta Pixel (1485640013424198) is ready (initialized in index.html)
+ * Ensure Meta Pixel (1485640013424198) is ready with Advanced Matching customer parameters
  */
 export function initMetaPixel() {
   if (typeof window === "undefined") return false;
   captureAdAttribution();
 
   try {
+    const userData = getMetaAdvancedMatchingData();
     if (!window.fbq) {
       /* eslint-disable */
       !(function (f, b, e, v, n, t, s) {
@@ -146,9 +287,10 @@ export function initMetaPixel() {
         if (s && s.parentNode) s.parentNode.insertBefore(t, s);
       })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
       /* eslint-enable */
-      window.fbq("init", DEFAULT_META_PIXEL_ID);
+      window.fbq("init", DEFAULT_META_PIXEL_ID, userData);
       initialized = true;
     } else if (!initialized) {
+      window.fbq("init", DEFAULT_META_PIXEL_ID, userData);
       initialized = true;
     }
     return true;
@@ -167,7 +309,7 @@ export function trackMetaPageView() {
     if (initMetaPixel() && typeof window.fbq === "function") {
       const currentPath = `${window.location.pathname}${window.location.search}`;
       if (lastTrackedPageViewPath !== currentPath) {
-        window.fbq("track", "PageView");
+        window.fbq("track", "PageView", {}, { eventID: makeEventId("PV") });
         sendDirectPixelBeaconIfSwActive("PageView");
         lastTrackedPageViewPath = currentPath;
       }
@@ -189,15 +331,20 @@ export function trackMetaViewContent(product) {
     if (initMetaPixel() && typeof window.fbq === "function") {
       lastViewContentKey = viewKey;
       const unitPrice = Number(Math.max(0, Number(product.price) || 0).toFixed(2));
-      window.fbq("track", "ViewContent", {
-        content_ids: [productId],
-        contents: [{ id: productId, quantity: 1, item_price: unitPrice }],
-        content_name: String(product.name || "Sacred Rudraksha"),
-        content_type: "product",
-        content_category: String(product.category || product.mukhi || "Rudraksha"),
-        value: unitPrice,
-        currency: "INR"
-      });
+      window.fbq(
+        "track",
+        "ViewContent",
+        {
+          content_ids: [productId],
+          contents: [{ id: productId, quantity: 1, item_price: unitPrice }],
+          content_name: String(product.name || "Sacred Rudraksha"),
+          content_type: "product",
+          content_category: String(product.category || product.mukhi || "Rudraksha"),
+          value: unitPrice,
+          currency: "INR"
+        },
+        { eventID: makeEventId(`VC_${productId}`) }
+      );
     }
   } catch (_) {}
 }
@@ -223,15 +370,20 @@ export function trackMetaAddToCart(product, qty = 1) {
       lastAddToCartKey = dedupKey;
       lastAddToCartTime = now;
       const totalVal = Number((unitPrice * cleanQty).toFixed(2));
-      window.fbq("track", "AddToCart", {
-        content_ids: [productId],
-        contents: [{ id: productId, quantity: cleanQty, item_price: unitPrice }],
-        content_name: String(product.name || "Sacred Rudraksha"),
-        content_type: "product",
-        value: totalVal,
-        currency: "INR",
-        num_items: cleanQty
-      });
+      window.fbq(
+        "track",
+        "AddToCart",
+        {
+          content_ids: [productId],
+          contents: [{ id: productId, quantity: cleanQty, item_price: unitPrice }],
+          content_name: String(product.name || "Sacred Rudraksha"),
+          content_type: "product",
+          value: totalVal,
+          currency: "INR",
+          num_items: cleanQty
+        },
+        { eventID: makeEventId(`ATC_${productId}`) }
+      );
     }
   } catch (_) {}
 }
@@ -239,10 +391,13 @@ export function trackMetaAddToCart(product, qty = 1) {
 /**
  * Track InitiateCheckout event
  */
-export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value } = {}) {
+export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value, customer } = {}) {
   if (typeof window === "undefined") return;
   try {
     if (!Array.isArray(lines) || lines.length === 0) return;
+    if (customer && typeof customer === "object") {
+      syncMetaUserMatching(customer);
+    }
     const resolvedValue = Number(Math.max(0, Number(finalTotal ?? total ?? value) || 0).toFixed(2));
     if (initMetaPixel() && typeof window.fbq === "function") {
       const contentIds = lines.map(l => String(l.id || l.productId || "")).filter(Boolean);
@@ -258,14 +413,19 @@ export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value
         })
         .filter(Boolean);
       const numItems = lines.reduce((sum, l) => sum + (Number(l.qty || l.quantity) || 1), 0);
-      window.fbq("track", "InitiateCheckout", {
-        content_ids: contentIds,
-        contents,
-        content_type: "product",
-        value: resolvedValue,
-        currency: "INR",
-        num_items: numItems || 1
-      });
+      window.fbq(
+        "track",
+        "InitiateCheckout",
+        {
+          content_ids: contentIds,
+          contents,
+          content_type: "product",
+          value: resolvedValue,
+          currency: "INR",
+          num_items: numItems || 1
+        },
+        { eventID: makeEventId("IC") }
+      );
     }
   } catch (_) {}
 }
@@ -303,6 +463,20 @@ export function trackMetaPurchase(order) {
       firedPurchaseOrderIds.add(orderId);
     }
 
+    // Sync customer matching parameters from confirmed order before firing Purchase for 10/10 Event Match Quality
+    const cust = order.customer || {};
+    syncMetaUserMatching({
+      firstName: order.firstName || cust.firstName || order.addressDetails?.firstName,
+      lastName: order.lastName || cust.lastName || order.addressDetails?.lastName,
+      name: order.customerName || order.name || cust.name,
+      email: order.customerEmail || order.email || cust.email || order.addressDetails?.email,
+      phone: order.customerPhone || order.phone || cust.phone || order.addressDetails?.phone,
+      city: order.city || cust.city || order.addressDetails?.city,
+      state: order.state || cust.state || order.addressDetails?.state,
+      pincode: order.pincode || cust.pincode || order.addressDetails?.pincode,
+      userId: order.userId || order.customerId || cust.userId
+    });
+
     if (initMetaPixel() && typeof window.fbq === "function") {
       const items = order.snapshotItems || order.items || order.lines || [];
       const contentIds = items.map(it => String(it.id || it.productId || "")).filter(Boolean);
@@ -328,8 +502,7 @@ export function trackMetaPurchase(order) {
           content_type: "product",
           value,
           currency: "INR",
-          num_items: numItems || 1,
-          order_id: orderId
+          num_items: numItems || 1
         },
         { eventID: `PURCHASE_${orderId}` }
       );

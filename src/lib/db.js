@@ -974,10 +974,11 @@ export async function fetchHomeData(force = false) {
         fetchCoupons()
       ]);
 
-      hasFetchedFreshData = true;
       safeLocalStorageSet("aura_last_fetch_time", String(Date.now()));
       isHydrated = true;
-      setStoreDbStatus("connected");
+      if (storeCache.products && storeCache.products.length > 0) {
+        setStoreDbStatus("connected");
+      }
       if (hydrationResolver) hydrationResolver(true);
 
       emitStoreUpdate("home:synced", { dbStatus: storeCache.dbStatus, timestamp: Date.now() });
@@ -1246,7 +1247,22 @@ export const db = {
 
   // PRODUCTS (Memoized to prevent O(N*M) review scans & localStorage JSON.parse on every render)
   getProducts: () => {
-    const prods = storeCache.products || [];
+    const rawStoreProds = storeCache.products || [];
+    let prods = rawStoreProds;
+    if (!hasFetchedFreshData && rawStoreProds.length <= 1) {
+      const defaults = defaultProducts || [];
+      if (rawStoreProds.length === 1 && rawStoreProds[0]) {
+        const ssrId = String(rawStoreProds[0].id || rawStoreProds[0]._id || "");
+        prods = [
+          rawStoreProds[0],
+          ...defaults.filter(d => String(d.id || d._id || "") !== ssrId)
+        ];
+      } else {
+        prods = defaults;
+      }
+    } else if (rawStoreProds.length === 0) {
+      prods = defaultProducts || [];
+    }
     const revs = storeCache.reviews || [];
     if (
       _enrichedProductsCache &&
@@ -1424,8 +1440,8 @@ export const db = {
       p = findInList(storeCache.products);
     }
 
-    // Cold-visit instant fallback: if storeCache.products has not hydrated from backend yet, check defaultProducts so direct links open in 0ms
-    if (!p && (!storeCache.products || storeCache.products.length === 0) && !hasFetchedFreshData) {
+    // Cold-visit & fallback: if product wasn't found in storeCache yet, check defaultProducts so direct and related product links open in 0ms
+    if (!p && (!hasFetchedFreshData || !storeCache.products || storeCache.products.length <= 1)) {
       p = findInList(defaultProducts);
     }
 

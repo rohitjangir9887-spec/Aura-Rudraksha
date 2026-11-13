@@ -13,8 +13,33 @@
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1485640013424198');
-    fbq('track', 'PageView');
+    (function() {
+      try {
+        var ls = window.localStorage;
+        var extId = ls ? ls.getItem('aura_external_id') : '';
+        if (!extId) {
+          extId = 'aura_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+          if (ls) ls.setItem('aura_external_id', extId);
+        }
+        var uData = { country: 'in', external_id: extId };
+        if (ls) {
+          var rawMeta = ls.getItem('aura_meta_user_data');
+          if (rawMeta) {
+            var parsed = JSON.parse(rawMeta);
+            if (parsed && typeof parsed === 'object') {
+              for (var k in parsed) {
+                if (parsed[k]) uData[k] = parsed[k];
+              }
+            }
+          }
+        }
+        fbq('init', '1485640013424198', uData);
+        fbq('track', 'PageView', {}, { eventID: 'PV_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7) });
+      } catch (err) {
+        fbq('init', '1485640013424198');
+        fbq('track', 'PageView');
+      }
+    })();
     </script>
     <!-- End Meta Pixel Code -->
     <script>

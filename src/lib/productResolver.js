@@ -69,7 +69,7 @@ export function resolveCartProduct(products = [], lineOrId) {
     if (
       resolvedBeadCount <= 0 ||
       resolvedPrice <= 0 ||
-      (productPool.length > 0 && Array.isArray(calc.missingProductIds) && calc.missingProductIds.length > 0)
+      (!snapshotTotal && productPool.length > 0 && Array.isArray(calc.missingProductIds) && calc.missingProductIds.length > 0)
     ) {
       return null;
     }

@@ -3,7 +3,7 @@ import { OptimizedImage } from "./OptimizedImage";
 import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { money, pct } from "../data";
@@ -59,6 +59,13 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   if (!p) return null;
 
   const productId = String(p?.id || p?._id || p?.slug || "");
+  const targetRoute = p?.slug || productId;
+  const productHref = targetRoute ? `/product/${encodeURIComponent(targetRoute)}` : "/shop";
+  const isAlreadyOnProductPage = (location.pathname || "").startsWith("/product/");
+  const originPath = isAlreadyOnProductPage
+    ? (location.state?.from || "/shop")
+    : (location.pathname + (location.search || ""));
+
   const isSaved = isWishlisted(productId);
   const images = (Array.isArray(p?.images) && p.images.length > 0) 
     ? p.images 
@@ -89,58 +96,25 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   };
 
   const handleCardClick = (e) => {
-    if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots, .aura-card-slide-arrow")) {
+    if (e?.target?.closest?.("button, a, .aura-card-offer-tag, .aura-card-gallery-dots, .aura-card-slide-arrow")) {
       return;
     }
 
-    // Block accidental ghost clicks / touch bleed-through right after Back navigation or route changes
-    const now = Date.now();
-    if (typeof window !== "undefined") {
-      if (now - (window.__auraLastBackNavTime || 0) < 600) {
-        e?.preventDefault?.();
-        e?.stopPropagation?.();
-        return;
-      }
-      if (now - (window.__auraLastRouteChangeTime || 0) < 400) {
-        e?.preventDefault?.();
-        e?.stopPropagation?.();
-        return;
-      }
-      if (now - (window.__auraLastCardClickTime || 0) < 450) {
-        e?.preventDefault?.();
-        e?.stopPropagation?.();
-        return;
-      }
-    }
-
-    // Ensure click was preceded by a clean tap on this card (not a swipe or leftover touch from previous page)
-    if (e?.type === "click" && e.detail > 0) {
-      if (!pointerDownRef.current) {
-        e?.preventDefault?.();
-        e?.stopPropagation?.();
-        return;
-      }
+    // Only ignore if the user performed a wide swipe/scroll drag (> 45px) across the card
+    if (e?.type === "click" && e.detail > 0 && pointerDownRef.current) {
       const dx = Math.abs((e.clientX ?? 0) - pointerDownRef.current.x);
       const dy = Math.abs((e.clientY ?? 0) - pointerDownRef.current.y);
-      if (dx > 14 || dy > 14) {
-        pointerDownRef.current = null;
+      pointerDownRef.current = null;
+      if (dx > 45 || dy > 45) {
         return;
       }
+    } else {
+      pointerDownRef.current = null;
     }
-    pointerDownRef.current = null;
 
-    const targetRoute = p?.slug || productId;
     if (targetRoute) {
-      if (typeof window !== "undefined") {
-        window.__auraLastCardClickTime = now;
-      }
       if (db.cacheProduct) db.cacheProduct(p);
-      const isAlreadyOnProductPage = (location.pathname || "").startsWith("/product/");
-      const originPath = isAlreadyOnProductPage
-        ? (location.state?.from || "/shop")
-        : (location.pathname + (location.search || ""));
-
-      navigate(`/product/${encodeURIComponent(targetRoute)}`, {
+      navigate(productHref, {
         replace: isAlreadyOnProductPage,
         state: { product: p, from: originPath }
       });
@@ -354,9 +328,15 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
 
           {/* Title */}
           <h3 className="aura-card-title">
-            <span style={{ color: "inherit", textDecoration: "none" }}>
+            <Link
+              to={productHref}
+              replace={isAlreadyOnProductPage}
+              state={{ product: p, from: originPath }}
+              onClick={() => { if (db.cacheProduct) db.cacheProduct(p); }}
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
               {p.name}
-            </span>
+            </Link>
           </h3>
 
           {/* Rating & Sales */}

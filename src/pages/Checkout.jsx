@@ -45,6 +45,7 @@ import { triggerHaptic } from "../lib/haptics";
 import {
   trackMetaInitiateCheckout,
   trackMetaPurchase,
+  syncMetaUserMatching,
   getAdAttribution
 } from "../lib/metaPixel";
 // Helper to immediately resolve saved delivery address from local cache with 0ms lag
@@ -380,10 +381,11 @@ export function Checkout() {
       initiateTrackedRef.current = true;
       trackMetaInitiateCheckout({
         lines: effectiveLines,
-        total: finalTotal
+        total: finalTotal,
+        customer: formData
       });
     }
-  }, [effectiveLines, finalTotal]);
+  }, [effectiveLines, finalTotal, formData]);
 
   // Detect Unresolved Payment Attempt (Back button from PayU / bfcache restoration)
   const isVerifyingRef = useRef(false);
@@ -542,6 +544,7 @@ export function Checkout() {
             };
             setSavedAddress(resolvedAddr);
             setUsingSavedAddress(true);
+            syncMetaUserMatching(resolvedAddr);
             setFormData(prev => ({
               ...prev,
               id: resolvedAddr.id,
@@ -776,6 +779,7 @@ export function Checkout() {
         }
         setSavedAddress(updatedAddr);
         setUsingSavedAddress(true);
+        syncMetaUserMatching(updatedAddr);
         setFormData({
           id: updatedAddr.id || addressObj.id,
           firstName: updatedAddr.firstName || addressObj.firstName,
@@ -939,6 +943,8 @@ export function Checkout() {
       city: city.trim(),
       state: state.trim()
     };
+
+    syncMetaUserMatching(addressObj);
 
     // Save address in background if user checked it
     if (saveAddressCheck) {
