@@ -479,7 +479,7 @@ export function CartProvider({ children }) {
     } finally {
       setLoadingTotals(false);
     }
-  }, [lines, persistCouponCode, fetchAuthoritativeTotals]);
+  }, [lines, couponCode, persistCouponCode, fetchAuthoritativeTotals]);
 
   // Remove Coupon method
   const removeCoupon = useCallback(() => {
