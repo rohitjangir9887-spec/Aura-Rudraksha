@@ -467,13 +467,14 @@ export function CartProvider({ children }) {
         };
       }
     } catch (err) {
-      persistCouponCode(cleanCode);
-      await fetchAuthoritativeTotals(couponLines, cleanCode);
+      // A network/API failure is not proof that the coupon is valid; keep the
+      // previously applied coupon and avoid persisting an unverified code.
+      await fetchAuthoritativeTotals(couponLines, couponCode);
       return {
         success: false,
         valid: false,
-        status: "INVALID",
-        message: err.message || `Coupon '${cleanCode}' is invalid.`
+        status: "VALIDATION_UNAVAILABLE",
+        message: err.message || "Could not validate coupon. Please try again."
       };
     } finally {
       setLoadingTotals(false);
