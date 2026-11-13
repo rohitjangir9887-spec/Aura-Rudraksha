@@ -13,7 +13,6 @@ import { db, isPublicProduct, onStoreUpdate } from "../lib/db";
 import { auraChatStore } from "../lib/auraChatStore";
 import { sortProductsByHomeOrder, isRudrakshaProduct } from "../lib/productHelper";
 import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
-import { defaultProducts } from "../lib/defaultProducts";
 
 // Authentic Devotee Monogram Badges (No stock demo photos)
 const DEVOTEE_AVATARS = [

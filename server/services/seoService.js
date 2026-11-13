@@ -20,7 +20,6 @@ import { Setting } from "../models/Setting.js";
 import { Review } from "../models/Review.js";
 import { VEDIC_BEADS_KNOWLEDGE } from "./vedicKnowledgeService.js";
 import { getSiteBaseUrl } from "./indexNowService.js";
-import { defaultProducts } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 
 // Canonical Organization & Brand Details
@@ -697,7 +696,10 @@ export async function getPublicProductsForSeo() {
       console.warn("[SEO] Notice fetching public products from MongoDB:", err.message);
     }
   }
-  return defaultProducts || [];
+  if (inMemoryStore?.isProductsSyncedFromDb && Array.isArray(inMemoryStore?.products)) {
+    return inMemoryStore.products;
+  }
+  return [];
 }
 
 export function hasRealProductMedia(prod) {
@@ -716,15 +718,50 @@ export function hasRealProductMedia(prod) {
   return false;
 }
 
+export function pickBestProductCandidate(candidates = [], targetRaw = "", strippedRaw = "") {
+  const valid = (Array.isArray(candidates) ? candidates : []).filter(Boolean);
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return valid[0];
+
+  const t = String(targetRaw || "").toLowerCase().trim();
+  const s = String(strippedRaw || "").toLowerCase().trim();
+
+  return [...valid].sort((a, b) => {
+    const score = (p) => {
+      let pts = 0;
+      if (hasRealProductMedia(p)) pts += 1000;
+      const pId = String(p.id || "").toLowerCase();
+      const pSlug = String(p.slug || "").toLowerCase();
+      if (t && (pSlug === t || pId === t)) pts += 250;
+      else if (s && (pSlug === s || pId === s)) pts += 180;
+      if (Number(p.stock ?? 1) > 0) pts += 50;
+      if (Number(p.price) > 0) pts += 20;
+      return pts;
+    };
+    const diff = score(b) - score(a);
+    if (diff !== 0) return diff;
+    const timeA = a?.updatedAt ? new Date(a.updatedAt).getTime() : (a?.createdAt ? new Date(a.createdAt).getTime() : 0);
+    const timeB = b?.updatedAt ? new Date(b.updatedAt).getTime() : (b?.createdAt ? new Date(b.createdAt).getTime() : 0);
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+  })[0];
+}
+
 export function stripSeoSlugMarketingModifiers(slugStr) {
-  return String(slugStr || "")
+  let current = String(slugStr || "")
     .toLowerCase()
     .trim()
     .replace(/^\/+|\/+$/g, "")
     .split("?")[0]
-    .replace(/^(product-card-|product-)/, "")
-    .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
-    .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-nepali-online-lab-certified$|-online-lab-certified$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$|-online$/gi, "");
+    .replace(/^(product-card-|product-)/, "");
+
+  let prev = "";
+  while (current !== prev) {
+    prev = current;
+    current = current
+      .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
+      .replace(/(?:-authentic-lab-certified-aura-rudraksha|-lab-certified-aura-rudraksha|-aura-rudraksha|-nepali-online-lab-certified|-online-lab-certified|-lab-certified|-authentic|-supreme-bead|-deva-mani|-online)+$/gi, "");
+  }
+  return current.replace(/^-+|-+$/g, "");
 }
 
 /**
@@ -746,8 +783,8 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
     return s !== "draft" && s !== "inactive" && s !== "archived";
   };
 
-  // 1. Direct exact match on id, _id, or slug
-  let match = catalog.find(p => isPublicItem(p) && (
+  // 1. Direct exact match on id, _id, or slug (prefer real-image candidates if duplicates exist)
+  const exactMatches = catalog.filter(p => isPublicItem(p) && (
     String(p.id).toLowerCase() === target ||
     String(p.id).toLowerCase() === cleanId ||
     String(p.id).toLowerCase() === strippedTarget ||
@@ -758,10 +795,10 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
       stripSeoSlugMarketingModifiers(p.slug) === strippedTarget
     ))
   ));
-  if (match) return match;
+  if (exactMatches.length > 0) return pickBestProductCandidate(exactMatches, target, strippedTarget);
 
   // 2. Slugified name match (e.g. "5-mukhi-rudraksha" or "buy-original-7-mukhi-rudraksha")
-  match = catalog.find(p => {
+  const nameMatches = catalog.filter(p => {
     if (!isPublicItem(p) || !p.name) return false;
     const slugName = String(p.name).toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -774,7 +811,7 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
       (strippedTarget.length >= 5 && (slugName.startsWith(strippedTarget) || strippedTarget.startsWith(slugName)))
     );
   });
-  if (match) return match;
+  if (nameMatches.length > 0) return pickBestProductCandidate(nameMatches, target, strippedTarget);
 
   // 3. Mukhi number extraction with strict non-digit boundary (e.g. "7-mukhi" never matches "17")
   const numMatch = target.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
@@ -782,20 +819,20 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
   if (numMatch && numMatch[1]) {
     const mukhiNum = numMatch[1];
     const mukhiRegex = new RegExp(`(^|[^0-9])${mukhiNum}(\\s*-?\\s*mukhi|$)`, "i");
-    match = catalog.find(p => isPublicItem(p) && (
+    const mukhiMatches = catalog.filter(p => isPublicItem(p) && (
       String(p.id) === mukhiNum ||
       String(p.id).toLowerCase() === `p${mukhiNum}` ||
       String(p.mukhi || "").replace(/\D/g, "") === mukhiNum ||
       (p.slug && mukhiRegex.test(String(p.slug))) ||
       (p.name && mukhiRegex.test(String(p.name)))
     ));
-    if (match) return match;
+    if (mukhiMatches.length > 0) return pickBestProductCandidate(mukhiMatches, target, strippedTarget);
   }
 
   // 4. Keyword match for mala or special items
   if (target.includes("mala")) {
-    match = catalog.find(p => isPublicItem(p) && (String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala"))));
-    if (match) return match;
+    const malaMatches = catalog.filter(p => isPublicItem(p) && (String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala"))));
+    if (malaMatches.length > 0) return pickBestProductCandidate(malaMatches, target, strippedTarget);
   }
 
   return null;
@@ -839,8 +876,8 @@ export async function findProductForSeo(idOrSlug) {
     }
   }
 
-  // 2. Check live inMemoryStore.products ONLY if already synced from MongoDB (with real images) or DB is offline
-  if (Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0 && (inMemoryStore.isProductsSyncedFromDb || !dbReady)) {
+  // 2. Check live inMemoryStore.products ONLY when already synced from MongoDB
+  if (inMemoryStore?.isProductsSyncedFromDb && Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0) {
     const fastMemMatch =
       matchProductFromCatalog(inMemoryStore.products, clean) ||
       matchProductFromCatalog(inMemoryStore.products, strippedSlug);
@@ -854,7 +891,7 @@ export async function findProductForSeo(idOrSlug) {
     try {
       await Promise.race([
         connectDB(),
-        new Promise(resolve => setTimeout(resolve, 900))
+        new Promise(resolve => setTimeout(resolve, 1500))
       ]);
     } catch (_) {}
   }
@@ -868,8 +905,8 @@ export async function findProductForSeo(idOrSlug) {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean) || /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[0-9a-fA-F]{24}$/.test(strippedSlug);
       const escapeForRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-      // Strategy 1: Exact ID, Slug, or Mongo _id match
-      let product = await Product.findOne({
+      // Strategy 1: Exact ID, Slug, or Mongo _id match (rank candidates so real Admin photos always win)
+      let candidates = await Product.find({
         ...publicVisibilityFilter,
         $or: [
           { id: clean },
@@ -881,8 +918,9 @@ export async function findProductForSeo(idOrSlug) {
           ...(strippedSlug ? [{ slug: { $regex: new RegExp(`^${escapeForRegex(strippedSlug)}$`, "i") } }] : []),
           ...(isMongoId ? [{ _id: clean }, { _id: cleanId }, { _id: strippedSlug }] : [])
         ]
-      }).lean();
+      }).limit(15).lean();
 
+      let product = pickBestProductCandidate(candidates, clean, strippedSlug);
       if (product) {
         seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
         return product;
@@ -894,7 +932,7 @@ export async function findProductForSeo(idOrSlug) {
                          clean.match(/\b([1-9]|1[0-9]|20|21)\b/);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
-        product = await Product.findOne({
+        candidates = await Product.find({
           ...publicVisibilityFilter,
           $or: [
             { mukhi: mNum },
@@ -906,8 +944,9 @@ export async function findProductForSeo(idOrSlug) {
             { name: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } },
             { slug: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } }
           ]
-        }).lean();
+        }).limit(15).lean();
 
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
@@ -916,35 +955,40 @@ export async function findProductForSeo(idOrSlug) {
 
       // Strategy 3: Special formations (Gauri Shankar, Ganesh, Siddha Mala, Hanuman Idol, Camphor, etc.)
       if (clean.includes("gauri") || strippedSlug.includes("gauri")) {
-        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /gauri/i } }).lean();
+        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /gauri/i } }).limit(10).lean();
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("ganesh") || strippedSlug.includes("ganesh")) {
-        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /ganesh/i } }).lean();
+        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /ganesh/i } }).limit(10).lean();
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("hanuman") || strippedSlug.includes("hanuman")) {
-        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /hanuman/i } }).lean();
+        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /hanuman/i } }).limit(10).lean();
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("camphor") || clean.includes("kapoor")) {
-        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /camphor|kapoor/i } }).lean();
+        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /camphor|kapoor/i } }).limit(10).lean();
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("mala") || clean.includes("kantha")) {
-        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /mala|kantha/i } }).lean();
+        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /mala|kantha/i } }).limit(10).lean();
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
@@ -959,37 +1003,46 @@ export async function findProductForSeo(idOrSlug) {
       
       if (words.length > 0) {
         const pattern = words.slice(0, 3).join(".*");
-        product = await Product.findOne({
+        candidates = await Product.find({
           ...publicVisibilityFilter,
           name: { $regex: new RegExp(pattern, "i") }
-        }).lean();
+        }).limit(10).lean();
+        product = pickBestProductCandidate(candidates, clean, strippedSlug);
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
 
+      // Strategy 5: Full published MongoDB catalog scan using matchProductFromCatalog
+      const allDbPublicProds = await Product.find(publicVisibilityFilter).lean();
+      if (Array.isArray(allDbPublicProds) && allDbPublicProds.length > 0) {
+        inMemoryStore.products = allDbPublicProds;
+        inMemoryStore.isProductsSyncedFromDb = true;
+        product =
+          matchProductFromCatalog(allDbPublicProds, clean) ||
+          matchProductFromCatalog(allDbPublicProds, strippedSlug);
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
+      }
     } catch (err) {
       console.warn("[SEO] Notice in findProductForSeo DB query:", err?.message || err);
     }
   }
 
-  // Check in-memory store (which includes newly added or updated admin products) before seed catalog
-  const memoryCatalog = Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0
-    ? inMemoryStore.products
-    : defaultProducts;
-
-  const fallbackProd = (
-    matchProductFromCatalog(memoryCatalog, clean) ||
-    matchProductFromCatalog(memoryCatalog, strippedSlug) ||
-    matchProductFromCatalog(defaultProducts, clean) ||
-    matchProductFromCatalog(defaultProducts, strippedSlug) ||
-    defaultProducts[0]
-  );
-  if (fallbackProd && hasRealProductMedia(fallbackProd)) {
-    seoProductCache.set(clean, { product: fallbackProd, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+  // Only check synced in-memory DB catalog; NEVER inject demo defaultProducts into SSR HTML
+  if (inMemoryStore?.isProductsSyncedFromDb && Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0) {
+    const syncedMatch =
+      matchProductFromCatalog(inMemoryStore.products, clean) ||
+      matchProductFromCatalog(inMemoryStore.products, strippedSlug);
+    if (syncedMatch) {
+      seoProductCache.set(clean, { product: syncedMatch, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+      return syncedMatch;
+    }
   }
-  return fallbackProd;
+  return null;
 }
 
 /**

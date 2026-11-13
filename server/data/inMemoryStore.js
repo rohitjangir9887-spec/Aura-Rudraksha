@@ -1,5 +1,4 @@
 import {
-  defaultProducts,
   defaultBanners,
   defaultCoupons,
   defaultActiveOffer,
@@ -10,7 +9,7 @@ import {
 class InMemoryStore {
   constructor() {
     this.isProductsSyncedFromDb = false;
-    this.products = JSON.parse(JSON.stringify(defaultProducts || []));
+    this.products = [];
     this.banners = JSON.parse(JSON.stringify(defaultBanners));
     this.coupons = JSON.parse(JSON.stringify(defaultCoupons));
     this.activeOffer = JSON.parse(JSON.stringify(defaultActiveOffer));

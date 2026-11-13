@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Product } from "../models/Product.js";
 import { Media } from "../models/Media.js";
 import { deleteFromPcloud } from "../services/pcloudService.js";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { pickFields, removeMongoInternals, toPublicProductDTO } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateRagCache } from "../services/ragService.js";
@@ -12,7 +12,12 @@ import { submitToIndexNow } from "../services/indexNowService.js";
 import { generateProductSeoMetadata } from "../services/keywordIntelligenceService.js";
 import { matchProductQuery } from "../../src/lib/searchUtils.js";
 import { clearSettingsCache } from "./settingController.js";
-import { invalidateSeoProductCache, stripSeoSlugMarketingModifiers } from "../services/seoService.js";
+import {
+  invalidateSeoProductCache,
+  stripSeoSlugMarketingModifiers,
+  matchProductFromCatalog,
+  pickBestProductCandidate
+} from "../services/seoService.js";
 
 function getEffectiveOrderValue(p, layoutIndexMap = null) {
   if (!p) return Number.MAX_SAFE_INTEGER;
@@ -218,15 +223,27 @@ export async function getProducts(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const items = inMemoryStore.products || [];
-      const updatedItems = await applyDailySalesIncrement(items);
-      inMemoryStore.products = updatedItems;
-      const publicItems = applySearchQueryFilter(toPublicProductDTO(updatedItems), searchQuery);
-      return res.json({
-        success: true,
-        data: publicItems,
-        count: publicItems.length,
-        isFallback: true
+      await Promise.race([
+        connectDB().catch(() => false),
+        new Promise(resolve => setTimeout(resolve, 1500))
+      ]);
+    }
+
+    if (!isDbConnected()) {
+      if (inMemoryStore.isProductsSyncedFromDb && Array.isArray(inMemoryStore.products)) {
+        const publicItems = applySearchQueryFilter(toPublicProductDTO(inMemoryStore.products), searchQuery);
+        return res.json({
+          success: true,
+          data: publicItems,
+          count: publicItems.length,
+          isSyncedCache: true
+        });
+      }
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Live store catalog is temporarily reconnecting. Please retry in a moment."
       });
     }
 
@@ -289,13 +306,20 @@ export async function getProducts(req, res, next) {
   } catch (err) {
     console.warn("Notice in getProducts:", err.message);
     const searchQuery = String(req.query.q || req.query.search || "").trim();
-    const fallbackList = (inMemoryStore.products && inMemoryStore.products.length > 0) ? inMemoryStore.products : (defaultProducts || []);
-    const publicFallback = applySearchQueryFilter(toPublicProductDTO(fallbackList), searchQuery);
-    return res.json({
-      success: true,
-      data: publicFallback,
-      count: publicFallback.length,
-      isFallback: true
+    if (inMemoryStore.isProductsSyncedFromDb && Array.isArray(inMemoryStore.products)) {
+      const publicFallback = applySearchQueryFilter(toPublicProductDTO(inMemoryStore.products), searchQuery);
+      return res.json({
+        success: true,
+        data: publicFallback,
+        count: publicFallback.length,
+        isSyncedCache: true
+      });
+    }
+    return res.status(503).json({
+      success: false,
+      databaseUnavailable: true,
+      error: "Database unavailable",
+      message: "Live store catalog is temporarily unavailable."
     });
   }
 }
@@ -334,22 +358,28 @@ export async function getProductById(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      const product = (inMemoryStore.products || []).find(p => {
-        if (!p) return false;
-        const xId = String(p.id || "").toLowerCase();
-        const xSlug = String(p.slug || "").toLowerCase();
-        const xName = String(p.name || "").toLowerCase();
-        const xSlugName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-        return (
-          xId === cleanTarget || xId === strippedTarget ||
-          xSlug === cleanTarget || xSlug === slugTarget || xSlug === strippedTarget ||
-          xSlugName === cleanTarget || xSlugName === slugTarget || xSlugName === strippedTarget
-        );
-      });
-      if (product) {
-        return res.json({ success: true, data: toPublicProductDTO(product), isFallback: true });
+      await Promise.race([
+        connectDB().catch(() => false),
+        new Promise(resolve => setTimeout(resolve, 1500))
+      ]);
+    }
+
+    if (!isDbConnected()) {
+      if (inMemoryStore.isProductsSyncedFromDb && Array.isArray(inMemoryStore.products)) {
+        const product =
+          matchProductFromCatalog(inMemoryStore.products, cleanTarget) ||
+          matchProductFromCatalog(inMemoryStore.products, strippedTarget);
+        if (product) {
+          return res.json({ success: true, data: toPublicProductDTO(product), isSyncedCache: true });
+        }
+        return res.status(404).json({ success: false, message: "Product not found" });
       }
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Live store catalog is temporarily reconnecting."
+      });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[0-9a-fA-F]{24}$/.test(strippedTarget);
@@ -360,7 +390,7 @@ export async function getProductById(req, res, next) {
       ? { status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] } }
       : {};
 
-    let product = await Product.findOne({
+    let candidates = await Product.find({
       ...publicFilter,
       $or: [
         { id: cleanId },
@@ -372,7 +402,9 @@ export async function getProductById(req, res, next) {
         ...(strippedTarget ? [{ slug: { $regex: new RegExp(`^${escapeForRegex(strippedTarget)}$`, "i") } }] : []),
         ...(isMongoId ? [{ _id: mongoIdToUse }] : [])
       ]
-    }).lean();
+    }).limit(20).lean();
+
+    let product = pickBestProductCandidate(candidates, slugTarget, strippedTarget);
 
     if (!product) {
       // Secondary search in MongoDB by mukhi number or exact slugified name
@@ -381,35 +413,28 @@ export async function getProductById(req, res, next) {
                          cleanTarget.match(/\b([1-9]|1[0-9]|20|21)\b/);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
-        product = await Product.findOne({
+        candidates = await Product.find({
           ...publicFilter,
           $or: [
             { mukhi: mNum },
             { mukhi: String(mNum) },
             { mukhi: `${mNum} Mukhi` },
+            { mukhi: `${mNum} MUKHI` },
             { id: String(mNum) },
             { id: `p${mNum}` },
             { name: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } },
             { slug: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } }
           ]
-        }).lean();
+        }).limit(20).lean();
+        product = pickBestProductCandidate(candidates, slugTarget, strippedTarget);
       }
     }
 
     if (!product) {
-      const allProds = await Product.find().lean();
-      product = allProds.find(p => {
-        if (!p) return false;
-        const pId = String(p.id || "").toLowerCase();
-        const pSlug = String(p.slug || "").toLowerCase();
-        const pName = String(p.name || "").toLowerCase();
-        const pSlugifiedName = pName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-
-        if (pId === cleanTarget || pId === strippedTarget) return true;
-        if (pSlug === cleanTarget || pSlug === slugTarget || pSlug === strippedTarget) return true;
-        if (pSlugifiedName === cleanTarget || pSlugifiedName === slugTarget || pSlugifiedName === strippedTarget) return true;
-        return false;
-      });
+      const allProds = await Product.find(publicFilter).lean();
+      product =
+        matchProductFromCatalog(allProds, cleanTarget) ||
+        matchProductFromCatalog(allProds, strippedTarget);
     }
 
     if (!product) {

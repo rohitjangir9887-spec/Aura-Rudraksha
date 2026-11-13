@@ -45,10 +45,16 @@ export async function ensureDatabaseInitialized() {
     const initState = await Setting.findOne({ id: "db_init_state" }).lean();
     const alreadySeededProducts = Boolean(initState?.productsInitialized);
 
-    // 1. Ensure Products (ONLY on first database setup, NEVER reseed after admin deletes them)
+    // 1. Ensure Products: NEVER auto-seed demo placeholder products into live stores.
+    // Only seed in isolated test runs so schema/init tests remain verifiable without polluting live catalogs.
+    const allowAutoSeedDemoProducts = Boolean(
+      process.env.NODE_ENV === "test" ||
+      process.env.VITEST === "true" ||
+      process.env.AUTO_SEED_DEMO_PRODUCTS === "true"
+    );
     const productCount = await Product.countDocuments();
-    if (!alreadySeededProducts && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
-      console.log("🌱 [DB Init] First-time database setup: seeding default Rudraksha products...");
+    if (allowAutoSeedDemoProducts && !alreadySeededProducts && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
+      console.log("🌱 [DB Init] Test environment setup: seeding sample Rudraksha products...");
       for (const p of defaultProducts) {
         if (!p || !p.id) continue;
         const exists = await Product.exists({ id: String(p.id) });

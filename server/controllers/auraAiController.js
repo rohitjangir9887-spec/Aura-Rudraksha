@@ -20,7 +20,6 @@ import {
   SACRED_RUDRAKSHA_COMBINATIONS
 } from "../services/vedicKnowledgeService.js";
 import { calculateAuthenticKundali, determineAstrologicalIntent, generateKundaliTopicDiagnosis, generateNonKundaliPanditJiGuidance } from "../services/vedicAstrologyService.js";
-import { defaultProducts } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
 import { retrieveRagContext } from "../services/ragService.js";
@@ -1197,8 +1196,8 @@ export async function calculateKundaliEndpoint(req, res, next) {
         allProducts = [];
       }
     }
-    if (!allProducts || allProducts.length === 0) {
-      allProducts = inMemoryStore.products?.length > 0 ? inMemoryStore.products : (defaultProducts || []);
+    if ((!allProducts || allProducts.length === 0) && inMemoryStore.isProductsSyncedFromDb && Array.isArray(inMemoryStore.products)) {
+      allProducts = inMemoryStore.products;
     }
 
     const recommendedProducts = [];
@@ -3601,12 +3600,10 @@ async function getCatalogSummary() {
           .lean();
       } catch (_) {}
     }
-    if (!products || products.length === 0) {
-      products = (inMemoryStore.products && inMemoryStore.products.length > 0)
-        ? inMemoryStore.products
-        : defaultProducts;
+    if ((!products || products.length === 0) && inMemoryStore.isProductsSyncedFromDb && Array.isArray(inMemoryStore.products)) {
+      products = inMemoryStore.products;
     }
-    if (!products || products.length === 0) return "Catalog: 17 authentic Rudraksha beads & malas.";
+    if (!products || products.length === 0) return "Catalog is currently syncing from the store database.";
     
     return products.slice(0, 50).map(p => 
       `- ${p.name} | Cat: ${p.category || "Rudraksha"}${p.mukhi ? ` (${p.mukhi})` : ''} | Price: ₹${p.price} | Stock: ${p.stock ?? 25} | Origin: ${p.origin || "Nepal"} | Planet: ${p.rulingPlanet || "Universal"} | Sales: ${p.totalSold || p.salesCount || 150}`

@@ -15,7 +15,6 @@ import { Review } from "../models/Review.js";
 import { Banner } from "../models/Banner.js";
 import { isDbConnected, getMongoUri, getLastDbSync, connectDB } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
-import { defaultProducts } from "../data/defaultData.js";
 import { invalidateProductCache } from "../controllers/productController.js";
 import { invalidateRagCache } from "./ragService.js";
 import {
@@ -421,10 +420,8 @@ export async function getCompleteWebsiteSnapshot() {
     } catch (_) {}
   }
 
-  if (!products || products.length === 0) {
-    products = (inMemoryStore.products && inMemoryStore.products.length > 0)
-      ? inMemoryStore.products
-      : defaultProducts;
+  if ((!products || products.length === 0) && inMemoryStore.isProductsSyncedFromDb && Array.isArray(inMemoryStore.products)) {
+    products = inMemoryStore.products;
   }
 
   const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.total || o.totalAmount) || 0), 0);

@@ -5,7 +5,6 @@ import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
 import { normalizeKeywordItems } from "./keywordUtils.js";
 import { resolveCartProduct } from "./productResolver.js";
-import { defaultProducts } from "./defaultProducts.js";
 
 // Non-blocking idle writer for large cache keys so JSON.stringify never stalls 60-90 FPS scrolling
 const pendingStorageWrites = new Map();
@@ -575,7 +574,7 @@ const storeCache = {
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
-const CATALOG_CACHE_VERSION = "2026-11-03-v4"; // Versioned cache key to immediately bust obsolete/demo data on updates
+const CATALOG_CACHE_VERSION = "2026-11-13-v5"; // Versioned cache key to purge stale/demo caches cleanly
 
 let isInitialized = false;
 let isHydrated = false;
@@ -769,7 +768,7 @@ export async function revalidateProducts(force = false) {
     try {
       const url = shouldForce ? `/products?_t=${requestStartTime}` : "/products";
       const res = await apiRequest(url, shouldForce ? { noCache: true } : {});
-      if (res?.success && Array.isArray(res.data)) {
+      if (res?.success && Array.isArray(res.data) && !res.isFallback) {
         // Ignore stale background response if an admin mutation occurred while this GET was in flight
         if (!force && lastMutationTime > requestStartTime) {
           return storeCache.products;
@@ -1267,22 +1266,7 @@ export const db = {
 
   // PRODUCTS (Memoized to prevent O(N*M) review scans & localStorage JSON.parse on every render)
   getProducts: () => {
-    const rawStoreProds = storeCache.products || [];
-    let prods = rawStoreProds;
-    if (!hasFetchedFreshData && rawStoreProds.length <= 1) {
-      const defaults = defaultProducts || [];
-      if (rawStoreProds.length === 1 && rawStoreProds[0]) {
-        const ssrId = String(rawStoreProds[0].id || rawStoreProds[0]._id || "");
-        prods = [
-          rawStoreProds[0],
-          ...defaults.filter(d => String(d.id || d._id || "") !== ssrId)
-        ];
-      } else {
-        prods = defaults;
-      }
-    } else if (rawStoreProds.length === 0) {
-      prods = defaultProducts || [];
-    }
+    const prods = storeCache.products || [];
     const revs = storeCache.reviews || [];
     if (
       _enrichedProductsCache &&
@@ -1364,12 +1348,19 @@ export const db = {
     const target = raw.toLowerCase().split("?")[0];
     const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
-    const stripMarketingSlug = (val) =>
-      String(val || "")
+    const stripMarketingSlug = (val) => {
+      let current = String(val || "")
         .toLowerCase()
-        .replace(/^(product-card-|product-)/, "")
-        .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
-        .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-nepali-online-lab-certified$|-online-lab-certified$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$|-online$/gi, "");
+        .replace(/^(product-card-|product-)/, "");
+      let prev = "";
+      while (current !== prev) {
+        prev = current;
+        current = current
+          .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
+          .replace(/(?:-authentic-lab-certified-aura-rudraksha|-lab-certified-aura-rudraksha|-aura-rudraksha|-nepali-online-lab-certified|-online-lab-certified|-lab-certified|-authentic|-supreme-bead|-deva-mani|-online)+$/gi, "");
+      }
+      return current.replace(/^-+|-+$/g, "");
+    };
     const strippedSlug = stripMarketingSlug(slugTarget);
 
     const hasRealMedia = (prod) => {
@@ -1382,13 +1373,19 @@ export const db = {
       return (Array.isArray(prod.images) && prod.images.some(isReal)) || isReal(prod.img) || isReal(prod.image);
     };
 
+    const pickPreferred = (matches) => {
+      if (!Array.isArray(matches) || matches.length === 0) return null;
+      if (matches.length === 1) return matches[0];
+      return matches.find(hasRealMedia) || matches[0];
+    };
+
     const deletedIds = getDeletedProductIds();
 
     const findInList = (list) => {
       if (!Array.isArray(list) || list.length === 0) return null;
 
       // 1. Strict exact match on id or _id
-      let found = list.find(x => {
+      let matches = list.filter(x => {
         if (!x) return false;
         const xId = String(x.id || "").toLowerCase();
         const xMongoId = String(x._id || "").toLowerCase();
@@ -1401,10 +1398,10 @@ export const db = {
         if (!isNaN(strippedSlug) && strippedSlug !== "" && Number(x.id) === Number(strippedSlug)) return true;
         return false;
       });
-      if (found) return found;
+      if (matches.length > 0) return pickPreferred(matches);
 
       // 2. Match on slug (exact or stripped marketing slug)
-      found = list.find(x => {
+      matches = list.filter(x => {
         if (!x) return false;
         if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
         const xSlug = String(x.slug || "").toLowerCase();
@@ -1418,10 +1415,10 @@ export const db = {
           (strippedSlug && xStripped === strippedSlug)
         );
       });
-      if (found) return found;
+      if (matches.length > 0) return pickPreferred(matches);
 
       // 3. Match on slugified product name
-      found = list.find(x => {
+      matches = list.filter(x => {
         if (!x) return false;
         if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
         const xName = String(x.name || "").toLowerCase().trim();
@@ -1439,7 +1436,7 @@ export const db = {
         if (xName && (xName === target || xName === slugTarget)) return true;
         return false;
       });
-      if (found) return found;
+      if (matches.length > 0) return pickPreferred(matches);
 
       // 4. Match by Mukhi number for SEO URLs like "5-mukhi-rudraksha" or "buy-original-7-mukhi-rudraksha..."
       const mukhiMatch = slugTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
@@ -1447,7 +1444,7 @@ export const db = {
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = String(parseInt(mukhiMatch[1], 10));
         const mukhiRegex = new RegExp(`(^|[^0-9])${mNum}(\\s*-?\\s*mukhi|$)`, "i");
-        found = list.find(x => {
+        matches = list.filter(x => {
           if (!x) return false;
           if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
           return (
@@ -1458,7 +1455,7 @@ export const db = {
             (x.name && mukhiRegex.test(String(x.name)))
           );
         });
-        if (found) return found;
+        if (matches.length > 0) return pickPreferred(matches);
       }
 
       return null;
@@ -1475,11 +1472,6 @@ export const db = {
       p = memMatch;
     } else if (ssrMatch) {
       p = ssrMatch;
-    }
-
-    // Cold-visit & fallback: if product wasn't found in storeCache yet, check defaultProducts so direct and related product links open in 0ms
-    if (!p && (!hasFetchedFreshData || !storeCache.products || storeCache.products.length <= 1)) {
-      p = findInList(defaultProducts);
     }
 
     if (!p) return null;
@@ -1560,7 +1552,7 @@ export const db = {
       }
     } catch (_) {}
 
-    // STEP 3: Fallback check from localStorage or defaultProducts
+    // STEP 3: Return cached Admin/DB product if live request failed
     return cached || db.getProduct(idOrSlug);
   },
 
@@ -3113,8 +3105,7 @@ export const db = {
 
     (lines || []).forEach(l => {
       const p = resolveCartProduct(prods, l)
-        || prods.find(x => String(x.id) === String(l.id) || String(x._id) === String(l.id) || String(x.slug) === String(l.id))
-        || (prods.length === 0 ? resolveCartProduct(defaultProducts, l) : null);
+        || prods.find(x => String(x.id) === String(l.id) || String(x._id) === String(l.id) || String(x.slug) === String(l.id));
       if (!p) return;
       const price = Number(p.price) || 0;
       if (price <= 0) return;

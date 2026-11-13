@@ -160,7 +160,10 @@ export function Product() {
 
       setLoading(false);
 
-      // Load related products & active coupons
+      // Load related products & active coupons; ensure live Admin catalog syncs on direct visits
+      if (!db.isBackendSynced()) {
+        db.fetchProducts().catch(() => {});
+      }
       const prods = db.getProducts().filter(isPublicProduct);
       setAllProducts(prods);
       setCoupons(db.getCoupons().filter(c => c.status === "Active"));

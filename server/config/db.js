@@ -74,6 +74,7 @@ if (!global.__mongoose_listeners_attached) {
       reconnectTimer = null;
     }
     console.log("⚡ [MongoDB] Connection established / restored.");
+    warmCatalogCacheFromDb().catch(() => {});
   });
   mongoose.connection.on("reconnected", () => {
     cached.lastConnected = new Date().toISOString();
@@ -82,6 +83,7 @@ if (!global.__mongoose_listeners_attached) {
       reconnectTimer = null;
     }
     console.log("⚡ [MongoDB] Connection successfully reconnected to cluster.");
+    warmCatalogCacheFromDb().catch(() => {});
   });
   mongoose.connection.on("disconnected", () => {
     console.warn("⚠️ [MongoDB] Connection socket idle / disconnected. Initiating resilient auto-reconnect...");
@@ -118,6 +120,35 @@ if (!global.__mongoose_listeners_attached) {
       keepAliveTimer.unref();
     }
   }
+}
+
+let catalogWarmInFlight = null;
+export async function warmCatalogCacheFromDb() {
+  if (catalogWarmInFlight) return catalogWarmInFlight;
+  if (!mongoose || mongoose.connection?.readyState !== 1) return false;
+  catalogWarmInFlight = (async () => {
+    try {
+      const [{ Product }, { inMemoryStore }] = await Promise.all([
+        import("../models/Product.js"),
+        import("../data/inMemoryStore.js")
+      ]);
+      const publicProds = await Product.find({
+        status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
+      })
+        .sort({ homeOrder: 1, sortOrder: 1, displayOrder: 1, createdAt: -1 })
+        .lean();
+      if (Array.isArray(publicProds)) {
+        inMemoryStore.products = publicProds;
+        inMemoryStore.isProductsSyncedFromDb = true;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      catalogWarmInFlight = null;
+    }
+  })();
+  return catalogWarmInFlight;
 }
 
 export function isValidMongoUri(rawUri) {
@@ -253,8 +284,12 @@ export async function connectDB() {
           if (!global.__db_init_triggered) {
             global.__db_init_triggered = true;
             import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-              ensureDatabaseInitialized().catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
+              ensureDatabaseInitialized()
+                .then(() => warmCatalogCacheFromDb())
+                .catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
             }).catch(() => {});
+          } else {
+            warmCatalogCacheFromDb().catch(() => {});
           }
           return mongooseInstance;
         } catch (err) {
