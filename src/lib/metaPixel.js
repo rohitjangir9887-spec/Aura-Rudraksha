@@ -1,12 +1,19 @@
 /**
  * Meta Ads (Facebook / Instagram Pixel) & Conversion Attribution Utility
- * Official Aura Rudraksha Meta Pixel ID: 1030324403433300
+ * Official Aura Rudraksha Meta Pixel ID: 1485640013424198
  * Tracks standard e-commerce events: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase.
  */
 
-export const DEFAULT_META_PIXEL_ID = "1030324403433300";
+export const DEFAULT_META_PIXEL_ID = "1485640013424198";
+const LEGACY_RETIRED_PIXEL_IDS = new Set(["1030324403433300"]);
 
-// If index.html already initialized window.fbq('init', '1030324403433300') and fired initial 'PageView',
+function normalizePixelId(candidate) {
+  const cleaned = String(candidate || "").trim();
+  if (!cleaned || LEGACY_RETIRED_PIXEL_IDS.has(cleaned)) return "";
+  return /^\d{6,25}$/.test(cleaned) ? cleaned : "";
+}
+
+// If index.html already initialized window.fbq('init', '1485640013424198') and fired initial 'PageView',
 // record that state immediately so React mount does not re-init or fire a duplicate initial PageView.
 let initializedPixelId =
   typeof window !== "undefined" && typeof window.fbq === "function"
@@ -69,27 +76,26 @@ export function getAdAttribution() {
 }
 
 /**
- * Resolve active Meta Pixel ID from settings, environment, or official default (1030324403433300)
+ * Resolve active Meta Pixel ID from settings, environment, or official default (1485640013424198)
  */
 export function getActiveMetaPixelId(settings = null) {
   if (typeof window === "undefined") return DEFAULT_META_PIXEL_ID;
   try {
-    if (settings && settings.metaPixelId && /^\d{6,25}$/.test(String(settings.metaPixelId).trim())) {
-      return String(settings.metaPixelId).trim();
-    }
+    const fromSettings = normalizePixelId(settings?.metaPixelId);
+    if (fromSettings) return fromSettings;
+
     const cachedSettingsRaw = localStorage.getItem("aura_settings_cache");
     if (cachedSettingsRaw) {
       const parsed = JSON.parse(cachedSettingsRaw);
-      if (parsed && parsed.metaPixelId && /^\d{6,25}$/.test(String(parsed.metaPixelId).trim())) {
-        return String(parsed.metaPixelId).trim();
-      }
+      const fromCache = normalizePixelId(parsed?.metaPixelId);
+      if (fromCache) return fromCache;
     }
-    const envPixel = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_META_PIXEL_ID)
-      ? String(import.meta.env.VITE_META_PIXEL_ID).trim()
-      : "";
-    if (envPixel && /^\d{6,25}$/.test(envPixel)) {
-      return envPixel;
-    }
+    const envPixel =
+      typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_META_PIXEL_ID
+        ? normalizePixelId(import.meta.env.VITE_META_PIXEL_ID)
+        : "";
+    if (envPixel) return envPixel;
+
     return DEFAULT_META_PIXEL_ID;
   } catch (_) {
     return DEFAULT_META_PIXEL_ID;
@@ -103,8 +109,8 @@ export function initMetaPixel(customPixelId = null, settings = null) {
   if (typeof window === "undefined") return false;
   captureAdAttribution();
 
-  const pixelId = (customPixelId && String(customPixelId).trim()) || getActiveMetaPixelId(settings);
-  if (!pixelId || !/^\d{6,25}$/.test(pixelId)) return false;
+  const pixelId = normalizePixelId(customPixelId) || getActiveMetaPixelId(settings);
+  if (!pixelId) return false;
 
   try {
     if (!window.fbq) {

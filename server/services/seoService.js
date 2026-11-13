@@ -1764,7 +1764,7 @@ export function getHtmlTemplate() {
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1030324403433300');
+    fbq('init', '1485640013424198');
     fbq('track', 'PageView');
     </script>
     <!-- End Meta Pixel Code -->
@@ -1780,7 +1780,7 @@ export function getHtmlTemplate() {
   </head>
   <body>
     <noscript><img height="1" width="1" style="display:none"
-    src="https://www.facebook.com/tr?id=1030324403433300&ev=PageView&noscript=1"
+    src="https://www.facebook.com/tr?id=1485640013424198&ev=PageView&noscript=1"
     /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
