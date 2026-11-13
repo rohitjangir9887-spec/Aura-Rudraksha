@@ -837,10 +837,11 @@ export function Checkout() {
         ? await applyCoupon(code, activeLines, { persist: false })
         : await applyCoupon(code, activeLines);
       if (buyNowLines) {
-        setCheckoutCoupon(code);
+        setCheckoutCoupon(res.valid ? code : "");
         setCheckoutAppliedCoupon(res.valid
-          ? (res.data?.appliedCoupon || res.totals?.appliedCoupon || { code })
+          ? (res.data?.appliedCoupon || res.totals?.appliedCoupon || res.totals?.data?.appliedCoupon || { code })
           : null);
+        if (res.valid && res.totals) setBuyNowTotals(res.totals);
       }
       if (res.valid) {
         triggerHaptic("success");
