@@ -86,19 +86,9 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   const activeIndex = safeIdx;
   const discountPct = pct(product);
 
-  // Preload secondary images smoothly in background without locking network thread
-  useEffect(() => {
-    if (!images || images.length <= 1) return;
-    const timer = setTimeout(() => {
-      images.slice(1).forEach(src => {
-        if (src && typeof src === "string") {
-          const img = new Image();
-          img.src = src;
-        }
-      });
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [images]);
+  // Keep secondary gallery images lazy: eagerly downloading every large image
+  // immediately after page load competes with checkout UI and mobile bandwidth.
+  // The active image loads on demand; thumbnails remain individually lazy.
 
   const handlePrev = (e) => {
     if (e) e.stopPropagation();
