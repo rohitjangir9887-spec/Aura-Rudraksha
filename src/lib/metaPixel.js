@@ -22,6 +22,52 @@ let lastAddToCartTime = 0;
 const firedPurchaseOrderIds = new Set();
 
 /**
+ * If an older Service Worker controller was still attached on first load,
+ * send a direct keepalive fetch beacon (destination === "") which bypasses
+ * legacy image-only Service Worker interception.
+ */
+function sendDirectPixelBeaconIfSwActive(eventName, customData = null) {
+  if (typeof window === "undefined") return;
+  try {
+    const hasLegacySwController = Boolean(
+      navigator.serviceWorker && navigator.serviceWorker.controller
+    );
+    if (!hasLegacySwController) return;
+
+    const params = new URLSearchParams({
+      id: DEFAULT_META_PIXEL_ID,
+      ev: eventName,
+      dl: window.location.href,
+      rl: document.referrer || "",
+      if: "false",
+      ts: String(Date.now()),
+      sw: String(window.screen?.width || 0),
+      sh: String(window.screen?.height || 0),
+      v: "2.9.179",
+      r: "stable",
+      ec: "1",
+      o: "4126"
+    });
+    if (customData && typeof customData === "object") {
+      Object.entries(customData).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) {
+          params.set(`cd[${k}]`, Array.isArray(v) ? JSON.stringify(v) : String(v));
+        }
+      });
+    }
+    const url = `https://www.facebook.com/tr/?${params.toString()}`;
+    if (typeof fetch === "function") {
+      fetch(url, { mode: "no-cors", keepalive: true, credentials: "include" }).catch(() => {});
+    }
+  } catch (_) {}
+}
+
+// Fire immediate direct beacon on initial load if a legacy Service Worker was still controlling the tab
+if (typeof window !== "undefined") {
+  sendDirectPixelBeaconIfSwActive("PageView");
+}
+
+/**
  * Capture UTM parameters, fbclid & igshid from Meta (Facebook / Instagram) Ads clicks for order attribution
  */
 export function captureAdAttribution() {
@@ -122,6 +168,7 @@ export function trackMetaPageView() {
       const currentPath = `${window.location.pathname}${window.location.search}`;
       if (lastTrackedPageViewPath !== currentPath) {
         window.fbq("track", "PageView");
+        sendDirectPixelBeaconIfSwActive("PageView");
         lastTrackedPageViewPath = currentPath;
       }
     }

@@ -3,7 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Meta Pixel Code -->
     <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1485640013424198');
+    fbq('track', 'PageView');
+    </script>
+    <!-- End Meta Pixel Code -->
+    <script>
+      // Immediately unregister any legacy Service Worker (sw.js) in returning browsers
+      // that was intercepting Facebook Pixel (facebook.com/tr) image requests
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            if (regs && regs.length > 0) {
+              Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
+                if (navigator.serviceWorker.controller && !sessionStorage.getItem('aura_sw_purged')) {
+                  sessionStorage.setItem('aura_sw_purged', '1');
+                  window.location.reload();
+                }
+              });
+            }
+          }).catch(function() {});
+        }
+      } catch (e) {}
+
       // Global error shield to prevent benign third-party/iframe cross-origin script errors from crashing the app
       window.addEventListener('error', function(event) {
         var fn = (event && event.filename) ? String(event.filename) : '';
@@ -188,25 +219,11 @@
         contain-intrinsic-size: auto 650px;
       }
     </style>
-    <!-- Meta Pixel Code -->
-    <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1485640013424198');
-    fbq('track', 'PageView');
-    </script>
+  </head>
+  <body>
     <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=1485640013424198&ev=PageView&noscript=1"
     /></noscript>
-    <!-- End Meta Pixel Code -->
-  </head>
-  <body>
     <div id="root">
       <noscript>
         <main style="max-width:960px;margin:24px auto;padding:0 20px;font-family:sans-serif;line-height:1.6;color:#2a160d;">
