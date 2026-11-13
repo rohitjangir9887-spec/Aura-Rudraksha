@@ -613,7 +613,7 @@ export async function handlePayuCallback(req, res) {
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
         const bulkOps = [];
         for (const item of order.snapshotItems) {
-          if (item.id) {
+          if (item.id && !item.isCustomMala && !String(item.id).startsWith("custom-mala-")) {
             const qty = Math.max(1, item.qty || item.quantity || 1);
             bulkOps.push({
               updateOne: {
@@ -994,7 +994,7 @@ export async function handlePayuWebhook(req, res) {
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
         const bulkOps = [];
         for (const item of order.snapshotItems) {
-          if (item.id) {
+          if (item.id && !item.isCustomMala && !String(item.id).startsWith("custom-mala-")) {
             const qty = Math.max(1, item.qty || item.quantity || 1);
             bulkOps.push({
               updateOne: {
@@ -1452,20 +1452,21 @@ export async function retryPayuPayment(req, res, next) {
 
     // Verify item stock availability before allowing retry payment
     if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
-      const itemIds = order.snapshotItems.map(i => i.id).filter(Boolean);
+      const standardSnapshot = order.snapshotItems.filter(
+        (i) => i.id && !i.isCustomMala && !String(i.id).startsWith("custom-mala-")
+      );
+      const itemIds = standardSnapshot.map(i => i.id);
       if (itemIds.length > 0) {
         const dbProducts = await Product.find({ id: { $in: itemIds } }).lean();
         const productMap = new Map(dbProducts.map(p => [p.id, p]));
-        for (const item of order.snapshotItems) {
-          if (item.id) {
-            const product = productMap.get(item.id);
-            const qty = Math.max(1, item.qty || item.quantity || 1);
-            if (product && product.stock !== undefined && product.stock < qty) {
-              return res.status(400).json({
-                success: false,
-                message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
-              });
-            }
+        for (const item of standardSnapshot) {
+          const product = productMap.get(item.id);
+          const qty = Math.max(1, item.qty || item.quantity || 1);
+          if (product && product.stock !== undefined && product.stock < qty) {
+            return res.status(400).json({
+              success: false,
+              message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
+            });
           }
         }
       }

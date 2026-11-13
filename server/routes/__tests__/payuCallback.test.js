@@ -9,6 +9,7 @@ import { PaymentTransaction } from "../../models/PaymentTransaction.js";
 import { connectDB } from "../../config/db.js";
 import * as payuService from "../../services/payuService.js";
 import {
+  initiatePayuPayment,
   handlePayuCallback,
   handlePayuWebhook,
   handlePayuCancel
@@ -549,4 +550,84 @@ describe("PayU Callback & Webhook Security & Idempotency Suite", () => {
     const order = await Order.findOne({ id: orderId });
     expect(order.paymentStatus).toBe("Failed");
   });
+
+  test("15. Custom Mala PayU Initiate & Callback: Computes authoritative bead price and completes Paid without false inventory conflict", async () => {
+    if (!mongodAvailable) return;
+
+    await Product.create({ id: "MALA-BEAD-1", name: "Nepali 5 Mukhi", stock: 20, price: 450, mrp: 750, status: "Published" });
+    await Product.create({ id: "MALA-BEAD-2", name: "Nepali 7 Mukhi", stock: 10, price: 950, mrp: 1400, status: "Published" });
+
+    const { req: initReq, res: initRes } = mockReqRes({
+      body: {
+        customerName: "Aarav Sharma",
+        phone: "9876543210",
+        customerEmail: "aarav@example.com",
+        lines: [
+          {
+            id: "custom-mala-test999",
+            qty: 1,
+            isCustomMala: true,
+            price: 1,
+            customMala: {
+              products: [
+                { productId: "MALA-BEAD-1", qty: 2 },
+                { productId: "MALA-BEAD-2", qty: 1 }
+              ],
+              thread: "red-silk",
+              capping: "none"
+            }
+          }
+        ]
+      }
+    });
+    initReq.ip = "127.0.0.1";
+
+    let initErr = null;
+    await initiatePayuPayment(initReq, initRes, (e) => { initErr = e; });
+    expect(initErr).toBeNull();
+    expect(initRes.jsonData?.success).toBe(true);
+
+    const expectedAmount = 450 * 2 + 950;
+    expect(initRes.jsonData.data.amount).toBe(expectedAmount);
+    expect(initRes.jsonData.data.params.amount).toBe(expectedAmount.toFixed(2));
+    expect(initRes.jsonData.data.params.hash).toHaveLength(128);
+
+    const createdOrderId = initRes.jsonData.data.orderId;
+    const createdTxnid = initRes.jsonData.data.txnid;
+
+    vi.spyOn(payuService, "verifyPayuPaymentServerSide").mockResolvedValue({
+      success: true,
+      isPaid: true,
+      amount: expectedAmount,
+      mihpayid: "MIH_MALA_15",
+      bankRefNum: "BANK_MALA_15",
+      mode: "UPI"
+    });
+
+    const cbWithoutHash = {
+      key: TEST_KEY,
+      txnid: createdTxnid,
+      amount: expectedAmount.toFixed(2),
+      productinfo: initRes.jsonData.data.params.productinfo,
+      firstname: initRes.jsonData.data.params.firstname,
+      email: initRes.jsonData.data.params.email,
+      status: "success",
+      udf1: createdOrderId,
+      udf2: initRes.jsonData.data.params.udf2,
+      udf3: initRes.jsonData.data.params.udf3,
+      mihpayid: "MIH_MALA_15"
+    };
+    const cbHash = generateResponseHash(cbWithoutHash, TEST_SALT);
+    const { req: cbReq, res: cbRes } = mockReqRes({ body: { ...cbWithoutHash, hash: cbHash } });
+    await handlePayuCallback(cbReq, cbRes);
+
+    expect(cbRes.statusCode).toBe(303);
+    expect(cbRes.redirectUrl).toContain("status=success");
+
+    const paidOrder = await Order.findOne({ id: createdOrderId });
+    expect(paidOrder.paymentStatus).toBe("Paid");
+    expect(paidOrder.orderStatus).toBe("Confirmed");
+    expect(paidOrder.notes || "").not.toContain("INVENTORY_CONFLICT");
+  });
 });
+

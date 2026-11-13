@@ -37,14 +37,40 @@ export function resolveCartProduct(products = [], lineOrId) {
       : fallbackPoolImg;
 
     const fallbackItems = Array.isArray(lineObj.customMalaItems) ? lineObj.customMalaItems : [];
-    const resolvedMalaItems = calc.items.length > 0 ? calc.items : fallbackItems;
-    const resolvedBeadCount = resolvedMalaItems.reduce((s, b) => s + Math.max(1, Number(b?.qty) || 1), 0) || calc.totalBeads;
+    const hasCompleteLiveCalc =
+      calc.totalBeads > 0 &&
+      calc.unitPrice > 0 &&
+      (!Array.isArray(calc.missingProductIds) || calc.missingProductIds.length === 0);
+
+    const resolvedMalaItems = hasCompleteLiveCalc
+      ? calc.items
+      : (fallbackItems.length >= calc.items.length ? fallbackItems : calc.items);
+    const resolvedBeadCount =
+      resolvedMalaItems.reduce((s, b) => s + Math.max(1, Number(b?.qty) || 1), 0) || calc.totalBeads;
+
+    const snapshotBeadSubtotal = fallbackItems.reduce((sum, b) => {
+      const qty = Math.max(1, Number(b?.qty || b?.quantity) || 1);
+      const unitP = Math.max(0, Math.round(Number(b?.unitPrice ?? b?.price) || 0));
+      const lineT = Math.max(0, Math.round(Number(b?.lineTotal) || unitP * qty));
+      return sum + lineT;
+    }, 0);
+    const snapshotTotal =
+      snapshotBeadSubtotal > 0
+        ? snapshotBeadSubtotal + (Number(calc.threadFee) || 0) + (Number(calc.cappingFee) || 0)
+        : 0;
+
+    const resolvedPrice = hasCompleteLiveCalc
+      ? calc.unitPrice
+      : Math.max(Number(lineObj.price || lineObj.unitPrice) || 0, snapshotTotal, calc.unitPrice || 0);
+    const resolvedMrp = hasCompleteLiveCalc
+      ? calc.mrp
+      : Math.max(resolvedPrice, Number(lineObj.mrp || lineObj.comparePrice) || 0, calc.mrp || 0);
 
     return {
       id: rawId,
       productId: rawId,
       cartItemId: rawId,
-      name: calc.totalBeads > 0 ? calc.name : (lineObj.name || calc.name),
+      name: hasCompleteLiveCalc ? calc.name : (lineObj.name || calc.name),
       category: "Custom Sacred Mala",
       origin: "Hand-Strung Custom Sacred Mala",
       resolvedOrigin: "Hand-Strung Custom Sacred Mala",
@@ -52,9 +78,11 @@ export function resolveCartProduct(products = [], lineOrId) {
       isCustomMala: true,
       customMala: calc.config,
       customMalaItems: resolvedMalaItems,
-      customDescription: calc.totalBeads > 0 ? calc.customDescription : (lineObj.customDescription || calc.customDescription),
-      price: calc.totalBeads > 0 ? calc.unitPrice : (Number(lineObj.price) || 0),
-      mrp: calc.totalBeads > 0 ? calc.mrp : (Number(lineObj.mrp) || Number(lineObj.price) || 0),
+      customDescription: hasCompleteLiveCalc
+        ? calc.customDescription
+        : (lineObj.customDescription || calc.customDescription),
+      price: resolvedPrice,
+      mrp: resolvedMrp,
       img: itemImg,
       images: [itemImg],
       size: hasStoreProducts ? `${resolvedBeadCount} Sacred Bead${resolvedBeadCount === 1 ? "" : "s"}` : calc.sizeObj.label,

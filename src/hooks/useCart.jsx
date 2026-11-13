@@ -344,6 +344,14 @@ export function CartProvider({ children }) {
   // Trigger recalculation on lines or coupon change, and when store active offer / products sync
   useEffect(() => {
     isMounted.current = true;
+    try {
+      if (lines && lines.length > 0 && db && typeof db.calculateCartSync === "function") {
+        const syncCalc = db.calculateCartSync(lines, couponCode || (autoOfferDismissedRef.current ? false : ""));
+        if (syncCalc?.data && Number(syncCalc.data.subtotal) > 0) {
+          setTotals(syncCalc.data);
+        }
+      }
+    } catch (_) {}
     fetchAuthoritativeTotals(lines, couponCode);
   }, [lines, couponCode, fetchAuthoritativeTotals]);
 

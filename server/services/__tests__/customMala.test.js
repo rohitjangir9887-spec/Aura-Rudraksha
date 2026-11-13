@@ -200,4 +200,44 @@ describe("Custom Rudraksha Mala Catalog & Authoritative Pricing", () => {
     expect(displayWithoutPool.beadsList[5].name).toBe("Ganesh Rudraksha");
     expect(displayWithoutPool.beadsList[5].qty).toBe(2);
   });
+
+  it("resolveCartProduct preserves exact custom mala price both with live products and snapshot fallback", async () => {
+    const { resolveCartProduct } = await import("../../../src/lib/productResolver.js");
+    const storePool = [
+      { id: "p1", name: "Nepali 1 Mukhi", price: 2100, mrp: 2800, img: "https://ik.imagekit.io/demo/p1.jpg", status: "Active" },
+      { id: "p2", name: "Nepali 5 Mukhi", price: 450, mrp: 700, img: "https://ik.imagekit.io/demo/p2.jpg", status: "Active" }
+    ];
+
+    const payload = buildCustomMalaItemPayload(
+      {
+        products: [
+          { productId: "p1", qty: 1 },
+          { productId: "p2", qty: 2 }
+        ],
+        thread: "red-silk",
+        capping: "none"
+      },
+      null,
+      storePool
+    );
+
+    const expectedTotal = 2100 + 450 * 2;
+    const resolvedWithPool = resolveCartProduct(storePool, payload);
+    expect(resolvedWithPool.price).toBe(expectedTotal);
+    expect(resolvedWithPool.customMalaItems.length).toBe(2);
+
+    // Simulate server-reloaded line without explicit line.price and before products finish loading
+    const lineWithoutTopPrice = {
+      id: payload.id,
+      qty: 1,
+      isCustomMala: true,
+      customMala: payload.customMala,
+      customMalaItems: payload.customMalaItems,
+      name: payload.name
+    };
+    const resolvedWithoutPool = resolveCartProduct([], lineWithoutTopPrice);
+    expect(resolvedWithoutPool.price).toBe(expectedTotal);
+    expect(resolvedWithoutPool.customMalaItems.length).toBe(2);
+  });
 });
+

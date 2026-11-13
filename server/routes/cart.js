@@ -47,7 +47,9 @@ function sanitizeCartLines(lines) {
           ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 2000) } : {}),
           ...(item.img ? { img: String(item.img).slice(0, 500) } : {}),
           ...(item.size ? { size: String(item.size).slice(0, 100) } : {}),
-          ...(item.variant ? { variant: String(item.variant).slice(0, 100) } : {})
+          ...(item.variant ? { variant: String(item.variant).slice(0, 100) } : {}),
+          ...(Number(item.price) > 0 ? { price: Number(item.price) } : {}),
+          ...(Number(item.mrp) > 0 ? { mrp: Number(item.mrp) } : {})
         };
       }
     }
@@ -64,7 +66,9 @@ function sanitizeCartLines(lines) {
         ...(prev.customDescription ? { customDescription: prev.customDescription } : {}),
         ...(prev.img ? { img: prev.img } : {}),
         ...(prev.size ? { size: prev.size } : {}),
-        ...(prev.variant ? { variant: prev.variant } : {})
+        ...(prev.variant ? { variant: prev.variant } : {}),
+        ...(Number(prev.price) > 0 ? { price: Number(prev.price) } : {}),
+        ...(Number(prev.mrp) > 0 ? { mrp: Number(prev.mrp) } : {})
       } : {}),
       ...(customPayload || {})
     });

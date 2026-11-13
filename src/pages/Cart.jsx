@@ -76,16 +76,12 @@ export function Cart() {
 
   const { isWishlisted, toggleWishlist } = useWishlist();
 
-  const items = lines.reduce((acc, line) => {
-    acc[line.id] = (acc[line.id] || 0) + line.qty;
-    return acc;
-  }, {});
-  
+  const lineIds = new Set(lines.map((line) => String(line.id)));
   const cartItemCount = lines.reduce((n, l) => n + l.qty, 0);
 
   const confirmRemove = () => {
     if (!deleteTargetId) return;
-    const targetLine = lines.find(l => l.id === deleteTargetId) || deleteTargetId;
+    const targetLine = lines.find(l => String(l.id) === String(deleteTargetId)) || deleteTargetId;
     const p = resolveCartProduct(products, targetLine);
     remove(deleteTargetId);
     emitToast(`${p?.name || "Item"} removed from cart`, "info");
@@ -131,7 +127,7 @@ export function Cart() {
   };
   
   const recommendedProducts = products
-    .filter(p => !Object.keys(items).includes(String(p.id)) && p.status !== "Out of Stock")
+    .filter(p => !lineIds.has(String(p.id)) && p.status !== "Out of Stock")
     .slice(0, 6);
 
   const isEmpty = !lines || lines.length === 0;
@@ -275,8 +271,25 @@ export function Cart() {
                   width: "100%"
                 }}
               >
-                {Object.entries(items).map(([id, qty], index) => {
-                  const p = resolveCartProduct(products, id);
+                {lines.map((line, index) => {
+                  const id = line.id;
+                  const qty = line.qty || 1;
+                  const serverItem = Array.isArray(totals?.items)
+                    ? totals.items.find((it) => String(it.id) === String(id))
+                    : null;
+                  const resolvedLine = serverItem
+                    ? {
+                        ...line,
+                        ...serverItem,
+                        qty,
+                        customMala: serverItem.customMala || line.customMala,
+                        customMalaItems:
+                          Array.isArray(serverItem.customMalaItems) && serverItem.customMalaItems.length > 0
+                            ? serverItem.customMalaItems
+                            : line.customMalaItems
+                      }
+                    : line;
+                  const p = resolveCartProduct(products, resolvedLine);
                   if (!p) return null;
 
                   return (
