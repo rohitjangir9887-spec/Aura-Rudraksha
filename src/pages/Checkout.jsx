@@ -309,28 +309,34 @@ export function Checkout() {
   const activeLines = buyNowLines || lines;
 
   // Real-time calculation for Buy Now items if distinct from cart
-  const [buyNowTotals, setBuyNowTotals] = useState(() => {
-    try {
-      if (buyNowLines && buyNowLines.length > 0 && db && typeof db.calculateCartSync === "function") {
-        const calc = db.calculateCartSync(buyNowLines, couponCode);
-        return calc?.data || null;
-      }
-    } catch (_) {}
-    return null;
-  });
+  const [buyNowTotals, setBuyNowTotals] = useState(null);
+  const [checkoutCoupon, setCheckoutCoupon] = useState("");
+  const [checkoutAppliedCoupon, setCheckoutAppliedCoupon] = useState(null);
 
   useEffect(() => {
-    try {
-      if (buyNowLines && buyNowLines.length > 0 && db && typeof db.calculateCartSync === "function") {
-        const calc = db.calculateCartSync(buyNowLines, appliedCoupon?.code || couponCode);
-        if (calc?.success && calc.data) {
-          setBuyNowTotals(calc.data);
+    let cancelled = false;
+    const refreshBuyNowTotals = async () => {
+      if (!buyNowLines?.length) {
+        setBuyNowTotals(null);
+        setCheckoutAppliedCoupon(null);
+        setCheckoutCoupon("");
+        return;
+      }
+      const code = checkoutAppliedCoupon?.code || checkoutCoupon;
+      try {
+        const result = await db.calculateCart(buyNowLines, code);
+        if (!cancelled && result?.success && result.data) {
+          setBuyNowTotals(result.data);
           return;
         }
+      } catch (_) {}
+      if (!cancelled && typeof db.calculateCartSync === "function") {
+        setBuyNowTotals(db.calculateCartSync(buyNowLines, code)?.data || null);
       }
-    } catch (_) {}
-    setBuyNowTotals(null);
-  }, [buyNowLines, appliedCoupon, couponCode]);
+    };
+    refreshBuyNowTotals();
+    return () => { cancelled = true; };
+  }, [buyNowLines, checkoutCoupon, checkoutAppliedCoupon]);
 
   const activeTotals = buyNowTotals || cartTotals;
 
@@ -826,7 +832,18 @@ export function Checkout() {
     setValidatingCoupon(true);
 
     try {
-      const res = await applyCoupon(code);
+      // Validate against the items actually being checked out (Buy Now can differ from the cart).
+      const res = buyNowLines
+        ? await applyCoupon(code, activeLines, { persist: false })
+        : await applyCoupon(code, activeLines);
+      if (buyNowLines) {
+        setCheckoutCoupon(res.valid ? code : "");
+        const validatedTotals = res.totals?.data || res.totals || res.data?.totals || null;
+        setCheckoutAppliedCoupon(res.valid
+          ? (res.data?.appliedCoupon || validatedTotals?.appliedCoupon || { code })
+          : null);
+        if (res.valid && validatedTotals?.subtotal > 0) setBuyNowTotals(validatedTotals);
+      }
       if (res.valid) {
         triggerHaptic("success");
         setCouponInput("");
@@ -1002,7 +1019,7 @@ export function Checkout() {
       phone: addressObj.phone,
       address: fullAddressString,
       shippingAddress: addressObj,
-      couponCode: appliedCoupon?.code || couponCode || "",
+      couponCode: buyNowLines ? (checkoutAppliedCoupon?.code || buyNowTotals?.appliedCoupon?.code || "") : (appliedCoupon?.code || couponCode || ""),
       items: linesToProcess.flatMap(l => Array.from({ length: l.qty || 1 }, () => l.id)),
       lines: linesToProcess,
       snapshotItems: snapshotItems,

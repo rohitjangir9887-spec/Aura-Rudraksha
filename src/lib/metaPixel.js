@@ -439,31 +439,31 @@ export function trackMetaPurchase(order) {
     const orderId = String(order.orderNumber || order.id || order.orderId || order._id || "").trim();
     if (!orderId) return;
 
-    // Never fire Purchase on cancelled or failed orders
+    // Only confirmed Paid or confirmed COD orders are conversion events.
     const statusLower = String(order.status || "").toLowerCase();
     const paymentStatusLower = String(order.paymentStatus || "").toLowerCase();
-    if (statusLower === "cancelled" || statusLower === "failed" || paymentStatusLower === "failed") {
-      return;
-    }
+    const isCod = paymentStatusLower === "cod" ||
+      String(order.paymentMethod || "").toLowerCase().includes("cod") ||
+      String(order.paymentMode || "").toLowerCase() === "cod";
+    const isPaid = paymentStatusLower === "paid";
+    if (statusLower === "cancelled" || statusLower === "failed" ||
+        paymentStatusLower === "failed" || (!isPaid && !isCod) ||
+        (isCod && statusLower !== "confirmed")) return;
 
     const value = Number(Math.max(0, Number(order.finalAmount ?? order.total ?? order.amount ?? 0)).toFixed(2));
-    if (value <= 0) return;
+    if (value <= 0 || !initMetaPixel() || typeof window.fbq !== "function") return;
 
-    if (firedPurchaseOrderIds.has(orderId)) return;
     const storageKey = `aura_meta_purchase_tracked_${orderId}`;
     try {
       if (sessionStorage.getItem(storageKey) || localStorage.getItem(storageKey)) {
         firedPurchaseOrderIds.add(orderId);
         return;
       }
-      firedPurchaseOrderIds.add(orderId);
-      sessionStorage.setItem(storageKey, "1");
-      localStorage.setItem(storageKey, "1");
     } catch (_) {
-      firedPurchaseOrderIds.add(orderId);
+      // Storage can be unavailable in privacy modes; in-memory dedupe still applies.
     }
+    if (firedPurchaseOrderIds.has(orderId)) return;
 
-    // Sync customer matching parameters from confirmed order before firing Purchase for 10/10 Event Match Quality
     const cust = order.customer || {};
     syncMetaUserMatching({
       firstName: order.firstName || cust.firstName || order.addressDetails?.firstName,
@@ -477,36 +477,34 @@ export function trackMetaPurchase(order) {
       userId: order.userId || order.customerId || cust.userId
     });
 
-    if (initMetaPixel() && typeof window.fbq === "function") {
-      const items = order.snapshotItems || order.items || order.lines || [];
-      const contentIds = items.map(it => String(it.id || it.productId || "")).filter(Boolean);
-      const contents = items
-        .map(it => {
-          const itemId = String(it.id || it.productId || "").trim();
-          if (!itemId) return null;
-          return {
-            id: itemId,
-            quantity: Math.max(1, Number(it.qty || it.quantity) || 1),
-            item_price: Number(Math.max(0, Number(it.price ?? it.unitPrice) || 0).toFixed(2))
-          };
-        })
-        .filter(Boolean);
-      const numItems = items.reduce((sum, it) => sum + (Number(it.qty || it.quantity) || 1), 0);
+    const items = order.snapshotItems || order.items || order.lines || [];
+    const contentIds = items.map(it => String(it.id || it.productId || "")).filter(Boolean);
+    const contents = items.map(it => {
+      const itemId = String(it.id || it.productId || "").trim();
+      if (!itemId) return null;
+      return {
+        id: itemId,
+        quantity: Math.max(1, Number(it.qty || it.quantity) || 1),
+        item_price: Number(Math.max(0, Number(it.price ?? it.unitPrice) || 0).toFixed(2))
+      };
+    }).filter(Boolean);
+    const numItems = items.reduce((sum, it) => sum + (Number(it.qty || it.quantity) || 1), 0);
 
-      window.fbq(
-        "track",
-        "Purchase",
-        {
-          content_ids: contentIds,
-          contents,
-          content_type: "product",
-          value,
-          currency: "INR",
-          num_items: numItems || 1
-        },
-        { eventID: `PURCHASE_${orderId}` }
-      );
-    }
+    window.fbq("track", "Purchase", {
+      content_ids: contentIds,
+      contents,
+      content_type: "product",
+      value,
+      currency: "INR",
+      num_items: numItems || 1
+    }, { eventID: `PURCHASE_${orderId}` });
+
+    // Persist dedupe only after the Pixel event call was accepted.
+    firedPurchaseOrderIds.add(orderId);
+    try {
+      sessionStorage.setItem(storageKey, "1");
+      localStorage.setItem(storageKey, "1");
+    } catch (_) {}
   } catch (_) {}
 }
 

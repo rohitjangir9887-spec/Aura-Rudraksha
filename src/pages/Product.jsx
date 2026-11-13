@@ -130,10 +130,11 @@ export function Product() {
     if (!isSilent) setLoading(true);
 
     try {
-      let found = await db.getProductAsync(id);
+      // Cached products are already rendered immediately. Only request the
+      // individual product when it is not present; avoid a forced full-catalog
+      // refresh for every cached product page visit.
+      let found = existing || await db.getProductAsync(id);
       if (!found) {
-        // Fallback: Refresh full product catalog in cache and re-query
-        await db.fetchProducts(true);
         found = db.getProduct(id);
       }
 
@@ -204,8 +205,14 @@ export function Product() {
     // Reset origin to default Nepal on new product
     setSelectedOrigin("Nepal");
 
-    // Load fresh data silently if we already have the product in cache
-    loadData(true);
+    // Fetch only when the product is missing from the immediate cache.
+    // Existing cached product data remains interactive without a redundant PDP request.
+    if (!syncProduct) {
+      loadData(false);
+    } else {
+      setAllProducts(db.getProducts().filter(isPublicProduct));
+      setCoupons(db.getCoupons().filter(c => c.status === "Active"));
+    }
 
     const unsub = onStoreUpdate((eventOrType, maybePayload) => {
       const type = typeof eventOrType === "string"
