@@ -1478,6 +1478,15 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   const seo = await resolveSeoData(pathname, req);
   const baseUrl = getSiteBaseUrl(req);
   const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION || "";
+  let metaDomainVerification = process.env.META_DOMAIN_VERIFICATION || "";
+  if (!metaDomainVerification && isDbConnected()) {
+    try {
+      const storeSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).select("metaDomainVerification").lean();
+      if (storeSettings?.metaDomainVerification) {
+        metaDomainVerification = String(storeSettings.metaDomainVerification).trim();
+      }
+    } catch (_) {}
+  }
 
   let result = templateHtml;
 
@@ -1505,6 +1514,9 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
 
   if (googleSiteVerification) {
     headInjections += `  <meta name="google-site-verification" content="${escapeXml(googleSiteVerification)}" />\n`;
+  }
+  if (metaDomainVerification) {
+    headInjections += `  <meta name="facebook-domain-verification" content="${escapeXml(metaDomainVerification)}" />\n`;
   }
 
   // OpenGraph Tags formatted for WhatsApp, Facebook, Instagram, Telegram, iMessage
@@ -1813,16 +1825,26 @@ export function getHtmlTemplate() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Meta Pixel Code -->
     <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1485640013424198');
-    fbq('track', 'PageView');
+    (function() {
+      var p = (window.location.pathname || '/').toLowerCase();
+      var blocked = ['/admin','/login','/register','/reset-password','/verify-email','/account','/verify-certificate'];
+      for (var i = 0; i < blocked.length; i++) {
+        if (p === blocked[i] || p.indexOf(blocked[i] + '/') === 0) return;
+      }
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('dataProcessingOptions', []);
+      fbq('init', '1485640013424198');
+      if (p !== '/payment-result' && !/[?&](guestToken|guest_token|txnid|txnId|oobCode|apiKey|email|phone|search|q|reason|error)=/i.test(window.location.search || '')) {
+        fbq('track', 'PageView');
+      }
+    })();
     </script>
     <!-- End Meta Pixel Code -->
     <!-- Google tag (gtag.js) -->

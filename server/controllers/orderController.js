@@ -16,6 +16,7 @@ import { normalizeOrderState } from "../services/orderReconciliationService.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { buildPhoneQueryVariants, normalizePhoneNumber, extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 import { verifyPayuPaymentServerSide } from "../services/payuService.js";
+import { sendMetaCapiPurchase } from "../services/metaCapiService.js";
 import crypto from "crypto";
 
 // Allowed customer input fields during order creation
@@ -650,6 +651,11 @@ export async function createOrder(req, res, next) {
           });
         } catch (custErr) {
           console.warn("Could not sync customer on order:", custErr.message);
+        }
+        if (isCodOrder) {
+          try {
+            await sendMetaCapiPurchase(created, req);
+          } catch (_) {}
         }
       });
 

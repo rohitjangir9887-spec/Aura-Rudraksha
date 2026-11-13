@@ -352,7 +352,7 @@ export function AdminSettings() {
                 onChange={(e) => updateSettings("metaPixelId", e.target.value.trim())}
               />
               <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
-                Paste your 15-16 digit Meta Pixel ID from Meta Events Manager. Click Save Settings below to activate.
+                Active Pixel Dataset ID: <b>1485640013424198</b>
               </small>
             </div>
 
@@ -366,7 +366,41 @@ export function AdminSettings() {
                 <span>Enable Meta Ads Conversion Tracking & Attribution (fbclid / igshid / UTM)</span>
               </label>
               <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", marginLeft: "24px", display: "block" }}>
-                1-Step Guest Checkout (Optional Email + COD + UPI) is active for Instagram & Facebook ad traffic.
+                Strict Business Tools Terms Compliance active: sensitive routes & query tokens are filtered automatically.
+              </small>
+            </div>
+          </div>
+
+          <div className="admin-form-row" style={{ marginTop: "8px" }}>
+            <div className="admin-form-group">
+              <label htmlFor="metaDomainVerification" style={{ fontWeight: "700" }}>Meta Domain Verification Code (Fixes "No websites found")</label>
+              <input
+                id="metaDomainVerification"
+                type="text"
+                placeholder="e.g. abc123xyz4567890..."
+                value={settings.metaDomainVerification || ""}
+                onChange={(e) => updateSettings("metaDomainVerification", e.target.value.trim())}
+              />
+              <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
+                Paste the code from Meta Business Settings → Brand Safety → Domains (meta-tag method) so <b>aurarudraksha.bond</b> verifies cleanly.
+              </small>
+            </div>
+
+            <div className="admin-form-group">
+              <label htmlFor="metaCapiAccessToken" style={{ fontWeight: "700" }}>
+                Meta Conversions API (CAPI) Access Token (Optional • 9+/10 EMQ)
+              </label>
+              <input
+                id="metaCapiAccessToken"
+                type="password"
+                placeholder={settings.metaCapiAccessTokenMasked || "Paste Events Manager → Settings → Generate access token"}
+                value={settings.metaCapiAccessToken || ""}
+                onChange={(e) => updateSettings("metaCapiAccessToken", e.target.value.trim())}
+              />
+              <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
+                {settings.hasMetaCapiToken || settings.metaCapiEnabled
+                  ? "✅ Server-Side Conversions API token configured (deduplicates Purchase & funnel events via event_id)."
+                  : "Optional: Paste your Meta CAPI token to enable server-side Purchase & SHA-256 customer matching deduplication."}
               </small>
             </div>
           </div>

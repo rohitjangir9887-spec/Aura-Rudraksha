@@ -24,6 +24,7 @@ import { checkOrAcquireIdempotency, commitIdempotency, releaseIdempotency, hashP
 import { sendRefundOtpEmail, maskEmail } from "../services/emailService.js";
 import { generateRefundOtp, verifyRefundOtp } from "../services/refundOtpService.js";
 import { extractRaw10DigitPhone } from "../utils/phoneUtils.js";
+import { sendMetaCapiPurchase } from "../services/metaCapiService.js";
 
 /**
  * Safely parse and normalize incoming PayU callback/webhook body
@@ -694,6 +695,8 @@ export async function handlePayuCallback(req, res) {
       } catch (custErr) {
         console.warn("Could not sync customer on PayU callback:", custErr.message);
       }
+
+      sendMetaCapiPurchase(updatedOrder, req).catch(() => {});
     }
 
     return res.redirect(303, `${clientBaseUrl}/payment-result?status=success&orderId=${orderId}&txnid=${txnid}${guestQuery}`);
@@ -1050,6 +1053,8 @@ export async function handlePayuWebhook(req, res) {
         );
         await WebhookEvent.findOneAndUpdate({ eventId }, { $set: { processingStatus: "PROCESSED", processedAt: new Date() } });
       } catch (err) { console.warn("PaymentTransaction update warning:", err.message); }
+
+      sendMetaCapiPurchase(updatedOrder, req).catch(() => {});
     }
 
     return res.status(200).json({ success: true, message: "Webhook processed successfully" });

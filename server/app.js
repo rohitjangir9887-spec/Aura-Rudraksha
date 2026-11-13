@@ -27,6 +27,7 @@ import cartRoute from "./routes/cart.js";
 import paymentRoute from "./routes/payment.js";
 import uploadRoute from "./routes/upload.js";
 import seoRoute from "./routes/seo.js";
+import metaRoute from "./routes/meta.js";
 import adminDbStatusRoute from "./routes/adminDbStatus.js";
 import { handlePayuCallback, handlePayuCancel } from "./controllers/paymentController.js";
 import { renderSsrHtml, getHtmlTemplate } from "./services/seoService.js";
@@ -315,6 +316,7 @@ export function createApp(options = {}) {
   app.use("/api/auth", requireDb, authRoute);
   app.use("/api/aura-ai", auraAiRoute);
   app.use("/api/payment", requireDb, noCacheMiddleware, paymentRoute);
+  app.use("/api/meta", requireDb, metaRoute);
 
   // Top-level SEO endpoints (/sitemap.xml, /robots.txt, /google-merchant-feed.xml, IndexNow verification)
   app.use("/", seoRoute);

@@ -407,6 +407,16 @@ export function Checkout() {
     }
   }, [effectiveLines, finalTotal, formData]);
 
+  // Keep Meta Advanced Matching fresh as shopper types phone/email/name/pincode/city/state
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.phone?.trim().length >= 10 || (formData.email && formData.email.includes("@")) || formData.firstName?.trim()) {
+        syncMetaUserMatching(formData);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [formData.firstName, formData.lastName, formData.phone, formData.email, formData.city, formData.state, formData.pincode]);
+
   // Detect Unresolved Payment Attempt (Back button from PayU / bfcache restoration)
   const isVerifyingRef = useRef(false);
 

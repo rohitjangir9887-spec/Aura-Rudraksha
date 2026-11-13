@@ -5,15 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Meta Pixel Code -->
     <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
     (function() {
+      var p = (window.location.pathname || '/').toLowerCase();
+      var s = window.location.search || '';
+      var blocked = ['/admin','/login','/register','/reset-password','/verify-email','/account','/verify-certificate'];
+      for (var i = 0; i < blocked.length; i++) {
+        if (p === blocked[i] || p.indexOf(blocked[i] + '/') === 0) return;
+      }
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
       try {
         var ls = window.localStorage;
         var extId = ls ? ls.getItem('aura_external_id') : '';
@@ -22,22 +28,31 @@
           if (ls) ls.setItem('aura_external_id', extId);
         }
         var uData = { country: 'in', external_id: extId };
+        var amKeys = ['em', 'ph', 'fn', 'ln', 'ct', 'st', 'zp', 'country', 'external_id'];
         if (ls) {
           var rawMeta = ls.getItem('aura_meta_user_data');
           if (rawMeta) {
             var parsed = JSON.parse(rawMeta);
             if (parsed && typeof parsed === 'object') {
-              for (var k in parsed) {
-                if (parsed[k]) uData[k] = parsed[k];
+              for (var j = 0; j < amKeys.length; j++) {
+                var key = amKeys[j];
+                if (parsed[key]) uData[key] = parsed[key];
               }
             }
           }
         }
+        fbq('dataProcessingOptions', []);
         fbq('init', '1485640013424198', uData);
-        fbq('track', 'PageView', {}, { eventID: 'PV_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7) });
+        var hasSensitiveQuery = /[?&](guestToken|guest_token|txnid|txnId|transaction_id|oobCode|apiKey|token|secret|email|phone|search|q|query|searchQuery|reason|error|message)=/i.test(s);
+        if (p !== '/payment-result' && !hasSensitiveQuery) {
+          fbq('track', 'PageView', {}, { eventID: 'PV_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7) });
+        }
       } catch (err) {
+        fbq('dataProcessingOptions', []);
         fbq('init', '1485640013424198');
-        fbq('track', 'PageView');
+        if (p !== '/payment-result') {
+          fbq('track', 'PageView');
+        }
       }
     })();
     </script>

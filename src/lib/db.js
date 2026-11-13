@@ -555,6 +555,8 @@ const storeCache = {
     codFee: 0,
     metaPixelId: "1485640013424198",
     metaPixelEnabled: true,
+    metaDomainVerification: "",
+    metaCapiEnabled: false,
     featuredProductId: "14",
     featuredProductEnabled: true,
     instagramUrl: "https://instagram.com/aurarudraksha",

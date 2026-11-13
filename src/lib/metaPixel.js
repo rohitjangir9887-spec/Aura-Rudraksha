@@ -2,18 +2,151 @@
  * Meta Ads (Facebook / Instagram Pixel) & Conversion Attribution Utility
  * Official Aura Rudraksha Meta Pixel ID: 1485640013424198
  * Tracks standard e-commerce events: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase.
+ * Enforces Meta Business Tools Terms compliance:
+ * - Blocks tracking on private/auth/admin/certificate routes
+ * - Strips sensitive URL query parameters & PII before event capture
+ * - Sanitizes health/medical keywords from event payload metadata
+ * - Supports optional server-side Conversions API (CAPI) eventID deduplication
  */
 
 export const DEFAULT_META_PIXEL_ID = "1485640013424198";
 
-// index.html initializes window.fbq('init', '1485640013424198') and fires the initial 'PageView'.
-// Record the initial path immediately so React mount never fires a duplicate initial PageView.
+const RESTRICTED_PIXEL_PREFIXES = [
+  "/admin",
+  "/login",
+  "/register",
+  "/reset-password",
+  "/verify-email",
+  "/account",
+  "/verify-certificate"
+];
+
+const SENSITIVE_QUERY_KEYS = new Set([
+  "guesttoken",
+  "guest_token",
+  "txnid",
+  "transaction_id",
+  "oobcode",
+  "apikey",
+  "token",
+  "secret",
+  "password",
+  "email",
+  "phone",
+  "reason",
+  "error",
+  "message",
+  "q",
+  "search",
+  "query",
+  "searchquery"
+]);
+
+const RESTRICTED_HEALTH_TERMS_REGEX =
+  /\b(blood\s*pressure|hypertension|bp|diabetes|diabetic|sugar|cancer|tumor|tumour|depression|anxiety|insomnia|migraine|arthritis|asthma|heart\s*disease|kidney|liver|disease|disorder|illness|sickness|cure|remedy|medicine|medical|clinical|therapy|therapeutic|treatment|symptom|diagnosis|doctor|patient|ailment|wellness|health)\b/gi;
+
+export function isRestrictedPixelPath(pathname = "") {
+  const clean = String(pathname || (typeof window !== "undefined" ? window.location.pathname : "/"))
+    .toLowerCase()
+    .trim() || "/";
+  return RESTRICTED_PIXEL_PREFIXES.some(
+    (prefix) => clean === prefix || clean.startsWith(`${prefix}/`)
+  );
+}
+
+export function hasSensitiveQueryParams(search = "") {
+  try {
+    const raw = String(search || (typeof window !== "undefined" ? window.location.search : ""));
+    if (!raw || raw === "?") return false;
+    const params = new URLSearchParams(raw);
+    for (const key of params.keys()) {
+      if (SENSITIVE_QUERY_KEYS.has(String(key || "").toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function sanitizePixelText(raw = "", fallback = "Sacred Rudraksha") {
+  const str = String(raw || "").trim();
+  if (!str) return fallback;
+  const cleaned = str
+    .replace(RESTRICTED_HEALTH_TERMS_REGEX, "spiritual")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned || fallback;
+}
+
+export function sanitizePixelCategory(raw = "") {
+  const str = String(raw || "").trim();
+  if (!str || RESTRICTED_HEALTH_TERMS_REGEX.test(str)) {
+    return "Sacred Spiritual Beads";
+  }
+  return str;
+}
+
+export function getCleanPixelSourceUrl() {
+  if (typeof window === "undefined" || !window.location) return "https://aurarudraksha.bond/";
+  return `${window.location.origin}${window.location.pathname || "/"}`;
+}
+
+function getCookieVal(name) {
+  if (typeof document === "undefined") return "";
+  try {
+    const m = (document.cookie || "").match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+    return m ? decodeURIComponent(m[1]) : "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function isServerCapiEnabled() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage?.getItem("aura_meta_capi_enabled") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function relayServerCapiEvent(eventName, eventId, customData = {}, extraUserData = {}) {
+  if (typeof window === "undefined" || typeof fetch !== "function") return;
+  if (!isServerCapiEnabled()) return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
+  try {
+    const userData = getMetaAdvancedMatchingData(extraUserData);
+    const fbp = getCookieVal("_fbp");
+    const fbc = getCookieVal("_fbc");
+    fetch("/api/meta/capi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        eventName,
+        eventId,
+        sourceUrl: getCleanPixelSourceUrl(),
+        customData,
+        userData: { ...userData, ...(fbp ? { fbp } : {}), ...(fbc ? { fbc } : {}) }
+      })
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+// index.html initializes window.fbq('init', '1485640013424198') on non-restricted public pages
+// and fires initial PageView unless deferred on /payment-result or sensitive query URLs.
 let initialized =
   typeof window !== "undefined" && typeof window.fbq === "function";
 
 let lastTrackedPageViewPath =
-  typeof window !== "undefined" && typeof window.fbq === "function"
-    ? `${window.location.pathname}${window.location.search}`
+  typeof window !== "undefined" &&
+  typeof window.fbq === "function" &&
+  !isRestrictedPixelPath(window.location.pathname) &&
+  window.location.pathname.toLowerCase() !== "/payment-result" &&
+  !hasSensitiveQueryParams(window.location.search)
+    ? window.location.pathname
     : "";
 
 let lastViewContentKey = "";
@@ -26,7 +159,7 @@ function makeEventId(prefix = "EV") {
 }
 
 /**
- * Normalize customer fields for Meta Advanced Matching (Event Match Quality 10/10)
+ * Normalize customer fields for Meta Advanced Matching (strictly standard 9 AM fields only).
  * fbevents.js automatically SHA-256 hashes normalized em, ph, fn, ln, ct, st, zp, country, external_id.
  */
 function normalizeAdvancedMatching(raw = {}) {
@@ -103,6 +236,9 @@ export function getMetaAdvancedMatchingData(extra = {}) {
             email: stored.em || stored.email || u.email,
             phone: stored.ph || stored.phone || u.phone || u.phoneNumber,
             name: stored.name || u.name || u.displayName,
+            city: stored.ct || stored.city || u.city,
+            state: stored.st || stored.state || u.state,
+            pincode: stored.zp || stored.pincode || u.pincode,
             userId: stored.external_id || u.id || u._id || u.uid || u.authUserId
           };
         }
@@ -133,7 +269,8 @@ export function syncMetaUserMatching(customerData = {}) {
   if (typeof window === "undefined") return;
   try {
     const userData = getMetaAdvancedMatchingData(customerData);
-    if (typeof window.fbq === "function") {
+    if (typeof window.fbq === "function" && !isRestrictedPixelPath(window.location.pathname)) {
+      window.fbq("dataProcessingOptions", []);
       window.fbq("init", DEFAULT_META_PIXEL_ID, userData);
     }
   } catch (_) {}
@@ -159,6 +296,16 @@ function ensureFirstPartyMetaCookies(fbclid = "") {
   } catch (_) {}
 }
 
+function getScrubbedReferrer() {
+  if (typeof document === "undefined" || !document.referrer) return "";
+  try {
+    const u = new URL(document.referrer);
+    return `${u.origin}${u.pathname}`;
+  } catch (_) {
+    return "";
+  }
+}
+
 /**
  * If an older Service Worker controller was still attached on first load,
  * send a direct keepalive fetch beacon (destination === "") which bypasses
@@ -166,6 +313,7 @@ function ensureFirstPartyMetaCookies(fbclid = "") {
  */
 function sendDirectPixelBeaconIfSwActive(eventName, customData = null) {
   if (typeof window === "undefined") return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
   try {
     const hasLegacySwController = Boolean(
       navigator.serviceWorker && navigator.serviceWorker.controller
@@ -176,7 +324,7 @@ function sendDirectPixelBeaconIfSwActive(eventName, customData = null) {
       id: DEFAULT_META_PIXEL_ID,
       ev: eventName,
       dl: `${window.location.origin}${window.location.pathname}`,
-      rl: document.referrer || "",
+      rl: getScrubbedReferrer(),
       if: "false",
       ts: String(Date.now()),
       sw: String(window.screen?.width || 0),
@@ -200,8 +348,13 @@ function sendDirectPixelBeaconIfSwActive(eventName, customData = null) {
   } catch (_) {}
 }
 
-// Fire immediate direct beacon on initial load if a legacy Service Worker was still controlling the tab
-if (typeof window !== "undefined") {
+// Fire immediate direct beacon on initial load only on non-restricted public pages
+if (
+  typeof window !== "undefined" &&
+  !isRestrictedPixelPath(window.location.pathname) &&
+  window.location.pathname.toLowerCase() !== "/payment-result" &&
+  !hasSensitiveQueryParams(window.location.search)
+) {
   sendDirectPixelBeaconIfSwActive("PageView");
 }
 
@@ -264,6 +417,7 @@ export function getActiveMetaPixelId() {
  */
 export function initMetaPixel() {
   if (typeof window === "undefined") return false;
+  if (isRestrictedPixelPath(window.location.pathname)) return false;
   captureAdAttribution();
 
   try {
@@ -287,9 +441,11 @@ export function initMetaPixel() {
         if (s && s.parentNode) s.parentNode.insertBefore(t, s);
       })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
       /* eslint-enable */
+      window.fbq("dataProcessingOptions", []);
       window.fbq("init", DEFAULT_META_PIXEL_ID, userData);
       initialized = true;
     } else if (!initialized) {
+      window.fbq("dataProcessingOptions", []);
       window.fbq("init", DEFAULT_META_PIXEL_ID, userData);
       initialized = true;
     }
@@ -300,17 +456,21 @@ export function initMetaPixel() {
 }
 
 /**
- * Track PageView event on SPA route changes (deduplicated against initial load and same-URL renders)
+ * Track PageView event on SPA route changes (skips restricted paths and sensitive URL query parameters)
  */
 export function trackMetaPageView() {
   if (typeof window === "undefined") return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
+  if (hasSensitiveQueryParams(window.location.search)) return;
   try {
     captureAdAttribution();
     if (initMetaPixel() && typeof window.fbq === "function") {
-      const currentPath = `${window.location.pathname}${window.location.search}`;
+      const currentPath = window.location.pathname;
       if (lastTrackedPageViewPath !== currentPath) {
-        window.fbq("track", "PageView", {}, { eventID: makeEventId("PV") });
+        const eventId = makeEventId("PV");
+        window.fbq("track", "PageView", {}, { eventID: eventId });
         sendDirectPixelBeaconIfSwActive("PageView");
+        relayServerCapiEvent("PageView", eventId);
         lastTrackedPageViewPath = currentPath;
       }
     }
@@ -322,6 +482,7 @@ export function trackMetaPageView() {
  */
 export function trackMetaViewContent(product) {
   if (typeof window === "undefined" || !product) return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
   try {
     const productId = String(product.id || product.productId || product._id || product.slug || "").trim();
     if (!productId) return;
@@ -331,29 +492,28 @@ export function trackMetaViewContent(product) {
     if (initMetaPixel() && typeof window.fbq === "function") {
       lastViewContentKey = viewKey;
       const unitPrice = Number(Math.max(0, Number(product.price) || 0).toFixed(2));
-      window.fbq(
-        "track",
-        "ViewContent",
-        {
-          content_ids: [productId],
-          contents: [{ id: productId, quantity: 1, item_price: unitPrice }],
-          content_name: String(product.name || "Sacred Rudraksha"),
-          content_type: "product",
-          content_category: String(product.category || product.mukhi || "Rudraksha"),
-          value: unitPrice,
-          currency: "INR"
-        },
-        { eventID: makeEventId(`VC_${productId}`) }
-      );
+      const payload = {
+        content_ids: [productId],
+        contents: [{ id: productId, quantity: 1, item_price: unitPrice }],
+        content_name: sanitizePixelText(product.name, "Sacred Rudraksha"),
+        content_type: "product",
+        content_category: sanitizePixelCategory(product.category || product.mukhi || "Sacred Spiritual Beads"),
+        value: unitPrice,
+        currency: "INR"
+      };
+      const eventId = makeEventId(`VC_${productId}`);
+      window.fbq("track", "ViewContent", payload, { eventID: eventId });
+      relayServerCapiEvent("ViewContent", eventId, payload);
     }
   } catch (_) {}
 }
 
 /**
- * Track AddToCart event (deduplicated within 500ms window to prevent double-firing)
+ * Track AddToCart event (deduplicated within 800ms window to prevent double-firing)
  */
 export function trackMetaAddToCart(product, qty = 1) {
   if (typeof window === "undefined" || !product) return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
   try {
     const productId = String(product.id || product.productId || product._id || product.slug || "").trim();
     const cleanQty = Math.max(1, Number(qty || product.qty || product.quantity) || 1);
@@ -371,20 +531,18 @@ export function trackMetaAddToCart(product, qty = 1) {
       lastAddToCartKey = dedupKey;
       lastAddToCartTime = now;
       const totalVal = Number((unitPrice * cleanQty).toFixed(2));
-      window.fbq(
-        "track",
-        "AddToCart",
-        {
-          content_ids: [productId],
-          contents: [{ id: productId, quantity: cleanQty, item_price: unitPrice }],
-          content_name: String(product.name || "Sacred Rudraksha"),
-          content_type: "product",
-          value: totalVal,
-          currency: "INR",
-          num_items: cleanQty
-        },
-        { eventID: makeEventId(`ATC_${productId}`) }
-      );
+      const payload = {
+        content_ids: [productId],
+        contents: [{ id: productId, quantity: cleanQty, item_price: unitPrice }],
+        content_name: sanitizePixelText(product.name, "Sacred Rudraksha"),
+        content_type: "product",
+        value: totalVal,
+        currency: "INR",
+        num_items: cleanQty
+      };
+      const eventId = makeEventId(`ATC_${productId}`);
+      window.fbq("track", "AddToCart", payload, { eventID: eventId });
+      relayServerCapiEvent("AddToCart", eventId, payload);
     }
   } catch (_) {}
 }
@@ -394,6 +552,7 @@ export function trackMetaAddToCart(product, qty = 1) {
  */
 export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value, customer } = {}) {
   if (typeof window === "undefined") return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
   try {
     if (!Array.isArray(lines) || lines.length === 0) return;
     if (customer && typeof customer === "object") {
@@ -414,19 +573,17 @@ export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value
         })
         .filter(Boolean);
       const numItems = lines.reduce((sum, l) => sum + (Number(l.qty || l.quantity) || 1), 0);
-      window.fbq(
-        "track",
-        "InitiateCheckout",
-        {
-          content_ids: contentIds,
-          contents,
-          content_type: "product",
-          value: resolvedValue,
-          currency: "INR",
-          num_items: numItems || 1
-        },
-        { eventID: makeEventId("IC") }
-      );
+      const payload = {
+        content_ids: contentIds,
+        contents,
+        content_type: "product",
+        value: resolvedValue,
+        currency: "INR",
+        num_items: numItems || 1
+      };
+      const eventId = makeEventId("IC");
+      window.fbq("track", "InitiateCheckout", payload, { eventID: eventId });
+      relayServerCapiEvent("InitiateCheckout", eventId, payload, customer || {});
     }
   } catch (_) {}
 }
@@ -436,6 +593,7 @@ export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value
  */
 export function trackMetaPurchase(order) {
   if (typeof window === "undefined" || !order) return;
+  if (isRestrictedPixelPath(window.location.pathname)) return;
   try {
     const orderId = String(order.orderNumber || order.id || order.orderId || order._id || "").trim();
     if (!orderId) return;
@@ -443,11 +601,18 @@ export function trackMetaPurchase(order) {
     // Never fire Purchase on cancelled or failed orders
     const statusLower = String(order.status || "").toLowerCase();
     const paymentStatusLower = String(order.paymentStatus || "").toLowerCase();
-    if (statusLower === "cancelled" || statusLower === "failed" || paymentStatusLower === "failed") {
+    if (
+      statusLower === "cancelled" ||
+      statusLower === "failed" ||
+      paymentStatusLower === "failed" ||
+      paymentStatusLower === "cancelled"
+    ) {
       return;
     }
 
-    const value = Number(Math.max(0, Number(order.finalAmount ?? order.total ?? order.amount ?? 0)).toFixed(2));
+    const value = Number(
+      Math.max(0, Number(order.finalAmount ?? order.totalAmount ?? order.total ?? order.amount ?? 0)).toFixed(2)
+    );
     if (value <= 0) return;
 
     if (firedPurchaseOrderIds.has(orderId)) return;
@@ -464,26 +629,34 @@ export function trackMetaPurchase(order) {
       firedPurchaseOrderIds.add(orderId);
     }
 
-    // Sync customer matching parameters from confirmed order before firing Purchase for 10/10 Event Match Quality
+    // Sync customer matching parameters from confirmed order before firing Purchase for high Event Match Quality
     const cust = order.customer || {};
-    syncMetaUserMatching({
-      firstName: order.firstName || cust.firstName || order.addressDetails?.firstName,
-      lastName: order.lastName || cust.lastName || order.addressDetails?.lastName,
+    const ship = order.shippingAddress || order.addressDetails || {};
+    const customerInfo = {
+      firstName: order.firstName || cust.firstName || ship.firstName,
+      lastName: order.lastName || cust.lastName || ship.lastName,
       name: order.customerName || order.name || cust.name,
-      email: order.customerEmail || order.email || cust.email || order.addressDetails?.email,
-      phone: order.customerPhone || order.phone || cust.phone || order.addressDetails?.phone,
-      city: order.city || cust.city || order.addressDetails?.city,
-      state: order.state || cust.state || order.addressDetails?.state,
-      pincode: order.pincode || cust.pincode || order.addressDetails?.pincode,
-      userId: order.userId || order.customerId || cust.userId
-    });
+      email: order.customerEmail || order.email || cust.email || ship.email,
+      phone: order.customerPhone || order.phone || cust.phone || ship.phone,
+      city: order.city || cust.city || ship.city,
+      state: order.state || cust.state || ship.state,
+      pincode: order.pincode || cust.pincode || ship.pincode,
+      userId: order.authUserId || order.userId || order.customerId || cust.userId
+    };
+    syncMetaUserMatching(customerInfo);
 
     if (initMetaPixel() && typeof window.fbq === "function") {
       const items = order.snapshotItems || order.items || order.lines || [];
-      const contentIds = items.map(it => String(it.id || it.productId || "")).filter(Boolean);
+      const contentIds = items
+        .map(it => (typeof it === "string" ? it : String(it?.id || it?.productId || it?._id || "")).trim())
+        .filter(Boolean);
       const contents = items
         .map(it => {
-          const itemId = String(it.id || it.productId || "").trim();
+          if (typeof it === "string") {
+            return { id: it.trim(), quantity: 1, item_price: value };
+          }
+          if (!it || typeof it !== "object") return null;
+          const itemId = String(it.id || it.productId || it._id || "").trim();
           if (!itemId) return null;
           return {
             id: itemId,
@@ -492,22 +665,22 @@ export function trackMetaPurchase(order) {
           };
         })
         .filter(Boolean);
-      const numItems = items.reduce((sum, it) => sum + (Number(it.qty || it.quantity) || 1), 0);
-
-      window.fbq(
-        "track",
-        "Purchase",
-        {
-          content_ids: contentIds,
-          contents,
-          content_type: "product",
-          value,
-          currency: "INR",
-          num_items: numItems || 1
-        },
-        { eventID: `PURCHASE_${orderId}` }
+      const numItems = items.reduce(
+        (sum, it) => sum + (typeof it === "object" ? (Number(it?.qty || it?.quantity) || 1) : 1),
+        0
       );
+
+      const payload = {
+        content_ids: contentIds,
+        contents,
+        content_type: "product",
+        value,
+        currency: "INR",
+        num_items: numItems || 1
+      };
+      const eventId = `PURCHASE_${orderId}`;
+      window.fbq("track", "Purchase", payload, { eventID: eventId });
+      relayServerCapiEvent("Purchase", eventId, payload, customerInfo);
     }
   } catch (_) {}
 }
-

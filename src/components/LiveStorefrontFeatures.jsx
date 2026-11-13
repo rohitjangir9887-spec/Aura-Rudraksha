@@ -2,9 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Sparkles, X, ArrowRight } from "lucide-react";
 import { db, onStoreUpdate } from "../lib/db";
+import { authClient } from "../lib/authClient";
 import {
   captureAdAttribution,
-  trackMetaPageView
+  trackMetaPageView,
+  isRestrictedPixelPath,
+  hasSensitiveQueryParams,
+  syncMetaUserMatching
 } from "../lib/metaPixel";
 
 export function LiveStorefrontFeatures() {
@@ -13,19 +17,53 @@ export function LiveStorefrontFeatures() {
   const [dismissedIds, setDismissedIds] = useState({});
 
   const isAdminRoute = (location.pathname || "").toLowerCase().startsWith("/admin");
+  const isBlockedPixelRoute = isRestrictedPixelPath(location.pathname);
 
   useEffect(() => {
-    // Capture Meta / UTM ad attribution parameters (fbclid, utm_source, etc.) and fire PageView
+    // Capture Meta / UTM ad attribution parameters (fbclid, igshid, utm_source, etc.) and fire clean PageView
     captureAdAttribution();
-    if (!isAdminRoute) {
+    const isPaymentResultWithSensitiveParams =
+      (location.pathname || "").toLowerCase() === "/payment-result" &&
+      hasSensitiveQueryParams(location.search);
+
+    if (!isBlockedPixelRoute && !isPaymentResultWithSensitiveParams && !hasSensitiveQueryParams(location.search)) {
       trackMetaPageView();
     }
-  }, [location.pathname, location.search, isAdminRoute]);
+  }, [location.pathname, location.search, isBlockedPixelRoute]);
 
   useEffect(() => {
+    const syncCustomerForMatching = (u) => {
+      try {
+        const cachedMe = db.getCachedCustomerMe?.() || {};
+        const target = u && !u.isAnonymous ? u : null;
+        if (target || cachedMe?.email || cachedMe?.phone) {
+          syncMetaUserMatching({
+            email: cachedMe?.email || target?.email,
+            phone: cachedMe?.phone || target?.phoneNumber,
+            name: cachedMe?.name || target?.displayName,
+            city: cachedMe?.city,
+            state: cachedMe?.state,
+            pincode: cachedMe?.pincode,
+            userId: target?.uid || target?.authUserId || cachedMe?.authUserId
+          });
+        }
+      } catch (_) {}
+    };
+
+    syncCustomerForMatching(authClient.getUser?.());
+    const unsubAuth = authClient.onAuthStateChanged?.((u) => {
+      syncCustomerForMatching(u);
+    });
+
     const syncFromStoreSettings = () => {
       try {
         const settingsObj = db.getSettings() || {};
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(
+            "aura_meta_capi_enabled",
+            settingsObj?.metaCapiEnabled ? "1" : "0"
+          );
+        }
         const list = settingsObj?.aiCustomFeatures || [];
         if (Array.isArray(list)) {
           const activeList = list.filter(f => f && f.enabled !== false);
@@ -46,7 +84,10 @@ export function LiveStorefrontFeatures() {
         syncFromStoreSettings();
       }
     });
-    return () => unsub();
+    return () => {
+      unsub();
+      if (typeof unsubAuth === "function") unsubAuth();
+    };
   }, []);
 
   if (isAdminRoute || !features.length) return null;

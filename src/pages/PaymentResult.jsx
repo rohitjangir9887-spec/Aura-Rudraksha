@@ -7,7 +7,22 @@ import { db } from "../lib/db";
 import { useCart } from "../hooks/useCart";
 import { emitToast } from "../context/ToastContext";
 import { OrderSuccessAnimation } from "../components/checkout/OrderSuccessAnimation";
-import { trackMetaPurchase } from "../lib/metaPixel";
+import { trackMetaPurchase, trackMetaPageView, hasSensitiveQueryParams } from "../lib/metaPixel";
+
+const SENSITIVE_PAYMENT_URL_PARAMS = [
+  "guestToken",
+  "guest_token",
+  "txnid",
+  "txnId",
+  "transaction_id",
+  "reason",
+  "error",
+  "message",
+  "email",
+  "phone",
+  "oobCode",
+  "apiKey"
+];
 
 export function PaymentResult() {
   const { clear } = useCart();
@@ -15,23 +30,62 @@ export function PaymentResult() {
   const navigate = useNavigate();
   const location = useLocation();
   const status = (searchParams.get("status") || searchParams.get("payment_status") || "processing").toLowerCase();
-  const rawOrderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1") || "";
-  const rawTxnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id") || "";
-  const txnid = rawTxnid || (rawOrderId && rawOrderId.startsWith("TXN_") ? rawOrderId : "");
-  const orderId = (rawOrderId && !rawOrderId.startsWith("TXN_")) ? rawOrderId : (rawOrderId || txnid);
-  const guestToken = searchParams.get("guestToken") || searchParams.get("guest_token") || "";
-  const rawReason = searchParams.get("reason") || searchParams.get("error") || searchParams.get("message") || "";
-  
+  const urlOrderId = searchParams.get("orderId") || searchParams.get("order_id") || searchParams.get("id") || searchParams.get("udf1") || "";
+  const urlTxnid = searchParams.get("txnid") || searchParams.get("txnId") || searchParams.get("transaction_id") || "";
+
+  const initialOrderIdRef = useRef((() => {
+    const rawId = urlOrderId || (typeof window !== "undefined" ? sessionStorage.getItem("aura_last_payment_orderId") || "" : "");
+    return (rawId && !rawId.startsWith("TXN_")) ? rawId : (rawId || urlTxnid);
+  })());
+  const orderId = initialOrderIdRef.current;
+
+  const initialTxnidRef = useRef((() => {
+    if (urlTxnid) return urlTxnid;
+    if (urlOrderId && urlOrderId.startsWith("TXN_")) return urlOrderId;
+    if (typeof window !== "undefined" && orderId) {
+      return sessionStorage.getItem(`aura_order_txnid_${orderId}`) || localStorage.getItem(`aura_order_txnid_${orderId}`) || sessionStorage.getItem("aura_pending_txnid") || "";
+    }
+    return "";
+  })());
+  const txnid = initialTxnidRef.current;
+
+  const initialGuestTokenRef = useRef((() => {
+    const qTok = searchParams.get("guestToken") || searchParams.get("guest_token") || "";
+    if (qTok) return qTok;
+    if (typeof window !== "undefined") {
+      return (orderId ? (sessionStorage.getItem(`aura_order_token_${orderId}`) || localStorage.getItem(`aura_order_token_${orderId}`)) : "") ||
+        sessionStorage.getItem("aura_guest_token") ||
+        localStorage.getItem("aura_guest_token") ||
+        "";
+    }
+    return "";
+  })());
+  const guestToken = initialGuestTokenRef.current;
+
   const safeDecodeReason = (val) => {
     if (!val) return "";
     try { return decodeURIComponent(val); } catch (_) { return String(val); }
   };
-  const reason = safeDecodeReason(rawReason);
-  
-  if (guestToken) {
+  const initialReasonRef = useRef(
+    safeDecodeReason(searchParams.get("reason") || searchParams.get("error") || searchParams.get("message") || "")
+  );
+  const reason = initialReasonRef.current;
+
+  if (typeof window !== "undefined") {
     try {
-      sessionStorage.setItem("aura_guest_token", guestToken);
-      localStorage.setItem("aura_guest_token", guestToken);
+      if (orderId) sessionStorage.setItem("aura_last_payment_orderId", orderId);
+      if (guestToken) {
+        sessionStorage.setItem("aura_guest_token", guestToken);
+        localStorage.setItem("aura_guest_token", guestToken);
+        if (orderId) {
+          sessionStorage.setItem(`aura_order_token_${orderId}`, guestToken);
+          localStorage.setItem(`aura_order_token_${orderId}`, guestToken);
+        }
+      }
+      if (txnid && orderId) {
+        sessionStorage.setItem(`aura_order_txnid_${orderId}`, txnid);
+        localStorage.setItem(`aura_order_txnid_${orderId}`, txnid);
+      }
     } catch (_) {}
   }
 
@@ -58,6 +112,21 @@ export function PaymentResult() {
   const [rechecking, setRechecking] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
   const verifyAttempted = useRef(false);
+
+  // Scrub sensitive tokens/transaction IDs/error text from the URL bar before firing Meta Pixel events
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (hasSensitiveQueryParams(window.location.search)) {
+        const cleanParams = new URLSearchParams(window.location.search);
+        SENSITIVE_PAYMENT_URL_PARAMS.forEach((k) => cleanParams.delete(k));
+        const cleanSearch = cleanParams.toString();
+        const cleanUrl = `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ""}`;
+        window.history.replaceState(window.history.state, "", cleanUrl);
+      }
+      trackMetaPageView();
+    } catch (_) {}
+  }, []);
 
   useEffect(() => {
     // Clear pending payment state when returning to result page

@@ -557,6 +557,7 @@ export const defaultSettings = {
   codFee: 0,
   metaPixelId: "1485640013424198",
   metaPixelEnabled: true,
+  metaDomainVerification: "",
   featuredProductId: "14",
   featuredProductEnabled: true,
   storageProvider: "puter",

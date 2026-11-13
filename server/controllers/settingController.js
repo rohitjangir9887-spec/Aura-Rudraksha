@@ -19,6 +19,7 @@ const SETTING_FIELDS = {
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
   enableProductShipping: "boolean", enableCod: "boolean", enableOnlinePayment: "boolean",
   codFee: "number", metaPixelId: "string", metaPixelEnabled: "boolean",
+  metaDomainVerification: "string", metaCapiAccessToken: "string",
   featuredProductId: "string", featuredProductEnabled: "boolean", homeProductLayout: "object",
   pcloudAccessToken: "string", pcloudFolderId: "string",
   imagekitPublicKey: "string", imagekitPrivateKey: "string", imagekitUrlEndpoint: "string"
@@ -92,6 +93,8 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   copy.codFee = copy.codFee !== undefined && !isNaN(Number(copy.codFee)) ? Math.max(0, Number(copy.codFee)) : 0;
   copy.metaPixelId = "1485640013424198";
   copy.metaPixelEnabled = copy.metaPixelEnabled !== undefined ? Boolean(copy.metaPixelEnabled) : true;
+  copy.metaDomainVerification = copy.metaDomainVerification || "";
+  copy.metaCapiEnabled = Boolean(process.env.META_CAPI_ACCESS_TOKEN || copy.metaCapiAccessToken);
 
   if (!isAdmin) {
     delete copy.pcloudAccessToken;
@@ -100,6 +103,7 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
     delete copy.imagekitPrivateKey;
     delete copy.imagekitPublicKey;
     delete copy.imagekitUrlEndpoint;
+    delete copy.metaCapiAccessToken;
   } else {
     if (copy.imagekitPrivateKey) {
       copy.imagekitPrivateKeyMasked = copy.imagekitPrivateKey.length > 8
@@ -110,6 +114,13 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
     if (copy.pcloudAccessToken) {
       copy.hasPcloudToken = true;
       delete copy.pcloudAccessToken;
+    }
+    if (copy.metaCapiAccessToken) {
+      copy.hasMetaCapiToken = true;
+      copy.metaCapiAccessTokenMasked = copy.metaCapiAccessToken.length > 8
+        ? copy.metaCapiAccessToken.slice(0, 4) + "••••••••" + copy.metaCapiAccessToken.slice(-4)
+        : "••••••••";
+      delete copy.metaCapiAccessToken;
     }
   }
   return copy;
@@ -150,6 +161,9 @@ export async function saveSettings(req, res, next) {
     }
     if (data.pcloudAccessToken && (data.pcloudAccessToken.includes("••••") || !data.pcloudAccessToken.trim())) {
       delete data.pcloudAccessToken;
+    }
+    if (data.metaCapiAccessToken !== undefined && (String(data.metaCapiAccessToken).includes("••••") || !String(data.metaCapiAccessToken).trim())) {
+      delete data.metaCapiAccessToken;
     }
 
     // Validate featuredProductId softly without blocking other setting updates (categories, layout, zodiacs, COD, etc.)
