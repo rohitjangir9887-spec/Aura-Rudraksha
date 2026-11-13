@@ -1,0 +1,4 @@
+## 2024-05-24 - [Fix XSS Vulnerability in Product Description Rendering]
+**Vulnerability:** The application was manually constructing HTML tags to format product descriptions using string concatenation, and then passing that string directly into `dangerouslySetInnerHTML` without sanitization. This introduced a Cross-Site Scripting (XSS) vulnerability if any part of the unformatted text contained malicious scripts.
+**Learning:** Even when manually formatting plain text into HTML structure (like adding `div` or `p` tags programmatically based on newlines and bullet points), the resulting HTML must be sanitized before rendering. React's `dangerouslySetInnerHTML` does not provide built-in protection.
+**Prevention:** Always use `DOMPurify.sanitize()` (or an equivalent trusted sanitizer) on the final constructed HTML string immediately before passing it to `dangerouslySetInnerHTML`, ensuring a strict allowlist of allowed tags and attributes.
