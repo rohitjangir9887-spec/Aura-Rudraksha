@@ -80,7 +80,7 @@ export function AllProductsSection({ products = [], isLoading = false }) {
           </div>
         ) : (
           allActiveProducts.map(p => (
-            <ProductCard key={p.id} p={p} onAdd={add} />
+            <ProductCard key={p.id} p={p} onAdd={add} hideQuickView={true} />
           ))
         )}
       </div>

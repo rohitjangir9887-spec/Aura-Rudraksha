@@ -974,10 +974,13 @@ export function Checkout() {
         mrp: p.mrp || p.comparePrice || p.price,
         quantity: line.qty || 1,
         qty: line.qty || 1,
-        variant: line.variant || p.selectedVariant || "",
-        size: line.size || "",
+        variant: line.variant || p.selectedVariant || p.variant || "",
+        size: line.size || p.size || "",
         origin: p.origin || (p.isIndonesian ? "Java / Indonesia" : "Nepal"),
         isIndonesian: !!p.isIndonesian,
+        isCustomMala: !!p.isCustomMala || !!line.isCustomMala,
+        ...(p.customMala || line.customMala ? { customMala: p.customMala || line.customMala } : {}),
+        ...(p.customDescription || line.customDescription ? { customDescription: p.customDescription || line.customDescription } : {}),
         img: getProductPrimaryImage(p)
       };
     });

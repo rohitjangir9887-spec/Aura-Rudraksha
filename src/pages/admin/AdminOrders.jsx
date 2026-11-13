@@ -1002,16 +1002,45 @@ export function AdminOrders() {
         <div className="admin-card">
           <h2 style={{ fontSize: 16, margin: '0 0 15px', color: '#2b170d', borderBottom: '1px solid #f0ebe4', paddingBottom: 10 }}>Order Items ({parsedItems.length})</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {parsedItems.map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                <img src={getProductPrimaryImage(item)} alt={item.name} style={{ width: 50, height: 50, borderRadius: 8, objectFit: 'contain', border: '1px solid #e8e0d8', background: '#faf7f2' }} />
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '14px', color: '#2b170d' }}>{item.name}</h4>
-                  <div style={{ fontSize: '12px', color: '#806f62' }}>₹{Number(item.price || 0).toLocaleString()} × {item.qty || 1}</div>
+            {parsedItems.map((item, i) => {
+              const itemImg = getProductPrimaryImage(item);
+              const isCustom = Boolean(item.isCustomMala || String(item.id || "").startsWith("custom-mala-"));
+              return (
+                <div key={i} style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+                  <img
+                    src={itemImg}
+                    alt={item.name}
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 8,
+                      objectFit: String(itemImg).includes("placeholder.svg") ? 'contain' : 'cover',
+                      padding: String(itemImg).includes("placeholder.svg") ? 4 : 0,
+                      border: '1px solid #e8e0d8',
+                      background: '#faf7f2',
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px', fontSize: '14px', color: '#2b170d' }}>
+                      {item.name}
+                      {isCustom && (
+                        <span style={{ marginLeft: 8, fontSize: 11, color: '#78270b', fontWeight: 700 }}>
+                          [Custom Hand-Strung Mala]
+                        </span>
+                      )}
+                    </h4>
+                    {(item.customDescription || item.size || item.variant) && (
+                      <div style={{ fontSize: '12px', color: '#5c483b', marginBottom: 4, lineHeight: 1.45 }}>
+                        {item.customDescription || [item.size, item.variant].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '12px', color: '#806f62' }}>₹{Number(item.price || 0).toLocaleString()} × {item.qty || 1}</div>
+                  </div>
+                  <b style={{ fontSize: '15px', color: '#2b170d' }}>₹{(Number(item.price || 0) * (item.qty || 1)).toLocaleString()}</b>
                 </div>
-                <b style={{ fontSize: '15px', color: '#2b170d' }}>₹{(Number(item.price || 0) * (item.qty || 1)).toLocaleString()}</b>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

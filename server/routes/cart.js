@@ -2,6 +2,7 @@ import express from "express";
 import { calculateOrderTotals } from "../services/pricingService.js";
 import { optionalAuth, requireAuth } from "../middleware/auth.js";
 import { Customer } from "../models/Customer.js";
+import { isCustomMalaLine, sanitizeCustomMalaConfig } from "../../shared/customMalaCatalog.js";
 
 const router = express.Router();
 
@@ -12,6 +13,7 @@ function sanitizeCartLines(lines) {
     if (!item) continue;
     let id = null;
     let qty = 1;
+    let customPayload = null;
     if (typeof item === "string" || typeof item === "number") {
       id = String(item).trim();
     } else if (typeof item === "object" && (item.id || item.productId || item._id)) {
@@ -19,11 +21,32 @@ function sanitizeCartLines(lines) {
       if (typeof rawId === "object") continue;
       id = String(rawId).trim();
       qty = Math.max(1, Math.floor(Number(item.qty || item.quantity) || 1));
+      if (isCustomMalaLine(item)) {
+        customPayload = {
+          isCustomMala: true,
+          customMala: sanitizeCustomMalaConfig(item.customMala),
+          ...(item.name ? { name: String(item.name).slice(0, 160) } : {}),
+          ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 260) } : {}),
+          ...(item.img ? { img: String(item.img).slice(0, 500) } : {})
+        };
+      }
     }
     if (!id || id === "[object Object]" || id === "undefined" || id === "null") continue;
-    map.set(id, (map.get(id) || 0) + qty);
+    const prev = map.get(id);
+    map.set(id, {
+      id,
+      qty: (prev?.qty || 0) + qty,
+      ...(prev?.isCustomMala ? {
+        isCustomMala: true,
+        customMala: prev.customMala,
+        ...(prev.name ? { name: prev.name } : {}),
+        ...(prev.customDescription ? { customDescription: prev.customDescription } : {}),
+        ...(prev.img ? { img: prev.img } : {})
+      } : {}),
+      ...(customPayload || {})
+    });
   }
-  return Array.from(map.entries()).map(([id, qty]) => ({ id, qty }));
+  return Array.from(map.values());
 }
 
 /**
@@ -78,18 +101,22 @@ router.post("/merge", requireAuth, async (req, res, next) => {
 
     const mergedMap = new Map();
     for (const item of userCart) {
-      mergedMap.set(item.id, item.qty);
+      mergedMap.set(item.id, item);
     }
     for (const item of cleanGuest) {
       if (mergedMap.has(item.id)) {
-        // Deterministic rule: take max quantity to avoid unexpected duplication
-        mergedMap.set(item.id, Math.max(mergedMap.get(item.id), item.qty));
+        const existing = mergedMap.get(item.id);
+        mergedMap.set(item.id, {
+          ...existing,
+          ...item,
+          qty: Math.max(existing.qty, item.qty)
+        });
       } else {
-        mergedMap.set(item.id, item.qty);
+        mergedMap.set(item.id, item);
       }
     }
 
-    const mergedLines = Array.from(mergedMap.entries()).map(([id, qty]) => ({ id, qty }));
+    const mergedLines = Array.from(mergedMap.values());
 
     if (customer) {
       customer.cart = mergedLines;

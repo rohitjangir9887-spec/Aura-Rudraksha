@@ -25,6 +25,7 @@ export function CartItemCard({
   const itemTotal = (product.price || 0) * qty;
 
   const imageSrc = getProductPrimaryImage(product);
+  const itemHref = product.isCustomMala ? "/#customize-your-mala-section" : getProductRoute(product);
 
   return (
     <motion.div
@@ -49,7 +50,7 @@ export function CartItemCard({
     >
       {/* Product Image Link */}
       <Link
-        to={getProductRoute(product)}
+        to={itemHref}
         style={{
           width: "82px",
           height: "82px",
@@ -59,11 +60,8 @@ export function CartItemCard({
           background: "#faf6f0",
           border: "1px solid #ebdccb",
           flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          display: "block",
           position: "relative",
-          padding: "3px",
           boxSizing: "border-box"
         }}
       >
@@ -71,17 +69,16 @@ export function CartItemCard({
           src={imageSrc}
           alt={product.name}
           style={{
-            maxWidth: "100%",
-            maxHeight: "100%",
-            width: "auto",
-            height: "auto",
-            objectFit: "contain",
+            width: "100%",
+            height: "100%",
+            objectFit: imageSrc?.includes("placeholder.svg") ? "contain" : "cover",
+            padding: imageSrc?.includes("placeholder.svg") ? "8px" : "0",
             display: "block"
           }}
           loading="lazy"
           decoding="async"
           onError={(e) => {
-            if (!e.target.src.includes("product-5mukhi.jpg")) {
+            if (!e.target.src.includes("placeholder.svg")) {
               e.target.src = "/images/placeholder.svg";
             }
           }}
@@ -93,7 +90,7 @@ export function CartItemCard({
         {/* Title and Delete Button */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
           <Link
-            to={getProductRoute(product)}
+            to={itemHref}
             style={{ textDecoration: "none", color: "#2b170d", flex: 1 }}
           >
             <h3
@@ -135,66 +132,27 @@ export function CartItemCard({
         </div>
 
         {/* Badges / Certification */}
-        <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
-          {product.isIndonesian || String(id).endsWith("-indo") ? (
-            <span
-              style={{
-                fontSize: "10.5px",
-                color: "#1e40af",
-                background: "#eff6ff",
-                border: "1px solid #bfdbfe",
-                padding: "1px 6px",
-                borderRadius: "4px",
-                fontWeight: "700"
-              }}
-            >
-              🇮🇩 Indonesian Origin
-            </span>
-          ) : (
-            <span
-              style={{
-                fontSize: "10.5px",
-                color: "#7c2d12",
-                background: "#fffbeb",
-                border: "1px solid #fde68a",
-                padding: "1px 6px",
-                borderRadius: "4px",
-                fontWeight: "600"
-              }}
-            >
-              🇳🇵 Nepal Origin
-            </span>
-          )}
-          <span
-            style={{
-              fontSize: "10.5px",
-              background: "#fdf5eb",
-              color: "#9c5025",
-              border: "1px solid #f2ddcc",
-              padding: "1px 6px",
-              borderRadius: "4px",
-              fontWeight: "700"
-            }}
-          >
-            {product.category || "Original Rudraksha"}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", fontSize: "11px", color: "#6b5546" }}>
+          <span style={{ fontWeight: 700, color: product.isIndonesian ? "#1e40af" : "#78270b" }}>
+            {product.isCustomMala
+              ? "Hand-Strung Custom Mala"
+              : product.isIndonesian || String(id).endsWith("-indo")
+              ? "Indonesian Origin"
+              : "Nepal Origin"}
           </span>
-          <span
-            style={{
-              fontSize: "10px",
-              color: "#166534",
-              background: "#ecfdf5",
-              border: "1px solid #bbf7d0",
-              padding: "1px 5px",
-              borderRadius: "4px",
-              fontWeight: "600",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "2px"
-            }}
-          >
-            <ShieldCheck size={10} /> Lab-Certified
+          <span aria-hidden="true">·</span>
+          <span>{product.category || "Original Rudraksha"}</span>
+          <span aria-hidden="true">·</span>
+          <span style={{ color: "#166534", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "2px" }}>
+            <ShieldCheck size={11} /> Lab-Certified
           </span>
         </div>
+
+        {product.isCustomMala && product.customDescription && (
+          <div style={{ fontSize: "11.5px", color: "#5c483b", background: "#fbf6ef", border: "1px solid #efe0ce", borderRadius: "6px", padding: "5px 8px", lineHeight: "1.4" }}>
+            {product.customDescription}
+          </div>
+        )}
 
         {/* Price & Savings */}
         <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexWrap: "wrap", margin: "2px 0" }}>
@@ -299,27 +257,29 @@ export function CartItemCard({
             </button>
           </div>
 
-          {/* Move to Wishlist */}
-          <button
-            type="button"
-            onClick={() => onToggleWishlist(product.id || product._id, product.name)}
-            style={{
-              background: "none",
-              border: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              color: isWishlisted ? "#b88a58" : "#7a675a",
-              fontSize: "11.5px",
-              fontWeight: "600",
-              cursor: "pointer",
-              padding: "4px 6px",
-              borderRadius: "6px"
-            }}
-          >
-            <Heart size={13} fill={isWishlisted ? "#b88a58" : "none"} strokeWidth={2} />
-            <span>{isWishlisted ? "Wishlisted" : "Save for later"}</span>
-          </button>
+          {/* Move to Wishlist (standard catalog items) */}
+          {!product.isCustomMala && (
+            <button
+              type="button"
+              onClick={() => onToggleWishlist(product.id || product._id, product.name)}
+              style={{
+                background: "none",
+                border: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                color: isWishlisted ? "#b88a58" : "#7a675a",
+                fontSize: "11.5px",
+                fontWeight: "600",
+                cursor: "pointer",
+                padding: "4px 6px",
+                borderRadius: "6px"
+              }}
+            >
+              <Heart size={13} fill={isWishlisted ? "#b88a58" : "none"} strokeWidth={2} />
+              <span>{isWishlisted ? "Wishlisted" : "Save for later"}</span>
+            </button>
+          )}
         </div>
       </div>
     </motion.div>

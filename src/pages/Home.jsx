@@ -12,6 +12,7 @@ import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
 import { PanditjiBioSection } from "../components/PanditjiBioSection";
 import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
+import { CustomizeMalaSection } from "../components/CustomizeMalaSection";
 import { AllProductsSection } from "../components/AllProductsSection";
 import { AuraTrustFeatureBar } from "../components/AuraTrustFeatureBar";
 import { HomeHeroOffer } from "../components/HomeHeroOffer";
@@ -299,6 +300,9 @@ export function Home() {
     >
       <HomeProductShowcase products={products} isLoading={isLoading} />
     </motion.div>
+
+    {/* CUSTOMIZE YOUR MALA STUDIO (Directly below Explore Full Sacred Collection) */}
+    <CustomizeMalaSection products={products} />
 
     {/* SACRED DEVOTIONAL TOOLS: JAPA COUNTER, COMPARISON & PRAN PRATISHTHA */}
     <motion.div

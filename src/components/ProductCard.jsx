@@ -2,10 +2,10 @@ import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl, 
 import { OptimizedImage } from "./OptimizedImage";
 import { getProductRoute } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, Eye } from "lucide-react";
-import { motion } from "framer-motion";
+import { Heart, Star, ShoppingCart, Gift, Check, ShieldCheck, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { money, pct } from "../data";
 import { db } from "../lib/db";
 import { useWishlist } from "../hooks/useWishlist";
@@ -13,6 +13,24 @@ import { useCart } from "../hooks/useCart";
 import { useActiveOffer, getOfferDisplayTitle } from "../hooks/useActiveOffer";
 import { emitToast } from "../context/ToastContext";
 import { ProductQuickViewModal } from "./ProductQuickViewModal";
+
+const CARD_SLIDE_VARIANTS = {
+  enter: (dir) => ({
+    x: dir > 0 ? 36 : -36,
+    opacity: 0,
+    scale: 1.02
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+    scale: 1
+  },
+  exit: (dir) => ({
+    x: dir > 0 ? -36 : 36,
+    opacity: 0,
+    scale: 0.98
+  })
+};
 
 export function ProductCardSkeleton() {
   return (
@@ -28,7 +46,7 @@ export function ProductCardSkeleton() {
   );
 }
 
-function ProductCardComponent({ p, onAdd, isShop = false }) {
+function ProductCardComponent({ p, onAdd, isShop = false, hideQuickView = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -36,21 +54,36 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const { offer, isActive: hasOffer } = useActiveOffer(p);
   const [added, setAdded] = useState(false);
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
+  const [imgDirection, setImgDirection] = useState(1);
   const [showQuickView, setShowQuickView] = useState(false);
   const pointerDownRef = useRef(null);
 
   if (!p) return null;
+
+  const isHomeRoute = location.pathname === "/";
+  const showQuickViewBtn = !hideQuickView && !isHomeRoute;
 
   const productId = String(p?.id || p?._id || p?.slug || "");
   const isSaved = isWishlisted(productId);
   const images = (Array.isArray(p?.images) && p.images.length > 0) 
     ? p.images 
     : getProductGalleryImages(p);
-  const rawDisplayImage = images[selectedImgIdx] || images[0] || "/images/placeholder.svg";
+  const safeImgIdx = selectedImgIdx < images.length ? selectedImgIdx : 0;
+  const rawDisplayImage = images[safeImgIdx] || images[0] || "/images/placeholder.svg";
   const cardImgWidth = (typeof window !== "undefined" && window.innerWidth < 640) ? 360 : 440;
-  const displayImage = getOptimizedImageUrl(rawDisplayImage, { width: cardImgWidth, quality: 80 });
   const discount = pct(p);
   const isOutOfStock = p?.stock === 0 || p?.status === "Out of Stock";
+
+  // Pre-warm next card image so switching photos animates smoothly without flash
+  useEffect(() => {
+    if (!images || images.length <= 1 || typeof Image === "undefined") return;
+    const nextIdx = (safeImgIdx + 1) % images.length;
+    const nextUrl = getOptimizedImageUrl(images[nextIdx], { width: cardImgWidth, quality: 80 });
+    if (nextUrl && typeof nextUrl === "string") {
+      const pre = new Image();
+      pre.src = nextUrl;
+    }
+  }, [images, safeImgIdx, cardImgWidth]);
 
   const handlePointerDown = (e) => {
     pointerDownRef.current = {
@@ -61,7 +94,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   };
 
   const handleCardClick = (e) => {
-    if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots")) {
+    if (e?.target?.closest?.("button, .aura-card-offer-tag, .aura-card-gallery-dots, .aura-card-slide-arrow")) {
       return;
     }
 
@@ -146,7 +179,18 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   const handleSelectImage = (e, idx) => {
     e.preventDefault();
     e.stopPropagation();
+    if (idx === safeImgIdx) return;
+    setImgDirection(idx > safeImgIdx ? 1 : -1);
     setSelectedImgIdx(idx);
+  };
+
+  const handleCycleImage = (e, step) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!images || images.length <= 1) return;
+    const total = Math.min(images.length, 4);
+    setImgDirection(step > 0 ? 1 : -1);
+    setSelectedImgIdx((prev) => (prev + step + total) % total);
   };
 
   // Dynamic offer display text
@@ -177,13 +221,50 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
     >
       {/* 1. Card Image Area */}
       <div className="aura-card-media">
-        <OptimizedImage 
-          src={rawDisplayImage} 
-          alt={p.name}
-          width={cardImgWidth}
-          quality={80}
-          className="aura-card-img"
-        />
+        <AnimatePresence mode="popLayout" initial={false} custom={imgDirection}>
+          <motion.div
+            key={`${productId}-img-${safeImgIdx}`}
+            custom={imgDirection}
+            variants={CARD_SLIDE_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="aura-card-media-motion"
+          >
+            <OptimizedImage 
+              src={rawDisplayImage} 
+              alt={p.name}
+              width={cardImgWidth}
+              quality={80}
+              className="aura-card-img"
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Subtle Left/Right photo slide controls when multiple photos exist */}
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              className="aura-card-slide-arrow prev"
+              onClick={(e) => handleCycleImage(e, -1)}
+              aria-label="Previous product photo"
+              title="Previous photo"
+            >
+              <ChevronLeft size={14} strokeWidth={2.4} />
+            </button>
+            <button
+              type="button"
+              className="aura-card-slide-arrow next"
+              onClick={(e) => handleCycleImage(e, 1)}
+              aria-label="Next product photo"
+              title="Next photo"
+            >
+              <ChevronRight size={14} strokeWidth={2.4} />
+            </button>
+          </>
+        )}
 
         {/* Floating Offer Badge (Top Left of image) */}
         {hasOffer && offer?.productCardEnabled !== false && (
@@ -238,38 +319,41 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
           <Heart size={15} fill={isSaved ? "#a54d2b" : "none"} strokeWidth={2.2} />
         </button>
 
-        {/* Quick View Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setShowQuickView(true);
-          }}
-          style={{
-            position: "absolute",
-            bottom: "8px",
-            right: "8px",
-            background: "rgba(255, 255, 255, 0.92)",
-            backdropFilter: "blur(4px)",
-            border: "1px solid rgba(226, 210, 193, 0.8)",
-            borderRadius: "20px",
-            padding: "4px 9px",
-            fontSize: "11px",
-            fontWeight: 700,
-            color: "#7c2d12",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            cursor: "pointer",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-            zIndex: 4,
-            touchAction: "manipulation"
-          }}
-          title="क्विक व्यू (Quick View)"
-        >
-          <Eye size={12} /> Quick View
-        </button>
+        {/* Quick View Button (Hidden on Home UI) */}
+        {showQuickViewBtn && (
+          <button
+            type="button"
+            className="aura-card-quickview-btn"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowQuickView(true);
+            }}
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              right: "8px",
+              background: "rgba(255, 255, 255, 0.92)",
+              backdropFilter: "blur(4px)",
+              border: "1px solid rgba(226, 210, 193, 0.8)",
+              borderRadius: "20px",
+              padding: "4px 9px",
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#7c2d12",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              cursor: "pointer",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+              zIndex: 4,
+              touchAction: "manipulation"
+            }}
+            title="क्विक व्यू (Quick View)"
+          >
+            <Eye size={12} /> Quick View
+          </button>
+        )}
 
         {/* Interactive Gallery Dots (if multiple images available) */}
         {images.length > 1 && (
@@ -278,7 +362,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
               <button
                 key={idx}
                 type="button"
-                className={`aura-card-gallery-dot ${selectedImgIdx === idx ? "active" : ""}`}
+                className={`aura-card-gallery-dot ${safeImgIdx === idx ? "active" : ""}`}
                 onClick={(e) => handleSelectImage(e, idx)}
                 aria-label={`View image ${idx + 1}`}
               />

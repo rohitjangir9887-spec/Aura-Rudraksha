@@ -77,6 +77,8 @@ export function OptimizedImage({
     position: "relative",
     overflow: "hidden",
     display: "block",
+    width: "100%",
+    height: "100%",
     background: "#f7f2eb",
     ...(aspectRatio ? { aspectRatio } : {}),
     ...customContainerStyle,
@@ -112,11 +114,15 @@ export function OptimizedImage({
         onError={handleImageError}
         className={className}
         style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
           ...style,
           position: "relative",
           zIndex: 2,
           opacity: isLoaded ? 1 : 0,
-          transition: "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+          transition: "opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           willChange: "opacity",
         }}
         {...restProps}

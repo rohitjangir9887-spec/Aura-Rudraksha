@@ -149,6 +149,11 @@ export function CheckoutItemsReview({ lines, products, onUpdateQty, onRemoveItem
                   <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#2b170d", lineHeight: "1.3", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                     {p.name}
                   </div>
+                  {p.isCustomMala && p.customDescription && (
+                    <div style={{ fontSize: "11px", color: "#6b5546", lineHeight: "1.35", marginBottom: "4px" }}>
+                      {p.customDescription}
+                    </div>
+                  )}
 
                   {/* Price and MRP */}
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "4px" }}>

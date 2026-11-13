@@ -195,8 +195,8 @@ export async function uploadToImagekit({ buffer, filename, mimeType, folder = "/
   }
 
   const cleanFilename = (filename || `upload-${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
   const authHeader = `Basic ${Buffer.from(privateKey + ":").toString("base64")}`;
 
   const base64File = `data:${mimeType || "image/jpeg"};base64,${buffer.toString("base64")}`;
@@ -207,16 +207,20 @@ export async function uploadToImagekit({ buffer, filename, mimeType, folder = "/
   formData.append("folder", folder);
   formData.append("useUniqueFileName", "true");
 
-  const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
-    method: "POST",
+  let res;
+  try {
+    res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+      method: "POST",
       signal: controller.signal,
-    headers: {
-      Authorization: authHeader
-    },
-    body: formData
-  });
+      headers: {
+        Authorization: authHeader
+      },
+      body: formData
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
-  clearTimeout(timeoutId);
   if (!res.ok) {
     const errTxt = await res.text().catch(() => "");
     throw new Error(`ImageKit upload HTTP ${res.status}: ${errTxt.slice(0, 150)}`);

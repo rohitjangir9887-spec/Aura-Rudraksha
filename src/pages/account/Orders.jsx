@@ -775,7 +775,13 @@ export function Orders() {
                                       src={imgSrc} 
                                       loading="lazy"
                                       decoding="async"
-                                      style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 2 }} 
+                                      style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: String(imgSrc).includes("placeholder.svg") ? 'contain' : 'cover',
+                                        padding: String(imgSrc).includes("placeholder.svg") ? 4 : 0,
+                                        display: 'block'
+                                      }} 
                                       alt={prod.name || "Rudraksha"} 
                                     />
                                   </div>

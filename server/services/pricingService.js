@@ -5,6 +5,7 @@ import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { defaultCoupons, defaultProducts } from "../data/defaultData.js";
+import { isCustomMalaLine, calculateCustomMalaPricing, sanitizeCustomMalaConfig } from "../../shared/customMalaCatalog.js";
 
 /**
  * Single Authoritative Pricing & Coupon Service for Aura Rudraksha
@@ -68,13 +69,24 @@ export function normalizeLines(linesInput) {
       if (!item) continue;
       const rawId = String(item.id || item.productId || item._id || "").trim();
       const qty = Math.max(1, Number(item.qty || item.quantity) || 1);
-      const isIndo = !!item.isIndonesian || rawId.endsWith("-indo") || rawId.includes("_indo") || (typeof item.variant === "string" && item.variant.toLowerCase().includes("indonesian"));
-      const baseId = rawId.replace(/-indo$|_indo$/i, "");
+      const isCustom = isCustomMalaLine(item);
+      const isIndo = !isCustom && (!!item.isIndonesian || rawId.endsWith("-indo") || rawId.includes("_indo") || (typeof item.variant === "string" && item.variant.toLowerCase().includes("indonesian")));
+      const baseId = isCustom ? rawId : rawId.replace(/-indo$|_indo$/i, "");
       const lineKey = isIndo ? `${baseId}-indo` : baseId;
       
       if (baseId) {
         const prev = map.get(lineKey) || { id: lineKey, baseId, qty: 0, isIndonesian: isIndo, variant: item.variant || "", size: item.size || "" };
-        map.set(lineKey, { ...prev, qty: prev.qty + qty, variant: item.variant || prev.variant || "", size: item.size || prev.size || "" });
+        map.set(lineKey, {
+          ...prev,
+          qty: prev.qty + qty,
+          variant: item.variant || prev.variant || "",
+          size: item.size || prev.size || "",
+          ...(isCustom || prev.isCustomMala ? {
+            isCustomMala: true,
+            customMala: sanitizeCustomMalaConfig(item.customMala || prev.customMala || {}),
+            img: item.img || prev.img || "/images/placeholder.svg"
+          } : {})
+        });
       }
     }
     return Array.from(map.values());
@@ -90,7 +102,9 @@ export async function getAuthoritativeProducts(productIds = []) {
   const cleanIds = Array.from(
     new Set(
       productIds
-        .map(id => String(id || "").trim().replace(/-indo$|_indo$/i, "").replace(/^(product-card-|product-)/i, ""))
+        .map(id => String(id || "").trim())
+        .filter(id => id && !id.startsWith("custom-mala-"))
+        .map(id => id.replace(/-indo$|_indo$/i, "").replace(/^(product-card-|product-)/i, ""))
         .filter(Boolean)
     )
   );
@@ -272,6 +286,48 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
   const unavailableItems = [];
 
   for (const line of normalized) {
+    if (isCustomMalaLine(line)) {
+      const calc = calculateCustomMalaPricing(line.customMala || {});
+      if (calc.totalBeads <= 0 || calc.unitPrice <= 0) {
+        unavailableItems.push({ id: line.id, reason: "Custom Rudraksha Mala must contain at least 1 sacred bead." });
+        continue;
+      }
+
+      const itemSubtotal = calc.unitPrice * line.qty;
+      const itemMrpTotal = calc.mrp * line.qty;
+      subtotal += itemSubtotal;
+      totalMrp += itemMrpTotal;
+
+      const customImg =
+        line.img && typeof line.img === "string" && !/^\/images\/product-/i.test(line.img)
+          ? line.img
+          : "/images/placeholder.svg";
+
+      validatedItems.push({
+        id: String(line.id),
+        productId: String(line.id),
+        name: calc.name,
+        origin: "Custom Handcrafted Nepali & Sacred Beads",
+        isIndonesian: false,
+        isCustomMala: true,
+        customMala: calc.config,
+        customDescription: calc.customDescription,
+        price: calc.unitPrice,
+        unitPrice: calc.unitPrice,
+        mrp: calc.mrp,
+        comparePrice: calc.mrp,
+        quantity: line.qty,
+        qty: line.qty,
+        variant: `${calc.threadObj.shortLabel} • ${calc.cappingObj.shortLabel}`,
+        size: calc.sizeObj.label,
+        itemTotal: itemSubtotal,
+        stock: 99,
+        image: customImg,
+        img: customImg
+      });
+      continue;
+    }
+
     const lookupId = (line.baseId || String(line.id).replace(/-indo$|_indo$/i, "")).replace(/^(product-card-|product-)/i, "");
     const product = fetchedProducts.find(
       p => String(p.id) === lookupId || String(p._id) === lookupId || String(p.slug) === lookupId
@@ -437,7 +493,9 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
           eligible = !excProds.includes(item.productId);
         } else if (tType === "category") {
           const prodObj = fetchedProducts.find(p => String(p.id) === item.productId || String(p._id) === item.productId);
-          eligible = prodObj && tCats.includes(prodObj.category);
+          eligible = item.isCustomMala
+            ? tCats.some(c => ["mala", "custom sacred mala", "rudraksha"].includes(String(c || "").toLowerCase()))
+            : (prodObj && tCats.includes(prodObj.category));
         } else if (tType === "subcategory") {
           const prodObj = fetchedProducts.find(p => String(p.id) === item.productId || String(p._id) === item.productId);
           eligible = prodObj && tSubCats.includes(prodObj.subcategory);

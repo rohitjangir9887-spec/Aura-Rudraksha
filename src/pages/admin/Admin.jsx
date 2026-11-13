@@ -117,6 +117,53 @@ export function Admin() {
   const [manualTokenInput, setManualTokenInput] = useState("");
   const [isSavingPcloudToken, setIsSavingPcloudToken] = useState(false);
 
+  const [imagekitModalOpen, setImagekitModalOpen] = useState(false);
+  const [ikPublicKeyInput, setIkPublicKeyInput] = useState("");
+  const [ikPrivateKeyInput, setIkPrivateKeyInput] = useState("");
+  const [ikEndpointInput, setIkEndpointInput] = useState("");
+  const [isSavingImagekit, setIsSavingImagekit] = useState(false);
+
+  const handleSaveImagekitCredentials = async () => {
+    if (!ikPublicKeyInput.trim() || !ikPrivateKeyInput.trim() || !ikEndpointInput.trim()) {
+      emitToast("Please enter Public Key, Private Key, and URL Endpoint.", "warning");
+      return;
+    }
+    setIsSavingImagekit(true);
+    try {
+      let token = "";
+      try { token = await authClient.getToken(); } catch (_) {}
+      if (!token) {
+        token = localStorage.getItem("aura_admin_token") || localStorage.getItem("aura_token") || "";
+      }
+      const res = await fetch("/api/upload/imagekit/credentials", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          publicKey: ikPublicKeyInput.trim(),
+          privateKey: ikPrivateKeyInput.trim(),
+          urlEndpoint: ikEndpointInput.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        emitToast(data.message || "ImageKit connected and verified!", "success");
+        setImagekitModalOpen(false);
+        setIkPrivateKeyInput("");
+        await checkImagekit();
+      } else {
+        emitToast(data.message || "ImageKit credentials saved but verification failed.", "error");
+        await checkImagekit();
+      }
+    } catch (err) {
+      emitToast("ImageKit save error: " + (err.message || err), "error");
+    } finally {
+      setIsSavingImagekit(false);
+    }
+  };
+
   const handleSavePcloudToken = async () => {
     if (!manualTokenInput.trim()) {
       emitToast("Please enter a valid pCloud Access Token.", "warning");
@@ -1320,6 +1367,28 @@ export function Admin() {
                     >
                       <RefreshCw size={11} /> Refresh ImageKit Status
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIkEndpointInput(imagekitInfo.urlEndpoint && imagekitInfo.urlEndpoint !== "Not Set" ? imagekitInfo.urlEndpoint : "");
+                        setImagekitModalOpen(true);
+                      }}
+                      style={{
+                        background: '#f5f3ff',
+                        color: '#5b21b6',
+                        border: '1px solid #ddd6fe',
+                        borderRadius: '5px',
+                        padding: '5px 12px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <ShieldCheck size={11} /> {imagekitInfo.connected ? "Update ImageKit Keys" : "Configure ImageKit Keys"}
+                    </button>
                   </div>
                 </div>
 
@@ -1366,7 +1435,7 @@ export function Admin() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
             {/* Left side: Upload Input and Status */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {!mediaInfo.connected && (
+              {activeStorageProvider === 'puter' && !mediaInfo.connected && (
                 <div style={{
                   background: '#fefce8',
                   border: '1px solid #fef08a',
@@ -1416,7 +1485,14 @@ export function Admin() {
               )}
 
               {(() => {
-                const isActiveReady = activeStorageProvider === 'pcloud' ? pcloudInfo.connected : mediaInfo.connected;
+                const isActiveReady =
+                  activeStorageProvider === 'imagekit'
+                    ? imagekitInfo.connected
+                    : (activeStorageProvider === 'pcloud' ? pcloudInfo.connected : mediaInfo.connected);
+                const activeProviderLabel =
+                  activeStorageProvider === 'imagekit'
+                    ? 'ImageKit'
+                    : (activeStorageProvider === 'pcloud' ? 'pCloud' : 'Puter Cloud');
                 return (
                   <div style={{
                     border: isActiveReady ? '2px dashed #ebd8c5' : '2px dashed #e2e8f0',
@@ -1442,13 +1518,13 @@ export function Admin() {
                         cursor: (genericUploading || !isActiveReady) ? 'not-allowed' : 'pointer'
                       }}
                     />
-                    <Cloud size={32} color={isActiveReady ? (activeStorageProvider === 'pcloud' ? "#16a34a" : "#a54d2b") : "#94a3b8"} style={{ margin: '0 auto 8px', display: 'block' }} />
+                    <Cloud size={32} color={isActiveReady ? (activeStorageProvider === 'imagekit' ? "#7c3aed" : (activeStorageProvider === 'pcloud' ? "#16a34a" : "#a54d2b")) : "#94a3b8"} style={{ margin: '0 auto 8px', display: 'block' }} />
                     <span style={{ fontSize: '13px', fontWeight: 600, color: isActiveReady ? '#3b322c' : '#64748b', display: 'block', marginBottom: '4px' }}>
                       {genericUploading
-                        ? `Uploading to ${activeStorageProvider === 'pcloud' ? 'pCloud' : 'Puter'}...`
+                        ? `Uploading to ${activeProviderLabel}...`
                         : !isActiveReady
-                        ? `Enable ${activeStorageProvider === 'pcloud' ? 'pCloud Storage' : 'Puter Cloud'} above to enable upload`
-                        : `Click to select or Drag Image/Video here (${activeStorageProvider === 'pcloud' ? 'pCloud Active' : 'Puter Active'})`}
+                        ? `Configure or enable ${activeProviderLabel} above to upload`
+                        : `Click to select or Drag Image/Video here (${activeProviderLabel} Active)`}
                     </span>
                     <span style={{ fontSize: '11px', color: '#806f62' }}>
                       Supports PNG, JPEG, WEBP, GIF, MP4, WEBM up to 50MB
@@ -1821,6 +1897,88 @@ export function Admin() {
                 }}
               >
                 {isSavingPcloudToken ? "Saving..." : "Connect Token"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ImageKit Credentials Modal */}
+      {imagekitModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'grid',
+          placeItems: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            width: '100%',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={18} color="#7c3aed" /> Configure ImageKit CDN Credentials
+              </h3>
+              <button
+                type="button"
+                onClick={() => setImagekitModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: '12px', color: '#475569', margin: 0, lineHeight: '1.5' }}>
+              Credentials are stored securely in MongoDB STORE_SETTINGS and used for CDN image/video uploads.
+            </p>
+            <input
+              type="text"
+              value={ikPublicKeyInput}
+              onChange={(e) => setIkPublicKeyInput(e.target.value)}
+              placeholder="ImageKit Public Key (e.g. public_...)"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontFamily: 'monospace', boxSizing: 'border-box' }}
+            />
+            <input
+              type="password"
+              value={ikPrivateKeyInput}
+              onChange={(e) => setIkPrivateKeyInput(e.target.value)}
+              placeholder="ImageKit Private Key (e.g. private_...)"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontFamily: 'monospace', boxSizing: 'border-box' }}
+            />
+            <input
+              type="url"
+              value={ikEndpointInput}
+              onChange={(e) => setIkEndpointInput(e.target.value)}
+              placeholder="URL Endpoint (e.g. https://ik.imagekit.io/your_id)"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontFamily: 'monospace', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={() => setImagekitModalOpen(false)}
+                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveImagekitCredentials}
+                disabled={isSavingImagekit}
+                style={{ background: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '8px 20px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                {isSavingImagekit ? "Verifying..." : "Save & Connect ImageKit"}
               </button>
             </div>
           </div>

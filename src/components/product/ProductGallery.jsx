@@ -9,6 +9,24 @@ import { motion, AnimatePresence } from "framer-motion";
 import { OfferBadge } from "../OfferBadge";
 import { pct } from "../../data";
 
+const GALLERY_SLIDE_VARIANTS = {
+  enter: (dir) => ({
+    x: dir > 0 ? 52 : -52,
+    opacity: 0,
+    scale: 0.97
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+    scale: 1
+  },
+  exit: (dir) => ({
+    x: dir > 0 ? -52 : 52,
+    opacity: 0,
+    scale: 0.97
+  })
+};
+
 export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   if (!product) return null;
 
@@ -236,7 +254,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
-          <AnimatePresence mode="popLayout" initial={false}>
+          <AnimatePresence mode="popLayout" initial={false} custom={slideDirection}>
             <motion.img
               key={`img-${safeIdx}-${currentImg}`}
               src={getOptimizedImageUrl(currentImg, { width: 800, quality: 84 })}
@@ -245,15 +263,17 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
               loading="eager"
               decoding="async"
               fetchpriority="high"
+              custom={slideDirection}
+              variants={GALLERY_SLIDE_VARIANTS}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               style={{
                 transformOrigin: `${zoomTransform.originX} ${zoomTransform.originY}`,
-                transform: `scale(${zoomTransform.scale})`,
-                transition: isHoverZooming ? "transform 0.05s ease-out" : "transform 0.25s ease-out, transform-origin 0.25s ease-out"
+                transform: isHoverZooming ? `scale(${zoomTransform.scale})` : undefined,
+                transition: isHoverZooming ? "transform 0.05s ease-out" : undefined
               }}
-              initial={{ opacity: 0.85 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12, ease: "easeOut" }}
               onError={(e) => {
                 if (!e.target.src.includes("placeholder.svg")) {
                   e.target.src = "/images/placeholder.svg";
@@ -332,12 +352,21 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                 </>
               )}
 
-              <img
-                src={currentImg}
-                alt={product.name}
-                className="aura-lightbox-image"
-                decoding="async"
-              />
+              <AnimatePresence mode="wait" initial={false} custom={slideDirection}>
+                <motion.img
+                  key={`lb-${safeIdx}-${currentImg}`}
+                  src={currentImg}
+                  alt={product.name}
+                  className="aura-lightbox-image"
+                  decoding="async"
+                  custom={slideDirection}
+                  variants={GALLERY_SLIDE_VARIANTS}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </AnimatePresence>
 
               <div className="aura-lightbox-footer">
                 <span className="aura-lb-title">{product.name}</span>

@@ -85,7 +85,8 @@ export function Cart() {
 
   const confirmRemove = () => {
     if (!deleteTargetId) return;
-    const p = resolveCartProduct(products, deleteTargetId);
+    const targetLine = lines.find(l => l.id === deleteTargetId) || deleteTargetId;
+    const p = resolveCartProduct(products, targetLine);
     remove(deleteTargetId);
     emitToast(`${p?.name || "Item"} removed from cart`, "info");
     setDeleteTargetId(null);

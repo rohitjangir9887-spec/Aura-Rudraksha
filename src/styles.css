@@ -11357,7 +11357,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   justify-content: center;
   align-items: center;
   padding: 16px;
-  pointer-events: auto !important;
+  pointer-events: auto;
 }
 
 @media (max-width: 767px) {
@@ -17496,15 +17496,23 @@ button:active, .primary-btn:active, .outline-btn:active, .secondary-btn:active {
 .product-card-img,
 div[id^="product-card-"] img,
 div[id^="product-card-"] span img {
-  object-fit: contain !important;
+  object-fit: cover !important;
   object-position: center !important;
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
+  padding: 0 !important;
   display: block !important;
-  margin: auto !important;
+  margin: 0 !important;
   background-color: transparent !important;
+}
+
+img[src*="placeholder.svg"],
+.aura-card-img[src*="placeholder.svg"],
+.aura-gallery-hero-img[src*="placeholder.svg"] {
+  object-fit: contain !important;
+  padding: 12px !important;
 }
 
 @media (max-width: 480px) {
@@ -17572,18 +17580,19 @@ button,
 div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(5) > div:nth-of-type(2) > div#product-card-11:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) > img:nth-of-type(1),
 div[id^="product-card-"] > div:nth-of-type(1) > span:nth-of-type(1) > img:nth-of-type(1),
 div[id^="product-card-"] .aura-card-img {
-  object-fit: contain !important;
+  object-fit: cover !important;
   object-position: center !important;
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
+  padding: 0 !important;
   display: block !important;
   background-color: transparent !important;
 }
 
 div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(6) > section#zodiac-guide:nth-of-type(1) > div:nth-of-type(1) > section#aura-home-featured-product-ad:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1) > div:nth-of-type(1) > img:nth-of-type(1) {
-  object-fit: contain !important;
+  object-fit: cover !important;
   object-position: center !important;
   width: 100% !important;
   height: 100% !important;

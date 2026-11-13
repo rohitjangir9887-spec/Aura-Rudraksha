@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import { Media, initMediaIndexes } from "../models/Media.js";
 import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
@@ -560,6 +561,94 @@ router.post("/imagekit/credentials", requireAdmin, async (req, res) => {
  * POST /api/upload/imagekit/upload
  * Server-side proxy handler to upload media directly to ImageKit without exposing secrets
  */
+router.post("/imagekit/upload", requireAdmin, async (req, res) => {
+  try {
+    const { fileData, filename, type, sizeBytes, metadata, folder } = req.body || {};
+    if (!fileData) {
+      return res.status(400).json({
+        success: false,
+        message: "No file content provided for ImageKit upload"
+      });
+    }
+
+    let buffer;
+    let mimeType = type || "image/jpeg";
+
+    if (typeof fileData === "string" && fileData.startsWith("data:")) {
+      const matches = fileData.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1];
+        buffer = Buffer.from(matches[2], "base64");
+      } else {
+        return res.status(400).json({ success: false, message: "Invalid base64 data URL format" });
+      }
+    } else if (typeof fileData === "string") {
+      buffer = Buffer.from(fileData, "base64");
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid file payload for ImageKit upload" });
+    }
+
+    const cleanFilename = filename || `upload-${Date.now()}.${mimeType.split("/")[1] || "jpg"}`;
+    const uploaded = await uploadToImagekit({
+      buffer,
+      filename: cleanFilename,
+      mimeType,
+      folder: folder || "/products"
+    });
+
+    const finalReadURL = uploaded.url;
+    const finalFileId = uploaded.fileId;
+    const finalSize = Number(uploaded.sizeBytes || sizeBytes || buffer.length);
+
+    let mediaRecord = null;
+    if (isDbConnected()) {
+      mediaRecord = new Media({
+        readURL: finalReadURL,
+        url: finalReadURL,
+        fileId: finalFileId,
+        puterFileId: finalFileId,
+        path: `${folder || "/products"}/${uploaded.filename || cleanFilename}`,
+        filename: uploaded.filename || cleanFilename,
+        type: mimeType,
+        sizeBytes: finalSize,
+        size: finalSize,
+        thumbnailUrl: uploaded.thumbnailUrl || finalReadURL,
+        width: uploaded.width || 0,
+        height: uploaded.height || 0,
+        metadata: metadata || {},
+        provider: "imagekit"
+      });
+      await mediaRecord.save().catch((err) => {
+        console.warn("[ImageKit Upload] Media record save notice:", err?.message || err);
+      });
+    } else {
+      mediaRecord = {
+        readURL: finalReadURL,
+        url: finalReadURL,
+        fileId: finalFileId,
+        filename: uploaded.filename || cleanFilename,
+        type: mimeType,
+        provider: "imagekit"
+      };
+    }
+
+    return res.json({
+      success: true,
+      url: finalReadURL,
+      readURL: finalReadURL,
+      fileId: finalFileId,
+      provider: "imagekit",
+      media: mediaRecord,
+      message: "File successfully uploaded to ImageKit Storage and registered in MongoDB."
+    });
+  } catch (err) {
+    console.error("ImageKit Upload Proxy Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "ImageKit upload failed. Please check credentials."
+    });
+  }
+});
 
 /**
  * DELETE /api/upload/media/:id

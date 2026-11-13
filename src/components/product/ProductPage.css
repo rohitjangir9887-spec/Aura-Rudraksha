@@ -369,11 +369,11 @@
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    height: min(82vw, 340px) !important;
-    max-height: 340px !important;
+    height: auto !important;
+    max-height: 440px !important;
     aspect-ratio: 1 / 1 !important;
     border-radius: 16px !important;
-    background: #ffffff !important;
+    background: #f7f2eb !important;
     margin: 0 auto !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
@@ -382,24 +382,25 @@
   .aura-gallery-viewport {
     width: 100% !important;
     height: 100% !important;
-    max-height: 340px !important;
+    max-height: 440px !important;
     overflow: hidden !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    background: #ffffff !important;
+    background: #f7f2eb !important;
     box-sizing: border-box !important;
+    position: relative !important;
   }
 
   .aura-gallery-hero-img {
     width: 100% !important;
     height: 100% !important;
     max-width: 100% !important;
-    max-height: 340px !important;
-    object-fit: contain !important;
+    max-height: 100% !important;
+    object-fit: cover !important;
     object-position: center !important;
     display: block !important;
-    background: #ffffff !important;
+    background: #f7f2eb !important;
   }
 
   .aura-primary-cta-grid {
@@ -431,16 +432,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
+  background: #f7f2eb;
+  position: relative;
 }
 
 .aura-gallery-hero-img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   display: block;
-  background: #ffffff;
+  background: #f7f2eb;
 }
 
 .aura-gallery-badges {

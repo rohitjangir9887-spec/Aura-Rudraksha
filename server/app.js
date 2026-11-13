@@ -127,6 +127,7 @@ export function createApp(options = {}) {
     }
   }));
 
+  app.use("/api/upload", express.json({ limit: "64mb" }));
   app.use(express.json({ limit: "8mb" }));
   app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 

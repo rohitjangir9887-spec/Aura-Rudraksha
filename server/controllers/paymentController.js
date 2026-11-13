@@ -192,12 +192,15 @@ export async function initiatePayuPayment(req, res, next) {
       });
     }
 
-    // Verify stock availability in a single batch query
-    const productIds = totals.items.map(i => i.id);
-    const dbProducts = await Product.find({ id: { $in: productIds } }).lean();
+    // Verify stock availability for standard catalog items (custom malas are hand-strung on order)
+    const standardPaymentItems = totals.items.filter(
+      (i) => !i.isCustomMala && !String(i.id || "").startsWith("custom-mala-")
+    );
+    const productIds = standardPaymentItems.map(i => i.id);
+    const dbProducts = productIds.length > 0 ? await Product.find({ id: { $in: productIds } }).lean() : [];
     const productMap = new Map(dbProducts.map(p => [p.id, p]));
 
-    for (const item of totals.items) {
+    for (const item of standardPaymentItems) {
       const product = productMap.get(item.id);
       const pStatus = (product?.status || "Published").toLowerCase();
       if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {

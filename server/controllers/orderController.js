@@ -427,12 +427,15 @@ export async function createOrder(req, res, next) {
       });
     }
 
-    // Check stock for all items
-    const itemIds = totals.items.map(item => item.id);
-    const dbProducts = await Product.find({ id: { $in: itemIds } });
+    // Check stock for standard catalog items (custom handcrafted malas are assembled to order)
+    const standardOrderItems = totals.items.filter(
+      (item) => !item.isCustomMala && !String(item.id || "").startsWith("custom-mala-")
+    );
+    const itemIds = standardOrderItems.map(item => item.id);
+    const dbProducts = itemIds.length > 0 ? await Product.find({ id: { $in: itemIds } }) : [];
     const productMap = new Map(dbProducts.map(p => [String(p.id), p]));
 
-    for (const item of totals.items) {
+    for (const item of standardOrderItems) {
       const product = productMap.get(String(item.id));
       const pStatus = (product?.status || "Published").toLowerCase();
       if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
@@ -581,7 +584,7 @@ export async function createOrder(req, res, next) {
     let couponUsageIncremented = false;
 
     const bulkOps = [];
-    for (const item of totals.items) {
+    for (const item of standardOrderItems) {
       bulkOps.push({
         updateOne: {
           filter: { id: item.id, stock: { $gte: item.quantity } },

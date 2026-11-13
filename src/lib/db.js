@@ -2993,6 +2993,11 @@ export const db = {
         quantity: l.qty || 1,
         qty: l.qty || 1,
         isIndonesian: !!p?.isIndonesian,
+        isCustomMala: !!p?.isCustomMala || !!l?.isCustomMala,
+        ...(p?.customMala || l?.customMala ? { customMala: p?.customMala || l?.customMala } : {}),
+        ...(p?.customDescription || l?.customDescription ? { customDescription: p?.customDescription || l?.customDescription } : {}),
+        ...(p?.size || l?.size ? { size: p?.size || l?.size } : {}),
+        ...(p?.variant || l?.variant ? { variant: p?.variant || l?.variant } : {}),
         origin: p?.origin || (p?.isIndonesian ? "Java / Indonesia" : "Nepal"),
         img: p ? getProductPrimaryImage(p) : null
       });
@@ -4110,7 +4115,12 @@ export const db = {
             price: price,
             qty: qty,
             img: db.getOrderItemImage(item),
-            discount: item.discount || 0
+            discount: item.discount || 0,
+            isCustomMala: Boolean(item.isCustomMala || String(id).startsWith("custom-mala-")),
+            customMala: item.customMala || null,
+            customDescription: item.customDescription || "",
+            size: item.size || "",
+            variant: item.variant || ""
           };
         } else {
           map[id].qty += qty;
@@ -4130,17 +4140,23 @@ export const db = {
         const name = p ? p.name : (typeof it === 'object' && it.name ? it.name : "Rudraksha Bead");
         const price = p ? p.price : (typeof it === 'object' && (it.price || it.unitPrice) ? Number(it.price || it.unitPrice) : 999);
         const img = p ? getProductPrimaryImage(p) : (typeof it === "object" ? db.getOrderItemImage(it) : "/images/placeholder.svg");
+        const qty = typeof it === "object" && it !== null ? Math.max(1, Number(it.qty || it.quantity || 1)) : 1;
 
         if (!map[strId]) {
           map[strId] = {
             id: strId,
             name: name,
             price: price,
-            qty: 1,
-            img: img
+            qty: qty,
+            img: img,
+            isCustomMala: typeof it === "object" && it !== null ? Boolean(it.isCustomMala || strId.startsWith("custom-mala-")) : false,
+            customMala: typeof it === "object" && it !== null ? (it.customMala || null) : null,
+            customDescription: typeof it === "object" && it !== null ? (it.customDescription || "") : "",
+            size: typeof it === "object" && it !== null ? (it.size || "") : "",
+            variant: typeof it === "object" && it !== null ? (it.variant || "") : ""
           };
         } else {
-          map[strId].qty += 1;
+          map[strId].qty += qty;
         }
       });
       return Object.values(map);

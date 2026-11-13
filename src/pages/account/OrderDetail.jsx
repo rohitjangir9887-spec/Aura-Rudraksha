@@ -801,8 +801,11 @@ export function OrderDetail() {
             </h2>
             <div style={{display: 'flex', flexDirection: 'column'}}>
               {parsedItems.map((item, i) => {
-                const productExists = db.getProduct(item.id);
+                const isCustom = Boolean(item.isCustomMala || String(item.id || "").startsWith("custom-mala-"));
+                const productExists = isCustom ? null : db.getProduct(item.id);
                 const itemTotal = (item.price || 0) * (item.qty || 1);
+                const itemImg = getProductPrimaryImage(item) || db.getOrderItemImage(item);
+                const itemTarget = isCustom ? "/#customize-your-mala-section" : (productExists ? `/product/${item.id}` : "#");
                 const isDelivered = order.status === "Delivered";
 
                 return (
@@ -815,17 +818,33 @@ export function OrderDetail() {
                     background: '#fff',
                     transition: 'background 0.2s'
                   }}>
-                    <Link to={productExists ? `/product/${item.id}` : '#'} style={{ display: 'block', textDecoration: 'none', cursor: productExists ? 'pointer' : 'default' }}>
-                      <div style={{width: 75, height: 75, borderRadius: 10, background: '#fdfbf7', border: '1px solid #eee1cf', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center'}}>
-                        <img src={getProductPrimaryImage(item) || db.getOrderItemImage(item)} alt={item.name} loading="lazy" decoding="async" style={{width: '100%', height: '100%', objectFit: 'contain', padding: 4}} />
+                    <Link to={itemTarget} style={{ display: 'block', textDecoration: 'none', cursor: (productExists || isCustom) ? 'pointer' : 'default' }}>
+                      <div style={{width: 75, height: 75, borderRadius: 10, background: '#fdfbf7', border: '1px solid #eee1cf', overflow: 'hidden', flexShrink: 0, display: 'block'}}>
+                        <img
+                          src={itemImg}
+                          alt={item.name}
+                          loading="lazy"
+                          decoding="async"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: String(itemImg).includes("placeholder.svg") ? 'contain' : 'cover',
+                            padding: String(itemImg).includes("placeholder.svg") ? 8 : 0,
+                            display: 'block'
+                          }}
+                        />
                       </div>
                     </Link>
                     <div style={{flex: 1}}>
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap'}}>
-                        <Link to={productExists ? `/product/${item.id}` : '#'} style={{ textDecoration: 'none', color: 'inherit', cursor: productExists ? 'pointer' : 'default' }}>
+                        <Link to={itemTarget} style={{ textDecoration: 'none', color: 'inherit', cursor: (productExists || isCustom) ? 'pointer' : 'default' }}>
                           <h3 style={{margin: '0 0 4px', fontSize: 16, color: '#2b170d', fontFamily: 'Cormorant Garamond, serif', fontWeight: 600}}>{item.name}</h3>
                         </Link>
-                        {!productExists && (
+                        {isCustom ? (
+                          <span style={{fontSize: 10.5, background: '#fbf1e6', color: '#78270b', border: '1px solid #e6d1ba', padding: '3px 8px', borderRadius: 4, fontWeight: 600}}>
+                            Custom Hand-Strung Mala
+                          </span>
+                        ) : !productExists && (
                           <span style={{fontSize: 10, background: '#f4ece5', color: '#806f62', padding: '3px 8px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4}}>
                             <AlertCircle size={10} /> Product no longer available
                           </span>
@@ -853,6 +872,11 @@ export function OrderDetail() {
                           </button>
                         )}
                       </div>
+                      {isCustom && (item.customDescription || item.size || item.variant) && (
+                        <div style={{ fontSize: 12, color: '#665a51', lineHeight: 1.45, marginBottom: 6 }}>
+                          {item.customDescription || [item.size, item.variant].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
                       <p style={{margin: '0 0 8px', fontSize: 12, color: '#806f62'}}>Quantity: <b>{item.qty}</b></p>
                       
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10}}>

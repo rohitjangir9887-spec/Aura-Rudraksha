@@ -99,12 +99,15 @@ export function AuraAIFloating() {
   const setIsOpen = useCallback((val) => {
     setIsOpenState((prev) => {
       const next = typeof val === "function" ? val(prev) : val;
+      isOpenRef.current = next;
       auraChatStore.setFloatingOpen(next);
       return next;
     });
   }, []);
 
   const isOpen = isOpenState;
+  const isOpenRef = useRef(isOpenState);
+  isOpenRef.current = isOpen;
   
   // Shared persistent chat history
   const [messages, setMessages] = useState(() => auraChatStore.getMessages(mode));
@@ -153,6 +156,7 @@ export function AuraAIFloating() {
   // Listen for link navigation events from AI messages to close drawer smoothly & unlock touch
   useEffect(() => {
     const handleNavigate = () => {
+      stopBackgroundAiExecution();
       setIsOpen(false);
       setIsFullWindow(false);
       setShowChatHistoryModal(false);
@@ -385,10 +389,34 @@ export function AuraAIFloating() {
   const [lastUserQuery, setLastUserQuery] = useState("");
   const [activePassCount, setActivePassCount] = useState(0);
   const timerRef = useRef(null);
+  const continuationTimerRef = useRef(null);
   const turnSeqRef = useRef(0);
   const autoContinuationCountRef = useRef(0);
   const activeAiMsgIdRef = useRef(null);
   const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
+
+  const stopBackgroundAiExecution = useCallback(() => {
+    try {
+      auraAiClient.abortActiveStream();
+    } catch (_) {}
+    turnSeqRef.current++;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (continuationTimerRef.current) {
+      clearTimeout(continuationTimerRef.current);
+      continuationTimerRef.current = null;
+    }
+    autoContinuationCountRef.current = 0;
+    activeAiMsgIdRef.current = null;
+    setActivePassCount(0);
+    setLoading(false);
+    setIsListening(false);
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) {}
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -467,6 +495,8 @@ export function AuraAIFloating() {
   useEffect(() => {
     if (prevPathnameRef.current !== location.pathname) {
       prevPathnameRef.current = location.pathname;
+      stopBackgroundAiExecution();
+      isOpenRef.current = false;
       setIsOpenState(false);
       auraChatStore.setFloatingOpen(false);
       setIsFullWindow(false);
@@ -477,7 +507,7 @@ export function AuraAIFloating() {
       setOrderModalProduct(null);
       unlockScreenAndTouch();
     }
-  }, [location.pathname, unlockScreenAndTouch]);
+  }, [location.pathname, unlockScreenAndTouch, stopBackgroundAiExecution]);
   const messagesEndRef = useRef(null);
   const undoTimerRef = useRef(null);
 
@@ -487,6 +517,8 @@ export function AuraAIFloating() {
     const currentLocation = location.pathname + location.search;
     if (prevLocationRef.current !== currentLocation) {
       prevLocationRef.current = currentLocation;
+      stopBackgroundAiExecution();
+      isOpenRef.current = false;
       setIsOpenState(false);
       auraChatStore.setFloatingOpen(false);
       setIsFullWindow(false);
@@ -497,13 +529,17 @@ export function AuraAIFloating() {
       setOrderModalProduct(null);
       unlockScreenAndTouch();
     }
-  }, [location.pathname, location.search, unlockScreenAndTouch]);
+  }, [location.pathname, location.search, unlockScreenAndTouch, stopBackgroundAiExecution]);
 
-  // Dedicated clean close handler
+  // Dedicated clean close handler - stops any active background AI stream immediately so UI never hangs
   const handleCloseChat = useCallback((e) => {
     if (e && typeof e.stopPropagation === "function") {
       e.stopPropagation();
     }
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
+    stopBackgroundAiExecution();
     // Explicitly blur textarea and active element so mobile virtual keyboard instantly dismisses
     if (textareaRef.current) {
       try { textareaRef.current.blur(); } catch (_) {}
@@ -511,6 +547,7 @@ export function AuraAIFloating() {
     if (typeof document !== "undefined" && document.activeElement && typeof document.activeElement.blur === "function") {
       try { document.activeElement.blur(); } catch (_) {}
     }
+    isOpenRef.current = false;
     setIsOpenState(false);
     auraChatStore.setFloatingOpen(false);
     setIsFullWindow(false);
@@ -520,7 +557,15 @@ export function AuraAIFloating() {
     setShowBirthForm(false);
     setOrderModalProduct(null);
     unlockScreenAndTouch();
-  }, [unlockScreenAndTouch]);
+  }, [unlockScreenAndTouch, stopBackgroundAiExecution]);
+
+  // Ensure all streams and timers abort cleanly if floating assistant unmounts
+  useEffect(() => {
+    return () => {
+      stopBackgroundAiExecution();
+      unlockScreenAndTouch();
+    };
+  }, [stopBackgroundAiExecution, unlockScreenAndTouch]);
 
   // Cleanly handle Escape key, route transitions, and browser back
   useEffect(() => {
@@ -536,15 +581,7 @@ export function AuraAIFloating() {
     };
 
     const handlePopState = () => {
-      setIsOpenState(false);
-      auraChatStore.setFloatingOpen(false);
-      setIsFullWindow(false);
-      setShowChatHistoryModal(false);
-      setShowSavedKundaliModal(false);
-      setShowNotepad(false);
-      setShowBirthForm(false);
-      setOrderModalProduct(null);
-      unlockScreenAndTouch();
+      handleCloseChat();
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -768,13 +805,13 @@ export function AuraAIFloating() {
         if (orderModalProduct) {
           setOrderModalProduct(null);
         } else if (isOpen) {
-          setIsOpen(false);
+          handleCloseChat();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, orderModalProduct, setIsOpen]);
+  }, [isOpen, orderModalProduct, handleCloseChat]);
 
   const path = (location.pathname || "").toLowerCase();
   const isAdminPage = path.startsWith("/admin");
@@ -989,12 +1026,16 @@ export function AuraAIFloating() {
           });
           setLoading(false);
 
-          // Automated background continuation: If the AI cuts off mid-sentence or mid-analysis, automatically continue
-          const shouldAutoContinue = isAuraResponseIncomplete(cleanText, targetMode);
+          // Automated background continuation only if window is still open and turn wasn't cancelled
+          const shouldAutoContinue = isOpenRef.current && currentTurnSeq === turnSeqRef.current && isAuraResponseIncomplete(cleanText, targetMode);
           if (shouldAutoContinue) {
             autoContinuationCountRef.current = 1;
-            setTimeout(() => {
-              handleContinueChat(aiMsg, 1, 10);
+            if (continuationTimerRef.current) clearTimeout(continuationTimerRef.current);
+            continuationTimerRef.current = setTimeout(() => {
+              continuationTimerRef.current = null;
+              if (isOpenRef.current && currentTurnSeq === turnSeqRef.current) {
+                handleContinueChat(aiMsg, 1, 10);
+              }
             }, 300);
             return;
           }
@@ -1206,14 +1247,18 @@ export function AuraAIFloating() {
           });
           setLoading(false);
 
-          // Automated background continuation: Continue up to 10 passes for big chats if still incomplete
+          // Automated background continuation only while window remains open and active
           const nextPass = autoPassNumber + 1;
-          const shouldContinue = hasNewContent && isAuraResponseIncomplete(finalMerged, mode) && nextPass < maxPasses;
+          const shouldContinue = isOpenRef.current && currentTurnSeq === turnSeqRef.current && hasNewContent && isAuraResponseIncomplete(finalMerged, mode) && nextPass < maxPasses;
 
           if (shouldContinue) {
             autoContinuationCountRef.current = nextPass;
-            setTimeout(() => {
-              handleContinueChat(aiMsg, nextPass, maxPasses);
+            if (continuationTimerRef.current) clearTimeout(continuationTimerRef.current);
+            continuationTimerRef.current = setTimeout(() => {
+              continuationTimerRef.current = null;
+              if (isOpenRef.current && currentTurnSeq === turnSeqRef.current) {
+                handleContinueChat(aiMsg, nextPass, maxPasses);
+              }
             }, 300);
           } else {
             autoContinuationCountRef.current = 0;
@@ -1379,15 +1424,19 @@ export function AuraAIFloating() {
     setIsOpen(true);
   };
 
-  // Dismissal across pages for this session
+  // Dismissal across pages for this session - stops any running AI stream so screen touch never hangs
   const handleDismiss = (e) => {
     if (e) {
       if (typeof e.preventDefault === "function") e.preventDefault();
       if (typeof e.stopPropagation === "function") e.stopPropagation();
     }
+    stopBackgroundAiExecution();
+    isOpenRef.current = false;
     setIsOpen(false);
+    setIsFullWindow(false);
     auraChatStore.setFloatingDismissed(true);
     setIsDismissed(true);
+    unlockScreenAndTouch();
     setShowUndoToast(true);
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
@@ -1580,24 +1629,22 @@ export function AuraAIFloating() {
         )}
       </AnimatePresence>
 
+      {/* Non-blocking backdrop outside AnimatePresence so exit animation never traps page touch/scroll */}
+      {isOpen && isFullWindow && (
+        <div
+          key="aura-ai-backdrop-overlay"
+          className="aura-ai-floating-backdrop aura-ai-backdrop-full"
+          style={{ pointerEvents: "auto", cursor: "pointer" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseChat(e);
+            }
+          }}
+        />
+      )}
+
       {/* 3. Aura AI Window - Fluid Opening & Spring Animations */}
       <AnimatePresence onExitComplete={unlockScreenAndTouch}>
-        {isOpen && isFullWindow && (
-          <motion.div
-            key="aura-ai-backdrop-overlay"
-            className="aura-ai-floating-backdrop aura-ai-backdrop-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: "easeInOut" }}
-            style={{ pointerEvents: "auto", cursor: "pointer" }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                handleCloseChat(e);
-              }
-            }}
-          />
-        )}
         {isOpen && (
           <motion.div
             key="aura-ai-floating-window-container"

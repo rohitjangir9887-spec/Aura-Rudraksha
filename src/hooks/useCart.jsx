@@ -5,6 +5,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState, useCall
 import { db } from "../lib/db";
 import { authClient } from "../lib/authClient";
 import { triggerHaptic } from "../lib/haptics";
+import { isCustomMalaLine, sanitizeCustomMalaConfig } from "../../shared/customMalaCatalog";
 
 const CartContext = createContext(null);
 
@@ -20,6 +21,19 @@ function getUserCouponStorageKey(user) {
   return `aura-applied-coupon-code-${uid}`;
 }
 
+function extractCustomLineMeta(item) {
+  if (!item || typeof item !== "object" || !isCustomMalaLine(item)) return {};
+  return {
+    isCustomMala: true,
+    customMala: sanitizeCustomMalaConfig(item.customMala || {}),
+    ...(item.name ? { name: String(item.name).slice(0, 160) } : {}),
+    ...(item.customDescription ? { customDescription: String(item.customDescription).slice(0, 260) } : {}),
+    ...(item.img ? { img: String(item.img).slice(0, 500) } : {}),
+    ...(item.size ? { size: String(item.size).slice(0, 100) } : {}),
+    ...(item.variant ? { variant: String(item.variant).slice(0, 100) } : {})
+  };
+}
+
 function sanitizeLines(rawLines) {
   if (!Array.isArray(rawLines)) return [];
   const map = new Map();
@@ -27,6 +41,7 @@ function sanitizeLines(rawLines) {
     if (!item) continue;
     let id = null;
     let qty = 1;
+    let customMeta = {};
     if (typeof item === "string" || typeof item === "number") {
       id = String(item).trim();
     } else if (typeof item === "object") {
@@ -35,11 +50,22 @@ function sanitizeLines(rawLines) {
         id = String(rawId).trim();
       }
       qty = Math.max(1, Math.floor(Number(item.qty || item.quantity) || 1));
+      customMeta = extractCustomLineMeta(item);
     }
     if (!id || id === "[object Object]" || id === "undefined" || id === "null") continue;
-    map.set(id, (map.get(id) || 0) + qty);
+    const prev = map.get(id);
+    map.set(id, {
+      id,
+      qty: (prev?.qty || 0) + qty,
+      ...(prev?.isCustomMala ? prev : {}),
+      ...customMeta
+    });
   }
-  return Array.from(map.entries()).map(([id, qty]) => ({ id, qty }));
+  return Array.from(map.values()).map((entry) => ({
+    id: entry.id,
+    qty: entry.qty,
+    ...(entry.isCustomMala ? extractCustomLineMeta(entry) : {})
+  }));
 }
 
 function readStoredCart(user) {
@@ -427,7 +453,7 @@ export function CartProvider({ children }) {
       const map = new Map();
       for (const l of currentStored) {
         if (l && l.id) {
-          map.set(String(l.id), Number(l.qty) || 1);
+          map.set(String(l.id), { ...l, id: String(l.id), qty: Number(l.qty) || 1 });
         }
       }
       
@@ -435,6 +461,7 @@ export function CartProvider({ children }) {
         if (!item) continue;
         let pid = null;
         let qty = 1;
+        let customMeta = {};
         if (typeof item === "object") {
           let rawId = item.id || item.productId || item._id;
           if (rawId && typeof rawId === "object") {
@@ -444,15 +471,22 @@ export function CartProvider({ children }) {
             pid = String(rawId).trim();
           }
           qty = Math.max(1, Number(item.qty || item.quantity) || 1);
+          customMeta = extractCustomLineMeta(item);
         } else if (item !== undefined && item !== null) {
           pid = String(item).trim();
         }
         if (pid && pid !== "[object Object]" && pid !== "undefined" && pid !== "null") {
-          map.set(pid, (map.get(pid) || 0) + qty);
+          const prev = map.get(pid);
+          map.set(pid, {
+            ...(prev || {}),
+            id: pid,
+            qty: (prev?.qty || 0) + qty,
+            ...customMeta
+          });
         }
       }
       
-      const next = Array.from(map.entries()).map(([id, qty]) => ({ id, qty }));
+      const next = Array.from(map.values());
       persistLines(next);
       return next;
     };
@@ -471,7 +505,8 @@ export function CartProvider({ children }) {
         const itemQty = Math.max(1, Number(qty || idOrObjOrArr.qty || idOrObjOrArr.quantity) || 1);
         const itemId = rawId ? String(rawId).trim() : "";
         if (itemId && itemId !== "[object Object]" && itemId !== "undefined" && itemId !== "null") {
-          return addBatch([{ id: itemId, qty: itemQty }]);
+          const customMeta = extractCustomLineMeta(idOrObjOrArr);
+          return addBatch([{ id: itemId, qty: itemQty, ...customMeta }]);
         }
       }
       const cleanId = String(idOrObjOrArr).trim();
@@ -484,6 +519,7 @@ export function CartProvider({ children }) {
       triggerHaptic("medium");
       let pid = null;
       let count = Math.max(1, Number(qty) || 1);
+      let customMeta = {};
       if (idOrObj && typeof idOrObj === "object") {
         let rawId = idOrObj.id || idOrObj.productId || idOrObj._id;
         if (rawId && typeof rawId === "object") {
@@ -495,12 +531,13 @@ export function CartProvider({ children }) {
         if (idOrObj.qty || idOrObj.quantity) {
           count = Math.max(1, Number(qty || idOrObj.qty || idOrObj.quantity) || 1);
         }
+        customMeta = extractCustomLineMeta(idOrObj);
       } else if (idOrObj !== undefined && idOrObj !== null) {
         pid = String(idOrObj).trim();
       }
       if (!pid || pid === "[object Object]" || pid === "undefined" || pid === "null") return;
 
-      const buyNowIntent = [{ id: pid, qty: count }];
+      const buyNowIntent = [{ id: pid, qty: count, ...customMeta }];
       
       // 1. Add item to persistent cart state so cart badge & cart page stay in sync
       addBatch(buyNowIntent);

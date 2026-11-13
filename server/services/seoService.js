@@ -905,7 +905,9 @@ export async function generateSitemapXml(req) {
     if (!slugOrId) continue;
     const prodUrl = `${baseUrl}/product/${slugOrId}`;
     const lastMod = p.updatedAt ? new Date(p.updatedAt).toISOString() : now;
-    const imgUrl = (p.images && p.images[0]) || p.img || SEO_BRAND.defaultImage;
+    const rawImgList = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.img || SEO_BRAND.defaultImage];
+    const rasterImgs = rawImgList.filter(url => typeof url === "string" && url && !url.toLowerCase().endsWith(".svg") && !url.includes("placeholder.svg"));
+    const imgUrl = rasterImgs[0] || SEO_BRAND.defaultImage;
     const fullImgUrl = imgUrl.startsWith("http") ? imgUrl : `${baseUrl}${imgUrl.startsWith("/") ? "" : "/"}${imgUrl}`;
 
     xml += '  <url>\n';
