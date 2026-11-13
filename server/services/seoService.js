@@ -1517,6 +1517,11 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   result = result.replace(/<meta\s+itemprop=["']image["'][^>]*>/gi, "");
   result = result.replace(/<script\s+type=["']application\/ld\+json["']>[\s\S]*?<\/script>/gi, "");
 
+  // Ensure active Meta Pixel ID (1485640013424198) is always present in rendered HTML
+  if (result.includes("1030324403433300")) {
+    result = result.replace(/1030324403433300/g, "1485640013424198");
+  }
+
   // Inject assembled tags near the top of <head> right after viewport for fast crawler ingestion
   if (result.includes('name="viewport"')) {
     result = result.replace(/(<meta\s+name=["']viewport["'][^>]*>)/i, `$1\n${headInjections}`);

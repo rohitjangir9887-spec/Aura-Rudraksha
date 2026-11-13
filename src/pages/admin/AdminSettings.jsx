@@ -347,8 +347,8 @@ export function AdminSettings() {
               <input
                 id="metaPixelId"
                 type="text"
-                placeholder="e.g. 123456789012345"
-                value={settings.metaPixelId || ""}
+                placeholder="1485640013424198"
+                value={settings.metaPixelId || "1485640013424198"}
                 onChange={(e) => updateSettings("metaPixelId", e.target.value.trim())}
               />
               <small style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", display: "block" }}>

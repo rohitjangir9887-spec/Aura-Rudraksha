@@ -29,7 +29,7 @@ const settingSchema = new mongoose.Schema(
     enableCod: { type: Boolean, default: true }, // Cash on Delivery enabled by default
     enableOnlinePayment: { type: Boolean, default: true }, // Online Payment enabled by default
     codFee: { type: Number, default: 0 }, // Optional COD handling charge (₹0 default)
-    metaPixelId: { type: String, default: "", trim: true }, // Meta / Facebook Ads Pixel ID
+    metaPixelId: { type: String, default: "1485640013424198", trim: true }, // Meta / Facebook Ads Pixel ID
     metaPixelEnabled: { type: Boolean, default: true }, // Meta Pixel active toggle
     featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
     featuredProductEnabled: { type: Boolean, default: true },

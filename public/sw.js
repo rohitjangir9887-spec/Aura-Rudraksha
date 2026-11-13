@@ -4,17 +4,45 @@
  * Provides instant static image loading while letting all API data pass through cleanly.
  */
 
-const IMAGE_CACHE = "aura-images-v2";
+const IMAGE_CACHE = "aura-images-v3";
 const MAX_IMAGE_ENTRIES = 150;
 
-// Helper: check if a request is for an image
+// Helper: check if a URL belongs to third-party analytics, pixels, or payment gateways that must NEVER be intercepted
+function isAnalyticsOrExternalService(url) {
+  const host = (url.hostname || "").toLowerCase();
+  if (
+    host.includes("facebook.com") ||
+    host.includes("facebook.net") ||
+    host.includes("fbcdn.net") ||
+    host.includes("instagram.com") ||
+    host.includes("googletagmanager.com") ||
+    host.includes("google-analytics.com") ||
+    host.includes("analytics.google.com") ||
+    host.includes("doubleclick.net") ||
+    host.includes("google.com") ||
+    host.includes("payu.in") ||
+    host.includes("razorpay.com") ||
+    host.includes("cashfree.com")
+  ) {
+    return true;
+  }
+  if (url.pathname === "/tr" || url.pathname.startsWith("/tr/")) {
+    return true;
+  }
+  return false;
+}
+
+// Helper: check if a request is for a static catalog/storefront image
 function isImageRequest(request, url) {
-  if (request.destination === "image") return true;
+  if (isAnalyticsOrExternalService(url)) return false;
   if (/\.(jpg|jpeg|png|webp|gif|svg|ico|avif)($|\?)/i.test(url.pathname)) return true;
-  if (url.hostname.includes("ik.imagekit.io") || 
-      url.hostname.includes("puter.site") || 
-      url.hostname.includes("images.unsplash.com") || 
-      url.hostname.includes("i.ibb.co")) {
+  if (
+    url.hostname.includes("ik.imagekit.io") ||
+    url.hostname.includes("puter.site") ||
+    url.hostname.includes("images.unsplash.com") ||
+    url.hostname.includes("i.ibb.co") ||
+    url.hostname.includes("wsrv.nl")
+  ) {
     return true;
   }
   return false;
@@ -55,7 +83,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  if (!request || !request.url) return;
+  if (!request || !request.url || request.method !== "GET") return;
 
   // Never intercept dynamic API endpoints, Vite HMR, or internal tools - let them pass through
   if (request.url.includes("/api/") ||
@@ -66,7 +94,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const url = new URL(request.url);
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch (_) {
+    return;
+  }
+
+  // Never intercept Meta Pixel, Facebook Event Setup Tool, Google Tag, or Payment Gateways
+  if (isAnalyticsOrExternalService(url)) {
+    return;
+  }
 
   // Image Caching Strategy: Cache-First with Background Revalidation for static images
   if (isImageRequest(request, url)) {

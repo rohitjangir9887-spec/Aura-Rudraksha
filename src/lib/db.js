@@ -553,7 +553,7 @@ const storeCache = {
     enableCod: true,
     enableOnlinePayment: true,
     codFee: 0,
-    metaPixelId: "",
+    metaPixelId: "1485640013424198",
     metaPixelEnabled: true,
     featuredProductId: "14",
     featuredProductEnabled: true,
