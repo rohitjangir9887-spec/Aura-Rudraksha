@@ -838,10 +838,11 @@ export function Checkout() {
         : await applyCoupon(code, activeLines);
       if (buyNowLines) {
         setCheckoutCoupon(res.valid ? code : "");
+        const validatedTotals = res.totals?.data || res.totals || res.data?.totals || null;
         setCheckoutAppliedCoupon(res.valid
-          ? (res.data?.appliedCoupon || res.totals?.appliedCoupon || res.totals?.data?.appliedCoupon || { code })
+          ? (res.data?.appliedCoupon || validatedTotals?.appliedCoupon || { code })
           : null);
-        if (res.valid && res.totals) setBuyNowTotals(res.totals);
+        if (res.valid && validatedTotals?.subtotal > 0) setBuyNowTotals(validatedTotals);
       }
       if (res.valid) {
         triggerHaptic("success");
