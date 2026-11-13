@@ -427,6 +427,7 @@ export function CartProvider({ children }) {
       const res = await db.validateCartCoupon(cleanCode, couponLines);
       const valid = Boolean(res?.success && res.valid);
       const responseTotals = res?.totals || res?.data?.totals || null;
+      const returnedTotals = responseTotals || (res?.data?.subtotal != null ? res.data : null);
 
       if (persistForCart) {
         if (valid || res?.status === "EXPIRED" || res?.status === "NOT_ELIGIBLE") {
@@ -446,7 +447,7 @@ export function CartProvider({ children }) {
         status: res?.status || (valid ? "APPLIED" : "INVALID"),
         message: res?.message || (valid ? `Coupon "${cleanCode}" applied!` : `Coupon "${cleanCode}" could not be applied.`),
         data: res?.data,
-        totals: responseTotals
+        totals: returnedTotals
       };
     } catch (err) {
       if (persistForCart) {
