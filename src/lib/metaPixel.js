@@ -456,12 +456,7 @@ export function trackMetaPurchase(order) {
         firedPurchaseOrderIds.add(orderId);
         return;
       }
-      firedPurchaseOrderIds.add(orderId);
-      sessionStorage.setItem(storageKey, "1");
-      localStorage.setItem(storageKey, "1");
-    } catch (_) {
-      firedPurchaseOrderIds.add(orderId);
-    }
+    } catch (_) {}
 
     // Sync customer matching parameters from confirmed order before firing Purchase for 10/10 Event Match Quality
     const cust = order.customer || {};
@@ -506,6 +501,12 @@ export function trackMetaPurchase(order) {
         },
         { eventID: `PURCHASE_${orderId}` }
       );
+      // Mark as tracked only after the Pixel accepted the event into its queue.
+      firedPurchaseOrderIds.add(orderId);
+      try {
+        sessionStorage.setItem(storageKey, "1");
+        localStorage.setItem(storageKey, "1");
+      } catch (_) {}
     }
   } catch (_) {}
 }

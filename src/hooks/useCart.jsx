@@ -414,25 +414,26 @@ export function CartProvider({ children }) {
   }, [lines, couponCode, persistLines, fetchAuthoritativeTotals]);
 
   // Apply Coupon method
-  const applyCoupon = useCallback(async (code) => {
+  const applyCoupon = useCallback(async (code, targetLines = lines) => {
     const cleanCode = (code || "").trim().toUpperCase();
+    const couponLines = Array.isArray(targetLines) ? targetLines : lines;
     if (!cleanCode) {
       return { success: false, valid: false, message: "Please enter a coupon code" };
     }
 
     try {
       setLoadingTotals(true);
-      const res = await db.validateCartCoupon(cleanCode, lines);
+      const res = await db.validateCartCoupon(cleanCode, couponLines);
 
       if (res?.success) {
         // Save coupon code in state and localStorage
         persistCouponCode(cleanCode);
         
-        if (res.totals && (res.totals.subtotal > 0 || lines.length === 0)) {
+        if (res.totals && (res.totals.subtotal > 0 || couponLines.length === 0)) {
           setTotals(res.totals);
         } else {
           // Trigger full calculation with new coupon
-          await fetchAuthoritativeTotals(lines, cleanCode);
+          await fetchAuthoritativeTotals(couponLines, cleanCode);
         }
 
         if (res.valid) {
@@ -455,7 +456,7 @@ export function CartProvider({ children }) {
         if (status === "EXPIRED" || status === "NOT_ELIGIBLE") {
           persistCouponCode(cleanCode);
         }
-        await fetchAuthoritativeTotals(lines, cleanCode);
+        await fetchAuthoritativeTotals(couponLines, cleanCode);
 
         return {
           success: false,
@@ -466,18 +467,19 @@ export function CartProvider({ children }) {
         };
       }
     } catch (err) {
-      persistCouponCode(cleanCode);
-      await fetchAuthoritativeTotals(lines, cleanCode);
+      // A network/API failure is not proof that the coupon is valid; keep the
+      // previously applied coupon and avoid persisting an unverified code.
+      await fetchAuthoritativeTotals(couponLines, couponCode);
       return {
         success: false,
         valid: false,
-        status: "INVALID",
-        message: err.message || `Coupon '${cleanCode}' is invalid.`
+        status: "VALIDATION_UNAVAILABLE",
+        message: err.message || "Could not validate coupon. Please try again."
       };
     } finally {
       setLoadingTotals(false);
     }
-  }, [lines, persistCouponCode, fetchAuthoritativeTotals]);
+  }, [lines, couponCode, persistCouponCode, fetchAuthoritativeTotals]);
 
   // Remove Coupon method
   const removeCoupon = useCallback(() => {

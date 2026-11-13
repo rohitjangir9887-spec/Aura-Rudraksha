@@ -826,7 +826,8 @@ export function Checkout() {
     setValidatingCoupon(true);
 
     try {
-      const res = await applyCoupon(code);
+      // Validate against the items actually being checked out (Buy Now can differ from the cart).
+      const res = await applyCoupon(code, activeLines);
       if (res.valid) {
         triggerHaptic("success");
         setCouponInput("");
@@ -1002,7 +1003,7 @@ export function Checkout() {
       phone: addressObj.phone,
       address: fullAddressString,
       shippingAddress: addressObj,
-      couponCode: appliedCoupon?.code || couponCode || "",
+      couponCode: (buyNowLines ? buyNowTotals?.appliedCoupon?.code : appliedCoupon?.code) || couponCode || "",
       items: linesToProcess.flatMap(l => Array.from({ length: l.qty || 1 }, () => l.id)),
       lines: linesToProcess,
       snapshotItems: snapshotItems,
