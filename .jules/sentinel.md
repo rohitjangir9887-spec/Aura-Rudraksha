@@ -1,0 +1,4 @@
+## 2024-05-18 - [XSS Risk in Fallback HTML Construction]
+**Vulnerability:** Dynamically constructed HTML strings (even from plain text fallback paths like adding `div`, `p`, or `span` tags based on newlines and bullets) were directly passed to `dangerouslySetInnerHTML` without being sanitized. This can allow Cross-Site Scripting (XSS) if the source data contains malicious scripts masquerading as text.
+**Learning:** Even when processing data that is assumed to be "plain text", dynamically wrapping parts of it in HTML tags and rendering via `dangerouslySetInnerHTML` is unsafe. It is essential to treat any user-generated or database-stored text as untrusted.
+**Prevention:** Always sanitize any string with `DOMPurify.sanitize` (or an equivalent) *after* constructing the final HTML string, regardless of whether the original source was considered plain text or HTML.
