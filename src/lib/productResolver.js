@@ -20,8 +20,12 @@ export function resolveCartProduct(products = [], lineOrId) {
     : (db && typeof db.getProducts === "function" ? db.getProducts() : []);
 
   if (isCustomMalaLine(lineObj) || rawId.startsWith("custom-mala-")) {
-    const calc = calculateCustomMalaPricing(lineObj.customMala || {});
+    const calc = calculateCustomMalaPricing(lineObj.customMala || {}, productPool);
+    const hasStoreProducts = Array.isArray(calc.config.products) && calc.config.products.length > 0;
     const fallbackPoolImg = (() => {
+      if (calc.items[0]?.img && !calc.items[0].img.includes("placeholder.svg")) {
+        return calc.items[0].img;
+      }
       const matched = productPool.find((p) =>
         String(p?.category || "").toLowerCase().includes("mala") ||
         String(p?.name || "").toLowerCase().includes("5 mukhi")
@@ -36,20 +40,22 @@ export function resolveCartProduct(products = [], lineOrId) {
       id: rawId,
       productId: rawId,
       cartItemId: rawId,
-      name: lineObj.name || calc.name,
+      name: calc.totalBeads > 0 ? calc.name : (lineObj.name || calc.name),
       category: "Custom Sacred Mala",
       origin: "Hand-Strung Custom Sacred Mala",
       resolvedOrigin: "Hand-Strung Custom Sacred Mala",
       isIndonesian: false,
       isCustomMala: true,
       customMala: calc.config,
-      customDescription: lineObj.customDescription || calc.customDescription,
+      customDescription: calc.totalBeads > 0 ? calc.customDescription : (lineObj.customDescription || calc.customDescription),
       price: calc.totalBeads > 0 ? calc.unitPrice : (Number(lineObj.price) || 0),
       mrp: calc.totalBeads > 0 ? calc.mrp : (Number(lineObj.mrp) || Number(lineObj.price) || 0),
       img: itemImg,
       images: [itemImg],
-      size: calc.sizeObj.label,
-      variant: `${calc.threadObj.shortLabel} • ${calc.cappingObj.shortLabel}`,
+      size: hasStoreProducts ? `${calc.totalBeads} Sacred Bead${calc.totalBeads === 1 ? "" : "s"}` : calc.sizeObj.label,
+      variant: hasStoreProducts
+        ? `${calc.items.length} Product${calc.items.length === 1 ? "" : "s"} • Hand-Strung`
+        : `${calc.threadObj.shortLabel} • ${calc.cappingObj.shortLabel}`,
       stock: 99
     };
   }

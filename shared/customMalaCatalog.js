@@ -414,6 +414,49 @@ const SIZE_MAP = new Map(MALA_BEAD_SIZES.map((s) => [s.id, s]));
 const THREAD_MAP = new Map(MALA_THREAD_OPTIONS.map((t) => [t.id, t]));
 const CAPPING_MAP = new Map(MALA_CAPPING_OPTIONS.map((c) => [c.id, c]));
 
+export function getStoreProductId(product) {
+  if (!product || typeof product !== "object") return "";
+  return String(product.id || product._id || product.slug || "").trim();
+}
+
+function getStoreProductImage(product) {
+  if (!product || typeof product !== "object") return "/images/placeholder.svg";
+  if (typeof product.img === "string" && product.img.trim()) return product.img.trim();
+  if (typeof product.image === "string" && product.image.trim()) return product.image.trim();
+  if (Array.isArray(product.images) && product.images.length > 0 && typeof product.images[0] === "string") {
+    return product.images[0].trim();
+  }
+  return "/images/placeholder.svg";
+}
+
+function buildProductLookupMap(productPool = null) {
+  const lookup = new Map();
+  if (!productPool) return lookup;
+
+  const list = productPool instanceof Map ? Array.from(productPool.values()) : Array.isArray(productPool) ? productPool : [];
+  for (const p of list) {
+    if (!p || typeof p !== "object") continue;
+    const keys = [p.id, p._id, p.slug].map((k) => String(k || "").trim()).filter(Boolean);
+    for (const key of keys) {
+      if (!lookup.has(key)) {
+        lookup.set(key, p);
+      }
+    }
+  }
+  return lookup;
+}
+
+function resolveStoreProduct(lookup, productId) {
+  if (!lookup || lookup.size === 0 || !productId) return null;
+  const cleanId = String(productId).trim();
+  if (!cleanId) return null;
+  const stripped = cleanId.replace(/-indo$|_indo$/i, "").replace(/^(product-card-|product-)/i, "");
+  const prod = lookup.get(cleanId) || (stripped ? lookup.get(stripped) : null) || null;
+  if (!prod) return null;
+  if (prod.status === "Inactive" || prod.status === "Draft") return null;
+  return prod;
+}
+
 export function isCustomMalaLine(lineOrId) {
   if (!lineOrId) return false;
   if (typeof lineOrId === "string") {
@@ -437,6 +480,43 @@ export function sanitizeCustomMalaConfig(rawConfig = {}) {
     .trim()
     .slice(0, 120);
 
+  // Sanitize real store products array or map (preserve explicit order)
+  const productCounts = new Map();
+  let productRunningTotal = 0;
+  const rawProducts = src.products;
+  const productEntries = Array.isArray(rawProducts)
+    ? rawProducts.map((entry) =>
+        entry && typeof entry === "object"
+          ? [entry.productId || entry.id || entry._id, entry.qty ?? entry.quantity]
+          : [null, 0]
+      )
+    : rawProducts && typeof rawProducts === "object"
+      ? Object.entries(rawProducts)
+      : [];
+
+  for (const [rawPid, rawCount] of productEntries) {
+    if (productCounts.size >= 50 || productRunningTotal >= 2160) break;
+    const productId = String(rawPid || "").trim().slice(0, 120);
+    if (!productId || productId.startsWith("custom-mala-") || productId === "[object Object]") continue;
+    const count = Math.floor(Number(rawCount) || 0);
+    if (count <= 0) continue;
+    const clamped = Math.min(count, 1080, 2160 - productRunningTotal);
+    if (clamped > 0) {
+      const prev = productCounts.get(productId) || 0;
+      const merged = Math.min(1080, prev + clamped);
+      const delta = merged - prev;
+      if (delta > 0) {
+        productCounts.set(productId, merged);
+        productRunningTotal += delta;
+      }
+    }
+  }
+
+  const products = Array.from(productCounts.entries()).map(([productId, qty]) => ({
+    productId,
+    qty
+  }));
+
   const rawBeads = src.beads && typeof src.beads === "object" ? src.beads : {};
   const beads = {};
   let runningTotal = 0;
@@ -455,6 +535,7 @@ export function sanitizeCustomMalaConfig(rawConfig = {}) {
 
   return {
     beads,
+    ...(products.length > 0 ? { products } : {}),
     size,
     thread,
     capping,
@@ -469,16 +550,97 @@ export function getBeadScaledPricing(bead, sizeObj) {
   return { unitPrice, unitMrp };
 }
 
-export function calculateCustomMalaPricing(rawConfig = {}) {
+export function calculateCustomMalaPricing(rawConfig = {}, productPool = null) {
   const config = sanitizeCustomMalaConfig(rawConfig);
   const sizeObj = SIZE_MAP.get(config.size) || MALA_BEAD_SIZES[2];
   const threadObj = THREAD_MAP.get(config.thread) || MALA_THREAD_OPTIONS[0];
   const cappingObj = CAPPING_MAP.get(config.capping) || MALA_CAPPING_OPTIONS[0];
 
   const items = [];
+  const missingProductIds = [];
   let totalBeads = 0;
   let beadsSubtotal = 0;
   let beadsMrpTotal = 0;
+
+  if (Array.isArray(config.products) && config.products.length > 0) {
+    const lookup = buildProductLookupMap(productPool);
+    for (const entry of config.products) {
+      const prod = resolveStoreProduct(lookup, entry.productId);
+      if (!prod || entry.qty <= 0) {
+        missingProductIds.push(entry.productId);
+        continue;
+      }
+      const unitPrice = Math.max(0, Math.round(Number(prod.price) || 0));
+      const rawMrp = Math.round(Number(prod.mrp || prod.comparePrice || prod.price) || unitPrice);
+      const unitMrp = Math.max(unitPrice, rawMrp);
+      if (unitPrice <= 0) {
+        missingProductIds.push(entry.productId);
+        continue;
+      }
+
+      const lineTotal = unitPrice * entry.qty;
+      const lineMrpTotal = unitMrp * entry.qty;
+      totalBeads += entry.qty;
+      beadsSubtotal += lineTotal;
+      beadsMrpTotal += lineMrpTotal;
+
+      items.push({
+        id: getStoreProductId(prod) || entry.productId,
+        productId: entry.productId,
+        name: prod.name || "Sacred Rudraksha",
+        shortName: prod.name || "Sacred Rudraksha",
+        mukhi: Number(prod.mukhi) || 0,
+        deity: prod.deity || "",
+        qty: entry.qty,
+        unitPrice,
+        unitMrp,
+        lineTotal,
+        lineMrpTotal,
+        img: getStoreProductImage(prod)
+      });
+    }
+
+    const threadFee = Number(threadObj.fee) || 0;
+    const cappingFee = Number(cappingObj.fee) || 0;
+    const unitPrice = totalBeads > 0 ? beadsSubtotal + threadFee + cappingFee : 0;
+    const mrp = totalBeads > 0 ? beadsMrpTotal + threadFee + cappingFee : 0;
+
+    const topSummary = items
+      .slice(0, 4)
+      .map((it) => `${it.qty}× ${it.name}`)
+      .join(", ");
+    const extraTypes = items.length > 4 ? ` +${items.length - 4} more` : "";
+
+    const name =
+      totalBeads > 0
+        ? items.length === 1
+          ? `Custom ${totalBeads}-Bead Mala (${items[0].name})`
+          : `Custom ${totalBeads}-Bead Sacred Mala (${items.length} Varieties)`
+        : "Custom Handcrafted Rudraksha Mala";
+
+    const customDescription =
+      totalBeads > 0
+        ? `${topSummary}${extraTypes}${config.wearerNote ? ` • Note: ${config.wearerNote}` : ""}`
+        : "Select Rudraksha beads to assemble your custom mala";
+
+    return {
+      config,
+      items,
+      missingProductIds,
+      totalBeads,
+      beadsSubtotal,
+      beadsMrpTotal,
+      threadFee,
+      cappingFee,
+      unitPrice,
+      mrp,
+      sizeObj,
+      threadObj,
+      cappingObj,
+      name,
+      customDescription
+    };
+  }
 
   for (const [beadId, qty] of Object.entries(config.beads)) {
     const bead = BEAD_MAP.get(beadId);
@@ -533,6 +695,7 @@ export function calculateCustomMalaPricing(rawConfig = {}) {
   return {
     config,
     items,
+    missingProductIds,
     totalBeads,
     beadsSubtotal,
     beadsMrpTotal,
@@ -550,10 +713,21 @@ export function calculateCustomMalaPricing(rawConfig = {}) {
 
 export function buildCustomMalaHash(rawConfig = {}) {
   const cfg = sanitizeCustomMalaConfig(rawConfig);
-  const beadsKey = Object.entries(cfg.beads)
-    .map(([id, qty]) => `${id}:${qty}`)
-    .join(",");
-  const raw = `${beadsKey}|${cfg.size}|${cfg.thread}|${cfg.capping}|${cfg.wearerNote}`;
+  const raw =
+    Array.isArray(cfg.products) && cfg.products.length > 0
+      ? (() => {
+          const productsKey = [...cfg.products]
+            .sort((a, b) => a.productId.localeCompare(b.productId))
+            .map((p) => `${p.productId}:${p.qty}`)
+            .join(",");
+          return `prod|${productsKey}|${cfg.thread}|${cfg.capping}|${cfg.wearerNote}`;
+        })()
+      : (() => {
+          const beadsKey = Object.entries(cfg.beads)
+            .map(([id, qty]) => `${id}:${qty}`)
+            .join(",");
+          return `${beadsKey}|${cfg.size}|${cfg.thread}|${cfg.capping}|${cfg.wearerNote}`;
+        })();
   // Deterministic 32-bit FNV-1a hex hash safe in both browser & Node.js
   let hash = 0x811c9dc5;
   for (let i = 0; i < raw.length; i++) {
@@ -563,10 +737,14 @@ export function buildCustomMalaHash(rawConfig = {}) {
   return (hash >>> 0).toString(36).padStart(7, "0");
 }
 
-export function buildCustomMalaItemPayload(rawConfig = {}, imageSrc = "/images/placeholder.svg") {
-  const pricing = calculateCustomMalaPricing(rawConfig);
+export function buildCustomMalaItemPayload(rawConfig = {}, imageSrc = "/images/placeholder.svg", productPool = null) {
+  const pricing = calculateCustomMalaPricing(rawConfig, productPool);
   const hash = buildCustomMalaHash(pricing.config);
   const id = `custom-mala-${hash}`;
+  const resolvedImg =
+    imageSrc && typeof imageSrc === "string" && !imageSrc.includes("placeholder.svg")
+      ? imageSrc
+      : pricing.items[0]?.img || "/images/placeholder.svg";
 
   return {
     id,
@@ -578,19 +756,26 @@ export function buildCustomMalaItemPayload(rawConfig = {}, imageSrc = "/images/p
     customDescription: pricing.customDescription,
     price: pricing.unitPrice,
     mrp: pricing.mrp,
-    size: pricing.sizeObj.label,
-    variant: `${pricing.threadObj.shortLabel} • ${pricing.cappingObj.shortLabel}`,
-    origin: "Custom Handcrafted Nepali & Sacred Beads",
-    img: imageSrc || "/images/placeholder.svg"
+    size: Array.isArray(pricing.config.products) && pricing.config.products.length > 0
+      ? `${pricing.totalBeads} Sacred Bead${pricing.totalBeads === 1 ? "" : "s"}`
+      : pricing.sizeObj.label,
+    variant: Array.isArray(pricing.config.products) && pricing.config.products.length > 0
+      ? `${pricing.items.length} Product${pricing.items.length === 1 ? "" : "s"} • Hand-Strung`
+      : `${pricing.threadObj.shortLabel} • ${pricing.cappingObj.shortLabel}`,
+    origin: "Custom Handcrafted Sacred Mala",
+    img: resolvedImg
   };
 }
 
-export function buildCustomMalaDisplay(itemOrLine = {}) {
+export function buildCustomMalaDisplay(itemOrLine = {}, productPool = null) {
   const cfg = itemOrLine?.customMala
     ? sanitizeCustomMalaConfig(itemOrLine.customMala)
     : null;
 
-  if (!cfg || Object.keys(cfg.beads).length === 0) {
+  const hasProducts = Boolean(cfg && Array.isArray(cfg.products) && cfg.products.length > 0);
+  const hasBeads = Boolean(cfg && Object.keys(cfg.beads).length > 0);
+
+  if (!cfg || (!hasProducts && !hasBeads)) {
     return {
       isCustomMala: isCustomMalaLine(itemOrLine),
       name: itemOrLine?.name || "Custom Handcrafted Rudraksha Mala",
@@ -604,14 +789,14 @@ export function buildCustomMalaDisplay(itemOrLine = {}) {
     };
   }
 
-  const calc = calculateCustomMalaPricing(cfg);
+  const calc = calculateCustomMalaPricing(cfg, productPool);
   return {
     isCustomMala: true,
     name: itemOrLine?.name || calc.name,
     summaryLine: itemOrLine?.customDescription || calc.customDescription,
     beadsList: calc.items,
     totalBeads: calc.totalBeads,
-    sizeLabel: calc.sizeObj.label,
+    sizeLabel: hasProducts ? `${calc.totalBeads} Sacred Bead${calc.totalBeads === 1 ? "" : "s"}` : calc.sizeObj.label,
     threadLabel: calc.threadObj.label,
     cappingLabel: calc.cappingObj.label,
     wearerNote: cfg.wearerNote || ""

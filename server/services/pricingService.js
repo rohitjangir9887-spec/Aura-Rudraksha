@@ -99,15 +99,16 @@ export function normalizeLines(linesInput) {
  * Fetch authoritative products from MongoDB
  */
 export async function getAuthoritativeProducts(productIds = []) {
-  const cleanIds = Array.from(
-    new Set(
-      productIds
-        .map(id => String(id || "").trim())
-        .filter(id => id && !id.startsWith("custom-mala-"))
-        .map(id => id.replace(/-indo$|_indo$/i, "").replace(/^(product-card-|product-)/i, ""))
-        .filter(Boolean)
-    )
-  );
+  const cleanIdsSet = new Set();
+  for (const raw of productIds) {
+    const id = String(raw || "").trim();
+    if (!id || id.startsWith("custom-mala-")) continue;
+    const noIndo = id.replace(/-indo$|_indo$/i, "");
+    if (noIndo) cleanIdsSet.add(noIndo);
+    const stripped = noIndo.replace(/^(product-card-|product-)/i, "");
+    if (stripped) cleanIdsSet.add(stripped);
+  }
+  const cleanIds = Array.from(cleanIdsSet);
   if (cleanIds.length === 0) return [];
 
   const resultsMap = new Map();
@@ -275,7 +276,15 @@ export async function getAuthoritativeCoupon(couponCode) {
  */
 export async function calculateOrderTotals({ lines = [], couponCode = null, authUserId = null } = {}) {
   const normalized = normalizeLines(lines);
-  const productIds = normalized.map(l => l.id);
+  const customProductIds = [];
+  for (const line of normalized) {
+    if (isCustomMalaLine(line) && Array.isArray(line.customMala?.products)) {
+      for (const cp of line.customMala.products) {
+        if (cp?.productId) customProductIds.push(String(cp.productId));
+      }
+    }
+  }
+  const productIds = [...normalized.map(l => l.id), ...customProductIds];
 
   // 1. Fetch Authoritative Products
   const fetchedProducts = await getAuthoritativeProducts(productIds);
@@ -287,7 +296,11 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
 
   for (const line of normalized) {
     if (isCustomMalaLine(line)) {
-      const calc = calculateCustomMalaPricing(line.customMala || {});
+      const calc = calculateCustomMalaPricing(line.customMala || {}, fetchedProducts);
+      if (Array.isArray(calc.missingProductIds) && calc.missingProductIds.length > 0) {
+        unavailableItems.push({ id: line.id, reason: "One or more selected products in your Custom Mala are no longer available." });
+        continue;
+      }
       if (calc.totalBeads <= 0 || calc.unitPrice <= 0) {
         unavailableItems.push({ id: line.id, reason: "Custom Rudraksha Mala must contain at least 1 sacred bead." });
         continue;
@@ -299,15 +312,17 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
       totalMrp += itemMrpTotal;
 
       const customImg =
-        line.img && typeof line.img === "string" && !/^\/images\/product-/i.test(line.img)
+        line.img && typeof line.img === "string" && !line.img.includes("placeholder.svg") && !/^\/images\/product-/i.test(line.img)
           ? line.img
-          : "/images/placeholder.svg";
+          : calc.items[0]?.img || "/images/placeholder.svg";
+
+      const hasStoreProducts = Array.isArray(calc.config.products) && calc.config.products.length > 0;
 
       validatedItems.push({
         id: String(line.id),
         productId: String(line.id),
         name: calc.name,
-        origin: "Custom Handcrafted Nepali & Sacred Beads",
+        origin: "Custom Handcrafted Sacred Mala",
         isIndonesian: false,
         isCustomMala: true,
         customMala: calc.config,
@@ -318,8 +333,12 @@ export async function calculateOrderTotals({ lines = [], couponCode = null, auth
         comparePrice: calc.mrp,
         quantity: line.qty,
         qty: line.qty,
-        variant: `${calc.threadObj.shortLabel} • ${calc.cappingObj.shortLabel}`,
-        size: calc.sizeObj.label,
+        variant: hasStoreProducts
+          ? `${calc.items.length} Product${calc.items.length === 1 ? "" : "s"} • Hand-Strung`
+          : `${calc.threadObj.shortLabel} • ${calc.cappingObj.shortLabel}`,
+        size: hasStoreProducts
+          ? `${calc.totalBeads} Sacred Bead${calc.totalBeads === 1 ? "" : "s"}`
+          : calc.sizeObj.label,
         itemTotal: itemSubtotal,
         stock: 99,
         image: customImg,

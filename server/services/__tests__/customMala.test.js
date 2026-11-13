@@ -107,4 +107,51 @@ describe("Custom Rudraksha Mala Catalog & Authoritative Pricing", () => {
     expect(totals.items[0].unitPrice).toBe(expected.unitPrice);
     expect(totals.subtotal).toBe(expected.unitPrice * 2);
   });
+
+  it("supports real store products via customMala.products with server authoritative pricing", async () => {
+    const storePool = [
+      { id: "1", name: "Nepali 1 Mukhi Real", price: 2499, mrp: 3500, img: "https://ik.imagekit.io/demo/1.jpg", status: "Active" },
+      { id: "5", name: "Nepali 5 Mukhi Real", price: 599, mrp: 999, img: "https://ik.imagekit.io/demo/5.jpg", status: "Active" }
+    ];
+
+    const payload = buildCustomMalaItemPayload(
+      {
+        products: [
+          { productId: "1", qty: 1 },
+          { productId: "5", qty: 3 }
+        ],
+        thread: "red-silk",
+        capping: "none"
+      },
+      null,
+      storePool
+    );
+
+    expect(payload.name).toContain("Custom 4-Bead");
+    expect(payload.customDescription).toContain("Nepali 1 Mukhi Real");
+    expect(payload.customDescription).toContain("Nepali 5 Mukhi Real");
+    expect(payload.price).toBe(2499 + 599 * 3);
+
+    // Server pricing recalculates from DB/defaultProducts, ignoring tampered client price
+    const totals = await calculateOrderTotals({
+      lines: [
+        {
+          id: payload.id,
+          isCustomMala: true,
+          customMala: {
+            products: [{ productId: "5", qty: 2 }],
+            thread: "red-silk",
+            capping: "none"
+          },
+          price: 1,
+          qty: 1
+        }
+      ]
+    });
+
+    expect(totals.items.length).toBe(1);
+    expect(totals.items[0].isCustomMala).toBe(true);
+    expect(totals.items[0].unitPrice).toBeGreaterThan(100);
+    expect(totals.subtotal).toBe(totals.items[0].unitPrice);
+  });
 });
