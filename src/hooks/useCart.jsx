@@ -413,70 +413,49 @@ export function CartProvider({ children }) {
     return () => window.removeEventListener("aura:store-updated", handleStoreSync);
   }, [lines, couponCode, persistLines, fetchAuthoritativeTotals]);
 
-  // Apply Coupon method
-  const applyCoupon = useCallback(async (code, targetLines = lines) => {
+  // Apply Coupon method. Custom Buy Now lines are validated independently and
+  // must not overwrite the persistent cart coupon or totals.
+  const applyCoupon = useCallback(async (code, targetLines = lines, options = {}) => {
     const cleanCode = (code || "").trim().toUpperCase();
     const couponLines = Array.isArray(targetLines) ? targetLines : lines;
-    if (!cleanCode) {
-      return { success: false, valid: false, message: "Please enter a coupon code" };
-    }
+    const persistForCart = options.persist !== false && couponLines === lines;
+
+    if (!cleanCode) return { success: false, valid: false, message: "Please enter a coupon code" };
 
     try {
-      setLoadingTotals(true);
+      if (persistForCart) setLoadingTotals(true);
       const res = await db.validateCartCoupon(cleanCode, couponLines);
+      const valid = Boolean(res?.success && res.valid);
+      const responseTotals = res?.totals || res?.data?.totals || null;
 
-      if (res?.success) {
-        // Save coupon code in state and localStorage
-        persistCouponCode(cleanCode);
-        
-        if (res.totals && (res.totals.subtotal > 0 || couponLines.length === 0)) {
-          setTotals(res.totals);
-        } else {
-          // Trigger full calculation with new coupon
-          await fetchAuthoritativeTotals(couponLines, cleanCode);
-        }
-
-        if (res.valid) {
-          triggerHaptic("success");
-        } else {
-          triggerHaptic("warning");
-        }
-
-        return {
-          success: res.valid,
-          valid: res.valid,
-          status: res.status || (res.valid ? "APPLIED" : "INVALID"),
-          message: res.message || (res.valid ? `Coupon '${cleanCode}' applied!` : "Coupon condition not met"),
-          data: res.data
-        };
-      } else {
-        triggerHaptic("warning");
-        // Even if server returns false or 400 (e.g. EXPIRED or NOT_ELIGIBLE), maintain coupon status properly
-        const status = res?.status || "INVALID";
-        if (status === "EXPIRED" || status === "NOT_ELIGIBLE") {
+      if (persistForCart) {
+        if (valid || res?.status === "EXPIRED" || res?.status === "NOT_ELIGIBLE") {
           persistCouponCode(cleanCode);
         }
-        await fetchAuthoritativeTotals(couponLines, cleanCode);
-
-        return {
-          success: false,
-          valid: false,
-          status: status,
-          message: res?.message || `Coupon '${cleanCode}' could not be applied.`,
-          data: res?.data
-        };
+        if (responseTotals && Number(responseTotals.subtotal) > 0) {
+          setTotals(responseTotals);
+        } else {
+          await fetchAuthoritativeTotals(couponLines, cleanCode);
+        }
       }
-    } catch (err) {
-      persistCouponCode(cleanCode);
-      await fetchAuthoritativeTotals(couponLines, cleanCode);
+
+      triggerHaptic(valid ? "success" : "warning");
       return {
-        success: false,
-        valid: false,
-        status: "INVALID",
-        message: err.message || `Coupon '${cleanCode}' is invalid.`
+        success: valid,
+        valid,
+        status: res?.status || (valid ? "APPLIED" : "INVALID"),
+        message: res?.message || (valid ? `Coupon "${cleanCode}" applied!` : `Coupon "${cleanCode}" could not be applied.`),
+        data: res?.data,
+        totals: responseTotals
       };
+    } catch (err) {
+      if (persistForCart) {
+        persistCouponCode(cleanCode);
+        await fetchAuthoritativeTotals(couponLines, cleanCode);
+      }
+      return { success: false, valid: false, status: "INVALID", message: err?.message || `Coupon "${cleanCode}" is invalid.` };
     } finally {
-      setLoadingTotals(false);
+      if (persistForCart) setLoadingTotals(false);
     }
   }, [lines, persistCouponCode, fetchAuthoritativeTotals]);
 
