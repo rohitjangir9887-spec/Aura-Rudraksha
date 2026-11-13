@@ -188,12 +188,14 @@ export function trackMetaViewContent(product) {
 
     if (initMetaPixel() && typeof window.fbq === "function") {
       lastViewContentKey = viewKey;
+      const unitPrice = Number(Math.max(0, Number(product.price) || 0).toFixed(2));
       window.fbq("track", "ViewContent", {
         content_ids: [productId],
+        contents: [{ id: productId, quantity: 1, item_price: unitPrice }],
         content_name: String(product.name || "Sacred Rudraksha"),
         content_type: "product",
         content_category: String(product.category || product.mukhi || "Rudraksha"),
-        value: Math.max(0, Number(product.price) || 0),
+        value: unitPrice,
         currency: "INR"
       });
     }
@@ -208,7 +210,7 @@ export function trackMetaAddToCart(product, qty = 1) {
   try {
     const productId = String(product.id || product.productId || product._id || product.slug || "").trim();
     const cleanQty = Math.max(1, Number(qty || product.qty || product.quantity) || 1);
-    const unitPrice = Math.max(0, Number(product.price ?? product.unitPrice) || 0);
+    const unitPrice = Number(Math.max(0, Number(product.price ?? product.unitPrice) || 0).toFixed(2));
     if (!productId) return;
 
     const now = Date.now();
@@ -220,11 +222,13 @@ export function trackMetaAddToCart(product, qty = 1) {
     if (initMetaPixel() && typeof window.fbq === "function") {
       lastAddToCartKey = dedupKey;
       lastAddToCartTime = now;
+      const totalVal = Number((unitPrice * cleanQty).toFixed(2));
       window.fbq("track", "AddToCart", {
         content_ids: [productId],
+        contents: [{ id: productId, quantity: cleanQty, item_price: unitPrice }],
         content_name: String(product.name || "Sacred Rudraksha"),
         content_type: "product",
-        value: unitPrice * cleanQty,
+        value: totalVal,
         currency: "INR",
         num_items: cleanQty
       });
@@ -239,12 +243,24 @@ export function trackMetaInitiateCheckout({ lines = [], finalTotal, total, value
   if (typeof window === "undefined") return;
   try {
     if (!Array.isArray(lines) || lines.length === 0) return;
-    const resolvedValue = Math.max(0, Number(finalTotal ?? total ?? value) || 0);
+    const resolvedValue = Number(Math.max(0, Number(finalTotal ?? total ?? value) || 0).toFixed(2));
     if (initMetaPixel() && typeof window.fbq === "function") {
       const contentIds = lines.map(l => String(l.id || l.productId || "")).filter(Boolean);
+      const contents = lines
+        .map(l => {
+          const itemId = String(l.id || l.productId || "").trim();
+          if (!itemId) return null;
+          return {
+            id: itemId,
+            quantity: Math.max(1, Number(l.qty || l.quantity) || 1),
+            item_price: Number(Math.max(0, Number(l.price ?? l.unitPrice) || 0).toFixed(2))
+          };
+        })
+        .filter(Boolean);
       const numItems = lines.reduce((sum, l) => sum + (Number(l.qty || l.quantity) || 1), 0);
       window.fbq("track", "InitiateCheckout", {
         content_ids: contentIds,
+        contents,
         content_type: "product",
         value: resolvedValue,
         currency: "INR",
@@ -270,7 +286,7 @@ export function trackMetaPurchase(order) {
       return;
     }
 
-    const value = Math.max(0, Number(order.finalAmount ?? order.total ?? order.amount ?? 0));
+    const value = Number(Math.max(0, Number(order.finalAmount ?? order.total ?? order.amount ?? 0)).toFixed(2));
     if (value <= 0) return;
 
     if (firedPurchaseOrderIds.has(orderId)) return;
@@ -290,6 +306,17 @@ export function trackMetaPurchase(order) {
     if (initMetaPixel() && typeof window.fbq === "function") {
       const items = order.snapshotItems || order.items || order.lines || [];
       const contentIds = items.map(it => String(it.id || it.productId || "")).filter(Boolean);
+      const contents = items
+        .map(it => {
+          const itemId = String(it.id || it.productId || "").trim();
+          if (!itemId) return null;
+          return {
+            id: itemId,
+            quantity: Math.max(1, Number(it.qty || it.quantity) || 1),
+            item_price: Number(Math.max(0, Number(it.price ?? it.unitPrice) || 0).toFixed(2))
+          };
+        })
+        .filter(Boolean);
       const numItems = items.reduce((sum, it) => sum + (Number(it.qty || it.quantity) || 1), 0);
 
       window.fbq(
@@ -297,6 +324,7 @@ export function trackMetaPurchase(order) {
         "Purchase",
         {
           content_ids: contentIds,
+          contents,
           content_type: "product",
           value,
           currency: "INR",

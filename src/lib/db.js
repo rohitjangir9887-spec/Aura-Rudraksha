@@ -648,6 +648,18 @@ export function loadCacheFromLocalStorage() {
         storeCache.products = parsed.filter(p => p && !deletedIds.has(String(p.id)) && !deletedIds.has(String(p._id)) && !deletedIds.has(String(p.slug)));
       }
     }
+    // Seed server-injected __SSR_PRODUCT__ for 0ms direct product link rendering
+    if (typeof window !== "undefined" && window.__SSR_PRODUCT__ && typeof window.__SSR_PRODUCT__ === "object") {
+      const ssrProd = window.__SSR_PRODUCT__;
+      const ssrId = String(ssrProd.id || ssrProd._id || "");
+      const deletedIds = getDeletedProductIds();
+      if (ssrId && !deletedIds.has(ssrId)) {
+        const exists = (storeCache.products || []).some(p => p && String(p.id || p._id || "") === ssrId);
+        if (!exists) {
+          storeCache.products = [ssrProd, ...(storeCache.products || [])];
+        }
+      }
+    }
     const cachedBanners = localStorage.getItem("aura_banners_cache");
     if (cachedBanners) {
       const parsed = JSON.parse(cachedBanners);
@@ -1313,43 +1325,108 @@ export const db = {
     try {
       raw = decodeURIComponent(raw);
     } catch (_) {}
-    const target = raw.toLowerCase();
+    const target = raw.toLowerCase().split("?")[0];
     const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
+    const strippedSlug = slugTarget
+      .replace(/^(product-card-|product-)/, "")
+      .replace(/^premium-|^original-|^buy-|^authentic-/, "")
+      .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
 
-    // 1. Strict exact match on id or _id in memory storeCache
-    let p = storeCache.products.find(x => {
-      if (!x) return false;
-      const xId = String(x.id || "").toLowerCase();
-      const xMongoId = String(x._id || "").toLowerCase();
+    const deletedIds = getDeletedProductIds();
 
-      if (xId === target || xId === slugTarget || xId === cleanId) return true;
-      if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId)) return true;
-      if (!isNaN(target) && Number(x.id) === Number(target)) return true;
-      if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
-      return false;
-    });
+    const findInList = (list) => {
+      if (!Array.isArray(list) || list.length === 0) return null;
 
-    // 2. Secondary exact match on slug in memory storeCache
-    if (!p) {
-      p = storeCache.products.find(x => {
+      // 1. Strict exact match on id or _id
+      let found = list.find(x => {
         if (!x) return false;
-        const xSlug = String(x.slug || "").toLowerCase();
-        return xSlug && (xSlug === target || xSlug === slugTarget || xSlug === cleanId);
+        const xId = String(x.id || "").toLowerCase();
+        const xMongoId = String(x._id || "").toLowerCase();
+        if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
+
+        if (xId === target || xId === slugTarget || xId === cleanId || xId === strippedSlug) return true;
+        if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId || xMongoId === strippedSlug)) return true;
+        if (!isNaN(target) && Number(x.id) === Number(target)) return true;
+        if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
+        if (!isNaN(strippedSlug) && strippedSlug !== "" && Number(x.id) === Number(strippedSlug)) return true;
+        return false;
       });
-    }
+      if (found) return found;
 
-    // 2. Secondary fallback search in storeCache by exact slugified name
-    if (!p) {
-      p = storeCache.products.find(x => {
+      // 2. Match on slug (exact or stripped marketing slug)
+      found = list.find(x => {
         if (!x) return false;
+        if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
+        const xSlug = String(x.slug || "").toLowerCase();
+        if (!xSlug) return false;
+        const xStripped = xSlug
+          .replace(/^premium-|^original-|^buy-|^authentic-/, "")
+          .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
+        return (
+          xSlug === target ||
+          xSlug === slugTarget ||
+          xSlug === cleanId ||
+          xSlug === strippedSlug ||
+          (strippedSlug && xStripped === strippedSlug)
+        );
+      });
+      if (found) return found;
+
+      // 3. Match on slugified product name
+      found = list.find(x => {
+        if (!x) return false;
+        if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
         const xName = String(x.name || "").toLowerCase().trim();
         const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-
-        if (xSlugifiedName && (xSlugifiedName === target || xSlugifiedName === slugTarget || xSlugifiedName === cleanId)) return true;
+        if (
+          xSlugifiedName &&
+          (xSlugifiedName === target ||
+            xSlugifiedName === slugTarget ||
+            xSlugifiedName === cleanId ||
+            xSlugifiedName === strippedSlug ||
+            (strippedSlug.length >= 5 && (xSlugifiedName.startsWith(strippedSlug) || strippedSlug.startsWith(xSlugifiedName))))
+        ) {
+          return true;
+        }
         if (xName && (xName === target || xName === slugTarget)) return true;
         return false;
       });
+      if (found) return found;
+
+      // 4. Match by Mukhi number for SEO URLs like "5-mukhi-rudraksha" or "premium-14-mukhi-rudraksha..."
+      const mukhiMatch = slugTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
+                         strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
+      if (mukhiMatch && mukhiMatch[1]) {
+        const mNum = String(parseInt(mukhiMatch[1], 10));
+        found = list.find(x => {
+          if (!x) return false;
+          if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
+          return (
+            String(x.id) === mNum ||
+            String(x.mukhi || "").replace(/\D/g, "") === mNum
+          );
+        });
+        if (found) return found;
+      }
+
+      return null;
+    };
+
+    // Check window.__SSR_PRODUCT__ first if present
+    let p = null;
+    if (typeof window !== "undefined" && window.__SSR_PRODUCT__ && typeof window.__SSR_PRODUCT__ === "object") {
+      p = findInList([window.__SSR_PRODUCT__]);
+    }
+
+    // Check in-memory storeCache.products
+    if (!p) {
+      p = findInList(storeCache.products);
+    }
+
+    // Cold-visit instant fallback: if storeCache.products has not hydrated from backend yet, check defaultProducts so direct links open in 0ms
+    if (!p && (!storeCache.products || storeCache.products.length === 0) && !hasFetchedFreshData) {
+      p = findInList(defaultProducts);
     }
 
     if (!p) return null;

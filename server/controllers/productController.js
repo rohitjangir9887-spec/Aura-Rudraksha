@@ -312,6 +312,25 @@ export async function getProductById(req, res, next) {
 
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
 
+    const isAdmin = await checkIsAdmin(req);
+    if (!isAdmin && publicProductsCache && Date.now() < publicProductsCacheExpiry) {
+      const cachedMatch = publicProductsCache.find(p => {
+        if (!p) return false;
+        const xId = String(p.id || "").toLowerCase();
+        const xSlug = String(p.slug || "").toLowerCase();
+        const xName = String(p.name || "").toLowerCase();
+        const xSlugName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        return (
+          xId === cleanTarget || xId === strippedTarget ||
+          xSlug === cleanTarget || xSlug === slugTarget || xSlug === strippedTarget ||
+          xSlugName === cleanTarget || xSlugName === slugTarget || xSlugName === strippedTarget
+        );
+      });
+      if (cachedMatch) {
+        return res.json({ success: true, data: cachedMatch });
+      }
+    }
+
     if (!isDbConnected()) {
       const product = (inMemoryStore.products || []).find(p => {
         if (!p) return false;
@@ -390,7 +409,6 @@ export async function getProductById(req, res, next) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    const isAdmin = await checkIsAdmin(req);
     if (!isAdmin) {
       const currentStatus = (product.status || "Published").toLowerCase();
       if (currentStatus === "draft" || currentStatus === "inactive" || currentStatus === "archived") {

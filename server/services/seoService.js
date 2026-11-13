@@ -748,6 +748,10 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
   return null;
 }
 
+// Fast in-memory SEO product lookup cache (30s TTL) to eliminate repeated MongoDB round-trips on Meta Ads traffic spikes
+const seoProductCache = new Map();
+const SEO_PRODUCT_CACHE_TTL_MS = 30 * 1000;
+
 /**
  * Find single product for SEO metadata by ID or Slug
  */
@@ -766,9 +770,29 @@ export async function findProductForSeo(idOrSlug) {
     .replace(/^premium-|^original-|^buy-|^authentic-/, "")
     .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
 
+  // 1. Check fast in-memory SEO product cache first (0ms)
+  const cachedEntry = seoProductCache.get(clean) || seoProductCache.get(strippedSlug);
+  if (cachedEntry && Date.now() < cachedEntry.expiry) {
+    return cachedEntry.product;
+  }
+
+  // 2. Check live inMemoryStore.products if populated (0ms)
+  if (Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0) {
+    const fastMemMatch =
+      matchProductFromCatalog(inMemoryStore.products, clean) ||
+      matchProductFromCatalog(inMemoryStore.products, strippedSlug);
+    if (fastMemMatch) {
+      seoProductCache.set(clean, { product: fastMemMatch, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+      return fastMemMatch;
+    }
+  }
+
   if (!isDbConnected()) {
     try {
-      await connectDB();
+      await Promise.race([
+        connectDB(),
+        new Promise(resolve => setTimeout(resolve, 900))
+      ]);
     } catch (_) {}
   }
 
@@ -789,7 +813,10 @@ export async function findProductForSeo(idOrSlug) {
         ]
       }).lean();
 
-      if (product) return product;
+      if (product) {
+        seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+        return product;
+      }
 
       // Strategy 2: Exact Mukhi number extraction (e.g. "premium-1-mukhi...", "1-mukhi", "5-mukhi")
       const mukhiMatch = clean.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
@@ -810,29 +837,47 @@ export async function findProductForSeo(idOrSlug) {
           ]
         }).lean();
 
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
 
       // Strategy 3: Special formations (Gauri Shankar, Ganesh, Siddha Mala, Hanuman Idol, Camphor, etc.)
       if (clean.includes("gauri") || strippedSlug.includes("gauri")) {
         product = await Product.findOne({ name: { $regex: /gauri/i } }).lean();
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
       if (clean.includes("ganesh") || strippedSlug.includes("ganesh")) {
         product = await Product.findOne({ name: { $regex: /ganesh/i } }).lean();
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
       if (clean.includes("hanuman") || strippedSlug.includes("hanuman")) {
         product = await Product.findOne({ name: { $regex: /hanuman/i } }).lean();
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
       if (clean.includes("camphor") || clean.includes("kapoor")) {
         product = await Product.findOne({ name: { $regex: /camphor|kapoor/i } }).lean();
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
       if (clean.includes("mala") || clean.includes("kantha")) {
         product = await Product.findOne({ name: { $regex: /mala|kantha/i } }).lean();
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
 
       // Strategy 4: Core title token matching
@@ -846,7 +891,10 @@ export async function findProductForSeo(idOrSlug) {
         product = await Product.findOne({
           name: { $regex: new RegExp(pattern, "i") }
         }).lean();
-        if (product) return product;
+        if (product) {
+          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+          return product;
+        }
       }
 
     } catch (err) {
@@ -859,13 +907,17 @@ export async function findProductForSeo(idOrSlug) {
     ? inMemoryStore.products
     : defaultProducts;
 
-  return (
+  const fallbackProd = (
     matchProductFromCatalog(memoryCatalog, clean) ||
     matchProductFromCatalog(memoryCatalog, strippedSlug) ||
     matchProductFromCatalog(defaultProducts, clean) ||
     matchProductFromCatalog(defaultProducts, strippedSlug) ||
     defaultProducts[0]
   );
+  if (fallbackProd) {
+    seoProductCache.set(clean, { product: fallbackProd, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
+  }
+  return fallbackProd;
 }
 
 /**
@@ -1491,6 +1543,10 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
   if (seo.product) {
     const prodPrice = Number(seo.product.price || 0);
     const prodInStock = (seo.product.stock === undefined || Number(seo.product.stock) > 0) && seo.product.status !== "Out of Stock";
+    const retailerId = String(seo.product.id || seo.product._id || seo.product.slug || "");
+    if (retailerId) {
+      headInjections += `  <meta property="product:retailer_item_id" content="${escapeXml(retailerId)}" />\n`;
+    }
     if (prodPrice > 0) {
       headInjections += `  <meta property="product:price:amount" content="${escapeXml(String(prodPrice))}" />\n`;
       headInjections += `  <meta property="product:price:currency" content="INR" />\n`;
@@ -1498,6 +1554,13 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     headInjections += `  <meta property="product:availability" content="${prodInStock ? "in stock" : "out of stock"}" />\n`;
     headInjections += `  <meta property="product:brand" content="${escapeXml(SEO_BRAND.name)}" />\n`;
     headInjections += `  <meta property="product:condition" content="new" />\n`;
+    try {
+      const safeSsrProductJson = JSON.stringify(seo.product)
+        .replace(/</g, "\\u003c")
+        .replace(/>/g, "\\u003e")
+        .replace(/&/g, "\\u0026");
+      headInjections += `  <script>window.__SSR_PRODUCT__ = ${safeSsrProductJson};</script>\n`;
+    } catch (_) {}
   }
 
   // Structured Data (JSON-LD)

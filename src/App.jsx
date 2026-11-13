@@ -15,11 +15,11 @@ import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "./lib/routes";
 // and first-time visitors experience instant paint and 60-90 FPS smoothness.
 // ---------------------------------------------------------------------------
 const AuraAIFloating = lazy(() => import("./components/AuraAIFloating").then(m => ({ default: m.AuraAIFloating })));
-const Shop = lazy(() => import("./pages/Shop").then(m => ({ default: m.Shop })));
+import { Shop } from "./pages/Shop";
 const Wishlist = lazy(() => import("./pages/Wishlist").then(m => ({ default: m.Wishlist })));
-const Product = lazy(() => import("./pages/Product").then(m => ({ default: m.Product })));
-const Cart = lazy(() => import("./pages/Cart").then(m => ({ default: m.Cart })));
-const Checkout = lazy(() => import("./pages/Checkout").then(m => ({ default: m.Checkout })));
+import { Product } from "./pages/Product";
+import { Cart } from "./pages/Cart";
+import { Checkout } from "./pages/Checkout";
 import { PaymentResult } from "./pages/PaymentResult";
 const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
 const Policies = lazy(() => import("./pages/Policies").then(m => ({ default: m.Policies })));

@@ -195,8 +195,11 @@ export function Product() {
       }, 300);
     }
 
-    db.logVisit();
-    db.logProductView();
+    // Defer non-critical internal analytics so product render and Meta Pixel fire with zero network contention
+    const analyticsTimer = setTimeout(() => {
+      db.logVisit();
+      db.logProductView();
+    }, 1200);
     
     // Reset origin to default Nepal on new product
     setSelectedOrigin("Nepal");
@@ -237,7 +240,10 @@ export function Product() {
       }
     });
 
-    return () => unsub();
+    return () => {
+      clearTimeout(analyticsTimer);
+      unsub();
+    };
   }, [id]);
 
   useEffect(() => {
