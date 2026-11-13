@@ -12,6 +12,7 @@ import { submitToIndexNow } from "../services/indexNowService.js";
 import { generateProductSeoMetadata } from "../services/keywordIntelligenceService.js";
 import { matchProductQuery } from "../../src/lib/searchUtils.js";
 import { clearSettingsCache } from "./settingController.js";
+import { invalidateSeoProductCache, stripSeoSlugMarketingModifiers } from "../services/seoService.js";
 
 function getEffectiveOrderValue(p, layoutIndexMap = null) {
   if (!p) return Number.MAX_SAFE_INTEGER;
@@ -189,6 +190,9 @@ let publicProductsCacheExpiry = 0;
 export function invalidateProductCache() {
   publicProductsCache = null;
   publicProductsCacheExpiry = 0;
+  try {
+    invalidateSeoProductCache();
+  } catch (_) {}
 }
 
 export async function getProducts(req, res, next) {
@@ -270,6 +274,7 @@ export async function getProducts(req, res, next) {
     const products = sortProductsByAdminSequence(rawProducts, liveLayoutIds);
     if (Array.isArray(products) && products.length > 0 && !isAdmin && !req.query.status && !req.query.category) {
       inMemoryStore.products = products;
+      inMemoryStore.isProductsSyncedFromDb = true;
     }
     const productsWithUpdatedSales = await applyDailySalesIncrement(products);
     const sanitizedProducts = toPublicProductDTO(productsWithUpdatedSales);
@@ -305,10 +310,7 @@ export async function getProductById(req, res, next) {
 
     const cleanTarget = cleanId.toLowerCase();
     const slugTarget = cleanTarget.replace(/^\/+|\/+$/g, "");
-    const strippedTarget = slugTarget
-      .replace(/^(product-card-|product-)/, "")
-      .replace(/^premium-|^original-|^buy-|^authentic-/, "")
-      .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
+    const strippedTarget = stripSeoSlugMarketingModifiers(slugTarget);
 
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
 
@@ -354,8 +356,12 @@ export async function getProductById(req, res, next) {
     const mongoIdToUse = /^[0-9a-fA-F]{24}$/.test(cleanId) ? cleanId : strippedTarget;
 
     const escapeForRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const publicFilter = !isAdmin
+      ? { status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] } }
+      : {};
 
     let product = await Product.findOne({
+      ...publicFilter,
       $or: [
         { id: cleanId },
         { id: strippedTarget },
@@ -363,7 +369,7 @@ export async function getProductById(req, res, next) {
         { slug: slugTarget },
         { slug: strippedTarget },
         { slug: { $regex: new RegExp(`^${escapeForRegex(slugTarget)}$`, "i") } },
-        { slug: { $regex: new RegExp(`^${escapeForRegex(strippedTarget)}$`, "i") } },
+        ...(strippedTarget ? [{ slug: { $regex: new RegExp(`^${escapeForRegex(strippedTarget)}$`, "i") } }] : []),
         ...(isMongoId ? [{ _id: mongoIdToUse }] : [])
       ]
     }).lean();
@@ -376,6 +382,7 @@ export async function getProductById(req, res, next) {
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
         product = await Product.findOne({
+          ...publicFilter,
           $or: [
             { mukhi: mNum },
             { mukhi: String(mNum) },

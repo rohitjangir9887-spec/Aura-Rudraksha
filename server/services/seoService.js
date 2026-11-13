@@ -700,6 +700,33 @@ export async function getPublicProductsForSeo() {
   return defaultProducts || [];
 }
 
+export function hasRealProductMedia(prod) {
+  if (!prod) return false;
+  const isRealUrl = (u) => {
+    if (!u || typeof u !== "string") return false;
+    const clean = u.trim().toLowerCase();
+    if (!clean) return false;
+    if (clean.includes("placeholder.svg") || /^\/images\/product-.*mukhi/i.test(clean) || /^\/images\/product-mala/i.test(clean)) {
+      return false;
+    }
+    return true;
+  };
+  if (Array.isArray(prod.images) && prod.images.some(isRealUrl)) return true;
+  if (isRealUrl(prod.img) || isRealUrl(prod.image)) return true;
+  return false;
+}
+
+export function stripSeoSlugMarketingModifiers(slugStr) {
+  return String(slugStr || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .split("?")[0]
+    .replace(/^(product-card-|product-)/, "")
+    .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
+    .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-nepali-online-lab-certified$|-online-lab-certified$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$|-online$/gi, "");
+}
+
 /**
  * Resolves a product from an in-memory or seed catalog by ID, slug, or slugified name
  */
@@ -711,37 +738,63 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
   } catch (_) {}
   const target = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
   const cleanId = target.replace(/^(product-card-|product-)/, "");
+  const strippedTarget = stripSeoSlugMarketingModifiers(target);
+
+  const isPublicItem = (p) => {
+    if (!p) return false;
+    const s = String(p.status || "Published").toLowerCase();
+    return s !== "draft" && s !== "inactive" && s !== "archived";
+  };
 
   // 1. Direct exact match on id, _id, or slug
-  let match = catalog.find(p => p && (
+  let match = catalog.find(p => isPublicItem(p) && (
     String(p.id).toLowerCase() === target ||
     String(p.id).toLowerCase() === cleanId ||
+    String(p.id).toLowerCase() === strippedTarget ||
     String(p._id || "").toLowerCase() === target ||
-    (p.slug && String(p.slug).toLowerCase() === target)
+    (p.slug && (
+      String(p.slug).toLowerCase() === target ||
+      String(p.slug).toLowerCase() === strippedTarget ||
+      stripSeoSlugMarketingModifiers(p.slug) === strippedTarget
+    ))
   ));
   if (match) return match;
 
-  // 2. Slugified name match (e.g. "5-mukhi-rudraksha" or "original-14-mukhi-rudraksha")
+  // 2. Slugified name match (e.g. "5-mukhi-rudraksha" or "buy-original-7-mukhi-rudraksha")
   match = catalog.find(p => {
-    if (!p || !p.name) return false;
+    if (!isPublicItem(p) || !p.name) return false;
     const slugName = String(p.name).toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    return slugName === target || slugName.startsWith(target) || target.startsWith(slugName);
+    const strippedName = stripSeoSlugMarketingModifiers(slugName);
+    return (
+      slugName === target ||
+      slugName === strippedTarget ||
+      (strippedName && strippedName === strippedTarget) ||
+      (strippedTarget.length >= 5 && (slugName.startsWith(strippedTarget) || strippedTarget.startsWith(slugName)))
+    );
   });
   if (match) return match;
 
-  // 3. Mukhi number extraction (e.g. "5-mukhi", "5-mukhi-rudraksha" -> "5")
-  const numMatch = target.match(/^(\d+)(?:-mukhi|$)/i) || target.match(/(\d+)-mukhi/i);
+  // 3. Mukhi number extraction with strict non-digit boundary (e.g. "7-mukhi" never matches "17")
+  const numMatch = target.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
+                   strippedTarget.match(/^([1-9]|1[0-9]|20|21)(?:-mukhi|$)/i);
   if (numMatch && numMatch[1]) {
     const mukhiNum = numMatch[1];
-    match = catalog.find(p => String(p.id) === mukhiNum || (p.slug && p.slug.includes(mukhiNum)));
+    const mukhiRegex = new RegExp(`(^|[^0-9])${mukhiNum}(\\s*-?\\s*mukhi|$)`, "i");
+    match = catalog.find(p => isPublicItem(p) && (
+      String(p.id) === mukhiNum ||
+      String(p.id).toLowerCase() === `p${mukhiNum}` ||
+      String(p.mukhi || "").replace(/\D/g, "") === mukhiNum ||
+      (p.slug && mukhiRegex.test(String(p.slug))) ||
+      (p.name && mukhiRegex.test(String(p.name)))
+    ));
     if (match) return match;
   }
 
   // 4. Keyword match for mala or special items
   if (target.includes("mala")) {
-    match = catalog.find(p => String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala")));
+    match = catalog.find(p => isPublicItem(p) && (String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala"))));
     if (match) return match;
   }
 
@@ -751,6 +804,17 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
 // Fast in-memory SEO product lookup cache (30s TTL) to eliminate repeated MongoDB round-trips on Meta Ads traffic spikes
 const seoProductCache = new Map();
 const SEO_PRODUCT_CACHE_TTL_MS = 30 * 1000;
+
+export function invalidateSeoProductCache(keyOrSlug = null) {
+  if (!keyOrSlug) {
+    seoProductCache.clear();
+    return;
+  }
+  const clean = String(keyOrSlug).toLowerCase().trim();
+  const stripped = stripSeoSlugMarketingModifiers(clean);
+  seoProductCache.delete(clean);
+  seoProductCache.delete(stripped);
+}
 
 /**
  * Find single product for SEO metadata by ID or Slug
@@ -763,25 +827,24 @@ export async function findProductForSeo(idOrSlug) {
   } catch (_) {}
   const clean = raw.toLowerCase().replace(/^\/+|\/+$/g, "").split("?")[0];
   const cleanId = clean.replace(/^(product-card-|product-)/, "");
+  const strippedSlug = stripSeoSlugMarketingModifiers(clean);
 
-  // Strip leading/trailing marketing terms (e.g. premium-, original-, buy-, -authentic-lab-certified...)
-  const strippedSlug = clean
-    .replace(/^(product-card-|product-)/, "")
-    .replace(/^premium-|^original-|^buy-|^authentic-/, "")
-    .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
+  const dbReady = isDbConnected();
 
-  // 1. Check fast in-memory SEO product cache first (0ms)
+  // 1. Check fast in-memory SEO product cache first (never serve placeholder from cache if DB is connected)
   const cachedEntry = seoProductCache.get(clean) || seoProductCache.get(strippedSlug);
   if (cachedEntry && Date.now() < cachedEntry.expiry) {
-    return cachedEntry.product;
+    if (!dbReady || hasRealProductMedia(cachedEntry.product)) {
+      return cachedEntry.product;
+    }
   }
 
-  // 2. Check live inMemoryStore.products if populated (0ms)
-  if (Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0) {
+  // 2. Check live inMemoryStore.products ONLY if already synced from MongoDB (with real images) or DB is offline
+  if (Array.isArray(inMemoryStore?.products) && inMemoryStore.products.length > 0 && (inMemoryStore.isProductsSyncedFromDb || !dbReady)) {
     const fastMemMatch =
       matchProductFromCatalog(inMemoryStore.products, clean) ||
       matchProductFromCatalog(inMemoryStore.products, strippedSlug);
-    if (fastMemMatch) {
+    if (fastMemMatch && (!dbReady || hasRealProductMedia(fastMemMatch))) {
       seoProductCache.set(clean, { product: fastMemMatch, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
       return fastMemMatch;
     }
@@ -796,12 +859,18 @@ export async function findProductForSeo(idOrSlug) {
     } catch (_) {}
   }
 
+  const publicVisibilityFilter = {
+    status: { $nin: ["Draft", "draft", "Inactive", "inactive", "Archived", "archived"] }
+  };
+
   if (isDbConnected()) {
     try {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean) || /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[0-9a-fA-F]{24}$/.test(strippedSlug);
+      const escapeForRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
       // Strategy 1: Exact ID, Slug, or Mongo _id match
       let product = await Product.findOne({
+        ...publicVisibilityFilter,
         $or: [
           { id: clean },
           { id: cleanId },
@@ -809,6 +878,7 @@ export async function findProductForSeo(idOrSlug) {
           { slug: clean },
           { slug: cleanId },
           { slug: strippedSlug },
+          ...(strippedSlug ? [{ slug: { $regex: new RegExp(`^${escapeForRegex(strippedSlug)}$`, "i") } }] : []),
           ...(isMongoId ? [{ _id: clean }, { _id: cleanId }, { _id: strippedSlug }] : [])
         ]
       }).lean();
@@ -818,13 +888,14 @@ export async function findProductForSeo(idOrSlug) {
         return product;
       }
 
-      // Strategy 2: Exact Mukhi number extraction (e.g. "premium-1-mukhi...", "1-mukhi", "5-mukhi")
+      // Strategy 2: Exact Mukhi number extraction (e.g. "buy-original-7-mukhi...", "1-mukhi", "5-mukhi")
       const mukhiMatch = clean.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
                          strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
                          clean.match(/\b([1-9]|1[0-9]|20|21)\b/);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
         product = await Product.findOne({
+          ...publicVisibilityFilter,
           $or: [
             { mukhi: mNum },
             { mukhi: String(mNum) },
@@ -845,35 +916,35 @@ export async function findProductForSeo(idOrSlug) {
 
       // Strategy 3: Special formations (Gauri Shankar, Ganesh, Siddha Mala, Hanuman Idol, Camphor, etc.)
       if (clean.includes("gauri") || strippedSlug.includes("gauri")) {
-        product = await Product.findOne({ name: { $regex: /gauri/i } }).lean();
+        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /gauri/i } }).lean();
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("ganesh") || strippedSlug.includes("ganesh")) {
-        product = await Product.findOne({ name: { $regex: /ganesh/i } }).lean();
+        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /ganesh/i } }).lean();
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("hanuman") || strippedSlug.includes("hanuman")) {
-        product = await Product.findOne({ name: { $regex: /hanuman/i } }).lean();
+        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /hanuman/i } }).lean();
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("camphor") || clean.includes("kapoor")) {
-        product = await Product.findOne({ name: { $regex: /camphor|kapoor/i } }).lean();
+        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /camphor|kapoor/i } }).lean();
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
         }
       }
       if (clean.includes("mala") || clean.includes("kantha")) {
-        product = await Product.findOne({ name: { $regex: /mala|kantha/i } }).lean();
+        product = await Product.findOne({ ...publicVisibilityFilter, name: { $regex: /mala|kantha/i } }).lean();
         if (product) {
           seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
           return product;
@@ -884,11 +955,12 @@ export async function findProductForSeo(idOrSlug) {
       const words = strippedSlug
         .replace(/[-_]+/g, " ")
         .split(/\s+/)
-        .filter(w => w.length >= 3 && !["authentic", "certified", "aura", "lab", "online", "buy", "product"].includes(w));
+        .filter(w => w.length >= 3 && !["authentic", "certified", "aura", "lab", "online", "buy", "product", "nepali", "original"].includes(w));
       
       if (words.length > 0) {
         const pattern = words.slice(0, 3).join(".*");
         product = await Product.findOne({
+          ...publicVisibilityFilter,
           name: { $regex: new RegExp(pattern, "i") }
         }).lean();
         if (product) {
@@ -914,7 +986,7 @@ export async function findProductForSeo(idOrSlug) {
     matchProductFromCatalog(defaultProducts, strippedSlug) ||
     defaultProducts[0]
   );
-  if (fallbackProd) {
+  if (fallbackProd && hasRealProductMedia(fallbackProd)) {
     seoProductCache.set(clean, { product: fallbackProd, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
   }
   return fallbackProd;
@@ -1487,6 +1559,9 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
       }
     } catch (_) {}
   }
+  if (!metaDomainVerification) {
+    metaDomainVerification = "1d24m9buiji2m2y1f8gq19abou79rk";
+  }
 
   let result = templateHtml;
 
@@ -1582,8 +1657,9 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     }
   }
 
-  // Replace existing generic meta description, og tags, and static template JSON-LD
+  // Replace existing generic meta description, og tags, domain verification duplicates, and static template JSON-LD
   result = result.replace(/<meta\s+name=["']description["'][^>]*>/gi, `<meta name="description" content="${escapeXml(seo.description)}" />`);
+  result = result.replace(/<meta\s+name=["']facebook-domain-verification["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<link\s+rel=["']canonical["'][^>]*>/gi, "");

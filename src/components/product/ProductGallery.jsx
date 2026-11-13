@@ -1,4 +1,4 @@
-import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl } from "../../lib/imageUtils";
+import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl, markProxyFailed } from "../../lib/imageUtils";
 import { OptimizedImage } from "../OptimizedImage";
 import { getProductRoute } from "../../lib/routes";
 import React, { useState, useEffect, useRef } from "react";
@@ -48,19 +48,18 @@ const LIGHTBOX_SLIDE_VARIANTS = {
 export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   if (!product) return null;
 
-  // Unique list of valid image URLs - memoized to prevent infinite preload loops
+  const imagesSignature = Array.isArray(product.images) ? product.images.join("|") : "";
+  // Unique list of valid image URLs - memoized to prevent infinite preload loops and recompute on fresh product hydration
   const images = React.useMemo(() => {
-    const rawImages = (Array.isArray(product.images) && product.images.length > 0)
-      ? product.images
-      : getProductGalleryImages(product);
-    const valid = (rawImages || []).filter(Boolean);
+    const valid = getProductGalleryImages(product);
     return valid.length > 0 ? valid : ["/images/placeholder.svg"];
-  }, [product?.id, product?.images, product?.img]);
+  }, [product?.id, product?._id, product?.img, product?.image, imagesSignature]);
 
   const [activeIdx, setActiveIdx] = useState(0);
   const [slideDirection, setSlideDirection] = useState(1);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [heroFallbackMode, setHeroFallbackMode] = useState("optimized");
 
   // Desktop hover zoom state
   const [isHoverZooming, setIsHoverZooming] = useState(false);
@@ -83,8 +82,19 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
   // Safe active index bounded to current images array length
   const safeIdx = (activeIdx >= 0 && activeIdx < images.length) ? activeIdx : 0;
   const currentImg = images[safeIdx] || images[0] || "/images/placeholder.svg";
+  const optimizedHeroUrl = getOptimizedImageUrl(currentImg, { width: 800, quality: 84 });
+  const resolvedHeroSrc =
+    heroFallbackMode === "placeholder"
+      ? "/images/placeholder.svg"
+      : (heroFallbackMode === "raw" || !optimizedHeroUrl || optimizedHeroUrl === currentImg)
+      ? currentImg
+      : optimizedHeroUrl;
   const activeIndex = safeIdx;
   const discountPct = pct(product);
+
+  useEffect(() => {
+    setHeroFallbackMode("optimized");
+  }, [currentImg]);
 
   // Preload secondary images smoothly in background without locking network thread
   useEffect(() => {
@@ -284,7 +294,7 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
               transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
             >
               <img
-                src={getOptimizedImageUrl(currentImg, { width: 800, quality: 84 })}
+                src={resolvedHeroSrc}
                 alt={`${product.name} - Sacred View ${activeIndex + 1}`}
                 className="aura-gallery-hero-img"
                 loading="eager"
@@ -296,8 +306,11 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                   transition: isHoverZooming ? "transform 0.06s ease-out" : "transform 0.25s ease-out"
                 }}
                 onError={(e) => {
-                  if (!e.target.src.includes("placeholder.svg")) {
-                    e.target.src = "/images/placeholder.svg";
+                  if (heroFallbackMode === "optimized" && optimizedHeroUrl !== currentImg && currentImg && !currentImg.includes("placeholder.svg")) {
+                    markProxyFailed(currentImg);
+                    setHeroFallbackMode("raw");
+                  } else if (heroFallbackMode !== "placeholder" && !String(e.target.src || "").includes("placeholder.svg")) {
+                    setHeroFallbackMode("placeholder");
                   }
                 }}
               />
@@ -388,6 +401,11 @@ export function ProductGallery({ product, isWishlisted, onToggleWishlist }) {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    onError={(e) => {
+                      if (!String(e.target.src || "").includes("placeholder.svg")) {
+                        e.target.src = "/images/placeholder.svg";
+                      }
+                    }}
                   />
                 </AnimatePresence>
               </div>

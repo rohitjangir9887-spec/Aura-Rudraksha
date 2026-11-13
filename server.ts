@@ -15,7 +15,7 @@ async function safeInjectSeo(html: string, reqPath: string, req: express.Request
   try {
     return await Promise.race([
       injectSeoIntoHtml(html, reqPath, req),
-      new Promise<string>((resolve) => setTimeout(() => resolve(html), 1500))
+      new Promise<string>((resolve) => setTimeout(() => resolve(html), 2500))
     ]);
   } catch (err: any) {
     console.warn("[SEO Injection Fallback Notice]:", err?.message || err);

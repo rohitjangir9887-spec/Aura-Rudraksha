@@ -216,16 +216,21 @@ export function Product() {
         : (eventOrType?.detail?.data ?? eventOrType?.payload);
 
       if (type === "product:saved" || type === "product:updated" || type === "products:synced" || type === "product:synced") {
+        const updatedInMem = db.getProduct(id);
         const targetId = String(id || "").toLowerCase();
         const matchesTarget =
           type === "products:synced" ||
           !payload ||
           String(payload.id || "").toLowerCase() === targetId ||
           String(payload._id || "").toLowerCase() === targetId ||
-          String(payload.slug || "").toLowerCase() === targetId;
+          String(payload.slug || "").toLowerCase() === targetId ||
+          (updatedInMem && (
+            String(updatedInMem.id || "").toLowerCase() === String(payload.id || "").toLowerCase() ||
+            (payload._id && String(updatedInMem._id || "").toLowerCase() === String(payload._id).toLowerCase()) ||
+            (payload.slug && String(updatedInMem.slug || "").toLowerCase() === String(payload.slug).toLowerCase())
+          ));
 
         if (matchesTarget) {
-          const updatedInMem = db.getProduct(id);
           if (updatedInMem) {
             setProduct(updatedInMem);
             setReviews(db.getReviews(updatedInMem.id || updatedInMem._id));

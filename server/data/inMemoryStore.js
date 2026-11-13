@@ -9,6 +9,7 @@ import {
 
 class InMemoryStore {
   constructor() {
+    this.isProductsSyncedFromDb = false;
     this.products = JSON.parse(JSON.stringify(defaultProducts || []));
     this.banners = JSON.parse(JSON.stringify(defaultBanners));
     this.coupons = JSON.parse(JSON.stringify(defaultCoupons));

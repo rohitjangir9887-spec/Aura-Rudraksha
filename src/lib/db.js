@@ -555,7 +555,7 @@ const storeCache = {
     codFee: 0,
     metaPixelId: "1485640013424198",
     metaPixelEnabled: true,
-    metaDomainVerification: "",
+    metaDomainVerification: "1d24m9buiji2m2y1f8gq19abou79rk",
     metaCapiEnabled: false,
     featuredProductId: "14",
     featuredProductEnabled: true,
@@ -1104,12 +1104,23 @@ export const db = {
     if (!targetId) return;
     const idx = storeCache.products.findIndex(x => {
       if (!x) return false;
-      return String(x.id) === targetId || String(x._id) === targetId || String(x.slug) === targetId;
+      return String(x.id) === targetId || (p._id && String(x._id) === String(p._id)) || (p.slug && String(x.slug) === String(p.slug));
     });
     if (idx >= 0) {
       storeCache.products[idx] = { ...storeCache.products[idx], ...p };
     } else {
       storeCache.products.push(p);
+    }
+    invalidateEnrichedProductsCache();
+    if (typeof window !== "undefined" && window.__SSR_PRODUCT__ && typeof window.__SSR_PRODUCT__ === "object") {
+      const ssr = window.__SSR_PRODUCT__;
+      const sameProduct =
+        String(ssr.id || "") === String(p.id || "") ||
+        (p._id && String(ssr._id || "") === String(p._id)) ||
+        (p.slug && String(ssr.slug || "") === String(p.slug));
+      if (sameProduct) {
+        window.__SSR_PRODUCT__ = { ...ssr, ...p };
+      }
     }
   },
 
@@ -1353,10 +1364,23 @@ export const db = {
     const target = raw.toLowerCase().split("?")[0];
     const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
-    const strippedSlug = slugTarget
-      .replace(/^(product-card-|product-)/, "")
-      .replace(/^premium-|^original-|^buy-|^authentic-/, "")
-      .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
+    const stripMarketingSlug = (val) =>
+      String(val || "")
+        .toLowerCase()
+        .replace(/^(product-card-|product-)/, "")
+        .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
+        .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-nepali-online-lab-certified$|-online-lab-certified$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$|-online$/gi, "");
+    const strippedSlug = stripMarketingSlug(slugTarget);
+
+    const hasRealMedia = (prod) => {
+      if (!prod) return false;
+      const isReal = (u) => {
+        if (!u || typeof u !== "string") return false;
+        const c = u.trim().toLowerCase();
+        return Boolean(c) && !c.includes("placeholder.svg") && !/^\/images\/product-.*mukhi/i.test(c) && !/^\/images\/product-mala/i.test(c);
+      };
+      return (Array.isArray(prod.images) && prod.images.some(isReal)) || isReal(prod.img) || isReal(prod.image);
+    };
 
     const deletedIds = getDeletedProductIds();
 
@@ -1385,9 +1409,7 @@ export const db = {
         if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
         const xSlug = String(x.slug || "").toLowerCase();
         if (!xSlug) return false;
-        const xStripped = xSlug
-          .replace(/^premium-|^original-|^buy-|^authentic-/, "")
-          .replace(/-authentic-lab-certified-aura-rudraksha$|-lab-certified-aura-rudraksha$|-aura-rudraksha$|-lab-certified$|-authentic$|-supreme-bead$|-deva-mani$/gi, "");
+        const xStripped = stripMarketingSlug(xSlug);
         return (
           xSlug === target ||
           xSlug === slugTarget ||
@@ -1419,17 +1441,21 @@ export const db = {
       });
       if (found) return found;
 
-      // 4. Match by Mukhi number for SEO URLs like "5-mukhi-rudraksha" or "premium-14-mukhi-rudraksha..."
+      // 4. Match by Mukhi number for SEO URLs like "5-mukhi-rudraksha" or "buy-original-7-mukhi-rudraksha..."
       const mukhiMatch = slugTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
                          strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = String(parseInt(mukhiMatch[1], 10));
+        const mukhiRegex = new RegExp(`(^|[^0-9])${mNum}(\\s*-?\\s*mukhi|$)`, "i");
         found = list.find(x => {
           if (!x) return false;
           if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
           return (
             String(x.id) === mNum ||
-            String(x.mukhi || "").replace(/\D/g, "") === mNum
+            String(x.id).toLowerCase() === `p${mNum}` ||
+            String(x.mukhi || "").replace(/\D/g, "") === mNum ||
+            (x.slug && mukhiRegex.test(String(x.slug))) ||
+            (x.name && mukhiRegex.test(String(x.name)))
           );
         });
         if (found) return found;
@@ -1438,15 +1464,17 @@ export const db = {
       return null;
     };
 
-    // Check window.__SSR_PRODUCT__ first if present
-    let p = null;
-    if (typeof window !== "undefined" && window.__SSR_PRODUCT__ && typeof window.__SSR_PRODUCT__ === "object") {
-      p = findInList([window.__SSR_PRODUCT__]);
-    }
+    // Check synced storeCache.products AND window.__SSR_PRODUCT__; always prefer whichever has real product media
+    const memMatch = findInList(storeCache.products);
+    const ssrMatch = (typeof window !== "undefined" && window.__SSR_PRODUCT__ && typeof window.__SSR_PRODUCT__ === "object")
+      ? findInList([window.__SSR_PRODUCT__])
+      : null;
 
-    // Check in-memory storeCache.products
-    if (!p) {
-      p = findInList(storeCache.products);
+    let p = null;
+    if (memMatch && (hasRealMedia(memMatch) || !ssrMatch || !hasRealMedia(ssrMatch))) {
+      p = memMatch;
+    } else if (ssrMatch) {
+      p = ssrMatch;
     }
 
     // Cold-visit & fallback: if product wasn't found in storeCache yet, check defaultProducts so direct and related product links open in 0ms
@@ -1477,27 +1505,39 @@ export const db = {
   getProductAsync: async (idOrSlug) => {
     if (!idOrSlug) return null;
 
-    // STEP 1: Immediate Memory & Cache Check (0ms Response Time!)
+    const hasRealMedia = (prod) => {
+      if (!prod) return false;
+      const isReal = (u) => {
+        if (!u || typeof u !== "string") return false;
+        const c = u.trim().toLowerCase();
+        return Boolean(c) && !c.includes("placeholder.svg") && !/^\/images\/product-.*mukhi/i.test(c) && !/^\/images\/product-mala/i.test(c);
+      };
+      return (Array.isArray(prod.images) && prod.images.some(isReal)) || isReal(prod.img) || isReal(prod.image);
+    };
+
+    const normalizeFetched = (p) => ({
+      ...p,
+      id: String(p.id || p._id),
+      mrp: p.mrp || p.comparePrice || p.price,
+      comparePrice: p.comparePrice || p.mrp || p.price,
+      img: getProductPrimaryImage(p),
+      images: getProductGalleryImages(p),
+      totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
+      salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
+      timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
+    });
+
+    // STEP 1: Immediate Memory & Cache Check (0ms Response Time when real media is already present)
     const cached = db.getProduct(idOrSlug);
-    if (cached) {
+    if (cached && hasRealMedia(cached)) {
       // Background non-blocking network revalidation
       (async () => {
         try {
           let cleanParam = String(idOrSlug).trim();
           try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
-          const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 3000 });
+          const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 8000 });
           if (res?.success && res.data) {
-            const p = res.data;
-            const normalized = {
-              ...p,
-              id: String(p.id || p._id),
-              mrp: p.mrp || p.comparePrice || p.price,
-              comparePrice: p.comparePrice || p.mrp || p.price,
-              images: getProductGalleryImages(p),
-              totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
-              salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
-              timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
-            };
+            const normalized = normalizeFetched(res.data);
             db.cacheProduct(normalized);
             emitStoreUpdate("product:synced", normalized);
           }
@@ -1507,30 +1547,21 @@ export const db = {
       return cached;
     }
 
-    // STEP 2: Fast API Fetch with 2.5s Timeout only if not present in memory
+    // STEP 2: Live API Fetch when not cached OR cached copy only had placeholder images
     try {
       let cleanParam = String(idOrSlug).trim();
       try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
-      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 2500 });
+      const res = await apiRequest(`/products/${encodeURIComponent(cleanParam)}`, { timeoutMs: 8000 });
       if (res?.success && res.data) {
-        const p = res.data;
-        const normalized = {
-          ...p,
-          id: String(p.id || p._id),
-          mrp: p.mrp || p.comparePrice || p.price,
-          comparePrice: p.comparePrice || p.mrp || p.price,
-          images: getProductGalleryImages(p),
-          totalSold: p.totalSold !== undefined ? String(p.totalSold).trim() : (p.salesCount || p.timesPurchased ? `${p.salesCount || p.timesPurchased}+ Sold` : ""),
-          salesCount: Number(p.salesCount ?? p.timesPurchased) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0),
-          timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
-        };
+        const normalized = normalizeFetched(res.data);
         db.cacheProduct(normalized);
+        emitStoreUpdate("product:synced", normalized);
         return normalized;
       }
     } catch (_) {}
 
     // STEP 3: Fallback check from localStorage or defaultProducts
-    return db.getProduct(idOrSlug);
+    return cached || db.getProduct(idOrSlug);
   },
 
   revalidateProducts: async (force = false) => {

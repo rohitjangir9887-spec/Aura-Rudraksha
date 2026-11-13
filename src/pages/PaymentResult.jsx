@@ -238,34 +238,70 @@ export function PaymentResult() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  // Authoritative server-verified payment or COD order success
+  // Authoritative server-verified payment, COD order, or confirmed gateway return
   const isCodOrder =
     order?.paymentStatus === "COD" ||
     (order?.paymentMethod || "").toLowerCase().includes("cod") ||
-    (order?.paymentMode || "").toLowerCase() === "cod";
+    (order?.paymentMode || "").toLowerCase() === "cod" ||
+    (searchParams.get("mode") || "").toLowerCase() === "cod";
   const isVerifiedSuccess =
     order?.paymentStatus === "Paid" || (isCodOrder && order?.status !== "Cancelled");
+  const isConfirmedBoundaryTarget =
+    isVerifiedSuccess || status === "success" || isCodOrder;
 
-  // Safe navigation on Back button so user never lands on an expired PayU POST form page or gets trapped
-  const isVerifiedSuccessRef = useRef(isVerifiedSuccess);
+  // Safe navigation on Back button so user ALWAYS lands cleanly on Home ("/") from confirmation page
+  const isConfirmedBoundaryRef = useRef(isConfirmedBoundaryTarget);
   useEffect(() => {
-    isVerifiedSuccessRef.current = isVerifiedSuccess;
-  }, [isVerifiedSuccess]);
+    isConfirmedBoundaryRef.current = isConfirmedBoundaryTarget;
+  }, [isConfirmedBoundaryTarget]);
 
   const guardPushedRef = useRef(false);
   useEffect(() => {
     if (!orderId && !txnid) return;
 
-    if (!guardPushedRef.current) {
+    if (!guardPushedRef.current && isConfirmedBoundaryRef.current) {
       guardPushedRef.current = true;
       try {
-        window.history.pushState({ auraPaymentResultGuard: true }, "", window.location.href);
+        if (!window.history.state?.auraPaymentSuccess) {
+          const cleanParams = new URLSearchParams(window.location.search);
+          SENSITIVE_PAYMENT_URL_PARAMS.forEach((k) => cleanParams.delete(k));
+          const cleanSearch = cleanParams.toString();
+          const cleanCurrentUrl = `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ""}`;
+          const prevIdx = typeof window.history.state?.idx === "number" ? window.history.state.idx : 0;
+
+          window.history.replaceState(
+            { idx: prevIdx, key: "aura-home-boundary", usr: null, auraSafeNav: true, page: "home" },
+            "",
+            "/"
+          );
+          window.history.pushState(
+            {
+              idx: prevIdx + 1,
+              key: `aura-pr-${orderId || txnid || "ok"}`,
+              usr: location?.state || null,
+              auraPaymentSuccess: true,
+              orderId: orderId || txnid || "ok"
+            },
+            "",
+            cleanCurrentUrl
+          );
+        }
       } catch (_) {}
     }
 
     const handlePopState = () => {
-      if (isVerifiedSuccessRef.current) {
-        navigate("/", { replace: true });
+      if (isConfirmedBoundaryRef.current) {
+        if (window.location.pathname !== "/") {
+          navigate("/", { replace: true });
+        } else {
+          // Ensure React Router renders Home cleanly if browser popped URL to "/"
+          navigate("/", { replace: true });
+        }
+        setTimeout(() => {
+          if (typeof window !== "undefined" && window.location.pathname !== "/") {
+            window.location.assign("/");
+          }
+        }, 80);
       } else {
         navigate("/checkout", { replace: true });
       }
@@ -275,7 +311,7 @@ export function PaymentResult() {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [orderId, txnid, navigate]);
+  }, [orderId, txnid, isConfirmedBoundaryTarget, location?.state, navigate]);
 
   const handleRetry = async () => {
     const targetOrderId = order?.orderNumber || order?.id || orderId;
@@ -446,6 +482,7 @@ export function PaymentResult() {
               </Link>
               <Link
                 to="/"
+                replace
                 className="outline-btn"
                 style={{
                   padding: "12px 20px",
