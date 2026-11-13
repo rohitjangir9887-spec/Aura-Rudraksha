@@ -1046,7 +1046,7 @@ export function Checkout() {
       phone: addressObj.phone,
       address: fullAddressString,
       shippingAddress: addressObj,
-      couponCode: appliedCoupon?.code || couponCode || "",
+      couponCode: (buyNowLines ? buyNowTotals?.appliedCoupon?.code : appliedCoupon?.code) || couponCode || "",
       items: linesToProcess.flatMap(l => Array.from({ length: l.qty || 1 }, () => l.id)),
       lines: linesToProcess,
       snapshotItems: snapshotItems,
