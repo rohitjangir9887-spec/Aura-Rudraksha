@@ -447,7 +447,8 @@ export function trackMetaPurchase(order) {
       String(order.paymentMode || "").toLowerCase() === "cod";
     const isPaid = paymentStatusLower === "paid";
     if (statusLower === "cancelled" || statusLower === "failed" ||
-        paymentStatusLower === "failed" || (!isPaid && !isCod)) return;
+        paymentStatusLower === "failed" || (!isPaid && !isCod) ||
+        (isCod && statusLower !== "confirmed")) return;
 
     const value = Number(Math.max(0, Number(order.finalAmount ?? order.total ?? order.amount ?? 0)).toFixed(2));
     if (value <= 0 || !initMetaPixel() || typeof window.fbq !== "function") return;
