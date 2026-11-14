@@ -168,7 +168,7 @@ export function Home() {
   useEffect(() => {
     loadHomeData();
     const visitTimer = setTimeout(() => {
-      db.logVisit();
+      db.logVisit({ path: "/" });
     }, 2200);
 
     const unsub = onStoreUpdate(() => {

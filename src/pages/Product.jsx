@@ -200,8 +200,14 @@ export function Product() {
 
     // Defer non-critical internal analytics so product render and Meta Pixel fire with zero network contention
     const analyticsTimer = setTimeout(() => {
-      db.logVisit();
-      db.logProductView();
+      const currentProd = db.getProduct(id);
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : `/product/${id}`;
+      db.logVisit({ path: currentPath, title: currentProd?.name || "" });
+      db.logProductView({
+        path: currentPath,
+        productId: String(currentProd?.id || currentProd?._id || id || ""),
+        productName: currentProd?.name || ""
+      });
     }, 1200);
     
     // Reset origin to default Nepal on new product

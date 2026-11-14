@@ -322,7 +322,41 @@ export function AdminGuard({ children }) {
 
   // 4. Authorized -> Render Protected Content
   return (
-    <React.Suspense fallback={null}>
+    <React.Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            background: "#fdfbf7",
+            fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                border: "3px solid #ebd8c5",
+                borderTopColor: "#a54d2b",
+                animation: "auraAdminSpin 0.65s linear infinite"
+              }}
+            />
+            <div style={{ fontSize: "13px", color: "#7a320c", fontWeight: 600 }}>
+              Opening page...
+            </div>
+            <style>{`
+              @keyframes auraAdminSpin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
+          </div>
+        </div>
+      }
+    >
       {children ? children : <Outlet />}
     </React.Suspense>
   );

@@ -2633,8 +2633,31 @@ export const db = {
     }
     return storeCache.coupons;
   },
-  logProductView: async () => {
-    await apiRequest("/analytics/product-view", { method: "POST" });
+  logProductView: async (meta = {}) => {
+    try {
+      const deviceId = (() => {
+        try {
+          let id = localStorage.getItem("aura_visitor_device_id");
+          if (!id) {
+            id = "dev_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+            localStorage.setItem("aura_visitor_device_id", id);
+          }
+          return id;
+        } catch (_) {
+          return "";
+        }
+      })();
+      const payload = {
+        deviceId,
+        path: meta?.path || (typeof window !== "undefined" ? window.location.pathname : "/product"),
+        productId: meta?.productId || "",
+        productName: meta?.productName || ""
+      };
+      await apiRequest("/analytics/product-view", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    } catch (_) {}
   },
 
   // CUSTOMERS
@@ -2785,8 +2808,9 @@ export const db = {
 
   // ANALYTICS
   getAnalytics: () => storeCache.analytics,
-  fetchAnalytics: async () => {
-    const res = await apiRequest("/analytics", { requiresAuth: true, noCache: true });
+  fetchAnalytics: async (range = "today") => {
+    const safeRange = encodeURIComponent(String(range || "today"));
+    const res = await apiRequest(`/analytics?range=${safeRange}`, { requiresAuth: true, noCache: true });
     if (res?.success && res.data) {
       if (!res.isFallback) setStoreDbStatus("connected");
       storeCache.analytics = {
@@ -2802,10 +2826,37 @@ export const db = {
     }
     return storeCache.analytics;
   },
-  logVisit: async () => {
-    storeCache.analytics.visits = (storeCache.analytics.visits || 0) + 1;
-    emitStoreUpdate("analytics:updated", storeCache.analytics);
-    await apiRequest("/analytics/visit", { method: "POST" });
+  logVisit: async (meta = {}) => {
+    try {
+      const deviceId = (() => {
+        try {
+          let id = localStorage.getItem("aura_visitor_device_id");
+          if (!id) {
+            id = "dev_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+            localStorage.setItem("aura_visitor_device_id", id);
+          }
+          return id;
+        } catch (_) {
+          return "";
+        }
+      })();
+      const path = meta?.path || (typeof window !== "undefined" ? window.location.pathname : "/");
+      const title = meta?.title || (typeof document !== "undefined" ? document.title : "");
+
+      storeCache.analytics.visits = (storeCache.analytics.visits || 0) + 1;
+      emitStoreUpdate("analytics:updated", storeCache.analytics);
+
+      const res = await apiRequest("/analytics/visit", {
+        method: "POST",
+        body: JSON.stringify({ deviceId, path, title })
+      });
+      if (res?.success && res.data) {
+        storeCache.analytics = { ...storeCache.analytics, ...res.data };
+      }
+      return res;
+    } catch (_) {
+      return null;
+    }
   },
 
   // PROMOTIONS & OFFERS

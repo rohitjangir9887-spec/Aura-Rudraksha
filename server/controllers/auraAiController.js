@@ -16,6 +16,7 @@ import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { 
   searchRelevantCatalogProducts, 
   extractMukhiNumber, 
+  extractMukhiRange,
   VEDIC_BEADS_KNOWLEDGE,
   SACRED_RUDRAKSHA_COMBINATIONS
 } from "../services/vedicKnowledgeService.js";
@@ -859,20 +860,20 @@ function generateDynamicQuickReplies({ userMessage, intent, targetMukhi, mode, a
   return Array.from(new Set(replies)).slice(0, 4);
 }
 
-function shouldRecommendProducts({ message, intent, targetMukhi, matchedProducts }) {
+function shouldRecommendProducts({ message, intent, targetMukhi, mukhiRange = null, matchedProducts = [] }) {
   const msgLower = (message || "").toLowerCase().trim();
 
-  // Greetings & casual talk -> No product cards
+  // Greetings & pure closings -> No product cards
   if (intent === "GREETING") return false;
   if (/^(hi|hello|hey|namaste|pranam|radhe|har har|ram ram|shubh|kaise ho|kya haal|good morning|good evening|good afternoon|thank you|thanks|shukriya|dhanyawad|ok|okay|theek hai|bye|alvida)[\s!.,🙏]*$/i.test(msgLower)) {
     return false;
   }
 
-  // Specific Mukhi or bead requested
-  if (targetMukhi && matchedProducts.length > 0) return true;
+  // Range ("1-14 mukhi", "sabhi rudraksha") or Specific Mukhi requested
+  if ((mukhiRange || targetMukhi) && matchedProducts.length > 0) return true;
 
-  // User asking for recommendation / price / purchase / rashi
-  const explicitAskPattern = /(dikhao|chahiye|need|want|show|buy|purchase|khareedna|mangwana|order|price|cost|rate|kitne ka|bhav|rupees|amount|under|budget|sasta|mehenga|kimat|suggest|recommend|konsa|mere liye|best seller|kuber|dhan|wealth|paisa|lakshmi|business|vyapar|shanti|peace|stress|tension|bp|health|hanuman|protection|student|study|exam|rashi|kundli|lagna|mesh|vrishabh|mithun|kark|singh|kanya|tula|vrischika|dhanu|makar|kumbh|meen)/i.test(msgLower);
+  // Price, Buy, Product search, Benefits, Calculation with products, Rashi/Vedic life goals
+  const explicitAskPattern = /(dikhao|dikha|chahiye|need|want|show|buy|purchase|khareed|kharid|mangwana|order|price|cost|rate|kitne|kitna|bhav|rupees|rupaye|amount|under|budget|sasta|mehenga|kimat|keemat|dam|daam|suggest|recommend|konsa|kaunsa|mere liye|best seller|catalog|list|rudraksh|mala|sphatik|spatika|bracelet|gauri|ganesh|kuber|dhan|wealth|paisa|lakshmi|business|vyapar|shanti|peace|stress|tension|bp|health|hanuman|protection|student|study|exam|rashi|kundli|lagna|calculate|total|discount|mesh|vrishabh|mithun|kark|singh|kanya|tula|vrischika|dhanu|makar|kumbh|meen)/i.test(msgLower);
 
   return explicitAskPattern && matchedProducts.length > 0;
 }
@@ -1503,17 +1504,330 @@ function buildActiveCouponsFooter(activeCoupons = []) {
   return `\n\n🎁 **सक्रिय एडमिन कूपन कोड:** ${formatted}`;
 }
 
+const MUKHI_1_TO_21_GUIDE = {
+  "1": { name: "1 Mukhi (Ek Mukhi)", deity: "भगवान शिव (परमशिव)", planet: "सूर्य (Sun)", benefit: "आत्मबल, नेतृत्व, मोक्ष, एकाग्रता व उच्च सम्मान", mantra: "ॐ ह्रीं नमः" },
+  "2": { name: "2 Mukhi (Do Mukhi)", deity: "अर्धनारीश्वर (शिव-पार्वती)", planet: "चंद्र (Moon)", benefit: "मानसिक शांति, दांपत्य सुख, विवाह सामंजस्य", mantra: "ॐ नमः" },
+  "3": { name: "3 Mukhi (Teen Mukhi)", deity: "अग्नि देव", planet: "मंगल (Mars)", benefit: "आलस्य नाश, ऊर्जा, पाचन, आत्मविश्वास व मांगलिक शांति", mantra: "ॐ क्लीं नमः" },
+  "4": { name: "4 Mukhi (Chaar Mukhi)", deity: "ब्रह्मा जी", planet: "बुध (Mercury)", benefit: "विद्या, तीव्र बुद्धि, स्मरण शक्ति व वाणी कौशल", mantra: "ॐ ह्रीं नमः" },
+  "5": { name: "5 Mukhi (Paanch Mukhi)", deity: "कालाग्नि रुद्र", planet: "बृहस्पति (Jupiter)", benefit: "मानसिक शांति, बीपी संतुलन, स्वास्थ्य व सभी के लिए शुभ", mantra: "ॐ ह्रीं नमः" },
+  "6": { name: "6 Mukhi (Chhe Mukhi)", deity: "भगवान कार्तिकेय", planet: "शुक्र (Venus)", benefit: "इच्छाशक्ति, साहस, आकर्षण व कला/व्यापार वृद्धि", mantra: "ॐ ह्रीं हुं नमः" },
+  "7": { name: "7 Mukhi (Saat Mukhi)", deity: "माता महालक्ष्मी", planet: "शनि / शुक्र", benefit: "धन वृद्धि, व्यापार सफलता, कर्ज मुक्ति व आर्थिक स्थिरता", mantra: "ॐ हुं नमः" },
+  "8": { name: "8 Mukhi (Aath Mukhi)", deity: "भगवान श्री गणेश", planet: "राहु (Rahu)", benefit: "सर्व विघ्न निवारण, बुद्धि व कार्यों में सफलता", mantra: "ॐ हुं नमः" },
+  "9": { name: "9 Mukhi (Nau Mukhi)", deity: "माँ नवदुर्गा", planet: "केतु (Ketu)", benefit: "शत्रु भय मुक्ति, साहस, शक्ति व देवी कृपा", mantra: "ॐ ह्रीं हुं नमः" },
+  "10": { name: "10 Mukhi (Das Mukhi)", deity: "भगवान श्री हरि विष्णु", planet: "दसों दिशाएं (नवग्रह शांति)", benefit: "सुरक्षा कवच, नकारात्मक ऊर्जा व वास्तु/नजर दोष निवारण", mantra: "ॐ ह्रीं नमः" },
+  "11": { name: "11 Mukhi (Gyarah Mukhi)", deity: "एकादश रुद्र (हनुमान जी)", planet: "मंगल / शनि", benefit: "अदम्य साहस, भयमुक्ति, योग व संकट निवारण", mantra: "ॐ ह्रीं हुं नमः" },
+  "12": { name: "12 Mukhi (Barah Mukhi)", deity: "द्वादश आदित्य (सूर्य देव)", planet: "सूर्य (Sun)", benefit: "तेज, यश, राजयोग, प्रशासनिक व उच्च पद प्राप्ति", mantra: "ॐ क्रौं क्षौं रौं नमः" },
+  "13": { name: "13 Mukhi (Terah Mukhi)", deity: "कामदेव व देवराज इंद्र", planet: "शुक्र (Venus)", benefit: "आकर्षण, मान-सम्मान, ऐश्वर्य व इच्छा पूर्ति", mantra: "ॐ ह्रीं नमः" },
+  "14": { name: "14 Mukhi (Chaudah Mukhi / Devamani)", deity: "भगवान शिव व हनुमान जी", planet: "शनि (Saturn)", benefit: "तीसरी आंख (आज्ञा चक्र) जाग्रति, सही निर्णय व परम सुरक्षा", mantra: "ॐ नमः" },
+  "15": { name: "15 Mukhi", deity: "भगवान पशुपतिनाथ", planet: "बुध", benefit: "हृदय चक्र, करुणा, दीर्घकालिक धन व समृद्धि", mantra: "ॐ पशुपतये नमः" },
+  "16": { name: "16 Mukhi (Jai Rudraksha)", deity: "महामृत्युंजय शिव", planet: "चंद्र", benefit: "सर्वत्र विजय, भयनाश व स्वास्थ्य रक्षा", mantra: "ॐ ह्रीं हुं नमः" },
+  "17": { name: "17 Mukhi", deity: "माता कात्यायनी व विश्वकर्मा", planet: "शनि", benefit: "अकस्मात धन व संपत्ति प्राप्ति", mantra: "ॐ कात्यायन्यै नमः" },
+  "18": { name: "18 Mukhi", deity: "माता भूमि देवी", planet: "पृथ्वी / मंगल", benefit: "भूमि, भवन, रियल एस्टेट व निर्माण सफलता", mantra: "ॐ ह्रीं श्रीं वसुन्धरायै नमः" },
+  "19": { name: "19 Mukhi", deity: "भगवान नारायण व माता लक्ष्मी", planet: "बुध", benefit: "अतुलनीय समृद्धि व व्यवसाय उन्नति", mantra: "ॐ वं विष्णवे नमः" },
+  "20": { name: "20 Mukhi", deity: "भगवान ब्रह्मा", planet: "पृथ्वी", benefit: "असीम ज्ञान, सृजन व दिव्य शक्ति", mantra: "ॐ ह्रीं ब्रह्माय नमः" },
+  "21": { name: "21 Mukhi", deity: "भगवान कुबेर", planet: "सर्व ग्रह", benefit: "कुबेर खजाना, अपार वैभव व सर्व बाधा नाश", mantra: "ॐ यक्षाय कुबेराय नमः" }
+};
+
+/**
+ * Safe, zero-eval recursive-descent arithmetic parser (+, -, *, /, %, ^, parentheses)
+ */
+export function safeEvaluateArithmeticExpression(rawExpr = "") {
+  const cleaned = String(rawExpr || "")
+    .replace(/,/g, "")
+    .replace(/[×✕]/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/(\d)\s*[xX]\s*(\d)/g, "$1*$2")
+    .trim();
+  if (!cleaned || !/\d/.test(cleaned) || !/[+\-*/%^]/.test(cleaned)) return null;
+  if (!/^[\d\s+\-*/%^().]+$/.test(cleaned)) return null;
+
+  const tokens = [];
+  let i = 0;
+  while (i < cleaned.length) {
+    const ch = cleaned[i];
+    if (/\s/.test(ch)) {
+      i++;
+      continue;
+    }
+    if (/\d|\./.test(ch)) {
+      let numStr = "";
+      let dots = 0;
+      while (i < cleaned.length && (/\d/.test(cleaned[i]) || cleaned[i] === ".")) {
+        if (cleaned[i] === ".") dots++;
+        if (dots > 1) return null;
+        numStr += cleaned[i++];
+      }
+      const val = parseFloat(numStr);
+      if (isNaN(val)) return null;
+      tokens.push({ type: "num", val });
+      continue;
+    }
+    if ("+-*/%^()".includes(ch)) {
+      tokens.push({ type: "op", val: ch });
+      i++;
+      continue;
+    }
+    return null;
+  }
+
+  if (tokens.length === 0) return null;
+  let pos = 0;
+
+  function peek() {
+    return tokens[pos] || null;
+  }
+  function consume() {
+    return tokens[pos++];
+  }
+
+  function parseExpression() {
+    let left = parseTerm();
+    if (left === null) return null;
+    while (peek() && peek().type === "op" && (peek().val === "+" || peek().val === "-")) {
+      const op = consume().val;
+      const right = parseTerm();
+      if (right === null) return null;
+      left = op === "+" ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseTerm() {
+    let left = parsePower();
+    if (left === null) return null;
+    while (peek() && peek().type === "op" && (peek().val === "*" || peek().val === "/" || peek().val === "%")) {
+      const op = consume().val;
+      const right = parsePower();
+      if (right === null) return null;
+      if (op === "*") left *= right;
+      else if (op === "/") {
+        if (right === 0) return null;
+        left /= right;
+      } else {
+        if (right === 0) return null;
+        left %= right;
+      }
+    }
+    return left;
+  }
+
+  function parsePower() {
+    let left = parseFactor();
+    if (left === null) return null;
+    if (peek() && peek().type === "op" && peek().val === "^") {
+      consume();
+      const right = parsePower();
+      if (right === null) return null;
+      left = Math.pow(left, right);
+    }
+    return left;
+  }
+
+  function parseFactor() {
+    const t = peek();
+    if (!t) return null;
+    if (t.type === "op" && (t.val === "+" || t.val === "-")) {
+      consume();
+      const inner = parseFactor();
+      if (inner === null) return null;
+      return t.val === "-" ? -inner : inner;
+    }
+    if (t.type === "op" && t.val === "(") {
+      consume();
+      const inner = parseExpression();
+      if (inner === null || !peek() || peek().val !== ")") return null;
+      consume();
+      return inner;
+    }
+    if (t.type === "num") {
+      consume();
+      return t.val;
+    }
+    return null;
+  }
+
+  const result = parseExpression();
+  if (result === null || pos !== tokens.length || !isFinite(result)) return null;
+  return Number(result.toFixed(4));
+}
+
+/**
+ * Deterministic General Math + Rudraksha Store Price / Discount Calculator
+ */
+export function evaluateGeneralOrStoreCalculation(message = "", allStoreProds = [], activeCoupons = []) {
+  const raw = String(message || "").trim();
+  const lower = raw.toLowerCase();
+  if (!raw || extractMukhiRange(lower)) return null;
+
+  // Never hijack DOBs like "15-08-1995" or time "10:30"
+  if (/\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/.test(raw) || /\bdob\b|birth|kundli|kundali/i.test(lower)) {
+    return null;
+  }
+
+  const formatNum = (n) => Number.isInteger(n) ? n.toLocaleString("en-IN") : Number(n.toFixed(2)).toLocaleString("en-IN");
+
+  // 1. Store Product Price + Quantity / Discount Calculation (e.g. "2 piece 7 mukhi price", "7 mukhi par 10% discount")
+  const mukhiMatches = [...lower.matchAll(/(\d{1,2})\s*(?:mukhi|मुखी)/gi)];
+  const wantsCalc = /(calculate|calc|kitna\s*hoga|total|hisab|jod|guna|percent|%|discount|off|gst|piece|pcs|qty|quantity|milakar|after)/i.test(lower);
+
+  if (mukhiMatches.length > 0 && wantsCalc && Array.isArray(allStoreProds) && allStoreProds.length > 0) {
+    const qtyMatch = lower.match(/\b(\d+)\s*(?:piece|pcs|pic|pis|beads|dana|nag|qty)\b/i) ||
+                     lower.match(/^(\d+)\s+(?=\d{1,2}\s*mukhi)/i);
+    const qty = qtyMatch && parseInt(qtyMatch[1], 10) > 0 && parseInt(qtyMatch[1], 10) <= 100 ? parseInt(qtyMatch[1], 10) : 1;
+
+    const pickedProducts = [];
+    const seen = new Set();
+    for (const mm of mukhiMatches) {
+      const mNum = parseInt(mm[1], 10);
+      const found = allStoreProds.find(p => isExactMukhiProduct(p, mNum));
+      if (found) {
+        const pid = String(found.id || found._id || found.slug);
+        if (!seen.has(pid)) {
+          seen.add(pid);
+          pickedProducts.push(found);
+        }
+      }
+    }
+
+    if (pickedProducts.length > 0) {
+      const discMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:%|percent|प्रतिशत)/i);
+      const pct = discMatch ? parseFloat(discMatch[1]) : 0;
+      let subtotal = 0;
+      const lines = pickedProducts.map(p => {
+        const unitPrice = Number(p.price) || 0;
+        const lineTotal = pickedProducts.length === 1 ? unitPrice * qty : unitPrice;
+        subtotal += lineTotal;
+        return `• **${p.name}:** ₹${formatNum(unitPrice)}${pickedProducts.length === 1 && qty > 1 ? ` × ${qty} पीस = ₹${formatNum(lineTotal)}` : ""}`;
+      });
+
+      let discountLine = "";
+      let finalTotal = subtotal;
+      if (pct > 0 && pct < 100) {
+        const saved = (subtotal * pct) / 100;
+        finalTotal = subtotal - saved;
+        discountLine = `\n• 🏷️ **${pct}% छूट (Discount):** -₹${formatNum(saved)}\n• ✅ **अंतिम देय राशि (Final Price):** **₹${formatNum(finalTotal)}**`;
+      } else if (activeCoupons.length > 0) {
+        const c = activeCoupons[0];
+        const saved = c.type === "fixed" ? Number(c.discount || 0) : (subtotal * Number(c.discount || 0)) / 100;
+        if (saved > 0 && subtotal >= Number(c.minAmount || 0)) {
+          discountLine = `\n• 🎁 **सक्रिय कूपन (${c.code}) लागू करने पर:** -₹${formatNum(saved)} → **₹${formatNum(Math.max(0, subtotal - saved))}**`;
+        }
+      }
+
+      const resultText = `🧮 **ऑरा रुद्राक्ष मूल्य एवं गणना (Live Store Calculation):**\n\n${lines.join("\n")}\n\n• 💰 **कुल मूल्य (Subtotal):** **₹${formatNum(subtotal)}**${discountLine}\n\n👇 आप नीचे दिए गए कार्ड पर **'खरीदें (Buy)'** दबाकर सीधे ऑर्डर कर सकते हैं!`;
+      return {
+        handled: true,
+        numericResult: finalTotal,
+        resultText,
+        matchedProducts: pickedProducts.map(formatProductForResponse).filter(Boolean)
+      };
+    }
+  }
+
+  // 2. Percentage / Discount / GST queries: "2000 ka 15%", "18% of 2500", "2500 par 10% discount"
+  const pctOfMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:%|percent|प्रतिशत)\s*(?:of|ka|ki|ke|on|gst\s*on)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)/i) ||
+                     lower.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(?:ka|ki|ke|par|me|mein|pe|on|plus|minus)?\s*(\d+(?:\.\d+)?)\s*(?:%|percent|प्रतिशत)/i);
+  if (pctOfMatch) {
+    const firstIsPct = /%|percent|प्रतिशत/i.test(pctOfMatch[0].slice(0, pctOfMatch[0].indexOf(pctOfMatch[2])));
+    const pctVal = parseFloat(firstIsPct ? pctOfMatch[1] : pctOfMatch[2]);
+    const baseVal = parseFloat(firstIsPct ? pctOfMatch[2] : pctOfMatch[1]);
+    if (!isNaN(pctVal) && !isNaN(baseVal)) {
+      const partVal = (baseVal * pctVal) / 100;
+      const afterDiscount = baseVal - partVal;
+      const afterTaxAdd = baseVal + partVal;
+      const isTaxOrGst = /(gst|tax|plus|add|badh|jod)/i.test(lower);
+      const isDiscount = /(discount|off|chhoot|chhut|kam|minus|ghata)/i.test(lower);
+
+      let summaryLine = `• **${formatNum(baseVal)} का ${pctVal}%:** **${formatNum(partVal)}**`;
+      if (isDiscount) {
+        summaryLine += `\n• **छूट के बाद अंतिम राशि (${formatNum(baseVal)} - ${formatNum(partVal)}):** **${formatNum(afterDiscount)}**`;
+      } else if (isTaxOrGst) {
+        summaryLine += `\n• **जोड़ने / GST के बाद कुल राशि (${formatNum(baseVal)} + ${formatNum(partVal)}):** **${formatNum(afterTaxAdd)}**`;
+      } else {
+        summaryLine += `\n• यदि यह छूट (Discount) है तो: **${formatNum(afterDiscount)}**\n• यदि यह अतिरिक्त (Tax/GST) है तो: **${formatNum(afterTaxAdd)}**`;
+      }
+
+      return {
+        handled: true,
+        numericResult: isDiscount ? afterDiscount : isTaxOrGst ? afterTaxAdd : partVal,
+        resultText: `🧮 **सटीक प्रतिशत गणना (Percentage Calculation):**\n\n${summaryLine}`,
+        matchedProducts: []
+      };
+    }
+  }
+
+  // 3. Direct / embedded arithmetic expression: "1500 + 250 * 2", "calculate 4500 - 999"
+  const exprMatch = raw.replace(/[₹,]/g, "").match(/(?:\(?\s*-?\d+(?:\.\d+)?\s*\)?(?:\s*[+\-*/×✕÷%^]\s*\(?\s*-?\d+(?:\.\d+)?\s*\)?)+)/);
+  if (exprMatch && exprMatch[0]) {
+    const val = safeEvaluateArithmeticExpression(exprMatch[0]);
+    if (val !== null) {
+      return {
+        handled: true,
+        expression: exprMatch[0].trim(),
+        numericResult: val,
+        resultText: `🧮 **गणना परिणाम (Calculation Result):**\n\n• **समीकरण:** \`${exprMatch[0].trim()}\`\n• **सटीक उत्तर:** **${formatNum(val)}**`,
+        matchedProducts: []
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Build Complete 1 to 14 Mukhi (or custom range) Guide with Live MongoDB Store Prices
+ */
+export function generate1To14MukhiGuideResponse(allStoreProds = [], activeCoupons = [], rangeInfo = { start: 1, end: 14 }) {
+  const start = Math.max(1, Number(rangeInfo?.start || 1));
+  const end = Math.min(21, Number(rangeInfo?.end || 14));
+  const couponFooter = buildActiveCouponsFooter(activeCoupons);
+
+  const lines = [];
+  for (let n = start; n <= end; n++) {
+    const info = MUKHI_1_TO_21_GUIDE[String(n)] || {
+      name: `${n} Mukhi Rudraksha`,
+      deity: "भगवान शिव",
+      planet: "सर्व ग्रह",
+      benefit: "सुख-शांति, आरोग्य व सुरक्षा",
+      mantra: "ॐ नमः शिवाय"
+    };
+    const storeItem = (allStoreProds || []).find(p => isExactMukhiProduct(p, n));
+    const slugOrId = storeItem ? (storeItem.slug || storeItem.id || storeItem._id) : "";
+    const stockNote = storeItem
+      ? `💰 **₹${Number(storeItem.price).toLocaleString("en-IN")}**${storeItem.inStock === false || Number(storeItem.stock) === 0 ? " *(Out of Stock)*" : " ✅"} — [देखें / खरीदें](/product/${slugOrId})`
+      : `🛍️ *कस्टम ऑर्डर / पूछताछ (+91 9672996531)*`;
+
+    lines.push(
+      `• **${n} मुखी (${info.deity} • ${info.planet}):** ${info.benefit} | मंत्र: \`${info.mantra}\`\n  ${stockNote}`
+    );
+  }
+
+  return `🙏 **हर हर महादेव! ${start} से ${end} मुखी शुद्ध नेपाली रुद्राक्ष संपूर्ण सूची व लाइव कीमत:**\n\n${lines.join("\n\n")}\n\n🛡️ **ऑरा रुद्राक्ष गारंटी:** सभी मनके 100% असली नेपाली हैं, सरकारी मान्यता प्राप्त X-Ray लैब सर्टिफिकेट और वैदिक प्राण-प्रतिष्ठा के साथ आते हैं।${couponFooter}\n\n👇 **नीचे उपलब्ध रुद्राक्ष के कार्ड दिए गए हैं — 'खरीदें (Buy)' बटन दबाकर तुरंत ऑर्डर करें!**\n\n[AURA_KEYWORDS]: 1 से 14 मुखी रुद्राक्ष | 7 मुखी धन रुद्राक्ष | 5 मुखी शांति रुद्राक्ष | लैब टेस्टेड कीमत`;
+}
+
 /**
  * Smart Vedic & Customer Store Fallback Engine
  * Guarantees that when external LLM connections are down or timing out,
  * the customer bot answers meaningfully, intelligently, and contextually
  * using ONLY real catalog products and real active admin coupons!
  */
-export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], activeCoupons = [], effectiveMode = "standard", calculatedKundaliData = null, allStoreProds = []) {
+export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], activeCoupons = [], effectiveMode = "standard", calculatedKundaliData = null, allStoreProds = [], precomputedCalc = null, mukhiRange = null) {
   const cleanUserMsg = String(message || "").trim();
   const lower = cleanUserMsg.toLowerCase();
   const realCoupons = Array.isArray(activeCoupons) ? activeCoupons.filter(c => c && c.code) : [];
   const couponFooter = buildActiveCouponsFooter(realCoupons);
+
+  // 0. Arithmetic & Store Price Calculation ALWAYS works cleanly
+  const calcRes = precomputedCalc || evaluateGeneralOrStoreCalculation(cleanUserMsg, allStoreProds, realCoupons);
+  if (calcRes && calcRes.handled) {
+    return `${calcRes.resultText}${couponFooter}\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत गणना | कूपन डिस्काउंट | 1 से 14 मुखी कीमत | अभी खरीदें`;
+  }
+
+  // 0.5 Full 1–14 Mukhi (or custom range) complete guide with live catalog prices
+  const rangeDetected = mukhiRange || extractMukhiRange(lower);
+  if (rangeDetected) {
+    return generate1To14MukhiGuideResponse(allStoreProds, realCoupons, rangeDetected);
+  }
 
   // If in Panditji mode:
   if (effectiveMode === "panditji") {
@@ -1546,7 +1860,7 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
   if (/sphatik|spatika|crystal|sphatika|स्फटिक/i.test(lower)) {
     const sphatikProd = findInCatalog(/sphatik|spatika|crystal/i) || matchedProducts[0];
     const pName = sphatikProd?.name || "Spatika Mala with Knot 108 beads";
-    const pPrice = sphatikProd?.price ? ` — ₹${Number(sphatikProd.price).toLocaleString("en-IN")}` : "";
+    const pPrice = sphatikProd?.price ? ` — **₹${Number(sphatikProd.price).toLocaleString("en-IN")}**` : "";
     const pSlug = sphatikProd?.slug || sphatikProd?.id || "";
     const productLine = sphatikProd && pSlug
       ? `\n• 💎 **स्टोर उत्पाद:** [${pName}](/product/${pSlug})${pPrice}`
@@ -1555,43 +1869,30 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
     return `🙏 **हर हर महादेव! शुद्ध स्फटिक माला (Natural Quartz Crystal Mala):**\n\n• ❄️ **प्रकृति व ऊर्जा:** स्फटिक साक्षात शुक्र ग्रह व चंद्र देव का शीतलता प्रदान करने वाला पवित्र रत्न है।\n• 📿 **उपयोग व लाभ:**\n  - दैनिक मंत्र जाप (विशेषकर माँ लक्ष्मी, सरस्वती व महामृत्युंजय मंत्र)।\n  - शरीर के तापमान व रक्तचाप का संतुलन, अत्यधिक क्रोध व मानसिक तनाव से मुक्ति।\n  - शरीर के चक्रों (Chakras) को संतुलित कर सकारात्मक ऊर्जा का संचार।${productLine}\n• 🎁 **विशेष लाभ:** 100% प्राकृतिक क्रिस्टल बीड्स, मजबूत गांठदार धागा, और निःशुल्क वैदिक प्राण-प्रतिष्ठा।${couponFooter}\n\n[AURA_KEYWORDS]: स्फटिक माला | Spatika Mala 108 beads | मानसिक शांति रत्न | लैब टेस्टेड उत्पाद`;
   }
 
-  // 2. Specific Mukhi inquiries (1 to 21 Mukhi)
-  const mukhiMatch = lower.match(/(\d{1,2})\s*mukhi/i) || lower.match(/(\d{1,2})\s*मुखी/i);
-  if (mukhiMatch) {
-    const num = mukhiMatch[1];
-    const mukhiInfo = {
-      "1": { deity: "भगवान शिव (साक्षात ओंकार)", planet: "सूर्य (Surya)", benefit: "आत्मबल, नेतृत्व क्षमता, ध्यान व मोक्ष प्राप्ति", mantra: "ॐ ह्रीं नमः" },
-      "2": { deity: "अर्घनारीश्वर (शिव-पार्वती)", planet: "चंद्र (Moon)", benefit: "मानसिक शांति, दांपत्य सुख व संबंधों में मधुरता", mantra: "ॐ नमः" },
-      "3": { deity: "अग्नि देव", planet: "मंगल (Mars)", benefit: "आलस्य नाश, ऊर्जा, पाचन व आत्मविश्वास", mantra: "ॐ क्लीं नमः" },
-      "4": { deity: "ब्रह्मा जी", planet: "बुध (Mercury)", benefit: "विद्या, तीव्र स्मरण शक्ति, एकाग्रता व वाणी सिद्धि", mantra: "ॐ ह्रीं नमः" },
-      "5": { deity: "कालाग्नि रुद्र (भगवान शिव)", planet: "बृहस्पति (Jupiter)", benefit: "मानसिक शांति, रक्तचाप संतुलन, भय निवारण व स्वास्थ्य", mantra: "ॐ ह्रीं नमः" },
-      "6": { deity: "भगवान कार्तिकेय", planet: "शुक्र (Venus)", benefit: "इच्छाशक्ति, साहस, आकर्षण व युवा ऊर्जा", mantra: "ॐ ह्रीं हुं नमः" },
-      "7": { deity: "माता महालक्ष्मी", planet: "शनि / शुक्र", benefit: "अथाह धन वृद्धि, व्यापार में सफलता व आर्थिक स्थिरता", mantra: "ॐ हुं नमः" },
-      "8": { deity: "भगवान श्री गणेश", planet: "राहु (Rahu)", benefit: "सर्व विघ्न निवारण, ज्ञान व कार्यों में सफलता", mantra: "ॐ हुं नमः" },
-      "9": { deity: "मां नवदुर्गा", planet: "केतु (Ketu)", benefit: "शत्रु भय मुक्ति, साहस, विजय व देवी कृपा", mantra: "ॐ ह्रीं हुं नमः" },
-      "10": { deity: "भगवान श्री हरि विष्णु", planet: "दसों दिशाएं", benefit: "सुरक्षा कवच, नकारात्मक शक्तियों से रक्षा व शांति", mantra: "ॐ ह्रीं नमः" },
-      "11": { deity: "एकादश रुद्र (भगवान हनुमान)", planet: "मंगल / शनि", benefit: "शारीरिक बल, भयमुक्ति, योग व संकट निवारण", mantra: "ॐ ह्रीं हुं नमः" },
-      "12": { deity: "द्वादश आदित्य (सूर्य देव)", planet: "सूर्य (Sun)", benefit: "तेज, यश, मान-सम्मान व उच्च पद प्राप्ति", mantra: "ॐ क्रौं क्षौं रौं नमः" },
-      "13": { deity: "कामदेव व देवराज इंद्र", planet: "शुक्र (Venus)", benefit: "आकर्षण, व्यक्तित्व विकास व भौतिक सुख", mantra: "ॐ ह्रीं नमः" },
-      "14": { deity: "देव मणि (महादेव व हनुमान जी)", planet: "शनि (Saturn)", benefit: "आज्ञा चक्र जाग्रति, भविष्य दृष्टि व परम सुरक्षा", mantra: "ॐ नमः" }
-    };
-    const info = mukhiInfo[num] || { deity: "भगवान शिव", planet: "सर्व ग्रह", benefit: "आरोग्य, सुख-शांति व सुरक्षा", mantra: "ॐ नमः शिवाय" };
-    const matched = pool.find(p => isExactMukhiProduct(p, num)) ||
-      pool.find(p => String(p.mukhi || "").trim() === String(num) || (p.name && new RegExp(`(?:^|[^0-9])${num}\\s*mukhi`, "i").test(p.name))) ||
+  // 2. Specific Single Mukhi inquiries (1 to 21 Mukhi)
+  const detectedMukhiStr = extractMukhiNumber(lower);
+  const singleNum = detectedMukhiStr && /^\d+$/.test(detectedMukhiStr) ? detectedMukhiStr : null;
+  if (singleNum) {
+    const info = MUKHI_1_TO_21_GUIDE[singleNum] || { deity: "भगवान शिव", planet: "सर्व ग्रह", benefit: "आरोग्य, सुख-शांति व सुरक्षा", mantra: "ॐ नमः शिवाय" };
+    const matched = pool.find(p => isExactMukhiProduct(p, singleNum)) ||
+      pool.find(p => String(p.mukhi || "").trim() === String(singleNum) || (p.name && new RegExp(`(?:^|[^0-9])${singleNum}\\s*(?:-|)?\\s*mukhi`, "i").test(p.name))) ||
       matchedProducts[0];
-    const priceText = matched?.price ? ` — ₹${Number(matched.price).toLocaleString("en-IN")}` : "";
+    const priceText = matched?.price ? ` — **₹${Number(matched.price).toLocaleString("en-IN")}**` : "";
+    const mrpText = matched?.comparePrice && Number(matched.comparePrice) > Number(matched.price)
+      ? ` *(MRP: ~~₹${Number(matched.comparePrice).toLocaleString("en-IN")}~~)*`
+      : "";
     const pSlug = matched?.slug || matched?.id || "";
     const productLinkBlock = matched && pSlug
-      ? `।\n\n👇 **स्टोर में देखें:** [${matched.name}](/product/${pSlug})${priceText}`
-      : "।";
+      ? `\n\n👇 **स्टोर में लाइव कीमत व उपलब्धता:** [${matched.name}](/product/${pSlug})${priceText}${mrpText}\nनीचे दिए कार्ड में **'खरीदें (Buy)'** बटन दबाकर तुरंत ऑर्डर करें!`
+      : `\n\n🛍️ यह विशिष्ट ${singleNum} मुखी मनका अभी कस्टम ऑर्डर पर उपलब्ध है — व्हाट्सएप/कॉल (+91 9672996531) पर उपलब्धता जांचें या [Shop Catalog](/shop) देखें।`;
 
-    return `🙏 **हर हर महादेव! ${num} मुखी रुद्राक्ष का प्रामाणिक वैदिक विश्लेषण:**\n\n• 🔱 **अधिष्ठाता देवता:** ${info.deity}\n• 🪐 **शासक ग्रह:** ${info.planet}\n• 🌿 **मुख्य फल व लाभ:** ${info.benefit}\n• 📿 **दैनिक सिद्ध बीज मंत्र:** ${info.mantra} (108 बार जाप)\n\nऑरा रुद्राक्ष पर उपलब्ध सभी ${num} मुखी रुद्राक्ष 100% शुद्ध नेपाली हैं, जो काशी-हरिद्वार में वैदिक प्राण-प्रतिष्ठित और सरकारी मान्यता प्राप्त लैब (X-Ray व घनत्व परीक्षण) द्वारा प्रमाणित हैं${productLinkBlock}${couponFooter}\n\n[AURA_KEYWORDS]: ${num} मुखी रुद्राक्ष लाभ | ${num} मुखी धारण विधि | लैब टेस्टेड नेपाली रुद्राक्ष | स्टोर कैटलॉग`;
+    return `🙏 **हर हर महादेव! ${singleNum} मुखी रुद्राक्ष का प्रामाणिक वैदिक विश्लेषण व कीमत:**\n\n• 🔱 **अधिष्ठाता देवता:** ${info.deity}\n• 🪐 **शासक ग्रह:** ${info.planet}\n• 🌿 **मुख्य फल व लाभ:** ${info.benefit}\n• 📿 **दैनिक सिद्ध बीज मंत्र:** ${info.mantra} (108 बार जाप)\n\nऑरा रुद्राक्ष पर सभी ${singleNum} मुखी रुद्राक्ष 100% शुद्ध नेपाली हैं, जो काशी-हरिद्वार में वैदिक प्राण-प्रतिष्ठित और सरकारी मान्यता प्राप्त लैब (X-Ray व घनत्व परीक्षण) द्वारा प्रमाणित हैं।${productLinkBlock}${couponFooter}\n\n[AURA_KEYWORDS]: ${singleNum} मुखी रुद्राक्ष लाभ | ${singleNum} मुखी धारण विधि | ${singleNum} मुखी कीमत | स्टोर कैटलॉग`;
   }
 
   // 3. Gauri Shankar Rudraksha
   if (/\bgauri[-\s]*shankar\b|\bgauri\b|marriage|vivah|patni|pati|relationship|love|गौरी/i.test(lower)) {
     const matched = findInCatalog(/gauri/i) || matchedProducts[0];
-    const pPrice = matched?.price ? ` (₹${Number(matched.price).toLocaleString("en-IN")})` : "";
+    const pPrice = matched?.price ? ` (**₹${Number(matched.price).toLocaleString("en-IN")}**)` : "";
     const pSlug = matched?.slug || matched?.id || "";
     const linkSection = matched && pSlug
       ? `👇 **स्टोर से ऑर्डर करें:** [${matched.name}](/product/${pSlug})${pPrice}`
@@ -1603,7 +1904,7 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
   if (/mala|jaap|japa|string|kantha|108|माला|जाप/i.test(lower)) {
     const malaProd = findInCatalog(/mala|108/i) || matchedProducts[0];
     const pName = malaProd?.name || "108+1 Sacred Jaap Mala";
-    const pPrice = malaProd?.price ? ` — ₹${Number(malaProd.price).toLocaleString("en-IN")}` : "";
+    const pPrice = malaProd?.price ? ` — **₹${Number(malaProd.price).toLocaleString("en-IN")}**` : "";
     const pSlug = malaProd?.slug || malaProd?.id || "";
     const malaLink = malaProd && pSlug
       ? `👇 **स्टोर में उपलब्ध:** [${pName}](/product/${pSlug})${pPrice}`
@@ -1611,17 +1912,22 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
     return `🙏 **हर हर महादेव! 108+1 मनकों की सिद्ध रुद्राक्ष जप माला:**\n\n• 📿 **108+1 का रहस्य:** 108 मनके ब्रह्मांड के 27 नक्षत्रों के 4 चरणों (27 × 4 = 108) का प्रतिनिधित्व करते हैं, और 1 अतिरिक्त मनका 'सुमेरु' (ब्रह्म का प्रतीक) होता है।\n• 🔱 **नियम:** जप करते समय सुमेरु को कभी लांघा नहीं जाता, वहीं से माला पलट ली जाती है।\n• ✨ **लाभ:** रक्तचाप नियंत्रण, घबराहट व अनिद्रा से मुक्ति, और महामृत्युंजय या शिव पंचाक्षरी मंत्र जप के लिए सर्वश्रेष्ठ।\n\n${malaLink}${couponFooter}\n\n[AURA_KEYWORDS]: 108 रुद्राक्ष माला | जप विधि | सुमेरु का नियम | मंत्र साधना`;
   }
 
-  // 5. Order tracking & Delivery
+  // 5. Wearing Rules / Dharan Vidhi / Nepal vs Indonesia
+  if (/kaise pehn|dharan|vidhi|niyam|rule|wear|bath|sleep|non\s*veg|meat|alcohol|nepal\s*vs|difference|फरक|नियम|पहनने/i.test(lower)) {
+    return `📿 **रुद्राक्ष धारण विधि एवं शास्त्रीय नियम (Shiva Purana Dharan Vidhi):**\n\n1. 🌅 **शुभ समय:** सोमवार या अपने मुखी के निर्धारित वार को प्रातः स्नान के बाद धारण करें।\n2. 💧 **शुद्धिकरण:** धारण से पहले गंगाजल व कच्चे दूध से स्नान कराकर स्वच्छ कपड़े से पोंछ लें। (ऑरा रुद्राक्ष के सभी मनके पहले से काशी-हरिद्वार में प्राण-प्रतिष्ठित आते हैं!)\n3. 🕉️ **मंत्र जप:** मनके को हाथ में लेकर कम से कम 11 या 108 बार **"ॐ नमः शिवाय"** या संबंधित बीज मंत्र का जाप करें।\n4. 🧵 **धागा/धातु:** लाल या पीले रेशमी धागे, या चांदी/सोने की कैपिंग में धारण करें।\n5. ⚠️ **सावधानी:** मांसाहार, मदिरा व केमिकल साबुन से दूर रखें; रात को सोते समय उतारकर पूजा स्थान पर रख सकते हैं।\n\n• 🏔️ **नेपाली बनाम इंडोनेशियन:** नेपाली रुद्राक्ष बड़े, भारी और अधिक स्पष्ट धारियों (Deep Cleavage) वाले होते हैं, इसलिए शीघ्र व प्रबल फलदायी माने जाते हैं।${couponFooter}\n\n[AURA_KEYWORDS]: रुद्राक्ष धारण विधि | रुद्राक्ष के नियम | नेपाली रुद्राक्ष पहचान | बीज मंत्र`;
+  }
+
+  // 6. Order tracking & Delivery
   if (/track|order|delivery|dispatch|kab aayega|ship|कहाँ है|ऑर्डर|डिलीवरी/i.test(lower)) {
     return `📦 **ऑरा रुद्राक्ष ऑर्डर ट्रैकिंग व डिलीवरी जानकारी:**\n\n• 🚚 **डिलीवरी समय:** भारत भर में 2 से 4 कार्य दिवसों (Express Air Courier - BlueDart / DTDC / Delhivery) में सुरक्षित डिलीवरी।\n• 📲 **लाइव ट्रैकिंग:** आप अपना फोन नंबर या Order ID डालकर सीधे ट्रैक कर सकते हैं:\n👉 **[Track Your Order Here](/track-order)**\n• 🎁 **सुरक्षित पैकेजिंग:** हर पार्सल में प्राण-प्रतिष्ठित रुद्राक्ष, गंगाजल, रक्षा सूत्र, और ओरिजिनल लैब सर्टिफिकेट सीलबंद आता है।\n\n[AURA_KEYWORDS]: ऑर्डर ट्रैकिंग | एक्सप्रेस डिलीवरी | डिलीवरी स्थिति | ग्राहक सहायता`;
   }
 
-  // 6. Authenticity, Certificate, Lab Test
+  // 7. Authenticity, Certificate, Lab Test
   if (/fake|asli|nakli|original|certif|lab|test|x-ray|authenti|असली|नकली|प्रमाणित|सर्टिफिकेट/i.test(lower)) {
     return `🛡️ **100% प्रामाणिक नेपाली रुद्राक्ष गारंटी (Zero Compromise):**\n\nऑरा रुद्राक्ष पर कोई भी काल्पनिक या नकली मनका नहीं बेचा जाता:\n1. 🔬 **व्यक्तिगत X-Ray जांच:** हर मनके के अंदर के प्राकृतिक कक्ष (Internal Seeds & Compartments) का एक्स-रे किया जाता है।\n2. 📜 **सरकारी मान्यता प्राप्त लैब सर्टिफिकेट:** प्रत्येक रुद्राक्ष के साथ एक यूनिक QR-कोडेड लैब सर्टिफिकेट मिलता है।\n3. 🔍 **ऑनलाइन वेरिफिकेशन:** आप वेबसाइट पर सर्टिफिकेट नंबर डालकर तुरंत रिपोर्ट देख सकते हैं:\n👉 **[Verify Certificate Online](/verify-certificate)**\n4. 💧 **प्राकृतिक घनत्व:** 100% भारी, कठोर व काष्ठयुक्त नेपाली दाने जो जीवन भर सुरक्षित रहते हैं।\n\n[AURA_KEYWORDS]: 100% असली रुद्राक्ष | लैब सर्टिफिकेट जांच | X-Ray रिपोर्ट | नेपाल रुद्राक्ष पहचान`;
   }
 
-  // 7. Discount & Coupons (STRICTLY ONLY REAL ACTIVE ADMIN COUPONS)
+  // 8. Discount & Coupons (STRICTLY ONLY REAL ACTIVE ADMIN COUPONS)
   if (/coupon|discount|offer|code|promo|voucher|chhoot|chhut|kam karo|कूपन|छूट|ऑफर/i.test(lower)) {
     if (realCoupons.length > 0) {
       const couponLines = realCoupons.map((c, idx) => {
@@ -1634,49 +1940,61 @@ export function generateSmartCustomerFallbackResponse(message = "", matchedProdu
       return `🎁 **वर्तमान में सक्रिय ऑरा रुद्राक्ष डिस्काउंट कूपन (Admin Verified):**\n\n${couponLines}\n\n• 🔱 **निःशुल्क सेवा:** हर ऑर्डर पर काशी-हरिद्वार वैदिक प्राण-प्रतिष्ठा पूजा व लैब सर्टिफिकेट।\n\nचेकआउट के समय 'Apply Coupon' में उपरोक्त कोड दर्ज करें और तुरंत बचत प्राप्त करें!\n\n[AURA_KEYWORDS]: सक्रिय कूपन कोड | लाइव स्टोर ऑफर | लैब प्रमाणित रुद्राक्ष`;
     }
 
-    return `🎁 **ऑरा रुद्राक्ष कूपन एवं ऑफर अपडेट:**\n\nवर्तमान में स्टोर में कोई अलग डिस्काउंट कूपन कोड सक्रिय नहीं है।\n\n• 🔱 **निःशुल्क विशेष सेवाएं:** आपको हर प्रामाणिक नेपाली रुद्राक्ष के साथ काशी-हरिद्वार वैदिक प्राण-प्रतिष्ठा पूजा व X-Ray लैब सर्टिफिकेट निःशुल्क मिलता है।\n• 🛍️ **ताज़ा ऑफर्स देखने के लिए:** [Shop Catalog](/shop) पर उत्पाद के लाइव प्राइस और छूट देख सकते हैं।\n\nजब भी एडमिन डैशबोर्ड से कोई नया कूपन कोड सक्रिय किया जाएगा, मैं आपको तुरंत वही सक्रिय कोड बताऊँगा।\n\n[AURA_KEYWORDS]: स्टोर कैटलॉग | असली नेपाली रुद्राक्ष | निःशुल्क प्राण-प्रतिष्ठा`;
+    return `🎁 **ऑरा रुद्राक्ष कूपन एवं ऑफर अपडेट:**\n\nवर्तमान में स्टोर में कोई अलग डिस्काउंट कूपन कोड सक्रिय नहीं है।\n\n• 🔱 **निःशुल्क विशेष सेवाएं:** आपको हर प्रामाणिक नेपाली रुद्राक्ष के साथ काशी-हरिद्वार वैदिक प्राण-प्रतिष्ठा पूजा व X-Ray लैब सर्टिफिकेट निःशुल्क मिलता है।\n• 🛍️ **ताज़ा ऑफर्स देखने के लिए:** [Shop Catalog](/shop) पर उत्पाद के लाइव प्राइस और छूट देख सकते हैं।\n\n[AURA_KEYWORDS]: स्टोर कैटलॉग | असली नेपाली रुद्राक्ष | निःशुल्क प्राण-प्रतिष्ठा`;
   }
 
-  // 8. Price / Cost Queries
-  if (/price|cost|rate|kitne|kimat|keemat|paisa|rupaye|kharch|मूल्य|कीमत|दाम|कितने/i.test(lower)) {
-    const listProds = (matchedProducts && matchedProducts.length > 0) ? matchedProducts : pool.slice(0, 4);
+  // 9. Price / Cost Queries (Shows real MongoDB catalog prices & attachable cards!)
+  if (/price|cost|rate|kitne|kitna|kimat|keemat|paisa|rupaye|kharch|dam|daam|budget|under|sasta|मूल्य|कीमत|दाम|कितने/i.test(lower)) {
+    const listProds = (matchedProducts && matchedProducts.length > 0)
+      ? matchedProducts
+      : pool.filter(p => p && p.inStock !== false).slice(0, 6);
     const listText = listProds.length > 0
-      ? listProds.slice(0, 4).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}${p.comparePrice && Number(p.comparePrice) > Number(p.price) ? ` (MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})` : ""}`).join("\n")
+      ? listProds.slice(0, 6).map((p, idx) => {
+          const mrpStr = p.comparePrice && Number(p.comparePrice) > Number(p.price)
+            ? ` *(MRP: ₹${Number(p.comparePrice).toLocaleString("en-IN")})*`
+            : "";
+          return `${idx + 1}. **[${p.name}](/product/${p.slug || p.id})** — **₹${Number(p.price).toLocaleString("en-IN")}**${mrpStr}`;
+        }).join("\n")
       : "• संपूर्ण मूल्य सूची देखने के लिए [Shop Catalog](/shop) पर जाएं।";
-    return `💰 **ऑरा रुद्राक्ष मूल्य व प्रामाणिक रेट सूची:**\n\n${listText}${couponFooter}\n\n[AURA_KEYWORDS]: रुद्राक्ष कीमत | ओरिजिनल रेट | लैब सर्टिफाइड रुद्राक्ष`;
+    return `💰 **ऑरा रुद्राक्ष लाइव मूल्य सूची (Real Catalog Prices):**\n\n${listText}${couponFooter}\n\n👇 **सीधे खरीदने के लिए नीचे दिए किसी भी कार्ड पर 'खरीदें (Buy)' बटन दबाएं!**\n\n[AURA_KEYWORDS]: 1 से 14 मुखी कीमत | 7 मुखी कीमत | 5 मुखी कीमत | आज के ऑफर्स`;
   }
 
-  // 9. Career, Job, Money, Wealth
+  // 10. Career, Job, Money, Wealth
   if (/career|job|naukri|business|vyapar|dhan|money|paisa|नौकरी|व्यापार|कैरियर|धन/i.test(lower)) {
     const p7 = pool.find(p => isExactMukhiProduct(p, 7));
     const p10 = pool.find(p => isExactMukhiProduct(p, 10));
     const p14 = pool.find(p => isExactMukhiProduct(p, 14));
-    const link7 = p7 ? ` — [${p7.name}](/product/${p7.slug || p7.id}) (₹${Number(p7.price).toLocaleString("en-IN")})` : "";
-    const link10 = p10 ? ` — [${p10.name}](/product/${p10.slug || p10.id}) (₹${Number(p10.price).toLocaleString("en-IN")})` : "";
-    const link14 = p14 ? ` — [${p14.name}](/product/${p14.slug || p14.id}) (₹${Number(p14.price).toLocaleString("en-IN")})` : "";
+    const link7 = p7 ? ` — [${p7.name}](/product/${p7.slug || p7.id}) (**₹${Number(p7.price).toLocaleString("en-IN")}**)` : "";
+    const link10 = p10 ? ` — [${p10.name}](/product/${p10.slug || p10.id}) (**₹${Number(p10.price).toLocaleString("en-IN")}**)` : "";
+    const link14 = p14 ? ` — [${p14.name}](/product/${p14.slug || p14.id}) (**₹${Number(p14.price).toLocaleString("en-IN")}**)` : "";
 
     return `💼 **करियर, व्यापार व धन वृद्धि हेतु सर्वश्रेष्ठ रुद्राक्ष:**\n\n1. 🪙 **7 मुखी रुद्राक्ष (माता महालक्ष्मी):** आर्थिक तंगी दूर करने, स्थिर धन प्राप्ति और कर्ज से मुक्ति के लिए सर्वश्रेष्ठ${link7}।\n2. 🌟 **10 मुखी रुद्राक्ष (भगवान विष्णु):** कार्यक्षेत्र में षड्यंत्रों से रक्षा व सभी 9 ग्रहों की अनुकूलता${link10}।\n3. 👑 **14 मुखी रुद्राक्ष (देव मणि):** उच्च पद, लीडरशिप, सही निर्णय क्षमता और व्यापार में सफलता${link14}।${couponFooter}\n\n[AURA_KEYWORDS]: 7 मुखी धन रुद्राक्ष | व्यापार वृद्धि उपाय | महालक्ष्मी रुद्राक्ष | करियर में सफलता`;
   }
 
-  // 10. Returns, Refunds, Customer Support
+  // 11. Returns, Refunds, Customer Support
   if (/return|refund|exchange|cancel|support|contact|helpline|phone|सपोर्ट|संपर्क|फोन/i.test(lower)) {
     return `🤝 **ऑरा रुद्राक्ष ग्राहक सेवा व 7-दिवसीय रिटर्न पॉलिसी:**\n\n• 🔄 **7 Days Easy Replacement:** यदि पार्सल में कोई भी समस्या आती है तो 7 दिनों के भीतर बिना किसी झंझट के रिप्लेसमेंट उपलब्ध है।\n• 📞 **व्हाट्सएप व कॉल हेल्पलाइन:** +91 9672996531 (सोम-शनि, 10 AM - 7 PM)\n• 📧 **ईमेल सहायता:** aurarudrakshaofficial@gmail.com\n\nहम 100% संतुष्टि और प्रामाणिकता की गारंटी देते हैं!`;
   }
 
-  // 11. General Products Match fallback
+  // 12. General Products Match fallback
   if (matchedProducts.length > 0) {
-    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 3).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — ₹${Number(p.price).toLocaleString("en-IN")}\n  *(100% शुद्ध • वैदिक अभिमंत्रित • सुरक्षित डिलीवरी)*`).join("\n\n")}${couponFooter}\n\nआप किसी भी उत्पाद की फोटो कार्ड पर क्लिक करके उसका संपूर्ण विवरण देख सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | स्टोर चयन | प्रामाणिक ऑरा रुद्राक्ष`;
+    return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'Store Catalog'}" के अनुसार प्रामाणिक चयन:**\n\n${matchedProducts.slice(0, 6).map(p => `• **[${p.name}](/product/${p.slug || p.id})** — **₹${Number(p.price).toLocaleString("en-IN")}**\n  *(100% शुद्ध नेपाली • वैदिक अभिमंत्रित • लैब सर्टिफाइड)*`).join("\n\n")}${couponFooter}\n\n👇 आप नीचे कार्ड में **'खरीदें (Buy)'** दबाकर तुरंत ऑर्डर कर सकते हैं।\n\n[AURA_KEYWORDS]: सिद्ध उत्पाद | 1 से 14 मुखी | स्टोर चयन | प्रामाणिक ऑरा रुद्राक्ष`;
   }
 
-  // 12. Greeting & Default tailored reply
+  // 13. Greeting & Default comprehensive helpful reply
   if (/^(hi|hello|hey|namaste|pranam|ram|radhe|har|shambhu|नमस्ते|प्रणाम|हर हर महादेव)/i.test(lower)) {
     const couponBullet = realCoupons.length > 0
       ? `• 🎁 **Active Discount Coupons:** ${realCoupons.slice(0, 2).map(c => `**${c.code}**`).join(", ")}`
       : `• 🛍️ **Sacred Store Catalog:** [Shop All Rudraksha](/shop)`;
-    return `🙏 **हर हर महादेव! नमस्ते! Main Aura AI hoon.**\n\nMain Aura Rudraksha ka 24/7 shopping assistant hoon. Main aapki in vishayon mein turant madad kar sakta hoon:\n• 📿 **1 se 21 Mukhi Nepali Rudraksha** aur unke labh\n• 🌸 **108+1 Jaap Mala, Sphatik aur Bracelets**\n${couponBullet}\n• 🚚 **Order Status aur Live Tracking** (/track-order)\n\nAapko kis product ya jaankari ki aavashyakta hai?`;
+    return `🙏 **हर हर महादेव! नमस्ते! Main Aura AI hoon.**\n\nMain Aura Rudraksha ka 24/7 smart shopping aur Vedic guide hoon. Aap mujhse kuchh bhi poochh sakte hain:\n• 📿 **1 से 14 मुखी (या 21 मुखी तक)** किसी भी रुद्राक्ष का लाभ, मंत्र व लाइव कीमत\n• 🧮 **Calculations:** कीमत, डिस्काउंट % या मल्टी-पीस टोटल का हिसाब\n• 🌸 **108+1 Jaap Mala, Sphatik, Gauri Shankar aur Bracelets**\n${couponBullet}\n• 🚚 **Order Tracking (/track-order) aur Lab Verification**`;
   }
 
-  return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'जानकारी'}" के संदर्भ में:**\n\nऑरा रुद्राक्ष पर सभी पवित्र मनके, जप मालाएं और वैदिक वस्तुएं 100% शुद्ध, प्राकृतिक और काशी-हरिद्वार में प्राण-प्रतिष्ठित हैं।\n\n• 📿 आप [Shop Catalog](/shop) पर संपूर्ण संग्रह देख सकते हैं।${couponFooter}\n\nयदि आप किसी विशिष्ट मनके, माला या आभूषण की कीमत या धारण विधि जानना चाहते हैं, तो कृपया उसका नाम लिखें!`;
+  const catalogPreview = pool.filter(p => p && p.inStock !== false).slice(0, 4);
+  const previewText = catalogPreview.length > 0
+    ? `\n\n🛍️ **स्टोर के प्रमुख सिद्ध उत्पाद व लाइव कीमतें:**\n${catalogPreview.map(p => `• **[${p.name}](/product/${p.slug || p.id})** — **₹${Number(p.price).toLocaleString("en-IN")}**`).join("\n")}`
+    : "";
+
+  return `🙏 **हर हर महादेव! आपके प्रश्न "${cleanUserMsg || 'जानकारी'}" के संदर्भ में:**\n\nमैं आपकी इन सभी बातों में तुरंत मदद कर सकता हूँ:\n• 📿 **1 से 14 मुखी रुद्राक्ष** की पूरी जानकारी, मंत्र व लाइव कीमत (*लिखें: "1-14 mukhi"*)\n• 💰 **किसी भी प्रोडक्ट का रेट/कीमत** व सीधे चैट से खरीदारी (*लिखें: "7 mukhi price"*)\n• 🧮 **कोई भी गणित या डिस्काउंट कैलकुलेशन** (*लिखें: "2 piece 7 mukhi total" या "2000 ka 15%"*)\n• 📿 **धारण विधि, असली-नकली पहचान (X-Ray लैब रिपोर्ट) और ऑर्डर ट्रैकिंग**${previewText}${couponFooter}\n\n[AURA_KEYWORDS]: 1 से 14 मुखी रुद्राक्ष | सभी रुद्राक्ष कीमत | 7 मुखी कीमत | आज के कूपन`;
 }
 
 /**
@@ -2098,6 +2416,8 @@ export async function chatAuraAI(req, res, next) {
         }))
       : [];
 
+    const precomputedCalc = evaluateGeneralOrStoreCalculation(message || "", allStoreProds, activeCoupons);
+
     let matchedProducts = [];
     if (calculatedKundaliData && calculatedKundaliData.astronomicalKundali) {
       const kundaliRecommendedProducts = [];
@@ -2147,9 +2467,13 @@ export async function chatAuraAI(req, res, next) {
       }
 
       matchedProducts = kundaliRecommendedProducts.slice(0, 4);
-    } else if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, matchedProducts: [1] })) {
+    } else if (precomputedCalc?.handled && Array.isArray(precomputedCalc.matchedProducts) && precomputedCalc.matchedProducts.length > 0) {
+      matchedProducts = precomputedCalc.matchedProducts.slice(0, 6);
+    } else {
       const foundProds = searchRelevantCatalogProducts(message || "", allStoreProds);
-      matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean).slice(0, 4);
+      if (shouldRecommendProducts({ message: message || "", intent, targetMukhi, mukhiRange, matchedProducts: foundProds })) {
+        matchedProducts = (foundProds || []).map(formatProductForResponse).filter(Boolean).slice(0, 6);
+      }
     }
 
     const storeCatalogPromptSnippet = (allStoreProds || []).slice(0, 50).map(p => {
@@ -2535,6 +2859,16 @@ CORE MISSION:
 
 ${urlAndCatalogRulesText}
 
+${precomputedCalc?.handled ? `PRECOMPUTED AUTHORITATIVE CALCULATION (USE THESE EXACT NUMBERS IN YOUR REPLY):
+${precomputedCalc.resultText}` : ""}
+
+${mukhiRange ? `AUTHORITATIVE 1-TO-14 MUKHI CATALOG REFERENCE (INCLUDE ALL ${mukhiRange.start} TO ${mukhiRange.end} MUKHI WITH EXACT LIVE PRICES BELOW):
+${generate1To14MukhiGuideResponse(allStoreProds, activeCoupons, mukhiRange)}` : ""}
+
+GENERAL KNOWLEDGE, ARITHMETIC & STORE CAPABILITIES:
+- You are fully trained to answer ANY customer question accurately: general questions, exact math/percentage/discount/total calculations, full 1 to 14 Mukhi (and 1 to 21 Mukhi) Rudraksha explanations, exact live store prices, wearing rules (Dharan Vidhi), authenticity/X-Ray lab tests, Rashi guidance, and order tracking.
+- Whenever customer asks about ANY Rudraksha price, always quote the exact ₹ price from REAL STORE PRODUCT CATALOG above and link the product cleanly so the Buy Card appears below your reply.
+
 ORDER & TRACKING QUERIES:
 - If customer asks for tracking/order status: Provide clear guidance. Remind them they can view real-time courier updates at [Track Order](/track-order) with their Order ID or phone number.
 
@@ -2755,7 +3089,7 @@ ${memoryContextText || "Guest shopper."}`;
             fallbackText = precomputedPanditJiReference || generateNonKundaliPanditJiGuidance(message, allStoreProds);
           }
         } else {
-          fallbackText = generateSmartCustomerFallbackResponse(message, matchedProducts, activeCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
+          fallbackText = generateSmartCustomerFallbackResponse(message, matchedProducts, activeCoupons, effectiveMode, calculatedKundaliData, allStoreProds, precomputedCalc, mukhiRange);
         }
 
         fullStreamedText = sanitizeFakeCouponsInResponse(fallbackText, activeCoupons);
@@ -2918,7 +3252,7 @@ ${memoryContextText || "Guest shopper."}`;
           aiResponseText = precomputedPanditJiReference || generateNonKundaliPanditJiGuidance(message, allStoreProds);
         }
       } else {
-        aiResponseText = generateSmartCustomerFallbackResponse(message, matchedProducts, activeCoupons, effectiveMode, calculatedKundaliData, allStoreProds);
+        aiResponseText = generateSmartCustomerFallbackResponse(message, matchedProducts, activeCoupons, effectiveMode, calculatedKundaliData, allStoreProds, precomputedCalc, mukhiRange);
       }
     }
 

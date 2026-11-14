@@ -478,10 +478,10 @@ export function AuraAIFloating() {
         list.push({ label: "🕉️ 108 Jaap Mala", query: "Original 108 bead Jaap Mala dikhao" });
       }
       if (list.length < 4) {
-        list.push({ label: "✨ Suggest Rudraksha", query: "Mujhe apne liye best Rudraksha suggest karein" });
-        list.push({ label: "📦 Track Order", query: "Track my order status" });
+        list.push({ label: "🌸 1-14 मुखी व कीमत", query: "1-14 मुखी रुद्राक्ष की जानकारी और कीमत बताओ" });
+        list.push({ label: "📿 7 मुखी कीमत", query: "7 मुखी रुद्राक्ष की कीमत बताओ" });
+        list.push({ label: "🧮 टोटल कैलकुलेट", query: "2 पीस 5 मुखी रुद्राक्ष का कुल रेट कैलकुलेट करो" });
         list.push({ label: "🎟️ Active Offers", query: "Active discount offers aur coupon codes dikhao" });
-        list.push({ label: "🕉️ Jaap Mala", query: "Original 108 bead Jaap Mala dikhao" });
       }
       return list.slice(0, 5);
     }
@@ -2554,10 +2554,10 @@ export function AuraAIFloating() {
                           {m.products && m.products.length > 0 && (
                             <div className="aura-ai-prods-reel">
                               <div className="aura-ai-prods-title">
-                                <Sparkles size={12} /> Recommended for you:
+                                <Sparkles size={12} /> Store Products (तुरंत खरीदें):
                               </div>
                               <div className="aura-ai-prods-list">
-                                {m.products.filter(p => p && typeof p === "object").slice(0, 3).map((p, pIdx) => {
+                                {m.products.filter(p => p && typeof p === "object").slice(0, 6).map((p, pIdx) => {
                                   const pId = p.id || p._id || p.slug || `prod-${pIdx}`;
                                   const isAdded = addedItems[pId];
                                   const priceNum = Math.max(0, safePrice(p.price, 0));
@@ -2640,9 +2640,9 @@ export function AuraAIFloating() {
                                             disabled={oos}
                                             style={oos ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
                                             className="aura-ai-prod-btn-buy"
-                                            title="Order directly in chat"
+                                            title="तुरंत ऑर्डर करें (Buy directly in chat)"
                                           >
-                                            <Sparkles size={10} /> Order
+                                            <Sparkles size={10} /> खरीदें (Buy)
                                           </button>
                                           <button
                                             type="button"
@@ -2779,7 +2779,12 @@ export function AuraAIFloating() {
                               } else if (mode === "panditji") {
                                 effectiveKws = ["विवाह योग और विवाह का समय", "करियर और सरकारी नौकरी", "धन और आर्थिक स्थिति", "महादशा और अंतर्दशा"];
                               } else {
-                                effectiveKws = ["सिद्ध 1 से 14 मुखी रुद्राक्ष", "आज के एक्टिव डिस्काउंट कूपन", "ऑर्डर डिलीवरी व ट्रैकिंग", "100% X-Ray लैब सर्टिफिकेट"];
+                                effectiveKws = [
+                                  "1-14 मुखी रुद्राक्ष व कीमत",
+                                  "7 मुखी रुद्राक्ष की कीमत बताओ",
+                                  "2 पीस 5 मुखी का total calculate करो",
+                                  "आज के एक्टिव डिस्काउंट कूपन"
+                                ];
                               }
                             }
                             if (!effectiveKws.length) return null;

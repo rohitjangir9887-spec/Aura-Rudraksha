@@ -1,4 +1,4 @@
-import { Setting, Ticket, Analytics } from "../models/Setting.js";
+import { Setting, Ticket } from "../models/Setting.js";
 import { Counter } from "../models/Counter.js";
 import { Product } from "../models/Product.js";
 import { Review } from "../models/Review.js";
@@ -10,6 +10,11 @@ import { Customer } from "../models/Customer.js";
 import { isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
+import {
+  recordVisitEvent,
+  recordProductViewEvent,
+  getDetailedAnalyticsPayload
+} from "../services/analyticsService.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
@@ -510,29 +515,31 @@ export async function deleteTicket(req, res, next) {
 // Analytics
 export async function getAnalytics(req, res, next) {
   try {
-    if (!isDbConnected()) {
-      return res.json({
-        success: true,
-        data: {
-          id: "GLOBAL_ANALYTICS",
-          visits: 0,
-          productViews: 0,
-          hasData: false,
-          lastUpdated: new Date().toISOString()
-        }
-      });
+    const range = req.query?.range || "today";
+    let orders = [];
+    if (isDbConnected()) {
+      try {
+        orders = await Order.find({}, {
+          status: 1,
+          finalAmount: 1,
+          amount: 1,
+          total: 1,
+          orderSource: 1,
+          source: 1,
+          date: 1,
+          createdAt: 1
+        }).lean();
+      } catch (_) {
+        orders = [];
+      }
     }
 
-    let doc = await Analytics.findOne({ id: "GLOBAL_ANALYTICS" }).lean();
-    if (!doc) {
-      doc = await Analytics.create({
-        id: "GLOBAL_ANALYTICS",
-        visits: 0,
-        productViews: 0,
-        lastUpdated: new Date().toISOString()
-      });
-    }
-    return res.json({ success: true, data: { ...doc, hasData: (doc.visits || 0) > 0 || (doc.productViews || 0) > 0 } });
+    const payload = await getDetailedAnalyticsPayload({
+      range,
+      orders,
+      useDb: isDbConnected()
+    });
+    return res.json({ success: true, data: payload, hasData: payload.hasData });
   } catch (err) {
     next(err);
   }
@@ -540,16 +547,15 @@ export async function getAnalytics(req, res, next) {
 
 export async function logVisit(req, res, next) {
   try {
-    const now = new Date().toISOString();
-    if (isDbConnected()) {
-      const updated = await Analytics.findOneAndUpdate(
-        { id: "GLOBAL_ANALYTICS" },
-        { $inc: { visits: 1 }, $set: { lastUpdated: now } },
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      return res.json({ success: true, data: updated });
-    }
-    return res.json({ success: true, data: { id: "GLOBAL_ANALYTICS", visits: 1, lastUpdated: now } });
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const result = await recordVisitEvent({
+      req,
+      deviceId: body.deviceId || req.headers["x-device-id"] || "",
+      path: body.path || "/",
+      title: body.title || "",
+      useDb: isDbConnected()
+    });
+    return res.json({ success: true, data: result });
   } catch (err) {
     next(err);
   }
@@ -557,16 +563,16 @@ export async function logVisit(req, res, next) {
 
 export async function logProductView(req, res, next) {
   try {
-    const now = new Date().toISOString();
-    if (isDbConnected()) {
-      const updated = await Analytics.findOneAndUpdate(
-        { id: "GLOBAL_ANALYTICS" },
-        { $inc: { productViews: 1 }, $set: { lastUpdated: now } },
-        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-      );
-      return res.json({ success: true, data: updated });
-    }
-    return res.json({ success: true, data: { id: "GLOBAL_ANALYTICS", productViews: 1, lastUpdated: now } });
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const result = await recordProductViewEvent({
+      req,
+      deviceId: body.deviceId || req.headers["x-device-id"] || "",
+      path: body.path || "",
+      productId: body.productId || "",
+      productName: body.productName || "",
+      useDb: isDbConnected()
+    });
+    return res.json({ success: true, data: result });
   } catch (err) {
     next(err);
   }

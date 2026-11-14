@@ -41,6 +41,8 @@ export function Admin() {
       pendingOrders: pending,
       completedOrders: completed,
       views: analytics.visits || 0,
+      todayVisits: analytics.todayVisits || 0,
+      todayUniqueVisitors: analytics.todayUniqueVisitors || 0,
       aiConversations: 0,
       hasData: orders.length > 0 || (analytics.visits || 0) > 0
     };
@@ -443,6 +445,8 @@ export function Admin() {
         pendingOrders: pending,
         completedOrders: completed,
         views: analytics.visits || 0,
+        todayVisits: analytics.todayVisits || 0,
+        todayUniqueVisitors: analytics.todayUniqueVisitors || 0,
         aiConversations: aiMetrics?.totalConvos || 0,
         hasData: realOrders.length > 0 || (analytics.visits || 0) > 0
       });
@@ -582,7 +586,8 @@ export function Admin() {
     { label: "Total Orders", value: stats.totalOrders, icon: <ShoppingBag size={18}/>, color: '#a54d2b', bg: '#fdf0e8' },
     { label: "Pending Orders", value: stats.pendingOrders, icon: <Clock size={18}/>, color: '#d97706', bg: '#fff8e1' },
     { label: "Total Customers", value: stats.totalCustomers, icon: <Users size={18}/>, color: '#2563eb', bg: '#eff6ff' },
-    { label: "Active Products", value: stats.totalProducts, icon: <Boxes size={18}/>, color: '#7c3aed', bg: '#f3e8ff' },
+    { label: "Total Products", value: stats.totalProducts, icon: <Boxes size={18}/>, color: '#7c3aed', bg: '#f3e8ff' },
+    { label: "Today's Visitors", value: `${stats.todayUniqueVisitors} (${stats.todayVisits} views)`, icon: <Users size={18}/>, color: '#0d9488', bg: '#f0fdfa' },
     { label: "Total Visits", value: stats.views, icon: <Eye size={18}/>, color: '#0891b2', bg: '#ecfeff' },
     { label: "AI Conversations", value: stats.aiConversations, icon: <MessageSquare size={18}/>, color: '#9333ea', bg: '#f5f3ff' },
     { label: "Completed Orders", value: stats.completedOrders, icon: <CheckCircle2 size={18}/>, color: '#059669', bg: '#ecfdf5' }

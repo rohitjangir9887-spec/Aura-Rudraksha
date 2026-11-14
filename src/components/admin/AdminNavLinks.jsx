@@ -3,10 +3,18 @@ import { Link, useLocation } from "react-router-dom";
 import { Store, LogOut } from "lucide-react";
 import { getMenuItems } from "./adminConfig";
 import { ADMIN_BASE_PATH } from "../../lib/routes";
+import { preloadAdminRoute } from "../../lib/adminRoutePreloader";
 
-export function AdminNavLinks({ counts, onLogout }) {
+export function AdminNavLinks({ counts, onLogout, onNavigate }) {
   const location = useLocation();
   const menuItems = getMenuItems(counts);
+
+  const handleLinkTap = (path) => {
+    preloadAdminRoute(path);
+    if (typeof onNavigate === "function") {
+      onNavigate(path);
+    }
+  };
 
   return (
     <>
@@ -25,6 +33,9 @@ export function AdminNavLinks({ counts, onLogout }) {
               key={item.path}
               to={item.path}
               className={isActive ? "active" : ""}
+              onClick={() => handleLinkTap(item.path)}
+              onMouseEnter={() => preloadAdminRoute(item.path)}
+              onTouchStart={() => preloadAdminRoute(item.path)}
               style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -60,7 +71,7 @@ export function AdminNavLinks({ counts, onLogout }) {
             </Link>
           );
         })}
-        <Link to="/" className="store-link-btn" target="_blank">
+        <Link to="/" className="store-link-btn" target="_blank" onClick={() => { if (typeof onNavigate === "function") onNavigate("/"); }}>
           <Store size={18} /> View Customer Store
         </Link>
         <button

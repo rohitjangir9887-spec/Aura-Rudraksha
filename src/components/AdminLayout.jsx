@@ -8,6 +8,7 @@ import { useAdminMetrics } from "../hooks/useAdminMetrics";
 import { getMenuItems, getBottomTabs } from "./admin/adminConfig";
 import { AdminNavLinks } from "./admin/AdminNavLinks";
 import { ADMIN_BASE_PATH } from "../lib/routes";
+import { preloadAllAdminRoutes } from "../lib/adminRoutePreloader";
 
 export function AdminLayout({ children }) {
   const location = useLocation();
@@ -16,6 +17,10 @@ export function AdminLayout({ children }) {
   const counts = useAdminMetrics();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    preloadAllAdminRoutes();
+  }, []);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -183,6 +188,7 @@ export function AdminLayout({ children }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.14 }}
               onClick={() => setMobileMenuOpen(false)}
             />
             <motion.div
@@ -190,16 +196,20 @@ export function AdminLayout({ children }) {
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
             >
               <div className="drawer-header">
                 <div className="drawer-title">Admin Navigation</div>
-                <button onClick={() => setMobileMenuOpen(false)} aria-label="Close Menu">
+                <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close Menu">
                   <X size={22} />
                 </button>
               </div>
               <aside className="mobile-aside">
-                <AdminNavLinks counts={counts} onLogout={handleLogout} />
+                <AdminNavLinks
+                  counts={counts}
+                  onLogout={handleLogout}
+                  onNavigate={() => setMobileMenuOpen(false)}
+                />
               </aside>
             </motion.div>
           </>
@@ -302,8 +312,12 @@ export function AdminLayout({ children }) {
           );
         })}
         <button
+          type="button"
           className={`bottom-tab ${mobileMenuOpen ? "active" : ""}`}
-          onClick={() => setMobileMenuOpen(true)}
+          onClick={() => {
+            preloadAllAdminRoutes();
+            setMobileMenuOpen(prev => !prev);
+          }}
         >
           <MoreHorizontal size={20} />
           <span>More</span>

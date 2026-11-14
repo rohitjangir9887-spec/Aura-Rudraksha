@@ -732,14 +732,57 @@ const HINDI_NUMBER_WORDS = {
 };
 
 /**
+ * Extract Mukhi range or "all mukhi" requests (e.g. "1-14 mukhi", "1 se 14 mukhi", "sabhi rudraksha")
+ */
+export function extractMukhiRange(message = "") {
+  const text = String(message || "").toLowerCase().trim();
+  if (!text) return null;
+
+  // Numeric range: "1-14 mukhi", "1 to 14 mukhi", "1 se 14", "1–14", "1 se 21 mukhi"
+  const numRange = text.match(/\b(\d{1,2})\s*(?:-|–|—|to|se|tak)\s*(\d{1,2})\s*(?:mukhi|muki|face|facet|mukha|rudraksh\w*)?/i);
+  if (numRange && numRange[1] && numRange[2]) {
+    const s = parseInt(numRange[1], 10);
+    const e = parseInt(numRange[2], 10);
+    if (!isNaN(s) && !isNaN(e) && s >= 1 && e <= 21 && s < e) {
+      const numbers = [];
+      for (let i = s; i <= e; i++) numbers.push(i);
+      return { isRange: true, start: s, end: e, numbers };
+    }
+  }
+
+  // Word range: "ek se chaudah mukhi" or "ek se 14 mukhi"
+  if (/(?:ek|1)\s*(?:se|to|-)\s*(?:chaudah|chouda|14|21|ikkis)\s*(?:mukhi|rudraksh\w*)?/i.test(text)) {
+    const end = /(?:21|ikkis)/i.test(text) ? 21 : 14;
+    const numbers = [];
+    for (let i = 1; i <= end; i++) numbers.push(i);
+    return { isRange: true, start: 1, end, numbers };
+  }
+
+  // "sabhi mukhi", "all mukhi", "all 14 mukhi", "14 mukhi tak", "1 se 14"
+  if (/(?:sabhi|all|sari|saari|poori|puri|complete|full)\s*(?:1\s*(?:to|se|-)\s*14\s*)?(?:mukhi|rudraksh\w*)/i.test(text) ||
+      /\b14\s*mukhi\s*tak\b/i.test(text)) {
+    const numbers = [];
+    for (let i = 1; i <= 14; i++) numbers.push(i);
+    return { isRange: true, start: 1, end: 14, numbers };
+  }
+
+  return null;
+}
+
+/**
  * Extract Mukhi number or special bead from natural language (English, Hindi, Hinglish)
  */
 export function extractMukhiNumber(message = "") {
   const text = String(message).toLowerCase().trim();
 
+  // Do NOT collapse multi-mukhi range (e.g. "1-14 mukhi") into a single mukhi number!
+  if (extractMukhiRange(text)) {
+    return null;
+  }
+
   // 1. Direct digit match: "21 mukhi", "5 mukhi", "5-mukhi", "5mukhi", "5 face", "mukhi 5"
-  const digitMatch = text.match(/(\d+)\s*(?:mukhi|muki|face|facet|mukha)/i) || 
-                     text.match(/(?:mukhi|muki|face)\s*(\d+)/i);
+  const digitMatch = text.match(/(?:^|[^\d-])(\d{1,2})\s*(?:mukhi|muki|face|facet|mukha)/i) || 
+                     text.match(/(?:mukhi|muki|face)\s*(\d{1,2})/i);
   if (digitMatch && digitMatch[1]) {
     const num = parseInt(digitMatch[1], 10);
     if (num >= 1 && num <= 21) return String(num);
@@ -814,6 +857,7 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
   }
 
   const text = String(message).toLowerCase().trim();
+  const mukhiRange = extractMukhiRange(text);
   const targetMukhi = extractMukhiNumber(text);
 
   let maxPrice = Infinity;
@@ -825,36 +869,98 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
     maxPrice = 1600;
   }
 
-  // 1. If a specific Mukhi or Bead was asked, search for exact match in store inventory
+  // 0. Range Query (e.g. "1-14 mukhi", "1 se 14 mukhi", "sabhi rudraksha")
+  if (mukhiRange && mukhiRange.numbers?.length > 0) {
+    const rangeMatched = [];
+    const seenIds = new Set();
+    for (const num of mukhiRange.numbers) {
+      const regex = new RegExp(`(?:^|[^0-9])${num}(?:\\s*-|\\s*)mukhi\\b`, "i");
+      const matches = allProducts.filter(p => {
+        if (!p || p.inStock === false || Number(p.stock) === 0) return false;
+        const n = `${p.name || ""} ${p.slug || ""}`.toLowerCase();
+        return regex.test(n) || String(p.mukhi || "").trim() === String(num);
+      });
+      for (const m of matches) {
+        const mId = String(m.id || m._id || m.slug || "");
+        if (mId && !seenIds.has(mId)) {
+          seenIds.add(mId);
+          rangeMatched.push(m);
+          break;
+        }
+      }
+    }
+    if (rangeMatched.length < 6) {
+      for (const p of allProducts) {
+        if (!p || p.inStock === false || Number(p.stock) === 0) continue;
+        const mId = String(p.id || p._id || p.slug || "");
+        if (!mId || seenIds.has(mId)) continue;
+        if (/rudraksh/i.test(`${p.name || ""} ${p.category || ""}`)) {
+          seenIds.add(mId);
+          rangeMatched.push(p);
+        }
+        if (rangeMatched.length >= 6) break;
+      }
+    }
+    return rangeMatched.slice(0, 6);
+  }
+
+  // 1. If a specific Mukhi or Bead was asked, collect primary + variants from store inventory
   if (targetMukhi) {
     const { available, product } = isProductInStoreCatalog(targetMukhi, allProducts);
     if (available && product) {
-      return [product];
+      const pNum = parseInt(targetMukhi, 10);
+      const variants = !isNaN(pNum)
+        ? allProducts.filter(p => {
+            if (!p || p.inStock === false || Number(p.stock) === 0) return false;
+            const pid = String(p.id || p._id || p.slug || "");
+            const mainId = String(product.id || product._id || product.slug || "");
+            if (pid === mainId) return false;
+            const n = `${p.name || ""} ${p.slug || ""}`.toLowerCase();
+            return new RegExp(`(?:^|[^0-9])${pNum}(?:\\s*-|\\s*)mukhi\\b`, "i").test(n);
+          })
+        : [];
+      return [product, ...variants].slice(0, 4);
     }
-    // If not available in store, return empty array so that Aura AI does not falsely attach the wrong product!
     return [];
   }
 
-  // 2. Astrological / Topic / Benefit scoring
+  // 2. Astrological / Topic / Benefit / Token / Price scoring
+  const stopWords = new Set(["rudraksha", "rudraksh", "mukhi", "price", "rate", "kitne", "kya", "hai", "ka", "ki", "ke", "batao", "show", "dikhao", "buy", "kharido", "order", "please", "mujhe", "chahiye", "cost", "the", "for", "and", "with"]);
+  const queryTokens = text
+    .replace(/[^\w\s\u0900-\u097F-]/g, " ")
+    .split(/\s+/)
+    .filter(t => t.length >= 3 && !stopWords.has(t));
+
   const scored = allProducts.map(prod => {
     let score = 0;
     const nameLower = (prod.name || "").toLowerCase();
+    const slugLower = (prod.slug || "").toLowerCase();
+    const catLower = (prod.category || "").toLowerCase();
     const highlightLower = (prod.highlight || "").toLowerCase();
     const tagsLower = Array.isArray(prod.tags) ? prod.tags.join(" ").toLowerCase() : "";
-    const combinedDesc = `${nameLower} ${highlightLower} ${tagsLower}`;
+    const combinedDesc = `${nameLower} ${slugLower} ${catLower} ${highlightLower} ${tagsLower}`;
     const price = Number(prod.price) || 0;
 
-    // 1. Graha, Planetary & Mahadasha Exact Matches (Authoritative Parashari Mappings)
+    // Token matches on real product names/categories/slugs
+    for (const tok of queryTokens) {
+      if (nameLower.includes(tok) || slugLower.includes(tok)) score += 65;
+      else if (catLower.includes(tok) || tagsLower.includes(tok)) score += 35;
+    }
+
+    // Word-boundary helper so substrings like "rudraksha" never match "raksha", or "andar" never match "dar"
+    const hasWord = (w) => new RegExp(`(?:^|[^a-z0-9])${w}(?:$|[^a-z0-9])`, "i").test(text);
+
+    // 1. Graha, Planetary & Mahadasha Exact Matches
     if (text.includes("guru") || text.includes("brihaspati") || text.includes("jupiter") || text.includes("गुरु") || text.includes("बृहस्पति")) {
       if (nameLower.includes("5 mukhi") || nameLower.includes("paanch")) score += 120;
     }
     if (text.includes("chandra") || text.includes("moon") || text.includes("चंद्र")) {
       if (nameLower.includes("2 mukhi") || nameLower.includes("do mukhi")) score += 120;
     }
-    if (text.includes("surya") || text.includes("sun") || text.includes("सूर्य") || text.includes("aatambal") || text.includes("आत्मबल") || text.includes("tejas")) {
+    if (hasWord("surya") || hasWord("sun") || text.includes("सूर्य") || text.includes("aatambal") || text.includes("आत्मबल") || text.includes("tejas")) {
       if (nameLower.includes("1 mukhi") || nameLower.includes("12 mukhi")) score += 110;
     }
-    if (text.includes("mangal") || text.includes("mars") || text.includes("मंगल") || text.includes("manglik")) {
+    if (text.includes("mangal") || hasWord("mars") || text.includes("मंगल") || text.includes("manglik")) {
       if (nameLower.includes("3 mukhi") || nameLower.includes("11 mukhi")) score += 110;
     }
     if (text.includes("budh") || text.includes("mercury") || text.includes("बुध")) {
@@ -875,49 +981,55 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
     if (text.includes("gauri shankar") || text.includes("vivah") || text.includes("shadi") || text.includes("marriage") || text.includes("rishta") || text.includes("विवाह")) {
       if (nameLower.includes("gauri shankar") || nameLower.includes("2 mukhi")) score += 110;
     }
+    if (text.includes("sphatik") || text.includes("spatika") || text.includes("crystal") || text.includes("स्फटिक")) {
+      if (combinedDesc.includes("sphatik") || combinedDesc.includes("spatika") || combinedDesc.includes("crystal")) score += 120;
+    }
+    if (text.includes("bracelet") || text.includes("wrist") || text.includes("kada") || text.includes("ब्रेसलेट")) {
+      if (combinedDesc.includes("bracelet") || combinedDesc.includes("wrist")) score += 110;
+    }
 
     // Rashi Matches
-    if (text.includes("mesh") || text.includes("aries") || text.includes("vrischika") || text.includes("scorpio")) {
+    if (hasWord("mesh") || hasWord("aries") || text.includes("vrischika") || text.includes("scorpio")) {
       if (nameLower.includes("11 mukhi") || nameLower.includes("3 mukhi")) score += 70;
     }
-    if (text.includes("vrishabh") || text.includes("taurus") || text.includes("tula") || text.includes("libra")) {
+    if (text.includes("vrishabh") || text.includes("taurus") || hasWord("tula") || text.includes("libra")) {
       if (nameLower.includes("7 mukhi") || nameLower.includes("6 mukhi")) score += 70;
     }
     if (text.includes("mithun") || text.includes("gemini") || text.includes("kanya") || text.includes("virgo")) {
       if (nameLower.includes("4 mukhi") || nameLower.includes("5 mukhi")) score += 70;
     }
-    if (text.includes("kark") || text.includes("cancer")) {
+    if (hasWord("kark") || text.includes("cancer")) {
       if (nameLower.includes("2 mukhi") || nameLower.includes("5 mukhi") || nameLower.includes("mala")) score += 70;
     }
-    if (text.includes("singh") || text.includes("leo")) {
+    if (hasWord("singh") || hasWord("leo")) {
       if (nameLower.includes("1 mukhi") || nameLower.includes("12 mukhi")) score += 70;
     }
-    if (text.includes("dhanu") || text.includes("sagittarius") || text.includes("meen") || text.includes("pisces")) {
+    if (text.includes("dhanu") || text.includes("sagittarius") || hasWord("meen") || text.includes("pisces")) {
       if (nameLower.includes("5 mukhi") || nameLower.includes("mala")) score += 70;
     }
-    if (text.includes("makar") || text.includes("capricorn") || text.includes("kumbh") || text.includes("aquarius") || text.includes("shani") || text.includes("sade sati")) {
+    if (text.includes("makar") || text.includes("capricorn") || text.includes("kumbh") || text.includes("aquarius")) {
       if (nameLower.includes("7 mukhi") || nameLower.includes("14 mukhi")) score += 70;
     }
 
     // Spiritual / Life Goals
-    if (text.includes("dhan") || text.includes("wealth") || text.includes("paisa") || text.includes("money") || text.includes("lakshmi") || text.includes("laxmi") || text.includes("business") || text.includes("vyapar") || text.includes("job") || text.includes("samriddhi") || text.includes("kuber")) {
+    if (hasWord("dhan") || text.includes("wealth") || text.includes("paisa") || text.includes("money") || text.includes("lakshmi") || text.includes("laxmi") || text.includes("business") || text.includes("vyapar") || hasWord("job") || text.includes("samriddhi") || text.includes("kuber")) {
       if (nameLower.includes("7 mukhi")) score += 95;
     }
 
-    if (text.includes("peace") || text.includes("shanti") || text.includes("stress") || text.includes("tension") || text.includes("bp") || text.includes("blood pressure") || text.includes("health") || text.includes("swasthya") || text.includes("neend") || text.includes("meditation") || text.includes("dhyan")) {
+    if (text.includes("peace") || text.includes("shanti") || text.includes("stress") || text.includes("tension") || hasWord("bp") || text.includes("blood pressure") || text.includes("health") || text.includes("swasthya") || text.includes("neend") || text.includes("meditation") || text.includes("dhyan")) {
       if (nameLower.includes("5 mukhi")) score += 95;
       if (nameLower.includes("mala")) score += 75;
     }
 
-    if (text.includes("hanuman") || text.includes("dar") || text.includes("fear") || text.includes("courage") || text.includes("himmat") || text.includes("raksha") || text.includes("protection") || text.includes("nazar") || text.includes("evil eye") || text.includes("suraksha")) {
+    if (text.includes("hanuman") || hasWord("dar") || hasWord("fear") || text.includes("courage") || text.includes("himmat") || hasWord("raksha") || text.includes("protection") || hasWord("nazar") || text.includes("evil eye") || text.includes("suraksha")) {
       if (nameLower.includes("11 mukhi")) score += 95;
     }
 
-    if (text.includes("moksha") || text.includes("leadership") || text.includes("supreme") || text.includes("collector") || text.includes("surya")) {
+    if (text.includes("moksha") || text.includes("leadership") || text.includes("supreme") || text.includes("collector")) {
       if (nameLower.includes("1 mukhi")) score += 95;
     }
 
-    if (text.includes("jaap") || text.includes("japa") || text.includes("mala") || text.includes("108") || text.includes("chanting") || text.includes("mantra") || text.includes("kanthi")) {
+    if (hasWord("jaap") || hasWord("japa") || hasWord("mala") || text.includes("108") || text.includes("chanting") || text.includes("mantra") || text.includes("kanthi")) {
       if (nameLower.includes("mala") || combinedDesc.includes("108")) score += 95;
     }
 
@@ -925,15 +1037,18 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
       if (nameLower.includes("4 mukhi") || nameLower.includes("5 mukhi")) score += 85;
     }
 
-    // Direct product catalog mentions
-    if (text.includes("best seller") || text.includes("popular") || text.includes("sabse achha") || text.includes("top")) {
+    // Direct product catalog / price mentions
+    if (text.includes("best seller") || text.includes("popular") || text.includes("sabse achha") || hasWord("top")) {
       if (prod.badge === "Best Seller" || nameLower.includes("5 mukhi")) score += 60;
     }
 
+    if (prod.badge === "Best Seller") score += 10;
+    if (prod.inStock !== false && Number(prod.stock) !== 0) score += 10;
+
     // Price filter
-    if (price <= maxPrice) {
-      if (maxPrice < Infinity) score += 30;
-    } else {
+    if (price > 0 && price <= maxPrice) {
+      if (maxPrice < Infinity) score += 45;
+    } else if (maxPrice < Infinity) {
       score -= 100;
     }
 
@@ -941,9 +1056,22 @@ export function searchRelevantCatalogProducts(message = "", allProducts = []) {
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const matched = scored.filter(s => s.score >= 50).map(s => s.product);
+  const strongMatched = scored.filter(s => s.score >= 50).map(s => s.product);
+  if (strongMatched.length > 0) {
+    return strongMatched.slice(0, 6);
+  }
 
-  return matched.slice(0, 2);
+  // Fallback for general catalog/price/buy queries ("rudraksha ki price batao", "rudraksha dikhao")
+  const isGeneralCatalogOrPriceAsk = /(price|cost|rate|kitne|kimat|dam|budget|under|rudraksh|mala|bracelet|kharid|buy|order|dikhao|batao|show|list|catalog|store|product)/i.test(text);
+  if (isGeneralCatalogOrPriceAsk) {
+    const budgetValid = scored
+      .filter(s => s.product && s.product.inStock !== false && Number(s.product.stock) !== 0 && (maxPrice === Infinity || Number(s.product.price) <= maxPrice))
+      .map(s => s.product);
+    if (budgetValid.length > 0) return budgetValid.slice(0, 6);
+    return allProducts.filter(p => p && p.inStock !== false).slice(0, 6);
+  }
+
+  return [];
 }
 
 /**

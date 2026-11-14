@@ -213,6 +213,9 @@ export function Shop() {
 
   useEffect(() => {
     loadProducts();
+    const shopVisitTimer = setTimeout(() => {
+      db.logVisit({ path: typeof window !== "undefined" ? window.location.pathname : "/shop" });
+    }, 1500);
 
     const intervalId = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
@@ -233,6 +236,7 @@ export function Shop() {
     });
 
     return () => {
+      clearTimeout(shopVisitTimer);
       clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleFocus);

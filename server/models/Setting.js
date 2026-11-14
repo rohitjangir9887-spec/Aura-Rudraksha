@@ -94,3 +94,20 @@ const analyticsSchema = new mongoose.Schema(
 );
 
 export const Analytics = mongoose.models.Analytics || mongoose.model("Analytics", analyticsSchema);
+
+const analyticsDailySchema = new mongoose.Schema(
+  {
+    dateKey: { type: String, required: true, unique: true, index: true }, // IST YYYY-MM-DD
+    pageViews: { type: Number, default: 0 },
+    productViews: { type: Number, default: 0 },
+    visitorKeys: { type: [String], default: [] }, // Unique hashed (deviceId + IP) or (IP + UA) per day
+    ipKeys: { type: [String], default: [] },      // Unique hashed IP addresses per day
+    hourlyBuckets: { type: mongoose.Schema.Types.Mixed, default: {} }, // Keyed "0".."23"
+    recentVisits: { type: [mongoose.Schema.Types.Mixed], default: [] }, // Bounded latest 60 events
+    lastUpdated: { type: String, default: () => new Date().toISOString() }
+  },
+  { timestamps: true }
+);
+
+export const AnalyticsDaily = mongoose.models.AnalyticsDaily || mongoose.model("AnalyticsDaily", analyticsDailySchema);
+
