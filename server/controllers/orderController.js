@@ -6,7 +6,14 @@ import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { recordProductSalesIncrement } from "./productController.js";
 import Customer from "../models/Customer.js";
-import { calculateOrderTotals } from "../services/pricingService.js";
+import {
+  calculateOrderTotals,
+  isStandardCatalogOrderItem,
+  findCatalogProductForItem,
+  getOrderItemStockField,
+  resolveCatalogProductsForItems,
+  buildStockAdjustBulkOps
+} from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
@@ -355,7 +362,9 @@ export async function createOrder(req, res, next) {
   const guestToken = isGuest ? crypto.randomBytes(24).toString("hex") : "";
   const effectiveAuthUserId = authUserId || `guest_${data.phone || data.customerPhone || data.customerEmail || req.ip || Date.now()}`;
 
-  const rawLines = data.lines || data.items || [];
+  const rawLines = (Array.isArray(data.lines) && data.lines.length > 0)
+    ? data.lines
+    : (Array.isArray(data.items) && data.items.length > 0 ? data.items : (Array.isArray(data.snapshotItems) ? data.snapshotItems : []));
   if (!Array.isArray(rawLines) || rawLines.length === 0) {
     return res.status(400).json({ success: false, message: "Order must contain valid items" });
   }
@@ -429,15 +438,11 @@ export async function createOrder(req, res, next) {
     }
 
     // Check stock for standard catalog items (custom handcrafted malas are assembled to order)
-    const standardOrderItems = totals.items.filter(
-      (item) => !item.isCustomMala && !String(item.id || "").startsWith("custom-mala-")
-    );
-    const itemIds = standardOrderItems.map(item => item.id);
-    const dbProducts = itemIds.length > 0 ? await Product.find({ id: { $in: itemIds } }) : [];
-    const productMap = new Map(dbProducts.map(p => [String(p.id), p]));
+    const standardOrderItems = totals.items.filter(isStandardCatalogOrderItem);
+    const dbProducts = standardOrderItems.length > 0 ? await resolveCatalogProductsForItems(standardOrderItems) : [];
 
     for (const item of standardOrderItems) {
-      const product = productMap.get(String(item.id));
+      const product = findCatalogProductForItem(dbProducts, item);
       const pStatus = (product?.status || "Published").toLowerCase();
       if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
         recentOrderSubmissions.delete(submissionKey);
@@ -447,12 +452,14 @@ export async function createOrder(req, res, next) {
           message: `Product '${item.name}' is no longer available.` 
         });
       }
-      if (product.stock !== undefined && product.stock < item.quantity) {
+      const stockField = getOrderItemStockField(product, item);
+      const availableStock = product[stockField];
+      if (availableStock !== undefined && availableStock !== null && Number(availableStock) < Number(item.quantity || 1)) {
         recentOrderSubmissions.delete(submissionKey);
         if (idempotencyKey) await releaseIdempotency({ key: idempotencyKey, action: "create_order" });
         return res.status(400).json({ 
           success: false, 
-          message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).` 
+          message: `Product '${product.name}' is out of stock (Available: ${availableStock}, Requested: ${item.quantity}).` 
         });
       }
     }
@@ -584,21 +591,24 @@ export async function createOrder(req, res, next) {
     let stockDecremented = false;
     let couponUsageIncremented = false;
 
-    const bulkOps = [];
-    for (const item of standardOrderItems) {
-      bulkOps.push({
-        updateOne: {
-          filter: { id: item.id, stock: { $gte: item.quantity } },
-          update: { $inc: { stock: -item.quantity } }
-        }
-      });
-    }
+    const bulkOps = await buildStockAdjustBulkOps(standardOrderItems, {
+      direction: -1,
+      requireAvailableStock: true
+    });
 
     try {
       await Promise.all([
         bulkOps.length > 0
-          ? Product.bulkWrite(bulkOps).then(() => {
-              stockDecremented = true;
+          ? Product.bulkWrite(bulkOps).then((bulkRes) => {
+              const matchedCount = bulkRes?.matchedCount ?? bulkRes?.nMatched ?? 0;
+              if (matchedCount > 0) {
+                stockDecremented = true;
+              }
+              if (matchedCount < bulkOps.length) {
+                const err = new Error("One or more items just went out of stock. Please review your cart.");
+                err.statusCode = 400;
+                throw err;
+              }
             })
           : Promise.resolve(),
         totals.appliedCoupon && totals.appliedCoupon.code
@@ -664,13 +674,13 @@ export async function createOrder(req, res, next) {
       // Fail closed: rollback stock and coupon increments if DB operation fails
       if (stockDecremented) {
         try {
-          const rollbackOps = totals.items.map(item => ({
-            updateOne: {
-              filter: { id: item.id },
-              update: { $inc: { stock: item.quantity } }
-            }
-          }));
-          await Product.bulkWrite(rollbackOps);
+          const rollbackOps = await buildStockAdjustBulkOps(standardOrderItems, {
+            direction: 1,
+            requireAvailableStock: false
+          });
+          if (rollbackOps.length > 0) {
+            await Product.bulkWrite(rollbackOps);
+          }
         } catch (_) {}
       }
       if (couponUsageIncremented && totals.appliedCoupon?.code) {
@@ -850,6 +860,28 @@ export async function updateOrder(req, res, next) {
       }
     } else {
       return res.status(403).json({ success: false, message: "Access Denied: You do not own this order" });
+    }
+
+    // Restore deducted inventory if transitioning into Cancelled state on an unpaid/COD order
+    const isTransitionToCancelled =
+      (updateFields.status === ORDER_STATES.CANCELLED || updateFields.orderStatus === ORDER_STATES.CANCELLED) &&
+      existing.status !== ORDER_STATES.CANCELLED &&
+      existing.orderStatus !== ORDER_STATES.CANCELLED &&
+      existing.inventoryDeducted &&
+      existing.paymentStatus !== PAYMENT_STATES.PAID;
+
+    if (isTransitionToCancelled) {
+      const itemsToRestock = existing.snapshotItems && existing.snapshotItems.length > 0
+        ? existing.snapshotItems
+        : (existing.items || []);
+      const restockOps = await buildStockAdjustBulkOps(itemsToRestock, {
+        direction: 1,
+        requireAvailableStock: false
+      });
+      if (restockOps.length > 0) {
+        await Product.bulkWrite(restockOps);
+      }
+      updateFields.inventoryDeducted = false;
     }
 
     const updated = await Order.findByIdAndUpdate(existing._id, { $set: updateFields }, { returnDocument: "after" });

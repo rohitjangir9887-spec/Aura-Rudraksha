@@ -928,8 +928,7 @@ export async function findProductForSeo(idOrSlug) {
 
       // Strategy 2: Exact Mukhi number extraction (e.g. "buy-original-7-mukhi...", "1-mukhi", "5-mukhi")
       const mukhiMatch = clean.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
-                         strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
-                         clean.match(/\b([1-9]|1[0-9]|20|21)\b/);
+                         strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
         candidates = await Product.find({
@@ -999,7 +998,7 @@ export async function findProductForSeo(idOrSlug) {
       const words = strippedSlug
         .replace(/[-_]+/g, " ")
         .split(/\s+/)
-        .filter(w => w.length >= 3 && !["authentic", "certified", "aura", "lab", "online", "buy", "product", "nepali", "original"].includes(w));
+        .filter(w => w.length >= 3 && /^[a-z]+$/.test(w) && !["authentic", "certified", "aura", "lab", "online", "buy", "product", "nepali", "original"].includes(w));
       
       if (words.length > 0) {
         const pattern = words.slice(0, 3).join(".*");

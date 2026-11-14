@@ -790,14 +790,9 @@ export function extractMukhiNumber(message = "") {
 
   // 2. Hindi word match: "ikkis mukhi", "saat mukhi", "gyarah mukhi", "ek mukhi"
   for (const [word, num] of Object.entries(HINDI_NUMBER_WORDS)) {
-    const regex = new RegExp(`\\b${word}\\s*(?:mukhi|muki|face|mukha)?\\b`, "i");
-    if (regex.test(text)) {
-      if (text.includes("mukhi") || text.includes("rudraksha") || text.includes("rudraksh") || [
-        "ek", "do", "teen", "chaar", "paanch", "chhe", "saat", "aath", "nau", "das",
-        "gyarah", "barah", "terah", "chaudah", "pandrah", "solah", "satrah", "atharah", "unnis", "bees", "ikkis"
-      ].includes(word)) {
-        return String(num);
-      }
+    const strictMukhiRegex = new RegExp(`\\b${word}\\s*-?\\s*(?:mukhi|muki|face|mukha)\\b`, "i");
+    if (strictMukhiRegex.test(text)) {
+      return String(num);
     }
   }
 

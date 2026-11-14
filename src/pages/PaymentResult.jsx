@@ -424,7 +424,7 @@ export function PaymentResult() {
       }
     } catch (err) {
       console.error(err);
-      emitToast("An error occurred while retrying the payment.", "error");
+      emitToast(err?.message || "An error occurred while retrying the payment.", "error");
       setRetrying(false);
     }
   };

@@ -409,8 +409,7 @@ export async function getProductById(req, res, next) {
     if (!product) {
       // Secondary search in MongoDB by mukhi number or exact slugified name
       const mukhiMatch = cleanTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
-                         strippedTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
-                         cleanTarget.match(/\b([1-9]|1[0-9]|20|21)\b/);
+                         strippedTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
       if (mukhiMatch && mukhiMatch[1]) {
         const mNum = parseInt(mukhiMatch[1], 10);
         candidates = await Product.find({

@@ -4,7 +4,6 @@ import { Setting } from "../models/Setting.js";
 import { ActiveOffer, Promotion, Offer } from "../models/Promotion.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
-import { defaultCoupons, defaultProducts } from "../data/defaultData.js";
 import { isCustomMalaLine, calculateCustomMalaPricing, sanitizeCustomMalaConfig } from "../../shared/customMalaCatalog.js";
 
 /**
@@ -133,11 +132,8 @@ export async function getAuthoritativeProducts(productIds = []) {
     }
   }
 
-  // Supplement any missing products from in-memory store and default catalog
-  const fallbackPool = [
-    ...((inMemoryStore && Array.isArray(inMemoryStore.products)) ? inMemoryStore.products : []),
-    ...(Array.isArray(defaultProducts) ? defaultProducts : [])
-  ];
+  // Supplement any missing products ONLY from synced/live in-memory store (never leaked demo products)
+  const fallbackPool = (inMemoryStore && Array.isArray(inMemoryStore.products)) ? inMemoryStore.products : [];
   for (const cid of cleanIds) {
     const alreadyFound = Array.from(resultsMap.values()).some(
       p => String(p.id) === cid || String(p._id) === cid || String(p.slug) === cid
@@ -153,6 +149,137 @@ export async function getAuthoritativeProducts(productIds = []) {
   }
 
   return Array.from(resultsMap.values());
+}
+
+/**
+ * Shared Order/Payment Catalog Item & Stock Resolution Helpers
+ * Handles standard IDs, Indonesian variants ("-indo"/"_indo"), slugs,
+ * "product-"/"product-card-" prefixes, and Mongo _id strings consistently.
+ */
+export function isStandardCatalogOrderItem(item) {
+  if (!item) return false;
+  if (item.isCustomMala) return false;
+  const rawId = String(item.id || item.productId || "").trim();
+  return Boolean(rawId) && !rawId.startsWith("custom-mala-");
+}
+
+export function isIndonesianOrderItem(item) {
+  if (!item) return false;
+  const rawId = String(item.id || "").trim();
+  return Boolean(
+    item.isIndonesian ||
+    rawId.endsWith("-indo") ||
+    rawId.includes("_indo") ||
+    (typeof item.variant === "string" && item.variant.toLowerCase().includes("indonesian"))
+  );
+}
+
+export function extractLookupKeysForOrderItem(item) {
+  if (!item) return [];
+  const keys = new Set();
+  const candidates = [item.productId, item.id, item._id];
+  for (const c of candidates) {
+    const raw = String(c || "").trim();
+    if (!raw || raw.startsWith("custom-mala-")) continue;
+    keys.add(raw);
+    const noIndo = raw.replace(/-indo$|_indo$/i, "");
+    if (noIndo) keys.add(noIndo);
+    const stripped = noIndo.replace(/^(product-card-|product-)/i, "");
+    if (stripped) keys.add(stripped);
+  }
+  return Array.from(keys);
+}
+
+export function findCatalogProductForItem(catalog = [], item) {
+  if (!Array.isArray(catalog) || !item) return null;
+  const keys = extractLookupKeysForOrderItem(item);
+  if (keys.length === 0) return null;
+  for (const key of keys) {
+    const byId = catalog.find(p => p && String(p.id) === key);
+    if (byId) return byId;
+  }
+  for (const key of keys) {
+    const byMongoOrSlug = catalog.find(
+      p => p && (String(p._id) === key || String(p.slug) === key)
+    );
+    if (byMongoOrSlug) return byMongoOrSlug;
+  }
+  return null;
+}
+
+export function getOrderItemStockField(product, item) {
+  if (isIndonesianOrderItem(item) && product && product.indonesianStock !== undefined && product.indonesianStock !== null) {
+    return "indonesianStock";
+  }
+  return "stock";
+}
+
+export async function resolveCatalogProductsForItems(items = []) {
+  const standardItems = (Array.isArray(items) ? items : []).filter(isStandardCatalogOrderItem);
+  if (standardItems.length === 0 || !isDbConnected()) return [];
+
+  const allKeysSet = new Set();
+  for (const item of standardItems) {
+    for (const k of extractLookupKeysForOrderItem(item)) {
+      allKeysSet.add(k);
+    }
+  }
+  const allKeys = Array.from(allKeysSet);
+  if (allKeys.length === 0) return [];
+
+  const mongoIds = allKeys.filter(k => /^[0-9a-fA-F]{24}$/.test(k));
+  return Product.find({
+    $or: [
+      { id: { $in: allKeys } },
+      { slug: { $in: allKeys } },
+      ...(mongoIds.length > 0 ? [{ _id: { $in: mongoIds } }] : [])
+    ]
+  }).lean();
+}
+
+export async function buildStockAdjustBulkOps(items = [], { direction = -1, requireAvailableStock = true } = {}) {
+  const standardItems = (Array.isArray(items) ? items : []).filter(isStandardCatalogOrderItem);
+  if (standardItems.length === 0) return [];
+
+  const dbProducts = await resolveCatalogProductsForItems(standardItems);
+  const bulkOps = [];
+
+  for (const item of standardItems) {
+    const qty = Math.max(1, Number(item.qty || item.quantity) || 1);
+    const product = findCatalogProductForItem(dbProducts, item);
+
+    if (product) {
+      const stockField = getOrderItemStockField(product, item);
+      const hasStockField = product[stockField] !== undefined && product[stockField] !== null;
+      const filter = product._id ? { _id: product._id } : { id: product.id };
+      if (requireAvailableStock && direction < 0 && hasStockField) {
+        filter[stockField] = { $gte: qty };
+      }
+      bulkOps.push({
+        updateOne: {
+          filter,
+          update: { $inc: { [stockField]: direction * qty } }
+        }
+      });
+    } else {
+      const fallbackKeys = extractLookupKeysForOrderItem(item);
+      const fallbackId = fallbackKeys[0] || String(item.id || "").trim();
+      if (!fallbackId) continue;
+      const stockField = isIndonesianOrderItem(item) ? "indonesianStock" : "stock";
+      const filter = { id: fallbackId };
+      if (requireAvailableStock && direction < 0) {
+        filter[stockField] = { $gte: qty };
+      }
+      bulkOps.push({
+        updateOne: {
+          filter,
+          update: { $inc: { [stockField]: direction * qty } }
+        }
+      });
+    }
+  }
+
+  return bulkOps;
 }
 
 /**

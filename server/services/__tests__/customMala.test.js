@@ -8,6 +8,7 @@ import {
   MALA_BEAD_SIZES
 } from "../../../shared/customMalaCatalog.js";
 import { normalizeLines, calculateOrderTotals } from "../pricingService.js";
+import { inMemoryStore } from "../../data/inMemoryStore.js";
 
 describe("Custom Rudraksha Mala Catalog & Authoritative Pricing", () => {
   it("supports arbitrary quantities, large collector sizes, thread, and capping pricing", () => {
@@ -132,30 +133,39 @@ describe("Custom Rudraksha Mala Catalog & Authoritative Pricing", () => {
     expect(payload.customDescription).toContain("Nepali 5 Mukhi Real");
     expect(payload.price).toBe(2499 + 599 * 3);
 
-    // Server pricing recalculates from DB/defaultProducts, ignoring tampered client price
-    const totals = await calculateOrderTotals({
-      lines: [
-        {
-          id: payload.id,
-          isCustomMala: true,
-          customMala: {
-            products: [{ productId: "5", qty: 2 }],
-            thread: "red-silk",
-            capping: "none"
-          },
-          price: 1,
-          qty: 1
-        }
-      ]
-    });
+    // Server pricing recalculates from synced/DB catalog, ignoring tampered client price
+    const prevProducts = inMemoryStore.products;
+    const prevSynced = inMemoryStore.isProductsSyncedFromDb;
+    inMemoryStore.products = [storePool[1]];
+    inMemoryStore.isProductsSyncedFromDb = true;
+    try {
+      const totals = await calculateOrderTotals({
+        lines: [
+          {
+            id: payload.id,
+            isCustomMala: true,
+            customMala: {
+              products: [{ productId: "5", qty: 2 }],
+              thread: "red-silk",
+              capping: "none"
+            },
+            price: 1,
+            qty: 1
+          }
+        ]
+      });
 
-    expect(totals.items.length).toBe(1);
-    expect(totals.items[0].isCustomMala).toBe(true);
-    expect(totals.items[0].unitPrice).toBeGreaterThan(100);
-    expect(totals.subtotal).toBe(totals.items[0].unitPrice);
-    expect(Array.isArray(totals.items[0].customMalaItems)).toBe(true);
-    expect(totals.items[0].customMalaItems.length).toBe(1);
-    expect(totals.items[0].customMalaItems[0].qty).toBe(2);
+      expect(totals.items.length).toBe(1);
+      expect(totals.items[0].isCustomMala).toBe(true);
+      expect(totals.items[0].unitPrice).toBe(599 * 2);
+      expect(totals.subtotal).toBe(599 * 2);
+      expect(Array.isArray(totals.items[0].customMalaItems)).toBe(true);
+      expect(totals.items[0].customMalaItems.length).toBe(1);
+      expect(totals.items[0].customMalaItems[0].qty).toBe(2);
+    } finally {
+      inMemoryStore.products = prevProducts;
+      inMemoryStore.isProductsSyncedFromDb = prevSynced;
+    }
   });
 
   it("includes ALL selected Rudraksha varieties (even > 4) without truncation and preserves historical snapshot", () => {

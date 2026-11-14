@@ -7,6 +7,7 @@ import {
   findProductForSeo
 } from "../seoService.js";
 import { inMemoryStore } from "../../data/inMemoryStore.js";
+import { calculateOrderTotals } from "../pricingService.js";
 
 describe("Direct Product Link SEO & Image Resolution", () => {
   beforeEach(() => {
@@ -79,5 +80,33 @@ describe("Direct Product Link SEO & Image Resolution", () => {
   it("never falls back to demo defaultProducts in findProductForSeo when store is empty/unsynced", async () => {
     const res = await findProductForSeo("non-existent-demo-product-slug-xyz");
     expect(res).toBeNull();
+  });
+
+  it("never resolves gibberish slug '11-49o' to 11 Mukhi Rudraksha", async () => {
+    const prod11 = {
+      id: "11",
+      name: "11 Mukhi Rudraksha",
+      slug: "11-mukhi-rudraksha",
+      mukhi: "11",
+      status: "Published",
+      img: "https://example.com/11.webp"
+    };
+
+    expect(matchProductFromCatalog([prod11], "11-49o")).toBeNull();
+    expect(matchProductFromCatalog([prod11], "11-mukhi-rudraksha")?.id).toBe("11");
+
+    inMemoryStore.isProductsSyncedFromDb = true;
+    inMemoryStore.products = [prod11];
+    expect(await findProductForSeo("11-49o")).toBeNull();
+    expect((await findProductForSeo("11-mukhi-rudraksha"))?.id).toBe("11");
+  });
+
+  it("never leaks hardcoded demo defaultProducts in pricingService when store is empty", async () => {
+    inMemoryStore.isProductsSyncedFromDb = false;
+    inMemoryStore.products = [];
+    const totals = await calculateOrderTotals({ lines: [{ id: "11", qty: 1 }] });
+    expect(totals.items).toHaveLength(0);
+    expect(totals.unavailableItems).toHaveLength(1);
+    expect(totals.finalTotal).toBe(0);
   });
 });

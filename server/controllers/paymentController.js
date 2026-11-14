@@ -8,7 +8,14 @@ import { WebhookEvent } from "../models/WebhookEvent.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { recordProductSalesIncrement } from "./productController.js";
-import { calculateOrderTotals } from "../services/pricingService.js";
+import {
+  calculateOrderTotals,
+  isStandardCatalogOrderItem,
+  findCatalogProductForItem,
+  getOrderItemStockField,
+  resolveCatalogProductsForItems,
+  buildStockAdjustBulkOps
+} from "../services/pricingService.js";
 import { generateNextOrderNumber } from "../services/orderSequenceService.js";
 import {
   getPayuConfig,
@@ -165,7 +172,9 @@ export async function initiatePayuPayment(req, res, next) {
     const isGuest = !authUserId;
     const guestToken = isGuest ? crypto.randomBytes(24).toString("hex") : "";
     const effectiveAuthUserId = authUserId || `guest_${data.phone || data.customerEmail || req.ip || Date.now()}`;
-    const rawLines = data.lines || data.items || [];
+    const rawLines = (Array.isArray(data.lines) && data.lines.length > 0)
+      ? data.lines
+      : (Array.isArray(data.items) && data.items.length > 0 ? data.items : (Array.isArray(data.snapshotItems) ? data.snapshotItems : []));
 
     if (!Array.isArray(rawLines) || rawLines.length === 0) {
       return res.status(400).json({ success: false, message: "Order must contain valid items" });
@@ -194,15 +203,11 @@ export async function initiatePayuPayment(req, res, next) {
     }
 
     // Verify stock availability for standard catalog items (custom malas are hand-strung on order)
-    const standardPaymentItems = totals.items.filter(
-      (i) => !i.isCustomMala && !String(i.id || "").startsWith("custom-mala-")
-    );
-    const productIds = standardPaymentItems.map(i => i.id);
-    const dbProducts = productIds.length > 0 ? await Product.find({ id: { $in: productIds } }).lean() : [];
-    const productMap = new Map(dbProducts.map(p => [p.id, p]));
+    const standardPaymentItems = totals.items.filter(isStandardCatalogOrderItem);
+    const dbProducts = standardPaymentItems.length > 0 ? await resolveCatalogProductsForItems(standardPaymentItems) : [];
 
     for (const item of standardPaymentItems) {
-      const product = productMap.get(item.id);
+      const product = findCatalogProductForItem(dbProducts, item);
       const pStatus = (product?.status || "Published").toLowerCase();
       if (!product || pStatus === "draft" || pStatus === "inactive" || pStatus === "archived") {
         return res.status(400).json({
@@ -210,10 +215,12 @@ export async function initiatePayuPayment(req, res, next) {
           message: `Product '${item.name}' is no longer available.`
         });
       }
-      if (product.stock !== undefined && product.stock < item.quantity) {
+      const stockField = getOrderItemStockField(product, item);
+      const availableStock = product[stockField];
+      if (availableStock !== undefined && availableStock !== null && Number(availableStock) < Number(item.quantity || 1)) {
         return res.status(400).json({
           success: false,
-          message: `Product '${product.name}' is out of stock (Available: ${product.stock}, Requested: ${item.quantity}).`
+          message: `Product '${product.name}' is out of stock (Available: ${availableStock}, Requested: ${item.quantity}).`
         });
       }
     }
@@ -612,18 +619,10 @@ export async function handlePayuCallback(req, res) {
         { returnDocument: "before" }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-        const bulkOps = [];
-        for (const item of order.snapshotItems) {
-          if (item.id && !item.isCustomMala && !String(item.id).startsWith("custom-mala-")) {
-            const qty = Math.max(1, item.qty || item.quantity || 1);
-            bulkOps.push({
-              updateOne: {
-                filter: { id: item.id, stock: { $gte: qty } },
-                update: { $inc: { stock: -qty } }
-              }
-            });
-          }
-        }
+        const bulkOps = await buildStockAdjustBulkOps(order.snapshotItems, {
+          direction: -1,
+          requireAvailableStock: true
+        });
         if (bulkOps.length > 0) {
           const bulkRes = await Product.bulkWrite(bulkOps);
           const matchedCount = bulkRes?.matchedCount ?? bulkRes?.nMatched ?? 0;
@@ -995,18 +994,10 @@ export async function handlePayuWebhook(req, res) {
         { returnDocument: "before" }
       );
       if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-        const bulkOps = [];
-        for (const item of order.snapshotItems) {
-          if (item.id && !item.isCustomMala && !String(item.id).startsWith("custom-mala-")) {
-            const qty = Math.max(1, item.qty || item.quantity || 1);
-            bulkOps.push({
-              updateOne: {
-                filter: { id: item.id, stock: { $gte: qty } },
-                update: { $inc: { stock: -qty } }
-              }
-            });
-          }
-        }
+        const bulkOps = await buildStockAdjustBulkOps(order.snapshotItems, {
+          direction: -1,
+          requireAvailableStock: true
+        });
         if (bulkOps.length > 0) {
           await Product.bulkWrite(bulkOps);
         }
@@ -1232,18 +1223,10 @@ export async function verifyPaymentStatus(req, res, next) {
             );
 
             if (stockClaim && !stockClaim.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-              const bulkOps = [];
-              for (const item of order.snapshotItems) {
-                if (item.id) {
-                  const qty = Math.max(1, item.qty || item.quantity || 1);
-                  bulkOps.push({
-                    updateOne: {
-                      filter: { id: item.id, stock: { $gte: qty } },
-                      update: { $inc: { stock: -qty } }
-                    }
-                  });
-                }
-              }
+              const bulkOps = await buildStockAdjustBulkOps(order.snapshotItems, {
+                direction: -1,
+                requireAvailableStock: true
+              });
               if (bulkOps.length > 0) {
                 await Product.bulkWrite(bulkOps);
               }
@@ -1356,16 +1339,27 @@ export async function verifyPaymentStatus(req, res, next) {
     return res.json({
       success: true,
       data: {
+        id: currentOrder.id || currentOrder.orderNumber,
         orderId: currentOrder.orderNumber || currentOrder.id,
         orderNumber: currentOrder.orderNumber || currentOrder.id,
+        guestToken: currentOrder.guestToken || "",
         paymentStatus: currentOrder.paymentStatus,
         status: currentOrder.status,
         orderStatus: currentOrder.orderStatus,
         txnid: currentOrder.txnid,
         mihpayid: currentOrder.mihpayid,
         amount: currentOrder.finalAmount || currentOrder.total,
+        finalAmount: currentOrder.finalAmount || currentOrder.total,
+        total: currentOrder.total || currentOrder.finalAmount,
+        currency: "INR",
+        customerName: currentOrder.customerName || "",
+        customerEmail: currentOrder.customerEmail || "",
+        customerPhone: currentOrder.customerPhone || currentOrder.phone || "",
+        items: currentOrder.items || currentOrder.snapshotItems || [],
+        snapshotItems: currentOrder.snapshotItems || currentOrder.items || [],
         amountRefunded: currentOrder.amountRefunded || 0,
         paymentMethod: currentOrder.paymentMethod,
+        paymentMode: currentOrder.paymentMode || "",
         refundHistory: (currentOrder.refundHistory || []).map(r => ({
           refundId: r.refundId,
           amount: r.amount,
@@ -1457,21 +1451,28 @@ export async function retryPayuPayment(req, res, next) {
 
     // Verify item stock availability before allowing retry payment
     if (order.snapshotItems && Array.isArray(order.snapshotItems)) {
-      const standardSnapshot = order.snapshotItems.filter(
-        (i) => i.id && !i.isCustomMala && !String(i.id).startsWith("custom-mala-")
-      );
-      const itemIds = standardSnapshot.map(i => i.id);
-      if (itemIds.length > 0) {
-        const dbProducts = await Product.find({ id: { $in: itemIds } }).lean();
-        const productMap = new Map(dbProducts.map(p => [p.id, p]));
+      const standardSnapshot = order.snapshotItems.filter(isStandardCatalogOrderItem);
+      if (standardSnapshot.length > 0) {
+        const dbProducts = await resolveCatalogProductsForItems(standardSnapshot);
         for (const item of standardSnapshot) {
-          const product = productMap.get(item.id);
+          const product = findCatalogProductForItem(dbProducts, item);
           const qty = Math.max(1, item.qty || item.quantity || 1);
-          if (product && product.stock !== undefined && product.stock < qty) {
+          const pStatus = (product?.status || "Published").toLowerCase();
+          if (product && (pStatus === "draft" || pStatus === "inactive" || pStatus === "archived")) {
             return res.status(400).json({
               success: false,
-              message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${product.stock}, Needed: ${qty}). Cannot retry payment.`
+              message: `Product '${product.name || item.name || "Item"}' is no longer available.`
             });
+          }
+          if (product) {
+            const stockField = getOrderItemStockField(product, item);
+            const availableStock = product[stockField];
+            if (availableStock !== undefined && availableStock !== null && Number(availableStock) < qty) {
+              return res.status(400).json({
+                success: false,
+                message: `Product '${product.name || item.name || "Item"}' is out of stock (Available: ${availableStock}, Needed: ${qty}). Cannot retry payment.`
+              });
+            }
           }
         }
       }
@@ -1845,18 +1846,10 @@ export async function processPayuRefund(req, res, next) {
 
     // Restock inventory only on full refund
     if (isFullRefund && order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-      const bulkOps = [];
-      for (const item of order.snapshotItems) {
-        if (item.id) {
-          const qty = Math.max(1, item.qty || item.quantity || 1);
-          bulkOps.push({
-            updateOne: {
-              filter: { id: item.id },
-              update: { $inc: { stock: qty } }
-            }
-          });
-        }
-      }
+      const bulkOps = await buildStockAdjustBulkOps(order.snapshotItems, {
+        direction: 1,
+        requireAvailableStock: false
+      });
       if (bulkOps.length > 0) {
         await Product.bulkWrite(bulkOps);
       }
@@ -1969,18 +1962,10 @@ export async function cancelUnpaidOrder(req, res, next) {
 
     // If stock was somehow deducted earlier, restore it
     if (order.inventoryDeducted && order.snapshotItems && Array.isArray(order.snapshotItems)) {
-      const bulkOps = [];
-      for (const item of order.snapshotItems) {
-        if (item.id) {
-          const qty = Math.max(1, item.qty || item.quantity || 1);
-          bulkOps.push({
-            updateOne: {
-              filter: { id: item.id },
-              update: { $inc: { stock: qty } }
-            }
-          });
-        }
-      }
+      const bulkOps = await buildStockAdjustBulkOps(order.snapshotItems, {
+        direction: 1,
+        requireAvailableStock: false
+      });
       if (bulkOps.length > 0) {
         await Product.bulkWrite(bulkOps);
       }

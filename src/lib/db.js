@@ -2300,7 +2300,7 @@ export const db = {
       method: "POST",
       headers,
       body: JSON.stringify({ txnid, guestToken: gToken }),
-      requiresAuth: true
+      requiresAuth: false
     });
     if (!res?.success) {
       throw new Error(res?.message || "Failed to generate PayU payment retry.");

@@ -12,8 +12,13 @@ import {
   initiatePayuPayment,
   handlePayuCallback,
   handlePayuWebhook,
-  handlePayuCancel
+  handlePayuCancel,
+  verifyPaymentStatus,
+  retryPayuPayment
 } from "../../controllers/paymentController.js";
+import { createOrder } from "../../controllers/orderController.js";
+import { getProductById } from "../../controllers/productController.js";
+import { findProductForSeo } from "../../services/seoService.js";
 
 function mockReqRes({ body = {}, query = {}, params = {}, headers = {} }) {
   const req = {
@@ -628,6 +633,194 @@ describe("PayU Callback & Webhook Security & Idempotency Suite", () => {
     expect(paidOrder.paymentStatus).toBe("Paid");
     expect(paidOrder.orderStatus).toBe("Confirmed");
     expect(paidOrder.notes || "").not.toContain("INVENTORY_CONFLICT");
+  });
+
+  test("16. Indonesian (-indo) Variant & Slug-ID: Initiate, PayU Callback, Retry & Verify update indonesianStock cleanly without false conflicts", async () => {
+    if (!mongodAvailable) return;
+
+    await Product.create({
+      id: "14",
+      name: "14 Mukhi Nepali Rudraksha",
+      slug: "14-mukhi-rudraksha",
+      price: 25000,
+      stock: 5,
+      hasIndonesianVariant: true,
+      indonesianTitle: "14 Mukhi Java Indonesian Rudraksha",
+      indonesianPrice: 4500,
+      indonesianStock: 8,
+      status: "Published"
+    });
+    await Product.create({
+      id: "7",
+      name: "7 Mukhi Nepali Rudraksha",
+      slug: "7-mukhi-rudraksha",
+      price: 1200,
+      stock: 10,
+      status: "Published"
+    });
+
+    const { req: initReq, res: initRes } = mockReqRes({
+      body: {
+        customerName: "Meera Joshi",
+        phone: "9811223344",
+        customerEmail: "meera@example.com",
+        lines: [
+          { id: "14-indo", qty: 2, variant: "Indonesian" },
+          { id: "7-mukhi-rudraksha", qty: 1 }
+        ]
+      }
+    });
+    initReq.ip = "127.0.0.1";
+
+    let initErr = null;
+    await initiatePayuPayment(initReq, initRes, (e) => { initErr = e; });
+    expect(initErr).toBeNull();
+    expect(initRes.statusCode).toBe(200);
+    expect(initRes.jsonData?.success).toBe(true);
+
+    const expectedAmount = 4500 * 2 + 1200;
+    expect(initRes.jsonData.data.amount).toBe(expectedAmount);
+
+    const orderId = initRes.jsonData.data.orderId;
+    const txnid = initRes.jsonData.data.txnid;
+    const guestToken = initRes.jsonData.data.guestToken;
+
+    // Test retryPayuPayment succeeds cleanly on -indo + slug order before payment
+    const { req: retryReq, res: retryRes } = mockReqRes({
+      params: { orderId },
+      headers: { "x-guest-token": guestToken },
+      body: { txnid, guestToken }
+    });
+    let retryErr = null;
+    await retryPayuPayment(retryReq, retryRes, (e) => { retryErr = e; });
+    expect(retryErr).toBeNull();
+    expect(retryRes.statusCode).toBe(200);
+    expect(retryRes.jsonData?.success).toBe(true);
+    const retryTxnid = retryRes.jsonData.data.txnid;
+
+    // Complete payment via PayU callback using retryTxnid
+    vi.spyOn(payuService, "verifyPayuPaymentServerSide").mockResolvedValue({
+      success: true,
+      isPaid: true,
+      amount: expectedAmount,
+      mihpayid: "MIH_INDO_16",
+      bankRefNum: "BANK_INDO_16",
+      mode: "UPI"
+    });
+
+    const cbWithoutHash = {
+      key: TEST_KEY,
+      txnid: retryTxnid,
+      amount: expectedAmount.toFixed(2),
+      productinfo: retryRes.jsonData.data.params.productinfo,
+      firstname: retryRes.jsonData.data.params.firstname,
+      email: retryRes.jsonData.data.params.email,
+      status: "success",
+      udf1: orderId,
+      udf2: retryRes.jsonData.data.params.udf2,
+      udf3: retryRes.jsonData.data.params.udf3,
+      mihpayid: "MIH_INDO_16"
+    };
+    const cbHash = generateResponseHash(cbWithoutHash, TEST_SALT);
+    const { req: cbReq, res: cbRes } = mockReqRes({ body: { ...cbWithoutHash, hash: cbHash } });
+    await handlePayuCallback(cbReq, cbRes);
+
+    expect(cbRes.statusCode).toBe(303);
+    expect(cbRes.redirectUrl).toContain("status=success");
+
+    const updated14 = await Product.findOne({ id: "14" });
+    const updated7 = await Product.findOne({ id: "7" });
+    expect(updated14.indonesianStock).toBe(6); // 8 - 2
+    expect(updated14.stock).toBe(5); // Nepali stock untouched
+    expect(updated7.stock).toBe(9); // 10 - 1
+
+    const paidOrder = await Order.findOne({ id: orderId });
+    expect(paidOrder.paymentStatus).toBe("Paid");
+    expect(paidOrder.notes || "").not.toContain("INVENTORY_CONFLICT");
+
+    // Verify verifyPaymentStatus returns complete order data
+    const { req: verReq, res: verRes } = mockReqRes({
+      params: { orderId },
+      query: { txnid: retryTxnid, guestToken }
+    });
+    let verErr = null;
+    await verifyPaymentStatus(verReq, verRes, (e) => { verErr = e; });
+    expect(verErr).toBeNull();
+    expect(verRes.statusCode).toBe(200);
+    expect(verRes.jsonData?.data?.paymentStatus).toBe("Paid");
+  });
+
+  test("17. COD Order Creation: Handles Indonesian (-indo) variant and Custom Mala properly", async () => {
+    if (!mongodAvailable) return;
+
+    await Product.create({
+      id: "14",
+      name: "14 Mukhi Nepali Rudraksha",
+      price: 25000,
+      stock: 5,
+      hasIndonesianVariant: true,
+      indonesianTitle: "14 Mukhi Java Indonesian Rudraksha",
+      indonesianPrice: 4500,
+      indonesianStock: 4,
+      status: "Published"
+    });
+
+    const { req, res } = mockReqRes({
+      body: {
+        firstName: "Rohan",
+        lastName: "Verma",
+        customerName: "Rohan Verma",
+        phone: "9822334455",
+        address: "12 Temple Road",
+        city: "Jaipur",
+        state: "Rajasthan",
+        pincode: "302001",
+        paymentMethod: "Cash on Delivery (COD)",
+        paymentMode: "COD",
+        lines: [{ id: "14-indo", qty: 1, variant: "Indonesian" }]
+      }
+    });
+    req.ip = "127.0.0.1";
+
+    let err = null;
+    await createOrder(req, res, (e) => { err = e; });
+    expect(err).toBeNull();
+    expect(res.statusCode).toBe(201);
+    expect(res.jsonData?.success).toBe(true);
+    expect(res.jsonData?.data?.paymentStatus).toBe("COD");
+    expect(res.jsonData?.data?.orderStatus).toBe("Confirmed");
+
+    const updated14 = await Product.findOne({ id: "14" });
+    expect(updated14.indonesianStock).toBe(3); // 4 - 1
+    expect(updated14.stock).toBe(5);
+  });
+
+  test("18. Gibberish slug '11-49o' returns 404 in getProductById and null in findProductForSeo even with Product 11 in MongoDB", async () => {
+    if (!mongodAvailable) return;
+
+    await Product.create({
+      id: "11",
+      name: "11 Mukhi Rudraksha",
+      slug: "11-mukhi-rudraksha",
+      mukhi: "11",
+      price: 5500,
+      stock: 10,
+      status: "Published"
+    });
+
+    const { req: badReq, res: badRes } = mockReqRes({ params: { id: "11-49o" }, query: {} });
+    await getProductById(badReq, badRes);
+    expect(badRes.statusCode).toBe(404);
+    expect(badRes.jsonData?.success).toBe(false);
+
+    const seoBad = await findProductForSeo("11-49o");
+    expect(seoBad).toBeNull();
+
+    // Valid slug still resolves
+    const { req: goodReq, res: goodRes } = mockReqRes({ params: { id: "11-mukhi-rudraksha" }, query: {} });
+    await getProductById(goodReq, goodRes);
+    expect(goodRes.statusCode).toBe(200);
+    expect(goodRes.jsonData?.data?.id).toBe("11");
   });
 });
 
