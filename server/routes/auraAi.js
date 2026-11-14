@@ -36,7 +36,9 @@ import {
   controlAdminTaskEndpoint,
   deleteAdminTaskEndpoint,
   getAdminVaultAndWorkLogs,
-  deleteAdminWorkLogEndpoint
+  deleteAdminWorkLogEndpoint,
+  getAdminDiagnosticsEndpoint,
+  getAdminGrowthAuditEndpoint
 } from "../controllers/adminAiAgentController.js";
 import { optionalAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -56,34 +58,36 @@ router.get("/conversations", optionalAuth, getAuraAIConversations);
 router.get("/conversations/:id", optionalAuth, getAuraAIConversationById);
 router.delete("/conversations/:id", optionalAuth, deleteAuraAIConversation);
 
-// Admin Autonomous Agent & Command Center endpoints
-router.post("/admin-chat", optionalAuth, handleAdminAgentChat);
-router.post("/admin-agent/chat", optionalAuth, handleAdminAgentChat);
-router.get("/admin-agent/session", optionalAuth, getAdminAgentSession);
-router.delete("/admin-agent/session/message/:messageId", optionalAuth, deleteAdminAgentMessage);
-router.delete("/admin-agent/session/clear", optionalAuth, clearAdminAgentSession);
-router.post("/admin-agent/action", optionalAuth, executeDirectAdminActionEndpoint);
-router.get("/admin-agent/actions", optionalAuth, getAdminActionLogsEndpoint);
-router.post("/admin-agent/actions/:actionId/undo", optionalAuth, undoAdminActionEndpoint);
-router.delete("/admin-agent/actions/:actionId", optionalAuth, deleteAdminActionLogEndpoint);
-router.get("/admin-agent/tasks", optionalAuth, getAdminTasksEndpoint);
-router.post("/admin-agent/tasks", optionalAuth, createAdminTaskEndpoint);
-router.post("/admin-agent/tasks/:taskId/control", optionalAuth, controlAdminTaskEndpoint);
-router.delete("/admin-agent/tasks/:taskId", optionalAuth, deleteAdminTaskEndpoint);
-router.get("/admin-agent/vault", optionalAuth, getAdminVaultAndWorkLogs);
-router.delete("/admin-agent/work-logs/:logId", optionalAuth, deleteAdminWorkLogEndpoint);
+// Admin Autonomous Agent & Command Center endpoints (Strictly Protected by requireAdmin)
+router.post("/admin-chat", requireAdmin, handleAdminAgentChat);
+router.post("/admin-agent/chat", requireAdmin, handleAdminAgentChat);
+router.get("/admin-agent/session", requireAdmin, getAdminAgentSession);
+router.delete("/admin-agent/session/message/:messageId", requireAdmin, deleteAdminAgentMessage);
+router.delete("/admin-agent/session/clear", requireAdmin, clearAdminAgentSession);
+router.post("/admin-agent/action", requireAdmin, executeDirectAdminActionEndpoint);
+router.get("/admin-agent/actions", requireAdmin, getAdminActionLogsEndpoint);
+router.post("/admin-agent/actions/:actionId/undo", requireAdmin, undoAdminActionEndpoint);
+router.delete("/admin-agent/actions/:actionId", requireAdmin, deleteAdminActionLogEndpoint);
+router.get("/admin-agent/tasks", requireAdmin, getAdminTasksEndpoint);
+router.post("/admin-agent/tasks", requireAdmin, createAdminTaskEndpoint);
+router.post("/admin-agent/tasks/:taskId/control", requireAdmin, controlAdminTaskEndpoint);
+router.delete("/admin-agent/tasks/:taskId", requireAdmin, deleteAdminTaskEndpoint);
+router.get("/admin-agent/vault", requireAdmin, getAdminVaultAndWorkLogs);
+router.get("/admin-agent/diagnostics", requireAdmin, getAdminDiagnosticsEndpoint);
+router.get("/admin-agent/growth-audit", requireAdmin, getAdminGrowthAuditEndpoint);
+router.delete("/admin-agent/work-logs/:logId", requireAdmin, deleteAdminWorkLogEndpoint);
 
-// Admin Settings & Analytics
-router.put("/settings", optionalAuth, updateAuraAISettings);
-router.get("/analytics", optionalAuth, getAuraAIAnalytics);
-router.get("/admin-intelligence", optionalAuth, getAdminAiIntelligence);
-router.post("/admin-intelligence", optionalAuth, getAdminAiIntelligence);
+// Admin Settings & Analytics (Strictly Protected by requireAdmin)
+router.put("/settings", requireAdmin, updateAuraAISettings);
+router.get("/analytics", requireAdmin, getAuraAIAnalytics);
+router.get("/admin-intelligence", requireAdmin, getAdminAiIntelligence);
+router.post("/admin-intelligence", requireAdmin, getAdminAiIntelligence);
 
-// Admin: Comprehensive AI Bot All Chats & MongoDB Status Endpoints
-router.get("/admin/all-chats", optionalAuth, getAdminAllAiChats);
-router.get("/admin/chats/:id", optionalAuth, getAdminAiChatTranscript);
-router.delete("/admin/chats/:id", optionalAuth, deleteAdminAiChat);
-router.delete("/admin/chats-clear", optionalAuth, clearAdminAiChats);
-router.get("/admin/db-health", optionalAuth, getAdminMongoDbCheck);
+// Admin: Comprehensive AI Bot All Chats & MongoDB Status Endpoints (Strictly Protected by requireAdmin)
+router.get("/admin/all-chats", requireAdmin, getAdminAllAiChats);
+router.get("/admin/chats/:id", requireAdmin, getAdminAiChatTranscript);
+router.delete("/admin/chats/:id", requireAdmin, deleteAdminAiChat);
+router.delete("/admin/chats-clear", requireAdmin, clearAdminAiChats);
+router.get("/admin/db-health", requireAdmin, getAdminMongoDbCheck);
 
 export default router;

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense, lazy } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles, Bot, ArrowLeft } from "lucide-react";
+import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles, Bot, ArrowLeft, Maximize2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAdminAuth } from "../hooks/useAdminAuth";
@@ -10,6 +10,10 @@ import { AdminNavLinks } from "./admin/AdminNavLinks";
 import { ADMIN_BASE_PATH } from "../lib/routes";
 import { preloadAllAdminRoutes } from "../lib/adminRoutePreloader";
 
+const LazyAdminAIAgentChat = lazy(() =>
+  import("./admin/AdminAIAgentChat").then((m) => ({ default: m.AdminAIAgentChat }))
+);
+
 export function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -17,6 +21,7 @@ export function AdminLayout({ children }) {
   const counts = useAdminMetrics();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
 
   useEffect(() => {
     preloadAllAdminRoutes();
@@ -130,25 +135,30 @@ export function AdminLayout({ children }) {
         </div>
 
         <div className="mobile-header-actions" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <Link
-            to="/admin/ai"
+          <button
+            type="button"
+            onClick={() => {
+              if (isDedicatedAiPage) return;
+              setAgentDrawerOpen(true);
+            }}
             className="mobile-store-icon"
-            title="Aura AI Chat Bot"
+            title="Aura AI Agent Copilot"
             style={{
               display: "flex",
               alignItems: "center",
               gap: "4px",
               fontSize: "12px",
               fontWeight: "700",
-              color: isDedicatedAiPage ? "#ffffff" : "#a84118",
-              background: isDedicatedAiPage ? "#7c2d12" : "#fff1f2",
+              color: isDedicatedAiPage || agentDrawerOpen ? "#ffffff" : "#a84118",
+              background: isDedicatedAiPage || agentDrawerOpen ? "#7c2d12" : "#fff1f2",
               padding: "6px 10px",
               borderRadius: "8px",
-              border: "1px solid #fecdd3"
+              border: "1px solid #fecdd3",
+              cursor: "pointer"
             }}
           >
-            <Bot size={14} /> AI Bot
-          </Link>
+            <Bot size={14} /> AI Agent
+          </button>
           <Link
             to="/"
             className="mobile-store-icon"
@@ -239,19 +249,24 @@ export function AdminLayout({ children }) {
             >
               <Bot size={14} /> AI Chats & Logs
             </Link>
-            <Link 
-              to="/admin/ai" 
-              className="view-store-pill" 
-              style={{
-                background: "#fff1f2", 
-                color: "#a84118", 
-                borderColor: "#fecdd3",
-                fontWeight: "700"
+            <button
+              type="button"
+              onClick={() => {
+                if (isDedicatedAiPage) return;
+                setAgentDrawerOpen((prev) => !prev);
               }}
-              title="AURA AI - Admin Agent"
+              className="view-store-pill"
+              style={{
+                background: isDedicatedAiPage || agentDrawerOpen ? "#7c2d12" : "#fff1f2",
+                color: isDedicatedAiPage || agentDrawerOpen ? "#ffffff" : "#a84118",
+                borderColor: isDedicatedAiPage || agentDrawerOpen ? "#7c2d12" : "#fecdd3",
+                fontWeight: "700",
+                cursor: "pointer"
+              }}
+              title="Open Autonomous Admin AI Agent Copilot"
             >
               <Sparkles size={14} /> Aura AI Agent
-            </Link>
+            </button>
             <Link to="/" className="view-store-pill" target="_blank">
               <Store size={14} /> Store Preview
             </Link>
@@ -323,6 +338,79 @@ export function AdminLayout({ children }) {
           <span>More</span>
         </button>
       </nav>
+
+      {/* On-Demand Lazy Autonomous AI Agent Copilot Drawer (Mounts ONLY when Admin opens it) */}
+      {agentDrawerOpen && !isDedicatedAiPage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9990,
+            background: "rgba(24, 14, 8, 0.45)",
+            display: "flex",
+            justifyContent: "flex-end"
+          }}
+          onClick={() => setAgentDrawerOpen(false)}
+        >
+          <div
+            style={{
+              width: "min(620px, 100vw)",
+              height: "100vh",
+              background: "#faf7f2",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "-8px 0 32px rgba(0,0,0,0.22)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "8px 14px",
+                background: "#fdfbf7",
+                borderBottom: "1px solid #e5d8c8",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                fontSize: "12px",
+                color: "#5c2b09"
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>
+                Copilot Context: {location.pathname}
+              </span>
+              <Link
+                to="/admin/ai"
+                onClick={() => setAgentDrawerOpen(false)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  color: "#7c2d12",
+                  fontWeight: 700,
+                  textDecoration: "none"
+                }}
+              >
+                <Maximize2 size={12} /> Full Command Center
+              </Link>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, padding: "10px" }}>
+              <Suspense
+                fallback={
+                  <div style={{ padding: "32px", textAlign: "center", color: "#7c2d12", fontSize: "13px", fontWeight: 600 }}>
+                    Waking Autonomous AI Agent...
+                  </div>
+                }
+              >
+                <LazyAdminAIAgentChat
+                  drawerMode
+                  pageContext={location.pathname}
+                  onCloseDrawer={() => setAgentDrawerOpen(false)}
+                />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

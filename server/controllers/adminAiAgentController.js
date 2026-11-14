@@ -19,6 +19,7 @@ import {
   invokeAdminLLM,
   getCompleteWebsiteSnapshot,
   runWebsiteBugDiagnostic,
+  runStoreGrowthAndHealthAudit,
   executeAdminAgentAction,
   undoAdminAgentAction,
   detectAndExecuteAdminIntents,
@@ -27,15 +28,12 @@ import {
   startAdminAgentBackgroundLoop
 } from "../services/adminAiAgentService.js";
 
-// Start background worker loop automatically when controller loads
-startAdminAgentBackgroundLoop();
-
 const DEFAULT_SESSION_ID = "admin_master_session";
 
 const WELCOME_MSG = {
   id: "amsg_welcome",
   sender: "ai",
-  text: "🙏 **Namaste Admin!** Main **Aura AI Autonomous Admin Agent** hoon (Powered by **NVIDIA NIM `nemotron-3-super-120b-a12b`** & Live MongoDB).\n\nMain aapke poore Admin Dashboard aur Website ko control kar sakta hoon:\n- 📦 **Product Upload & Listing**: Naya product chat se hi banao aur live preview dekho\n- 🖥️ **Live Page Preview in Chat**: Koi bhi Storefront ya Admin page chat ke andar hi dekho\n- 🐛 **Bug Scanner & Auto-Fix**: Website aur Database ke bugs check aur auto-repair karo\n- ✨ **Add New Website Features**: Storefront par Flash Sale Bar, Muhurat Ticker, ya VIP Banner lagao\n- ↩️ **1-Click Undo / Rollback**: AI jo bhi change kare, use 1-click mein wapas hatao\n- ⏱️ **Background Tasks (Works Offline)**: Task aur timer set karo — website band karne ke baad bhi server par kaam chalta rahega aur MongoDB mein save hoga!",
+  text: "**Aura Autonomous Admin Agent** active.\n\nMain aapke poore Aura Rudraksha Store aur MongoDB Database par direct Read/Write actions execute kar sakta hoon:\n- **Catalog & Pricing**: Naye products (Nepali/Indonesian) upload karo, price/stock badlo, ya sabhi items par **bulk % discount** lagao\n- **Orders & Tracking**: Pending/unpaid orders inspect karo, status update karo, tracking AWB & courier set karo\n- **Coupons, Active Offer & Banners**: Coupons create/pause/delete karo, Central Active Offer & Hero Banners control karo\n- **Payment & Store Settings**: Cash on Delivery (COD), Online PayU, shipping fee, ya announcement bar ON/OFF karo\n- **Bug Auto-Fix & Growth Copilot**: Store bugs scan/repair karo, VIP repeat buyers list, aur conversion insights dekho\n- **1-Click Undo & Live Preview**: Har change ke sath 1-click Undo backup aur live split-view preview",
   status: "completed",
   modelUsed: PRIMARY_NIM_MODEL,
   actionsExecuted: [],
@@ -77,7 +75,7 @@ async function getOrCreateSessionDoc(sessionId = DEFAULT_SESSION_ID) {
  */
 export async function handleAdminAgentChat(req, res) {
   try {
-    const { messages = [], sessionId = DEFAULT_SESSION_ID, prompt: directPrompt } = req.body || {};
+    const { messages = [], sessionId = DEFAULT_SESSION_ID, prompt: directPrompt, pageContext = "" } = req.body || {};
 
     let userText = directPrompt ? String(directPrompt).trim() : "";
     if (!userText && Array.isArray(messages) && messages.length > 0) {
@@ -97,7 +95,7 @@ export async function handleAdminAgentChat(req, res) {
       timestamp: new Date().toISOString()
     };
 
-    // 1. Immediately persist user message into MongoDB so even if browser closes, it's linked in DB
+    // 1. Immediately persist user message into MongoDB
     let sessionDoc = await getOrCreateSessionDoc(sessionId);
     const updatedMessagesWithUser = [...(sessionDoc.messages || []), userMsgObj];
 
@@ -119,7 +117,7 @@ export async function handleAdminAgentChat(req, res) {
     await recordPrivateWorkLog({
       category: "chat",
       status: "active",
-      title: `Admin Prompt Received (Saved to MongoDB)`,
+      title: `Admin Prompt Received`,
       detail: userText
     });
 
@@ -127,29 +125,30 @@ export async function handleAdminAgentChat(req, res) {
     const snapshot = await getCompleteWebsiteSnapshot();
     const pagesSummary = WEBSITE_PAGES_DIRECTORY.map(p => `${p.title}: ${p.route}`).join(" | ");
     const catalogLines = snapshot.products.slice(0, 35).map(p =>
-      `- [ID: ${p.id}] ${p.name} | Slug: ${p.slug} | Price: ₹${p.price} (MRP: ₹${p.comparePrice || p.mrp || p.price}) | Stock: ${p.stock ?? 25} | Cat: ${p.category}`
+      `- [ID: ${p.id}] ${p.name} | Slug: ${p.slug} | Price: ₹${p.price} (MRP: ₹${p.comparePrice || p.mrp || p.price}) | Stock: ${p.stock ?? 0} | Cat: ${p.category}`
     ).join("\n");
 
-    const ordersLines = snapshot.recentOrders.slice(0, 8).map(o =>
-      `- Order #${o.orderId || o.id} | Status: ${o.status} | Total: ₹${o.total || o.totalAmount || 0} | Customer: ${o.customerName || o.shippingAddress?.fullName || "Guest"}`
+    const ordersLines = snapshot.recentOrders.slice(0, 10).map(o =>
+      `- Order #${o.orderId || o.id} | Status: ${o.orderStatus || o.status} | Pay: ${o.paymentStatus || "Pending"} | Total: ₹${o.finalAmount || o.total || o.amount || 0} | Customer: ${o.customerName || "Guest"}`
     ).join("\n") || "No recent orders.";
 
     const couponsLines = snapshot.coupons.slice(0, 10).map(c =>
       `- Code: ${c.code} | Discount: ${c.discountValue}${c.discountType === "percentage" ? "%" : "₹"} | Active: ${c.isActive !== false}`
     ).join("\n") || "No coupons.";
 
-    const systemPrompt = `You are Aura AI Autonomous Admin Agent — Powered by NVIDIA NIM (${PRIMARY_NIM_MODEL}) with full Read/Write control over the entire Aura Rudraksha Website & MongoDB Database.
-You communicate naturally in Hinglish/Hindi or English matching the Admin. Never return generic filler responses. Always execute what the Admin asks!
+    const systemPrompt = `You are Aura AI Autonomous Admin Agent with FULL Read/Write control over the entire Aura Rudraksha Store & MongoDB Database.
+Communicate clearly in Hindi, Hinglish, or English matching the Admin. Always execute real tool actions instead of making up fake confirmations.
+${pageContext ? `CURRENT ADMIN PAGE CONTEXT: Admin currently has "${pageContext}" open.` : ""}
 
-LIVE WEBSITE & MONGODB TELEMETRY:
-- MongoDB Status: ${snapshot.mongoConnected ? "CONNECTED (Live Sync)" : "Resilient Fallback"}
-- Total Products: ${snapshot.productsCount} (Low Stock Items: ${snapshot.lowStockCount})
-- Total Orders: ${snapshot.ordersCount} (Total Revenue: ₹${snapshot.totalRevenue})
-- Active Coupons: ${snapshot.couponsCount} | Registered Customers: ${snapshot.customersCount} | Reviews: ${snapshot.reviewsCount}
-- Active AI Storefront Features: ${(snapshot.settings?.aiCustomFeatures || []).length}
+LIVE STORE & DATABASE SNAPSHOT:
+- MongoDB: ${snapshot.mongoConnected ? "CONNECTED" : "Cache Fallback"}
+- Products: ${snapshot.productsCount} (Low/Out-of-Stock: ${snapshot.lowStockCount})
+- Orders: ${snapshot.ordersCount} (Revenue: ₹${snapshot.totalRevenue})
+- Coupons: ${snapshot.couponsCount} · Customers: ${snapshot.customersCount} · Reviews: ${snapshot.reviewsCount} · Open Tickets: ${snapshot.openTicketsCount || 0}
+- Payment Controls: COD=${snapshot.settings?.enableCod !== false ? "ON" : "OFF"}, Online PayU=${snapshot.settings?.enableOnlinePayment !== false ? "ON" : "OFF"}
+- Central Active Offer: ${snapshot.activeOffer?.enabled ? `ACTIVE (${snapshot.activeOffer.title})` : "Disabled"}
 
-AVAILABLE WEBSITE & ADMIN PAGES (Can be shown inside Chat Live Preview):
-${pagesSummary}
+AVAILABLE PAGES FOR LIVE PREVIEW: ${pagesSummary}
 
 LIVE PRODUCT CATALOG (Top 35):
 ${catalogLines}
@@ -160,43 +159,18 @@ ${ordersLines}
 ACTIVE COUPONS:
 ${couponsLines}
 
-AUTONOMOUS EXECUTION CAPABILITIES (CRITICAL):
-Whenever the Admin asks you to create/upload a product, update price/stock/SEO, delete a product, create a coupon, add a new website feature/banner, fix bugs, open/show a page in chat, or start a background task, you MUST include one or more [ADMIN_ACTION: {...}] JSON blocks at the end of your response so the server executes it immediately on MongoDB!
-
-Supported [ADMIN_ACTION: {...}] formats:
-1. Upload / Create New Product Listing:
-[ADMIN_ACTION: {"type": "CREATE_PRODUCT", "data": {"name": "11 Mukhi Authentic Nepali Rudraksha", "mukhi": "11", "price": 4999, "comparePrice": 6999, "stock": 25, "category": "Rudraksha Beads", "rulingPlanet": "All Planets (Lord Hanuman)", "deity": "Eleven Rudras & Lord Hanuman", "mantra": "Om Hreem Hum Namah", "description": "Complete Vedic & SEO description..."}}]
-
-2. Update Existing Product (Price, Stock, SEO Description, Status, ShowOnHome):
-[ADMIN_ACTION: {"type": "UPDATE_PRODUCT", "data": {"id": "prod_id_or_slug", "name": "product name", "price": 1999, "stock": 50, "description": "Updated SEO description"}}]
-
-3. Delete Product:
-[ADMIN_ACTION: {"type": "DELETE_PRODUCT", "data": {"id": "prod_id_or_slug", "name": "product name"}}]
-
-4. Create Discount Coupon:
-[ADMIN_ACTION: {"type": "CREATE_COUPON", "data": {"code": "MAHASHIV25", "discountValue": 25, "discountType": "percentage", "minOrder": 999}}]
-
-5. Add New Live Feature / Banner / Widget to Customer Website:
-[ADMIN_ACTION: {"type": "ADD_WEBSITE_FEATURE", "data": {"featureType": "flash_sale_banner", "title": "🕉️ Sacred Rudraksha Mahotsav — Use Code SHIVA20 for Flat 20% OFF!", "subtitle": "100% Lab-Certified Nepali Beads • Energized in Kashi", "badge": "NEW FEATURE", "ctaText": "Shop Now", "ctaLink": "/shop"}}]
-
-6. Update Order Status:
-[ADMIN_ACTION: {"type": "UPDATE_ORDER", "data": {"orderId": "ORD-...", "status": "Shipped"}}]
-
-7. Auto-Fix Website Bugs (Restock low items, enrich missing SEO, verify DB):
-[ADMIN_ACTION: {"type": "AUTO_FIX_BUGS", "data": {}}]
-
-8. Show / Preview Any Website or Admin Page Inside Chat:
-[ADMIN_ACTION: {"type": "SHOW_PAGE", "data": {"route": "/", "title": "Storefront Home Page Live Preview"}}]
-
-9. Start Autonomous Background Task (Runs even after website is closed):
-[ADMIN_ACTION: {"type": "CREATE_TASK", "data": {"title": "Autonomous SEO & Inventory Optimizer", "prompt": "Audit products, enrich SEO, and monitor stock", "durationMinutes": 60, "intervalMinutes": 5}}]
-
-If the Admin says something short like "bnao", "product bnao", "feature bnao", or "kuch naya bnao", proactively create a high-converting Rudraksha Product or Live Website Feature OR show them what you just built with a live preview! Every action you take is logged in MongoDB with a 1-Click Undo button.`;
+EXECUTION RULES:
+- Use your attached function tools whenever available!
+- If falling back to text-only mode, emit [ADMIN_ACTION: {"type": "...", "data": {...}}] tags (CREATE_PRODUCT, UPDATE_PRODUCT, BULK_UPDATE_PRODUCTS, DELETE_PRODUCT, CREATE_COUPON, UPDATE_COUPON, DELETE_COUPON, UPDATE_ACTIVE_OFFER, MANAGE_BANNER, ADD_WEBSITE_FEATURE, UPDATE_STORE_SETTINGS, UPDATE_ORDER, MANAGE_REVIEW, RESOLVE_TICKET, AUTO_FIX_BUGS, SHOW_PAGE, CREATE_TASK) and/or [NAVIGATE_PREVIEW: "/route"].
+- Every mutation creates an Undo snapshot in AdminAIActionLog so Admin can roll back in 1 click.`;
 
     const conversationHistoryForLLM = (updatedMessagesWithUser || []).slice(-12);
-    const llmResult = await invokeAdminLLM(systemPrompt, conversationHistoryForLLM, 2800);
+    const llmResult = await invokeAdminLLM(systemPrompt, conversationHistoryForLLM, 2800, {
+      sessionId,
+      source: "admin_chat"
+    });
 
-    // 3. Detect & execute any [ADMIN_ACTION: {...}] tags or natural language commands
+    // 3. Parse any additional [ADMIN_ACTION] tags and merge native function tool executions
     const {
       cleanedResponse,
       executedActions,
@@ -204,7 +178,10 @@ If the Admin says something short like "bnao", "product bnao", "feature bnao", o
       previewTitle
     } = await detectAndExecuteAdminIntents(userText, llmResult.text, {
       sessionId,
-      source: "admin_chat"
+      source: "admin_chat",
+      preExecutedActions: llmResult.executedViaTools || [],
+      prePreviewRoute: llmResult.previewRoute || "",
+      prePreviewTitle: llmResult.previewTitle || ""
     });
 
     const aiMsgObj = {
@@ -270,6 +247,11 @@ export async function getAdminAgentSession(req, res) {
   try {
     const sessionId = req.query.sessionId || DEFAULT_SESSION_ID;
     const session = await getOrCreateSessionDoc(sessionId);
+    // Lazily check & wake background task runner only if running tasks exist when Admin opens session
+    if (isDbConnected()) {
+      const hasRunning = await AdminAITask.countDocuments({ status: "running" }).catch(() => 0);
+      if (hasRunning > 0) startAdminAgentBackgroundLoop();
+    }
     return res.json({
       success: true,
       session,
@@ -336,6 +318,10 @@ export async function executeDirectAdminActionEndpoint(req, res) {
       const report = await runWebsiteBugDiagnostic();
       return res.json({ success: true, report });
     }
+    if (type === "RUN_GROWTH_AUDIT") {
+      const audit = await runStoreGrowthAndHealthAudit(data.focus || "all");
+      return res.json({ success: true, audit });
+    }
     if (type === "SAVE_NVIDIA_KEY" && data.nvidiaApiKey) {
       const cleanKey = String(data.nvidiaApiKey).trim();
       setCachedNvidiaKey(cleanKey);
@@ -359,7 +345,7 @@ export async function executeDirectAdminActionEndpoint(req, res) {
       const sysMsg = {
         id: "amsg_act_" + Date.now(),
         sender: "ai",
-        text: `✅ **Action Executed Successfully:** ${result.title}\n\nAap iska live preview niche dekh sakte hain, ya **Undo / Revert** button se is change ko kabhi bhi wapas hata sakte hain.`,
+        text: `✅ **Action Executed:** ${result.title}\n\nAap iska live preview dekh sakte hain ya **Undo** button se kabhi bhi rollback kar sakte hain.`,
         status: "completed",
         modelUsed: PRIMARY_NIM_MODEL,
         actionsExecuted: [result],
@@ -379,9 +365,6 @@ export async function executeDirectAdminActionEndpoint(req, res) {
   }
 }
 
-/**
- * Get all AI Action Logs (Changes made by AI) from MongoDB
- */
 export async function getAdminActionLogsEndpoint(req, res) {
   try {
     let logs = [];
@@ -394,9 +377,6 @@ export async function getAdminActionLogsEndpoint(req, res) {
   }
 }
 
-/**
- * 1-Click Undo / Revert an AI Action
- */
 export async function undoAdminActionEndpoint(req, res) {
   try {
     const { actionId } = req.params;
@@ -407,9 +387,6 @@ export async function undoAdminActionEndpoint(req, res) {
   }
 }
 
-/**
- * Delete an AI Action Log from MongoDB
- */
 export async function deleteAdminActionLogEndpoint(req, res) {
   try {
     const { actionId } = req.params;
@@ -422,14 +399,14 @@ export async function deleteAdminActionLogEndpoint(req, res) {
   }
 }
 
-/**
- * Get all Autonomous Background Tasks from MongoDB
- */
 export async function getAdminTasksEndpoint(req, res) {
   try {
     let tasks = [];
     if (isDbConnected()) {
       tasks = await AdminAITask.find().sort({ createdAt: -1 }).limit(50).lean();
+      if (tasks.some(t => t.status === "running")) {
+        startAdminAgentBackgroundLoop();
+      }
     }
     return res.json({ success: true, tasks });
   } catch (err) {
@@ -437,9 +414,6 @@ export async function getAdminTasksEndpoint(req, res) {
   }
 }
 
-/**
- * Create a new Background Task with Duration Timer
- */
 export async function createAdminTaskEndpoint(req, res) {
   try {
     const { title, prompt, taskType, durationMinutes, intervalMinutes } = req.body || {};
@@ -635,6 +609,25 @@ export async function deleteAdminWorkLogEndpoint(req, res) {
       }
     }
     return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export async function getAdminDiagnosticsEndpoint(req, res) {
+  try {
+    const report = await runWebsiteBugDiagnostic();
+    return res.json({ success: true, report });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export async function getAdminGrowthAuditEndpoint(req, res) {
+  try {
+    const focus = req.query.focus || "all";
+    const audit = await runStoreGrowthAndHealthAudit(focus);
+    return res.json({ success: true, audit });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

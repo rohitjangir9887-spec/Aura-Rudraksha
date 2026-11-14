@@ -63,17 +63,18 @@ export function AdminAI() {
     if (s) setSettings(prev => ({ ...prev, ...s }));
   };
 
-  // Lightweight initial load: only overview analytics and settings
+  // Lightweight initial load: settings only; analytics & heavy tabs load lazily when opened
   useEffect(() => {
-    auraAiClient.getAnalytics().then(data => {
-      setAnalytics(data || null);
-    }).catch(() => {});
     auraAiClient.getSettings().then(setSettingsSafe).catch(() => {});
   }, []);
 
   // Lazy load data on-demand as administrator switches tabs
   useEffect(() => {
-    if (activeTab === "intelligence" && !executiveReport && !loadingExecutive) {
+    if (activeTab === "overview" && !analytics) {
+      auraAiClient.getAnalytics().then(data => {
+        setAnalytics(data || { hasData: false });
+      }).catch(() => {});
+    } else if (activeTab === "intelligence" && !executiveReport && !loadingExecutive) {
       setLoadingExecutive(true);
       auraAiClient.getAdminIntelligence().then(rep => {
         setExecutiveReport(rep || null);
@@ -208,9 +209,9 @@ export function AdminAI() {
               <Sparkles size={24} />
             </div>
             <div>
-              <h1 className="admin-ai-title" style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)", fontWeight: 800 }}>Aura AI Admin Chat Bot</h1>
+              <h1 className="admin-ai-title" style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)", fontWeight: 800 }}>Aura Autonomous Admin Agent</h1>
               <p className="admin-ai-subtitle" style={{ margin: "2px 0 0", fontSize: "12px", color: "#806f62" }}>
-                NVIDIA NIM AI Assistant • Catalog & Store Guidance
+                Command Center · Full Database Control, 1-Click Undo & Live Preview
               </p>
             </div>
           </div>
@@ -226,10 +227,9 @@ export function AdminAI() {
             >
               <RotateCcw size={13} /> Refresh
             </button>
-            <div className="admin-ai-status-pill">
-              <span className={`status-dot ${settings.enabled ? "active" : "inactive"}`} />
-              <span>{settings.enabled ? "Aura AI Active" : "Aura AI Paused"}</span>
-            </div>
+            <span style={{ fontSize: "12px", fontWeight: 700, color: settings.enabled ? "#047857" : "#b45309", padding: "6px 10px", background: settings.enabled ? "#ecfdf5" : "#fef3c7", borderRadius: "6px", border: `1px solid ${settings.enabled ? "#a7f3d0" : "#fde68a"}` }}>
+              {settings.enabled ? "Aura AI Active" : "Aura AI Paused"}
+            </span>
           </div>
         </div>
 
@@ -239,7 +239,7 @@ export function AdminAI() {
             className={`admin-ai-tab ${activeTab === "agent" ? "active" : ""}`}
             onClick={() => setActiveTab("agent")}
           >
-            <Bot size={16} /> AI Chat Bot
+            <Bot size={16} /> AI Agent Workspace
           </button>
           <button 
             className={`admin-ai-tab ${activeTab === "overview" ? "active" : ""}`}
@@ -286,7 +286,7 @@ export function AdminAI() {
         </div>
 
                 {activeTab === "agent" && (
-          <AdminAIAgentChat />
+          <AdminAIAgentChat pageContext="/admin/ai" />
         )}
         
         {/* TAB 1: OVERVIEW & ANALYTICS */}

@@ -19,7 +19,7 @@ let activeStreamAbortController = null;
 let activeStreamSeq = 0;
 
 export const auraAiClient = {
-  async sendAdminChat(messages, sessionId = "admin_master_session") {
+  async sendAdminChat(messages, sessionId = "admin_master_session", pageContext = "") {
     try {
       const token = await getAuthToken();
       const controller = new AbortController();
@@ -32,7 +32,7 @@ export const auraAiClient = {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ messages, sessionId })
+        body: JSON.stringify({ messages, sessionId, pageContext })
       });
       clearTimeout(timeoutId);
 
@@ -43,11 +43,14 @@ export const auraAiClient = {
         const text = await res.text().catch(() => "");
         data = { error: text || `Server responded with status ${res.status}` };
       }
+      if (!res.ok && !data?.error) {
+        data = { ...data, success: false, error: data?.message || `HTTP ${res.status}` };
+      }
       return data;
     } catch (e) {
       console.error("[sendAdminChat] Error:", e);
       if (e.name === "AbortError") {
-        return { error: "Request is processing in the background on MongoDB. Refresh or check in a few seconds." };
+        return { error: "Request timed out while executing complex tasks. Check Action Ledger or refresh session in a moment." };
       }
       return { error: e.message || "Failed to reach AI Agent backend." };
     }
@@ -58,9 +61,13 @@ export const auraAiClient = {
       const res = await fetch(`${API_BASE}/admin-agent/session?sessionId=${encodeURIComponent(sessionId)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, status: res.status, message: data?.message || data?.error || `HTTP ${res.status}` };
+      }
+      return data;
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   async deleteAdminAgentMessage(messageId, sessionId = "admin_master_session") {
@@ -70,9 +77,11 @@ export const auraAiClient = {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   async clearAdminAgentSession(sessionId = "admin_master_session") {
@@ -82,9 +91,11 @@ export const auraAiClient = {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   async executeAdminAgentAction(type, data = {}, sessionId = "admin_master_session") {
@@ -98,7 +109,11 @@ export const auraAiClient = {
         },
         body: JSON.stringify({ type, data, sessionId })
       });
-      return await res.json();
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok && payload.success !== false) {
+        return { success: false, message: payload?.message || payload?.error || `HTTP ${res.status}` };
+      }
+      return payload;
     } catch (e) {
       return { success: false, message: e.message };
     }
@@ -109,9 +124,11 @@ export const auraAiClient = {
       const res = await fetch(`${API_BASE}/admin-agent/actions`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, actions: [], message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
-      return { success: false, actions: [] };
+      return { success: false, actions: [], message: e.message };
     }
   },
   async undoAdminAction(actionId) {
@@ -121,7 +138,9 @@ export const auraAiClient = {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
       return { success: false, message: e.message };
     }
@@ -133,9 +152,9 @@ export const auraAiClient = {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      return await res.json().catch(() => ({ success: res.ok }));
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   async getAdminTasks() {
@@ -144,9 +163,11 @@ export const auraAiClient = {
       const res = await fetch(`${API_BASE}/admin-agent/tasks`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, tasks: [], message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
-      return { success: false, tasks: [] };
+      return { success: false, tasks: [], message: e.message };
     }
   },
   async createAdminTask(payload) {
@@ -160,7 +181,9 @@ export const auraAiClient = {
         },
         body: JSON.stringify(payload)
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
       return { success: false, message: e.message };
     }
@@ -176,7 +199,9 @@ export const auraAiClient = {
         },
         body: JSON.stringify({ command, ...extraData })
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
       return { success: false, message: e.message };
     }
@@ -188,9 +213,9 @@ export const auraAiClient = {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      return await res.json().catch(() => ({ success: res.ok }));
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   async getAdminVault() {
@@ -199,9 +224,37 @@ export const auraAiClient = {
       const res = await fetch(`${API_BASE}/admin-agent/vault`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
+    }
+  },
+  async getAdminDiagnostics() {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/diagnostics`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  },
+  async getAdminGrowthAudit(focus = "all") {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/admin-agent/growth-audit?focus=${encodeURIComponent(focus)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { success: false, message: data?.message || `HTTP ${res.status}` };
+      return data;
+    } catch (e) {
+      return { success: false, message: e.message };
     }
   },
   async deleteAdminWorkLog(logId) {
@@ -211,9 +264,9 @@ export const auraAiClient = {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      return await res.json();
+      return await res.json().catch(() => ({ success: res.ok }));
     } catch (e) {
-      return { success: false };
+      return { success: false, message: e.message };
     }
   },
   abortActiveStream() {

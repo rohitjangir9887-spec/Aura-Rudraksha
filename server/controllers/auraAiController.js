@@ -335,6 +335,7 @@ export function getGeminiClient(customKey = "") {
 // Resilient Gemini text models fallback list in order of preference
 export const GEMINI_TEXT_MODELS = [
   process.env.GEMINI_MODEL,
+  'gemini-4-hydrogen',
   'gemini-3.8-flash',
   'gemini-3.1-flash-lite',
   'gemini-flash-latest'
