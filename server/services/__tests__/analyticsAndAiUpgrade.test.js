@@ -16,8 +16,10 @@ import {
   safeEvaluateArithmeticExpression,
   evaluateGeneralOrStoreCalculation,
   generate1To14MukhiGuideResponse,
-  generateSmartCustomerFallbackResponse
+  generateSmartCustomerFallbackResponse,
+  chatAuraAI
 } from "../../controllers/auraAiController.js";
+import { inMemoryStore } from "../../data/inMemoryStore.js";
 
 const SAMPLE_CATALOG = [
   { id: "1", slug: "1-mukhi-rudraksha", name: "Original 1 Mukhi Rudraksha (Kaju)", price: 4500, comparePrice: 6000, stock: 5, inStock: true, rating: 4.9, images: ["/images/1mukhi.jpg"] },
@@ -174,5 +176,54 @@ describe("Floating AI: 1-14 Mukhi Guide, Safe Calculator & Live Catalog Prices",
       SAMPLE_CATALOG
     );
     expect(fallbackPriceReply).toContain("₹2,499");
+  });
+
+  test("chatAuraAI handler resolves 1-14 mukhi, arithmetic, and price queries with 200 status and zero uncaught errors", async () => {
+    const prevProds = inMemoryStore.products;
+    inMemoryStore.products = SAMPLE_CATALOG;
+
+    const invokeChat = async (message) => {
+      let jsonBody = null;
+      let statusCode = 200;
+      let nextErr = null;
+      const req = {
+        body: { message, guestSessionId: "test_chat_guest", stream: false },
+        query: {},
+        headers: {},
+        ip: "127.0.0.1"
+      };
+      const res = {
+        headersSent: false,
+        status(code) { statusCode = code; return this; },
+        json(payload) { jsonBody = payload; return this; },
+        setHeader() {},
+        flushHeaders() {},
+        write() {},
+        end() {}
+      };
+      await chatAuraAI(req, res, (err) => { nextErr = err; });
+      return { statusCode, jsonBody, nextErr };
+    };
+
+    try {
+      const rangeRes = await invokeChat("1-14 mukhi");
+      expect(rangeRes.nextErr).toBeNull();
+      expect(rangeRes.statusCode).toBe(200);
+      expect(rangeRes.jsonBody?.success).toBe(true);
+      expect(rangeRes.jsonBody?.data?.text).toContain("14 मुखी");
+      expect(rangeRes.jsonBody?.data?.products?.length).toBeGreaterThanOrEqual(4);
+
+      const mathRes = await invokeChat("1500 + 250 * 2");
+      expect(mathRes.nextErr).toBeNull();
+      expect(mathRes.statusCode).toBe(200);
+      expect(mathRes.jsonBody?.data?.text).toContain("2,000");
+
+      const priceRes = await invokeChat("7 mukhi rudraksha ki price batao");
+      expect(priceRes.nextErr).toBeNull();
+      expect(priceRes.statusCode).toBe(200);
+      expect(priceRes.jsonBody?.data?.products?.some(p => p.id === "7")).toBe(true);
+    } finally {
+      inMemoryStore.products = prevProds;
+    }
   });
 });

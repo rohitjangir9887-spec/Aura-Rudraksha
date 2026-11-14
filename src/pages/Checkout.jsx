@@ -165,6 +165,16 @@ export function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    try {
+      const confirmedTs = Number(sessionStorage.getItem("aura_just_confirmed_redirect_home") || 0);
+      if (confirmedTs && Date.now() - confirmedTs < 5 * 60 * 1000 && (!lines || lines.length === 0) && !sessionStorage.getItem("aura_buy_now_intent") && !sessionStorage.getItem("aura_pending_orderId")) {
+        sessionStorage.removeItem("aura_just_confirmed_redirect_home");
+        navigate("/", { replace: true });
+      }
+    } catch (_) {}
+  }, [lines, navigate]);
+
   const handleBackNavigation = () => {
     if (window.history && window.history.length > 1) {
       navigate(-1);

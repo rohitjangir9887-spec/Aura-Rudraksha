@@ -112,6 +112,53 @@ export function PaymentResult() {
   const [rechecking, setRechecking] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
   const verifyAttempted = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const clearPendingOrderState = () => {
+    try {
+      sessionStorage.removeItem("aura_pending_txnid");
+      sessionStorage.removeItem("aura_pending_orderId");
+      sessionStorage.removeItem("aura_pending_timestamp");
+      sessionStorage.removeItem("aura_buy_now_intent");
+      sessionStorage.removeItem("aura_just_confirmed_redirect_home");
+    } catch (_) {}
+  };
+
+  const handleGoHome = (e) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    clearPendingOrderState();
+    try {
+      sessionStorage.removeItem("aura_last_payment_orderId");
+    } catch (_) {}
+    try {
+      navigate("/", { replace: true });
+    } catch (_) {}
+    setTimeout(() => {
+      if (typeof window !== "undefined" && (window.location.pathname !== "/" || isMountedRef.current)) {
+        window.location.replace("/");
+      }
+    }, 60);
+  };
+
+  const handleGoShop = (e) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    clearPendingOrderState();
+    try {
+      navigate("/shop", { replace: true });
+    } catch (_) {}
+    setTimeout(() => {
+      if (typeof window !== "undefined" && (window.location.pathname !== "/shop" || isMountedRef.current)) {
+        window.location.replace("/shop");
+      }
+    }, 60);
+  };
 
   // Scrub sensitive tokens/transaction IDs/error text from the URL bar before firing Meta Pixel events
   useEffect(() => {
@@ -253,14 +300,18 @@ export function PaymentResult() {
   const isConfirmedBoundaryRef = useRef(isConfirmedBoundaryTarget);
   useEffect(() => {
     isConfirmedBoundaryRef.current = isConfirmedBoundaryTarget;
+    if (isConfirmedBoundaryTarget && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("aura_just_confirmed_redirect_home", String(Date.now()));
+      } catch (_) {}
+    }
   }, [isConfirmedBoundaryTarget]);
 
   const guardPushedRef = useRef(false);
   useEffect(() => {
     if (!orderId && !txnid) return;
 
-    if (!guardPushedRef.current && isConfirmedBoundaryRef.current) {
-      guardPushedRef.current = true;
+    const pushHomeBackBoundary = () => {
       try {
         if (!window.history.state?.auraPaymentSuccess) {
           const cleanParams = new URLSearchParams(window.location.search);
@@ -287,28 +338,45 @@ export function PaymentResult() {
           );
         }
       } catch (_) {}
+    };
+
+    if (!guardPushedRef.current && isConfirmedBoundaryRef.current) {
+      guardPushedRef.current = true;
+      pushHomeBackBoundary();
     }
 
-    const handlePopState = () => {
-      if (isConfirmedBoundaryRef.current) {
-        if (window.location.pathname !== "/") {
-          navigate("/", { replace: true });
-        } else {
-          // Ensure React Router renders Home cleanly if browser popped URL to "/"
-          navigate("/", { replace: true });
-        }
-        setTimeout(() => {
-          if (typeof window !== "undefined" && window.location.pathname !== "/") {
-            window.location.assign("/");
-          }
-        }, 80);
-      } else {
-        navigate("/checkout", { replace: true });
+    // Reinforce history boundary once after any real user gesture (counters Chrome History Manipulation Intervention on PayU redirects)
+    const onFirstGesture = () => {
+      if (isConfirmedBoundaryRef.current && !window.history.state?.auraPaymentSuccess) {
+        pushHomeBackBoundary();
       }
+    };
+    window.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
+    window.addEventListener("touchstart", onFirstGesture, { once: true, passive: true });
+
+    const handlePopState = () => {
+      setTimeout(() => {
+        if (!isMountedRef.current && window.location.pathname === "/") return;
+        if (isConfirmedBoundaryRef.current) {
+          clearPendingOrderState();
+          try {
+            navigate("/", { replace: true });
+          } catch (_) {}
+          setTimeout(() => {
+            if (typeof window !== "undefined" && (window.location.pathname !== "/" || isMountedRef.current)) {
+              window.location.replace("/");
+            }
+          }, 60);
+        } else {
+          navigate("/checkout", { replace: true });
+        }
+      }, 0);
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => {
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("touchstart", onFirstGesture);
       window.removeEventListener("popstate", handlePopState);
     };
   }, [orderId, txnid, isConfirmedBoundaryTarget, location?.state, navigate]);
@@ -431,10 +499,10 @@ export function PaymentResult() {
               No recent payment session or transaction ID was found for this link. If you were attempting to place an order, you can review your cart or explore our sacred Rudraksha catalog.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "16px" }}>
-              <Link to="/" className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Link to="/" onClick={handleGoHome} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <Home size={15} /> Back to Home
               </Link>
-              <Link to="/shop" className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none" }}>
+              <Link to="/shop" onClick={handleGoShop} className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none" }}>
                 Explore Rudraksha Catalog
               </Link>
               <Link to="/cart" className="outline-btn" style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none" }}>
@@ -460,8 +528,52 @@ export function PaymentResult() {
 
     return (
       <Shell>
-        <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto" }}>
-          <div style={{ textAlign: "center", padding: "40px 16px" }}>
+        <main className="page" style={{ paddingBottom: "120px", maxWidth: "680px", margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 4px 0", gap: "8px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleGoHome}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#fffdf9",
+                border: "1.5px solid #d6c5b3",
+                borderRadius: "10px",
+                padding: "8px 14px",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#4a3223",
+                cursor: "pointer",
+                position: "relative",
+                zIndex: 20
+              }}
+            >
+              <Home size={15} /> Back to Home
+            </button>
+            <button
+              type="button"
+              onClick={handleGoShop}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#fdf5ef",
+                border: "1px solid #e5d8cc",
+                borderRadius: "10px",
+                padding: "8px 14px",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#8c2b10",
+                cursor: "pointer",
+                position: "relative",
+                zIndex: 20
+              }}
+            >
+              <ShoppingBag size={14} /> Continue Shopping
+            </button>
+          </div>
+          <div style={{ textAlign: "center", padding: "24px 16px 32px" }}>
             <OrderSuccessAnimation orderNum={orderNum} txnid={isCodOrder ? "COD-CONFIRMED" : finalTxnid} />
             <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#eef6f0", color: "#166534", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "700", marginBottom: "12px" }}>
               <ShieldCheck size={14} />{" "}
@@ -476,13 +588,13 @@ export function PaymentResult() {
               Thank you! Your sacred order <b>#{orderNum}</b> has been securely received and confirmed
               {isCodOrder ? " via Cash on Delivery (COD)." : "."}
             </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", position: "relative", zIndex: 20 }}>
               <Link to={orderDetailLink} className="primary-btn" style={{ padding: "12px 24px", fontSize: "14px", textDecoration: "none" }}>
                 Go to My Order (View Order Details)
               </Link>
-              <Link
-                to="/"
-                replace
+              <button
+                type="button"
+                onClick={handleGoHome}
                 className="outline-btn"
                 style={{
                   padding: "12px 20px",
@@ -494,13 +606,14 @@ export function PaymentResult() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  textDecoration: "none"
+                  cursor: "pointer"
                 }}
               >
                 <Home size={15} /> Back to Home
-              </Link>
-              <Link
-                to="/shop"
+              </button>
+              <button
+                type="button"
+                onClick={handleGoShop}
                 className="outline-btn"
                 style={{
                   padding: "12px 20px",
@@ -512,11 +625,11 @@ export function PaymentResult() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  textDecoration: "none"
+                  cursor: "pointer"
                 }}
               >
                 <ShoppingBag size={15} /> Continue Shopping
-              </Link>
+              </button>
               <button
                 type="button"
                 onClick={() => setCertModalOpen(true)}
@@ -570,7 +683,7 @@ export function PaymentResult() {
     const orderNum = order?.orderNumber || order?.id || orderId;
     return (
       <Shell>
-        <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
+        <main className="page" style={{ paddingBottom: "120px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
           <div className="card" style={{ background: "#fffdf9", border: "1.5px solid #fef3c7", borderRadius: "16px", padding: "36px 20px", textAlign: "center" }}>
             <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#fffbeb", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
               <Clock size={36} />
@@ -635,6 +748,7 @@ export function PaymentResult() {
                 </button>
                 <Link
                   to="/"
+                  onClick={handleGoHome}
                   className="outline-btn"
                   style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
@@ -653,7 +767,7 @@ export function PaymentResult() {
 
   return (
     <Shell>
-      <main className="page" style={{ paddingBottom: "80px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
+      <main className="page" style={{ paddingBottom: "120px", maxWidth: "680px", margin: "0 auto", paddingTop: "30px" }}>
         <div className="card" style={{ background: "#fffdf9", border: "1.5px solid #fecaca", borderRadius: "16px", padding: "36px 20px", textAlign: "center" }}>
           <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <AlertCircle size={36} />
@@ -714,7 +828,7 @@ export function PaymentResult() {
             </button>
             <button 
               type="button" 
-              onClick={() => navigate("/shop", { replace: true })} 
+              onClick={handleGoShop} 
               className="outline-btn" 
               style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9" }}
             >
@@ -741,6 +855,7 @@ export function PaymentResult() {
             )}
             <Link
               to="/"
+              onClick={handleGoHome}
               className="outline-btn"
               style={{ padding: "12px 20px", fontSize: "14px", background: "#fffdf9", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
             >

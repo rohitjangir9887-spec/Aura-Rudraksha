@@ -754,7 +754,7 @@ function detectUserIntent(msg) {
   if (/(kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|किस की महादशा|महादशा चल रही)/i.test(msg)) {
     intents.push("KUNDALI");
   }
-  if (/(hi|hello|hey|namaste|pranam|radhe|har har|prabhat|kaise ho|ram ram|jai shree krishna|shubh)/i.test(msg) && msg.length < 25) {
+  if (/\b(hi+|hello+|hey+|namaste|pranam|radhe|har har|prabhat|kaise ho|ram ram|jai shree krishna|shubh)\b/i.test(msg) && msg.length < 25) {
     intents.push("GREETING");
   }
   if (/(customer care|support|human|agent|baat karni|phone|contact|number|helpline|help|şikayat)/i.test(msg)) {
@@ -2068,6 +2068,7 @@ export async function chatAuraAI(req, res, next) {
 
     const intent = detectUserIntent(message || "");
     const targetMukhi = extractMukhiNumber(message || "");
+    const mukhiRange = extractMukhiRange(message || "");
 
     // 2. Intent Routing in Pandit Ji Mode for Order/Delivery Questions
     if (mode === "panditji" && (intent === "ORDER_TRACKING" || intent === "ORDER_HISTORY" || intent === "ORDER_CANCEL" || intent === "SHIPPING")) {
@@ -2996,7 +2997,9 @@ ${memoryContextText || "Guest shopper."}`;
       const STREAM_INIT_TIMEOUT_MS = 12000;
 
       // 1. Primary Streaming Execution: NVIDIA NIM nemotron-3-super-120b-a12b
-      if (nvidiaClient && !clientDisconnected) {
+      // Fast deterministic bypass for pure calculator & 1-14 Mukhi complete catalog queries
+      const shouldUseDeterministicStandard = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
+      if (nvidiaClient && !clientDisconnected && !shouldUseDeterministicStandard) {
         for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
           if (streamSucceeded || clientDisconnected) break;
           
@@ -3193,11 +3196,12 @@ ${memoryContextText || "Guest shopper."}`;
     // Prune initial messages if near token budget limit (~8000 words)
     const nonStreamPrunedMsgs = pruneMessagesForTokenLimit(nimMessages, 8000);
 
-    // 1. Prioritize NVIDIA NIM models strictly
+    // 1. Prioritize NVIDIA NIM models strictly (skip for deterministic calculator / 1-14 Mukhi range)
     const nonStreamNvidiaClient = getNvidiaClient();
     const NON_STREAM_TIMEOUT_MS = 2500;
+    const shouldUseDeterministicNonStream = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
 
-    if (nonStreamNvidiaClient) {
+    if (nonStreamNvidiaClient && !shouldUseDeterministicNonStream) {
       for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
         if (generatedSuccessfully) break;
         try {

@@ -19,9 +19,9 @@ export function SacredPujaCertificateModal({ isOpen, onClose, order = null, prod
 
   // Resolve dynamic order/product data
   const orderNum = order?.orderNumber || order?.id || order?._id || "AUR-2026-LIVE";
-  const customerName = order?.customerName || order?.shippingAddress?.firstName 
+  const customerName = order?.customerName || (order?.shippingAddress?.firstName
     ? `${order.shippingAddress.firstName} ${order.shippingAddress.lastName || ''}`.trim()
-    : "Devotee of Lord Shiva";
+    : "Devotee of Lord Shiva");
 
   const rawDate = order?.createdAt || order?.date || new Date().toISOString();
   const consecrationDate = new Date(rawDate).toLocaleDateString("en-IN", {
