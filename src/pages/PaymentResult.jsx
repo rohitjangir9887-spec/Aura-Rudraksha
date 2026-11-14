@@ -175,10 +175,15 @@ export function PaymentResult() {
     } catch (_) {}
   }, []);
 
+  const clearRef = useRef(clear);
+  clearRef.current = clear;
+
   useEffect(() => {
     // Clear pending payment state when returning to result page
     sessionStorage.removeItem("aura_pending_txnid");
     sessionStorage.removeItem("aura_pending_orderId");
+
+    if (verifyAttempted.current) return;
 
     if (initialOrder) {
       const isInitialConfirmed =
@@ -199,7 +204,7 @@ export function PaymentResult() {
             }
           }
           sessionStorage.removeItem("aura_buy_now_intent");
-          clear();
+          clearRef.current?.();
           trackMetaPurchase(initialOrder);
         } catch (_) {}
         setLoading(false);
@@ -258,7 +263,7 @@ export function PaymentResult() {
           if (checkIsPaidOrCod(res.data)) {
             try {
               sessionStorage.removeItem("aura_buy_now_intent");
-              clear();
+              clearRef.current?.();
               trackMetaPurchase(res.data);
             } catch (_) {}
           }
@@ -270,11 +275,9 @@ export function PaymentResult() {
       }
     };
     
-    if (!verifyAttempted.current) {
-       verifyAttempted.current = true;
-       verify();
-    }
-  }, [orderId, txnid, guestToken, clear, status]);
+    verifyAttempted.current = true;
+    verify();
+  }, [orderId, txnid, guestToken, status]);
 
   // Reset retrying state if user presses browser Back button from PayU after clicking Retry
   useEffect(() => {

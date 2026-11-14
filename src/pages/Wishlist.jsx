@@ -26,7 +26,7 @@ export function Wishlist() {
 
   useEffect(() => {
     loadProducts();
-    db.revalidateProducts().then(() => loadProducts()).catch(() => {});
+    db.revalidateProducts(true).then(() => loadProducts()).catch(() => {});
     
     const unsubStore = onStoreUpdate(() => loadProducts());
     const handleRecentUpdate = () => {

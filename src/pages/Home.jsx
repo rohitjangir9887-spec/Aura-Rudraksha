@@ -154,8 +154,8 @@ export function Home() {
 
   const loadHomeData = async () => {
     updateLocalState();
-    // Join the in-flight initial hydration promise (or revalidate smoothly without duplicate request storm)
-    db.fetchHomeData(false)
+    // Force fresh revalidation so admin product updates appear immediately on first visitor visit
+    db.fetchHomeData(true)
       .then(() => {
         updateLocalState();
         setIsLoading(false);

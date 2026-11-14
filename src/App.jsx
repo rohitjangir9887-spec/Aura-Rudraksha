@@ -109,6 +109,7 @@ function OrderParamRedirect() {
 }
 
 export function App() {
+  const location = useLocation();
   const [mountAIWidget, setMountAIWidget] = useState(false);
 
   useEffect(() => {
@@ -136,7 +137,7 @@ export function App() {
     <>
       <ScrollToTop />
       <LiveStorefrontFeatures />
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
       <Suspense fallback={<PageLoader />}>
         <PageTransition>
         <Routes>

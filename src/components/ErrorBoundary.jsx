@@ -23,7 +23,17 @@ export class ErrorBoundary extends React.Component {
     }
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps) {
+    if (this.props.resetKey !== undefined && prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
+      this.setState({
+        hasError: false,
+        error: null,
+        retryCount: 0,
+        lastPath: typeof window !== "undefined" ? window.location.pathname + window.location.search : this.state.lastPath
+      });
+      return;
+    }
     this.handleRouteCheck();
   }
 
@@ -35,6 +45,25 @@ export class ErrorBoundary extends React.Component {
       window.removeEventListener("popstate", this.handleRouteCheck);
     }
   }
+
+  isChunkLoadError = (error) => {
+    const msg = String(error?.message || error || "");
+    return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk .* failed|error loading dynamically imported module/i.test(msg);
+  };
+
+  tryChunkReload = () => {
+    if (typeof window === "undefined") return false;
+    try {
+      const last = Number(sessionStorage.getItem("aura_chunk_reload_ts") || 0);
+      const now = Date.now();
+      if (!last || now - last > 15000) {
+        sessionStorage.setItem("aura_chunk_reload_ts", String(now));
+        window.location.reload();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  };
 
   handleRouteCheck = () => {
     if (typeof window === "undefined") return;
@@ -52,6 +81,9 @@ export class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.warn("Aura Rudraksha handled UI exception:", error, errorInfo);
+    if (this.isChunkLoadError(error) && this.tryChunkReload()) {
+      return;
+    }
     // Automatically recover from transient hydration/render glitches without locking the view
     if (this.state.retryCount < 2) {
       if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
@@ -67,6 +99,13 @@ export class ErrorBoundary extends React.Component {
 
   handleRetry = () => {
     if (this._autoRetryTimer) clearTimeout(this._autoRetryTimer);
+    if (this.isChunkLoadError(this.state.error) && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("aura_chunk_reload_ts", String(Date.now()));
+      } catch (_) {}
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: null, retryCount: 0 });
     if (this.props.onReset) {
       try {
