@@ -259,4 +259,68 @@ describe("Autonomous Admin Agent Tools, Bulk Operations & 1-Click Undo", () => {
     await undoAdminAgentAction(bodyOut.actionsExecuted[0].actionId);
     expect(inMemoryStore.products.find(p => p.id === "prod_1").price).toBe(1000);
   });
+
+  test("RETRAIN_AI_KNOWLEDGE builds live public trends index without customer PII", async () => {
+    const res = await executeAdminAgentAction({
+      type: "RETRAIN_AI_KNOWLEDGE",
+      data: { forceRefresh: true }
+    }, { sessionId: "test_train_sess", source: "vitest" });
+
+    expect(res.actionType).toBe("RETRAIN_AI_KNOWLEDGE");
+    expect(res.trends).toBeTruthy();
+    expect(res.trends.indexedDocumentsCount).toBeGreaterThan(5);
+    expect(res.trends.totals.publishedProducts).toBe(2);
+
+    const serialized = JSON.stringify(res.trends);
+    expect(serialized).not.toMatch(/vipBuyers|customerEmail|customerPhone|shippingAddress/i);
+  });
+
+  test("inMemoryStore ships with empty offers and reviews (zero demo clutter)", () => {
+    expect(Array.isArray(inMemoryStore.offers)).toBe(true);
+    expect(inMemoryStore.offers.length).toBe(0);
+    expect(Array.isArray(inMemoryStore.reviews)).toBe(true);
+    expect(inMemoryStore.reviews.length).toBe(0);
+  });
 });
+
+describe("Public Store Trends Endpoint (/api/aura-ai/public-trends)", () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/aura-ai", auraAiRouter);
+
+  let server;
+  let baseUrl = "";
+
+  beforeAll(async () => {
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const addr = server.address();
+    baseUrl = `http://127.0.0.1:${addr.port}`;
+  });
+
+  afterAll(async () => {
+    if (server) await new Promise((resolve) => server.close(resolve));
+  });
+
+  test("returns live public trends and rules without requiring auth and leaks zero PII", async () => {
+    const prevProds = inMemoryStore.products;
+    const prevSynced = inMemoryStore.isProductsSyncedFromDb;
+    inMemoryStore.products = TEST_CATALOG.map(p => ({ ...p }));
+    inMemoryStore.isProductsSyncedFromDb = true;
+
+    try {
+      const res = await fetch(`${baseUrl}/api/aura-ai/public-trends?refresh=true`);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.totals.publishedProducts).toBe(2);
+      expect(json.data.shippingAndPayments).toBeTruthy();
+      expect(Array.isArray(json.data.categories)).toBe(true);
+      expect(JSON.stringify(json.data)).not.toMatch(/vipBuyers|@|customerPhone/i);
+    } finally {
+      inMemoryStore.products = prevProds;
+      inMemoryStore.isProductsSyncedFromDb = prevSynced;
+    }
+  });
+});
+

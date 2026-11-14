@@ -8,6 +8,7 @@ import { pickFields } from "../utils/sanitize.js";
 import { logAuditEvent } from "../services/auditService.js";
 import { defaultCoupons } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { invalidateRagCache } from "../services/ragService.js";
 
 // Fields an admin may set on a coupon. Allowlisted for defense-in-depth
 // consistency with the rest of the admin write paths in this codebase, even
@@ -279,6 +280,7 @@ export async function createCoupon(req, res, next) {
         inMemoryStore.offers = (inMemoryStore.offers || []).filter(o => String(o.couponCode || "").toUpperCase() !== cleanCode);
       }
 
+      invalidateRagCache();
       return res.status(201).json({ success: true, data: saved, isFallback: true });
     }
 
@@ -350,6 +352,7 @@ export async function createCoupon(req, res, next) {
       req
     });
 
+    invalidateRagCache();
     return res.status(201).json({ success: true, data: created });
   } catch (err) {
     next(err);
@@ -395,6 +398,7 @@ export async function updateCoupon(req, res, next) {
         inMemoryStore.offers = (inMemoryStore.offers || []).filter(o => String(o.couponCode || "").toUpperCase() !== String(saved.code).toUpperCase());
       }
 
+      invalidateRagCache();
       return res.json({ success: true, data: saved, isFallback: true });
     }
 
@@ -482,6 +486,7 @@ export async function updateCoupon(req, res, next) {
       req
     });
 
+    invalidateRagCache();
     return res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
@@ -554,6 +559,7 @@ export async function deleteCoupon(req, res, next) {
       req
     });
 
+    invalidateRagCache();
     return res.json({
       success: true,
       message: "Coupon and associated home offers deleted successfully",

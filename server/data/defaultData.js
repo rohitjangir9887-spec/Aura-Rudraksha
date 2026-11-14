@@ -558,7 +558,7 @@ export const defaultSettings = {
   metaPixelId: "1485640013424198",
   metaPixelEnabled: true,
   metaDomainVerification: "",
-  featuredProductId: "14",
+  featuredProductId: "",
   featuredProductEnabled: true,
   storageProvider: "puter",
   instagramUrl: "https://instagram.com/aurarudraksha",

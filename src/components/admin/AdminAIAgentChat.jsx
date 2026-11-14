@@ -62,6 +62,10 @@ const QUICK_COMMANDS = [
   {
     label: "Payment Toggles Check",
     prompt: "Abhi COD aur Online PayU settings kya hain dikhao"
+  },
+  {
+    label: "Train AI & Public Trends",
+    prompt: "Aura AI aur Admin AI ko live store data aur public trends par retrain karo aur trending products dikhao"
   }
 ];
 

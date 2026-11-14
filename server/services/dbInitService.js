@@ -45,15 +45,15 @@ export async function ensureDatabaseInitialized() {
     const initState = await Setting.findOne({ id: "db_init_state" }).lean();
     const alreadySeededProducts = Boolean(initState?.productsInitialized);
 
-    // 1. Ensure Products: NEVER auto-seed demo placeholder products into live stores.
+    // 1. Ensure Products & Sample Reviews: NEVER auto-seed demo placeholder items into live stores.
     // Only seed in isolated test runs so schema/init tests remain verifiable without polluting live catalogs.
-    const allowAutoSeedDemoProducts = Boolean(
+    const allowAutoSeedTestFixtures = Boolean(
       process.env.NODE_ENV === "test" ||
       process.env.VITEST === "true" ||
       process.env.AUTO_SEED_DEMO_PRODUCTS === "true"
     );
     const productCount = await Product.countDocuments();
-    if (allowAutoSeedDemoProducts && !alreadySeededProducts && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
+    if (allowAutoSeedTestFixtures && !alreadySeededProducts && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
       console.log("🌱 [DB Init] Test environment setup: seeding sample Rudraksha products...");
       for (const p of defaultProducts) {
         if (!p || !p.id) continue;
@@ -176,26 +176,32 @@ export async function ensureDatabaseInitialized() {
       { upsert: true }
     );
 
-    // 6. Ensure Sample Customer Reviews
-    const reviewCount = await Review.countDocuments();
-    if (reviewCount === 0 && Array.isArray(defaultReviews)) {
-      for (const r of defaultReviews) {
-        if (!r || !r.id) continue;
-        const exists = await Review.exists({ id: String(r.id) });
-        if (!exists) {
-          const { _id, createdAt, updatedAt, ...cleanReview } = r;
-          try {
-            await Review.create({
-              ...cleanReview,
-              source: "customer",
-              status: "Approved",
-              isSample: true,
-              sampleLabel: "Sample Review"
-            });
-            summary.reviewsSeeded++;
-          } catch (_) {}
+    // 6. Test-only Sample Reviews (NEVER seed into live store; clean any legacy auto-seeded sample docs)
+    if (allowAutoSeedTestFixtures) {
+      const reviewCount = await Review.countDocuments();
+      if (reviewCount === 0 && Array.isArray(defaultReviews)) {
+        for (const r of defaultReviews) {
+          if (!r || !r.id) continue;
+          const exists = await Review.exists({ id: String(r.id) });
+          if (!exists) {
+            const { _id, createdAt, updatedAt, ...cleanReview } = r;
+            try {
+              await Review.create({
+                ...cleanReview,
+                source: "customer",
+                status: "Approved",
+                isSample: true,
+                sampleLabel: "Sample Review"
+              });
+              summary.reviewsSeeded++;
+            } catch (_) {}
+          }
         }
       }
+    } else {
+      await Review.deleteMany({
+        id: { $in: ["REV-101", "REV-102", "REV-103"] }
+      }).catch(() => {});
     }
 
     // 7. Apply and Verify Mongo Indexes on Orders collection

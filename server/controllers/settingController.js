@@ -15,6 +15,7 @@ import {
   recordProductViewEvent,
   getDetailedAnalyticsPayload
 } from "../services/analyticsService.js";
+import { invalidateRagCache } from "../services/ragService.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
@@ -91,7 +92,7 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   if (!settings || typeof settings !== "object") return {};
   const copy = JSON.parse(JSON.stringify(settings));
   
-  copy.featuredProductId = (copy.featuredProductId !== undefined && copy.featuredProductId !== null && copy.featuredProductId !== "") ? copy.featuredProductId : "14";
+  copy.featuredProductId = (copy.featuredProductId !== undefined && copy.featuredProductId !== null) ? String(copy.featuredProductId) : "";
   copy.featuredProductEnabled = copy.featuredProductEnabled !== undefined ? Boolean(copy.featuredProductEnabled) : true;
   copy.enableCod = copy.enableCod !== undefined ? Boolean(copy.enableCod) : true;
   copy.enableOnlinePayment = copy.enableOnlinePayment !== undefined ? Boolean(copy.enableOnlinePayment) : true;
@@ -209,6 +210,7 @@ export async function saveSettings(req, res, next) {
     );
 
     clearSettingsCache();
+    invalidateRagCache();
 
     await logAuditEvent({
       actor: req.user?.email || "admin",
@@ -620,29 +622,33 @@ export async function seedDatabase(req, res, next) {
     seeded.coupons = await seedInsertOnly(Coupon, defaultCoupons);
     seeded.banners = await seedInsertOnly(Banner, defaultBanners);
 
-    // Reviews seeding
-    const reviewsBefore = await Review.countDocuments();
-    for (const r of defaultReviews) {
-      if (!r || !r.id) continue;
-      const exists = await Review.exists({ id: String(r.id) });
-      if (!exists) {
-        const { _id, createdAt, updatedAt, ...cleanReview } = r;
-        try {
-          await Review.create({
-            ...cleanReview,
-            source: "customer",
-            status: "Approved",
-            isSample: true,
-            isAiGenerated: true,
-            sampleLabel: "Sample Review"
-          });
-        } catch (err) {
-          console.warn(`Seed review notice for ${r.id}:`, err?.message);
+    // Sample reviews seeding — gated behind non-production + explicit ?includeDemo=true
+    if (process.env.NODE_ENV !== "production" && req.query?.includeDemo === "true") {
+      const reviewsBefore = await Review.countDocuments();
+      for (const r of defaultReviews) {
+        if (!r || !r.id) continue;
+        const exists = await Review.exists({ id: String(r.id) });
+        if (!exists) {
+          const { _id, createdAt, updatedAt, ...cleanReview } = r;
+          try {
+            await Review.create({
+              ...cleanReview,
+              source: "customer",
+              status: "Approved",
+              isSample: true,
+              isAiGenerated: true,
+              sampleLabel: "Sample Review"
+            });
+          } catch (err) {
+            console.warn(`Seed review notice for ${r.id}:`, err?.message);
+          }
         }
       }
+      const reviewsAfter = await Review.countDocuments();
+      seeded.reviews = Math.max(0, reviewsAfter - reviewsBefore);
+    } else {
+      seeded.reviews = 0;
     }
-    const reviewsAfter = await Review.countDocuments();
-    seeded.reviews = Math.max(0, reviewsAfter - reviewsBefore);
 
     // Active Offer
     await ActiveOffer.findOneAndUpdate(

@@ -33,7 +33,7 @@ const settingSchema = new mongoose.Schema(
     metaPixelEnabled: { type: Boolean, default: true }, // Meta Pixel active toggle
     metaDomainVerification: { type: String, default: "", trim: true }, // Meta Business Manager domain-verification meta tag code
     metaCapiAccessToken: { type: String, default: "", trim: true }, // Optional Meta Conversions API token for server-side event deduplication
-    featuredProductId: { type: String, default: "14" }, // Single featured product id on customer Home
+    featuredProductId: { type: String, default: "" }, // Single featured product id on customer Home
     featuredProductEnabled: { type: Boolean, default: true },
     homeProductLayout: { type: Object, default: { draft: [], live: [] } },
     announcementText: { type: String, default: "" },

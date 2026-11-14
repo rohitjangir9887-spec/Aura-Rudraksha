@@ -20,7 +20,8 @@ import {
   getAdminAiChatTranscript,
   deleteAdminAiChat,
   clearAdminAiChats,
-  getAdminMongoDbCheck
+  getAdminMongoDbCheck,
+  getPublicTrendsEndpoint
 } from "../controllers/auraAiController.js";
 import {
   handleAdminAgentChat,
@@ -54,6 +55,7 @@ router.post("/generate-description", optionalAuth, generateProductDescription);
 router.post("/generate-keywords", optionalAuth, generateProductKeywords);
 router.post("/track", optionalAuth, trackAuraAIAction);
 router.get("/settings", getAuraAISettings);
+router.get("/public-trends", getPublicTrendsEndpoint);
 router.get("/conversations", optionalAuth, getAuraAIConversations);
 router.get("/conversations/:id", optionalAuth, getAuraAIConversationById);
 router.delete("/conversations/:id", optionalAuth, deleteAuraAIConversation);

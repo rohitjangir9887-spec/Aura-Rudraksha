@@ -435,55 +435,7 @@ const storeCache = {
   customers: [],
   coupons: [],
   promotions: [],
-  offers: [
-    {
-      id: "OFF-1",
-      title: "Flat 20% OFF",
-      label: "Special Offer",
-      description: "On All Rudraksha",
-      buttonText: "Shop Now",
-      link: "/shop",
-      image: "https://i.ibb.co/xKN0T46x/file-00000000b33082088625dc1f759658a4.png",
-      type: "Percentage",
-      discountValue: 0,
-      couponCode: "",
-      shownOn: "Home Banner",
-      status: "Active",
-      order: 1
-    },
-    {
-      id: "OFF-2",
-      title: "Lab Tested & Certified",
-      label: "100% Authentic",
-      description: "Quality you can trust.",
-      buttonText: "Shop Now",
-      link: "/shop",
-      image: "https://i.ibb.co/ymXRsrZk/file-0000000030c48208b839cd9a8978bb05.png",
-      type: "Feature",
-      discountValue: 0,
-      couponCode: "",
-      shownOn: "Home Banner",
-      status: "Active",
-      theme: "light",
-      order: 2
-    },
-    {
-      id: "OFF-3",
-      title: "On Orders Above ₹1499",
-      label: "Free Shipping",
-      description: "Fast & Reliable delivery.",
-      buttonText: "Shop Now",
-      link: "/shop",
-      image: "https://i.ibb.co/BVtGczcQ/file-00000000ee808211869df734ac614fe5.png",
-      type: "Shipping",
-      discountValue: 0,
-      couponCode: "",
-      shownOn: "Home Banner",
-      status: "Active",
-      theme: "light",
-      order: 3
-    }
-  ],
+  offers: [],
   activeOffer: {
     id: "OFFER-CENTRAL-1",
     enabled: false,
@@ -556,7 +508,7 @@ const storeCache = {
     metaPixelEnabled: true,
     metaDomainVerification: "1d24m9buiji2m2y1f8gq19abou79rk",
     metaCapiEnabled: false,
-    featuredProductId: "14",
+    featuredProductId: "",
     featuredProductEnabled: true,
     instagramUrl: "https://instagram.com/aurarudraksha",
     facebookUrl: "https://facebook.com/aurarudraksha",
@@ -574,7 +526,7 @@ const storeCache = {
 // Admin pages fetch admin endpoints (orders, customers, coupons, analytics) on demand
 const CACHE_FRESHNESS_LIMIT = 10 * 1000; // 10 seconds freshness limit for background revalidation
 const CACHE_OBSOLETE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours for complete cache expiration
-const CATALOG_CACHE_VERSION = "2026-11-13-v5"; // Versioned cache key to purge stale/demo caches cleanly
+const CATALOG_CACHE_VERSION = "2026-11-14-v6"; // Versioned cache key to purge stale/demo caches cleanly
 
 let isInitialized = false;
 let isHydrated = false;
@@ -635,6 +587,7 @@ export function loadCacheFromLocalStorage() {
       localStorage.removeItem("aura_banners_cache");
       localStorage.removeItem("aura_offers_cache");
       localStorage.removeItem("aura_active_offer_cache");
+      localStorage.removeItem("aura_reviews_cache");
       localStorage.removeItem("aura_last_fetch_time");
       localStorage.removeItem("aura_last_product_fetch_time");
       localStorage.removeItem("aura_cache_hydrated");
@@ -1216,7 +1169,7 @@ export const db = {
       const status = (r.status || "Approved").toLowerCase();
       if (status !== "approved" && status !== "published") return false;
       if (r.status === "deleted" || r.status === "draft" || r.status === "hidden" || r.status === "rejected") return false;
-      if (r.source === "ai_draft" || r.publicDisplay === false) return false;
+      if (r.source === "ai_draft" || r.publicDisplay === false || r.isSample || r.isAiGenerated) return false;
 
       const rPid = String(r.productId || "").trim().toLowerCase();
       const rCleanPid = rPid.replace(/^(product-card-|product-)/, "");
@@ -1286,7 +1239,7 @@ export const db = {
       if (!r || deletedIds.has(String(r.id))) continue;
       const status = String(r.status || "Approved").toLowerCase();
       if (status !== "approved" && status !== "published") continue;
-      if (r.source === "ai_draft" || r.publicDisplay === false) continue;
+      if (r.source === "ai_draft" || r.publicDisplay === false || r.isSample || r.isAiGenerated) continue;
 
       const ratingVal = Number(r.rating) || 5;
       const rPid = String(r.productId || "").trim().toLowerCase().replace(/^(product-card-|product-)/, "");

@@ -23,7 +23,7 @@ import {
 import { calculateAuthenticKundali, determineAstrologicalIntent, generateKundaliTopicDiagnosis, generateNonKundaliPanditJiGuidance } from "../services/vedicAstrologyService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
-import { retrieveRagContext } from "../services/ragService.js";
+import { retrieveRagContext, buildStoreRagIndex, getPublicStoreTrendsPayload } from "../services/ragService.js";
 import { generateSeoAndVedicDataWithNemotron } from "../services/nemotronSeoEngine.js";
 import { executeAiToolCall } from "../services/aiToolsService.js";
 import { shouldPerformWebResearch, performGoogleSearchGrounding } from "../services/groundingService.js";
@@ -2524,9 +2524,15 @@ ${storeCatalogPromptSnippet}
 LINK FORMAT RULES:
 - Use relative markdown links: [Product Name](/product/slug) or [Shop All](/shop).`;
 
-    // 5. Retrieve Live RAG Knowledge Documents & Memories
-    const ragDocs = await retrieveRagContext(message || (effectiveMode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 3);
-    const ragContextText = ragDocs.map(d => `[${d.title}]: ${d.content}`).join("\n\n");
+    // 5. Retrieve Live RAG Knowledge Documents, Public Trends & Memories
+    const [ragDocs, liveTrends] = await Promise.all([
+      retrieveRagContext(message || (effectiveMode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 5),
+      getPublicStoreTrendsPayload().catch(() => null)
+    ]);
+    const trendsSnippet = liveTrends
+      ? `[LIVE PUBLIC STORE TRENDS & STATS]: ${liveTrends.totals?.publishedProducts || 0} live products (${liveTrends.totals?.inStockProducts || 0} in stock), avg rating ${liveTrends.totals?.averageStoreRating || 5}★ (${liveTrends.totals?.publicVerifiedReviews || 0} verified reviews). Top Trending: ${(liveTrends.trendingProducts || []).slice(0, 5).map(t => `${t.name} (₹${t.price})`).join(", ") || "Live catalog"}.`
+      : "";
+    const ragContextText = [trendsSnippet, ...ragDocs.map(d => `[${d.title}]: ${d.content}`)].filter(Boolean).join("\n\n");
 
     const userMemories = await getUserMemories({ userId: effectiveUserId, guestSessionId: effectiveGuestSessionId });
     const memoryContextText = userMemories.map(m => `- ${m.memoryKey}: ${m.memoryValue}`).join("\n");
@@ -4229,6 +4235,23 @@ export async function getAdminMongoDbCheck(req, res, next) {
       message: connected
         ? "✓ Authoritative MongoDB connection is healthy and saving all products, orders & AI chats in real-time."
         : "⚠️ MongoDB is operating in resilient in-memory mode. All chats are temporarily captured in memory cache."
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Public: Live Store Trends, Categories, Offers, Shipping Rules & AI Knowledge Summary (Strictly Zero Customer PII)
+ */
+export async function getPublicTrendsEndpoint(req, res, next) {
+  try {
+    const refresh = req.query?.refresh === "true" || req.query?.refresh === "1";
+    const trends = await getPublicStoreTrendsPayload(refresh);
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.json({
+      success: true,
+      data: trends
     });
   } catch (err) {
     next(err);

@@ -17,7 +17,7 @@ import { Banner } from "../models/Banner.js";
 import { isDbConnected, connectDB } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { invalidateProductCache } from "../controllers/productController.js";
-import { invalidateRagCache } from "./ragService.js";
+import { invalidateRagCache, buildStoreRagIndex, getPublicStoreTrendsPayload } from "./ragService.js";
 import {
   resolveNvidiaKey,
   resolveGeminiKey,
@@ -469,6 +469,16 @@ export const ADMIN_AGENT_FUNCTION_DECLARATIONS = [
     }
   },
   {
+    name: "retrain_ai_and_get_trends",
+    description: "Force-retrain the AI RAG knowledge base on 100% live public store data (published products, prices, stock, shipping/COD rules, active coupons/offers, verified public reviews, and zero-PII bestselling trends) and return live trends summary.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        forceRefresh: { type: Type.BOOLEAN, description: "Set true to force full MongoDB re-indexing into AuraAIRagDocument" }
+      }
+    }
+  },
+  {
     name: "undo_action",
     description: "Undo/rollback a specific AI actionId or the most recent un-reverted AI change.",
     parameters: {
@@ -846,6 +856,9 @@ async function executeGeminiFunctionTool(fnName, args = {}, context = {}) {
     case "schedule_background_task":
       return await executeAdminAgentAction({ type: "CREATE_TASK", data: args }, context);
 
+    case "retrain_ai_and_get_trends":
+      return await executeAdminAgentAction({ type: "RETRAIN_AI_KNOWLEDGE", data: args }, context);
+
     case "undo_action": {
       let targetId = args.actionId;
       if (!targetId && isDbConnected()) {
@@ -1115,11 +1128,23 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
+  // 5.5 Train / Retrain AI Knowledge & Live Public Trends intent
+  if (/(train|retrain|\brag\b|public data|public trend|trending|knowledge update|ai ko train|seekho)/i.test(lower)) {
+    const trends = await getPublicStoreTrendsPayload(true);
+    const topTrendText = (trends.trendingProducts || []).slice(0, 5).map((t, i) => `${i + 1}. **${t.name}** — ₹${Number(t.price || 0).toLocaleString("en-IN")} (${t.unitsSold} ordered)`).join("\n") || "Storefront trending products ready";
+    actionTag = `[ADMIN_ACTION: {"type": "RETRAIN_AI_KNOWLEDGE", "data": {"forceRefresh": true}}]`;
+    navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
+    text = `Customer aur Admin AI dono ko **100% Live Public Data aur Trends** par re-train kar diya hai! (**${trends.indexedDocumentsCount} RAG knowledge documents** live index ho gaye hain)\n\n• **Published Products:** ${trends.totals.publishedProducts} (${trends.totals.inStockProducts} in stock)\n• **Active Coupons & Campaigns:** ${trends.totals.activeCoupons} coupons · ${trends.totals.activeCampaigns} active campaigns\n• **Verified Public Reviews:** ${trends.totals.publicVerifiedReviews} (${trends.totals.averageStoreRating}★ avg)\n• **Payments & Shipping:** COD ${trends.shippingAndPayments.enableCod ? "ON" : "OFF"} · Online Pay ${trends.shippingAndPayments.enableOnlinePayment ? "ON" : "OFF"}\n\n**Top Trending Products (Public Safe, Zero PII):**\n${topTrendText}\n\n${actionTag}\n${navTag}`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
   // 6. Add Feature / Banner intent
   const isFeature = /feature|banner|announcement|offer banner|sale banner/i.test(lower) && /(add|create|lagao|dikhao|bnao|publish)/i.test(lower);
   if (isFeature) {
-    const featTitle = "Sacred Rudraksha Mahotsav — Flat 15% OFF With Code SHIVOHAM10";
-    const featSubtitle = "100% Lab-Certified Nepali Beads • Energized in Kashi • Express Delivery";
+    const liveCoupon = (snapshot.coupons || []).find(c => c.status === "Active");
+    const couponSuffix = liveCoupon ? ` — Use Code ${liveCoupon.code}` : "";
+    const featTitle = `Sacred Nepali Rudraksha Collection${couponSuffix}`;
+    const featSubtitle = "100% Lab-Certified Nepali Beads • Haridwar Prana Pratishtha • Insured Delivery";
     actionTag = `[ADMIN_ACTION: {"type": "ADD_WEBSITE_FEATURE", "data": {"featureType": "flash_sale_banner", "title": "${featTitle}", "subtitle": "${featSubtitle}", "ctaText": "Shop Collection", "ctaLink": "/shop"}}]`;
     navTag = `[NAVIGATE_PREVIEW: "/"]`;
     text = `Live storefront feature banner publish ho gaya hai!\n\n${actionTag}\n${navTag}`;
@@ -2269,6 +2294,41 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         previewRoute: "/admin/ai",
         previewTitle: "Background Task Active",
         task
+      };
+    }
+
+    case "RETRAIN_AI_KNOWLEDGE": {
+      invalidateRagCache();
+      const docs = await buildStoreRagIndex(true);
+      const trends = await getPublicStoreTrendsPayload(false);
+
+      await recordPrivateWorkLog({
+        category: "rag_training",
+        status: "completed",
+        title: `Retrained AI Knowledge Base (${docs.length} live documents)`,
+        detail: `Indexed ${trends.totals.publishedProducts} products, ${trends.totals.activeCoupons} coupons, ${trends.totals.publicVerifiedReviews} verified reviews, and ${trends.trendingProducts.length} trending products.`,
+        metadata: { indexedDocumentsCount: docs.length, trainedAt: trends.trainedAt }
+      });
+
+      const log = await recordAdminActionLog({
+        actionType: "RETRAIN_AI_KNOWLEDGE",
+        title: `Trained AI on Live Store & Public Trends (${docs.length} docs)`,
+        description: `Published products: ${trends.totals.publishedProducts}, Trending items: ${trends.trendingProducts.length}, Coupons: ${trends.totals.activeCoupons}`,
+        targetCollection: "AuraAIRagDocument",
+        targetId: "trends_public_summary",
+        previousData: null,
+        newData: trends,
+        previewRoute: "/shop",
+        source, sessionId, taskId
+      });
+
+      return {
+        actionId: log.actionId,
+        actionType: "RETRAIN_AI_KNOWLEDGE",
+        title: log.title,
+        previewRoute: "/shop",
+        previewTitle: "Trained Storefront & Trending Catalog",
+        trends
       };
     }
 

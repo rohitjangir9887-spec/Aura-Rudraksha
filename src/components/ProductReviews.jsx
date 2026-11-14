@@ -130,6 +130,8 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
       r.status !== "draft" && 
       r.status !== "deleted" &&
       r.source !== "ai_draft" &&
+      !r.isSample &&
+      !r.isAiGenerated &&
       r.publicDisplay !== false &&
       (r.status === "Approved" || r.status === "Published" || !r.status)
     );
@@ -483,31 +485,6 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
           </div>
         </div>
 
-        {/* Informational banner when displaying sample fallback reviews */}
-        {filteredReviews.length > 0 && (filteredReviews[0].isSample || filteredReviews[0].isAiGenerated) && (
-          <div 
-            className="aura-fallback-notice-banner"
-            style={{
-              background: "#fffbeb",
-              border: "1px dashed #f59e0b",
-              borderRadius: "12px",
-              padding: "14px 18px",
-              marginBottom: "20px",
-              display: "flex",
-              gap: "12px",
-              alignItems: "flex-start",
-              fontSize: "13.5px",
-              color: "#92400e",
-              lineHeight: "1.5"
-            }}
-          >
-            <Sparkles size={18} style={{ flexShrink: 0, marginTop: "2px", color: "#d97706" }} />
-            <div>
-              <strong>Demonstration Placeholders Active</strong>: No devotee reviews have been submitted for this item yet. To help you visualize the layout, we are showing representative sample reviews above. Feel free to bless this product with your own experience by clicking the <strong>Write a Review</strong> button!
-            </div>
-          </div>
-        )}
-
         {/* 2. CUSTOMER PHOTO REVIEW GALLERY */}
         {activeSettings?.photoGalleryEnabled !== false && photoGalleryItems.length > 0 && (
           <div className="aura-photo-gallery-section">
@@ -711,9 +688,9 @@ export function ProductReviews({ product, isPreview = false, previewSettings = n
                   transition={{ duration: 0.2 }}
                   style={{
                     borderRadius: cardStyleCustom.borderRadius || "18px",
-                    backgroundColor: rev.isSample ? "#fffdf5" : (cardStyleCustom.bgColor || "#fffdfa"),
-                    borderColor: rev.isSample ? "#fde68a" : (cardStyleCustom.borderColor || "#eadecd"),
-                    borderStyle: rev.isSample ? "dashed" : "solid",
+                    backgroundColor: cardStyleCustom.bgColor || "#fffdfa",
+                    borderColor: cardStyleCustom.borderColor || "#eadecd",
+                    borderStyle: "solid",
                     borderWidth: "1px",
                     color: cardStyleCustom.textColor || "#2b1810"
                   }}

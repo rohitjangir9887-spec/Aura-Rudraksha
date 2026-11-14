@@ -18,7 +18,6 @@ import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import { invalidateProductCache } from "./productController.js";
 import crypto from "crypto";
 import { getGeminiClient, GEMINI_TEXT_MODELS } from "./auraAiController.js";
-import { defaultReviews } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 
 /**
@@ -31,11 +30,12 @@ export async function syncProductReviewStats(productId) {
 
   if (!isDbConnected()) {
     if (Array.isArray(inMemoryStore.products)) {
-      const activeReviews = (inMemoryStore.reviews || defaultReviews).filter(r => 
+      const activeReviews = (inMemoryStore.reviews || []).filter(r => 
         String(r.productId) === pIdStr && 
         (r.status === "Approved" || r.status === "Published" || !r.status) &&
         r.status !== "deleted" && r.status !== "Hidden" && r.status !== "Rejected" && r.status !== "draft" &&
-        r.source !== "ai_draft" && r.publicDisplay !== false
+        r.source !== "ai_draft" && r.publicDisplay !== false &&
+        r.isSample !== true && r.isAiGenerated !== true
       );
       const count = activeReviews.length;
       let avg = 4.9;
@@ -59,7 +59,9 @@ export async function syncProductReviewStats(productId) {
       status: { $in: ["Approved", "Published"] },
       deletedAt: null,
       source: { $ne: "ai_draft" },
-      publicDisplay: { $ne: false }
+      publicDisplay: { $ne: false },
+      isSample: { $ne: true },
+      isAiGenerated: { $ne: true }
     }).select("rating").lean();
 
     const count = reviews.length;
@@ -189,7 +191,7 @@ export async function getReviews(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      let list = inMemoryStore.reviews || defaultReviews;
+      let list = inMemoryStore.reviews || [];
       if (productId && productId !== "all") {
         list = list.filter(r => String(r.productId) === String(productId));
       }
@@ -203,7 +205,12 @@ export async function getReviews(req, res, next) {
         list = list.filter(r => (r.source || "customer") === source);
       }
       if (!isAdmin) {
-        list = list.filter(r => (r.status === "Approved" || r.status === "Published" || !r.status) && r.status !== "deleted" && r.status !== "Hidden" && isPublicReviewSource(r.source) && r.publicDisplay !== false);
+        list = list.filter(r =>
+          (r.status === "Approved" || r.status === "Published" || !r.status) &&
+          r.status !== "deleted" && r.status !== "Hidden" &&
+          isPublicReviewSource(r.source) && r.publicDisplay !== false &&
+          r.isSample !== true && r.isAiGenerated !== true
+        );
       } else {
         list = list.filter(r => r.status !== "deleted");
       }
@@ -229,6 +236,8 @@ export async function getReviews(req, res, next) {
     if (!isAdmin) {
       query.status = { $in: ["Approved", "Published"] };
       query.source = { $ne: "ai_draft" };
+      query.isSample = { $ne: true };
+      query.isAiGenerated = { $ne: true };
       query.$or = publicReviewQuery().$or;
     }
 
@@ -256,7 +265,7 @@ export async function createReview(req, res, next) {
     if (isDbConnected()) {
       existingCorpus = await Review.find({ status: { $ne: "deleted" } }).select("id title text sourceReviewId exactTextHash normalizedTextHash").lean();
     } else {
-      existingCorpus = (inMemoryStore.reviews || defaultReviews).filter(r => r.status !== "deleted");
+      existingCorpus = (inMemoryStore.reviews || []).filter(r => r.status !== "deleted");
     }
 
     const dupCheck = checkDuplicateReview({ text: trimmedText, exactTextHash: exactHash, normalizedTextHash: normalizedHash }, existingCorpus);
@@ -367,18 +376,12 @@ export async function updateReview(req, res, next) {
 
     if (!isDbConnected()) {
       if (!Array.isArray(inMemoryStore.reviews)) {
-        inMemoryStore.reviews = JSON.parse(JSON.stringify(defaultReviews));
+        inMemoryStore.reviews = [];
       }
       let item = inMemoryStore.reviews.find(r => String(r.id) === strId || String(r._id) === strId);
       if (!item) {
-        const def = defaultReviews.find(r => String(r.id) === strId || String(r._id) === strId);
-        if (def) {
-          item = { ...def };
-          inMemoryStore.reviews.push(item);
-        } else {
-          item = { id: strId, ...data };
-          inMemoryStore.reviews.push(item);
-        }
+        item = { id: strId, ...data };
+        inMemoryStore.reviews.push(item);
       }
       Object.assign(item, data);
       await syncProductReviewStats(item.productId || data.productId);
@@ -407,10 +410,7 @@ export async function updateReview(req, res, next) {
     );
 
     if (!updated) {
-      // If review was in seed/default data but not yet saved in Mongo, insert it
-      const seedItem = defaultReviews.find(r => String(r.id) === strId);
-      const newPayload = { ...(seedItem || {}), id: strId, ...data };
-      updated = await Review.create(newPayload);
+      updated = await Review.create({ id: strId, ...data });
     }
 
     if (updated?.productId) {
@@ -1220,7 +1220,7 @@ export async function importExternalReviews(req, res, next) {
         .select("id title text sourceReviewId exactTextHash normalizedTextHash")
         .lean();
     } else {
-      existingCorpus = (inMemoryStore.reviews || defaultReviews).filter(r => r.status !== "deleted");
+      existingCorpus = (inMemoryStore.reviews || []).filter(r => r.status !== "deleted");
     }
 
     const importedList = [];
@@ -1304,7 +1304,7 @@ export async function importExternalReviews(req, res, next) {
         const saved = await Review.create(payload);
         importedList.push(saved.toObject ? saved.toObject() : saved);
       } else {
-        if (!inMemoryStore.reviews) inMemoryStore.reviews = [...defaultReviews];
+        if (!inMemoryStore.reviews) inMemoryStore.reviews = [];
         inMemoryStore.reviews.unshift(payload);
         importedList.push(payload);
       }
@@ -1455,7 +1455,7 @@ export async function bulkSaveReviews(req, res, next) {
     if (isDbConnected()) {
       existingCorpus = await Review.find({ status: { $ne: "deleted" } }).select("id title text sourceReviewId exactTextHash normalizedTextHash").lean();
     } else {
-      existingCorpus = (inMemoryStore.reviews || defaultReviews).filter(r => r.status !== "deleted");
+      existingCorpus = (inMemoryStore.reviews || []).filter(r => r.status !== "deleted");
     }
 
     const savedList = [];
@@ -1618,7 +1618,7 @@ export async function previewImportExternalReviews(req, res, next) {
         .select("id title text sourceReviewId exactTextHash normalizedTextHash")
         .lean();
     } else {
-      existingCorpus = inMemoryStore.reviews || defaultReviews;
+      existingCorpus = inMemoryStore.reviews || [];
     }
 
     const validItems = [];

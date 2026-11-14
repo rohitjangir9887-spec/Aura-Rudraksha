@@ -5,6 +5,7 @@ import { isDbConnected, connectDB } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { defaultActiveOffer } from "../data/defaultData.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
+import { invalidateRagCache } from "../services/ragService.js";
 
 const OFFER_FIELDS = {
   id: "string", _id: "string",
@@ -173,13 +174,16 @@ export async function saveActiveOffer(req, res, next) {
           ).catch(() => {});
         }
 
+        invalidateRagCache();
         return res.json({ success: true, data: updated || payload });
       } catch (dbErr) {
         console.warn("Notice in saveActiveOffer MongoDB write:", dbErr.message);
+        invalidateRagCache();
         return res.json({ success: true, data: payload, isFallback: true });
       }
     }
 
+    invalidateRagCache();
     return res.json({ success: true, data: payload });
   } catch (err) {
     return res.json({ success: true, data: inMemoryStore.activeOffer || defaultActiveOffer, isFallback: true });
@@ -231,13 +235,16 @@ export async function saveOffer(req, res, next) {
           payload,
           { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
         );
+        invalidateRagCache();
         return res.status(200).json({ success: true, data: saved || payload });
       } catch (dbErr) {
         console.warn("Notice in saveOffer MongoDB write:", dbErr.message);
+        invalidateRagCache();
         return res.status(200).json({ success: true, data: payload, isFallback: true });
       }
     }
 
+    invalidateRagCache();
     return res.status(200).json({ success: true, data: payload });
   } catch (err) {
     return res.status(200).json({ success: true, data: req.body, isFallback: true });
@@ -263,6 +270,7 @@ export async function deleteOffer(req, res, next) {
       await Offer.findOneAndDelete({ $or: conds });
     }
 
+    invalidateRagCache();
     return res.json({ success: true, message: "Offer deleted", id: strId });
   } catch (err) {
     next(err);

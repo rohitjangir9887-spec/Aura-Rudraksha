@@ -827,5 +827,15 @@ export const auraAiClient = {
       clearTimeout(timeoutId);
     }
     return null;
+  },
+
+  // Get Public Store Trends & AI Knowledge Summary
+  async getPublicTrends(refresh = false) {
+    try {
+      const res = await fetch(`${API_BASE}/public-trends${refresh ? "?refresh=true" : ""}`);
+      const data = await res.json();
+      if (data.success && data.data) return data.data;
+    } catch (_) {}
+    return null;
   }
 };

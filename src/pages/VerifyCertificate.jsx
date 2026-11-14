@@ -24,6 +24,7 @@ export function VerifyCertificate() {
   const [certInput, setCertInput] = useState(initialId);
   const [searchedId, setSearchedId] = useState(initialId);
   const [certData, setCertData] = useState(null);
+  const [notFoundError, setNotFoundError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showFullModal, setShowFullModal] = useState(false);
@@ -34,6 +35,8 @@ export function VerifyCertificate() {
 
     setLoading(true);
     setSearchedId(clean);
+    setNotFoundError("");
+    setCertData(null);
 
     try {
       // 1. Check if it matches an actual order
@@ -58,34 +61,15 @@ export function VerifyCertificate() {
         return;
       }
 
-      // 2. Parse mock/specimen certificate ID
-      const mukhiMatch = clean.match(/(\d+)\s*(?:M|mukhi)/i);
-      const mukhiNum = mukhiMatch ? mukhiMatch[1] : "5";
-
-      setCertData({
-        certId: clean.toUpperCase().startsWith("AURA-LAB-") ? clean.toUpperCase() : `AURA-LAB-NEP-${clean.toUpperCase()}`,
-        orderNumber: clean.toUpperCase(),
-        devoteeName: "Verified Devotee",
-        itemName: `${mukhiNum} Mukhi Consecrated Nepali Rudraksha`,
-        origin: "Nepal (Himalayan Range)",
-        xrayResult: `Clear ${mukhiNum} Internal Seed Chambers (X-Ray Radiography Approved)`,
-        consecration: "Vedic Shiva Abhishekam & Prana Pratishtha Consecrated",
-        date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
-        status: "Verified Authentic & Consecrated",
-        isLiveOrder: false
-      });
+      setCertData(null);
+      setNotFoundError(
+        `No official Aura Rudraksha order or lab certificate record matched "${clean}". Please enter the exact Order ID from your confirmation email/SMS or contact support at +91 9672996531.`
+      );
     } catch (_) {
-      setCertData({
-        certId: clean.toUpperCase(),
-        devoteeName: "Verified Devotee",
-        itemName: "Consecrated Nepali Rudraksha",
-        origin: "Nepal",
-        xrayResult: "100% Solid Natural Chambers Verified",
-        consecration: "Vedic Shiva Abhishekam",
-        date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
-        status: "Verified Authentic",
-        isLiveOrder: false
-      });
+      setCertData(null);
+      setNotFoundError(
+        `Unable to verify "${clean}" at this moment. Please verify your Order ID or contact customer support.`
+      );
     } finally {
       setLoading(false);
     }
@@ -208,6 +192,31 @@ export function VerifyCertificate() {
               </button>
             </form>
           </div>
+
+          {/* Authoritative Not-Found Error State */}
+          {notFoundError && !certData && (
+            <div style={{
+              background: "#FFF5F5",
+              border: "1.5px solid #FCA5A5",
+              borderRadius: "16px",
+              padding: "20px 22px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "14px",
+              marginBottom: "24px",
+              color: "#7F1D1D"
+            }}>
+              <ShieldAlert size={22} color="#B91C1C" style={{ flexShrink: 0, marginTop: "2px" }} />
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "15px", marginBottom: "4px" }}>
+                  Certificate / Order Record Not Found
+                </div>
+                <div style={{ fontSize: "13.5px", lineHeight: "1.55" }}>
+                  {notFoundError}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Certificate Result Display */}
           {certData && (

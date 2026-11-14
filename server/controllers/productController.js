@@ -103,8 +103,8 @@ export async function applyDailySalesIncrement(products = []) {
 
   const result = products.map(p => {
     if (!p) return p;
-    // If admin explicitly turned off auto increment for this product, preserve existing sales
-    if (p.autoIncrementSales === false) return p;
+    // Only auto-increment sales if admin explicitly enabled autoIncrementSales on this product
+    if (p.autoIncrementSales !== true) return p;
 
     const curCount = Number(p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
     const lastDate = p.lastSalesUpdateDate || "";

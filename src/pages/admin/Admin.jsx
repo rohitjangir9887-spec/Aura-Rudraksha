@@ -642,10 +642,10 @@ export function Admin() {
                   alignItems: 'center',
                   gap: '4px'
                 }}
-                title={connected ? "MongoDB connected - showing live data" : "MongoDB not connected - showing demo/fallback data"}
+                title={connected ? "MongoDB connected - showing live data" : "MongoDB reconnecting - showing cached live data"}
               >
                 {connected ? <TrendingUp size={12} /> : <WifiOff size={12} />}
-                {connected ? "Live MongoDB" : "Demo Mode (DB offline)"}
+                {connected ? "Live MongoDB" : "Offline Cache (DB reconnecting)"}
               </span>
             </div>
           </div>
@@ -1713,7 +1713,7 @@ export function Admin() {
 
             {recentOrders.length === 0 ? (
               <p style={{ color: '#888', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                {connected ? "No orders yet. New orders will appear here the moment customers place them." : "No orders in demo mode. Connect MongoDB for live order data."}
+                {connected ? "No orders yet. New orders will appear here the moment customers place them." : "Reconnecting to MongoDB for live order data."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1754,7 +1754,7 @@ export function Admin() {
 
             {topProducts.length === 0 ? (
               <p style={{ color: '#888', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                {connected ? "No products yet. Add your first product to start selling." : "No products in demo mode. Connect MongoDB for live catalog data."}
+                {connected ? "No products yet. Add your first product to start selling." : "Reconnecting to MongoDB for live catalog data."}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
