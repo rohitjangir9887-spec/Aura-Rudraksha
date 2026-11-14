@@ -258,13 +258,15 @@ export function createApp(options = {}) {
       }
       const { Setting } = await import("./models/Setting.js");
       const setting = await Setting.findOne().lean().catch(() => null);
-      const categories = setting?.shopCategories || [
-        { name: "Rudraksha Beads", path: "/shop?category=Rudraksha" },
-        { name: "Jaap Mala", path: "/shop?category=Mala" },
-        { name: "Siddha Mala & Combinations", path: "/shop?category=Combinations" },
-        { name: "Puja Samagri & Murti", path: "/shop?category=Puja" },
-        { name: "Sphatik & Gemstones", path: "/shop?category=Gemstones" }
-      ];
+      const categories = (Array.isArray(setting?.shopCategories) && setting.shopCategories.length > 0)
+        ? setting.shopCategories
+        : [
+            { name: "Rudraksha Beads", path: "/shop?category=Rudraksha" },
+            { name: "Jaap Mala", path: "/shop?category=Mala" },
+            { name: "Siddha Mala & Combinations", path: "/shop?category=Combinations" },
+            { name: "Puja Samagri & Murti", path: "/shop?category=Puja" },
+            { name: "Sphatik & Gemstones", path: "/shop?category=Gemstones" }
+          ];
       return res.json({ success: true, categories });
     } catch (err) {
       return res.status(500).json({ success: false, error: err?.message || "Internal server error" });

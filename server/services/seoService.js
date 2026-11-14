@@ -1289,8 +1289,15 @@ export async function resolveSeoData(pathname, req) {
     cleanPath.startsWith("/profile") ||
     cleanPath.startsWith("/wishlist") ||
     cleanPath.startsWith("/customer") ||
+    cleanPath.startsWith("/aura-control-8740") ||
     cleanPath === "/login" ||
-    cleanPath === "/register"
+    cleanPath === "/register" ||
+    cleanPath === "/signup" ||
+    cleanPath === "/sign-up" ||
+    cleanPath === "/forgot-password" ||
+    cleanPath === "/reset-password" ||
+    cleanPath === "/verify-email" ||
+    cleanPath.startsWith("/auth/")
   ) {
     return {
       noindex: true,
@@ -1710,8 +1717,12 @@ export async function injectSeoIntoHtml(templateHtml, pathname, req) {
     }
   }
 
-  // Replace existing generic meta description, og tags, domain verification duplicates, and static template JSON-LD
+  // Replace existing generic meta description, robots, google-site-verification (if overridden), og tags, domain verification duplicates, and static template JSON-LD
   result = result.replace(/<meta\s+name=["']description["'][^>]*>/gi, `<meta name="description" content="${escapeXml(seo.description)}" />`);
+  result = result.replace(/<meta\s+name=["'](?:robots|googlebot|bingbot)["'][^>]*>/gi, "");
+  if (googleSiteVerification) {
+    result = result.replace(/<meta\s+name=["']google-site-verification["'][^>]*>/gi, "");
+  }
   result = result.replace(/<meta\s+name=["']facebook-domain-verification["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, "");
   result = result.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, "");

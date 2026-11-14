@@ -11,6 +11,7 @@ import { requireAdmin, optionalAuth, isAdminUser, hasAdminRole } from "../middle
 const router = express.Router();
 
 router.post("/validate", validateCoupon);
+router.get("/active", optionalAuth, getCoupons);
 
 // GET / stays public because the storefront (cart/checkout) displays active
 // coupons to shoppers. optionalAuth lets the controller return the full
