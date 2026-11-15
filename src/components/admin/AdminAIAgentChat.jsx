@@ -16,7 +16,6 @@ import {
   ShieldAlert,
   Wrench,
   TrendingUp,
-  Clock,
   Play,
   Pause,
   Square,
@@ -24,18 +23,21 @@ import {
   Copy,
   AlertTriangle,
   CheckCircle2,
-  ArrowRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Sparkles,
+  PanelRightOpen,
+  PanelRightClose
 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
 import { AuraAIMessageContent } from "../AuraAIMessageContent";
 import { emitToast } from "../../context/ToastContext";
 
-const AVAILABLE_NIM_MODELS = [
-  { id: "nvidia/nemotron-3-super-120b-a12b", label: "NVIDIA Nemotron-3 Super 120B (Recommended)" },
-  { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "NVIDIA Llama-3.1-Nemotron-70B-Instruct" },
-  { id: "meta/llama-3.3-70b-instruct", label: "Meta Llama-3.3-70B-Instruct (NVIDIA NIM)" },
-  { id: "mistralai/mixtral-8x22b-instruct-v0.1", label: "Mixtral 8x22B Instruct (NVIDIA NIM)" }
+export const NIM_MODEL_OPTIONS = [
+  { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "NVIDIA Llama-3.1-Nemotron-70B-Instruct (Primary)" },
+  { id: "nvidia/nemotron-3-super-120b-a12b", label: "NVIDIA Nemotron-3 Super 120B" },
+  { id: "meta/llama-3.3-70b-instruct", label: "Meta Llama-3.3-70B-Instruct (NIM)" },
+  { id: "mistralai/mixtral-8x22b-instruct-v0.1", label: "Mixtral 8x22B Instruct (NIM)" },
+  { id: "deepseek-ai/deepseek-r1", label: "DeepSeek-R1 Reasoning (NIM)" }
 ];
 
 const QUICK_COMMANDS = [
@@ -108,13 +110,15 @@ function normalizeMsg(m) {
 export function AdminAIAgentChat({
   compact = false,
   drawerMode = false,
+  embedStudio = false,
   pageContext = "",
-  onCloseDrawer = null
+  onCloseDrawer = null,
+  onActionExecuted = null
 }) {
-  const [subTab, setSubTab] = useState("chat"); // 'chat' | 'actions' | 'tasks' | 'audit'
+  const showInternalTabs = drawerMode && !embedStudio;
+  const [subTab, setSubTab] = useState("chat");
   const [sessionId] = useState("admin_master_session");
 
-  // Chat state (loads on mount — component itself mounts ONLY on /admin/ai or when drawer opened)
   const [messages, setMessages] = useState([]);
   const [loadingSession, setLoadingSession] = useState(true);
   const [sessionError, setSessionError] = useState("");
@@ -127,20 +131,18 @@ export function AdminAIAgentChat({
   ]);
   const [input, setInput] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
-  // Live Preview Split Pane
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRoute, setPreviewRoute] = useState("/");
-  const [previewViewport, setPreviewViewport] = useState("desktop"); // 'desktop' | 'mobile'
+  const [previewViewport, setPreviewViewport] = useState("desktop");
   const [previewNonce, setPreviewNonce] = useState(0);
 
-  // Action Ledger state (lazy loaded when subTab === 'actions')
   const [actions, setActions] = useState([]);
   const [loadingActions, setLoadingActions] = useState(false);
   const [undoingId, setUndoingId] = useState("");
   const actionsLoadedRef = useRef(false);
 
-  // Background Tasks state (lazy loaded when subTab === 'tasks')
   const [tasks, setTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const tasksLoadedRef = useRef(false);
@@ -154,16 +156,15 @@ export function AdminAIAgentChat({
   const [creatingTask, setCreatingTask] = useState(false);
   const [taskCmdInputs, setTaskCmdInputs] = useState({});
 
-  // Diagnostics & Growth Audit state (lazy loaded when subTab === 'audit')
   const [diagnostics, setDiagnostics] = useState(null);
   const [growthAudit, setGrowthAudit] = useState(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [autoFixing, setAutoFixing] = useState(false);
+  const [retraining, setRetraining] = useState(false);
   const auditLoadedRef = useRef(false);
 
-  // Model selector modal
   const [showModelModal, setShowModelModal] = useState(false);
-  const [selectedNimModel, setSelectedNimModel] = useState("nvidia/nemotron-3-super-120b-a12b");
+  const [selectedNimModel, setSelectedNimModel] = useState("nvidia/llama-3.1-nemotron-70b-instruct");
   const [savingModel, setSavingModel] = useState(false);
 
   const chatEndRef = useRef(null);
@@ -183,12 +184,12 @@ export function AdminAIAgentChat({
           setPagesDirectory(sessionRes.pagesDirectory);
         }
       } else if (sessionRes?.status === 401 || sessionRes?.status === 403) {
-        setSessionError("Admin authentication required. Please re-sign in to unlock autonomous tools.");
+        setSessionError("Admin authentication required. Please re-sign in to unlock autonomous store tools.");
       } else {
         setSessionError(sessionRes?.message || "Could not load Admin Agent session.");
       }
       if (settingsRes) {
-        const m = settingsRes.nemotronModel || settingsRes.selectedNimModel || settingsRes.nvidiaModel;
+        const m = settingsRes.selectedNimModel || settingsRes.nemotronModel || settingsRes.nvidiaModel;
         if (m) setSelectedNimModel(m);
       }
     } catch (e) {
@@ -206,168 +207,172 @@ export function AdminAIAgentChat({
     if (subTab === "chat" && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, isExecuting, subTab]);
+  }, [messages, subTab]);
 
-  const loadActions = useCallback(async () => {
+  const fetchActions = useCallback(async () => {
     setLoadingActions(true);
     try {
       const res = await auraAiClient.getAdminActionLogs();
       if (res?.success) {
-        setActions(res.actions || []);
-        actionsLoadedRef.current = true;
-      } else if (res?.message) {
-        emitToast(res.message, "error");
+        setActions(Array.isArray(res.actions) ? res.actions : []);
       }
     } finally {
       setLoadingActions(false);
+      actionsLoadedRef.current = true;
     }
   }, []);
 
-  const loadTasks = useCallback(async () => {
-    setLoadingTasks(true);
+  const fetchTasks = useCallback(async (silent = false) => {
+    if (!silent) setLoadingTasks(true);
     try {
       const res = await auraAiClient.getAdminTasks();
       if (res?.success) {
-        setTasks(res.tasks || []);
-        tasksLoadedRef.current = true;
+        setTasks(Array.isArray(res.tasks) ? res.tasks : []);
       }
     } finally {
-      setLoadingTasks(false);
+      if (!silent) setLoadingTasks(false);
+      tasksLoadedRef.current = true;
     }
   }, []);
 
-  const loadAuditAndDiagnostics = useCallback(async () => {
+  const fetchDiagnosticsAndAudit = useCallback(async () => {
     setLoadingAudit(true);
     try {
       const [diagRes, auditRes] = await Promise.all([
         auraAiClient.getAdminDiagnostics(),
         auraAiClient.getAdminGrowthAudit("all")
       ]);
-      if (diagRes?.success && diagRes.report) setDiagnostics(diagRes.report);
-      if (auditRes?.success && auditRes.audit) setGrowthAudit(auditRes.audit);
-      auditLoadedRef.current = true;
-    } catch (e) {
-      emitToast("Could not run store diagnostics.", "error");
+      if (diagRes?.success) setDiagnostics(diagRes.report || null);
+      if (auditRes?.success) setGrowthAudit(auditRes.audit || null);
     } finally {
       setLoadingAudit(false);
+      auditLoadedRef.current = true;
     }
   }, []);
 
-  // Lazy load sub-tab data only on first activation
   useEffect(() => {
+    if (!showInternalTabs) return;
     if (subTab === "actions" && !actionsLoadedRef.current) {
-      loadActions();
+      fetchActions();
     } else if (subTab === "tasks" && !tasksLoadedRef.current) {
-      loadTasks();
+      fetchTasks();
     } else if (subTab === "audit" && !auditLoadedRef.current) {
-      loadAuditAndDiagnostics();
+      fetchDiagnosticsAndAudit();
     }
-  }, [subTab, loadActions, loadTasks, loadAuditAndDiagnostics]);
+  }, [subTab, showInternalTabs, fetchActions, fetchTasks, fetchDiagnosticsAndAudit]);
 
-  // Conditional polling ONLY when subTab === 'tasks' AND at least one task is actively running
+  const hasRunningTask = tasks.some(t => t.status === "running");
   useEffect(() => {
-    if (subTab !== "tasks") return undefined;
-    const hasRunning = tasks.some((t) => t.status === "running");
-    if (!hasRunning) return undefined;
+    if (!showInternalTabs || subTab !== "tasks" || !hasRunningTask) return undefined;
     const timer = setInterval(() => {
-      auraAiClient.getAdminTasks().then((res) => {
-        if (res?.success) setTasks(res.tasks || []);
-      }).catch(() => {});
-    }, 6000);
+      fetchTasks(true);
+    }, 15000);
     return () => clearInterval(timer);
-  }, [subTab, tasks]);
+  }, [showInternalTabs, subTab, hasRunningTask, fetchTasks]);
 
-  const openPreviewRoute = (route) => {
-    if (!route) return;
-    setPreviewRoute(route.startsWith("/") ? route : `/${route}`);
-    setPreviewNonce((n) => n + 1);
+  const openLivePreview = (route) => {
+    const cleanRoute = route && String(route).startsWith("/") ? route : "/";
+    setPreviewRoute(cleanRoute);
     setPreviewOpen(true);
+    setPreviewNonce(n => n + 1);
   };
 
-  const handleSend = async (customPrompt = null) => {
-    const text = (customPrompt !== null ? customPrompt : input).trim();
-    if (!text || isExecuting) return;
+  const handleSend = async (overridePrompt = null) => {
+    const textToSend = (overridePrompt !== null ? overridePrompt : input).trim();
+    if (!textToSend || isExecuting) return;
 
-    if (subTab !== "chat") setSubTab("chat");
-
-    const optimisticUser = {
-      id: "u_" + Date.now(),
+    const tempUserMsg = {
+      id: `temp_u_${Date.now()}`,
       sender: "user",
-      text,
+      text: textToSend,
       timestamp: new Date().toISOString()
     };
 
-    const nextHistory = [...messages, optimisticUser];
-    setMessages(nextHistory);
-    if (customPrompt === null) setInput("");
+    const nextMessages = [...messages, tempUserMsg];
+    setMessages(nextMessages);
+    if (overridePrompt === null) setInput("");
     setIsExecuting(true);
+    if (showInternalTabs && subTab !== "chat") setSubTab("chat");
 
     try {
-      const payloadHistory = nextHistory.slice(-12).map((m) => ({
-        sender: m.sender === "user" ? "user" : "ai",
-        text: m.text
+      const payloadMsgs = nextMessages.map(m => ({
+        role: m.sender === "user" ? "user" : "assistant",
+        content: m.text
       }));
+      const res = await auraAiClient.sendAdminChat(payloadMsgs, sessionId, pageContext);
 
-      const res = await auraAiClient.sendAdminChat(payloadHistory, sessionId, pageContext);
-
-      if (res?.error && !res?.text) {
-        setMessages((prev) => [
+      if (res?.error) {
+        setMessages(prev => [
           ...prev,
           {
-            id: "err_" + Date.now(),
+            id: `err_${Date.now()}`,
             sender: "ai",
-            text: `⚠️ ${res.error}`,
-            actionsExecuted: [],
+            text: `Execution notice: ${res.error}`,
             timestamp: new Date().toISOString()
           }
         ]);
-        emitToast(res.error, "error");
-        return;
-      }
-
-      if (Array.isArray(res?.messages) && res.messages.length > 0) {
+      } else if (Array.isArray(res?.messages) && res.messages.length > 0) {
         setMessages(res.messages.map(normalizeMsg));
+        if (res.previewRoute && Array.isArray(res.actionsExecuted) && res.actionsExecuted.length > 0) {
+          setPreviewRoute(res.previewRoute);
+          setPreviewNonce(n => n + 1);
+        }
+        if (Array.isArray(res.actionsExecuted) && res.actionsExecuted.length > 0) {
+          actionsLoadedRef.current = false;
+          emitToast(`${res.actionsExecuted.length} store action(s) executed.`, "success");
+          if (typeof onActionExecuted === "function") onActionExecuted(res.actionsExecuted);
+        }
       } else {
-        const aiMsg = normalizeMsg(
-          res?.message || {
-            id: "ai_" + Date.now(),
+        setMessages(prev => [
+          ...prev,
+          normalizeMsg({
             sender: "ai",
             text: res?.text || "Command processed.",
-            modelUsed: res?.modelUsed || "",
+            modelUsed: res?.modelUsed,
             actionsExecuted: res?.actionsExecuted || [],
-            previewRoute: res?.previewRoute || "",
-            previewTitle: res?.previewTitle || "",
-            timestamp: new Date().toISOString()
-          }
-        );
-        setMessages((prev) => [...prev, aiMsg]);
+            previewRoute: res?.previewRoute || ""
+          })
+        ]);
+        if (Array.isArray(res?.actionsExecuted) && res.actionsExecuted.length > 0) {
+          actionsLoadedRef.current = false;
+          if (typeof onActionExecuted === "function") onActionExecuted(res.actionsExecuted);
+        }
       }
-
-      const acts = res?.actionsExecuted || res?.message?.actionsExecuted || [];
-      if (acts.length > 0) {
-        actionsLoadedRef.current = false; // Refresh action ledger next time opened
-        auditLoadedRef.current = false;
-        emitToast(`${acts.length} store action(s) executed cleanly.`, "success");
-      }
-
-      const routeFromRes = res?.previewRoute || res?.message?.previewRoute || acts.find((a) => a.previewRoute)?.previewRoute;
-      if (routeFromRes && !drawerMode) {
-        setPreviewRoute(routeFromRes);
-        setPreviewNonce((n) => n + 1);
-      }
-    } catch (err) {
-      setMessages((prev) => [
+    } catch (e) {
+      setMessages(prev => [
         ...prev,
         {
-          id: "err_" + Date.now(),
+          id: `err_${Date.now()}`,
           sender: "ai",
-          text: `⚠️ Agent execution error: ${err?.message || "Please retry."}`,
-          actionsExecuted: [],
+          text: `Failed to reach AI Agent: ${e?.message || "Unknown error"}`,
           timestamp: new Date().toISOString()
         }
       ]);
     } finally {
       setIsExecuting(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleDeleteMessage = async (msgId) => {
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+    await auraAiClient.deleteAdminAgentMessage(msgId, sessionId).catch(() => {});
+  };
+
+  const handleConfirmClearSession = async () => {
+    setConfirmReset(false);
+    const res = await auraAiClient.clearAdminAgentSession(sessionId);
+    if (res?.success && res.session) {
+      setMessages((res.session.messages || []).map(normalizeMsg));
+      emitToast("Agent session reset cleanly.", "success");
+    } else {
+      emitToast("Could not reset session.", "error");
     }
   };
 
@@ -377,20 +382,22 @@ export function AdminAIAgentChat({
     try {
       const res = await auraAiClient.undoAdminAction(actionId);
       if (res?.success) {
-        emitToast(res.message || "Action rolled back cleanly.", "success");
-        setActions((prev) =>
-          prev.map((a) => (a.actionId === actionId ? { ...a, reverted: true, revertedAt: new Date().toISOString() } : a))
+        emitToast(res.message || "Reverted change cleanly.", "success");
+        setActions(prev =>
+          prev.map(a =>
+            a.actionId === actionId ? { ...a, reverted: true, revertedAt: new Date().toISOString() } : a
+          )
         );
-        setMessages((prev) =>
-          prev.map((m) => ({
+        setMessages(prev =>
+          prev.map(m => ({
             ...m,
-            actionsExecuted: (m.actionsExecuted || []).map((act) =>
+            actionsExecuted: (m.actionsExecuted || []).map(act =>
               act.actionId === actionId ? { ...act, reverted: true } : act
             )
           }))
         );
-        auditLoadedRef.current = false;
-        if (previewOpen) setPreviewNonce((n) => n + 1);
+        setPreviewNonce(n => n + 1);
+        if (typeof onActionExecuted === "function") onActionExecuted([]);
       } else {
         emitToast(res?.message || "Could not undo action.", "error");
       }
@@ -399,56 +406,19 @@ export function AdminAIAgentChat({
     }
   };
 
-  const handleDeleteMessage = async (messageId) => {
-    const res = await auraAiClient.deleteAdminAgentMessage(messageId, sessionId);
-    if (res?.success && res.session?.messages) {
-      setMessages(res.session.messages.map(normalizeMsg));
-    } else {
-      setMessages((prev) => prev.filter((m) => m.id !== messageId));
-    }
-  };
-
-  const handleClearChat = async () => {
-    const res = await auraAiClient.clearAdminAgentSession(sessionId);
-    if (res?.success && res.session?.messages) {
-      setMessages(res.session.messages.map(normalizeMsg));
-    } else {
-      setMessages([]);
-    }
-    emitToast("Admin Agent session reset.", "info");
-  };
-
-  const handleAutoFixAllBugs = async () => {
-    if (autoFixing) return;
-    setAutoFixing(true);
-    try {
-      const res = await auraAiClient.executeAdminAgentAction("AUTO_FIX_BUGS", {}, sessionId);
-      if (res?.success) {
-        emitToast(res.result?.title || "Auto-fix completed!", "success");
-        actionsLoadedRef.current = false;
-        await loadAuditAndDiagnostics();
-      } else {
-        emitToast(res?.message || "Auto-fix failed.", "error");
-      }
-    } finally {
-      setAutoFixing(false);
-    }
+  const handleDeleteActionLog = async (actionId) => {
+    setActions(prev => prev.filter(a => a.actionId !== actionId));
+    await auraAiClient.deleteAdminActionLog(actionId).catch(() => {});
   };
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
-    if (!newTask.prompt.trim() || creatingTask) return;
+    if (!newTask.title.trim() || !newTask.prompt.trim() || creatingTask) return;
     setCreatingTask(true);
     try {
-      const res = await auraAiClient.createAdminTask({
-        title: newTask.title.trim() || "Scheduled Store Task",
-        prompt: newTask.prompt.trim(),
-        taskType: newTask.taskType,
-        durationMinutes: Number(newTask.durationMinutes) || 60,
-        intervalMinutes: Number(newTask.intervalMinutes) || 15
-      });
+      const res = await auraAiClient.createAdminTask(newTask);
       if (res?.success && res.task) {
-        setTasks((prev) => [res.task, ...prev]);
+        setTasks(prev => [res.task, ...prev]);
         setNewTask({
           title: "",
           prompt: "",
@@ -456,9 +426,9 @@ export function AdminAIAgentChat({
           durationMinutes: 60,
           intervalMinutes: 15
         });
-        emitToast("Background task scheduled and first cycle triggered.", "success");
+        emitToast("Autonomous background task started.", "success");
       } else {
-        emitToast(res?.message || "Could not schedule task.", "error");
+        emitToast(res?.message || "Could not create task.", "error");
       }
     } finally {
       setCreatingTask(false);
@@ -469,1014 +439,957 @@ export function AdminAIAgentChat({
     const res = await auraAiClient.controlAdminTask(taskId, command, extra);
     if (res?.success) {
       if (res.task) {
-        setTasks((prev) => prev.map((t) => (t.taskId === taskId ? res.task : t)));
+        setTasks(prev => prev.map(t => (t.taskId === taskId ? res.task : t)));
       } else {
-        loadTasks();
+        fetchTasks(true);
       }
-      emitToast(res.message || `Task ${command} applied.`, "success");
+      emitToast(res.message || `Task ${command} completed.`, "success");
     } else {
-      emitToast(res?.message || "Task command failed.", "error");
+      emitToast(res?.message || "Task action failed.", "error");
     }
   };
 
   const handleDeleteTask = async (taskId) => {
-    const res = await auraAiClient.deleteAdminTask(taskId);
-    if (res?.success) {
-      setTasks((prev) => prev.filter((t) => t.taskId !== taskId));
-      emitToast("Task removed.", "info");
+    setTasks(prev => prev.filter(t => t.taskId !== taskId));
+    await auraAiClient.deleteAdminTask(taskId).catch(() => {});
+    emitToast("Task removed.", "success");
+  };
+
+  const handleAutoFixBugs = async () => {
+    setAutoFixing(true);
+    try {
+      const res = await auraAiClient.executeAdminAgentAction("AUTO_FIX_BUGS", {}, sessionId);
+      if (res?.success) {
+        emitToast(res.result?.title || "Storefront issues repaired.", "success");
+        await fetchDiagnosticsAndAudit();
+        actionsLoadedRef.current = false;
+      } else {
+        emitToast(res?.message || "Auto-fix could not complete.", "error");
+      }
+    } finally {
+      setAutoFixing(false);
     }
   };
 
-  const handleSaveModelConfig = async (e) => {
+  const handleRetrainKnowledge = async () => {
+    setRetraining(true);
+    try {
+      const res = await auraAiClient.executeAdminAgentAction("RETRAIN_AI_KNOWLEDGE", { forceRefresh: true }, sessionId);
+      if (res?.success) {
+        emitToast("Public trends & RAG knowledge index updated.", "success");
+        actionsLoadedRef.current = false;
+      } else {
+        emitToast(res?.message || "Retrain failed.", "error");
+      }
+    } finally {
+      setRetraining(false);
+    }
+  };
+
+  const handleSaveModel = async (e) => {
     e.preventDefault();
     setSavingModel(true);
     try {
-      await auraAiClient.updateSettings({
-        selectedNimModel,
-        nvidiaModel: selectedNimModel,
-        nemotronModel: selectedNimModel
+      const res = await auraAiClient.updateSettings({
+        nemotronModel: selectedNimModel,
+        selectedNimModel
       });
-      emitToast("Fallback AI model preference saved.", "success");
-      setShowModelModal(false);
-    } catch (_) {
-      emitToast("Could not update model preference.", "error");
+      if (res?.success !== false) {
+        emitToast(`Active model updated to ${selectedNimModel}`, "success");
+        setShowModelModal(false);
+      } else {
+        emitToast(res?.message || "Could not update model setting.", "error");
+      }
     } finally {
       setSavingModel(false);
     }
   };
 
-  const containerHeight = drawerMode ? "100%" : compact ? "540px" : "700px";
+  const handleCopyText = (txt) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(txt).then(() => emitToast("Copied to clipboard.", "success")).catch(() => {});
+    }
+  };
+
+  const containerHeightClass = drawerMode
+    ? "h-full"
+    : compact
+    ? "h-[600px]"
+    : "h-[calc(100vh-205px)] min-h-[620px]";
+
+  const activeModelShort = selectedNimModel.split("/").pop() || "nemotron-70b";
 
   return (
     <div
-      className="flex flex-col bg-white border border-[#e5dccb] rounded-xl overflow-hidden shadow-sm"
-      style={{ height: containerHeight, minHeight: drawerMode ? "100%" : "520px" }}
+      className={`flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 ${containerHeightClass}`}
+      style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
     >
-      {/* Header Bar */}
-      <div className="bg-[#2a160d] text-white px-4 py-3 flex items-center justify-between gap-2 flex-wrap border-b border-[#4a2715]">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-[#8c2b10] border border-[#fbbf24]/40 flex items-center justify-center text-[#fbbf24] shrink-0">
-            <Bot size={17} />
+      {/* Top Studio Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#8C2B10] text-white">
+            <Bot size={16} />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-sm text-white tracking-tight truncate">
-                Aura Autonomous Admin Agent
-              </span>
-              <span className="text-[11px] font-semibold text-[#fde68a]">
-                · Full DB & Store Control
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-sm font-semibold text-slate-900">
+                Autonomous Admin Copilot
+              </h2>
+              <span className="hidden font-mono text-[11px] font-medium text-emerald-700 sm:inline">
+                Online · Live Read/Write
               </span>
             </div>
-            <div className="text-[11px] text-[#d6c7b2] truncate">
-              {pageContext ? `Context: ${pageContext} · ` : ""}Tool-Calling + 1-Click Undo + Live Preview
-            </div>
+            <p className="truncate text-[11px] text-slate-500">
+              <span className="font-mono">{activeModelShort}</span>
+              {pageContext ? (
+                <>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  <span className="font-mono">{pageContext}</span>
+                </>
+              ) : null}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {!drawerMode && subTab === "chat" && (
-            <button
-              type="button"
-              onClick={() => setPreviewOpen((v) => !v)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 border cursor-pointer transition-colors ${
-                previewOpen
-                  ? "bg-[#fbbf24] text-[#2a160d] border-[#fbbf24]"
-                  : "bg-white/10 text-[#fde68a] border-white/20 hover:bg-white/15"
-              }`}
-              title="Toggle Split-View Live Store Preview"
-            >
-              <Eye size={13} />
-              <span>{previewOpen ? "Hide Preview" : "Live Preview"}</span>
-            </button>
-          )}
-
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowModelModal(true)}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-[#fde68a] border border-white/20 hover:bg-white/15 inline-flex items-center gap-1.5 cursor-pointer"
-            title="Configure Fallback Reasoning Model"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <SlidersHorizontal size={13} />
-            <span className="hidden sm:inline">Model</span>
+            <span>Model</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleClearChat}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-[#fca5a5] border border-white/15 hover:bg-white/15 inline-flex items-center gap-1 cursor-pointer"
-            title="Reset Chat Session"
-          >
-            <Trash2 size={13} />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
+          {subTab === "chat" && (
+            <button
+              type="button"
+              onClick={() => (previewOpen ? setPreviewOpen(false) : openLivePreview(previewRoute))}
+              className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                previewOpen
+                  ? "border-[#8C2B10] bg-[#8C2B10] text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {previewOpen ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+              <span>{previewOpen ? "Close Preview" : "Live Preview"}</span>
+            </button>
+          )}
 
-          {onCloseDrawer && (
+          {subTab === "chat" && !confirmReset && (
+            <button
+              type="button"
+              onClick={() => setConfirmReset(true)}
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+              title="Reset chat history"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          )}
+
+          {subTab === "chat" && confirmReset && (
+            <div className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1">
+              <span className="text-[11px] font-medium text-red-700">Clear chat?</span>
+              <button
+                type="button"
+                onClick={handleConfirmClearSession}
+                className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white hover:bg-red-700"
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                className="rounded px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-white"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {drawerMode && onCloseDrawer && (
             <button
               type="button"
               onClick={onCloseDrawer}
-              className="p-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 cursor-pointer"
-              aria-label="Close Agent Drawer"
+              aria-label="Close Copilot Drawer"
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition hover:bg-slate-100"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Sub-Navigation Bar */}
-      <div className="bg-[#fdfbf7] border-b border-[#e8dccd] px-3 py-2 flex items-center gap-1.5 overflow-x-auto">
-        {[
-          { id: "chat", label: "Command Chat", icon: Bot },
-          { id: "actions", label: `Action Ledger${actions.length ? ` (${actions.length})` : ""}`, icon: History },
-          { id: "tasks", label: `Tasks${tasks.length ? ` (${tasks.length})` : ""}`, icon: Clock },
-          { id: "audit", label: "Health & Growth Audit", icon: TrendingUp }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const active = subTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSubTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer border transition-colors ${
-                active
-                  ? "bg-[#7c2d12] text-white border-[#7c2d12]"
-                  : "bg-white text-[#5c2b09] border-[#e5d5c0] hover:bg-[#fef6ec]"
-              }`}
+      {/* Drawer-Only Sub-Navigation (Omitted inside dedicated Command Center to prevent nested tabs) */}
+      {showInternalTabs && (
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 bg-[#F8FAFC] px-3 py-1.5">
+          {[
+            { id: "chat", label: "Copilot Chat", icon: Bot },
+            { id: "actions", label: "Action Ledger", icon: History },
+            { id: "tasks", label: "Tasks", icon: RefreshCw },
+            { id: "audit", label: "Diagnostics", icon: Wrench }
+          ].map(t => {
+            const Icon = t.icon;
+            const active = subTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSubTab(t.id)}
+                className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? "border border-slate-200 bg-white font-semibold text-[#8C2B10]"
+                    : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+                }`}
+              >
+                <Icon size={13} />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-[#F8FAFC]">
+        {/* CHAT WORKSPACE */}
+        {(subTab === "chat" || !showInternalTabs) && (
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            {/* Conversation Pane */}
+            <div
+              className={`flex min-w-0 flex-1 flex-col overflow-hidden ${
+                previewOpen && !drawerMode ? "border-r border-slate-200" : ""
+              } ${previewOpen && drawerMode ? "hidden" : ""}`}
             >
-              <Icon size={13} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* SUB-VIEW 1: COMMAND CHAT (+ OPTIONAL SPLIT LIVE PREVIEW) */}
-      {subTab === "chat" && (
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-          {/* Left / Main Chat Column */}
-          <div className={`flex-1 min-w-0 flex flex-col min-h-0 ${previewOpen && !drawerMode ? "lg:border-r lg:border-[#e8dccd]" : ""}`}>
-            {/* Quick Action Starters */}
-            <div className="px-3 py-2 bg-[#faf6f0] border-b border-[#efe6d8] flex items-center gap-2 overflow-x-auto">
-              {QUICK_COMMANDS.map((cmd, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  disabled={isExecuting}
-                  onClick={() => handleSend(cmd.prompt)}
-                  className="px-2.5 py-1 rounded-md bg-white border border-[#e2d3bf] text-[11.5px] font-semibold text-[#5c2b09] hover:border-[#8c2b10] hover:bg-[#fffaf3] whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-                >
-                  {cmd.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Message Feed */}
-            <div className="flex-1 overflow-y-auto p-4 bg-[#faf7f2] space-y-3">
-              {loadingSession ? (
-                <div className="flex items-center justify-center py-12 text-sm text-[#7c2d12] gap-2 font-medium">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Loading persistent Agent session...</span>
-                </div>
-              ) : sessionError ? (
-                <div className="p-4 rounded-lg bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] text-xs flex items-center justify-between gap-3">
-                  <span>{sessionError}</span>
+              {/* Quick Prompts Bar */}
+              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2">
+                <span className="shrink-0 text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  Run:
+                </span>
+                {QUICK_COMMANDS.map((cmd, idx) => (
                   <button
+                    key={idx}
                     type="button"
-                    onClick={loadSession}
-                    className="px-2.5 py-1 rounded bg-white border border-[#fca5a5] font-semibold cursor-pointer"
+                    disabled={isExecuting}
+                    onClick={() => handleSend(cmd.prompt)}
+                    className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-[#8C2B10]/40 hover:bg-[#8C2B10]/5 hover:text-[#8C2B10] disabled:opacity-50"
                   >
-                    Retry
+                    <Sparkles size={11} className="text-[#8C2B10]" />
+                    <span>{cmd.label}</span>
                   </button>
-                </div>
-              ) : (
-                messages.map((m) => {
-                  const isUser = m.sender === "user";
-                  const msgPreviewRoute = m.previewRoute || (m.actionsExecuted || []).find((a) => a.previewRoute)?.previewRoute || "";
-                  return (
-                    <div
-                      key={m.id}
-                      className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
+                ))}
+              </div>
+
+              {/* Message Thread */}
+              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+                {loadingSession ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-4 text-xs font-medium text-slate-600">
+                    <Loader2 size={15} className="animate-spin text-[#8C2B10]" />
+                    <span>Loading persistent Admin AI session...</span>
+                  </div>
+                ) : sessionError ? (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-xs text-red-800">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={15} />
+                      <span>{sessionError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={loadSession}
+                      className="shrink-0 whitespace-nowrap rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
                     >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  messages.map(msg => {
+                    const isUser = msg.sender === "user";
+                    return (
                       <div
-                        className={`max-w-[92%] sm:max-w-[86%] rounded-xl px-3.5 py-2.5 text-[13.5px] leading-relaxed shadow-xs ${
-                          isUser
-                            ? "bg-[#7c2d12] text-white rounded-br-xs"
-                            : "bg-white text-[#1f1a17] border border-[#e7dac9] rounded-bl-xs"
-                        }`}
+                        key={msg.id}
+                        className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
                       >
-                        {isUser ? (
-                          <div className="whitespace-pre-wrap">{m.text}</div>
-                        ) : (
-                          <AuraAIMessageContent text={m.text} />
-                        )}
-
-                        {/* Executed Tool Receipts */}
-                        {!isUser && Array.isArray(m.actionsExecuted) && m.actionsExecuted.length > 0 && (
-                          <div className="mt-2.5 pt-2.5 border-t border-[#efe4d6] space-y-1.5">
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-[#7c2d12]">
-                              Executed Database Actions ({m.actionsExecuted.length})
-                            </div>
-                            {m.actionsExecuted.map((act, aIdx) => (
-                              <div
-                                key={act.actionId || aIdx}
-                                className="flex items-center justify-between gap-2 bg-[#fdfaf5] border border-[#eadcc9] rounded-lg px-2.5 py-1.5 text-xs flex-wrap"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <span className="font-bold text-[#2a160d]">
-                                    {act.title || act.actionType || act.type}
-                                  </span>
-                                  {(act.targetCollection || act.collection) && (
-                                    <span className="text-[#806f62] ml-1.5 text-[11px]">
-                                      · {act.targetCollection || act.collection}
-                                    </span>
-                                  )}
-                                  {act.reverted && (
-                                    <span className="ml-2 text-[11px] font-semibold text-[#b45309]">
-                                      (Reverted)
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {act.previewRoute && !drawerMode && (
-                                    <button
-                                      type="button"
-                                      onClick={() => openPreviewRoute(act.previewRoute)}
-                                      className="px-2 py-0.5 rounded bg-white border border-[#d6c4b0] text-[#5c2b09] font-semibold text-[11px] inline-flex items-center gap-1 hover:bg-[#fef6ec] cursor-pointer"
-                                    >
-                                      <Eye size={11} /> Preview
-                                    </button>
-                                  )}
-                                  {act.actionId && !act.reverted && (act.actionType || act.type) !== "SHOW_PAGE" && (act.actionType || act.type) !== "CREATE_TASK" && (act.actionType || act.type) !== "UNDO" && (
-                                    <button
-                                      type="button"
-                                      disabled={undoingId === act.actionId}
-                                      onClick={() => handleUndoAction(act.actionId)}
-                                      className="px-2 py-0.5 rounded bg-[#fff7ed] border border-[#fdba74] text-[#9a3412] font-semibold text-[11px] inline-flex items-center gap-1 hover:bg-[#ffedd5] cursor-pointer disabled:opacity-50"
-                                    >
-                                      <RotateCcw size={11} />
-                                      <span>{undoingId === act.actionId ? "Undoing..." : "Undo"}</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Metadata & Preview shortcut */}
                         <div
-                          className={`mt-1.5 flex items-center justify-between gap-3 text-[10.5px] ${
-                            isUser ? "text-white/75" : "text-[#806f62]"
+                          className={`max-w-[92%] rounded-xl px-4 py-3 text-[13.5px] leading-relaxed ${
+                            isUser
+                              ? "bg-[#8C2B10] text-white"
+                              : "border border-slate-200 bg-white text-slate-800"
                           }`}
                         >
-                          <div className="flex items-center gap-2 tabular-nums">
-                            {m.timestamp && <span>{formatTime(m.timestamp)}</span>}
-                            {!isUser && m.modelUsed && (
-                              <span className="truncate max-w-[180px]">· {m.modelUsed}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {!isUser && msgPreviewRoute && !drawerMode && (
+                          {/* Inline Header Metadata (Zero Pills) */}
+                          <div
+                            className={`mb-1.5 flex items-center justify-between gap-4 text-[11px] ${
+                              isUser ? "text-amber-100/80" : "text-slate-500"
+                            }`}
+                          >
+                            <div className="flex min-w-0 items-center gap-1.5 font-medium">
+                              <span className={isUser ? "text-white" : "font-semibold text-slate-900"}>
+                                {isUser ? "Admin" : "Aura Copilot"}
+                              </span>
+                              {!isUser && msg.modelUsed && (
+                                <>
+                                  <span>·</span>
+                                  <span className="truncate font-mono text-[10.5px]">
+                                    {msg.modelUsed.split("/").pop()}
+                                  </span>
+                                </>
+                              )}
+                              {msg.timestamp && (
+                                <>
+                                  <span>·</span>
+                                  <span className="font-mono tabular-nums">{formatTime(msg.timestamp)}</span>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-1">
                               <button
                                 type="button"
-                                onClick={() => openPreviewRoute(msgPreviewRoute)}
-                                className="text-[#8c2b10] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                                onClick={() => handleCopyText(msg.text)}
+                                title="Copy text"
+                                className={`rounded p-1 transition ${
+                                  isUser ? "hover:bg-white/15" : "hover:bg-slate-100"
+                                }`}
                               >
-                                <Eye size={11} /> Open {msgPreviewRoute}
+                                <Copy size={11} />
                               </button>
-                            )}
-                            {m.id !== "amsg_welcome" && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteMessage(m.id)}
-                                className={`${isUser ? "text-white/70 hover:text-white" : "text-[#9a8c82] hover:text-[#c62828]"} cursor-pointer`}
+                                onClick={() => handleDeleteMessage(msg.id)}
                                 title="Delete message"
+                                className={`rounded p-1 transition ${
+                                  isUser ? "hover:bg-white/15" : "hover:bg-slate-100 hover:text-red-600"
+                                }`}
                               >
                                 <Trash2 size={11} />
                               </button>
-                            )}
+                            </div>
                           </div>
+
+                          {/* Body */}
+                          {isUser ? (
+                            <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                          ) : (
+                            <div className="prose-sm max-w-none break-words text-slate-800">
+                              <AuraAIMessageContent text={msg.text} />
+                            </div>
+                          )}
+
+                          {/* Execution Receipts + 1-Click Undo */}
+                          {!isUser && Array.isArray(msg.actionsExecuted) && msg.actionsExecuted.length > 0 && (
+                            <div className="mt-3 space-y-2 border-t border-slate-200 pt-2.5">
+                              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                Executed Actions ({msg.actionsExecuted.length})
+                              </div>
+                              {msg.actionsExecuted.map((act, idx) => (
+                                <div
+                                  key={act.actionId || idx}
+                                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-2 text-xs"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 font-semibold text-slate-900">
+                                      <CheckCircle2
+                                        size={13}
+                                        className={act.reverted ? "text-amber-600" : "text-emerald-600"}
+                                      />
+                                      <span className="truncate">{act.title || act.actionType}</span>
+                                    </div>
+                                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-slate-500">
+                                      <span>{act.actionType}</span>
+                                      {act.previewRoute && (
+                                        <>
+                                          <span>·</span>
+                                          <span>{act.previewRoute}</span>
+                                        </>
+                                      )}
+                                      {act.reverted && (
+                                        <>
+                                          <span>·</span>
+                                          <span className="font-sans font-semibold text-amber-700">Reverted</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex shrink-0 items-center gap-1.5">
+                                    {act.previewRoute && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openLivePreview(act.previewRoute)}
+                                        className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                                      >
+                                        <Eye size={11} />
+                                        <span>Preview</span>
+                                      </button>
+                                    )}
+                                    {act.actionId && !act.reverted && (
+                                      <button
+                                        type="button"
+                                        disabled={undoingId === act.actionId}
+                                        onClick={() => handleUndoAction(act.actionId)}
+                                        className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                                      >
+                                        {undoingId === act.actionId ? (
+                                          <Loader2 size={11} className="animate-spin" />
+                                        ) : (
+                                          <RotateCcw size={11} />
+                                        )}
+                                        <span>Undo</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Page Preview Link Button */}
+                          {!isUser && msg.previewRoute && (
+                            <div className="mt-2.5 flex items-center gap-2 border-t border-slate-100 pt-2">
+                              <button
+                                type="button"
+                                onClick={() => openLivePreview(msg.previewRoute)}
+                                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-[#8C2B10] hover:bg-[#8C2B10]/5"
+                              >
+                                <Eye size={12} />
+                                <span>Inspect {msg.previewTitle || msg.previewRoute}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
 
-              {isExecuting && (
-                <div className="flex items-center gap-2 bg-white border border-[#e7dac9] rounded-xl px-3.5 py-2.5 text-xs font-semibold text-[#7c2d12] w-fit shadow-xs">
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Executing agent reasoning & live database tools...</span>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Command Input */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSend();
-              }}
-              className="p-3 bg-white border-t border-[#e8dccd] flex items-center gap-2"
-            >
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Agent: discount lagao, order track/update karo, coupon banao, bug fix karo..."
-                className="flex-1 min-w-0 border border-[#d6c4b0] rounded-lg px-3 py-2 text-[13.5px] bg-[#fdfbf7] text-[#1f1a17] focus:outline-none focus:border-[#7c2d12]"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isExecuting}
-                className="px-4 py-2 rounded-lg bg-[#7c2d12] text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 cursor-pointer hover:bg-[#5c1c0a] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-              >
-                <Send size={14} />
-                <span>Execute</span>
-              </button>
-            </form>
-          </div>
-
-          {/* Right Split Pane: Live Storefront / Admin Page Preview */}
-          {previewOpen && !drawerMode && (
-            <div className="w-full lg:w-[46%] flex flex-col bg-[#f5efe6] min-h-[360px] lg:min-h-0">
-              <div className="px-3 py-2 bg-[#fdfbf7] border-b border-[#e5d8c8] flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 flex-1 min-w-[160px]">
-                  <select
-                    value={previewRoute}
-                    onChange={(e) => openPreviewRoute(e.target.value)}
-                    className="flex-1 min-w-0 px-2 py-1 rounded border border-[#d6c4b0] bg-white text-xs font-semibold text-[#2a160d]"
-                  >
-                    {pagesDirectory.map((p) => (
-                      <option key={p.route} value={p.route}>
-                        {p.title} ({p.route})
-                      </option>
-                    ))}
-                    {!pagesDirectory.some((p) => p.route === previewRoute) && (
-                      <option value={previewRoute}>{previewRoute}</option>
-                    )}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewViewport("desktop")}
-                    className={`p-1.5 rounded border text-xs cursor-pointer ${
-                      previewViewport === "desktop"
-                        ? "bg-[#7c2d12] text-white border-[#7c2d12]"
-                        : "bg-white text-[#5c2b09] border-[#d6c4b0]"
-                    }`}
-                    title="Desktop View"
-                  >
-                    <Monitor size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewViewport("mobile")}
-                    className={`p-1.5 rounded border text-xs cursor-pointer ${
-                      previewViewport === "mobile"
-                        ? "bg-[#7c2d12] text-white border-[#7c2d12]"
-                        : "bg-white text-[#5c2b09] border-[#d6c4b0]"
-                    }`}
-                    title="Mobile View (390px)"
-                  >
-                    <Smartphone size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewNonce((n) => n + 1)}
-                    className="p-1.5 rounded border border-[#d6c4b0] bg-white text-[#5c2b09] hover:bg-[#fef6ec] cursor-pointer"
-                    title="Reload Preview"
-                  >
-                    <RefreshCw size={13} />
-                  </button>
-                  <a
-                    href={previewRoute}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-1.5 rounded border border-[#d6c4b0] bg-white text-[#5c2b09] hover:bg-[#fef6ec]"
-                    title="Open in New Tab"
-                  >
-                    <ExternalLink size={13} />
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewOpen(false)}
-                    className="p-1.5 rounded border border-[#d6c4b0] bg-white text-[#5c2b09] hover:bg-[#fef2f2] cursor-pointer"
-                    title="Close Preview"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-auto p-3 flex justify-center items-start bg-[#ece4d8]">
-                <iframe
-                  key={`${previewRoute}_${previewNonce}`}
-                  src={previewRoute}
-                  title="Live Store Preview"
-                  className="bg-white border border-[#d6c4b0] rounded-lg shadow-sm"
-                  style={{
-                    width: previewViewport === "mobile" ? "390px" : "100%",
-                    height: "100%",
-                    minHeight: "420px"
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* SUB-VIEW 2: ACTION LEDGER & 1-CLICK ROLLBACK */}
-      {subTab === "actions" && (
-        <div className="flex-1 overflow-y-auto p-4 bg-[#faf7f2] space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div>
-              <h3 className="text-sm font-bold text-[#2a160d] m-0">
-                Action Ledger & 1-Click Rollback
-              </h3>
-              <p className="text-xs text-[#6b5e55] m-0">
-                Every database mutation executed by the Agent stores an exact pre-change snapshot for instant undo.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={loadActions}
-              disabled={loadingActions}
-              className="px-3 py-1.5 rounded-lg bg-white border border-[#d6c4b0] text-xs font-semibold text-[#5c2b09] inline-flex items-center gap-1.5 cursor-pointer hover:bg-[#fef6ec]"
-            >
-              <RefreshCw size={12} className={loadingActions ? "animate-spin" : ""} />
-              <span>Refresh</span>
-            </button>
-          </div>
-
-          {loadingActions ? (
-            <div className="py-10 flex items-center justify-center gap-2 text-xs font-semibold text-[#7c2d12]">
-              <Loader2 size={15} className="animate-spin" /> Loading action ledger...
-            </div>
-          ) : actions.length === 0 ? (
-            <div className="p-6 rounded-xl bg-white border border-dashed border-[#dccbb5] text-center text-xs text-[#6b5e55]">
-              No autonomous mutations logged yet. Give the Agent a command like "Sabhi products par 10% discount lagao" or "Create coupon SHIVA15".
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {actions.map((act) => (
-                <div
-                  key={act.actionId}
-                  className="bg-white border border-[#e5d8c8] rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap"
-                >
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-[#2a160d]">
-                        {act.title || act.actionType || act.type}
-                      </span>
-                      <span className="text-[11px] font-semibold text-[#7c2d12]">
-                        · {act.actionType || act.type}
-                      </span>
-                      {act.targetCollection && (
-                        <span className="text-[11px] text-[#6b5e55]">
-                          · {act.targetCollection}
-                        </span>
-                      )}
-                      {act.reverted && (
-                        <span className="text-[11px] font-bold text-[#b45309]">
-                          · Reverted
-                        </span>
-                      )}
-                    </div>
-                    {act.description && (
-                      <div className="text-xs text-[#57493f]">{act.description}</div>
-                    )}
-                    <div className="text-[11px] text-[#8a796b] tabular-nums">
-                      {formatDateTime(act.createdAt || act.timestamp)} · Source: {act.source || "admin_chat"}
+                {isExecuting && (
+                  <div className="flex items-start">
+                    <div className="inline-flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-medium text-slate-700">
+                      <Loader2 size={14} className="animate-spin text-[#8C2B10]" />
+                      <span>Agent running tool execution on store database...</span>
                     </div>
                   </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!act.reverted && (act.actionType || act.type) !== "SHOW_PAGE" && (act.actionType || act.type) !== "CREATE_TASK" && (
-                      <button
-                        type="button"
-                        disabled={undoingId === act.actionId}
-                        onClick={() => handleUndoAction(act.actionId)}
-                        className="px-2.5 py-1.5 rounded-lg bg-[#fff7ed] border border-[#fdba74] text-[#9a3412] text-xs font-semibold inline-flex items-center gap-1 hover:bg-[#ffedd5] cursor-pointer disabled:opacity-50"
-                      >
-                        <RotateCcw size={12} />
-                        <span>{undoingId === act.actionId ? "Reverting..." : "Undo Change"}</span>
-                      </button>
-                    )}
+              {/* Composer Bar */}
+              <div className="border-t border-slate-200 bg-white p-3">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    rows={drawerMode ? 2 : 2}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isExecuting}
+                    placeholder="Command Admin AI (e.g., '15% discount coupon FEST15 bnao', 'Scan and fix store bugs', 'Unpaid orders dikhao')..."
+                    className="min-h-[46px] max-h-32 flex-1 resize-none rounded-lg border border-slate-300 bg-[#F8FAFC] px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:border-[#8C2B10] focus:bg-white focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSend()}
+                    disabled={!input.trim() || isExecuting}
+                    className="inline-flex h-[46px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[#8C2B10] px-4 text-xs font-semibold text-white transition hover:bg-[#73230c] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isExecuting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    <span>Execute</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Docked Live Preview Pane */}
+            {previewOpen && (
+              <div
+                className={`flex flex-col bg-white ${
+                  drawerMode ? "w-full" : "w-[44%] min-w-[340px] max-w-[580px]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-[#F8FAFC] px-3 py-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <select
+                      value={previewRoute}
+                      onChange={(e) => openLivePreview(e.target.value)}
+                      className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 font-mono text-[11.5px] text-slate-800 focus:border-[#8C2B10] focus:outline-none"
+                    >
+                      {pagesDirectory.map(p => (
+                        <option key={p.route} value={p.route}>
+                          {p.title} ({p.route})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
-                      onClick={async () => {
-                        await auraAiClient.deleteAdminActionLog(act.actionId);
-                        setActions((prev) => prev.filter((x) => x.actionId !== act.actionId));
-                      }}
-                      className="p-1.5 rounded-lg border border-[#e5d8c8] text-[#8a796b] hover:text-[#c62828] cursor-pointer"
-                      title="Delete Log"
+                      onClick={() => setPreviewViewport("desktop")}
+                      title="Desktop preview"
+                      className={`rounded p-1.5 ${
+                        previewViewport === "desktop" ? "bg-slate-200 text-slate-900" : "text-slate-500 hover:bg-slate-100"
+                      }`}
                     >
-                      <Trash2 size={13} />
+                      <Monitor size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewViewport("mobile")}
+                      title="Mobile preview"
+                      className={`rounded p-1.5 ${
+                        previewViewport === "mobile" ? "bg-slate-200 text-slate-900" : "text-slate-500 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Smartphone size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewNonce(n => n + 1)}
+                      title="Reload preview"
+                      className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
+                    >
+                      <RefreshCw size={13} />
+                    </button>
+                    <a
+                      href={previewRoute}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open route in new tab"
+                      className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
+                    >
+                      <ExternalLink size={13} />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOpen(false)}
+                      title="Close preview"
+                      className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
+                    >
+                      <X size={13} />
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* SUB-VIEW 3: AUTONOMOUS BACKGROUND TASKS */}
-      {subTab === "tasks" && (
-        <div className="flex-1 overflow-y-auto p-4 bg-[#faf7f2] space-y-4">
-          <form
-            onSubmit={handleCreateTask}
-            className="bg-white border border-[#e5d8c8] rounded-xl p-3.5 space-y-3"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#2a160d] m-0">
-                Schedule Autonomous Agent Task
-              </h3>
-              <span className="text-[11px] text-[#6b5e55]">
-                Auto-pauses when idle · Zero storefront overhead
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <input
-                type="text"
-                value={newTask.title}
-                onChange={(e) => setNewTask((s) => ({ ...s, title: e.target.value }))}
-                placeholder="Task title (e.g. SEO & Bug Watch)"
-                className="px-2.5 py-2 rounded-lg border border-[#d6c4b0] text-xs bg-[#fdfbf7]"
-              />
-              <select
-                value={newTask.taskType}
-                onChange={(e) => setNewTask((s) => ({ ...s, taskType: e.target.value }))}
-                className="px-2.5 py-2 rounded-lg border border-[#d6c4b0] text-xs bg-[#fdfbf7]"
-              >
-                <option value="growth_audit">Growth & Revenue Audit</option>
-                <option value="bug_scan">Bug Scan & Auto-Repair</option>
-                <option value="seo_sync">Catalog SEO Optimization</option>
-                <option value="inventory_watch">Low-Stock Inventory Watch</option>
-                <option value="custom">Custom Autonomous Prompt</option>
-              </select>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={5}
-                  max={1440}
-                  value={newTask.intervalMinutes}
-                  onChange={(e) => setNewTask((s) => ({ ...s, intervalMinutes: e.target.value }))}
-                  className="w-20 px-2 py-2 rounded-lg border border-[#d6c4b0] text-xs bg-[#fdfbf7] tabular-nums"
-                  title="Interval (mins)"
-                />
-                <span className="text-[11px] text-[#6b5e55] whitespace-nowrap">min cycle</span>
-                <input
-                  type="number"
-                  min={10}
-                  max={4320}
-                  value={newTask.durationMinutes}
-                  onChange={(e) => setNewTask((s) => ({ ...s, durationMinutes: e.target.value }))}
-                  className="w-20 px-2 py-2 rounded-lg border border-[#d6c4b0] text-xs bg-[#fdfbf7] tabular-nums"
-                  title="Duration (mins)"
-                />
-                <span className="text-[11px] text-[#6b5e55] whitespace-nowrap">min total</span>
+                <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-100 p-2">
+                  <iframe
+                    key={`${previewRoute}-${previewNonce}`}
+                    src={previewRoute}
+                    title="Live Website Preview"
+                    className={`h-full rounded-lg border border-slate-200 bg-white ${
+                      previewViewport === "mobile" ? "w-[390px] max-w-full" : "w-full"
+                    }`}
+                  />
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+        )}
 
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                required
-                value={newTask.prompt}
-                onChange={(e) => setNewTask((s) => ({ ...s, prompt: e.target.value }))}
-                placeholder="Instruction: e.g. Scan all products for missing SEO keywords and unpaid orders..."
-                className="flex-1 px-2.5 py-2 rounded-lg border border-[#d6c4b0] text-xs bg-[#fdfbf7]"
-              />
+        {/* DRAWER ACTION LEDGER TAB */}
+        {showInternalTabs && subTab === "actions" && (
+          <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Action Ledger & 1-Click Undo</h3>
+                <p className="text-xs text-slate-500">Every database mutation records a full previous snapshot.</p>
+              </div>
               <button
-                type="submit"
-                disabled={creatingTask || !newTask.prompt.trim()}
-                className="px-3.5 py-2 rounded-lg bg-[#7c2d12] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                type="button"
+                onClick={fetchActions}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
-                {creatingTask ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                <span>Start Task</span>
+                <RefreshCw size={12} className={loadingActions ? "animate-spin" : ""} />
+                <span>Refresh</span>
               </button>
             </div>
-          </form>
 
-          {loadingTasks ? (
-            <div className="py-8 flex items-center justify-center gap-2 text-xs font-semibold text-[#7c2d12]">
-              <Loader2 size={15} className="animate-spin" /> Loading background tasks...
-            </div>
-          ) : tasks.length === 0 ? (
-            <div className="p-6 rounded-xl bg-white border border-dashed border-[#dccbb5] text-center text-xs text-[#6b5e55]">
-              No scheduled background tasks active.
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {tasks.map((t) => (
-                <div
-                  key={t.taskId}
-                  className="bg-white border border-[#e5d8c8] rounded-xl p-3.5 space-y-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-[#2a160d]">{t.title}</span>
+            {loadingActions ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-xs text-slate-500">
+                Loading action history...
+              </div>
+            ) : actions.length === 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-xs text-slate-500">
+                No agent mutations recorded yet. Run a command in Copilot Chat to begin.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {actions.map(act => (
+                  <div
+                    key={act.actionId}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
                         <span
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                            t.status === "running"
-                              ? "bg-[#ecfdf5] text-[#047857]"
-                              : t.status === "paused"
-                              ? "bg-[#fef3c7] text-[#92400e]"
-                              : "bg-[#f3f4f6] text-[#4b5563]"
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                            act.reverted
+                              ? "border border-amber-200 bg-amber-50 text-amber-800"
+                              : "border border-emerald-200 bg-emerald-50 text-emerald-800"
                           }`}
                         >
-                          {t.status}
+                          {act.reverted ? "Reverted" : "Applied"}
                         </span>
-                        <span className="text-[11px] text-[#6b5e55] tabular-nums">
-                          · {(t.cyclesCompleted ?? t.runsCount) || 0} cycles · every {t.intervalMinutes}m
-                        </span>
+                        <span className="truncate text-xs font-semibold text-slate-900">{act.title}</span>
                       </div>
-                      <p className="text-xs text-[#57493f] mt-1 mb-0">{t.prompt}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-500">
+                        <span>{act.actionType}</span>
+                        <span>·</span>
+                        <span>{act.targetCollection}</span>
+                        <span>·</span>
+                        <span className="tabular-nums">{formatDateTime(act.timestamp)}</span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleControlTask(t.taskId, "run_now")}
-                        className="px-2 py-1 rounded border border-[#d6c4b0] bg-[#fdfbf7] text-xs font-semibold text-[#5c2b09] inline-flex items-center gap-1 cursor-pointer"
-                        title="Run Cycle Now"
-                      >
-                        <Play size={11} /> Run
-                      </button>
-                      {t.status === "running" ? (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {!act.reverted && (
                         <button
                           type="button"
-                          onClick={() => handleControlTask(t.taskId, "pause")}
-                          className="px-2 py-1 rounded border border-[#fde68a] bg-[#fffbeb] text-xs font-semibold text-[#92400e] inline-flex items-center gap-1 cursor-pointer"
+                          disabled={undoingId === act.actionId}
+                          onClick={() => handleUndoAction(act.actionId)}
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
                         >
-                          <Pause size={11} /> Pause
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleControlTask(t.taskId, "resume")}
-                          className="px-2 py-1 rounded border border-[#bbf7d0] bg-[#f0fdf4] text-xs font-semibold text-[#166534] inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Play size={11} /> Resume
+                          <RotateCcw size={11} />
+                          <span>Undo</span>
                         </button>
                       )}
                       <button
                         type="button"
-                        onClick={() => handleControlTask(t.taskId, "stop")}
-                        className="px-2 py-1 rounded border border-[#e5d8c8] bg-white text-xs font-semibold text-[#57493f] inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <Square size={11} /> Stop
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTask(t.taskId)}
-                        className="p-1.5 rounded border border-[#e5d8c8] text-[#8a796b] hover:text-[#c62828] cursor-pointer"
-                        title="Delete Task"
+                        onClick={() => handleDeleteActionLog(act.actionId)}
+                        className="rounded border border-slate-200 bg-white p-1 text-slate-400 hover:text-red-600"
+                        title="Remove log entry"
                       >
                         <Trash2 size={12} />
                       </button>
                     </div>
                   </div>
-
-                  {/* Send live instruction to task */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={taskCmdInputs[t.taskId] || ""}
-                      onChange={(e) =>
-                        setTaskCmdInputs((prev) => ({ ...prev, [t.taskId]: e.target.value }))
-                      }
-                      placeholder="Update instruction and execute immediately..."
-                      className="flex-1 px-2.5 py-1.5 rounded border border-[#e5d8c8] text-xs bg-[#fdfbf7]"
-                    />
-                    <button
-                      type="button"
-                      disabled={!(taskCmdInputs[t.taskId] || "").trim()}
-                      onClick={() => {
-                        const val = taskCmdInputs[t.taskId];
-                        handleControlTask(t.taskId, "send_command", { instruction: val });
-                        setTaskCmdInputs((prev) => ({ ...prev, [t.taskId]: "" }));
-                      }}
-                      className="px-2.5 py-1.5 rounded bg-[#5c2b09] text-white text-xs font-semibold cursor-pointer disabled:opacity-40"
-                    >
-                      Dispatch
-                    </button>
-                  </div>
-
-                  {Array.isArray(t.logs) && t.logs.length > 0 && (
-                    <div className="bg-[#faf7f2] border border-[#efe4d6] rounded-lg p-2 space-y-1 max-h-36 overflow-y-auto">
-                      {t.logs.slice(0, 4).map((l, idx) => (
-                        <div key={l.runId || idx} className="text-[11px] text-[#4a3c32] flex justify-between gap-2">
-                          <span className="truncate">{l.summary || l.aiOutput}</span>
-                          <span className="text-[#8a796b] tabular-nums shrink-0">{formatTime(l.timestamp)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* SUB-VIEW 4: HEALTH, BUG AUTO-FIX & GROWTH COPILOT */}
-      {subTab === "audit" && (
-        <div className="flex-1 overflow-y-auto p-4 bg-[#faf7f2] space-y-4">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div>
-              <h3 className="text-sm font-bold text-[#2a160d] m-0">
-                Store Health, Bug Repair & Growth Copilot
-              </h3>
-              <p className="text-xs text-[#6b5e55] m-0">
-                Live telemetry from MongoDB: unpaid order recovery, inventory risks, VIP buyers & auto-fixable bugs.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={loadAuditAndDiagnostics}
-                disabled={loadingAudit}
-                className="px-3 py-1.5 rounded-lg bg-white border border-[#d6c4b0] text-xs font-semibold text-[#5c2b09] inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw size={12} className={loadingAudit ? "animate-spin" : ""} />
-                <span>Re-Scan Live DB</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleAutoFixAllBugs}
-                disabled={autoFixing || loadingAudit}
-                className="px-3 py-1.5 rounded-lg bg-[#7c2d12] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer hover:bg-[#5c1c0a] disabled:opacity-50"
-              >
-                {autoFixing ? <Loader2 size={12} className="animate-spin" /> : <Wrench size={12} />}
-                <span>1-Click Auto-Fix Bugs</span>
-              </button>
-            </div>
+                ))}
+              </div>
+            )}
           </div>
+        )}
 
-          {loadingAudit ? (
-            <div className="py-10 flex items-center justify-center gap-2 text-xs font-semibold text-[#7c2d12]">
-              <Loader2 size={16} className="animate-spin" /> Running full store health & growth audit...
-            </div>
-          ) : (
-            <>
-              {/* Revenue & Operational KPIs */}
-              {growthAudit && (() => {
-                const gm = growthAudit.metrics || growthAudit;
-                return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <div className="bg-white border border-[#e5d8c8] rounded-xl p-3">
-                      <div className="text-[11px] font-semibold text-[#6b5e55]">Total Revenue</div>
-                      <div className="text-lg font-extrabold text-[#2a160d] tabular-nums mt-0.5">
-                        ₹{Number(gm.totalRevenue || 0).toLocaleString("en-IN")}
-                      </div>
-                      <div className="text-[11px] text-[#7c2d12] tabular-nums">
-                        AOV: ₹{Number(gm.avgOrderValue ?? gm.averageOrderValue ?? 0).toLocaleString("en-IN")}
-                      </div>
-                    </div>
-
-                    <div className="bg-white border border-[#e5d8c8] rounded-xl p-3">
-                      <div className="text-[11px] font-semibold text-[#6b5e55]">Payment Split</div>
-                      <div className="text-lg font-extrabold text-[#2a160d] tabular-nums mt-0.5">
-                        {gm.onlineOrdersCount ?? gm.onlinePaidCount ?? 0} Online · {gm.codOrdersCount ?? gm.codCount ?? 0} COD
-                      </div>
-                      <div className="text-[11px] text-[#b45309] tabular-nums">
-                        Unpaid Online: {gm.unpaidOnlineOrdersCount ?? gm.unpaidOnlineCount ?? 0}
-                      </div>
-                    </div>
-
-                    <div className="bg-white border border-[#e5d8c8] rounded-xl p-3">
-                      <div className="text-[11px] font-semibold text-[#6b5e55]">Catalog Risks</div>
-                      <div className="text-lg font-extrabold text-[#2a160d] tabular-nums mt-0.5">
-                        {gm.outOfStockCount || 0} OOS · {gm.lowStockCount || 0} Low
-                      </div>
-                      <div className="text-[11px] text-[#6b5e55] tabular-nums">
-                        Missing SEO: {gm.missingSeoCount || 0}
-                      </div>
-                    </div>
-
-                    <div className="bg-white border border-[#e5d8c8] rounded-xl p-3">
-                      <div className="text-[11px] font-semibold text-[#6b5e55]">Support & Coupons</div>
-                      <div className="text-lg font-extrabold text-[#2a160d] tabular-nums mt-0.5">
-                        {gm.openTicketsCount || 0} Tickets · {gm.pendingReviewsCount || 0} Rev
-                      </div>
-                      <div className="text-[11px] text-[#6b5e55] tabular-nums">
-                        Active Coupons: {gm.activeCouponsCount || 0}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Priority Growth Opportunities */}
-              {growthAudit?.opportunities?.length > 0 && (
-                <div className="bg-white border border-[#e5d8c8] rounded-xl p-3.5 space-y-2.5">
-                  <div className="text-xs font-bold uppercase tracking-wider text-[#7c2d12]">
-                    Proactive Agent Opportunities
-                  </div>
-                  <div className="space-y-2">
-                    {growthAudit.opportunities.map((opp, idx) => {
-                      const promptToRun = opp.suggestedPrompt || opp.suggestedCommand;
-                      return (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between gap-3 bg-[#fdfbf7] border border-[#eadcc9] rounded-lg p-2.5 flex-wrap"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-bold text-[#2a160d]">
-                              {opp.title}
-                              <span className="ml-2 text-[10.5px] font-semibold text-[#b45309] uppercase">
-                                · {opp.priority}
-                              </span>
-                            </div>
-                            <div className="text-xs text-[#57493f] mt-0.5">{opp.detail}</div>
-                          </div>
-                          {promptToRun && (
-                            <button
-                              type="button"
-                              onClick={() => handleSend(promptToRun)}
-                              className="px-2.5 py-1.5 rounded-lg bg-[#7c2d12] text-white text-xs font-semibold inline-flex items-center gap-1 cursor-pointer shrink-0 hover:bg-[#5c1c0a]"
-                            >
-                              <span>Run Agent Fix</span>
-                              <ArrowRight size={12} />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Bug Diagnostic Scanner */}
-              {diagnostics && (() => {
-                const bugs = diagnostics.bugs || diagnostics.issues || [];
-                const bugsCount = diagnostics.bugsCount ?? diagnostics.issuesFound ?? bugs.length;
-                const isHealthy = diagnostics.healthy !== undefined ? diagnostics.healthy : bugsCount === 0;
-                return (
-                  <div className="bg-white border border-[#e5d8c8] rounded-xl p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-bold uppercase tracking-wider text-[#2a160d] flex items-center gap-1.5">
-                        {isHealthy ? (
-                          <CheckCircle2 size={14} className="text-[#047857]" />
-                        ) : (
-                          <ShieldAlert size={14} className="text-[#c62828]" />
-                        )}
-                        <span>
-                          System Diagnostic: {isHealthy ? "Healthy" : "Issues Detected"} ({bugsCount} issue{bugsCount === 1 ? "" : "s"})
-                        </span>
-                      </div>
-                    </div>
-
-                    {bugs.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {bugs.map((iss, idx) => (
-                          <div
-                            key={iss.id || idx}
-                            className="p-2.5 rounded-lg bg-[#fffbeb] border border-[#fde68a] text-xs text-[#78350f] flex items-start gap-2"
-                          >
-                            <AlertTriangle size={14} className="shrink-0 mt-0.5 text-[#d97706]" />
-                            <div>
-                              <div className="font-bold">
-                                [{String(iss.severity || "medium").toUpperCase()}] {iss.category} {iss.title ? `· ${iss.title}` : ""}
-                              </div>
-                              <div>{iss.detail || iss.message}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-[#047857] font-medium">
-                        All MongoDB collections, product slugs, images, and SEO metadata verified healthy.
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* VIP Buyers & Top Sellers */}
-              {growthAudit && (growthAudit.vipBuyers?.length > 0 || (growthAudit.topSellers || growthAudit.topProducts)?.length > 0) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {growthAudit.vipBuyers?.length > 0 && (
-                    <div className="bg-white border border-[#e5d8c8] rounded-xl p-3.5 space-y-2">
-                      <div className="text-xs font-bold uppercase tracking-wider text-[#7c2d12]">
-                        Top VIP Devotees
-                      </div>
-                      <div className="space-y-2">
-                        {growthAudit.vipBuyers.slice(0, 5).map((vip, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-2 text-xs border-b border-[#f3ebe0] pb-1.5 last:border-b-0">
-                            <div className="min-w-0">
-                              <div className="font-bold text-[#2a160d] truncate">{vip.name}</div>
-                              <div className="text-[11px] text-[#6b5e55] tabular-nums">
-                                {vip.ordersCount} orders · ₹{Number(vip.totalSpent || 0).toLocaleString("en-IN")}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const msg = `Namaste ${vip.name} ji, Aura Rudraksha par aapke vishwas ke liye dhanyavaad! Special VIP blessing code: SHIVA15`;
-                                navigator.clipboard?.writeText(msg);
-                                emitToast("VIP WhatsApp message copied.", "success");
-                              }}
-                              className="px-2 py-1 rounded border border-[#d6c4b0] bg-[#fdfbf7] text-[11px] font-semibold text-[#5c2b09] inline-flex items-center gap-1 cursor-pointer shrink-0"
-                            >
-                              <Copy size={11} /> Copy WA
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {(growthAudit.topSellers || growthAudit.topProducts)?.length > 0 && (
-                    <div className="bg-white border border-[#e5d8c8] rounded-xl p-3.5 space-y-2">
-                      <div className="text-xs font-bold uppercase tracking-wider text-[#7c2d12]">
-                        Top Selling Catalog Items
-                      </div>
-                      <div className="space-y-2">
-                        {(growthAudit.topSellers || growthAudit.topProducts).slice(0, 5).map((tp, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-2 text-xs border-b border-[#f3ebe0] pb-1.5 last:border-b-0">
-                            <span className="font-semibold text-[#2a160d] truncate">{tp.name}</span>
-                            <span className="text-[#57493f] tabular-nums shrink-0">
-                              {tp.units ?? tp.unitsSold ?? 0} sold{tp.revenue ? ` · ₹${Number(tp.revenue).toLocaleString("en-IN")}` : ""}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Model Selector Modal (Fallback Reasoning Preference — Server-Managed Auth) */}
-      {showModelModal && (
-        <div className="fixed inset-0 bg-black/50 z-[10050] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-5 border border-[#e5dccb] shadow-xl">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-[#2a160d] flex items-center gap-2 m-0">
-                <Cpu size={17} className="text-[#7c2d12]" />
-                <span>Agent Fallback Model Preference</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowModelModal(false)}
-                className="text-[#6b5e55] hover:text-[#2a160d] cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <p className="text-xs text-[#6b5e55] mb-3">
-              Primary tool-calling runs server-side automatically. Choose which NVIDIA NIM model acts as the backup reasoning engine.
-            </p>
-            <form onSubmit={handleSaveModelConfig} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#4a2715] mb-1.5">
-                  Backup Reasoning Model:
-                </label>
+        {/* DRAWER TASKS TAB */}
+        {showInternalTabs && subTab === "tasks" && (
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            <form onSubmit={handleCreateTask} className="space-y-3 rounded-lg border border-slate-200 bg-white p-3.5">
+              <div className="text-xs font-semibold text-slate-900">Launch Autonomous Background Task</div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  type="text"
+                  required
+                  value={newTask.title}
+                  onChange={e => setNewTask(p => ({ ...p, title: e.target.value }))}
+                  placeholder="Task title (e.g., Hourly Bug Guard)"
+                  className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs focus:border-[#8C2B10] focus:outline-none"
+                />
                 <select
-                  value={selectedNimModel}
-                  onChange={(e) => setSelectedNimModel(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#d6c4b0] text-xs bg-[#fdfbf7]"
+                  value={newTask.taskType}
+                  onChange={e => setNewTask(p => ({ ...p, taskType: e.target.value }))}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:border-[#8C2B10] focus:outline-none"
                 >
-                  {AVAILABLE_NIM_MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
+                  <option value="growth_audit">Growth & Orders Audit</option>
+                  <option value="bug_scanner">Bug & SEO Auto-Scanner</option>
+                  <option value="inventory_guardian">Low Stock Guardian</option>
+                  <option value="seo_optimizer">SEO Optimizer</option>
+                  <option value="custom">Custom Instruction</option>
                 </select>
               </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModelModal(false)}
-                  className="px-3.5 py-2 rounded-lg border border-[#d6c4b0] bg-white text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <textarea
+                rows={2}
+                required
+                value={newTask.prompt}
+                onChange={e => setNewTask(p => ({ ...p, prompt: e.target.value }))}
+                placeholder="Instruction for autonomous runs..."
+                className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs focus:border-[#8C2B10] focus:outline-none"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                  <span>Duration (min):</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={1440}
+                    value={newTask.durationMinutes}
+                    onChange={e => setNewTask(p => ({ ...p, durationMinutes: Number(e.target.value) || 60 }))}
+                    className="w-16 rounded border border-slate-300 px-2 py-1 font-mono text-xs tabular-nums"
+                  />
+                  <span>Interval (min):</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={180}
+                    value={newTask.intervalMinutes}
+                    onChange={e => setNewTask(p => ({ ...p, intervalMinutes: Number(e.target.value) || 15 }))}
+                    className="w-16 rounded border border-slate-300 px-2 py-1 font-mono text-xs tabular-nums"
+                  />
+                </div>
                 <button
                   type="submit"
-                  disabled={savingModel}
-                  className="px-4 py-2 rounded-lg bg-[#7c2d12] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  disabled={creatingTask}
+                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#8C2B10] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
                 >
-                  <Check size={14} />
-                  <span>{savingModel ? "Saving..." : "Save Model"}</span>
+                  {creatingTask ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                  <span>Start Task</span>
                 </button>
               </div>
             </form>
+
+            {loadingTasks ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-xs text-slate-500">
+                Loading background tasks...
+              </div>
+            ) : tasks.length === 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-xs text-slate-500">
+                No scheduled tasks running.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {tasks.map(t => (
+                  <div key={t.taskId} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                              t.status === "running"
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : t.status === "paused"
+                                ? "border border-amber-200 bg-amber-50 text-amber-800"
+                                : "border border-slate-200 bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                          <span className="truncate text-xs font-semibold text-slate-900">{t.title}</span>
+                        </div>
+                        <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+                          Runs: {t.runsCount || 0} · Every {t.intervalMinutes}m · {t.taskType}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleControlTask(t.taskId, "run_now")}
+                          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          Run Now
+                        </button>
+                        {t.status === "running" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleControlTask(t.taskId, "pause")}
+                            className="rounded border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50"
+                            title="Pause"
+                          >
+                            <Pause size={12} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleControlTask(t.taskId, "resume")}
+                            className="rounded border border-slate-200 bg-white p-1 text-emerald-700 hover:bg-emerald-50"
+                            title="Resume"
+                          >
+                            <Play size={12} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleControlTask(t.taskId, "stop")}
+                          className="rounded border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50"
+                          title="Stop"
+                        >
+                          <Square size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTask(t.taskId)}
+                          className="rounded border border-slate-200 bg-white p-1 text-slate-400 hover:text-red-600"
+                          title="Delete task"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={taskCmdInputs[t.taskId] || ""}
+                        onChange={e => setTaskCmdInputs(p => ({ ...p, [t.taskId]: e.target.value }))}
+                        placeholder="Send updated instruction..."
+                        className="flex-1 rounded border border-slate-200 bg-[#F8FAFC] px-2 py-1 text-[11.5px] focus:border-[#8C2B10] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cmd = (taskCmdInputs[t.taskId] || "").trim();
+                          if (!cmd) return;
+                          handleControlTask(t.taskId, "send_command", { instruction: cmd });
+                          setTaskCmdInputs(p => ({ ...p, [t.taskId]: "" }));
+                        }}
+                        className="shrink-0 whitespace-nowrap rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#8C2B10] hover:bg-[#8C2B10]/5"
+                      >
+                        Dispatch
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        )}
+
+        {/* DRAWER DIAGNOSTICS TAB */}
+        {showInternalTabs && subTab === "audit" && (
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={fetchDiagnosticsAndAudit}
+                disabled={loadingAudit}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <RefreshCw size={12} className={loadingAudit ? "animate-spin" : ""} />
+                <span>Run Live Scan</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleAutoFixBugs}
+                disabled={autoFixing}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#8C2B10] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
+              >
+                {autoFixing ? <Loader2 size={12} className="animate-spin" /> : <Wrench size={12} />}
+                <span>Auto-Fix All</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRetrainKnowledge}
+                disabled={retraining}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <TrendingUp size={12} />
+                <span>{retraining ? "Retraining..." : "Train Public Trends"}</span>
+              </button>
+            </div>
+
+            {growthAudit?.metrics && (
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-[11px] font-medium text-slate-500">Revenue</div>
+                  <div className="mt-0.5 font-mono text-base font-semibold tabular-nums text-slate-900">
+                    ₹{Number(growthAudit.metrics.totalRevenue || 0).toLocaleString("en-IN")}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-[11px] font-medium text-slate-500">Low / OOS Products</div>
+                  <div className="mt-0.5 font-mono text-base font-semibold tabular-nums text-slate-900">
+                    {growthAudit.metrics.lowStockCount || 0} / {growthAudit.metrics.outOfStockCount || 0}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3.5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-900">
+                  Detected Issues ({diagnostics?.bugsCount || 0})
+                </span>
+                <span className="font-mono text-[11px] text-slate-500">
+                  {diagnostics?.metrics?.productsScanned || 0} products scanned
+                </span>
+              </div>
+              {loadingAudit ? (
+                <div className="py-4 text-center text-xs text-slate-500">Scanning store...</div>
+              ) : !diagnostics?.bugs?.length ? (
+                <div className="flex items-center gap-2 py-2 text-xs font-medium text-emerald-700">
+                  <Check size={14} />
+                  <span>All scanned products, images, stock levels, and coupons look healthy.</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {diagnostics.bugs.slice(0, 12).map(b => (
+                    <div
+                      key={b.id}
+                      className="flex items-start justify-between gap-2 rounded border border-slate-200 bg-[#F8FAFC] px-2.5 py-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900">{b.title}</div>
+                        <div className="mt-0.5 text-[11px] text-slate-600">{b.detail}</div>
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] font-semibold uppercase text-amber-700">
+                        {b.severity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* NIM Model Selector Modal */}
+      {showModelModal && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setShowModelModal(false)}
+        >
+          <form
+            onSubmit={handleSaveModel}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu size={16} className="text-[#8C2B10]" />
+                <h3 className="text-sm font-semibold text-slate-900">Select Active LLM Engine</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModelModal(false)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-slate-700">
+                NVIDIA NIM Primary Model (Automatic Gemini Fallback Active)
+              </label>
+              <select
+                value={selectedNimModel}
+                onChange={(e) => setSelectedNimModel(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#8C2B10] focus:outline-none"
+              >
+                {NIM_MODEL_OPTIONS.map(opt => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowModelModal(false)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingModel}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#8C2B10] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
+              >
+                {savingModel ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                <span>Save Model</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

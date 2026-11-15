@@ -29,10 +29,10 @@ import {
 } from "../controllers/auraAiController.js";
 
 // Resilient in-memory mirrors when DB is warming up
-const memChatSessions = new Map();
-const memActionLogs = new Map();
-const memTasks = new Map();
-const memWorkLogs = [];
+export const memChatSessions = new Map();
+export const memActionLogs = new Map();
+export const memTasks = new Map();
+export const memWorkLogs = [];
 
 export const NIM_FALLBACK_MODELS = [
   "nvidia/llama-3.1-nemotron-70b-instruct",
@@ -2191,43 +2191,56 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
     }
 
     case "AUTO_FIX_BUGS": {
+      if (!isDbConnected() && (process.env.MONGO_URI || process.env.MONGODB_URI || process.env.DATABASE_URL)) {
+        await connectDB().catch(() => {});
+      }
       const diag = await runWebsiteBugDiagnostic();
       const fixedList = [];
 
-      if (!diag.metrics.mongoConnected) {
-        await connectDB().catch(() => {});
-      }
-
       for (const b of diag.bugs) {
-        if (b.fixType === "RESTOCK_PRODUCT" && b.targetId && isDbConnected()) {
-          const prev = await Product.findOne({ id: b.targetId }).lean();
+        if (b.fixType === "RESTOCK_PRODUCT" && b.targetId) {
+          let prev = isDbConnected() ? await Product.findOne({ id: b.targetId }).lean().catch(() => null) : null;
+          if (!prev && Array.isArray(inMemoryStore.products)) {
+            prev = inMemoryStore.products.find(p => p.id === b.targetId) || null;
+          }
           if (prev) {
-            await Product.updateOne({ id: b.targetId }, { $set: { stock: 25 } });
+            if (isDbConnected()) await Product.updateOne({ id: b.targetId }, { $set: { stock: 25 } });
+            if (Array.isArray(inMemoryStore.products)) {
+              const idx = inMemoryStore.products.findIndex(p => p.id === b.targetId);
+              if (idx !== -1) inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], stock: 25 };
+            }
             await recordAdminActionLog({
               actionType: "UPDATE_PRODUCT",
               title: `Auto-Fixed Low Stock: ${prev.name} (Restocked to 25)`,
               description: `Bug Auto-Fix raised stock from ${prev.stock} to 25.`,
               targetCollection: "Product",
               targetId: prev.id,
-              previousData: prev,
+              previousData: { ...prev },
               newData: { ...prev, stock: 25 },
               previewRoute: `/product/${prev.slug || prev.id}`,
               source, sessionId, taskId
             });
             fixedList.push(`Restocked "${prev.name}" to 25 units`);
           }
-        } else if (b.fixType === "ENRICH_PRODUCT_SEO" && b.targetId && isDbConnected()) {
-          const prev = await Product.findOne({ id: b.targetId }).lean();
+        } else if (b.fixType === "ENRICH_PRODUCT_SEO" && b.targetId) {
+          let prev = isDbConnected() ? await Product.findOne({ id: b.targetId }).lean().catch(() => null) : null;
+          if (!prev && Array.isArray(inMemoryStore.products)) {
+            prev = inMemoryStore.products.find(p => p.id === b.targetId) || null;
+          }
           if (prev) {
             const richDesc = `${prev.name} — 100% Authentic Lab-Certified Himalayan Rudraksha consecrated with Vedic Shiva Purana Prana-Pratishtha rituals. Brings spiritual clarity, planetary harmony, and divine protection.`;
-            await Product.updateOne({ id: b.targetId }, { $set: { description: richDesc } });
+            if (isDbConnected()) await Product.updateOne({ id: b.targetId }, { $set: { description: richDesc } });
+            if (Array.isArray(inMemoryStore.products)) {
+              const idx = inMemoryStore.products.findIndex(p => p.id === b.targetId);
+              if (idx !== -1) inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], description: richDesc };
+            }
             await recordAdminActionLog({
               actionType: "UPDATE_PRODUCT",
               title: `Auto-Fixed SEO Description: ${prev.name}`,
               description: `Enriched thin product description with Vedic SEO copy.`,
               targetCollection: "Product",
               targetId: prev.id,
-              previousData: prev,
+              previousData: { ...prev },
               newData: { ...prev, description: richDesc },
               previewRoute: `/product/${prev.slug || prev.id}`,
               source, sessionId, taskId
@@ -2652,13 +2665,13 @@ export async function createAdminBackgroundTask({
 /**
  * Execute one cycle of a Background Task and store output in MongoDB
  */
-export async function executeSingleTaskCycle(taskId) {
+export async function executeSingleTaskCycle(taskId, { forceRun = false } = {}) {
   let task = null;
   if (isDbConnected()) {
     task = await AdminAITask.findOne({ taskId }).lean();
   }
   if (!task) task = memTasks.get(taskId);
-  if (!task || task.status !== "running") return null;
+  if (!task || (!forceRun && task.status !== "running")) return null;
 
   const now = new Date();
   if (task.runsCount > 0 && new Date(task.expiresAt) < now) {
@@ -2797,4 +2810,7 @@ export function startAdminAgentBackgroundLoop() {
       }
     } catch (_) {}
   }, 20000);
+  if (backgroundLoopTimer && typeof backgroundLoopTimer.unref === "function") {
+    backgroundLoopTimer.unref();
+  }
 }

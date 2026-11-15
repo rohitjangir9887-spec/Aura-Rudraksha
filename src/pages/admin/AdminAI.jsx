@@ -1,145 +1,326 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { 
-  Sparkles, 
-  Bot, 
-  MessageSquare, 
-  Users, 
-  ShoppingCart, 
-  TrendingUp, 
-  DollarSign, 
-  Headphones, 
-  Sliders, 
-  Settings as SettingsIcon, 
-  Tag, 
-  Boxes, 
-  Check, 
-  X, 
-  Eye, 
-  RotateCcw, 
-  Search, 
-  ExternalLink, 
-  ShieldCheck, 
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import {
+  ArrowLeft,
+  Bot,
+  History,
+  Clock,
+  Wrench,
   BarChart3,
-  Calendar,
-  Layers,
-  PhoneCall,
-  ArrowLeft
+  Settings as SettingsIcon,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  Play,
+  Pause,
+  Square,
+  Loader2,
+  Check,
+  X,
+  TrendingUp,
+  Search,
+  MessageSquare,
+  ExternalLink,
+  AlertTriangle,
+  ShieldCheck,
+  Database,
+  Send
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
-import { AdminAIAgentChat } from "../../components/admin/AdminAIAgentChat";
+import { AdminAIAgentChat, NIM_MODEL_OPTIONS } from "../../components/admin/AdminAIAgentChat";
 import { auraAiClient } from "../../lib/auraAiClient";
 import { emitToast } from "../../context/ToastContext";
 import { db, isPublicProduct } from "../../lib/db";
 
+const TOP_TABS = [
+  { id: "agent", label: "Agent Studio", icon: Bot },
+  { id: "actions", label: "Action Ledger", icon: History },
+  { id: "tasks", label: "Background Tasks", icon: Clock },
+  { id: "diagnostics", label: "Diagnostics & Trends", icon: Wrench },
+  { id: "customer", label: "Customer Bot", icon: BarChart3 },
+  { id: "config", label: "Configuration", icon: SettingsIcon }
+];
+
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  } catch (_) {
+    return String(iso);
+  }
+}
+
 export function AdminAI() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("agent");
+
+  // Action Ledger state
+  const [actions, setActions] = useState([]);
+  const [loadingActions, setLoadingActions] = useState(false);
+  const [undoingId, setUndoingId] = useState("");
+  const [expandedActionId, setExpandedActionId] = useState("");
+  const actionsLoadedRef = useRef(false);
+
+  // Background Tasks state
+  const [tasks, setTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [taskCmdInputs, setTaskCmdInputs] = useState({});
+  const [newTask, setNewTask] = useState({
+    title: "",
+    prompt: "",
+    taskType: "growth_audit",
+    durationMinutes: 60,
+    intervalMinutes: 15
+  });
+  const tasksLoadedRef = useRef(false);
+
+  // Diagnostics & Public Trends state
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [growthAudit, setGrowthAudit] = useState(null);
+  const [publicTrends, setPublicTrends] = useState(null);
+  const [loadingDiagnostics, setLoadingDiagnostics] = useState(false);
+  const [autoFixing, setAutoFixing] = useState(false);
+  const [retraining, setRetraining] = useState(false);
+  const diagnosticsLoadedRef = useRef(false);
+
+  // Customer Bot Analytics & Conversations state
   const [analytics, setAnalytics] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedConvo, setSelectedConvo] = useState(null);
+  const [searchConvo, setSearchConvo] = useState("");
+  const [products, setProducts] = useState([]);
+  const [coupons, setCoupons] = useState([]);
+  const [loadingCustomer, setLoadingCustomer] = useState(false);
+  const customerLoadedRef = useRef(false);
+
+  // Customer Bot Settings state
   const [settings, setSettings] = useState({
     enabled: true,
     showFloatingButton: true,
     showHeaderButton: true,
     language: "auto",
     tone: "polite_spiritual",
-    greeting: "Namaste 🙏 Main Aura AI hoon — Aura Rudraksha ka personal shopping aur support assistant. Aaj main aapki kis cheez mein help karun?",
+    greeting:
+      "Namaste Main Aura AI hoon — Aura Rudraksha ka personal shopping aur support assistant. Aaj main aapki kis cheez mein help karun?",
     recommendProducts: true,
     recommendOffers: true,
     cartActions: true,
     orderSupport: true,
-    humanSupport: true
+    humanSupport: true,
+    nemotronModel: "nvidia/llama-3.1-nemotron-70b-instruct"
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [coupons, setCoupons] = useState([]);
-  const [searchConvo, setSearchConvo] = useState("");
-  const [executiveReport, setExecutiveReport] = useState(null);
-  const [loadingExecutive, setLoadingExecutive] = useState(false);
 
-  const setSettingsSafe = (s) => {
-    if (s) setSettings(prev => ({ ...prev, ...s }));
-  };
-
-  // Lightweight initial load: settings only; analytics & heavy tabs load lazily when opened
   useEffect(() => {
-    auraAiClient.getSettings().then(setSettingsSafe).catch(() => {});
+    auraAiClient
+      .getSettings()
+      .then((s) => {
+        if (s) setSettings((prev) => ({ ...prev, ...s }));
+      })
+      .catch(() => {});
   }, []);
 
-  // Lazy load data on-demand as administrator switches tabs
-  useEffect(() => {
-    if (activeTab === "overview" && !analytics) {
-      auraAiClient.getAnalytics().then(data => {
-        setAnalytics(data || { hasData: false });
-      }).catch(() => {});
-    } else if (activeTab === "intelligence" && !executiveReport && !loadingExecutive) {
-      setLoadingExecutive(true);
-      auraAiClient.getAdminIntelligence().then(rep => {
-        setExecutiveReport(rep || null);
-      }).catch(() => {}).finally(() => {
-        setLoadingExecutive(false);
-      });
-    } else if (activeTab === "conversations" && conversations.length === 0) {
-      auraAiClient.getConversations().then(list => {
-        setConversations(list || []);
-      }).catch(() => {});
-    } else if ((activeTab === "products" || activeTab === "offers") && products.length === 0) {
-      Promise.all([
-        db.fetchProducts(),
-        db.fetchCoupons ? db.fetchCoupons() : Promise.resolve()
-      ]).then(() => {
-        setProducts(db.getProducts());
-        setCoupons(db.getCoupons ? db.getCoupons() : []);
-      }).catch(() => {});
-    }
-  }, [activeTab]);
-
-  const loadAll = async () => {
+  const loadActions = useCallback(async () => {
+    setLoadingActions(true);
     try {
-      const [analyticsData, settingsData] = await Promise.all([
-        auraAiClient.getAnalytics().catch(() => null),
-        auraAiClient.getSettings().catch(() => null)
+      const res = await auraAiClient.getAdminActionLogs();
+      if (res?.success) setActions(Array.isArray(res.actions) ? res.actions : []);
+    } finally {
+      setLoadingActions(false);
+      actionsLoadedRef.current = true;
+    }
+  }, []);
+
+  const loadTasks = useCallback(async (silent = false) => {
+    if (!silent) setLoadingTasks(true);
+    try {
+      const res = await auraAiClient.getAdminTasks();
+      if (res?.success) setTasks(Array.isArray(res.tasks) ? res.tasks : []);
+    } finally {
+      if (!silent) setLoadingTasks(false);
+      tasksLoadedRef.current = true;
+    }
+  }, []);
+
+  const loadDiagnostics = useCallback(async (refreshTrends = false) => {
+    setLoadingDiagnostics(true);
+    try {
+      const [diagRes, auditRes, trendsRes] = await Promise.all([
+        auraAiClient.getAdminDiagnostics(),
+        auraAiClient.getAdminGrowthAudit("all"),
+        auraAiClient.getPublicTrends(refreshTrends)
       ]);
-      setAnalytics(analyticsData);
-      setSettingsSafe(settingsData);
+      if (diagRes?.success) setDiagnostics(diagRes.report || null);
+      if (auditRes?.success) setGrowthAudit(auditRes.audit || null);
+      if (trendsRes) setPublicTrends(trendsRes);
+    } finally {
+      setLoadingDiagnostics(false);
+      diagnosticsLoadedRef.current = true;
+    }
+  }, []);
 
-      if (activeTab === "intelligence" || executiveReport) {
-        setLoadingExecutive(true);
-        const rep = await auraAiClient.getAdminIntelligence().catch(() => null);
-        setExecutiveReport(rep);
-        setLoadingExecutive(false);
-      }
-      if (activeTab === "conversations" || conversations.length > 0) {
-        const list = await auraAiClient.getConversations().catch(() => []);
-        setConversations(list);
-      }
-      if (activeTab === "products" || activeTab === "offers" || products.length > 0) {
-        await Promise.all([
-          db.fetchProducts().catch(() => {}),
-          db.fetchCoupons ? db.fetchCoupons().catch(() => {}) : Promise.resolve()
-        ]);
-        setProducts(db.getProducts());
-        setCoupons(db.getCoupons ? db.getCoupons() : []);
-      }
+  const loadCustomerBotData = useCallback(async () => {
+    setLoadingCustomer(true);
+    try {
+      const [analyticsRes, convosRes] = await Promise.all([
+        auraAiClient.getAnalytics().catch(() => null),
+        auraAiClient.getConversations().catch(() => [])
+      ]);
+      setAnalytics(analyticsRes || { hasData: false });
+      setConversations(Array.isArray(convosRes) ? convosRes : []);
 
-      emitToast("Live data refreshed successfully.", "success");
-    } catch (e) {
-      emitToast("Error refreshing data.", "error");
+      await Promise.all([
+        db.fetchProducts().catch(() => {}),
+        db.fetchCoupons ? db.fetchCoupons().catch(() => {}) : Promise.resolve()
+      ]);
+      setProducts(db.getProducts().filter(isPublicProduct));
+      setCoupons(db.getCoupons ? db.getCoupons() : []);
+    } finally {
+      setLoadingCustomer(false);
+      customerLoadedRef.current = true;
+    }
+  }, []);
+
+  // Lazy load per top-level view
+  useEffect(() => {
+    if (activeTab === "actions" && !actionsLoadedRef.current) loadActions();
+    if (activeTab === "tasks" && !tasksLoadedRef.current) loadTasks();
+    if (activeTab === "diagnostics" && !diagnosticsLoadedRef.current) loadDiagnostics(false);
+    if (activeTab === "customer" && !customerLoadedRef.current) loadCustomerBotData();
+  }, [activeTab, loadActions, loadTasks, loadDiagnostics, loadCustomerBotData]);
+
+  // Conditional 15s polling when viewing Background Tasks and at least one task is running
+  const hasRunningTask = tasks.some((t) => t.status === "running");
+  useEffect(() => {
+    if (activeTab !== "tasks" || !hasRunningTask) return undefined;
+    const timer = setInterval(() => {
+      loadTasks(true);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [activeTab, hasRunningTask, loadTasks]);
+
+  const handleGlobalRefresh = () => {
+    if (activeTab === "actions") loadActions();
+    else if (activeTab === "tasks") loadTasks();
+    else if (activeTab === "diagnostics") loadDiagnostics(true);
+    else if (activeTab === "customer") loadCustomerBotData();
+    else {
+      auraAiClient.getSettings().then((s) => {
+        if (s) setSettings((prev) => ({ ...prev, ...s }));
+      });
+      emitToast("Live configuration synced.", "success");
     }
   };
 
-  const handleRefreshExecutive = async () => {
-    setLoadingExecutive(true);
+  const handleUndo = async (actionId) => {
+    if (!actionId || undoingId) return;
+    setUndoingId(actionId);
     try {
-      const rep = await auraAiClient.getAdminIntelligence();
-      setExecutiveReport(rep || null);
-      emitToast("Executive AI Intelligence updated from live database.", "success");
-    } catch (_) {
-      emitToast("Could not refresh AI intelligence.", "error");
+      const res = await auraAiClient.undoAdminAction(actionId);
+      if (res?.success) {
+        emitToast(res.message || "Reverted store change.", "success");
+        setActions((prev) =>
+          prev.map((a) =>
+            a.actionId === actionId ? { ...a, reverted: true, revertedAt: new Date().toISOString() } : a
+          )
+        );
+      } else {
+        emitToast(res?.message || "Undo failed.", "error");
+      }
     } finally {
-      setLoadingExecutive(false);
+      setUndoingId("");
+    }
+  };
+
+  const handleDeleteAction = async (actionId) => {
+    setActions((prev) => prev.filter((a) => a.actionId !== actionId));
+    await auraAiClient.deleteAdminActionLog(actionId).catch(() => {});
+  };
+
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    if (!newTask.title.trim() || !newTask.prompt.trim() || creatingTask) return;
+    setCreatingTask(true);
+    try {
+      const res = await auraAiClient.createAdminTask(newTask);
+      if (res?.success && res.task) {
+        setTasks((prev) => [res.task, ...prev]);
+        setNewTask({
+          title: "",
+          prompt: "",
+          taskType: "growth_audit",
+          durationMinutes: 60,
+          intervalMinutes: 15
+        });
+        emitToast("Autonomous background task started.", "success");
+      } else {
+        emitToast(res?.message || "Failed to create task.", "error");
+      }
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  const handleTaskControl = async (taskId, command, extra = {}) => {
+    const res = await auraAiClient.controlAdminTask(taskId, command, extra);
+    if (res?.success) {
+      if (res.task) {
+        setTasks((prev) => prev.map((t) => (t.taskId === taskId ? res.task : t)));
+      } else {
+        loadTasks(true);
+      }
+      emitToast(res.message || `Task ${command} completed.`, "success");
+    } else {
+      emitToast(res?.message || "Task command failed.", "error");
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    setTasks((prev) => prev.filter((t) => t.taskId !== taskId));
+    await auraAiClient.deleteAdminTask(taskId).catch(() => {});
+    emitToast("Task removed.", "success");
+  };
+
+  const handleAutoFix = async () => {
+    setAutoFixing(true);
+    try {
+      const res = await auraAiClient.executeAdminAgentAction("AUTO_FIX_BUGS", {});
+      if (res?.success) {
+        emitToast(res.result?.title || "Detected issues auto-repaired.", "success");
+        actionsLoadedRef.current = false;
+        await loadDiagnostics(false);
+      } else {
+        emitToast(res?.message || "Auto-fix failed.", "error");
+      }
+    } finally {
+      setAutoFixing(false);
+    }
+  };
+
+  const handleRetrainPublicTrends = async () => {
+    setRetraining(true);
+    try {
+      const res = await auraAiClient.executeAdminAgentAction("RETRAIN_AI_KNOWLEDGE", { forceRefresh: true });
+      if (res?.success) {
+        emitToast("RAG knowledge & public trends retrained.", "success");
+        if (res.result?.trends) setPublicTrends(res.result.trends);
+        else {
+          const fresh = await auraAiClient.getPublicTrends(true);
+          if (fresh) setPublicTrends(fresh);
+        }
+        actionsLoadedRef.current = false;
+      } else {
+        emitToast(res?.message || "Retrain failed.", "error");
+      }
+    } finally {
+      setRetraining(false);
     }
   };
 
@@ -147,911 +328,1131 @@ export function AdminAI() {
     e.preventDefault();
     setSavingSettings(true);
     try {
-      const res = await auraAiClient.updateSettings(settings);
-      if (res && res.success) {
+      const res = await auraAiClient.updateSettings({
+        ...settings,
+        selectedNimModel: settings.nemotronModel
+      });
+      if (res?.success) {
         setSavedSuccess(true);
+        emitToast("Aura AI settings updated.", "success");
         setTimeout(() => setSavedSuccess(false), 3000);
+      } else {
+        emitToast(res?.message || "Failed to save settings.", "error");
       }
     } catch (err) {
-      emitToast("Failed to save settings: " + err.message, "error");
+      emitToast(`Failed to save settings: ${err?.message || "Unknown error"}`, "error");
     } finally {
       setSavingSettings(false);
     }
   };
 
-  const filteredConvos = conversations.filter(c => {
-    if (!searchConvo) return true;
+  const filteredConvos = conversations.filter((c) => {
+    if (!searchConvo.trim()) return true;
     const q = searchConvo.toLowerCase();
     return (
       (c.userName && c.userName.toLowerCase().includes(q)) ||
       (c.userEmail && c.userEmail.toLowerCase().includes(q)) ||
-      (c.title && c.title.toLowerCase().includes(q))
+      (c.title && c.title.toLowerCase().includes(q)) ||
+      (c.lastMessageText && c.lastMessageText.toLowerCase().includes(q))
     );
   });
 
-  const escalations = conversations.filter(c => c.requiresHumanSupport || c.status === "Escalated");
+  const escalations = conversations.filter((c) => c.requiresHumanSupport || c.status === "Escalated");
 
   return (
     <AdminLayout>
-      <div className="admin-ai-page">
-        {/* Top Header */}
-        <div className="admin-ai-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-          <div className="admin-ai-title-wrap" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div
+        className="mx-auto max-w-[1440px] space-y-5 bg-[#F8FAFC] p-4 sm:p-6"
+        style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+      >
+        {/* Top Command Center Header */}
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
-              onClick={() => {
-                if (window.history.length > 1) {
-                  navigate(-1);
-                } else {
-                  navigate("/admin");
-                }
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                background: "#ffffff",
-                border: "1px solid #ebd8c5",
-                borderRadius: "8px",
-                padding: "8px 12px",
-                fontSize: "12.5px",
-                fontWeight: 700,
-                color: "#7a320c",
-                cursor: "pointer",
-                boxShadow: "0 1px 3px rgba(43, 23, 13, 0.06)",
-                flexShrink: 0
-              }}
-              title="Go back to previous page"
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/admin"))}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
             >
-              <ArrowLeft size={16} /> Back
+              <ArrowLeft size={14} />
+              <span>Back</span>
             </button>
-            <div className="admin-ai-icon-box">
-              <Sparkles size={24} />
-            </div>
-            <div>
-              <h1 className="admin-ai-title" style={{ margin: 0, fontSize: "clamp(16px, 4vw, 20px)", fontWeight: 800 }}>Aura Autonomous Admin Agent</h1>
-              <p className="admin-ai-subtitle" style={{ margin: "2px 0 0", fontSize: "12px", color: "#806f62" }}>
-                Command Center · Full Database Control, 1-Click Undo & Live Preview
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">
+                Aura AI Command Center
+              </h1>
+              <p className="truncate text-xs text-slate-500">
+                Autonomous Store Agent · Live Diagnostics · Customer Bot Telemetry
               </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <button
-              onClick={loadAll}
-              style={{
-                background: "#fff", border: "1px solid #ebd8c5", borderRadius: "8px",
-                padding: "7px 12px", fontSize: "12px", fontWeight: 600, color: "#7a320c",
-                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "5px"
-              }}
+          <div className="flex items-center gap-2">
+            <Link
+              to="/admin/ai-chats"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              <RotateCcw size={13} /> Refresh
+              <MessageSquare size={13} />
+              <span>All Customer Chats</span>
+              <ExternalLink size={11} className="text-slate-400" />
+            </Link>
+            <button
+              type="button"
+              onClick={handleGlobalRefresh}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#8C2B10] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#73230c]"
+            >
+              <RefreshCw size={13} />
+              <span>Refresh Live Data</span>
             </button>
-            <span style={{ fontSize: "12px", fontWeight: 700, color: settings.enabled ? "#047857" : "#b45309", padding: "6px 10px", background: settings.enabled ? "#ecfdf5" : "#fef3c7", borderRadius: "6px", border: `1px solid ${settings.enabled ? "#a7f3d0" : "#fde68a"}` }}>
-              {settings.enabled ? "Aura AI Active" : "Aura AI Paused"}
-            </span>
           </div>
-        </div>
+        </header>
 
-                {/* Tab Navigation */}
-        <div className="admin-ai-tabs">
-          <button 
-            className={`admin-ai-tab ${activeTab === "agent" ? "active" : ""}`}
-            onClick={() => setActiveTab("agent")}
-          >
-            <Bot size={16} /> AI Agent Workspace
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "overview" ? "active" : ""}`}
-            onClick={() => setActiveTab("overview")}
-          >
-            <BarChart3 size={16} /> Overview & Metrics
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "conversations" ? "active" : ""}`}
-            onClick={() => setActiveTab("conversations")}
-          >
-            <MessageSquare size={16} /> Conversations ({conversations.length})
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "products" ? "active" : ""}`}
-            onClick={() => setActiveTab("products")}
-          >
-            <Boxes size={16} /> Product Controls
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "offers" ? "active" : ""}`}
-            onClick={() => setActiveTab("offers")}
-          >
-            <Tag size={16} /> Offer Controls
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "escalations" ? "active" : ""}`}
-            onClick={() => setActiveTab("escalations")}
-          >
-            <Headphones size={16} /> Support Escalations ({escalations.length})
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "intelligence" ? "active" : ""}`}
-            onClick={() => setActiveTab("intelligence")}
-          >
-            <Sparkles size={16} /> Executive AI Intelligence
-          </button>
-          <button 
-            className={`admin-ai-tab ${activeTab === "settings" ? "active" : ""}`}
-            onClick={() => setActiveTab("settings")}
-          >
-            <SettingsIcon size={16} /> AI Settings & Toggles
-          </button>
-        </div>
+        {/* Single-Level Top Navigation Tabs */}
+        <nav
+          aria-label="AI Command Center Sections"
+          className="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5"
+        >
+          {TOP_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-medium transition ${
+                  active
+                    ? "bg-[#8C2B10] font-semibold text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <Icon size={14} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-                {activeTab === "agent" && (
-          <AdminAIAgentChat pageContext="/admin/ai" />
-        )}
-        
-        {/* TAB 1: OVERVIEW & ANALYTICS */}
-        {activeTab === "overview" && (
-          <div className="admin-ai-tab-content">
-            {/* KPI Metric Cards */}
-            <div className="admin-ai-metrics-grid">
-              <div className="admin-ai-kpi-card">
-                <div className="kpi-icon-wrap" style={{ background: '#fef3e2', color: '#b45309' }}>
-                  <MessageSquare size={22} />
-                </div>
-                <div className="kpi-info">
-                  <span className="kpi-label">Total Conversations</span>
-                  <strong className="kpi-value">{analytics?.totalConvos ?? 0}</strong>
-                  <span className="kpi-sub">Real Aura AI sessions</span>
-                </div>
-              </div>
-
-              <div className="admin-ai-kpi-card">
-                <div className="kpi-icon-wrap" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
-                  <Users size={22} />
-                </div>
-                <div className="kpi-info">
-                  <span className="kpi-label">Active AI Users</span>
-                  <strong className="kpi-value">{analytics?.activeUsers ?? 0}</strong>
-                  <span className="kpi-sub">Unique devotees guided</span>
-                </div>
-              </div>
-
-              <div className="admin-ai-kpi-card">
-                <div className="kpi-icon-wrap" style={{ background: '#fdf2f8', color: '#be185d' }}>
-                  <Boxes size={22} />
-                </div>
-                <div className="kpi-info">
-                  <span className="kpi-label">Products Recommended</span>
-                  <strong className="kpi-value">{analytics?.recommendedCount ?? 0}</strong>
-                  <span className="kpi-sub">Suggested in AI chats</span>
-                </div>
-              </div>
-
-              <div className="admin-ai-kpi-card">
-                <div className="kpi-icon-wrap" style={{ background: '#ecfdf5', color: '#047857' }}>
-                  <ShoppingCart size={22} />
-                </div>
-                <div className="kpi-info">
-                  <span className="kpi-label">Add to Cart from AI</span>
-                  <strong className="kpi-value">{analytics?.cartConversions ?? 0}</strong>
-                  <span className="kpi-sub">Direct AI additions</span>
-                </div>
-              </div>
-
-              <div className="admin-ai-kpi-card">
-                <div className="kpi-icon-wrap" style={{ background: '#fefce8', color: '#a16207' }}>
-                  <TrendingUp size={22} />
-                </div>
-                <div className="kpi-info">
-                  <span className="kpi-label">AI Conversion Rate</span>
-                  <strong className="kpi-value">{analytics?.conversionRate ?? "0.0"}%</strong>
-                  <span className="kpi-sub">AI-attributed orders / conversations</span>
-                </div>
-              </div>
-
-              <div className="admin-ai-kpi-card">
-                <div className="kpi-icon-wrap" style={{ background: '#f0fdf4', color: '#15803d' }}>
-                  <DollarSign size={22} />
-                </div>
-                <div className="kpi-info">
-                  <span className="kpi-label">Revenue Generated via AI</span>
-                  <strong className="kpi-value">₹{(analytics?.revenueFromAI ?? 0).toLocaleString('en-IN')}</strong>
-                  <span className="kpi-sub">Real orders matching AI cart adds</span>
-                </div>
-              </div>
-            </div>
-
-            {!analytics?.hasData && (
-              <div className="admin-ai-panel-card" style={{ marginBottom: "16px", background: "#fffdf9", border: "1.5px dashed #ebd8c5", color: "#806f62", fontSize: "13px" }}>
-                 <b>No Aura AI data yet.</b> Metrics above are real counters starting at 0 - they populate as customers use the Aura AI assistant.
-              </div>
-            )}
-
-            {/* Visual Insights & Top Inquiries */}
-            <div className="admin-ai-insights-grid">
-              {/* Funnel & Categories */}
-              <div className="admin-ai-panel-card">
-                <h3 className="panel-card-title">Category Inquiries Distribution</h3>
-                <p className="panel-card-sub">Top categories devotees ask Aura AI to recommend</p>
-                <div className="admin-ai-cat-breakdown">
-                  {(!analytics?.categoryBreakdown || analytics.categoryBreakdown.length === 0) ? (
-                    <p style={{ color: "#806f62", fontSize: "12.5px", fontStyle: "italic", margin: 0 }}>
-                      No AI recommendation data yet - categories appear as customers chat with Aura AI.
-                    </p>
-                  ) : analytics.categoryBreakdown.map((cat, idx) => (
-                    <div key={idx} className="cat-bar-row">
-                      <div className="cat-bar-header">
-                        <span>{cat.name}</span>
-                        <b>{cat.percentage}%</b>
-                      </div>
-                      <div className="cat-progress-track">
-                        <div 
-                          className="cat-progress-fill" 
-                          style={{ 
-                            width: `${cat.percentage}%`,
-                            background: idx === 0 ? '#b45309' : idx === 1 ? '#047857' : idx === 2 ? '#1d4ed8' : '#7c3aed'
-                          }} 
-                        />
-                      </div>
-                    </div>
-                  ))
-                  }
-                </div>
-              </div>
-
-              {/* Top Questions Table */}
-              <div className="admin-ai-panel-card">
-                <h3 className="panel-card-title">Top Asked Questions & Themes</h3>
-                <p className="panel-card-sub">Most frequent user search prompts handled by Aura AI</p>
-                <div className="top-queries-list">
-                  {(analytics?.topQuestions || []).map((q, idx) => (
-                    <div key={idx} className="query-row">
-                      <span className="query-rank">#{idx + 1}</span>
-                      <span className="query-text">{q.query}</span>
-                      <span className="query-count-badge">{q.count} queries</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* VIEW 1: AGENT STUDIO (No nested tabs) */}
+        {activeTab === "agent" && (
+          <AdminAIAgentChat
+            embedStudio
+            pageContext="/admin/ai"
+            onActionExecuted={() => {
+              actionsLoadedRef.current = false;
+              diagnosticsLoadedRef.current = false;
+            }}
+          />
         )}
 
-        {/* TAB 2: CONVERSATIONS HISTORY */}
-        {activeTab === "conversations" && (
-          <div className="admin-ai-tab-content">
-            <div className="admin-ai-table-header">
-              <div className="admin-ai-search-box">
-                <Search size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search by customer name, email or topic..."
-                  value={searchConvo}
-                  onChange={e => setSearchConvo(e.target.value)}
-                />
-              </div>
-              <div className="admin-ai-table-count">
-                Showing {filteredConvos.length} conversation(s)
-              </div>
-            </div>
-
-            <div className="admin-ai-table-wrap">
-              <table className="admin-ai-table">
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>Topic / Title</th>
-                    <th>Messages</th>
-                    <th>Recommended</th>
-                    <th>Added to Cart</th>
-                    <th>Status</th>
-                    <th>Last Active</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredConvos.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '32px' }}>
-                        No conversations found matching your search.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredConvos.map(c => (
-                      <tr key={c.id}>
-                        <td>
-                          <div className="customer-cell">
-                            <strong>{c.userName || "Guest Devotee"}</strong>
-                            <small>{c.userEmail || "guest-session"}</small>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="convo-topic-badge">{c.title || "Rudraksha Guidance"}</span>
-                        </td>
-                        <td>
-                          <span className="msg-count-pill">{c.messages?.length || 2}</span>
-                        </td>
-                        <td>
-                          <span className="rec-count-badge">
-                            {c.productsRecommended?.length || 1} item(s)
-                          </span>
-                        </td>
-                        <td>
-                          {c.addedToCart && c.addedToCart.length > 0 ? (
-                            <span className="cart-added-badge">✓ {c.addedToCart.length} Added</span>
-                          ) : (
-                            <span className="cart-none-badge">-</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`status-badge ${c.requiresHumanSupport ? "escalated" : "active"}`}>
-                            {c.requiresHumanSupport ? "Needs Support" : "Completed"}
-                          </span>
-                        </td>
-                        <td>
-                          <small>{c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently"}</small>
-                        </td>
-                        <td>
-                          <button 
-                            onClick={() => setSelectedConvo(c)}
-                            className="btn-view-timeline"
-                          >
-                            <Eye size={14} /> Timeline
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Conversation Timeline Modal */}
-            {selectedConvo && (
-              <div className="admin-ai-modal-backdrop" onClick={() => setSelectedConvo(null)}>
-                <div className="admin-ai-modal" onClick={e => e.stopPropagation()}>
-                  <div className="modal-header">
-                    <div>
-                      <h3 style={{ margin: 0 }}>Conversation Timeline: {selectedConvo.userName || "Devotee"}</h3>
-                      <small style={{ color: '#666' }}>{selectedConvo.userEmail || "Guest"} • Session #{selectedConvo.id}</small>
-                    </div>
-                    <button onClick={() => setSelectedConvo(null)} className="modal-close-btn">
-                      <X size={20} />
-                    </button>
-                  </div>
-
-                  <div className="modal-body">
-                    <div className="timeline-thread">
-                      {(selectedConvo.messages || []).map((m, idx) => (
-                        <div key={idx} className={`timeline-msg ${m.sender === "user" ? "user" : "ai"}`}>
-                          <div className="timeline-msg-header">
-                            <b>{m.sender === "user" ? (selectedConvo.userName || "User") : "Aura AI"}</b>
-                            <small>{m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : ""}</small>
-                          </div>
-                          <div className="timeline-msg-text">
-                            {m.text}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="modal-footer">
-                    <button onClick={() => setSelectedConvo(null)} className="btn-close-modal">
-                      Close Timeline
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 3: PRODUCT CONTROLS */}
-        {activeTab === "products" && (
-          <div className="admin-ai-tab-content">
-            <div className="panel-intro-box">
-              <h3>AI Catalog Recommendation Rules</h3>
-              <p>Configure which energized beads, Malas, and combos Aura AI prioritizes when customers request guidance.</p>
-            </div>
-
-            <div className="admin-ai-table-wrap">
-              <table className="admin-ai-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th>Price</th>
-                    <th>Stock Status</th>
-                    <th>AI Recommend</th>
-                    <th>Featured in AI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.slice(0, 10).map(p => (
-                    <tr key={p.id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <img 
-                            src={p.image || "https://i.ibb.co/LdQy0rC/rudraksha-placeholder.jpg"} 
-                            alt={p.name} 
-                            style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }}
-                            referrerPolicy="no-referrer"
-                          />
-                          <div>
-                            <strong>{p.name}</strong>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{p.category || "Rudraksha"}</td>
-                      <td><b>₹{Number(p.price).toLocaleString("en-IN")}</b></td>
-                      <td>
-                        {Number(p.stock) > 0 ? (
-                          <span className="stock-pill in-stock">In Stock ({p.stock})</span>
-                        ) : (
-                          <span className="stock-pill" style={{ background: "#ffebee", color: "#c62828" }}>Out of Stock</span>
-                        )}
-                      </td>
-                      <td>
-                        {isPublicProduct(p) && Number(p.stock) > 0 ? (
-                          <span className="toggle-pill active">✓ Eligible</span>
-                        ) : (
-                          <span className="toggle-pill" style={{ background: "#f5f5f4", color: "#806f62" }}>Hidden from AI</span>
-                        )}
-                      </td>
-                      <td>
-                        <span style={{ fontSize: "12px", color: "#806f62" }}>{p.badge || p.highlight ? "Catalog priority" : "Standard"}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: OFFER CONTROLS */}
-        {activeTab === "offers" && (
-          <div className="admin-ai-tab-content">
-            <div className="panel-intro-box">
-              <h3>AI Active Offer & Coupon Suggestion Engine</h3>
-              <p>Aura AI will only suggest verified, non-expired coupons to customers that meet cart minimum requirements.</p>
-            </div>
-
-            <div className="admin-ai-table-wrap">
-              <table className="admin-ai-table">
-                <thead>
-                  <tr>
-                    <th>Coupon Code</th>
-                    <th>Discount</th>
-                    <th>Minimum Cart</th>
-                    <th>Status</th>
-                    <th>AI Suggestion</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {coupons.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: "center", padding: "28px", color: "#806f62", fontSize: "13px" }}>
-                        No coupons in the database yet. Create them under Admin → Coupons.
-                      </td>
-                    </tr>
-                  ) : coupons.map((c) => {
-                    const minAmt = Number(c.minAmount || c.minOrder || c.minOrderValue || 0);
-                    const expired = Boolean(c.expiry && new Date(c.expiry).getTime() < Date.now());
-                    const st = expired ? "Expired" : (c.status || "Active");
-                    return (
-                      <tr key={c.id || c.code}>
-                        <td>
-                          <span className="coupon-code-pill">{c.code}</span>
-                        </td>
-                        <td>
-                          <b>{c.type === "percentage" ? `${c.discount}% OFF` : `Flat ₹${c.discount} OFF`}</b>
-                        </td>
-                        <td>{minAmt > 0 ? `₹${minAmt.toLocaleString("en-IN")}` : "No minimum"}</td>
-                        <td>
-                          <span className={`stock-pill ${st === "Active" ? "in-stock" : ""}`} style={st !== "Active" ? { background: st === "Expired" ? "#ffebee" : "#fff8e1", color: st === "Expired" ? "#c62828" : "#d97706" } : undefined}>
-                            {st}
-                          </span>
-                        </td>
-                        <td>
-                          {st === "Active" ? (
-                            <span className="toggle-pill active">✓ Recommended by AI</span>
-                          ) : (
-                            <span className="toggle-pill" style={{ background: "#f5f5f4", color: "#806f62" }}>Not offered</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: SUPPORT ESCALATIONS */}
-        {activeTab === "escalations" && (
-          <div className="admin-ai-tab-content">
-            <div className="panel-intro-box">
-              <h3>Human Support Escalation Queue</h3>
-              <p>Devotees who requested live spiritual advice or complex custom combination queries.</p>
-            </div>
-
-            <div className="admin-ai-table-wrap">
-              <table className="admin-ai-table">
-                <thead>
-                  <tr>
-                    <th>Customer Name</th>
-                    <th>Contact Info</th>
-                    <th>Inquiry Summary</th>
-                    <th>Time</th>
-                    <th>Direct Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {escalations.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '32px' }}>
-                        No pending human support escalations. Aura AI is resolving customer queries smoothly!
-                      </td>
-                    </tr>
-                  ) : (
-                    escalations.map((esc, i) => (
-                      <tr key={i}>
-                        <td><strong>{esc.userName || "Devotee"}</strong></td>
-                        <td>{esc.userEmail || "+91 9672996531"}</td>
-                        <td>{esc.title || "Custom combination guidance"}</td>
-                        <td><small>{new Date(esc.updatedAt || Date.now()).toLocaleTimeString()}</small></td>
-                        <td>
-                          <a 
-                            href={`https://wa.me/919672996531?text=Namaste%20${encodeURIComponent(esc.userName || 'Devotee')},%20this%20is%20Aura%20Rudraksha%20support%20following%20up%20on%20your%20query`}
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="btn-wa-action"
-                          >
-                            <PhoneCall size={13} /> Follow Up on WhatsApp
-                          </a>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: EXECUTIVE AI INTELLIGENCE */}
-        {activeTab === "intelligence" && (
-          <div className="admin-ai-tab-content">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+        {/* VIEW 2: ACTION LEDGER */}
+        {activeTab === "actions" && (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4">
               <div>
-                <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#2d1810", margin: "0 0 4px 0", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Sparkles size={20} color="#b45309" /> NVIDIA Nemotron-3 Super Intelligence Engine
-                </h2>
-                <p style={{ margin: 0, fontSize: "13px", color: "#6b5e52" }}>
-                  Deep analytical insights, operational anomaly detection, inventory risks, and customer trends synthesized directly from live database metrics.
+                <h2 className="text-sm font-semibold text-slate-900">Action Ledger & 1-Click Rollback</h2>
+                <p className="text-xs text-slate-500">
+                  Audit log of all database writes executed by the Admin AI Agent with restore snapshots.
                 </p>
               </div>
               <button
                 type="button"
-                disabled={loadingExecutive}
-                onClick={handleRefreshExecutive}
-                style={{
-                  background: "linear-gradient(135deg, #b45309 0%, #78350f 100%)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "9px 16px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: loadingExecutive ? "not-allowed" : "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  boxShadow: "0 2px 8px rgba(180, 83, 9, 0.2)"
-                }}
+                onClick={loadActions}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
               >
-                <RotateCcw size={14} className={loadingExecutive ? "animate-spin" : ""} />
-                {loadingExecutive ? "Analyzing Live Database..." : "Re-Analyze Database"}
+                <RefreshCw size={12} className={loadingActions ? "animate-spin" : ""} />
+                <span>Reload Ledger</span>
               </button>
             </div>
 
-            {/* Executive Summary Banner */}
-            <div style={{ background: "linear-gradient(135deg, #fffdfa 0%, #fef3e2 100%)", border: "1.5px solid #fed7aa", borderRadius: "14px", padding: "20px", marginBottom: "20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                <div style={{ background: "#b45309", color: "#fff", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Executive Summary
+            {loadingActions ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
+                Loading action history...
+              </div>
+            ) : actions.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
+                No agent actions recorded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                {actions.map((act) => {
+                  const expanded = expandedActionId === act.actionId;
+                  return (
+                    <div key={act.actionId} className="p-4 transition hover:bg-slate-50/70">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10.5px] font-semibold uppercase ${
+                                act.reverted
+                                  ? "border border-amber-200 bg-amber-50 text-amber-800"
+                                  : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                              }`}
+                            >
+                              {act.reverted ? "Reverted" : "Applied"}
+                            </span>
+                            <h3 className="truncate text-sm font-semibold text-slate-900">{act.title}</h3>
+                          </div>
+                          {act.description && (
+                            <p className="mt-1 text-xs text-slate-600">{act.description}</p>
+                          )}
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
+                            <span>{act.actionType}</span>
+                            <span>·</span>
+                            <span>{act.targetCollection}</span>
+                            {act.previewRoute && (
+                              <>
+                                <span>·</span>
+                                <span>{act.previewRoute}</span>
+                              </>
+                            )}
+                            <span>·</span>
+                            <span className="tabular-nums">{formatDateTime(act.timestamp)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedActionId(expanded ? "" : act.actionId)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            {expanded ? "Hide Diff" : "Snapshot"}
+                          </button>
+                          {!act.reverted && (
+                            <button
+                              type="button"
+                              disabled={undoingId === act.actionId}
+                              onClick={() => handleUndo(act.actionId)}
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              {undoingId === act.actionId ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <RotateCcw size={12} />
+                              )}
+                              <span>Undo</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAction(act.actionId)}
+                            title="Delete action log"
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 hover:text-red-600"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {expanded && (
+                        <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
+                          <div>
+                            <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">
+                              Previous Snapshot
+                            </div>
+                            <pre className="max-h-48 overflow-auto rounded-lg border border-slate-200 bg-[#F8FAFC] p-2.5 font-mono text-[11px] text-slate-700">
+                              {JSON.stringify(act.previousData ?? null, null, 2)}
+                            </pre>
+                          </div>
+                          <div>
+                            <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">
+                              New State
+                            </div>
+                            <pre className="max-h-48 overflow-auto rounded-lg border border-slate-200 bg-[#F8FAFC] p-2.5 font-mono text-[11px] text-slate-700">
+                              {JSON.stringify(act.newData ?? null, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* VIEW 3: BACKGROUND TASKS */}
+        {activeTab === "tasks" && (
+          <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+            {/* Create Task Form */}
+            <form
+              onSubmit={handleCreateTask}
+              className="space-y-3.5 rounded-xl border border-slate-200 bg-white p-5 lg:col-span-4 lg:self-start"
+            >
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Schedule Autonomous Task</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Runs periodically on the server to monitor bugs, SEO, or growth.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-700">Task Title</label>
+                <input
+                  type="text"
+                  required
+                  value={newTask.title}
+                  onChange={(e) => setNewTask((p) => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g., Catalog SEO & Stock Watch"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-700">Task Type</label>
+                <select
+                  value={newTask.taskType}
+                  onChange={(e) => setNewTask((p) => ({ ...p, taskType: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
+                >
+                  <option value="growth_audit">Growth & Orders Audit</option>
+                  <option value="bug_scanner">Bug & Health Scanner</option>
+                  <option value="inventory_guardian">Inventory Guardian</option>
+                  <option value="seo_optimizer">SEO Optimizer</option>
+                  <option value="product_generator">Product Generator</option>
+                  <option value="custom">Custom Instruction</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-700">Execution Prompt</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={newTask.prompt}
+                  onChange={(e) => setNewTask((p) => ({ ...p, prompt: e.target.value }))}
+                  placeholder="Describe what the AI agent should inspect or fix on every interval..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-700">Duration (min)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={1440}
+                    value={newTask.durationMinutes}
+                    onChange={(e) => setNewTask((p) => ({ ...p, durationMinutes: Number(e.target.value) || 60 }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-xs tabular-nums focus:border-[#8C2B10] focus:outline-none"
+                  />
                 </div>
-                <span style={{ fontSize: "12px", color: "#78350f", fontWeight: 500 }}>
-                  Model: nvidia/nemotron-3-super-120b-a12b
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-700">Interval (min)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={180}
+                    value={newTask.intervalMinutes}
+                    onChange={(e) => setNewTask((p) => ({ ...p, intervalMinutes: Number(e.target.value) || 15 }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-xs tabular-nums focus:border-[#8C2B10] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={creatingTask}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#8C2B10] px-4 py-2 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
+              >
+                {creatingTask ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                <span>Launch Background Task</span>
+              </button>
+            </form>
+
+            {/* Task Queue */}
+            <div className="space-y-3 lg:col-span-8">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <span className="text-xs font-semibold text-slate-900">
+                  Scheduled Tasks ({tasks.length})
+                  {hasRunningTask ? " · Auto-refresh 15s" : ""}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => loadTasks(false)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  <RefreshCw size={12} className={loadingTasks ? "animate-spin" : ""} />
+                  <span>Sync</span>
+                </button>
               </div>
-              <p style={{ margin: 0, fontSize: "14.5px", lineHeight: "1.6", color: "#451a03", fontWeight: 500 }}>
-                {executiveReport?.executiveIntelligence?.executiveSummary || "Analyzing real-time store metrics..."}
-              </p>
-            </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px", marginBottom: "20px" }}>
-              {/* Anomalies & Alerts */}
-              <div className="admin-ai-panel-card" style={{ background: "#fff", border: "1px solid #ebd8c5", borderRadius: "12px", padding: "20px" }}>
-                <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#2d1810", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <ShieldCheck size={18} color="#dc2626" /> Operational & Inventory Anomalies
-                </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {(executiveReport?.executiveIntelligence?.anomalies || []).length === 0 ? (
-                    <p style={{ color: "#78350f", fontSize: "13px", margin: 0 }}>No operational anomalies detected in live records.</p>
-                  ) : (
-                    executiveReport.executiveIntelligence.anomalies.map((anom, idx) => (
-                      <div key={idx} style={{ background: anom.type === "warning" ? "#fef2f2" : "#f0fdf4", border: `1px solid ${anom.type === "warning" ? "#fecaca" : "#bbf7d0"}`, borderRadius: "8px", padding: "12px" }}>
-                        <div style={{ fontWeight: 600, fontSize: "13.5px", color: anom.type === "warning" ? "#991b1b" : "#166534", marginBottom: "4px" }}>
-                          {anom.title}
-                        </div>
-                        <div style={{ fontSize: "12.5px", color: anom.type === "warning" ? "#7f1d1d" : "#14532d", lineHeight: "1.5" }}>
-                          {anom.description}
-                        </div>
-                      </div>
-                    ))
-                  )}
+              {loadingTasks ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+                  Loading tasks...
                 </div>
-              </div>
-
-              {/* Product Opportunities */}
-              <div className="admin-ai-panel-card" style={{ background: "#fff", border: "1px solid #ebd8c5", borderRadius: "12px", padding: "20px" }}>
-                <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#2d1810", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <TrendingUp size={18} color="#059669" /> High-Value Product Opportunities
-                </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {(executiveReport?.executiveIntelligence?.productOpportunities || []).map((opp, idx) => (
-                    <div key={idx} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px" }}>
-                      <div style={{ fontWeight: 600, fontSize: "13.5px", color: "#0f172a", marginBottom: "4px" }}>
-                        {opp.title}
+              ) : tasks.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+                  No background tasks created yet.
+                </div>
+              ) : (
+                tasks.map((t) => (
+                  <div key={t.taskId} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10.5px] font-semibold uppercase ${
+                              t.status === "running"
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : t.status === "paused"
+                                ? "border border-amber-200 bg-amber-50 text-amber-800"
+                                : "border border-slate-200 bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                          <h3 className="truncate text-sm font-semibold text-slate-900">{t.title}</h3>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">{t.prompt}</p>
+                        <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-500">
+                          {t.taskType} · Runs: {t.runsCount || 0} · Every {t.intervalMinutes}m · Updated{" "}
+                          {formatDateTime(t.lastRunAt || t.startedAt)}
+                        </div>
                       </div>
-                      <div style={{ fontSize: "12.5px", color: "#475569", lineHeight: "1.5" }}>
-                        {opp.detail}
+
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleTaskControl(t.taskId, "run_now")}
+                          className="rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Run Now
+                        </button>
+                        {t.status === "running" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleTaskControl(t.taskId, "pause")}
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"
+                            title="Pause task"
+                          >
+                            <Pause size={13} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleTaskControl(t.taskId, "resume")}
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-emerald-700 hover:bg-emerald-50"
+                            title="Resume task"
+                          >
+                            <Play size={13} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleTaskControl(t.taskId, "stop")}
+                          className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"
+                          title="Stop task"
+                        >
+                          <Square size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTask(t.taskId)}
+                          className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 hover:text-red-600"
+                          title="Delete task"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
 
-            {/* Recommended Action Items */}
-            <div className="admin-ai-panel-card" style={{ background: "#fff", border: "1px solid #ebd8c5", borderRadius: "12px", padding: "20px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#2d1810", margin: "0 0 6px 0", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Sliders size={18} color="#b45309" /> Recommended Administrative Action Steps
-              </h3>
-              <p style={{ margin: "0 0 16px 0", fontSize: "12.5px", color: "#6b5e52" }}>
-                AI provides tactical recommendations. High-impact operations require authorized administrator approval.
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {(executiveReport?.executiveIntelligence?.recommendedActions || []).map((act, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#faf8f5", border: "1px solid #ebd8c5", borderRadius: "8px", padding: "12px 16px", flexWrap: "wrap", gap: "10px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <span style={{ background: act.priority === "High" ? "#fee2e2" : "#fef3c7", color: act.priority === "High" ? "#b91c1c" : "#92400e", fontSize: "11px", fontWeight: 700, padding: "3px 8px", borderRadius: "4px" }}>
-                        {act.priority} Priority
-                      </span>
-                      <span style={{ fontSize: "13.5px", fontWeight: 600, color: "#2d1810" }}>
-                        {act.action}
-                      </span>
-                      <span style={{ fontSize: "12px", color: "#78716c" }}>
-                        ({act.category})
-                      </span>
+                    {/* Dispatch Live Instruction */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={taskCmdInputs[t.taskId] || ""}
+                        onChange={(e) => setTaskCmdInputs((p) => ({ ...p, [t.taskId]: e.target.value }))}
+                        placeholder="Dispatch new instruction to this background worker..."
+                        className="flex-1 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-xs focus:border-[#8C2B10] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const instruction = (taskCmdInputs[t.taskId] || "").trim();
+                          if (!instruction) return;
+                          handleTaskControl(t.taskId, "send_command", { instruction });
+                          setTaskCmdInputs((p) => ({ ...p, [t.taskId]: "" }));
+                        }}
+                        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#8C2B10] hover:bg-[#8C2B10]/5"
+                      >
+                        <Send size={11} />
+                        <span>Dispatch</span>
+                      </button>
                     </div>
-                    {act.requiresAdminApproval && (
-                      <span style={{ fontSize: "11.5px", color: "#b45309", fontWeight: 600, background: "#fff", border: "1px solid #fed7aa", padding: "4px 10px", borderRadius: "6px" }}>
-                        Manual Admin Confirmation Required
-                      </span>
+
+                    {/* Latest Logs */}
+                    {Array.isArray(t.logs) && t.logs.length > 0 && (
+                      <div className="space-y-1.5 border-t border-slate-200 pt-2.5">
+                        {t.logs.slice(0, 3).map((lg, idx) => (
+                          <div
+                            key={lg.runId || idx}
+                            className="flex items-start justify-between gap-3 rounded-lg bg-[#F8FAFC] px-3 py-2 text-[11.5px]"
+                          >
+                            <span className="text-slate-700">{lg.summary || lg.aiOutput}</span>
+                            <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-slate-400">
+                              {formatDateTime(lg.timestamp)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* VIEW 4: DIAGNOSTICS & TRENDS */}
+        {activeTab === "diagnostics" && (
+          <section className="space-y-5">
+            {/* Control Strip */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Store Health, Auto-Fix & Public Trends RAG</h2>
+                <p className="text-xs text-slate-500">
+                  Live database diagnostics, growth audit insights, and public storefront knowledge retraining.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => loadDiagnostics(true)}
+                  disabled={loadingDiagnostics}
+                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <RefreshCw size={12} className={loadingDiagnostics ? "animate-spin" : ""} />
+                  <span>Scan Store</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAutoFix}
+                  disabled={autoFixing}
+                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#8C2B10] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
+                >
+                  {autoFixing ? <Loader2 size={12} className="animate-spin" /> : <Wrench size={12} />}
+                  <span>Auto-Fix Detected Issues</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRetrainPublicTrends}
+                  disabled={retraining}
+                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  {retraining ? <Loader2 size={12} className="animate-spin" /> : <TrendingUp size={12} />}
+                  <span>Retrain AI & Public Trends</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4-Column Flat KPI Bento */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-medium text-slate-500">Store Revenue</div>
+                <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                  ₹{Number(growthAudit?.metrics?.totalRevenue || 0).toLocaleString("en-IN")}
+                </div>
+                <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+                  {growthAudit?.metrics?.activeOrdersCount || 0} active orders · AOV ₹
+                  {Number(growthAudit?.metrics?.avgOrderValue || 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-medium text-slate-500">Catalog & Inventory</div>
+                <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                  {growthAudit?.metrics?.totalProducts || diagnostics?.metrics?.productsScanned || 0}
+                </div>
+                <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+                  {growthAudit?.metrics?.lowStockCount || 0} low stock ·{" "}
+                  {growthAudit?.metrics?.outOfStockCount || 0} out of stock
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-medium text-slate-500">Orders & Coupons</div>
+                <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                  {growthAudit?.metrics?.pendingFulfillmentCount || 0} pending
+                </div>
+                <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+                  {growthAudit?.metrics?.unpaidOnlineOrdersCount || 0} unpaid online ·{" "}
+                  {growthAudit?.metrics?.activeCouponsCount || 0} coupons
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-medium text-slate-500">Public RAG Knowledge Index</div>
+                <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                  {publicTrends?.indexedDocumentsCount || 0} docs
+                </div>
+                <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+                  {publicTrends?.totals?.publishedProducts || 0} published · Zero customer PII
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {/* Detected Bugs */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Website & Database Diagnostic ({diagnostics?.bugsCount || 0} issues)
+                  </h3>
+                  <span
+                    className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
+                      diagnostics?.metrics?.mongoConnected
+                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border border-amber-200 bg-amber-50 text-amber-800"
+                    }`}
+                  >
+                    {diagnostics?.metrics?.mongoConnected ? "MongoDB Live" : "Cache Fallback"}
+                  </span>
+                </div>
+
+                {loadingDiagnostics ? (
+                  <div className="py-8 text-center text-xs text-slate-500">Scanning store records...</div>
+                ) : !diagnostics?.bugs?.length ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-xs font-medium text-emerald-800">
+                    <ShieldCheck size={15} />
+                    <span>Zero critical bugs found across products, inventory, images, and coupons.</span>
+                  </div>
+                ) : (
+                  <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+                    {diagnostics.bugs.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-[#F8FAFC] p-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                                b.severity === "critical" || b.severity === "high"
+                                  ? "border border-red-200 bg-red-50 text-red-700"
+                                  : "border border-amber-200 bg-amber-50 text-amber-800"
+                              }`}
+                            >
+                              {b.severity}
+                            </span>
+                            <span className="truncate text-xs font-semibold text-slate-900">{b.title}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">{b.detail}</p>
+                        </div>
+                        <span className="shrink-0 font-mono text-[10.5px] text-slate-500">{b.category}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Growth Opportunities & Public Trends */}
+              <div className="space-y-5">
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Growth & Recovery Opportunities</h3>
+                  {!growthAudit?.opportunities?.length ? (
+                    <div className="text-xs text-slate-500">No urgent revenue recovery actions detected.</div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {growthAudit.opportunities.map((opp, i) => (
+                        <div key={i} className="rounded-lg border border-slate-200 bg-[#F8FAFC] p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-slate-900">{opp.title}</span>
+                            <span className="font-mono text-[10.5px] font-semibold uppercase text-[#8C2B10]">
+                              {opp.priority}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">{opp.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {publicTrends && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-900">Live Public Store Trends Feed</h3>
+                      <span className="font-mono text-[11px] text-slate-500">Public Safe · No PII</span>
+                    </div>
+                    {Array.isArray(publicTrends.categories) && publicTrends.categories.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {publicTrends.categories.slice(0, 6).map((cat, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-md border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs text-slate-700"
+                          >
+                            <span className="font-medium">{cat.name || cat.category}</span>
+                            {cat.count !== undefined && (
+                              <span className="ml-1.5 font-mono text-[11px] tabular-nums text-slate-500">
+                                ({cat.count})
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {publicTrends.shippingAndPayments && (
+                      <div className="rounded-lg border border-slate-200 bg-[#F8FAFC] p-3 font-mono text-[11px] text-slate-600">
+                        COD: {publicTrends.shippingAndPayments.codEnabled ? "ON" : "OFF"} · Online:{" "}
+                        {publicTrends.shippingAndPayments.onlinePaymentEnabled ? "ON" : "OFF"}
+                        {publicTrends.shippingAndPayments.freeShippingAbove
+                          ? ` · Free shipping ≥ ₹${publicTrends.shippingAndPayments.freeShippingAbove}`
+                          : ""}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* VIEW 5: CUSTOMER BOT ANALYTICS & CONVERSATIONS */}
+        {activeTab === "customer" && (
+          <section className="space-y-5">
+            {loadingCustomer ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
+                Loading Customer Aura AI analytics and conversations...
+              </div>
+            ) : (
+              <>
+                {/* Real DB KPIs */}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs font-medium text-slate-500">Total Chats</div>
+                    <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                      {analytics?.totalConvos ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs font-medium text-slate-500">Active Devotees</div>
+                    <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                      {analytics?.activeUsers ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs font-medium text-slate-500">Products Suggested</div>
+                    <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                      {analytics?.recommendedCount ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs font-medium text-slate-500">Cart Conversions</div>
+                    <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                      {analytics?.cartConversions ?? 0}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-500">
+                      Rate {analytics?.conversionRate || "0.0"}%
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-xs font-medium text-slate-500">Support Escalations</div>
+                    <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                      {analytics?.escalations ?? escalations.length}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                  {/* Intent Categories */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Customer Intent Distribution</h3>
+                    {!analytics?.categoryBreakdown?.length ? (
+                      <div className="text-xs text-slate-500">
+                        No recorded customer chat intents yet. Live breakdown updates automatically as devotees chat.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {analytics.categoryBreakdown.map((cat) => (
+                          <div key={cat.label} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium text-slate-800">{cat.label}</span>
+                              <span className="font-mono tabular-nums text-slate-500">
+                                {cat.count} ({cat.percent}%)
+                              </span>
+                            </div>
+                            <div className="h-2 w-full overflow-hidden rounded bg-slate-100">
+                              <div
+                                className="h-full rounded bg-[#8C2B10]"
+                                style={{ width: `${Math.max(4, Math.min(100, cat.percent))}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Real Top Customer Questions */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Top Real Customer Questions</h3>
+                    {!analytics?.topQuestions?.length ? (
+                      <div className="text-xs text-slate-500">
+                        No customer queries logged yet.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-200">
+                        {analytics.topQuestions.map((q, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-3 py-2.5 text-xs">
+                            <span className="truncate text-slate-800">{q.query}</span>
+                            <span className="shrink-0 font-mono tabular-nums font-semibold text-slate-600">
+                              {q.count}x
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Searchable Conversations & Knowledge Context */}
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                  <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 lg:col-span-8">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Recent Customer Bot Conversations ({filteredConvos.length})
+                      </h3>
+                      <div className="relative w-full sm:w-64">
+                        <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={searchConvo}
+                          onChange={(e) => setSearchConvo(e.target.value)}
+                          placeholder="Search user, email, or query..."
+                          className="w-full rounded-lg border border-slate-200 bg-[#F8FAFC] py-1.5 pl-8 pr-3 text-xs focus:border-[#8C2B10] focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {filteredConvos.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-500">
+                        No matching conversations found.
+                      </div>
+                    ) : (
+                      <div className="max-h-96 divide-y divide-slate-200 overflow-y-auto">
+                        {filteredConvos.slice(0, 30).map((c) => (
+                          <div
+                            key={c.conversationId || c.id}
+                            className="flex flex-wrap items-center justify-between gap-3 py-3"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                                <span className="truncate">{c.userName || "Guest Devotee"}</span>
+                                <span className="text-slate-300">·</span>
+                                <span className="font-mono text-[11px] font-normal text-slate-500">
+                                  {c.mode === "panditji" ? "AI Pandit Ji" : "Shopping Bot"}
+                                </span>
+                                {c.requiresHumanSupport && (
+                                  <>
+                                    <span className="text-slate-300">·</span>
+                                    <span className="text-[11px] font-semibold text-red-600">Escalated</span>
+                                  </>
+                                )}
+                              </div>
+                              <p className="mt-0.5 truncate text-xs text-slate-600">
+                                {c.lastMessageText || c.title || "Conversation session"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedConvo(c)}
+                              className="shrink-0 whitespace-nowrap rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              View Thread
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4 lg:col-span-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Database size={15} className="text-[#8C2B10]" />
+                        <span>Bot Grounding Inventory</span>
+                      </div>
+                      <div className="mt-3 space-y-2 text-xs text-slate-600">
+                        <div className="flex items-center justify-between">
+                          <span>Published Products Synced</span>
+                          <span className="font-mono font-semibold tabular-nums text-slate-900">
+                            {products.length}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Coupons Synced</span>
+                          <span className="font-mono font-semibold tabular-nums text-slate-900">
+                            {coupons.length}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Human Support Escalations ({escalations.length})
+                      </h3>
+                      {escalations.length === 0 ? (
+                        <p className="mt-2 text-xs text-slate-500">All inquiries resolved autonomously.</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {escalations.slice(0, 5).map((esc) => (
+                            <div
+                              key={esc.conversationId || esc.id}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate font-semibold text-slate-900">
+                                  {esc.userName || "Devotee"}
+                                </div>
+                                <div className="truncate text-[11px] text-slate-600">
+                                  {esc.userEmail || esc.userPhone || "Support Requested"}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedConvo(esc)}
+                                className="shrink-0 rounded bg-white px-2 py-1 text-[11px] font-semibold text-[#8C2B10]"
+                              >
+                                Inspect
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* VIEW 6: CONFIGURATION */}
+        {activeTab === "config" && (
+          <form onSubmit={handleSaveSettings} className="space-y-5">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="text-sm font-semibold text-slate-900">Storefront Availability & Placement</h2>
+                {[
+                  {
+                    key: "enabled",
+                    title: "Enable Customer Aura AI Engine",
+                    desc: "Globally enable customer shopping assistant and AI Pandit Ji endpoints."
+                  },
+                  {
+                    key: "showFloatingButton",
+                    title: "Show Floating Assistant Launcher",
+                    desc: "Display the bottom-right customer AI chat button on storefront pages."
+                  },
+                  {
+                    key: "showHeaderButton",
+                    title: "Show Header AI Launcher",
+                    desc: "Show the Aura AI entry button in the storefront header bar."
+                  }
+                ].map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex cursor-pointer items-center justify-between gap-4 border-t border-slate-100 pt-3 first:border-t-0 first:pt-0"
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-slate-900">{item.title}</div>
+                      <div className="text-[11.5px] text-slate-500">{item.desc}</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settings[item.key])}
+                      onChange={(e) => setSettings((s) => ({ ...s, [item.key]: e.target.checked }))}
+                      className="h-4 w-4 accent-[#8C2B10]"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="text-sm font-semibold text-slate-900">Capabilities & Conversion Controls</h2>
+                {[
+                  {
+                    key: "recommendProducts",
+                    title: "Live Product Recommendations",
+                    desc: "Recommend matched Rudraksha & Malas from catalog."
+                  },
+                  {
+                    key: "recommendOffers",
+                    title: "Active Coupon Suggestions",
+                    desc: "Share only verified active Admin coupon codes."
+                  },
+                  {
+                    key: "cartActions",
+                    title: "Direct Add-to-Cart Actions",
+                    desc: "Enable 1-click cart additions inside bot replies."
+                  },
+                  {
+                    key: "orderSupport",
+                    title: "Authenticated Order Tracking",
+                    desc: "Allow signed-in users to inspect order status."
+                  },
+                  {
+                    key: "humanSupport",
+                    title: "Human WhatsApp Escalation",
+                    desc: "Provide official phone/WhatsApp support when requested."
+                  }
+                ].map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex cursor-pointer items-center justify-between gap-4 border-t border-slate-100 pt-3 first:border-t-0 first:pt-0"
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-slate-900">{item.title}</div>
+                      <div className="text-[11.5px] text-slate-500">{item.desc}</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settings[item.key])}
+                      onChange={(e) => setSettings((s) => ({ ...s, [item.key]: e.target.checked }))}
+                      className="h-4 w-4 accent-[#8C2B10]"
+                    />
+                  </label>
                 ))}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB 6: SETTINGS */}
-        {activeTab === "settings" && (
-          <div className="admin-ai-tab-content">
-            <form onSubmit={handleSaveSettings} className="admin-ai-settings-form">
-              <div className="settings-section-card">
-                <h3 className="section-title">General Availability & Placement</h3>
-                
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Master Aura AI Engine</strong>
-                    <p>Globally enable or pause Aura AI assistant across the website.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.enabled} 
-                    onChange={e => setSettings({ ...settings, enabled: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Show Floating Aura AI Button</strong>
-                    <p>Show the bottom-right animated assistant launcher button.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.showFloatingButton} 
-                    onChange={e => setSettings({ ...settings, showFloatingButton: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Show Header ✨ Aura AI Pill</strong>
-                    <p>Show animated pill button right before Wishlist icon in Header.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.showHeaderButton} 
-                    onChange={e => setSettings({ ...settings, showHeaderButton: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-              </div>
-
-              <div className="settings-section-card">
-                <h3 className="section-title">Language & Tone Persona</h3>
-
-                <div className="form-field-group">
-                  <label>Primary Language Support</label>
-                  <select 
-                    value={settings.language} 
-                    onChange={e => setSettings({ ...settings, language: e.target.value })}
-                    className="admin-select"
-                  >
-                    <option value="auto">Auto Detect (Hindi, English & Hinglish)</option>
-                    <option value="hi">Hindi (Spiritual Shuddh & Natural)</option>
-                    <option value="en">English (Professional & Respectful)</option>
-                    <option value="hinglish">Hinglish (Casual & Conversational)</option>
-                  </select>
-                </div>
-
-                <div className="form-field-group">
-                  <label>Spiritual Tone & Persona</label>
-                  <select 
-                    value={settings.tone} 
-                    onChange={e => setSettings({ ...settings, tone: e.target.value })}
-                    className="admin-select"
-                  >
-                    <option value="polite_spiritual">Polite, Respectful & Vedic Spiritual (Recommended)</option>
-                    <option value="concise">Concise & Direct E-Commerce Guide</option>
-                    <option value="friendly">Warm, Energetic & Friendly</option>
-                  </select>
-                </div>
-
-                <div className="form-field-group">
-                  <label>Default Welcoming Greeting</label>
-                  <textarea 
-                    rows={3} 
-                    value={settings.greeting} 
-                    onChange={e => setSettings({ ...settings, greeting: e.target.value })}
-                    className="admin-textarea"
-                  />
-                </div>
-              </div>
-
-              <div className="settings-section-card">
-                <h3 className="section-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Sparkles size={18} color="#b45309" /> NVIDIA NIM Engine Configuration
-                </h3>
-                <p style={{ fontSize: "13px", color: "#6b5e52", marginBottom: "16px" }}>
-                  Model selection for real-time customer consultations, AI Pandit Ji, and catalog recommendations. The API key is securely managed server-side.
-                </p>
-
-                <div className="form-field-group">
-                  <label>NVIDIA NIM / Nemotron Model</label>
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="text-sm font-semibold text-slate-900">Language, Persona & Model Engine</h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-700">Primary Language</label>
                   <select
-                    value={settings.nemotronModel || "nvidia/nemotron-3-super-120b-a12b"}
-                    onChange={e => setSettings({ ...settings, nemotronModel: e.target.value })}
-                    className="admin-select"
+                    value={settings.language}
+                    onChange={(e) => setSettings((s) => ({ ...s, language: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
                   >
-                    <option value="nvidia/nemotron-3-super-120b-a12b">⚡ Nemotron-3 Super 120B (nvidia/nemotron-3-super-120b-a12b) [Default]</option>
-                    <option value="nvidia/llama-3.1-nemotron-70b-instruct">⚡ Llama 3.1 Nemotron 70B (nvidia/llama-3.1-nemotron-70b-instruct)</option>
-                    <option value="meta/llama-3.3-70b-instruct">✨ Meta Llama 3.3 70B (meta/llama-3.3-70b-instruct)</option>
-                    <option value="meta/llama-3.1-70b-instruct">✨ Meta Llama 3.1 70B (meta/llama-3.1-70b-instruct)</option>
-                    <option value="nvidia/nemotron-4-340b-instruct">🚀 Nemotron-4 340B (nvidia/nemotron-4-340b-instruct)</option>
-                    <option value="meta/llama-3.1-8b-instruct">⚡ Fast Llama 3.1 8B (meta/llama-3.1-8b-instruct)</option>
-                    <option value="mistralai/mistral-7b-instruct-v0.3">⚡ Mistral 7B Instruct v0.3</option>
+                    <option value="auto">Auto Detect (Hindi, English, Hinglish)</option>
+                    <option value="hi">Hindi (Spiritual Natural)</option>
+                    <option value="en">English (Professional)</option>
+                    <option value="hinglish">Hinglish (Conversational)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-700">Response Persona</label>
+                  <select
+                    value={settings.tone}
+                    onChange={(e) => setSettings((s) => ({ ...s, tone: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
+                  >
+                    <option value="polite_spiritual">Polite & Vedic Spiritual (Recommended)</option>
+                    <option value="concise">Concise E-Commerce Guide</option>
+                    <option value="friendly">Warm & Conversational</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-700">Primary NVIDIA NIM Model</label>
+                  <select
+                    value={settings.nemotronModel || "nvidia/llama-3.1-nemotron-70b-instruct"}
+                    onChange={(e) => setSettings((s) => ({ ...s, nemotronModel: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
+                  >
+                    {NIM_MODEL_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              <div className="settings-section-card">
-                <h3 className="section-title">Feature Capabilities</h3>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Product Recommendations</strong>
-                    <p>Allow AI to suggest matched Rudraksha beads & Malas from catalog.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.recommendProducts} 
-                    onChange={e => setSettings({ ...settings, recommendProducts: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Active Offer & Coupon Recommendations</strong>
-                    <p>Allow AI to suggest active discount coupons to eligible carts.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.recommendOffers} 
-                    onChange={e => setSettings({ ...settings, recommendOffers: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Direct Cart Control</strong>
-                    <p>Allow 1-click Add to Cart from AI recommendations.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.cartActions} 
-                    onChange={e => setSettings({ ...settings, cartActions: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Order Status Support</strong>
-                    <p>Allow authenticated users to track their verified orders via AI.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.orderSupport} 
-                    onChange={e => setSettings({ ...settings, orderSupport: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
-
-                <div className="setting-toggle-row">
-                  <div>
-                    <strong>Human Support Escalation</strong>
-                    <p>Provide WhatsApp and phone escalation when user asks for human consultant.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={settings.humanSupport} 
-                    onChange={e => setSettings({ ...settings, humanSupport: e.target.checked })}
-                    className="toggle-switch"
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-700">Default Customer Greeting</label>
+                <textarea
+                  rows={2}
+                  value={settings.greeting}
+                  onChange={(e) => setSettings((s) => ({ ...s, greeting: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
+                />
               </div>
 
-              <div className="settings-submit-bar">
+              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-3">
                 {savedSuccess && (
-                  <span className="save-success-msg">
-                    <Check size={16} /> Aura AI settings updated and deployed live!
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                    <Check size={14} />
+                    <span>Saved and deployed live</span>
                   </span>
                 )}
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={savingSettings}
-                  className="btn-save-settings"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#8C2B10] px-4 py-2 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
                 >
-                  {savingSettings ? "Saving Settings..." : "Save AI Configuration"}
+                  {savingSettings ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  <span>Save AI Configuration</span>
                 </button>
               </div>
-            </form>
+            </div>
+          </form>
+        )}
+
+        {/* Conversation Transcript Modal */}
+        {selectedConvo && (
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4"
+            onClick={() => setSelectedConvo(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-semibold text-slate-900">
+                    {selectedConvo.userName || "Guest Devotee"}
+                  </h3>
+                  <p className="truncate font-mono text-[11px] text-slate-500">
+                    {selectedConvo.userEmail || selectedConvo.guestSessionId || selectedConvo.id}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedConvo(null)}
+                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 space-y-3 overflow-y-auto bg-[#F8FAFC] p-4">
+                {(selectedConvo.messages || []).length === 0 ? (
+                  <div className="text-center text-xs text-slate-500">No messages in transcript.</div>
+                ) : (
+                  (selectedConvo.messages || []).map((m, idx) => (
+                    <div
+                      key={m.id || idx}
+                      className={`rounded-lg border p-3 text-xs ${
+                        m.sender === "user"
+                          ? "ml-8 border-slate-200 bg-white text-slate-900"
+                          : "mr-8 border-slate-200 bg-[#FFFFFF] text-slate-800"
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center justify-between font-mono text-[10.5px] text-slate-500">
+                        <span className="font-sans font-semibold text-slate-700">
+                          {m.sender === "user" ? "Customer" : "Aura AI"}
+                        </span>
+                        <span className="tabular-nums">{formatDateTime(m.timestamp)}</span>
+                      </div>
+                      <div className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
     </AdminLayout>
   );
 }
+
+export default AdminAI;

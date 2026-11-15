@@ -3003,11 +3003,20 @@ ${memoryContextText || "Guest shopper."}`;
       // Reliable streaming timeout (12 seconds wait for first token from NVIDIA NIM)
       const STREAM_INIT_TIMEOUT_MS = 12000;
 
-      // 1. Primary Streaming Execution: NVIDIA NIM nemotron-3-super-120b-a12b
-      // Fast deterministic bypass for pure calculator & 1-14 Mukhi complete catalog queries
+      // Build deduplicated NIM candidate list honoring admin's configured model first
+      let adminConfiguredNimModel = "";
+      if (isDbConnected()) {
+        try {
+          const nimSetting = await AuraAISetting.findOne().select("selectedNimModel nemotronModel nvidiaModel").lean();
+          adminConfiguredNimModel = (nimSetting?.selectedNimModel || nimSetting?.nemotronModel || nimSetting?.nvidiaModel || "").trim();
+        } catch (_) {}
+      }
+      const nimCandidates = [...new Set([adminConfiguredNimModel, PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS].filter(Boolean))];
+
+      // 1. Primary Streaming Execution: NVIDIA NIM with multi-model failover
       const shouldUseDeterministicStandard = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
       if (nvidiaClient && !clientDisconnected && !shouldUseDeterministicStandard) {
-        for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+        for (const modelCandidate of nimCandidates) {
           if (streamSucceeded || clientDisconnected) break;
           
           try {
@@ -3053,8 +3062,48 @@ ${memoryContextText || "Guest shopper."}`;
               clearInterval(heartbeatTimer);
               return;
             }
-            console.warn(`[Aura AI Streaming] NVIDIA NIM notice (${modelCandidate}):`, streamErr?.message || streamErr);
-            break; // Failover fast to smart fallback
+            console.warn(`[Aura AI Streaming] NVIDIA NIM failover notice (${modelCandidate}):`, streamErr?.message || streamErr);
+            continue;
+          }
+        }
+      }
+
+      // 1.5 Gemini Streaming Fallback if NIM failed or had no key
+      if (!streamSucceeded && !clientDisconnected && !shouldUseDeterministicStandard) {
+        await resolveGeminiKey();
+        const geminiClient = getGeminiClient();
+        if (geminiClient) {
+          const gContents = convertNimMessagesToGemini(prunedNimMessages);
+          for (const gModel of GEMINI_TEXT_MODELS) {
+            if (streamSucceeded || clientDisconnected) break;
+            try {
+              const gResp = await Promise.race([
+                geminiClient.models.generateContent({
+                  model: gModel,
+                  contents: gContents,
+                  config: { systemInstruction: effectiveSystemPrompt, temperature: 0.35 }
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), 12000))
+              ]);
+              const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+              if (gText.trim()) {
+                fullStreamedText = gText.trim();
+                const gTokens = fullStreamedText.split(/(\s+)/);
+                for (let i = 0; i < gTokens.length; i += 4) {
+                  if (clientDisconnected) break;
+                  const chunkStr = gTokens.slice(i, i + 4).join("");
+                  if (chunkStr) {
+                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                    res.flush?.();
+                  }
+                }
+                streamSucceeded = true;
+                break;
+              }
+            } catch (gErr) {
+              console.warn(`[Aura AI Streaming] Gemini fallback notice (${gModel}):`, gErr?.message || gErr);
+              continue;
+            }
           }
         }
       }
@@ -3203,13 +3252,22 @@ ${memoryContextText || "Guest shopper."}`;
     // Prune initial messages if near token budget limit (~8000 words)
     const nonStreamPrunedMsgs = pruneMessagesForTokenLimit(nimMessages, 8000);
 
-    // 1. Prioritize NVIDIA NIM models strictly (skip for deterministic calculator / 1-14 Mukhi range)
+    // 1. Prioritize configured/primary NVIDIA NIM models with true multi-model failover
     const nonStreamNvidiaClient = getNvidiaClient();
-    const NON_STREAM_TIMEOUT_MS = 2500;
+    const NON_STREAM_TIMEOUT_MS = 6000;
     const shouldUseDeterministicNonStream = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
 
+    let nonStreamConfiguredModel = "";
+    if (isDbConnected()) {
+      try {
+        const nsSetting = await AuraAISetting.findOne().select("selectedNimModel nemotronModel nvidiaModel").lean();
+        nonStreamConfiguredModel = (nsSetting?.selectedNimModel || nsSetting?.nemotronModel || nsSetting?.nvidiaModel || "").trim();
+      } catch (_) {}
+    }
+    const nonStreamNimCandidates = [...new Set([nonStreamConfiguredModel, PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS].filter(Boolean))];
+
     if (nonStreamNvidiaClient && !shouldUseDeterministicNonStream) {
-      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+      for (const modelCandidate of nonStreamNimCandidates) {
         if (generatedSuccessfully) break;
         try {
           const compPromise = nonStreamNvidiaClient.chat.completions.create({
@@ -3231,8 +3289,39 @@ ${memoryContextText || "Guest shopper."}`;
             break;
           }
         } catch (nimErr) {
-          console.warn(`[Aura AI Non-Stream] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
-          break;
+          console.warn(`[Aura AI Non-Stream] NVIDIA NIM failover notice (${modelCandidate}):`, nimErr?.message || nimErr);
+          continue;
+        }
+      }
+    }
+
+    // 1.5 Gemini Non-Stream Fallback if NIM failed or is unconfigured
+    if (!generatedSuccessfully && !shouldUseDeterministicNonStream) {
+      await resolveGeminiKey();
+      const nonStreamGemini = getGeminiClient();
+      if (nonStreamGemini) {
+        const gContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
+        for (const gModel of GEMINI_TEXT_MODELS) {
+          if (generatedSuccessfully) break;
+          try {
+            const gResp = await Promise.race([
+              nonStreamGemini.models.generateContent({
+                model: gModel,
+                contents: gContents,
+                config: { systemInstruction: effectiveSystemPrompt, temperature: 0.35 }
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_NONSTREAM_TIMEOUT")), 8000))
+            ]);
+            const outContent = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+            if (outContent.trim()) {
+              aiResponseText = outContent;
+              generatedSuccessfully = true;
+              break;
+            }
+          } catch (gErr) {
+            console.warn(`[Aura AI Non-Stream] Gemini fallback notice (${gModel}):`, gErr?.message || gErr);
+            continue;
+          }
         }
       }
     }
@@ -3681,7 +3770,9 @@ export async function getAuraAISettings(req, res, next) {
       recommendOffers: true,
       cartActions: true,
       orderSupport: true,
-      humanSupport: true
+      humanSupport: true,
+      nemotronModel: PRIMARY_NIM_MODEL,
+      selectedNimModel: PRIMARY_NIM_MODEL
     };
 
     if (isDbConnected()) {
@@ -3834,7 +3925,7 @@ export async function getAuraAIAnalytics(req, res, next) {
     }
 
     const convos = await AuraAIConversation.find()
-      .select("userId guestSessionId productsRecommended cartConversions requiresHumanSupport updatedAt")
+      .select("userId guestSessionId mode productsRecommended cartConversions requiresHumanSupport messages updatedAt")
       .sort({ updatedAt: -1 })
       .limit(300)
       .maxTimeMS(6000)
@@ -3850,10 +3941,51 @@ export async function getAuraAIAnalytics(req, res, next) {
 
     let recommendedCount = 0;
     let cartConversions = 0;
+    const questionFreq = new Map();
+    const categoryCounts = {
+      "Product Consultation": 0,
+      "Vedic Astrology & Kundali": 0,
+      "Order & Delivery Support": 0,
+      "Offers & Discounts": 0
+    };
+
     convos.forEach(c => {
       recommendedCount += (c.productsRecommended || []).length;
       cartConversions += (c.cartConversions || 0);
+      if (c.mode === "panditji") categoryCounts["Vedic Astrology & Kundali"] += 1;
+
+      const userMsgs = Array.isArray(c.messages)
+        ? c.messages.filter(m => m?.sender === "user" && typeof m.text === "string" && m.text.trim().length > 4)
+        : [];
+      userMsgs.forEach(m => {
+        const cleanQ = m.text.trim().slice(0, 72);
+        const lower = cleanQ.toLowerCase();
+        if (/kundli|kundali|rashi|dasha|horoscope|graha|astro/i.test(lower)) {
+          categoryCounts["Vedic Astrology & Kundali"] += 1;
+        } else if (/order|track|ship|delivery|cancel|refund/i.test(lower)) {
+          categoryCounts["Order & Delivery Support"] += 1;
+        } else if (/offer|coupon|discount|deal|code/i.test(lower)) {
+          categoryCounts["Offers & Discounts"] += 1;
+        } else {
+          categoryCounts["Product Consultation"] += 1;
+        }
+        questionFreq.set(cleanQ, (questionFreq.get(cleanQ) || 0) + 1);
+      });
     });
+
+    const totalCatHits = Object.values(categoryCounts).reduce((a, b) => a + b, 0);
+    const categoryBreakdown = totalCatHits > 0
+      ? Object.entries(categoryCounts).map(([label, count]) => ({
+          label,
+          count,
+          percent: Math.round((count / totalCatHits) * 100)
+        }))
+      : [];
+
+    const topQuestions = Array.from(questionFreq.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([query, count]) => ({ query, count }));
 
     const conversionRate = totalConvos > 0 ? (((cartConversions / totalConvos) * 100)).toFixed(1) : "0.0";
 
@@ -3867,13 +3999,9 @@ export async function getAuraAIAnalytics(req, res, next) {
         conversionRate,
         revenueFromAI: cartConversions * 2499,
         escalations: convos.filter(c => c.requiresHumanSupport).length,
-        topQuestions: [
-          { query: "Best Rudraksha for career & money", count: 42 },
-          { query: "Vedic Kundali analysis & Shani Shanti", count: 38 },
-          { query: "Original 5 Mukhi Nepal Jaap Mala", count: 29 },
-          { query: "How to wear & consecrate Rudraksha", count: 24 }
-        ],
-        hasData: true
+        categoryBreakdown,
+        topQuestions,
+        hasData: totalConvos > 0
       }
     });
   } catch (err) {

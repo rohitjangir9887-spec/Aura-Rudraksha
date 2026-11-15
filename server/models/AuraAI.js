@@ -20,7 +20,10 @@ const auraAISettingSchema = new mongoose.Schema(
     personalization: { type: Boolean, default: true },
     nvidiaApiKey: { type: String, default: "" },
     nemotronApiKey: { type: String, default: "" },
-    nemotronModel: { type: String, default: "nvidia/nemotron-3-super-120b-a12b" }
+    geminiApiKey: { type: String, default: "" },
+    nemotronModel: { type: String, default: "nvidia/llama-3.1-nemotron-70b-instruct" },
+    selectedNimModel: { type: String, default: "" },
+    nvidiaModel: { type: String, default: "" }
   },
   { timestamps: true }
 );

@@ -342,62 +342,34 @@ export function AdminLayout({ children }) {
       {/* On-Demand Lazy Autonomous AI Agent Copilot Drawer (Mounts ONLY when Admin opens it) */}
       {agentDrawerOpen && !isDedicatedAiPage && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9990,
-            background: "rgba(24, 14, 8, 0.45)",
-            display: "flex",
-            justifyContent: "flex-end"
-          }}
+          className="fixed inset-0 z-[9990] flex justify-end bg-slate-900/45 backdrop-blur-[1px]"
           onClick={() => setAgentDrawerOpen(false)}
         >
           <div
-            style={{
-              width: "min(620px, 100vw)",
-              height: "100vh",
-              background: "#faf7f2",
-              display: "flex",
-              flexDirection: "column",
-              boxShadow: "-8px 0 32px rgba(0,0,0,0.22)"
-            }}
+            className="flex h-screen w-[min(640px,100vw)] flex-col border-l border-slate-200 bg-[#F8FAFC] shadow-2xl"
+            style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                padding: "8px 14px",
-                background: "#fdfbf7",
-                borderBottom: "1px solid #e5d8c8",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                fontSize: "12px",
-                color: "#5c2b09"
-              }}
-            >
-              <span style={{ fontWeight: 700 }}>
-                Copilot Context: {location.pathname}
-              </span>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-700">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="font-semibold text-slate-900">Copilot Studio</span>
+                <span className="text-slate-300">·</span>
+                <span className="truncate font-mono text-[11px] text-slate-500">{location.pathname}</span>
+              </div>
               <Link
                 to="/admin/ai"
                 onClick={() => setAgentDrawerOpen(false)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  color: "#7c2d12",
-                  fontWeight: 700,
-                  textDecoration: "none"
-                }}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-[#8C2B10] transition hover:border-[#8C2B10]/30 hover:bg-[#8C2B10]/5"
               >
-                <Maximize2 size={12} /> Full Command Center
+                <Maximize2 size={12} />
+                <span>Full Command Center</span>
               </Link>
             </div>
-            <div style={{ flex: 1, minHeight: 0, padding: "10px" }}>
+            <div className="min-h-0 flex-1 overflow-hidden p-3">
               <Suspense
                 fallback={
-                  <div style={{ padding: "32px", textAlign: "center", color: "#7c2d12", fontSize: "13px", fontWeight: 600 }}>
-                    Waking Autonomous AI Agent...
+                  <div className="flex h-full items-center justify-center text-sm font-medium text-slate-600">
+                    Loading AI Copilot Studio...
                   </div>
                 }
               >

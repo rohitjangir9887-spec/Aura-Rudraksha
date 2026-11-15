@@ -324,3 +324,148 @@ describe("Public Store Trends Endpoint (/api/aura-ai/public-trends)", () => {
   });
 });
 
+describe("Admin AI Auto-Fix, Background Tasks CRUD & Customer Bot (/api/aura-ai/chat)", () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/aura-ai", auraAiRouter);
+
+  let server;
+  let baseUrl = "";
+  const adminToken = "admin_test_session";
+
+  beforeAll(async () => {
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const addr = server.address();
+    baseUrl = `http://127.0.0.1:${addr.port}`;
+  });
+
+  afterAll(async () => {
+    if (server) await new Promise((resolve) => server.close(resolve));
+  });
+
+  test("AUTO_FIX_BUGS repairs in-memory product issues and logs action when DB is in fallback mode", async () => {
+    const prevProds = inMemoryStore.products;
+    const prevSynced = inMemoryStore.isProductsSyncedFromDb;
+    inMemoryStore.products = TEST_CATALOG.map(p => ({ ...p, images: [...(p.images || [])] }));
+    inMemoryStore.isProductsSyncedFromDb = true;
+
+    try {
+      const res = await executeAdminAgentAction({
+        type: "AUTO_FIX_BUGS",
+        data: {}
+      }, { sessionId: "test_autofix_sess", source: "vitest" });
+
+      expect(res.actionType).toBe("AUTO_FIX_BUGS");
+      expect(Array.isArray(res.fixedList)).toBe(true);
+      expect(res.fixedList.length).toBeGreaterThanOrEqual(2);
+
+      const repairedProd2 = inMemoryStore.products.find(p => p.id === "prod_2");
+      expect(repairedProd2.stock).toBeGreaterThanOrEqual(20);
+      expect(repairedProd2.description.length).toBeGreaterThanOrEqual(40);
+    } finally {
+      inMemoryStore.products = prevProds;
+      inMemoryStore.isProductsSyncedFromDb = prevSynced;
+    }
+  });
+
+  test("Admin background tasks CRUD works cleanly with pause and delete", async () => {
+    const createRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        title: "Vitest Growth Audit Task",
+        prompt: "Check inventory and revenue status",
+        taskType: "growth_audit",
+        durationMinutes: 30,
+        intervalMinutes: 10
+      })
+    });
+    expect(createRes.status).toBe(200);
+    const createdJson = await createRes.json();
+    expect(createdJson.success).toBe(true);
+    expect(createdJson.task?.taskId).toBeTruthy();
+
+    const taskId = createdJson.task.taskId;
+
+    const listRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/tasks`, {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    expect(listRes.status).toBe(200);
+    const listJson = await listRes.json();
+    expect(listJson.tasks.some(t => t.taskId === taskId)).toBe(true);
+
+    const pauseRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/tasks/${taskId}/control`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ command: "pause" })
+    });
+    expect(pauseRes.status).toBe(200);
+    const pauseJson = await pauseRes.json();
+    expect(pauseJson.task?.status).toBe("paused");
+
+    const delRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/tasks/${taskId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    expect(delRes.status).toBe(200);
+    const delJson = await delRes.json();
+    expect(delJson.success).toBe(true);
+  });
+
+  test("Customer Aura AI bot (/api/aura-ai/chat) responds reliably in JSON and SSE streaming modes", async () => {
+    const prevProds = inMemoryStore.products;
+    const prevSynced = inMemoryStore.isProductsSyncedFromDb;
+    inMemoryStore.products = TEST_CATALOG.map(p => ({ ...p }));
+    inMemoryStore.isProductsSyncedFromDb = true;
+
+    try {
+      const jsonRes = await fetch(`${baseUrl}/api/aura-ai/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Guest-Session-ID": "vitest_guest_1"
+        },
+        body: JSON.stringify({
+          message: "5 mukhi rudraksha price aur delivery batao",
+          mode: "standard"
+        })
+      });
+      expect(jsonRes.status).toBe(200);
+      const payload = await jsonRes.json();
+      expect(payload.success).toBe(true);
+      expect(typeof (payload.data?.text || payload.text)).toBe("string");
+      expect((payload.data?.text || payload.text).length).toBeGreaterThan(15);
+
+      const sseRes = await fetch(`${baseUrl}/api/aura-ai/chat?stream=true`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          "X-Guest-Session-ID": "vitest_guest_2"
+        },
+        body: JSON.stringify({
+          message: "7 mukhi rudraksha ke fayde batao",
+          mode: "standard",
+          stream: true
+        })
+      });
+      expect(sseRes.status).toBe(200);
+      expect(sseRes.headers.get("content-type")).toContain("text/event-stream");
+      const sseBody = await sseRes.text();
+      expect(sseBody).toContain("data: ");
+      expect(sseBody).toContain("[DONE]");
+    } finally {
+      inMemoryStore.products = prevProds;
+      inMemoryStore.isProductsSyncedFromDb = prevSynced;
+    }
+  });
+});
+
+

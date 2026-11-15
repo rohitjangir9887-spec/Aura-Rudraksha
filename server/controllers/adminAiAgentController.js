@@ -15,6 +15,10 @@ import { isDbConnected, getMongoUri, getLastDbSync, connectDB } from "../config/
 import { PRIMARY_NIM_MODEL, setCachedNvidiaKey } from "./auraAiController.js";
 import {
   WEBSITE_PAGES_DIRECTORY,
+  memChatSessions,
+  memActionLogs,
+  memTasks,
+  memWorkLogs,
   recordPrivateWorkLog,
   invokeAdminLLM,
   getCompleteWebsiteSnapshot,
@@ -33,7 +37,7 @@ const DEFAULT_SESSION_ID = "admin_master_session";
 const WELCOME_MSG = {
   id: "amsg_welcome",
   sender: "ai",
-  text: "**Aura Autonomous Admin Agent** active.\n\nMain aapke poore Aura Rudraksha Store aur MongoDB Database par direct Read/Write actions execute kar sakta hoon:\n- **Catalog & Pricing**: Naye products (Nepali/Indonesian) upload karo, price/stock badlo, ya sabhi items par **bulk % discount** lagao\n- **Orders & Tracking**: Pending/unpaid orders inspect karo, status update karo, tracking AWB & courier set karo\n- **Coupons, Active Offer & Banners**: Coupons create/pause/delete karo, Central Active Offer & Hero Banners control karo\n- **Payment & Store Settings**: Cash on Delivery (COD), Online PayU, shipping fee, ya announcement bar ON/OFF karo\n- **Bug Auto-Fix & Growth Copilot**: Store bugs scan/repair karo, VIP repeat buyers list, aur conversion insights dekho\n- **1-Click Undo & Live Preview**: Har change ke sath 1-click Undo backup aur live split-view preview",
+  text: "**Aura Autonomous Admin Agent** active.\n\nMain aapke poore Aura Rudraksha Store aur MongoDB Database par direct Read/Write actions execute kar sakta hoon:\n- **Catalog & Pricing**: Naye products (Nepali/Indonesian) upload karo, price/stock badlo, ya sabhi items par **bulk % discount** lagao\n- **Orders & Tracking**: Pending/unpaid orders inspect karo, status update karo, tracking AWB & courier set karo\n- **Coupons, Active Offer & Banners**: Coupons create/pause/delete karo, Central Active Offer & Hero Banners control karo\n- **Payment & Store Settings**: Cash on Delivery (COD), Online PayU, shipping fee, ya announcement bar ON/OFF karo\n- **Bug Auto-Fix & Growth Copilot**: Store bugs scan/repair karo, VIP repeat buyers list, aur conversion insights dekho\n- **Live Public Trends Training**: Customer Aura AI ke RAG knowledge index ko turant live catalog & trends par train karo\n- **1-Click Undo & Live Preview**: Har change ke sath 1-click Undo backup aur live split-view preview",
   status: "completed",
   modelUsed: PRIMARY_NIM_MODEL,
   actionsExecuted: [],
@@ -56,16 +60,20 @@ async function getOrCreateSessionDoc(sessionId = DEFAULT_SESSION_ID) {
         });
         doc = created.toObject ? created.toObject() : created;
       }
+      memChatSessions.set(sessionId, doc);
       return doc;
     } catch (_) {}
   }
-  return {
-    sessionId,
-    title: "Admin Command Center Chat",
-    status: "idle",
-    messages: [WELCOME_MSG],
-    lastUpdatedAt: new Date().toISOString()
-  };
+  if (!memChatSessions.has(sessionId)) {
+    memChatSessions.set(sessionId, {
+      sessionId,
+      title: "Admin Command Center Chat",
+      status: "idle",
+      messages: [WELCOME_MSG],
+      lastUpdatedAt: new Date().toISOString()
+    });
+  }
+  return memChatSessions.get(sessionId);
 }
 
 /**
@@ -95,9 +103,16 @@ export async function handleAdminAgentChat(req, res) {
       timestamp: new Date().toISOString()
     };
 
-    // 1. Immediately persist user message into MongoDB
+    // 1. Immediately persist user message into memory + MongoDB
     let sessionDoc = await getOrCreateSessionDoc(sessionId);
     const updatedMessagesWithUser = [...(sessionDoc.messages || []), userMsgObj];
+    memChatSessions.set(sessionId, {
+      ...sessionDoc,
+      status: "processing",
+      lastPrompt: userText,
+      messages: updatedMessagesWithUser,
+      lastUpdatedAt: new Date().toISOString()
+    });
 
     if (isDbConnected()) {
       await AdminAIChatSession.findOneAndUpdate(
@@ -198,7 +213,14 @@ EXECUTION RULES:
 
     const finalMessages = [...updatedMessagesWithUser, aiMsgObj];
 
-    // 4. Save completed AI response to MongoDB
+    // 4. Save completed AI response to memory + MongoDB
+    memChatSessions.set(sessionId, {
+      ...sessionDoc,
+      status: "completed",
+      lastPrompt: userText,
+      messages: finalMessages,
+      lastUpdatedAt: new Date().toISOString()
+    });
     if (isDbConnected()) {
       await AdminAIChatSession.findOneAndUpdate(
         { sessionId },
@@ -269,6 +291,14 @@ export async function deleteAdminAgentMessage(req, res) {
   try {
     const { messageId } = req.params;
     const sessionId = req.query.sessionId || DEFAULT_SESSION_ID;
+    if (memChatSessions.has(sessionId)) {
+      const existing = memChatSessions.get(sessionId);
+      memChatSessions.set(sessionId, {
+        ...existing,
+        messages: (existing.messages || []).filter(m => m.id !== messageId),
+        lastUpdatedAt: new Date().toISOString()
+      });
+    }
     if (isDbConnected()) {
       await AdminAIChatSession.updateOne(
         { sessionId },
@@ -288,6 +318,14 @@ export async function deleteAdminAgentMessage(req, res) {
 export async function clearAdminAgentSession(req, res) {
   try {
     const sessionId = req.query.sessionId || req.body?.sessionId || DEFAULT_SESSION_ID;
+    const freshSession = {
+      sessionId,
+      title: "Admin Command Center Chat",
+      status: "idle",
+      messages: [WELCOME_MSG],
+      lastUpdatedAt: new Date().toISOString()
+    };
+    memChatSessions.set(sessionId, freshSession);
     if (isDbConnected()) {
       await AdminAIChatSession.findOneAndUpdate(
         { sessionId },
@@ -295,7 +333,7 @@ export async function clearAdminAgentSession(req, res) {
           $set: {
             status: "idle",
             messages: [WELCOME_MSG],
-            lastUpdatedAt: new Date().toISOString()
+            lastUpdatedAt: freshSession.lastUpdatedAt
           }
         },
         { upsert: true }
@@ -340,19 +378,24 @@ export async function executeDirectAdminActionEndpoint(req, res) {
       return res.status(400).json({ success: false, message: result?.error || "Could not execute action." });
     }
 
-    // Also append a confirmation message in the Admin Chat Session in MongoDB
+    const sysMsg = {
+      id: "amsg_act_" + Date.now(),
+      sender: "ai",
+      text: `**Action Executed:** ${result.title}\n\nAap iska live preview dekh sakte hain ya **Undo** button se kabhi bhi rollback kar sakte hain.`,
+      status: "completed",
+      modelUsed: PRIMARY_NIM_MODEL,
+      actionsExecuted: [result],
+      previewRoute: result.previewRoute || "/",
+      previewTitle: result.previewTitle || result.title,
+      timestamp: new Date().toISOString()
+    };
+    const currSess = await getOrCreateSessionDoc(sessionId);
+    memChatSessions.set(sessionId, {
+      ...currSess,
+      messages: [...(currSess.messages || []), sysMsg],
+      lastUpdatedAt: new Date().toISOString()
+    });
     if (isDbConnected()) {
-      const sysMsg = {
-        id: "amsg_act_" + Date.now(),
-        sender: "ai",
-        text: `✅ **Action Executed:** ${result.title}\n\nAap iska live preview dekh sakte hain ya **Undo** button se kabhi bhi rollback kar sakte hain.`,
-        status: "completed",
-        modelUsed: PRIMARY_NIM_MODEL,
-        actionsExecuted: [result],
-        previewRoute: result.previewRoute || "/",
-        previewTitle: result.previewTitle || result.title,
-        timestamp: new Date().toISOString()
-      };
       await AdminAIChatSession.updateOne(
         { sessionId },
         { $push: { messages: sysMsg }, $set: { lastUpdatedAt: new Date().toISOString() } }
@@ -370,6 +413,8 @@ export async function getAdminActionLogsEndpoint(req, res) {
     let logs = [];
     if (isDbConnected()) {
       logs = await AdminAIActionLog.find().sort({ createdAt: -1 }).limit(100).lean();
+    } else {
+      logs = Array.from(memActionLogs.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     }
     return res.json({ success: true, actions: logs });
   } catch (err) {
@@ -390,10 +435,11 @@ export async function undoAdminActionEndpoint(req, res) {
 export async function deleteAdminActionLogEndpoint(req, res) {
   try {
     const { actionId } = req.params;
+    memActionLogs.delete(actionId);
     if (isDbConnected()) {
       await AdminAIActionLog.deleteOne({ actionId });
     }
-    return res.json({ success: true, message: "Action log deleted from MongoDB." });
+    return res.json({ success: true, message: "Action log removed." });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -404,9 +450,11 @@ export async function getAdminTasksEndpoint(req, res) {
     let tasks = [];
     if (isDbConnected()) {
       tasks = await AdminAITask.find().sort({ createdAt: -1 }).limit(50).lean();
-      if (tasks.some(t => t.status === "running")) {
-        startAdminAgentBackgroundLoop();
-      }
+    } else {
+      tasks = Array.from(memTasks.values()).sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    }
+    if (tasks.some(t => t.status === "running")) {
+      startAdminAgentBackgroundLoop();
     }
     return res.json({ success: true, tasks });
   } catch (err) {
@@ -431,16 +479,34 @@ export async function createAdminTaskEndpoint(req, res) {
 }
 
 /**
- * Control Background Task (pause, resume, stop, run_now)
+ * Control Background Task (pause, resume, stop, run_now, send_command)
  */
 export async function controlAdminTaskEndpoint(req, res) {
   try {
     const { taskId } = req.params;
-    const { command, instruction, prompt } = req.body || {}; // 'pause' | 'resume' | 'stop' | 'run_now' | 'send_command'
+    const { command, instruction, prompt } = req.body || {};
 
     if (command === "send_command" || command === "update_instruction") {
       const newPrompt = (instruction || prompt || "").trim();
       if (newPrompt) {
+        const memT = memTasks.get(taskId);
+        if (memT) {
+          memTasks.set(taskId, {
+            ...memT,
+            prompt: newPrompt,
+            status: "running",
+            logs: [
+              {
+                runId: "cmd_" + Date.now(),
+                timestamp: new Date().toISOString(),
+                status: "command_received",
+                summary: `Admin dispatched instruction: "${newPrompt.slice(0, 120)}"`,
+                aiOutput: `Task instruction updated to: "${newPrompt}"`
+              },
+              ...(memT.logs || [])
+            ]
+          });
+        }
         if (isDbConnected()) {
           await AdminAITask.updateOne({ taskId }, {
             $set: { prompt: newPrompt, status: "running" },
@@ -464,15 +530,15 @@ export async function controlAdminTaskEndpoint(req, res) {
           title: `Command Sent to Task: ${taskId}`,
           detail: newPrompt
         });
-        const runLog = await executeSingleTaskCycle(taskId);
-        const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : null;
+        const runLog = await executeSingleTaskCycle(taskId, { forceRun: true });
+        const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : memTasks.get(taskId) || null;
         return res.json({ success: true, runLog, task: updated, message: "Command dispatched and cycle executed!" });
       }
     }
 
     if (command === "run_now") {
-      const runLog = await executeSingleTaskCycle(taskId);
-      const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : null;
+      const runLog = await executeSingleTaskCycle(taskId, { forceRun: true });
+      const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : memTasks.get(taskId) || null;
       return res.json({ success: true, runLog, task: updated });
     }
 
@@ -481,10 +547,14 @@ export async function controlAdminTaskEndpoint(req, res) {
       command === "resume" ? "running" :
       command === "stop" ? "stopped" : "running";
 
+    if (memTasks.has(taskId)) {
+      memTasks.set(taskId, { ...memTasks.get(taskId), status: newStatus });
+    }
     if (isDbConnected()) {
       await AdminAITask.updateOne({ taskId }, { $set: { status: newStatus } });
     }
-    const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : null;
+    if (newStatus === "running") startAdminAgentBackgroundLoop();
+    const updated = isDbConnected() ? await AdminAITask.findOne({ taskId }).lean() : memTasks.get(taskId) || null;
     return res.json({ success: true, task: updated });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -492,15 +562,16 @@ export async function controlAdminTaskEndpoint(req, res) {
 }
 
 /**
- * Delete Background Task from MongoDB
+ * Delete Background Task
  */
 export async function deleteAdminTaskEndpoint(req, res) {
   try {
     const { taskId } = req.params;
+    memTasks.delete(taskId);
     if (isDbConnected()) {
       await AdminAITask.deleteOne({ taskId });
     }
-    return res.json({ success: true, message: "Task deleted from MongoDB." });
+    return res.json({ success: true, message: "Task deleted." });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -518,19 +589,19 @@ export async function getAdminVaultAndWorkLogs(req, res) {
     }
 
     const startPing = Date.now();
-    let workLogs = [];
-    let chatSessions = [];
-    let actionLogs = [];
-    let tasks = [];
+    let workLogs = [...memWorkLogs];
+    let chatSessions = Array.from(memChatSessions.values());
+    let actionLogs = Array.from(memActionLogs.values());
+    let tasks = Array.from(memTasks.values());
     let counts = {
       products: 0,
       orders: 0,
       customers: 0,
       coupons: 0,
-      adminSessions: 0,
-      adminActions: 0,
-      adminTasks: 0,
-      workLogs: 0
+      adminSessions: chatSessions.length,
+      adminActions: actionLogs.length,
+      adminTasks: tasks.length,
+      workLogs: workLogs.length
     };
 
     if (connected) {
@@ -596,11 +667,17 @@ export async function getAdminVaultAndWorkLogs(req, res) {
 }
 
 /**
- * Delete Private Work Log(s) from MongoDB
+ * Delete Private Work Log(s)
  */
 export async function deleteAdminWorkLogEndpoint(req, res) {
   try {
     const { logId } = req.params;
+    if (logId === "all") {
+      memWorkLogs.length = 0;
+    } else {
+      const idx = memWorkLogs.findIndex(w => w.logId === logId);
+      if (idx !== -1) memWorkLogs.splice(idx, 1);
+    }
     if (isDbConnected()) {
       if (logId === "all") {
         await AdminAIWorkLog.deleteMany({});
